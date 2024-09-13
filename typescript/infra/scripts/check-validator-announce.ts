@@ -8,6 +8,17 @@ import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 const minimumValidatorCount = 3;
 
+const getMinimumThreshold = (validatorCount: number): number =>
+  Math.floor(validatorCount / 2) + 1;
+
+const thresholdOK = 'threshold OK';
+const totalOK = 'total OK';
+
+enum CheckResult {
+  OK = '✅',
+  WARNING = '🚨',
+}
+
 async function main() {
   const { environment, chains } = await withChains(getArgs()).argv;
   const config = getEnvironmentConfig(environment);
@@ -37,17 +48,22 @@ async function main() {
 
       const validatorCount = validators.length;
       const unannouncedValidatorCount = unannouncedValidators.length;
+
       const threshold = defaultMultisigConfigs[chain].threshold;
+      const minimumThreshold = getMinimumThreshold(validatorCount);
 
       return {
         chain,
         threshold,
-        'threshold OK':
-          threshold <= validatorCount / 2 || threshold > validatorCount
-            ? '🚨'
-            : '✅',
+        [thresholdOK]:
+          threshold < minimumThreshold || threshold > validatorCount
+            ? CheckResult.WARNING
+            : CheckResult.OK,
         total: validatorCount,
-        'total OK': validatorCount < minimumValidatorCount ? '🚨' : '✅',
+        [totalOK]:
+          validatorCount < minimumValidatorCount
+            ? CheckResult.WARNING
+            : CheckResult.OK,
         unannounced:
           unannouncedValidatorCount > 0 ? unannouncedValidatorCount : '',
       };
@@ -57,11 +73,11 @@ async function main() {
   console.table(results);
 
   const invalidThresholdChains = results
-    .filter((r) => r['threshold OK'] === '🚨')
+    .filter((r) => r[thresholdOK] === CheckResult.WARNING)
     .map((r) => r.chain);
 
   const lowValidatorCountChains = results
-    .filter((r) => r['total OK'] === '🚨')
+    .filter((r) => r[totalOK] === CheckResult.WARNING)
     .map((r) => ({
       chain: r.chain,
       neededValidators: minimumValidatorCount - r.total,
@@ -71,7 +87,7 @@ async function main() {
     console.log('\n⚠️ Chains with invalid thresholds:');
     invalidThresholdChains.forEach((chain) => {
       const validatorCount = defaultMultisigConfigs[chain].validators.length;
-      const minimumThreshold = Math.floor(validatorCount / 2) + 1;
+      const minimumThreshold = getMinimumThreshold(validatorCount);
       console.log(
         ` - ${chain}:`,
         `threshold should be ${minimumThreshold} ≤ t ≤ ${validatorCount}`,

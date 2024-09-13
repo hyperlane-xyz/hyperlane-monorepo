@@ -74,7 +74,7 @@ export const icas: Partial<
   worldchain: '0x1996DbFcFB433737fE404F58D2c32A7f5f334210',
   // zircuit: '0x0d67c56E818a02ABa58cd2394b95EF26db999aA3', // already has a safe
 
-  // Aug 5, 2025 batch
+  // Aug 5, 2024 batch
   cyber: '0x984Fe5a45Ac4aaeC4E4655b50f776aB79c9Be19F',
   degenchain: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   kroma: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
@@ -90,7 +90,7 @@ export const icas: Partial<
   xai: '0x22d952d3b9F493442731a3c7660aCaD98e55C00A',
   // taiko: '0x483D218D2FEe7FC7204ba15F00C7901acbF9697D', // already has a safe
 
-  // Aug 5, 2025 batch
+  // Aug 26, 2024 batch
   astar: '0x6b241544eBa7d89B51b72DF85a0342dAa37371Ca',
   astarzkevm: '0x526c6DAee1175A1A2337E703B63593acb327Dde4',
   bitlayer: '0xe6239316cA60814229E801fF0B9DD71C9CA29008',
