@@ -600,6 +600,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x2b7514a2f77bd86bbf093fe6bb67d8611f51c659', // luganodes
       '0xd90ea26ff731d967c5ea660851f7d63cb04ab820', // dsrv
       '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
+      '0xcb6bcbd0de155072a7ff486d9d7286b0f71dcc2d', // eclipse
     ],
   },
 
