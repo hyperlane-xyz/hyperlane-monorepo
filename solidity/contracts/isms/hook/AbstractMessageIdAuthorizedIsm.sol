@@ -113,18 +113,22 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @notice Receive a message from the AbstractMessageIdAuthHook
      * @dev Only callable by the authorized hook.
      * @param messageId Hyperlane Id of the message.
+     * @param msgValue Value to set for the message.
      */
-    function verifyMessageId(bytes32 messageId) public payable virtual {
+    function verifyMessageId(
+        bytes32 messageId,
+        uint256 msgValue
+    ) public payable virtual {
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
         require(
-            msg.value < 2 ** VERIFIED_MASK_INDEX,
+            msgValue <= msg.value && msgValue < 2 ** VERIFIED_MASK_INDEX,
             "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
         );
 
-        verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
+        verifiedMessages[messageId] = msgValue.setBit(VERIFIED_MASK_INDEX);
         emit ReceivedMessage(messageId);
     }
 

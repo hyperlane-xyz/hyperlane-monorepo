@@ -79,12 +79,13 @@ abstract contract AbstractMessageIdAuthHook is
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
         require(
-            metadata.msgValue(0) < 2 ** 255,
-            "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
+            metadata.msgValue(0) <= msg.value &&
+                metadata.msgValue(0) < 2 ** 255,
+            "AbstractMessageIdAuthHook: msgValue out of bounds"
         );
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            id
+            (id, metadata.msgValue(0))
         );
         _sendMessageId(metadata, payload);
     }

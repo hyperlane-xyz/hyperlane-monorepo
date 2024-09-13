@@ -117,7 +117,7 @@ contract ERC5164IsmTest is Test {
     function test_postDispatch() public {
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
+            (messageId, 0)
         );
         originMailbox.updateLatestDispatchedId(messageId);
 
@@ -169,7 +169,7 @@ contract ERC5164IsmTest is Test {
     function test_verifyMessageId() public {
         vm.startPrank(address(executor));
 
-        ism.verifyMessageId(messageId);
+        ism.verifyMessageId(messageId, 0);
         assertTrue(ism.verifiedMessages(messageId).isBitSet(255));
 
         vm.stopPrank();
@@ -182,7 +182,7 @@ contract ERC5164IsmTest is Test {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        ism.verifyMessageId(messageId);
+        ism.verifyMessageId(messageId, 0);
 
         vm.stopPrank();
     }
@@ -192,7 +192,7 @@ contract ERC5164IsmTest is Test {
     function test_verify() public {
         vm.startPrank(address(executor));
 
-        ism.verifyMessageId(messageId);
+        ism.verifyMessageId(messageId, 0);
 
         bool verified = ism.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
@@ -203,7 +203,7 @@ contract ERC5164IsmTest is Test {
     function test_verify_RevertWhen_InvalidMessage() public {
         vm.startPrank(address(executor));
 
-        ism.verifyMessageId(messageId);
+        ism.verifyMessageId(messageId, 0);
 
         bytes memory invalidMessage = _encodeTestMessage(0, address(this));
         bool verified = ism.verify(new bytes(0), invalidMessage);

@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
+import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StandardHookMetadata} from "../../contracts/hooks/libs/StandardHookMetadata.sol";
 import {Message} from "../../contracts/libs/Message.sol";
@@ -15,6 +16,8 @@ import {MockArbBridge, MockArbSys} from "../../contracts/mock/MockArbBridge.sol"
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 
 contract ArbL2ToL1IsmTest is Test {
+    using StandardHookMetadata for bytes;
+
     uint8 internal constant HYPERLANE_VERSION = 1;
     uint32 internal constant MAINNET_DOMAIN = 1;
     uint32 internal constant ARBITRUM_DOMAIN = 42161;
@@ -81,10 +84,7 @@ contract ArbL2ToL1IsmTest is Test {
     function test_postDispatch() public {
         deployAll();
 
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
+        bytes memory encodedHookData = _encodeHookData(messageId, testMetadata);
 
         l2Mailbox.updateLatestDispatchedId(messageId);
 
@@ -146,11 +146,6 @@ contract ArbL2ToL1IsmTest is Test {
     function test_verify_statefulVerify() public {
         deployAll();
 
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
         arbBridge.setL2ToL1Sender(address(hook));
         arbBridge.executeTransaction{value: 1 ether}(
             new bytes32[](0),
@@ -161,7 +156,7 @@ contract ArbL2ToL1IsmTest is Test {
             MOCK_L1_BLOCK,
             block.timestamp,
             1 ether,
-            encodedHookData
+            _encodeHookData(messageId, testMetadata)
         );
 
         vm.etch(address(arbBridge), new bytes(0)); // this is a way to test that the arbBridge isn't called again
@@ -172,11 +167,6 @@ contract ArbL2ToL1IsmTest is Test {
     function test_verify_statefulAndOutbox() public {
         deployAll();
 
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
         arbBridge.setL2ToL1Sender(address(hook));
         arbBridge.executeTransaction{value: 1 ether}(
             new bytes32[](0),
@@ -187,7 +177,7 @@ contract ArbL2ToL1IsmTest is Test {
             MOCK_L1_BLOCK,
             block.timestamp,
             1 ether,
-            encodedHookData
+            _encodeHookData(messageId, testMetadata)
         );
 
         bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
@@ -255,7 +245,7 @@ contract ArbL2ToL1IsmTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (incorrectMessageId)
+            (incorrectMessageId, 0)
         );
 
         arbBridge.setL2ToL1Sender(address(hook));
@@ -284,15 +274,26 @@ contract ArbL2ToL1IsmTest is Test {
 
     /* ============ helper functions ============ */
 
+    function _encodeHookData(
+        bytes32 _messageId,
+        bytes memory _metadata
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeCall(
+                AbstractMessageIdAuthorizedIsm.verifyMessageId,
+                (_messageId, _msgValueFromMetadata(_metadata))
+            );
+    }
+
     function _encodeOutboxTx(
         address _hook,
         address _ism,
         bytes32 _messageId,
         uint256 _value
     ) internal view returns (bytes memory) {
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (_messageId)
+        bytes memory encodedHookData = _encodeHookData(
+            _messageId,
+            StandardHookMetadata.overrideMsgValue(_value)
         );
 
         bytes32[] memory proof = new bytes32[](16);
@@ -308,6 +309,17 @@ contract ArbL2ToL1IsmTest is Test {
                 _value,
                 encodedHookData
             );
+    }
+
+    function _msgValueFromMetadata(
+        bytes memory _metadata
+    ) internal pure returns (uint256) {
+        if (_metadata.length < 34) return 0; // 2 bytes for variant + 32 bytes for msg.value
+        bytes32 value;
+        assembly {
+            value := mload(add(_metadata, 34))
+        }
+        return uint256(value);
     }
 
     function _encodeTestMessage() internal view returns (bytes memory) {
