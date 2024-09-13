@@ -1,3 +1,4 @@
+import '@matterlabs/hardhat-zksync-deploy';
 import '@matterlabs/hardhat-zksync-solc';
 import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
@@ -18,8 +19,8 @@ module.exports = {
   defaultNetwork: 'zkSyncNetwork',
   networks: {
     zkSyncNetwork: {
-      url: 'http://127.0.0.1:3050',
-      ethNetwork: 'goerli',
+      url: 'http://127.0.0.1:8011',
+      ethNetwork: '',
       zksync: true,
     },
   },
@@ -34,12 +35,6 @@ module.exports = {
   },
   gasReporter: {
     currency: 'USD',
-  },
-  typechain: {
-    outDir: './types',
-    target: 'ethers-v5',
-    alwaysGenerateOverloads: true,
-    node16Modules: true,
   },
   mocha: {
     bail: true,

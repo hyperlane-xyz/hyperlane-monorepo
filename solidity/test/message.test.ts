@@ -1,5 +1,8 @@
+import { Deployer } from '@matterlabs/hardhat-zksync-deploy';
 import { expect } from 'chai';
 import { utils } from 'ethers';
+import hre from 'hardhat';
+import { Provider, Wallet } from 'zksync-ethers';
 
 import {
   addressToBytes32,
@@ -17,18 +20,23 @@ const localDomain = 2000;
 const nonce = 11;
 
 describe('Message', async () => {
-  let messageLib: TestMessage;
+  let messageLib: any;
   let version: number;
 
   before(async () => {
-    const signer = await getSigner();
+    const provider = new Provider('http://127.0.0.1:8011');
 
-    const Message = new TestMessage__factory(signer);
-    messageLib = await Message.deploy();
+    const deployerWallet = new Wallet(
+      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
+      provider,
+    );
+    const deployer = new Deployer(hre, deployerWallet);
+    let artifact = await deployer.loadArtifact('TestMessage');
+    messageLib = await deployer.deploy(artifact, []);
 
-    // For consistency with the Mailbox version
-    const Mailbox = new Mailbox__factory(signer);
-    const mailbox = await Mailbox.deploy(localDomain);
+    artifact = await deployer.loadArtifact('Mailbox');
+    const mailbox = await deployer.deploy(artifact, [localDomain]);
+
     version = await mailbox.VERSION();
   });
 
