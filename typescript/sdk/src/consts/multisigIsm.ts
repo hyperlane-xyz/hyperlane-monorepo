@@ -196,11 +196,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   eclipsemainnet: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0',
       '0x3571223e745dc0fcbdefa164c9b826b90c0d2dac', // luganodes
       '0xea83086a62617a7228ce4206fae2ea8b0ab23513', // imperator
+      '0x4d4629f5bfeabe66edc7a78da26ef5273c266f97', // eclipse
     ],
   },
 
