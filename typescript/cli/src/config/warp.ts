@@ -12,7 +12,13 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  isAddressAndMatchesProtocol,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -134,15 +140,24 @@ export async function createWarpRouteDeployConfig({
     const isNft =
       type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
-    const mailbox = await detectAndConfirmOrPrompt(
-      async () => {
-        const addresses = await context.registry.getChainAddresses(chain);
-        return addresses?.mailbox;
-      },
-      `For ${chain}, enter the`,
-      'mailbox address',
-      'hyperlane-registry',
-    );
+    // default to the mailbox from the registry and if not found ask to the user to submit one
+    const chainAddresses = await context.registry.getChainAddresses(chain);
+
+    const chainMetadata = await context.registry.getChainMetadata(chain);
+    if (!chainMetadata) {
+      throw new Error(`Metadata not found for chain "${chain}"`);
+    }
+
+    let mailbox: Address;
+    if (chainAddresses) {
+      mailbox = chainAddresses.mailbox;
+    } else {
+      mailbox = await input({
+        validate: (value) =>
+          isAddressAndMatchesProtocol(value, chainMetadata.protocol),
+        message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
+      });
+    }
 
     const interchainSecurityModule = advanced
       ? await createAdvancedIsmConfig(context)
