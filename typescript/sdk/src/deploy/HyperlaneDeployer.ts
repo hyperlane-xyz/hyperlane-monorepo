@@ -15,6 +15,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   Address,
   ProtocolType,
+  addBufferToGasLimit,
   eqAddress,
   isZeroishAddress,
   rootLogger,
@@ -421,10 +422,10 @@ export abstract class HyperlaneDeployer<
           ...initializeArgs,
         );
 
-        // deploy with 10% buffer on gas limit
+        // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
         const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: estimatedGas.add(estimatedGas.div(10)),
+          gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
         });
         const receipt = await this.multiProvider.handleTx(chain, initTx);

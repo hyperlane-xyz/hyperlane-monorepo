@@ -502,7 +502,9 @@ export function getWarpAddresses(warpRouteId: string) {
   const warpRouteConfig = registry.getWarpRoute(warpRouteId);
 
   if (!warpRouteConfig) {
-    throw new Error(`Warp route config for ${warpRouteId} not found`);
+    throw new Error(
+      `Warp route config for ${warpRouteId} not found in registry`,
+    );
   }
 
   return warpConfigToWarpAddresses(warpRouteConfig);
@@ -528,7 +530,7 @@ export function writeAddresses(
 }
 
 export function getAgentConfigDirectory() {
-  return path.join('../../', 'rust', 'config');
+  return path.join('../../', 'rust', 'main', 'config');
 }
 
 export function getAgentConfigJsonPath(environment: AgentEnvironment) {
