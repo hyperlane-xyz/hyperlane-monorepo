@@ -17,42 +17,9 @@ import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/Abstract
 import {PolygonZkevmHook} from "../../contracts/hooks/PolygonZkevmHook.sol";
 import {PolygonZkevmIsm} from "../../contracts/isms/hook/PolygonZkevmIsm.sol";
 
+import {MockPolygonZkevmBridge} from "../../contracts/mock/MockPolygonZkevmBridge.sol";
+
 import "forge-std/console.sol";
-
-contract PolygonZkEVMBridge {
-    PolygonZkevmIsm public ism;
-    bytes public returnData;
-
-    function setIsm(PolygonZkevmIsm _ism) public {
-        ism = _ism;
-    }
-
-    function setReturnData(bytes memory _returnData) public {
-        returnData = _returnData;
-    }
-
-    function bridgeMessage(
-        uint32,
-        address,
-        bool,
-        bytes calldata
-    ) external payable {}
-
-    function claimMessage(
-        bytes32[32] calldata,
-        uint32,
-        bytes32,
-        bytes32,
-        uint32,
-        address,
-        uint32,
-        address,
-        uint256,
-        bytes calldata
-    ) external payable {
-        ism.onMessageReceived(address(0x1), uint32(0), returnData);
-    }
-}
 
 contract PolygonZkevmIsmtest is Test {
     using TypeCasts for bytes32;
@@ -67,7 +34,7 @@ contract PolygonZkevmIsmtest is Test {
     TestRecipient internal testRecipient;
 
     // address internal polygonZkevmBridge;
-    PolygonZkEVMBridge internal polygonZkevmBridge;
+    MockPolygonZkevmBridge internal polygonZkevmBridge;
 
     address internal hook;
 
@@ -80,7 +47,7 @@ contract PolygonZkevmIsmtest is Test {
         // Setup Hyperlane
         requiredHook = new TestPostDispatchHook();
         mailbox = new TestMailbox(0);
-        polygonZkevmBridge = new PolygonZkEVMBridge();
+        polygonZkevmBridge = new MockPolygonZkevmBridge();
         ism = new PolygonZkevmIsm(
             address(polygonZkevmBridge),
             uint32(0),
@@ -98,7 +65,7 @@ contract PolygonZkevmIsmtest is Test {
         polygonZkevmBridge.setReturnData(abi.encodePacked(messageId));
     }
 
-    function test_moduleType() public {
+    function test_moduleType() public view {
         assertEq(
             ism.moduleType(),
             uint8(IInterchainSecurityModule.Types.CCIP_READ)
@@ -124,40 +91,7 @@ contract PolygonZkevmIsmtest is Test {
 
     // ================== NEED HELP ==================
     function test_verifyPolygonIsm() public {
-        bytes32[32] memory smtProof = [
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0),
-            bytes32(0x0)
-        ];
+        bytes32[32] memory smtProof;
         uint32 index = 0;
         bytes32 mainnetExitRoot = bytes32(0x0);
         bytes32 rollupExitRoot = bytes32(0x0);
@@ -169,6 +103,7 @@ contract PolygonZkevmIsmtest is Test {
         bytes memory payload = abi.encode(testMessage.id());
 
         bytes memory metadata = abi.encode(
+            smtProof,
             index,
             mainnetExitRoot,
             rollupExitRoot,
@@ -177,7 +112,6 @@ contract PolygonZkevmIsmtest is Test {
             destinationNetwork,
             destinationAddress,
             amount,
-            smtProof,
             payload
         );
         ism.verify(metadata, testMessage);
@@ -209,8 +143,8 @@ contract PolygonZkevmIsmtest is Test {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        vm.prank(address(polygonZkevmBridge));
 
+        vm.prank(address(polygonZkevmBridge));
         ism.onMessageReceived(address(0x2), uint32(0), abi.encode(messageId));
     }
 

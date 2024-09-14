@@ -79,7 +79,9 @@ contract PolygonZkevmHooktest is Test {
         hook.postDispatch(testMetadata, testMessage);
     }
 
-    function test_postDispatch_supportsMetadata() public {
+    // function test_postDispatch_chainIdNotSupported()
+
+    function test_postDispatch_supportsMetadata() public view {
         assertTrue(hook.supportsMetadata(testMetadata));
     }
 }
