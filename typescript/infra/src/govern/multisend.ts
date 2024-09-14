@@ -3,7 +3,12 @@ import Safe from '@safe-global/protocol-kit';
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  CallData,
+  addBufferToGasLimit,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 import {
   createSafeTransaction,
@@ -28,7 +33,7 @@ export class SignerMultiSend extends MultiSend {
     for (const call of calls) {
       const estimate = await this.multiProvider.estimateGas(this.chain, call);
       const receipt = await this.multiProvider.sendTransaction(this.chain, {
-        gasLimit: estimate.mul(11).div(10), // 10% buffer
+        gasLimit: addBufferToGasLimit(estimate),
         ...call,
       });
       console.log(`confirmed tx ${receipt.transactionHash}`);

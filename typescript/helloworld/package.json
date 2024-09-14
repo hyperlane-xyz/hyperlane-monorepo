@@ -4,7 +4,7 @@
   "version": "5.1.0",
   "dependencies": {
     "@hyperlane-xyz/core": "5.1.0",
-    "@hyperlane-xyz/registry": "2.5.0",
+    "@hyperlane-xyz/registry": "4.0.0",
     "@hyperlane-xyz/sdk": "5.1.0",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
     "ethers": "^5.7.2"
@@ -18,7 +18,7 @@
     "@typechain/hardhat": "^9.1.0",
     "@typescript-eslint/eslint-plugin": "^7.4.0",
     "@typescript-eslint/parser": "^7.4.0",
-    "chai": "^4.3.6",
+    "chai": "4.5.0",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "ethereum-waffle": "^4.0.10",

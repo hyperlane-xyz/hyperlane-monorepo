@@ -12,6 +12,7 @@ import { deployCommand } from './src/commands/deploy.js';
 import { hookCommand } from './src/commands/hook.js';
 import { ismCommand } from './src/commands/ism.js';
 import {
+  disableProxyCommandOption,
   keyCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
@@ -46,6 +47,7 @@ try {
     .option('registry', registryUriCommandOption)
     .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
+    .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
     .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
     .middleware([

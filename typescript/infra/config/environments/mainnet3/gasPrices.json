@@ -72,7 +72,11 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "2",
+    "amount": "6.654595701",
+    "decimals": 9
+  },
+  "everclear": {
+    "amount": "0.1",
     "decimals": 9
   },
   "flare": {
@@ -151,6 +155,10 @@
     "amount": "0.0053",
     "decimals": 1
   },
+  "oortmainnet": {
+    "amount": "100.0",
+    "decimals": 9
+  },
   "optimism": {
     "amount": "0.25",
     "decimals": 9
@@ -188,7 +196,7 @@
     "decimals": 9
   },
   "sei": {
-    "amount": "100.0",
+    "amount": "120.0",
     "decimals": 9
   },
   "shibarium": {
