@@ -14,5 +14,6 @@ type Story = StoryObj<typeof meta>;
 export const DefaultChainDetails = {
   args: {
     chainMetadata: chainMetadata['ethereum'],
+    onClickBack: undefined,
   },
 } satisfies Story;

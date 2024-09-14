@@ -1,20 +1,27 @@
-import React, { PropsWithChildren, useMemo } from 'react';
+import React, { PropsWithChildren, useMemo, useState } from 'react';
 
 import { ChainMetadata } from '@hyperlane-xyz/sdk';
-import { isNullish } from '@hyperlane-xyz/utils';
+import { isNullish, isUrl } from '@hyperlane-xyz/utils';
 
 import { ColorPalette } from '../color.js';
 import { CopyButton } from '../components/CopyButton.js';
+import { IconButton } from '../components/IconButton.js';
 import { LinkButton } from '../components/LinkButton.js';
+import { TextInput } from '../components/TextInput.js';
 import { Tooltip } from '../components/Tooltip.js';
 import { BoxArrowIcon } from '../icons/BoxArrow.js';
+import { CheckmarkIcon } from '../icons/Checkmark.js';
 import { ChevronIcon } from '../icons/Chevron.js';
 import { Circle } from '../icons/Circle.js';
 import { PlusCircleIcon } from '../icons/PlusCircle.js';
 import { Spinner } from '../icons/Spinner.js';
+import { XIcon } from '../icons/X.js';
+import { useWidgetStore } from '../store.js';
 import { useConnectionHealthTest } from '../utils/useChainConnectionTest.js';
 
 import { ChainLogo } from './ChainLogo.js';
+import { useMergedChainMetadata } from './metadataOverrides.js';
+import { ChainConnectionType } from './types.js';
 
 export interface ChainDetailsMenuProps {
   chainMetadata: ChainMetadata;
@@ -25,6 +32,8 @@ export function ChainDetailsMenu({
   chainMetadata,
   onClickBack,
 }: ChainDetailsMenuProps) {
+  useWidgetStore;
+
   return (
     <div className="htw-space-y-4">
       <ChainHeader chainMetadata={chainMetadata} onClickBack={onClickBack} />
@@ -47,7 +56,7 @@ function ChainHeader({ chainMetadata, onClickBack }: ChainDetailsMenuProps) {
               direction="w"
               className="htw-opacity-70"
             />
-            <span className="htw-text-xs htw-text-gray-500">Back</span>
+            <span className="htw-text-xs htw-text-gray-600">Back</span>
           </div>
         </LinkButton>
       )}
@@ -74,8 +83,7 @@ function ChainRpcs({ chainMetadata }: { chainMetadata: ChainMetadata }) {
     <ConnectionsSection
       chainMetadata={chainMetadata}
       header="Connections"
-      type="rpc"
-      onAddNew={() => {}}
+      type={ChainConnectionType.RPC}
     />
   );
 }
@@ -85,8 +93,7 @@ function ChainExplorers({ chainMetadata }: { chainMetadata: ChainMetadata }) {
     <ConnectionsSection
       chainMetadata={chainMetadata}
       header="Block Explorers"
-      type="explorer"
-      onAddNew={() => {}}
+      type={ChainConnectionType.Explorer}
     />
   );
 }
@@ -95,32 +102,108 @@ function ConnectionsSection({
   chainMetadata,
   header,
   type,
-  onAddNew,
 }: {
   chainMetadata: ChainMetadata;
   header: string;
-  type: 'explorer' | 'rpc';
-  onAddNew: () => void;
+  type: ChainConnectionType;
 }) {
-  const values =
-    (type === 'rpc' ? chainMetadata.rpcUrls : chainMetadata.blockExplorers) ||
-    [];
+  const { mergedChainMetadata, overrideChainMetadata } =
+    useMergedChainMetadata(chainMetadata);
+
+  const values = getConnectionValues(mergedChainMetadata, type);
 
   return (
     <div className="htw-space-y-1.5">
       <SectionHeader>{header}</SectionHeader>
       {values.map((_, i) => (
-        <ConnectionRow chainMetadata={chainMetadata} index={i} type={type} />
+        <ConnectionRow
+          chainMetadata={mergedChainMetadata}
+          overrideChainMetadata={overrideChainMetadata}
+          index={i}
+          type={type}
+        />
       ))}
-      <button
-        type="button"
-        className="htw-flex htw-items-center htw-gap-3 hover:htw-underline htw-underline-offset-2 active:htw-opacity-80"
-        onClick={onAddNew}
-      >
-        <PlusCircleIcon width={15} height={15} color={ColorPalette.LightGray} />
-        <div className="htw-text-sm ">{`Add new ${type}`}</div>
-      </button>
+      <AddConnectionButton chainMetadata={mergedChainMetadata} type={type} />
     </div>
+  );
+}
+
+function AddConnectionButton({
+  chainMetadata,
+  type,
+}: {
+  chainMetadata: ChainMetadata;
+  type: ChainConnectionType;
+}) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [isInvalid, setIsInvalid] = useState(false);
+  const [url, setUrl] = useState('');
+
+  const addChainMetadataOverride = useWidgetStore(
+    (s) => s.addChainMetadataOverride,
+  );
+
+  const onClickDismiss = () => {
+    setIsAdding(false);
+    setIsInvalid(false);
+    setUrl('');
+  };
+
+  const onClickAdd = () => {
+    const currentValues = getConnectionValues(chainMetadata, type);
+    const newValue = url?.trim();
+    if (!newValue || !isUrl(newValue) || currentValues.includes(newValue)) {
+      setIsInvalid(true);
+      return;
+    }
+    if (type === ChainConnectionType.RPC) {
+      addChainMetadataOverride(chainMetadata.name, {
+        rpcUrls: [{ http: newValue }],
+      });
+    } else if (type === ChainConnectionType.Explorer) {
+      const hostName = new URL(newValue).hostname;
+      addChainMetadataOverride(chainMetadata.name, {
+        blockExplorers: [{ url: newValue, apiUrl: newValue, name: hostName }],
+      });
+    }
+    onClickDismiss();
+  };
+
+  if (!isAdding) {
+    return (
+      <LinkButton className="htw-gap-3" onClick={() => setIsAdding(true)}>
+        <PlusCircleIcon width={15} height={15} color={ColorPalette.LightGray} />
+        <div className="htw-text-sm">{`Add new ${type}`}</div>
+      </LinkButton>
+    );
+  }
+
+  return (
+    <form className="htw-flex htw-items-center htw-gap-2" onSubmit={onClickAdd}>
+      <PlusCircleIcon width={15} height={15} color={ColorPalette.LightGray} />
+      <div className="htw-flex htw-items-stretch htw-gap-1">
+        <TextInput
+          className={`htw-w-64 htw-text-sm htw-px-1 htw-rounded-sm ${
+            isInvalid && 'htw-text-red-500'
+          }`}
+          placeholder={`Enter ${type} URL`}
+          value={url}
+          onChange={setUrl}
+        />
+        <IconButton
+          onClick={onClickAdd}
+          className="htw-bg-gray-600 htw-rounded-sm htw-px-1"
+        >
+          <CheckmarkIcon width={20} height={20} color={ColorPalette.White} />
+        </IconButton>
+        <IconButton
+          onClick={onClickDismiss}
+          className="htw-bg-gray-600 htw-rounded-sm htw-px-1"
+        >
+          <XIcon width={9} height={9} color={ColorPalette.White} />
+        </IconButton>
+      </div>
+    </form>
   );
 }
 
@@ -203,18 +286,38 @@ function SectionHeader({
 
 function ConnectionRow({
   chainMetadata,
+  overrideChainMetadata,
   index,
   type,
 }: {
   chainMetadata: ChainMetadata;
+  overrideChainMetadata: Partial<ChainMetadata>;
   index: number;
-  type: 'rpc' | 'explorer';
+  type: ChainConnectionType;
 }) {
   const isHealthy = useConnectionHealthTest(chainMetadata, index, type);
-  const value =
-    type === 'rpc'
-      ? chainMetadata.rpcUrls?.[index].http
-      : chainMetadata.blockExplorers?.[index].url;
+  const value = getConnectionValues(chainMetadata, type)[index];
+  const isRemovable = isOverrideConnection(overrideChainMetadata, type, value);
+
+  const removeChainMetadataOverride = useWidgetStore(
+    (s) => s.removeChainMetadataOverride,
+  );
+
+  const onClickRemove = () => {
+    if (type === ChainConnectionType.RPC) {
+      removeChainMetadataOverride(chainMetadata.name, {
+        rpcUrls: [
+          overrideChainMetadata.rpcUrls!.find((r) => r.http === value)!,
+        ],
+      });
+    } else if (type === ChainConnectionType.Explorer) {
+      removeChainMetadataOverride(chainMetadata.name, {
+        blockExplorers: [
+          overrideChainMetadata.blockExplorers!.find((r) => r.url === value)!,
+        ],
+      });
+    }
+  };
 
   return (
     <div
@@ -230,6 +333,33 @@ function ConnectionRow({
         />
       )}
       <div className="htw-text-sm htw-truncate">{value}</div>
+      {isRemovable && (
+        <IconButton
+          className="htw-bg-gray-600 htw-rounded-sm htw-p-1 htw-mt-0.5"
+          onClick={onClickRemove}
+        >
+          <XIcon width={8} height={8} color={ColorPalette.White} />
+        </IconButton>
+      )}
     </div>
   );
+}
+
+function getConnectionValues(
+  chainMetadata: Partial<ChainMetadata>,
+  type: ChainConnectionType,
+) {
+  return (
+    (type === ChainConnectionType.RPC
+      ? chainMetadata.rpcUrls?.map((r) => r.http)
+      : chainMetadata.blockExplorers?.map((b) => b.url)) || []
+  );
+}
+
+function isOverrideConnection(
+  overrides: Partial<ChainMetadata>,
+  type: ChainConnectionType,
+  value: string,
+) {
+  return getConnectionValues(overrides, type).includes(value);
 }

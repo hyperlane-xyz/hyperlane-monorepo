@@ -195,6 +195,7 @@ export {
 } from './metadata/ChainMetadataManager.js';
 export {
   BlockExplorer,
+  BlockExplorerSchema,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,

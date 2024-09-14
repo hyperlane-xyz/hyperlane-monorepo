@@ -99,34 +99,87 @@ export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
   return ret as Record<K, V>;
 }
 
-// Recursively merges b into a
-// Where there are conflicts, b takes priority over a
-export function objMerge(
+/**
+ *  Returns a new object that recursively merges b into a
+ *  Where there are conflicts, b takes priority over a
+ * @param a - The first object
+ * @param b - The second object
+ * @param max_depth - The maximum depth to recurse
+ * @param mergeArrays - If true, arrays will be concatenated instead of replaced
+ */
+export function objMerge<T>(
   a: Record<string, any>,
   b: Record<string, any>,
   max_depth = 10,
-): any {
+  mergeArrays = false,
+): T {
   if (max_depth === 0) {
     throw new Error('objMerge tried to go too deep');
   }
-  if (isObject(a) && isObject(b)) {
-    const ret: Record<string, any> = {};
-    const aKeys = new Set(Object.keys(a));
-    const bKeys = new Set(Object.keys(b));
-    const allKeys = new Set([...aKeys, ...bKeys]);
-    for (const key of allKeys.values()) {
-      if (aKeys.has(key) && bKeys.has(key)) {
-        ret[key] = objMerge(a[key], b[key], max_depth - 1);
-      } else if (aKeys.has(key)) {
-        ret[key] = a[key];
-      } else {
-        ret[key] = b[key];
-      }
-    }
-    return ret;
-  } else {
-    return b ? b : a;
+  if (!isObject(a) || !isObject(b)) {
+    return (b ? b : a) as T;
   }
+  const ret: Record<string, any> = {};
+  const aKeys = new Set(Object.keys(a));
+  const bKeys = new Set(Object.keys(b));
+  const allKeys = new Set([...aKeys, ...bKeys]);
+  for (const key of allKeys.values()) {
+    if (aKeys.has(key) && bKeys.has(key)) {
+      if (mergeArrays && Array.isArray(a[key]) && Array.isArray(b[key])) {
+        ret[key] = [...a[key], ...b[key]];
+      } else {
+        ret[key] = objMerge(a[key], b[key], max_depth - 1, mergeArrays);
+      }
+    } else if (aKeys.has(key)) {
+      ret[key] = a[key];
+    } else {
+      ret[key] = b[key];
+    }
+  }
+  return ret as T;
+}
+
+/**
+ * Return a new object with the fields in b removed from a
+ * @param a Base object to remove fields from
+ * @param b The partial object to remove from the base object
+ * @param max_depth The maximum depth to recurse
+ * @param sliceArrays If true, arrays will have values sliced out instead of being removed entirely
+ */
+export function objSlice<T extends Record<string, any>>(
+  a: Record<string, any>,
+  b: Record<string, any>,
+  max_depth = 10,
+  sliceArrays = false,
+): T {
+  if (max_depth === 0) {
+    throw new Error('objSlice tried to go too deep');
+  }
+  if (!isObject(a) || !isObject(b)) {
+    return a as T;
+  }
+  const ret: Record<string, any> = {};
+  const aKeys = new Set(Object.keys(a));
+  const bKeys = new Set(Object.keys(b));
+  for (const key of aKeys.values()) {
+    if (bKeys.has(key)) {
+      if (sliceArrays && Array.isArray(a[key]) && Array.isArray(b[key])) {
+        ret[key] = a[key].filter(
+          (v: any) => !b[key].some((bv: any) => deepEquals(v, bv)),
+        );
+      } else if (isObject(a[key]) && isObject(b[key])) {
+        const sliced = objSlice(a[key], b[key], max_depth - 1, sliceArrays);
+        if (Object.keys(sliced).length > 0) {
+          ret[key] = sliced;
+        }
+      } else if (b[key] !== true) {
+        ret[key] = objSlice(a[key], b[key], max_depth - 1, sliceArrays);
+      }
+    } else {
+      ret[key] = a[key];
+    }
+  }
+  return ret as T;
 }
 
 export function invertKeysAndValues(data: any) {

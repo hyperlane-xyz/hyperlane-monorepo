@@ -7,21 +7,24 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { timeout } from '@hyperlane-xyz/utils';
 
+import { ChainConnectionType } from '../chains/types.js';
+
 const HEALTH_TEST_TIMEOUT = 5000; // 5s
 
 export function useConnectionHealthTest(
   chainMetadata: ChainMetadata,
   index: number,
-  type: 'rpc' | 'explorer',
+  type: ChainConnectionType,
 ) {
   const [isHealthy, setIsHealthy] = useState<boolean | undefined>(undefined);
-  const tester = type === 'rpc' ? isRpcHealthy : isBlockExplorerHealthy;
+  const tester =
+    type === ChainConnectionType.RPC ? isRpcHealthy : isBlockExplorerHealthy;
 
   useEffect(() => {
     timeout(tester(chainMetadata, index), HEALTH_TEST_TIMEOUT)
       .then((result) => setIsHealthy(result))
       .catch(() => setIsHealthy(false));
-  }, [tester]);
+  }, [chainMetadata, index, tester]);
 
   return isHealthy;
 }

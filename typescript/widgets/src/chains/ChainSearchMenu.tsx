@@ -4,7 +4,7 @@ import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { SearchMenu, SortOrderOption } from '../components/SearchMenu.js';
-import { SegmentedControl } from '../components/SegmentedControlButton.js';
+import { SegmentedControl } from '../components/SegmentedControl.js';
 import { FunnelIcon } from '../icons/Funnel.js';
 import { UpDownArrowsIcon } from '../icons/UpDownArrows.js';
 

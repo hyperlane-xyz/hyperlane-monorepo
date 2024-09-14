@@ -1,10 +1,4 @@
-import React, {
-  ChangeEvent,
-  ComponentType,
-  Key,
-  useMemo,
-  useState,
-} from 'react';
+import React, { ComponentType, Key, useMemo, useState } from 'react';
 
 import { ColorPalette } from '../color.js';
 import { ChevronIcon } from '../icons/Chevron.js';
@@ -12,9 +6,9 @@ import { FilterIcon } from '../icons/Filter.js';
 import { GearIcon } from '../icons/Gear.js';
 import { PencilIcon } from '../icons/Pencil.js';
 import { SearchIcon } from '../icons/Search.js';
-import { InputProps } from '../icons/types.js';
 
 import { IconButton } from './IconButton.js';
+import { InputProps, TextInput } from './TextInput.js';
 
 export interface SearchMenuProps<
   ListItemData extends { disabled?: boolean },
@@ -101,11 +95,7 @@ export function SearchMenu<
   );
 }
 
-function SearchBar({ onChange, className, ...props }: InputProps) {
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    onChange(e?.target?.value || '');
-  };
-
+function SearchBar(props: InputProps) {
   return (
     <div className="htw-relative">
       <SearchIcon
@@ -113,13 +103,9 @@ function SearchBar({ onChange, className, ...props }: InputProps) {
         height={18}
         className="htw-absolute htw-left-4 htw-top-1/2 -htw-translate-y-1/2 htw-opacity-50"
       />
-      <input
-        type="text"
-        autoComplete="off"
-        onChange={handleChange}
-        className={`htw-w-full htw-rounded-full htw-bg-gray-100 htw-px-11 htw-py-3 focus:htw-bg-gray-200 disabled:htw-bg-gray-500 htw-outline-none htw-transition-all htw-duration-300 ${className}`}
-        placeholder="Search for chain"
+      <TextInput
         {...props}
+        className="htw-w-full htw-rounded-full htw-px-11 htw-py-3"
       />
     </div>
   );
