@@ -111,7 +111,7 @@ export const ChainMetadataSchemaObject = z.object({
 
   blockExplorers: z
     .array(BlockExplorerSchema)
-    .nonempty()
+    .optional()
     .describe('A list of block explorers with data for this chain'),
 
   blocks: z
@@ -232,7 +232,7 @@ export const ChainMetadataSchemaObject = z.object({
 
   rpcUrls: z
     .array(RpcUrlSchema)
-    .nonempty()
+    .min(1)
     .describe('The list of RPC endpoints for interacting with the chain.'),
 
   slip44: z.number().optional().describe('The SLIP-0044 coin type.'),
