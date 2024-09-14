@@ -106,7 +106,7 @@ export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
  * @param max_depth - The maximum depth to recurse
  * @param mergeArrays - If true, arrays will be concatenated instead of replaced
  */
-export function objMerge<T>(
+export function objMerge<T = any>(
   a: Record<string, any>,
   b: Record<string, any>,
   max_depth = 10,
@@ -145,7 +145,7 @@ export function objMerge<T>(
  * @param max_depth The maximum depth to recurse
  * @param sliceArrays If true, arrays will have values sliced out instead of being removed entirely
  */
-export function objSlice<T extends Record<string, any>>(
+export function objSlice<T extends Record<string, any> = any>(
   a: Record<string, any>,
   b: Record<string, any>,
   max_depth = 10,
