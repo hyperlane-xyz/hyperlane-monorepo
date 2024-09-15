@@ -1,4 +1,3 @@
-import { assert } from 'console';
 import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
@@ -118,7 +117,7 @@ async function main() {
     const location = announcement.value.storage_location;
     const announcedLocations =
       await validatorAnnounce.getAnnouncedStorageLocations([address]);
-    assert(announcedLocations.length == 1);
+    console.assert(announcedLocations.length == 1);
     const announced = announcedLocations[0].includes(location);
     if (!announced) {
       const signature = ethers.utils.joinSignature(announcement.signature);
