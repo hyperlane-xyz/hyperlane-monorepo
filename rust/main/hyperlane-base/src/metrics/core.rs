@@ -461,7 +461,7 @@ struct AppContextKey {
 
 /// If this period has elapsed since the last update, we will clear out the
 /// previous metrics for the app context.
-const VALIDATOR_SET_REFRESH_PERIOD: time::Duration = time::Duration::from_secs(60 * 3);
+const MIN_VALIDATOR_SET_REFRESH_PERIOD: time::Duration = time::Duration::from_secs(60 * 3);
 
 /// Manages metrics for observing sets of validators.
 pub struct ValidatorObservabilityMetricManager {
@@ -503,7 +503,7 @@ impl ValidatorObservabilityMetricManager {
             // to be called multiple times in a short period without clearing out
             // the metrics, e.g. when a message's ISM aggregates multiple different
             // validator sets.
-            if last_updated_at.elapsed() > VALIDATOR_SET_REFRESH_PERIOD {
+            if last_updated_at.elapsed() > MIN_VALIDATOR_SET_REFRESH_PERIOD {
                 for validator in prev_validators {
                     // We unwrap because an error here occurs if the # of labels
                     // provided is incorrect, and we'd like to loudly fail in e2e if that
