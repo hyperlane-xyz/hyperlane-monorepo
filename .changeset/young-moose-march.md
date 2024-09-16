@@ -2,4 +2,5 @@
 '@hyperlane-xyz/sdk': patch
 ---
 
-Fix args for Sevelel hyp token adapters
+Fix arg validation for Sealevel HypNative adapters
+Allow extra properties in ChainMetadata objects
