@@ -142,6 +142,18 @@ abstract contract ExternalBridgeTest is Test {
         assertEq(address(testRecipient).balance, 1 ether);
     }
 
+    function test_verify_revertsWhen_invalidIsm() public {
+        bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
+            address(hook),
+            address(this),
+            0,
+            messageId
+        );
+
+        vm.expectRevert();
+        ism.verify(externalCalldata, encodedMessage);
+    }
+
     function _expectOriginExternalBridgeCall(
         bytes memory _encodedHookData
     ) internal virtual;

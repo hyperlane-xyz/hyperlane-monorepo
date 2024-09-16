@@ -151,20 +151,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         ism.verify(encodedOutboxTxMetadata, encodedMessage);
     }
 
-    function test_verify_revertsWhen_invalidIsm() public {
-        bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
-            address(hook),
-            address(this),
-            messageId,
-            0
-        );
-
-        arbBridge.setL2ToL1Sender(address(hook));
-
-        vm.expectRevert(); // BridgeCallFailed()
-        ism.verify(encodedOutboxTxMetadata, encodedMessage);
-    }
-
     function test_verify_revertsWhen_incorrectMessageId() public {
         bytes32 incorrectMessageId = keccak256("incorrect message id");
 

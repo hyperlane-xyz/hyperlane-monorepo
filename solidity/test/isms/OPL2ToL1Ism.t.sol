@@ -109,17 +109,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         assertTrue(ism.verify(encodedWithdrawalTx, encodedMessage));
     }
 
-    function test_verify_revertsWhen_invalidIsm() public {
-        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
-            address(this),
-            0,
-            messageId
-        );
-
-        vm.expectRevert(); // evmRevert in MockOptimismPortal
-        ism.verify(encodedWithdrawalTx, encodedMessage);
-    }
-
     function test_verify_revertsWhen_incorrectMessageId() public {
         bytes32 incorrectMessageId = keccak256("incorrect message id");
 
@@ -170,7 +159,8 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
     function _encodeExternalDestinationBridgeCall(
         address,
-        /*_from*/ address _to,
+        /*_from*/
+        address _to,
         uint256 _msgValue,
         bytes32 _messageId
     ) internal override returns (bytes memory) {
