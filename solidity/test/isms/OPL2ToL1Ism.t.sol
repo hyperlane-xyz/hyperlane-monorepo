@@ -149,11 +149,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         assertTrue(ism.verify(encodedWithdrawalTx, encodedMessage));
     }
 
-    function test_verify_revertsWhen_noStatefulAndDirectWithdrawal() public {
-        vm.expectRevert();
-        ism.verify(new bytes(0), encodedMessage);
-    }
-
     function test_verify_revertsWhen_invalidIsm() public {
         bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
             address(this),

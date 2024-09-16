@@ -147,11 +147,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         assertEq(address(testRecipient).balance, 1 ether);
     }
 
-    function test_verify_revertsWhen_noStatefulOrOutbox() public {
-        vm.expectRevert();
-        ism.verify(new bytes(0), encodedMessage);
-    }
-
     function test_verify_revertsWhen_notAuthorizedHook() public {
         bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
             address(this),

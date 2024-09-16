@@ -105,6 +105,11 @@ abstract contract ExternalBridgeTest is Test {
         assertTrue(ism.isVerified(encodedMessage));
     }
 
+    function test_verify_revertWhen_invalidMetadata() public {
+        vm.expectRevert();
+        ism.verify(new bytes(0), encodedMessage);
+    }
+
     function _expectOriginBridgeCall(
         bytes memory _encodedHookData
     ) internal virtual;
