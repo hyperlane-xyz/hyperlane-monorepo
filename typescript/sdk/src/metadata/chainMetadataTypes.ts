@@ -249,11 +249,10 @@ export const ChainMetadataSchemaObject = z.object({
 });
 
 // Passthrough allows for extra fields to remain in the object (such as extensions consumers may want like `mailbox`)
-const ChainMetadataSchemaObjectExtensible =
-  ChainMetadataSchemaObject.passthrough();
+const ChainMetadataSchemaExtensible = ChainMetadataSchemaObject.passthrough();
 
 // Add refinements to the object schema to conditionally validate certain fields
-export const ChainMetadataSchema = ChainMetadataSchemaObjectExtensible.refine(
+export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   (metadata) => {
     if (
       [ProtocolType.Ethereum, ProtocolType.Sealevel].includes(

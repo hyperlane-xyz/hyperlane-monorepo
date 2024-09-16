@@ -244,7 +244,7 @@ export class Token implements IToken {
       assert(mailbox, `Mailbox required for Sealevel hyp tokens`);
       assert(
         collateralAddressOrDenom,
-        `collateralAddressOrDenom required for Sealevel hyp collateral tokens`,
+        `collateralAddressOrDenom required for Sealevel hyp synthetic tokens`,
       );
       return new SealevelHypSyntheticAdapter(
         chainName,

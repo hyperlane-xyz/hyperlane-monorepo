@@ -108,10 +108,8 @@ export class SealevelTokenAdapter
   }
 
   async getBalance(owner: Address): Promise<bigint> {
+    const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
     try {
-      const tokenPubKey = this.deriveAssociatedTokenAccount(
-        new PublicKey(owner),
-      );
       const response = await this.getProvider().getTokenAccountBalance(
         tokenPubKey,
       );
@@ -619,10 +617,8 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
   }
 
   override async getBalance(owner: Address): Promise<bigint> {
+    const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
     try {
-      const tokenPubKey = this.deriveAssociatedTokenAccount(
-        new PublicKey(owner),
-      );
       const response = await this.getProvider().getTokenAccountBalance(
         tokenPubKey,
       );
