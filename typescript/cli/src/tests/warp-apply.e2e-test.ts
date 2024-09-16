@@ -145,7 +145,7 @@ describe('WarpApply e2e tests', async function () {
     expect(remoteRouterKeys2).to.include(chain1Id);
   });
 
-  it.only('should extend an existing warp route with json strategy', async () => {
+  it('should extend an existing warp route with json strategy', async () => {
     // Read existing config into a file
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
