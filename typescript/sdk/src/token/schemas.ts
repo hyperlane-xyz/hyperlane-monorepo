@@ -104,9 +104,13 @@ export const WarpRouteDeployConfigSchema = z
       isCollateralRebaseConfig(config),
     );
 
-    const allOthersSynthetic = entries
-      .filter(([_, config]) => !isCollateralRebaseConfig(config))
-      .every(([_, config]) => isSyntheticRebaseConfig(config));
+    const collateralConfigs = entries.filter(
+      ([_, config]) => !isCollateralRebaseConfig(config),
+    );
+    if (collateralConfigs.length === 0) return false;
 
+    const allOthersSynthetic = collateralConfigs.every(([_, config], _index) =>
+      isSyntheticRebaseConfig(config),
+    );
     return hasCollateralRebase ? allOthersSynthetic : true;
   }, WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE);

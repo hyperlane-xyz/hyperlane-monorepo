@@ -23,7 +23,7 @@ const NON_COLLATERAL_TYPES = [
   TokenType.fastSynthetic,
 ];
 
-describe.only('WarpRouteDeployConfigSchema refine', () => {
+describe('WarpRouteDeployConfigSchema refine', () => {
   let config: any;
   beforeEach(() => {
     config = {
@@ -87,7 +87,7 @@ describe.only('WarpRouteDeployConfigSchema refine', () => {
     }
   });
 
-  it('should throw if deploying rebasing collateral with anything other than rebasing synthetic', async () => {
+  it(`should throw if deploying rebasing collateral with anything other than ${TokenType.syntheticRebase}`, async () => {
     config = {
       arbitrum: {
         type: TokenType.collateralVaultRebase,
@@ -118,5 +118,27 @@ describe.only('WarpRouteDeployConfigSchema refine', () => {
     config.ethereum.type = TokenType.syntheticRebase;
     parseResults = WarpRouteDeployConfigSchema.safeParse(config);
     expect(parseResults.success).to.be.true;
+  });
+
+  it(`should throw if deploying only ${TokenType.collateralVaultRebase}`, async () => {
+    config = {
+      arbitrum: {
+        type: TokenType.collateralVaultRebase,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+      },
+    };
+    let parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+    expect(parseResults.success).to.be.false;
+
+    config.ethereum = {
+      type: TokenType.collateralVaultRebase,
+      token: SOME_ADDRESS,
+      owner: SOME_ADDRESS,
+      mailbox: SOME_ADDRESS,
+    };
+    parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+    expect(parseResults.success).to.be.false;
   });
 });

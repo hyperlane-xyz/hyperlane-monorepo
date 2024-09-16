@@ -117,6 +117,7 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypCollateralFiat,
   TokenStandard.EvmHypOwnerCollateral,
   TokenStandard.EvmHypSynthetic,
+  TokenStandard.EvmHypSyntheticRebase,
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,
   TokenStandard.SealevelHypNative,
