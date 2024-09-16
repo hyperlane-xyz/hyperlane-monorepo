@@ -4,7 +4,7 @@
 cd "$(dirname "$0")"
 
 # Define the artifacts directory
-artifactsDir="./artifacts/build-info"
+artifactsDir="./artifacts-zk/build-info"
 # Define the output file
 outputFileJson="./dist/buildArtifact.json"
 outputFileJs="./dist/buildArtifact.js"

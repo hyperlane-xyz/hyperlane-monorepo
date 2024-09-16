@@ -14,6 +14,7 @@ async function main() {
     allFiles,
     outDir: './types',
     target: 'ethers-v5',
+    flags: { node16Modules: true, alwaysGenerateOverloads: true },
   });
 
   console.log(result);
