@@ -64,7 +64,7 @@ export async function updateOwner(
 /**
  * Extends the Warp route deployment with a new warp config
  */
-export async function extendWarpConfig(config: {
+export async function extendWarpConfig(params: {
   chain: string;
   chainToExtend: string;
   extendedConfig: TokenRouterConfig;
@@ -79,7 +79,7 @@ export async function extendWarpConfig(config: {
     warpCorePath,
     warpDeployPath,
     strategyUrl,
-  } = config;
+  } = params;
   const warpDeployConfig = await readWarpConfig(
     chain,
     warpCorePath,
