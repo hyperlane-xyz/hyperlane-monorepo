@@ -677,11 +677,12 @@ async function enrollRemoteRouters(
           strategyUrl,
         });
       const transactionReceipts = await submitter.submit(...mutatedConfigTxs);
-
-      return logGreen(
-        `✅ Router enrollment update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
-        indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-      );
+      if (transactionReceipts && transactionReceipts.length > 0) {
+        return logGreen(
+          `✅ Router enrollment update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
+          indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+        );
+      }
     }),
   );
 }
