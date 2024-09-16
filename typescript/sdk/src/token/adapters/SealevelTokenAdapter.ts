@@ -494,7 +494,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     },
     public readonly isSpl2022: boolean = false,
   ) {
-    // Pass in placeholder address to avoid errors for native token addresses (which as represented here as 0s)
+    // Pass in placeholder address for 'token' to avoid errors in the parent classes
     super(
       chainName,
       multiProvider,
