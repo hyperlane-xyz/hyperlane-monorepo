@@ -497,12 +497,10 @@ export async function runWarpRouteApply(
             });
           const transactionReceipts = await submitter.submit(...transactions);
 
-          if (transactionReceipts && transactionReceipts.length > 0) {
-            return logGreen(
-              `✅ Warp config update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
-              indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-            );
-          }
+          return logGreen(
+            `✅ Warp config update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
+            indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+          );
         } catch (e) {
           logRed(`Warp config on ${chain} failed to update.`, e);
         }
@@ -677,12 +675,10 @@ async function enrollRemoteRouters(
           strategyUrl,
         });
       const transactionReceipts = await submitter.submit(...mutatedConfigTxs);
-      if (transactionReceipts && transactionReceipts.length > 0) {
-        return logGreen(
-          `✅ Router enrollment update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
-          indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-        );
-      }
+      return logGreen(
+        `✅ Router enrollment update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
+        indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+      );
     }),
   );
 }
