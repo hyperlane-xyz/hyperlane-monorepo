@@ -72,18 +72,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
-    function _expectOriginBridgeCall(
-        bytes memory _encodedHookData
-    ) internal override {
-        vm.expectCall(
-            L2_MESSENGER_ADDRESS,
-            abi.encodeCall(
-                ICrossDomainMessenger.sendMessage,
-                (address(ism), _encodedHookData, uint32(GAS_QUOTE))
-            )
-        );
-    }
-
     function test_verify_directWithdrawalCall() public {
         bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
             address(ism),
@@ -107,24 +95,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
         vm.expectRevert(); // evmRevert in MockOptimismPortal
         ism.verify(encodedWithdrawalTx, encodedMessage);
-    }
-
-    function test_verify_statefulVerify() public {
-        vm.deal(address(portal), 1 ether);
-        IOptimismPortal.WithdrawalTransaction
-            memory withdrawal = IOptimismPortal.WithdrawalTransaction({
-                nonce: MOCK_NONCE,
-                sender: L2_MESSENGER_ADDRESS,
-                target: address(l1Messenger),
-                value: 1 ether,
-                gasLimit: uint256(GAS_QUOTE),
-                data: _encodeMessengerCalldata(address(ism), 1 ether, messageId)
-            });
-        portal.finalizeWithdrawalTransaction(withdrawal);
-
-        vm.etch(address(portal), new bytes(0)); // this is a way to test that the portal isn't called again
-        assertTrue(ism.verify(new bytes(0), encodedMessage));
-        assertEq(address(testRecipient).balance, 1 ether); // testing msg.value
     }
 
     function test_verify_statefulAndDirectWithdrawal() public {
@@ -196,17 +166,35 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
     /* ============ helper functions ============ */
 
-    function _bridgeDestinationCall(
+    function _expectOriginBridgeCall(
         bytes memory _encodedHookData
     ) internal override {
+        vm.expectCall(
+            L2_MESSENGER_ADDRESS,
+            abi.encodeCall(
+                ICrossDomainMessenger.sendMessage,
+                (address(ism), _encodedHookData, uint32(GAS_QUOTE))
+            )
+        );
+    }
+
+    function _bridgeDestinationCall(
+        bytes memory,
+        /*_encodedHookData*/ uint256 _msgValue
+    ) internal override {
+        vm.deal(address(portal), _msgValue);
         IOptimismPortal.WithdrawalTransaction
             memory withdrawal = IOptimismPortal.WithdrawalTransaction({
                 nonce: MOCK_NONCE,
                 sender: L2_MESSENGER_ADDRESS,
                 target: address(l1Messenger),
-                value: 0,
+                value: _msgValue,
                 gasLimit: uint256(GAS_QUOTE),
-                data: _encodeMessengerCalldata(address(ism), 0, messageId)
+                data: _encodeMessengerCalldata(
+                    address(ism),
+                    _msgValue,
+                    messageId
+                )
             });
         portal.finalizeWithdrawalTransaction(withdrawal);
     }

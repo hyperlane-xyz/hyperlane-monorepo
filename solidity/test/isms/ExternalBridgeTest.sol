@@ -100,7 +100,7 @@ abstract contract ExternalBridgeTest is Test {
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             (messageId)
         );
-        _bridgeDestinationCall(encodedHookData);
+        _bridgeDestinationCall(encodedHookData, 0);
 
         assertTrue(ism.isVerified(encodedMessage));
     }
@@ -110,13 +110,24 @@ abstract contract ExternalBridgeTest is Test {
         ism.verify(new bytes(0), encodedMessage);
     }
 
+    function test_verify_msgValueWithAsyncCall() public {
+        bytes memory encodedHookData = _encodeHookData(messageId);
+        _bridgeDestinationCall(encodedHookData, 1 ether);
+
+        assertTrue(ism.verify(new bytes(0), encodedMessage));
+        assertEq(address(testRecipient).balance, 1 ether);
+    }
+
     function _expectOriginBridgeCall(
         bytes memory _encodedHookData
     ) internal virtual;
 
     function _bridgeDestinationCall(
-        bytes memory _encodedHookData
+        bytes memory _encodedHookData,
+        uint256 _msgValue
     ) internal virtual;
+
+    // function _encodeBridgeCall(address _to, uint256 _msgValue, bytes memory _data) internal view returns (bytes memory)
 
     // function testPostDispatch_RevertWhen_ChainIDNotSupported() public virtual;
     // function testPostDispatch_RevertWhen_NotLastDispatchedMessage() public virtual;

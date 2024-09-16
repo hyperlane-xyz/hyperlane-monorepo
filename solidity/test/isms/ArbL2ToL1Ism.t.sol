@@ -92,10 +92,11 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
     }
 
     function _bridgeDestinationCall(
-        bytes memory _encodedHookData
+        bytes memory _encodedHookData,
+        uint256 _msgValue
     ) internal override {
         arbBridge.setL2ToL1Sender(address(hook));
-        arbBridge.executeTransaction{value: 1 ether}(
+        arbBridge.executeTransaction{value: _msgValue}(
             new bytes32[](0),
             MOCK_LEAF_INDEX,
             address(hook),
@@ -103,18 +104,10 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
             MOCK_L2_BLOCK,
             MOCK_L1_BLOCK,
             block.timestamp,
-            1 ether,
+            _msgValue,
             _encodedHookData
         );
     }
-
-    // function test_verify_statefulVerify() public {
-    //     bytes memory encodedHookData = abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, (messageId));
-
-    //     vm.etch(address(arbBridge), new bytes(0)); // this is a way to test that the arbBridge isn't called again
-    //     assertTrue(ism.verify(new bytes(0), encodedMessage));
-    //     assertEq(address(testRecipient).balance, 1 ether);
-    // }
 
     function test_verify_statefulAndOutbox() public {
         bytes memory encodedHookData = abi.encodeCall(
