@@ -35,30 +35,24 @@ export abstract class HyperlaneAppChecker<
   App extends HyperlaneApp<any>,
   Config,
 > {
-  readonly multiProvider: MultiProvider;
-  readonly app: App;
-  readonly configMap: ChainMap<Config>;
-  readonly violations: CheckerViolation[];
+  readonly violations: CheckerViolation[] = [];
 
   constructor(
-    multiProvider: MultiProvider,
-    app: App,
-    configMap: ChainMap<Config>,
-  ) {
-    this.multiProvider = multiProvider;
-    this.app = app;
-    this.violations = [];
-    this.configMap = configMap;
-  }
+    readonly multiProvider: MultiProvider,
+    readonly app: App,
+    readonly configMap: ChainMap<Config>,
+  ) {}
 
   abstract checkChain(chain: ChainName): Promise<void>;
 
   async check(): Promise<void[]> {
+    const appChains = this.app.chains();
+
     Object.keys(this.configMap)
       .filter(
         (chain) =>
           this.multiProvider.getChainMetadata(chain).protocol ===
-            ProtocolType.Ethereum && !this.app.chains().includes(chain),
+            ProtocolType.Ethereum && !appChains.includes(chain),
       )
       .forEach((chain: string) =>
         this.addViolation({
@@ -70,8 +64,13 @@ export abstract class HyperlaneAppChecker<
       );
 
     return Promise.all(
-      // this.app.chains() will only return Ethereum chains that can be interacted with.
-      this.app.chains().map((chain) => this.checkChain(chain)),
+      appChains
+        .filter(
+          (chain) =>
+            this.multiProvider.getChainMetadata(chain).protocol ===
+            ProtocolType.Ethereum,
+        )
+        .map((chain) => this.checkChain(chain)),
     );
   }
 
