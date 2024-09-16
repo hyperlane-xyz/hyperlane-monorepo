@@ -1,17 +1,7 @@
 import * as ethers from 'ethers';
 import { Contract, ContractFactory, Provider, Wallet } from 'zksync-ethers';
 
-import {
-  ArbL2ToL1Hook__factory,
-  FallbackDomainRoutingHook__factory,
-  InterchainGasPaymaster__factory,
-  MerkleTreeHook__factory,
-  OPStackHook__factory,
-  PausableHook__factory,
-  ProtocolFee__factory,
-  StaticAggregationHook__factory,
-  TestMerkle__factory,
-} from '@hyperlane-xyz/core';
+import { TestMerkle__factory } from '@hyperlane-xyz/core';
 
 describe('MultiProtocolApp', async () => {
   const provider = new Provider('http://127.0.0.1:8011');
@@ -20,6 +10,7 @@ describe('MultiProtocolApp', async () => {
     '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
     provider,
   );
+
   const factory = new ContractFactory(
     TestMerkle__factory.abi,
     TestMerkle__factory.bytecode,
