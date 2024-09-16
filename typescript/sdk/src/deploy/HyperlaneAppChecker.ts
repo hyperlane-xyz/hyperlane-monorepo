@@ -45,26 +45,33 @@ export abstract class HyperlaneAppChecker<
 
   abstract checkChain(chain: ChainName): Promise<void>;
 
-  async check(): Promise<void[]> {
-    const appChains = this.app.chains();
+  async check(chainsToCheck?: ChainName[]): Promise<void[]> {
+    // Get all EVM chains from config
+    const evmChains = Object.keys(this.configMap).filter(
+      (chain) =>
+        this.multiProvider.getChainMetadata(chain).protocol ===
+        ProtocolType.Ethereum,
+    );
 
-    Object.keys(this.configMap)
-      .filter(
-        (chain) =>
-          this.multiProvider.getChainMetadata(chain).protocol ===
-            ProtocolType.Ethereum && !appChains.includes(chain),
-      )
-      .forEach((chain: string) =>
+    // Mark any EVM chains that are not deployed
+    const appChains = this.app.chains();
+    for (const chain of evmChains) {
+      if (!appChains.includes(chain)) {
         this.addViolation({
           type: ViolationType.NotDeployed,
           chain,
           expected: '',
           actual: '',
-        }),
-      );
+        });
+      }
+    }
 
+    // Finally, check the chains that were explicitly requested
+    // If no chains were requested, check all app chains
+    const chains =
+      !chainsToCheck || chainsToCheck.length === 0 ? appChains : chainsToCheck;
     return Promise.all(
-      appChains
+      chains
         .filter(
           (chain) =>
             this.multiProvider.getChainMetadata(chain).protocol ===

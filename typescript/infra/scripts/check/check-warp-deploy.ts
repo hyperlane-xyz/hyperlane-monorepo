@@ -13,7 +13,7 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const { environment, asDeployer, chain, fork, context, pushMetrics } =
+  const { environment, asDeployer, chains, fork, context, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
@@ -36,7 +36,7 @@ async function main() {
         environment,
         asDeployer,
         warpRouteId,
-        chain,
+        chains,
         fork,
       );
 
