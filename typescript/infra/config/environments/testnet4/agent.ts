@@ -52,7 +52,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     optimismsepolia: true,
-    plumetestnet: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -70,7 +71,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     optimismsepolia: true,
-    plumetestnet: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -89,7 +91,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     optimismsepolia: true,
-    plumetestnet: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,

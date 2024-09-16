@@ -37,7 +37,8 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '5',
     holesky: '5',
     optimismsepolia: '0.1',
-    plumetestnet: '0.2',
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: '0.2',
     polygonamoy: '0.2',
     scrollsepolia: '1',
     sepolia: '5',
@@ -57,7 +58,8 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     holesky: '0',
     optimismsepolia: '0',
-    plumetestnet: '0.05',
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: '0.05',
     polygonamoy: '0',
     scrollsepolia: '1',
     sepolia: '1',
@@ -77,7 +79,8 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     holesky: '1',
     optimismsepolia: '0.05',
-    plumetestnet: '0.1',
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: '0.1',
     polygonamoy: '0.1',
     scrollsepolia: '0.1',
     sepolia: '1',
