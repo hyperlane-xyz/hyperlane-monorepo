@@ -1,10 +1,9 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
-import { icas } from '../config/environments/mainnet3/owners.js';
-
-import { getArgs as getEnvArgs } from './agent-utils.js';
-import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
+import { icas } from '../../config/environments/mainnet3/owners.js';
+import { getArgs as getEnvArgs } from '../agent-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 function getArgs() {
   return getEnvArgs().option('ownerChain', {
