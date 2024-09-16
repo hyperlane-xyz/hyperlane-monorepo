@@ -1,4 +1,4 @@
-import { input, select } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -101,11 +101,9 @@ export function isValidWarpRouteDeployConfig(config: any) {
 export async function createWarpRouteDeployConfig({
   context,
   outPath,
-  advanced = false,
 }: {
   context: CommandContext;
   outPath: string;
-  advanced: boolean;
 }) {
   logBlue('Creating a new warp route deployment config...');
 
@@ -144,9 +142,15 @@ export async function createWarpRouteDeployConfig({
       'hyperlane-registry',
     );
 
-    const interchainSecurityModule = advanced
-      ? await createAdvancedIsmConfig(context)
-      : createDefaultWarpIsmConfig(owner);
+    const createDefaultIsm =
+      context.skipConfirmation ||
+      (await confirm({
+        message: 'Use a trusted ISM for warp route',
+      }));
+
+    const interchainSecurityModule = createDefaultIsm
+      ? createDefaultWarpIsmConfig(owner)
+      : await createAdvancedIsmConfig(context);
 
     switch (type) {
       case TokenType.collateral:
