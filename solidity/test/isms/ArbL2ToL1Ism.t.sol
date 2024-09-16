@@ -65,7 +65,7 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
-    function _expectOriginBridgeCall(
+    function _expectOriginExternalBridgeCall(
         bytes memory _encodedHookData
     ) internal override {
         vm.expectCall(
@@ -77,21 +77,18 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         );
     }
 
-    function test_verify_outboxCall() public {
-        bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
-            address(hook),
-            address(ism),
-            messageId,
-            1 ether
-        );
-
-        vm.deal(address(arbBridge), 1 ether);
+    function _encodeExternalDestinationBridgeCall(
+        address _from,
+        address _to,
+        uint256 _msgValue,
+        bytes32 _messageId
+    ) internal override returns (bytes memory) {
+        vm.deal(address(arbBridge), _msgValue);
         arbBridge.setL2ToL1Sender(address(hook));
-        assertTrue(ism.verify(encodedOutboxTxMetadata, encodedMessage));
-        assertEq(address(testRecipient).balance, 1 ether);
+        return _encodeOutboxTx(_from, _to, _messageId, _msgValue);
     }
 
-    function _bridgeDestinationCall(
+    function _externalBridgeDestinationCall(
         bytes memory _encodedHookData,
         uint256 _msgValue
     ) internal override {

@@ -90,7 +90,7 @@ abstract contract ExternalBridgeTest is Test {
     function test_postDispatch() public {
         bytes memory encodedHookData = _encodeHookData(messageId);
         originMailbox.updateLatestDispatchedId(messageId);
-        _expectOriginBridgeCall(encodedHookData);
+        _expectOriginExternalBridgeCall(encodedHookData);
 
         hook.postDispatch{value: GAS_QUOTE}(testMetadata, encodedMessage);
     }
@@ -100,8 +100,20 @@ abstract contract ExternalBridgeTest is Test {
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             (messageId)
         );
-        _bridgeDestinationCall(encodedHookData, 0);
+        _externalBridgeDestinationCall(encodedHookData, 0);
 
+        assertTrue(ism.isVerified(encodedMessage));
+    }
+
+    function test_verifyMessageId_externalBridgeCall() public {
+        bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
+            address(hook),
+            address(ism),
+            0,
+            messageId
+        );
+
+        ism.verify(externalCalldata, encodedMessage);
         assertTrue(ism.isVerified(encodedMessage));
     }
 
@@ -110,29 +122,39 @@ abstract contract ExternalBridgeTest is Test {
         ism.verify(new bytes(0), encodedMessage);
     }
 
-    function test_verify_msgValueWithAsyncCall() public {
+    function test_verify_msgValue_asyncCall() public {
         bytes memory encodedHookData = _encodeHookData(messageId);
-        _bridgeDestinationCall(encodedHookData, 1 ether);
+        _externalBridgeDestinationCall(encodedHookData, 1 ether);
 
         assertTrue(ism.verify(new bytes(0), encodedMessage));
         assertEq(address(testRecipient).balance, 1 ether);
     }
 
-    function _expectOriginBridgeCall(
+    function test_verify_msgValue_externalBridgeCall() public {
+        bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
+            address(hook),
+            address(ism),
+            1 ether,
+            messageId
+        );
+
+        ism.verify(externalCalldata, encodedMessage);
+        assertEq(address(testRecipient).balance, 1 ether);
+    }
+
+    function _expectOriginExternalBridgeCall(
         bytes memory _encodedHookData
     ) internal virtual;
 
-    function _bridgeDestinationCall(
+    function _externalBridgeDestinationCall(
         bytes memory _encodedHookData,
         uint256 _msgValue
     ) internal virtual;
 
-    // function _encodeBridgeCall(address _to, uint256 _msgValue, bytes memory _data) internal view returns (bytes memory)
-
-    // function testPostDispatch_RevertWhen_ChainIDNotSupported() public virtual;
-    // function testPostDispatch_RevertWhen_NotLastDispatchedMessage() public virtual;
-    // function testVerify_WithValue(uint256 _msgValue) public virtual;
-    // function testVerify_RevertWhen_InvalidMessage() public virtual;
-
-    // Add more common test cases as needed
+    function _encodeExternalDestinationBridgeCall(
+        address _from,
+        address _to,
+        uint256 _msgValue,
+        bytes32 _messageId
+    ) internal virtual returns (bytes memory);
 }

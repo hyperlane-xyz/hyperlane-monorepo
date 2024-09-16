@@ -72,16 +72,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
-    function test_verify_directWithdrawalCall() public {
-        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
-            address(ism),
-            0,
-            messageId
-        );
-
-        assertTrue(ism.verify(encodedWithdrawalTx, encodedMessage));
-    }
-
     function test_verify_directWithdrawalCall_revertsWhen_invalidSender()
         public
     {
@@ -166,7 +156,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
     /* ============ helper functions ============ */
 
-    function _expectOriginBridgeCall(
+    function _expectOriginExternalBridgeCall(
         bytes memory _encodedHookData
     ) internal override {
         vm.expectCall(
@@ -178,9 +168,20 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         );
     }
 
-    function _bridgeDestinationCall(
+    function _encodeExternalDestinationBridgeCall(
+        address,
+        /*_from*/ address _to,
+        uint256 _msgValue,
+        bytes32 _messageId
+    ) internal override returns (bytes memory) {
+        vm.deal(address(portal), _msgValue);
+        return _encodeFinalizeWithdrawalTx(_to, _msgValue, _messageId);
+    }
+
+    function _externalBridgeDestinationCall(
         bytes memory,
-        /*_encodedHookData*/ uint256 _msgValue
+        /*_encodedHookData*/
+        uint256 _msgValue
     ) internal override {
         vm.deal(address(portal), _msgValue);
         IOptimismPortal.WithdrawalTransaction
