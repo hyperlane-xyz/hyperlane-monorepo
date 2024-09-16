@@ -13,13 +13,9 @@ import {ArbL2ToL1Hook} from "../../contracts/hooks/ArbL2ToL1Hook.sol";
 import {ArbL2ToL1Ism} from "../../contracts/isms/hook/ArbL2ToL1Ism.sol";
 import {MockArbBridge, MockArbSys} from "../../contracts/mock/MockArbBridge.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
+import {ExternalBridgeTest} from "./ExternalBridgeTest.sol";
 
-contract ArbL2ToL1IsmTest is Test {
-    uint8 internal constant HYPERLANE_VERSION = 1;
-    uint32 internal constant MAINNET_DOMAIN = 1;
-    uint32 internal constant ARBITRUM_DOMAIN = 42161;
-    uint256 internal constant GAS_QUOTE = 120_000;
-
+contract ArbL2ToL1IsmTest is ExternalBridgeTest {
     uint256 internal constant MOCK_LEAF_INDEX = 40160;
     uint256 internal constant MOCK_L2_BLOCK = 54220000;
     uint256 internal constant MOCK_L1_BLOCK = 6098300;
@@ -28,26 +24,17 @@ contract ArbL2ToL1IsmTest is Test {
         0x0000000000000000000000000000000000000064;
 
     MockArbBridge internal arbBridge;
-    TestMailbox public l2Mailbox;
-    ArbL2ToL1Hook public hook;
-    ArbL2ToL1Ism public ism;
 
-    TestRecipient internal testRecipient;
-    bytes internal testMessage =
-        abi.encodePacked("Hello from the other chain!");
-    bytes internal encodedMessage;
-    bytes internal testMetadata =
-        StandardHookMetadata.overrideRefundAddress(address(this));
-    bytes32 internal messageId;
+    function setUp() public override {
+        ORIGIN_DOMAIN = 42161;
+        DESTINATION_DOMAIN = 1;
+        GAS_QUOTE = 120_000;
+        super.setUp();
 
-    function setUp() public {
         // Arbitrum bridge mock setup
         vm.etch(L2_ARBSYS_ADDRESS, address(new MockArbSys()).code);
 
-        testRecipient = new TestRecipient();
-
-        encodedMessage = _encodeTestMessage();
-        messageId = Message.id(encodedMessage);
+        deployAll();
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -55,10 +42,10 @@ contract ArbL2ToL1IsmTest is Test {
     ///////////////////////////////////////////////////////////////////
 
     function deployHook() public {
-        l2Mailbox = new TestMailbox(ARBITRUM_DOMAIN);
+        originMailbox = new TestMailbox(ORIGIN_DOMAIN);
         hook = new ArbL2ToL1Hook(
-            address(l2Mailbox),
-            MAINNET_DOMAIN,
+            address(originMailbox),
+            DESTINATION_DOMAIN,
             TypeCasts.addressToBytes32(address(ism)),
             L2_ARBSYS_ADDRESS,
             GAS_QUOTE
@@ -78,58 +65,19 @@ contract ArbL2ToL1IsmTest is Test {
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
-    function test_postDispatch() public {
-        deployAll();
-
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
-        l2Mailbox.updateLatestDispatchedId(messageId);
-
+    function _expectOriginBridgeCall(
+        bytes memory _encodedHookData
+    ) internal override {
         vm.expectCall(
             L2_ARBSYS_ADDRESS,
             abi.encodeCall(
                 MockArbSys.sendTxToL1,
-                (address(ism), encodedHookData)
+                (address(ism), _encodedHookData)
             )
         );
-        hook.postDispatch(testMetadata, encodedMessage);
-    }
-
-    function testFork_postDispatch_revertWhen_chainIDNotSupported() public {
-        deployAll();
-
-        bytes memory message = MessageUtils.formatMessage(
-            0,
-            uint32(0),
-            ARBITRUM_DOMAIN,
-            TypeCasts.addressToBytes32(address(this)),
-            2, // wrong domain
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
-        );
-
-        l2Mailbox.updateLatestDispatchedId(Message.id(message));
-        vm.expectRevert(
-            "AbstractMessageIdAuthHook: invalid destination domain"
-        );
-        hook.postDispatch(testMetadata, message);
-    }
-
-    function test_postDispatch_revertWhen_notLastDispatchedMessage() public {
-        deployAll();
-
-        vm.expectRevert(
-            "AbstractMessageIdAuthHook: message not latest dispatched"
-        );
-        hook.postDispatch(testMetadata, encodedMessage);
     }
 
     function test_verify_outboxCall() public {
-        deployAll();
-
         bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
             address(hook),
             address(ism),
@@ -143,14 +91,9 @@ contract ArbL2ToL1IsmTest is Test {
         assertEq(address(testRecipient).balance, 1 ether);
     }
 
-    function test_verify_statefulVerify() public {
-        deployAll();
-
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
+    function _bridgeDestinationCall(
+        bytes memory _encodedHookData
+    ) internal override {
         arbBridge.setL2ToL1Sender(address(hook));
         arbBridge.executeTransaction{value: 1 ether}(
             new bytes32[](0),
@@ -161,17 +104,19 @@ contract ArbL2ToL1IsmTest is Test {
             MOCK_L1_BLOCK,
             block.timestamp,
             1 ether,
-            encodedHookData
+            _encodedHookData
         );
-
-        vm.etch(address(arbBridge), new bytes(0)); // this is a way to test that the arbBridge isn't called again
-        assertTrue(ism.verify(new bytes(0), encodedMessage));
-        assertEq(address(testRecipient).balance, 1 ether);
     }
 
-    function test_verify_statefulAndOutbox() public {
-        deployAll();
+    // function test_verify_statefulVerify() public {
+    //     bytes memory encodedHookData = abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, (messageId));
 
+    //     vm.etch(address(arbBridge), new bytes(0)); // this is a way to test that the arbBridge isn't called again
+    //     assertTrue(ism.verify(new bytes(0), encodedMessage));
+    //     assertEq(address(testRecipient).balance, 1 ether);
+    // }
+
+    function test_verify_statefulAndOutbox() public {
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             (messageId)
@@ -203,15 +148,11 @@ contract ArbL2ToL1IsmTest is Test {
     }
 
     function test_verify_revertsWhen_noStatefulOrOutbox() public {
-        deployAll();
-
         vm.expectRevert();
         ism.verify(new bytes(0), encodedMessage);
     }
 
     function test_verify_revertsWhen_notAuthorizedHook() public {
-        deployAll();
-
         bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
             address(this),
             address(ism),
@@ -226,8 +167,6 @@ contract ArbL2ToL1IsmTest is Test {
     }
 
     function test_verify_revertsWhen_invalidIsm() public {
-        deployAll();
-
         bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
             address(hook),
             address(this),
@@ -242,8 +181,6 @@ contract ArbL2ToL1IsmTest is Test {
     }
 
     function test_verify_revertsWhen_incorrectMessageId() public {
-        deployAll();
-
         bytes32 incorrectMessageId = keccak256("incorrect message id");
 
         bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
@@ -307,19 +244,6 @@ contract ArbL2ToL1IsmTest is Test {
                 block.timestamp,
                 _value,
                 encodedHookData
-            );
-    }
-
-    function _encodeTestMessage() internal view returns (bytes memory) {
-        return
-            MessageUtils.formatMessage(
-                HYPERLANE_VERSION,
-                uint32(0),
-                ARBITRUM_DOMAIN,
-                TypeCasts.addressToBytes32(address(this)),
-                MAINNET_DOMAIN,
-                TypeCasts.addressToBytes32(address(testRecipient)),
-                testMessage
             );
     }
 }

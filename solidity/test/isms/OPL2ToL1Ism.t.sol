@@ -25,7 +25,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
     MockOptimismPortal internal portal;
     MockOptimismMessenger internal l1Messenger;
-    OPL2ToL1Ism public ism;
 
     ///////////////////////////////////////////////////////////////////
     ///                            SETUP                            ///
@@ -47,9 +46,9 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
     }
 
     function deployHook() public {
-        destinationMailbox = new TestMailbox(DESTINATION_DOMAIN);
+        originMailbox = new TestMailbox(ORIGIN_DOMAIN);
         hook = new OPL2ToL1Hook(
-            address(destinationMailbox),
+            address(originMailbox),
             DESTINATION_DOMAIN,
             TypeCasts.addressToBytes32(address(ism)),
             L2_MESSENGER_ADDRESS,
@@ -201,6 +200,21 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
     }
 
     /* ============ helper functions ============ */
+
+    function _bridgeDestinationCall(
+        bytes memory _encodedHookData
+    ) internal override {
+        IOptimismPortal.WithdrawalTransaction
+            memory withdrawal = IOptimismPortal.WithdrawalTransaction({
+                nonce: MOCK_NONCE,
+                sender: L2_MESSENGER_ADDRESS,
+                target: address(l1Messenger),
+                value: 0,
+                gasLimit: uint256(GAS_QUOTE),
+                data: _encodeMessengerCalldata(address(ism), 0, messageId)
+            });
+        portal.finalizeWithdrawalTransaction(withdrawal);
+    }
 
     function _encodeMessengerCalldata(
         address _ism,

@@ -24,6 +24,7 @@ abstract contract ExternalBridgeTest is Test {
     TestRecipient internal testRecipient;
 
     AbstractMessageIdAuthHook internal hook;
+    AbstractMessageIdAuthorizedIsm internal ism;
 
     bytes internal testMessage =
         abi.encodePacked("Hello from the other chain!");
@@ -61,7 +62,7 @@ abstract contract ExternalBridgeTest is Test {
             );
     }
 
-    function testFork_postDispatch_revertWhen_chainIDNotSupported() public {
+    function test_postDispatch_revertWhen_chainIDNotSupported() public {
         bytes memory message = MessageUtils.formatMessage(
             0,
             uint32(0),
@@ -72,7 +73,7 @@ abstract contract ExternalBridgeTest is Test {
             testMessage
         );
 
-        destinationMailbox.updateLatestDispatchedId(Message.id(message));
+        originMailbox.updateLatestDispatchedId(Message.id(message));
         vm.expectRevert(
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
@@ -88,13 +89,27 @@ abstract contract ExternalBridgeTest is Test {
 
     function test_postDispatch() public {
         bytes memory encodedHookData = _encodeHookData(messageId);
-        destinationMailbox.updateLatestDispatchedId(messageId);
+        originMailbox.updateLatestDispatchedId(messageId);
         _expectOriginBridgeCall(encodedHookData);
 
         hook.postDispatch{value: GAS_QUOTE}(testMetadata, encodedMessage);
     }
 
+    function test_verifyMessageId_asyncCall() public {
+        bytes memory encodedHookData = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (messageId)
+        );
+        _bridgeDestinationCall(encodedHookData);
+
+        assertTrue(ism.isVerified(encodedMessage));
+    }
+
     function _expectOriginBridgeCall(
+        bytes memory _encodedHookData
+    ) internal virtual;
+
+    function _bridgeDestinationCall(
         bytes memory _encodedHookData
     ) internal virtual;
 
