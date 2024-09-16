@@ -6,7 +6,7 @@ use ethers::{
     abi::Detokenize,
     prelude::{NameOrAddress, TransactionReceipt},
     providers::{JsonRpcClient, PendingTransaction, ProviderError},
-    types::Eip1559TransactionRequest,
+    types::{Block, Eip1559TransactionRequest, TxHash},
 };
 use ethers_contract::builders::ContractCall;
 use ethers_core::{
@@ -109,13 +109,12 @@ where
     };
 
     // Cap the gas limit to the block gas limit
-    let block_gas_limit: U256 = provider
+    let latest_block = provider
         .get_block(BlockNumber::Latest)
         .await
         .map_err(ChainCommunicationError::from_other)?
-        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?
-        .gas_limit
-        .into();
+        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+    let block_gas_limit: U256 = latest_block.gas_limit.into();
     let gas_limit = if gas_limit > block_gas_limit {
         warn!(
             ?gas_limit,
@@ -133,7 +132,8 @@ where
         return Ok(tx.gas_price(gas_price).gas(gas_limit));
     }
 
-    let Ok((base_fee, max_fee, max_priority_fee)) = estimate_eip1559_fees(provider, None).await
+    let Ok((base_fee, max_fee, max_priority_fee)) =
+        estimate_eip1559_fees(provider, None, &latest_block).await
     else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
@@ -188,15 +188,12 @@ type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU
 async fn estimate_eip1559_fees<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
+    latest_block: &Block<TxHash>,
 ) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
 where
     M: Middleware + 'static,
 {
-    let base_fee_per_gas = provider
-        .get_block(BlockNumber::Latest)
-        .await
-        .map_err(ChainCommunicationError::from_other)?
-        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?
+    let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
 
