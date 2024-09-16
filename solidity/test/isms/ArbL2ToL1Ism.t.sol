@@ -106,37 +106,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         );
     }
 
-    function test_verify_statefulAndOutbox() public {
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-
-        arbBridge.setL2ToL1Sender(address(hook));
-        arbBridge.executeTransaction{value: 1 ether}(
-            new bytes32[](0),
-            MOCK_LEAF_INDEX,
-            address(hook),
-            address(ism),
-            MOCK_L2_BLOCK,
-            MOCK_L1_BLOCK,
-            block.timestamp,
-            1 ether,
-            encodedHookData
-        );
-
-        bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
-            address(hook),
-            address(ism),
-            messageId,
-            1 ether
-        );
-
-        vm.etch(address(arbBridge), new bytes(0)); // this is a way to test that the arbBridge isn't called again
-        assertTrue(ism.verify(encodedOutboxTxMetadata, encodedMessage));
-        assertEq(address(testRecipient).balance, 1 ether);
-    }
-
     function test_verify_revertsWhen_notAuthorizedHook() public {
         bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
             address(this),

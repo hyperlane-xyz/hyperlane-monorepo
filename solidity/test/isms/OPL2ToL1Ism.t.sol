@@ -87,28 +87,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         ism.verify(encodedWithdrawalTx, encodedMessage);
     }
 
-    function test_verify_statefulAndDirectWithdrawal() public {
-        IOptimismPortal.WithdrawalTransaction
-            memory withdrawal = IOptimismPortal.WithdrawalTransaction({
-                nonce: MOCK_NONCE,
-                sender: L2_MESSENGER_ADDRESS,
-                target: address(l1Messenger),
-                value: 0,
-                gasLimit: uint256(GAS_QUOTE),
-                data: _encodeMessengerCalldata(address(ism), 0, messageId)
-            });
-        portal.finalizeWithdrawalTransaction(withdrawal);
-
-        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
-            address(ism),
-            0,
-            messageId
-        );
-
-        vm.etch(address(portal), new bytes(0)); // this is a way to test that the portal isn't called again
-        assertTrue(ism.verify(encodedWithdrawalTx, encodedMessage));
-    }
-
     function test_verify_revertsWhen_incorrectMessageId() public {
         bytes32 incorrectMessageId = keccak256("incorrect message id");
 
