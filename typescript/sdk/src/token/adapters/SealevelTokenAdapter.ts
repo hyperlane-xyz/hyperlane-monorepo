@@ -49,6 +49,8 @@ import {
   SealevelTransferRemoteSchema,
 } from './serialization.js';
 
+const NON_EXISTENT_ACCOUNT_ERROR = 'could not find account';
+
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
   extends BaseSealevelAdapter
@@ -106,11 +108,18 @@ export class SealevelTokenAdapter
   }
 
   async getBalance(owner: Address): Promise<bigint> {
-    const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.getProvider().getTokenAccountBalance(
-      tokenPubKey,
-    );
-    return BigInt(response.value.amount);
+    try {
+      const tokenPubKey = this.deriveAssociatedTokenAccount(
+        new PublicKey(owner),
+      );
+      const response = await this.getProvider().getTokenAccountBalance(
+        tokenPubKey,
+      );
+      return BigInt(response.value.amount);
+    } catch (error: any) {
+      if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
+      throw error;
+    }
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
@@ -610,11 +619,18 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
   }
 
   override async getBalance(owner: Address): Promise<bigint> {
-    const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.getProvider().getTokenAccountBalance(
-      tokenPubKey,
-    );
-    return BigInt(response.value.amount);
+    try {
+      const tokenPubKey = this.deriveAssociatedTokenAccount(
+        new PublicKey(owner),
+      );
+      const response = await this.getProvider().getTokenAccountBalance(
+        tokenPubKey,
+      );
+      return BigInt(response.value.amount);
+    } catch (error: any) {
+      if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
+      throw error;
+    }
   }
 
   deriveMintAuthorityAccount(): PublicKey {
