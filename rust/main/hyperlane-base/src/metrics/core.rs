@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::OnceLock;
 use std::time;
@@ -467,9 +467,11 @@ const MIN_VALIDATOR_SET_REFRESH_PERIOD: time::Duration = time::Duration::from_se
 pub struct ValidatorObservabilityMetricManager {
     observed_validator_latest_index: IntGaugeVec,
 
-    // Cache of the validators for each app context, along with the time of the
-    // last time the metric was refreshed to tolerate validators that have been rotated out.
-    app_context_validators: RwLock<HashMap<AppContextKey, (HashSet<H160>, time::Instant)>>,
+    // AppContextKey -> Validator -> Last updated at
+    // Used to track the last time a validator was updated in the metrics, allowing
+    // for the removal of validators that have not been updated in a while to support
+    // changing validator sets.
+    app_context_validators: RwLock<HashMap<AppContextKey, HashMap<H160, time::Instant>>>,
 }
 
 impl ValidatorObservabilityMetricManager {
@@ -497,42 +499,36 @@ impl ValidatorObservabilityMetricManager {
 
         let mut app_context_validators = self.app_context_validators.write().await;
 
+        let mut new_set = HashMap::new();
+
         // First, attempt to clear out all previous metrics for the app context.
         // This is necessary because the set of validators may have changed.
-        let (mut new_set, new_metric_refresh_time) =
-            if let Some((prev_validators, prev_metric_refresh_time)) =
-                app_context_validators.get(&key)
-            {
-                // If the last refresh to the metrics was more than this period ago, clear out the
-                // previous metrics. Some leniency is given here to allow this function
-                // to be called multiple times in a short period without clearing out
-                // the metrics, e.g. when a message's ISM aggregates multiple different
-                // validator sets.
-                if prev_metric_refresh_time.elapsed() > MIN_VALIDATOR_SET_REFRESH_PERIOD {
-                    for validator in prev_validators {
-                        // We unwrap because an error here occurs if the # of labels
-                        // provided is incorrect, and we'd like to loudly fail in e2e if that
-                        // happens.
-                        self.observed_validator_latest_index
-                            .remove_label_values(&[
-                                origin.as_ref(),
-                                destination.as_ref(),
-                                &format!("0x{:x}", validator).to_lowercase(),
-                                &app_context,
-                            ])
-                            .unwrap();
-                    }
-                    // Clear out the previous set of validators and update the time of the last metric refresh.
-                    (HashSet::new(), time::Instant::now())
-                } else {
-                    // If the last metric refresh was too recent, keep the previous set of validators
-                    // and the time of the last metric refresh.
-                    (prev_validators.clone(), prev_metric_refresh_time.clone())
+        if let Some(prev_validators) = app_context_validators.get_mut(&key) {
+            // If the validator was last updated in the metrics more than
+            // a certain period ago, remove it from the metrics.
+            // Some leniency is given here to allow this function to be called
+            // multiple times in a short period without clearing out the metrics,
+            // e.g. when a message's ISM aggregates multiple different validator sets.
+            for (validator, last_updated_at) in prev_validators {
+                if last_updated_at.elapsed() < MIN_VALIDATOR_SET_REFRESH_PERIOD {
+                    // If the last metric refresh was too recent, keep the validator
+                    // and the time of its last metric update.
+                    new_set.insert(*validator, *last_updated_at);
+                    continue;
                 }
-            } else {
-                // If there was no previous set of validators, start with an empty set and the current time.
-                (HashSet::new(), time::Instant::now())
-            };
+                // We unwrap because an error here occurs if the # of labels
+                // provided is incorrect, and we'd like to loudly fail in e2e if that
+                // happens.
+                self.observed_validator_latest_index
+                    .remove_label_values(&[
+                        origin.as_ref(),
+                        destination.as_ref(),
+                        &format!("0x{:x}", validator).to_lowercase(),
+                        &app_context,
+                    ])
+                    .unwrap();
+            }
+        }
 
         // Then set the new metrics and update the cached set of validators.
         for (validator, latest_checkpoint) in latest_checkpoints {
@@ -546,9 +542,9 @@ impl ValidatorObservabilityMetricManager {
                 // If the latest checkpoint is None, set to -1 to indicate that
                 // the validator did not provide a valid latest checkpoint index.
                 .set(latest_checkpoint.map(|i| i as i64).unwrap_or(-1));
-            new_set.insert(*validator);
+            new_set.insert(*validator, time::Instant::now());
         }
-        app_context_validators.insert(key, (new_set, new_metric_refresh_time));
+        app_context_validators.insert(key, new_set);
     }
 
     /// Gauge for reporting recently observed latest checkpoint indices for validator sets.
