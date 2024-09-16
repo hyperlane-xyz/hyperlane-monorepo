@@ -185,7 +185,7 @@ impl CosmosWasmIndexer {
                 .map_err(|err| {
                     // This can happen if we attempt to parse an event that just happens
                     // to have the same name but a different structure.
-                    tracing::trace!(?err, tx_hash=?tx_hash, log_idx, ?event, "Failed to parse event attributes");
+                    trace!(?err, tx_hash=?tx_hash, log_idx, ?event, "Failed to parse event attributes");
                 })
                 .ok()
                 .and_then(|parsed_event| {
