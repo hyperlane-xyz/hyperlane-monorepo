@@ -503,7 +503,7 @@ impl ValidatorObservabilityMetricManager {
 
         // First, attempt to clear out all previous metrics for the app context.
         // This is necessary because the set of validators may have changed.
-        if let Some(prev_validators) = app_context_validators.get_mut(&key) {
+        if let Some(prev_validators) = app_context_validators.get(&key) {
             // If the validator was last updated in the metrics more than
             // a certain period ago, remove it from the metrics.
             // Some leniency is given here to allow this function to be called
