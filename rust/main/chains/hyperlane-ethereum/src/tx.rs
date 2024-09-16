@@ -17,7 +17,7 @@ use ethers_core::{
     },
 };
 use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{Middleware, TransactionOverrides};
 
@@ -106,6 +106,25 @@ where
         estimated_gas_limit.max(gas_limit)
     } else {
         estimated_gas_limit
+    };
+
+    // Cap the gas limit to the block gas limit
+    let block_gas_limit: U256 = provider
+        .get_block(BlockNumber::Latest)
+        .await
+        .map_err(ChainCommunicationError::from_other)?
+        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?
+        .gas_limit
+        .into();
+    let gas_limit = if gas_limit > block_gas_limit {
+        warn!(
+            ?gas_limit,
+            ?block_gas_limit,
+            "Gas limit for transaction is higher than the block gas limit. Capping it to the block gas limit."
+        );
+        block_gas_limit
+    } else {
+        gas_limit
     };
     debug!(?estimated_gas_limit, gas_override=?transaction_overrides.gas_limit, used_gas_limit=?gas_limit, "Gas limit set for transaction");
 
