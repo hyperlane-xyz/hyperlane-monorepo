@@ -34,12 +34,13 @@ contract InterchainAccountMirrorTest is Test {
         bytes32 destinationIcaRouter,
         bytes32 destinationIsmAddress
     ) public payable {
+        // do not match against fourth argument (mirror address)
         vm.expectEmit(true, true, true, false);
         emit InterchainAccountMirrorDeployed(
             destination,
             target,
             owner,
-            address(0x0) // assume CREATE2 works as expected
+            address(0x0) // no need to assert CREATE2 derivation correctness
         );
         address payable mirror = icaMirrorFactory.deployMirror(
             owner,
