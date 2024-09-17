@@ -7330,7 +7330,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:2.5.0"
+    "@hyperlane-xyz/registry": "npm:4.1.0"
     "@hyperlane-xyz/sdk": "npm:5.1.0"
     "@hyperlane-xyz/utils": "npm:5.1.0"
     "@inquirer/prompts": "npm:^3.0.0"
@@ -7342,8 +7342,8 @@ __metadata:
     "@typescript-eslint/parser": "npm:^7.4.0"
     asn1.js: "npm:^5.4.1"
     bignumber.js: "npm:^9.1.1"
-    chai: "npm:^4.3.6"
-    chai-as-promised: "npm:^8.0.0"
+    chai: "npm:4.5.0"
+    chai-as-promised: "npm:8.0.0"
     chalk: "npm:^5.3.0"
     eslint: "npm:^8.57.0"
     eslint-config-prettier: "npm:^9.1.0"
@@ -7353,8 +7353,8 @@ __metadata:
     prettier: "npm:^2.8.8"
     terminal-link: "npm:^3.0.0"
     tsx: "npm:^4.7.1"
-    typescript: "npm:^5.1.6"
-    yaml: "npm:^2.4.1"
+    typescript: "npm:5.3.3"
+    yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
     zod: "npm:^3.21.2"
     zod-validation-error: "npm:^3.3.0"
@@ -7524,6 +7524,16 @@ __metadata:
     yaml: "npm:^2"
     zod: "npm:^3.21.2"
   checksum: 24f433c0938dc31913b0f7a93b880a9aa15eabebf664eb11f319c51f6b38163929429405dd996b8964f8a2f43dfa4ba5424b157ad6fd39432653e46e128e0ffc
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/registry@npm:4.1.0":
+  version: 4.1.0
+  resolution: "@hyperlane-xyz/registry@npm:4.1.0"
+  dependencies:
+    yaml: "npm:2.4.5"
+    zod: "npm:^3.21.2"
+  checksum: 5de3ef5539abfaadbfefb82e6e69fdb2413f404d8321456c91810fb50a5a70e9f93b38789495efce6ab5963682536e95a2abe636c7d0ad91ee158cc0ce6b063a
   languageName: node
   linkType: hard
 
@@ -15389,7 +15399,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chai-as-promised@npm:^8.0.0":
+"chai-as-promised@npm:8.0.0":
   version: 8.0.0
   resolution: "chai-as-promised@npm:8.0.0"
   dependencies:
@@ -15400,7 +15410,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chai@npm:^4.3.10, chai@npm:^4.3.7":
+"chai@npm:4.5.0, chai@npm:^4.3.10, chai@npm:^4.3.7":
   version: 4.5.0
   resolution: "chai@npm:4.5.0"
   dependencies:
@@ -29222,16 +29232,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^5.1.6":
-  version: 5.3.2
-  resolution: "typescript@npm:5.3.2"
-  bin:
-    tsc: bin/tsc
-    tsserver: bin/tsserver
-  checksum: 415e5fb6611f5713e460bad48039f00bcfdbde53a2f911727862d5aa9c5d5edd250059a419df382d8f031709e15a169c41eb62b6a401da5eec7ac0f4e359d6ac
-  languageName: node
-  linkType: hard
-
 "typescript@patch:typescript@npm%3A5.3.3#optional!builtin<compat/typescript>":
   version: 5.3.3
   resolution: "typescript@patch:typescript@npm%3A5.3.3#optional!builtin<compat/typescript>::version=5.3.3&hash=e012d7"
@@ -29239,16 +29239,6 @@ __metadata:
     tsc: bin/tsc
     tsserver: bin/tsserver
   checksum: c93786fcc9a70718ba1e3819bab56064ead5817004d1b8186f8ca66165f3a2d0100fee91fa64c840dcd45f994ca5d615d8e1f566d39a7470fc1e014dbb4cf15d
-  languageName: node
-  linkType: hard
-
-"typescript@patch:typescript@npm%3A^5.1.6#optional!builtin<compat/typescript>":
-  version: 5.3.2
-  resolution: "typescript@patch:typescript@npm%3A5.3.2#optional!builtin<compat/typescript>::version=5.3.2&hash=e012d7"
-  bin:
-    tsc: bin/tsc
-    tsserver: bin/tsserver
-  checksum: 1b45cdfb577a78ae7a9a9d0b77a7b772142cb98ba05e4e5aefba7044a028ded885bcecef63166407a5986645cea816fe4986894336aacd5e791796ea79a6a7ed
   languageName: node
   linkType: hard
 
@@ -30717,6 +30707,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"yaml@npm:2.4.5, yaml@npm:^2.4.5":
+  version: 2.4.5
+  resolution: "yaml@npm:2.4.5"
+  bin:
+    yaml: bin.mjs
+  checksum: b09bf5a615a65276d433d76b8e34ad6b4c0320b85eb3f1a39da132c61ae6e2ff34eff4624e6458d96d49566c93cf43408ba5e568218293a8c6541a2006883f64
+  languageName: node
+  linkType: hard
+
 "yaml@npm:^1.10.2":
   version: 1.10.2
   resolution: "yaml@npm:1.10.2"
@@ -30739,15 +30738,6 @@ __metadata:
   bin:
     yaml: bin.mjs
   checksum: 72e903fdbe3742058885205db4a6c9ff38e5f497f4e05e631264f7756083c05e7d10dfb5e4ce9d7a95de95338f9b20d19dd0b91c60c65f7d7608b6b3929820ad
-  languageName: node
-  linkType: hard
-
-"yaml@npm:^2.4.5":
-  version: 2.4.5
-  resolution: "yaml@npm:2.4.5"
-  bin:
-    yaml: bin.mjs
-  checksum: b09bf5a615a65276d433d76b8e34ad6b4c0320b85eb3f1a39da132c61ae6e2ff34eff4624e6458d96d49566c93cf43408ba5e568218293a8c6541a2006883f64
   languageName: node
   linkType: hard
 
