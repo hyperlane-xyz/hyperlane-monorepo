@@ -107,13 +107,6 @@ export async function createWarpRouteDeployConfig({
   outPath: string;
   advanced: boolean;
 }) {
-  // Providing the global --yes flag will trigger the usage of a trusted ISM while the
-  // --advanced flag will force the user to manually configure an ISM. Both flags should
-  // not be set to true at the same time.
-  if (context.skipConfirmation && advanced) {
-    throw new Error('Arguments advanced and yes are mutually exclusive');
-  }
-
   logBlue('Creating a new warp route deployment config...');
 
   const owner = await detectAndConfirmOrPrompt(
@@ -152,10 +145,10 @@ export async function createWarpRouteDeployConfig({
     );
 
     let createDefaultIsm: boolean;
-    if (context.skipConfirmation) {
-      createDefaultIsm = true;
-    } else if (advanced) {
+    if (advanced) {
       createDefaultIsm = false;
+    } else if (context.skipConfirmation) {
+      createDefaultIsm = true;
     } else {
       createDefaultIsm = await confirm({
         message: 'Use a trusted ISM for warp route',
