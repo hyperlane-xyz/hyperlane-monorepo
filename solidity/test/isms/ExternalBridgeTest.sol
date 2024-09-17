@@ -19,7 +19,10 @@ abstract contract ExternalBridgeTest is Test {
     uint32 internal ORIGIN_DOMAIN;
     uint32 internal DESTINATION_DOMAIN;
     uint256 internal GAS_QUOTE;
+
     bytes internal unauthorizedHookError;
+    bytes internal invalidMessageIdError;
+
     TestMailbox internal originMailbox;
     TestMailbox internal destinationMailbox;
     TestRecipient internal testRecipient;
@@ -138,7 +141,6 @@ abstract contract ExternalBridgeTest is Test {
             1 ether,
             messageId
         );
-
         ism.verify(externalCalldata, encodedMessage);
         assertEq(address(testRecipient).balance, 1 ether);
     }
@@ -159,19 +161,41 @@ abstract contract ExternalBridgeTest is Test {
         bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
             address(this),
             address(ism),
-            1 ether,
+            0,
             messageId
         );
 
         _setExternalOriginSender(address(this));
 
+        // external call
         vm.expectRevert(unauthorizedHookError);
         assertFalse(ism.verify(externalCalldata, encodedMessage));
 
-        vm.expectRevert(); // evmRevert
+        // async call
+        vm.expectRevert();
         _externalBridgeDestinationCall(externalCalldata, 0);
-        assertEq(ism.isVerified(encodedMessage), false);
+        assertFalse(ism.isVerified(encodedMessage));
     }
+
+    function test_verify_revertsWhen_incorrectMessageId() public {
+        bytes32 incorrectMessageId = keccak256("incorrect message id");
+        bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
+            address(hook),
+            address(ism),
+            0,
+            incorrectMessageId
+        );
+
+        // external call
+        vm.expectRevert(invalidMessageIdError);
+        ism.verify(externalCalldata, encodedMessage);
+
+        // async call - native bridges might have try catch block to prevent revert
+        _externalBridgeDestinationCall(externalCalldata, 0);
+        assertFalse(ism.isVerified(testMessage));
+    }
+
+    /* ============ helper functions ============ */
 
     function _expectOriginExternalBridgeCall(
         bytes memory _encodedHookData

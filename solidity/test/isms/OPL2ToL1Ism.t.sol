@@ -34,6 +34,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         ORIGIN_DOMAIN = 10;
         DESTINATION_DOMAIN = 1;
         GAS_QUOTE = 120_000;
+        invalidMessageIdError = "OPL2ToL1Ism: invalid message id";
         super.setUp();
 
         // Optimism messenger mock setup
@@ -72,45 +73,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
-    function _setExternalOriginSender(address _sender) internal override {
-        unauthorizedHookError = "AbstractMessageIdAuthorizedIsm: sender is not the hook";
-        l1Messenger.setXDomainMessageSender(_sender);
-    }
-
-    function test_verify_revertsWhen_incorrectMessageId() public {
-        bytes32 incorrectMessageId = keccak256("incorrect message id");
-
-        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
-            address(this),
-            0,
-            incorrectMessageId
-        );
-
-        // through portal call
-        vm.expectRevert("OPL2ToL1Ism: invalid message id");
-        ism.verify(encodedWithdrawalTx, encodedMessage);
-
-        // through statefulVerify
-        IOptimismPortal.WithdrawalTransaction
-            memory withdrawal = IOptimismPortal.WithdrawalTransaction({
-                nonce: MOCK_NONCE,
-                sender: L2_MESSENGER_ADDRESS,
-                target: address(l1Messenger),
-                value: 0,
-                gasLimit: uint256(GAS_QUOTE),
-                data: _encodeMessengerCalldata(
-                    address(ism),
-                    0,
-                    incorrectMessageId
-                )
-            });
-        portal.finalizeWithdrawalTransaction(withdrawal);
-
-        vm.etch(address(portal), new bytes(0)); // to stop the portal route
-        vm.expectRevert(); // evmRevert()
-        assertFalse(ism.verify(new bytes(0), encodedMessage));
-    }
-
     /* ============ helper functions ============ */
 
     function _expectOriginExternalBridgeCall(
@@ -134,6 +96,11 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
     ) internal override returns (bytes memory) {
         vm.deal(address(portal), _msgValue);
         return _encodeFinalizeWithdrawalTx(_to, _msgValue, _messageId);
+    }
+
+    function _setExternalOriginSender(address _sender) internal override {
+        unauthorizedHookError = "AbstractMessageIdAuthorizedIsm: sender is not the hook";
+        l1Messenger.setXDomainMessageSender(_sender);
     }
 
     function _externalBridgeDestinationCall(

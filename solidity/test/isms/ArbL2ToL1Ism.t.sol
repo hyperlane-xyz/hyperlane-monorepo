@@ -29,6 +29,7 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         ORIGIN_DOMAIN = 42161;
         DESTINATION_DOMAIN = 1;
         GAS_QUOTE = 120_000;
+        invalidMessageIdError = "ArbL2ToL1Ism: invalid message id";
         super.setUp();
 
         // Arbitrum bridge mock setup
@@ -64,6 +65,8 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         arbBridge.setL2ToL1Sender(address(hook));
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
+
+    /* ============ helper functions ============ */
 
     function _expectOriginExternalBridgeCall(
         bytes memory _encodedHookData
@@ -108,45 +111,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         unauthorizedHookError = "ArbL2ToL1Ism: l2Sender != authorizedHook";
         arbBridge.setL2ToL1Sender(_sender);
     }
-
-    function test_verify_revertsWhen_incorrectMessageId() public {
-        bytes32 incorrectMessageId = keccak256("incorrect message id");
-
-        bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
-            address(hook),
-            address(ism),
-            incorrectMessageId,
-            0
-        );
-
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (incorrectMessageId)
-        );
-
-        // through outbox call
-        vm.expectRevert("ArbL2ToL1Ism: invalid message id");
-        ism.verify(encodedOutboxTxMetadata, encodedMessage);
-
-        // through statefulVerify
-        arbBridge.executeTransaction(
-            new bytes32[](0),
-            MOCK_LEAF_INDEX,
-            address(hook),
-            address(ism),
-            MOCK_L2_BLOCK,
-            MOCK_L1_BLOCK,
-            block.timestamp,
-            0,
-            encodedHookData
-        );
-
-        vm.etch(address(arbBridge), new bytes(0)); // to stop the outbox route
-        vm.expectRevert();
-        assertFalse(ism.verify(new bytes(0), encodedMessage));
-    }
-
-    /* ============ helper functions ============ */
 
     function _encodeOutboxTx(
         address _hook,
