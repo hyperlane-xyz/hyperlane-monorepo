@@ -5,6 +5,15 @@ import 'hardhat-gas-reporter';
 import 'hardhat-ignore-warnings';
 import 'solidity-coverage';
 
+import { internalTask } from "hardhat/config";
+import { TASK_COMPILE_GET_REMAPPINGS } from "hardhat/builtin-tasks/task-names";
+
+internalTask(TASK_COMPILE_GET_REMAPPINGS).setAction(
+  async (): Promise<Record<string, string>> => {
+    return {"forge-std": "forge-std/src"};
+  }
+);
+
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
