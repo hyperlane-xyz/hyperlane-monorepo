@@ -72,19 +72,9 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
-    function test_verify_directWithdrawalCall_revertsWhen_invalidSender()
-        public
-    {
-        l1Messenger.setXDomainMessageSender(address(this));
-
-        bytes memory encodedWithdrawalTx = _encodeFinalizeWithdrawalTx(
-            address(ism),
-            0,
-            messageId
-        );
-
-        vm.expectRevert(); // evmRevert in MockOptimismPortal
-        ism.verify(encodedWithdrawalTx, encodedMessage);
+    function _setExternalOriginSender(address _sender) internal override {
+        unauthorizedHookError = "AbstractMessageIdAuthorizedIsm: sender is not the hook";
+        l1Messenger.setXDomainMessageSender(_sender);
     }
 
     function test_verify_revertsWhen_incorrectMessageId() public {

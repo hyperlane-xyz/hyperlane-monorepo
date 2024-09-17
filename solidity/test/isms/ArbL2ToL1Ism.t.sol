@@ -54,7 +54,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
 
     function deployIsm() public {
         arbBridge = new MockArbBridge();
-
         ism = new ArbL2ToL1Ism(address(arbBridge));
     }
 
@@ -62,6 +61,7 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         deployIsm();
         deployHook();
 
+        arbBridge.setL2ToL1Sender(address(hook));
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
@@ -84,7 +84,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         bytes32 _messageId
     ) internal override returns (bytes memory) {
         vm.deal(address(arbBridge), _msgValue);
-        arbBridge.setL2ToL1Sender(address(hook));
         return _encodeOutboxTx(_from, _to, _messageId, _msgValue);
     }
 
@@ -92,7 +91,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         bytes memory _encodedHookData,
         uint256 _msgValue
     ) internal override {
-        arbBridge.setL2ToL1Sender(address(hook));
         arbBridge.executeTransaction{value: _msgValue}(
             new bytes32[](0),
             MOCK_LEAF_INDEX,
@@ -106,18 +104,9 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         );
     }
 
-    function test_verify_revertsWhen_notAuthorizedHook() public {
-        bytes memory encodedOutboxTxMetadata = _encodeOutboxTx(
-            address(this),
-            address(ism),
-            messageId,
-            0
-        );
-
-        arbBridge.setL2ToL1Sender(address(this));
-
-        vm.expectRevert("ArbL2ToL1Ism: l2Sender != authorizedHook");
-        ism.verify(encodedOutboxTxMetadata, encodedMessage);
+    function _setExternalOriginSender(address _sender) internal override {
+        unauthorizedHookError = "ArbL2ToL1Ism: l2Sender != authorizedHook";
+        arbBridge.setL2ToL1Sender(_sender);
     }
 
     function test_verify_revertsWhen_incorrectMessageId() public {
@@ -134,8 +123,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             (incorrectMessageId)
         );
-
-        arbBridge.setL2ToL1Sender(address(hook));
 
         // through outbox call
         vm.expectRevert("ArbL2ToL1Ism: invalid message id");

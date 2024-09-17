@@ -19,6 +19,7 @@ abstract contract ExternalBridgeTest is Test {
     uint32 internal ORIGIN_DOMAIN;
     uint32 internal DESTINATION_DOMAIN;
     uint256 internal GAS_QUOTE;
+    bytes internal unauthorizedHookError;
     TestMailbox internal originMailbox;
     TestMailbox internal destinationMailbox;
     TestRecipient internal testRecipient;
@@ -154,6 +155,24 @@ abstract contract ExternalBridgeTest is Test {
         ism.verify(externalCalldata, encodedMessage);
     }
 
+    function test_verify_revertsWhen_notAuthorizedHook() public {
+        bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
+            address(this),
+            address(ism),
+            1 ether,
+            messageId
+        );
+
+        _setExternalOriginSender(address(this));
+
+        vm.expectRevert(unauthorizedHookError);
+        assertFalse(ism.verify(externalCalldata, encodedMessage));
+
+        vm.expectRevert(); // evmRevert
+        _externalBridgeDestinationCall(externalCalldata, 0);
+        assertEq(ism.isVerified(encodedMessage), false);
+    }
+
     function _expectOriginExternalBridgeCall(
         bytes memory _encodedHookData
     ) internal virtual;
@@ -169,4 +188,6 @@ abstract contract ExternalBridgeTest is Test {
         uint256 _msgValue,
         bytes32 _messageId
     ) internal virtual returns (bytes memory);
+
+    function _setExternalOriginSender(address _sender) internal virtual {}
 }
