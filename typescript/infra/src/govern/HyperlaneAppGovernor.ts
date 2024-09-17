@@ -70,8 +70,8 @@ export abstract class HyperlaneAppGovernor<
     }
   }
 
-  async check() {
-    await this.checker.check();
+  async check(chainsToCheck?: ChainName[]) {
+    await this.checker.check(chainsToCheck);
   }
 
   async checkChain(chain: ChainName) {
