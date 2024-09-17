@@ -1,21 +1,22 @@
+use std::ops::RangeInclusive;
+
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use once_cell::sync::Lazy;
-use std::ops::RangeInclusive;
 use tendermint::abci::EventAttribute;
 use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, U256,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
 use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
 use crate::signers::Signer;
 use crate::utils::{
-    execute_and_parse_log_futures, parse_logs_in_range, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
-    CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+    execute_and_parse_log_futures, parse_logs_in_range, parse_logs_in_tx,
+    CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
 };
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
 
@@ -88,7 +89,7 @@ static DESTINATION_ATTRIBUTE_KEY_BASE64: Lazy<String> =
 /// A reference to a InterchainGasPaymasterIndexer contract on some Cosmos chain
 #[derive(Debug, Clone)]
 pub struct CosmosInterchainGasPaymasterIndexer {
-    indexer: Box<CosmosWasmRpcProvider>,
+    provider: Box<CosmosWasmRpcProvider>,
 }
 
 impl CosmosInterchainGasPaymasterIndexer {
@@ -101,7 +102,7 @@ impl CosmosInterchainGasPaymasterIndexer {
         locator: ContractLocator,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let indexer = CosmosWasmRpcProvider::new(
+        let provider = CosmosWasmRpcProvider::new(
             conf,
             locator,
             Self::INTERCHAIN_GAS_PAYMENT_EVENT_TYPE.into(),
@@ -109,7 +110,7 @@ impl CosmosInterchainGasPaymasterIndexer {
         )?;
 
         Ok(Self {
-            indexer: Box::new(indexer),
+            provider: Box::new(provider),
         })
     }
 
@@ -209,7 +210,7 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         let logs_futures = parse_logs_in_range(
             range,
-            self.indexer.clone(),
+            self.provider.clone(),
             Self::interchain_gas_payment_parser,
             "InterchainGasPaymentCursor",
         );
@@ -218,7 +219,21 @@ impl Indexer<InterchainGasPayment> for CosmosInterchainGasPaymasterIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
+        self.provider.get_finalized_block_number().await
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        parse_logs_in_tx(
+            &tx_hash.into(),
+            self.provider.clone(),
+            Self::interchain_gas_payment_parser,
+            "InterchainGasPaymentReceiver",
+        )
+        .await
+        .map(|v| v.into_iter().map(|(m, l)| (m.into(), l)).collect())
     }
 }
 

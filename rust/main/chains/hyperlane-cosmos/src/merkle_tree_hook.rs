@@ -10,14 +10,14 @@ use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::grpc::WasmProvider;
 use crate::payloads::{general, merkle_tree_hook};
 use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
 use crate::utils::{
-    execute_and_parse_log_futures, get_block_height_for_lag, parse_logs_in_range,
+    execute_and_parse_log_futures, get_block_height_for_lag, parse_logs_in_range, parse_logs_in_tx,
     CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
 };
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError, Signer};
@@ -187,8 +187,8 @@ pub(crate) static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
 pub struct CosmosMerkleTreeHookIndexer {
     /// The CosmosMerkleTreeHook
     merkle_tree_hook: CosmosMerkleTreeHook,
-    /// Cosmwasm indexer instance
-    indexer: Box<CosmosWasmRpcProvider>,
+    /// Cosmwasm RPC provider instance
+    provider: Box<CosmosWasmRpcProvider>,
 }
 
 impl CosmosMerkleTreeHookIndexer {
@@ -202,7 +202,7 @@ impl CosmosMerkleTreeHookIndexer {
         signer: Option<Signer>,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let indexer = CosmosWasmRpcProvider::new(
+        let provider = CosmosWasmRpcProvider::new(
             conf.clone(),
             locator.clone(),
             Self::MERKLE_TREE_INSERTION_EVENT_TYPE.into(),
@@ -211,7 +211,7 @@ impl CosmosMerkleTreeHookIndexer {
 
         Ok(Self {
             merkle_tree_hook: CosmosMerkleTreeHook::new(conf, locator, signer)?,
-            indexer: Box::new(indexer),
+            provider: Box::new(provider),
         })
     }
 
@@ -286,7 +286,7 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
         let logs_futures = parse_logs_in_range(
             range,
-            self.indexer.clone(),
+            self.provider.clone(),
             Self::merkle_tree_insertion_parser,
             "MerkleTreeInsertionCursor",
         );
@@ -296,7 +296,21 @@ impl Indexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
 
     /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
+        self.provider.get_finalized_block_number().await
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
+        parse_logs_in_tx(
+            &tx_hash.into(),
+            self.provider.clone(),
+            Self::merkle_tree_insertion_parser,
+            "MerkleTreeInsertionReceiver",
+        )
+        .await
+        .map(|v| v.into_iter().map(|(m, l)| (m.into(), l)).collect())
     }
 }
 
