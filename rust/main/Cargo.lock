@@ -1070,8 +1070,9 @@ dependencies = [
 
 [[package]]
 name = "cargo-platform"
-version = "0.1.6"
-source = "git+https://github.com/rust-lang/cargo?tag=0.76.0#1d8b05cdd1287c64467306cf3ca2c8ac60c11eb0"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24b1f0365a6c6bb4020cd05806fd0d33c44d38046b8bd7f0e40814b9763cabfc"
 dependencies = [
  "serde",
 ]
@@ -6367,8 +6368,9 @@ dependencies = [
 
 [[package]]
 name = "predicates-core"
-version = "1.0.6"
-source = "git+https://github.com/assert-rs/predicates-rs?tag=predicates-core-v1.0.6#7b72b706abbf1509fc74ee18e363d2bc7e8520a6"
+version = "1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae8177bee8e75d6846599c6b9ff679ed51e882816914eec639944d7c9aa11931"
 
 [[package]]
 name = "predicates-tree"
