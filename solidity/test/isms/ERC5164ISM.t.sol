@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
-
 import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";

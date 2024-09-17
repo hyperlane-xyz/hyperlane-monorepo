@@ -42,6 +42,8 @@ abstract contract ExternalBridgeTest is Test {
         messageId = Message.id(encodedMessage);
     }
 
+    /* ============ Hook.postDispatch ============ */
+
     function test_postDispatch() public {
         bytes memory encodedHookData = _encodeHookData(messageId);
         originMailbox.updateLatestDispatchedId(messageId);
@@ -75,6 +77,8 @@ abstract contract ExternalBridgeTest is Test {
         hook.postDispatch(testMetadata, encodedMessage);
     }
 
+    /* ============ ISM.verifyMessageId ============ */
+
     function test_verifyMessageId_asyncCall() public {
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
@@ -96,6 +100,8 @@ abstract contract ExternalBridgeTest is Test {
         ism.verify(externalCalldata, encodedMessage);
         assertTrue(ism.isVerified(encodedMessage));
     }
+
+    /* ============ ISM.verify ============ */
 
     function test_verify_revertWhen_invalidMetadata() public virtual {
         vm.expectRevert();
