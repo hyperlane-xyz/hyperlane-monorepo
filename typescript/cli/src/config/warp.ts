@@ -131,14 +131,6 @@ export async function createWarpRouteDeployConfig({
   const result: WarpRouteDeployConfig = {};
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
-    const type = await select({
-      message: `Select ${chain}'s token type`,
-      choices: TYPE_CHOICES,
-    });
-
-    // TODO: restore NFT prompting
-    const isNft =
-      type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
     // default to the mailbox from the registry and if not found ask to the user to submit one
     const chainAddresses = await context.registry.getChainAddresses(chain);
@@ -149,6 +141,15 @@ export async function createWarpRouteDeployConfig({
         validate: isAddress,
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
+
+    const type = await select({
+      message: `Select ${chain}'s token type`,
+      choices: TYPE_CHOICES,
+    });
+
+    // TODO: restore NFT prompting
+    const isNft =
+      type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
     const interchainSecurityModule = advanced
       ? await createAdvancedIsmConfig(context)
