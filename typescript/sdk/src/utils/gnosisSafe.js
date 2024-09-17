@@ -67,12 +67,10 @@ export async function getSafe(chain, multiProvider, safeAddress) {
     multiSend = getMultiSendDeployment({
       version: multiSendVersion,
       network: domainId,
-      released: true,
     });
     multiSendCallOnly = getMultiSendCallOnlyDeployment({
       version: multiSendCallOnlyVersion,
       network: domainId,
-      released: true,
     });
   }
 
@@ -83,9 +81,9 @@ export async function getSafe(chain, multiProvider, safeAddress) {
       [domainId]: {
         // Use the safe address for multiSendAddress and multiSendCallOnlyAddress
         // if the contract is not deployed or if the version is not found
-        multiSendAddress: multiSend?.defaultAddress || safeAddress,
+        multiSendAddress: multiSend?.networkAddresses[domainId] || safeAddress,
         multiSendCallOnlyAddress:
-          multiSendCallOnly?.defaultAddress || safeAddress,
+          multiSendCallOnly?.networkAddresses[domainId] || safeAddress,
       },
     },
   });
