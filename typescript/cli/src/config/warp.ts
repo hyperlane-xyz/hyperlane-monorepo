@@ -15,7 +15,7 @@ import {
 import {
   Address,
   assert,
-  isAddressAndMatchesProtocol,
+  isAddress,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -143,21 +143,12 @@ export async function createWarpRouteDeployConfig({
     // default to the mailbox from the registry and if not found ask to the user to submit one
     const chainAddresses = await context.registry.getChainAddresses(chain);
 
-    const chainMetadata = await context.registry.getChainMetadata(chain);
-    if (!chainMetadata) {
-      throw new Error(`Metadata not found for chain "${chain}"`);
-    }
-
-    let mailbox: Address;
-    if (chainAddresses) {
-      mailbox = chainAddresses.mailbox;
-    } else {
-      mailbox = await input({
-        validate: (value) =>
-          isAddressAndMatchesProtocol(value, chainMetadata.protocol),
+    const mailbox =
+      chainAddresses?.mailbox ??
+      (await input({
+        validate: isAddress,
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
-      });
-    }
+      }));
 
     const interchainSecurityModule = advanced
       ? await createAdvancedIsmConfig(context)
