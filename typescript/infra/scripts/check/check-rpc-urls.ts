@@ -2,10 +2,9 @@ import { ethers } from 'ethers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { getSecretRpcEndpoints } from '../src/agents/index.js';
-
-import { getArgs } from './agent-utils.js';
-import { getEnvironmentConfig } from './core-utils.js';
+import { getSecretRpcEndpoints } from '../../src/agents/index.js';
+import { getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   const { environment } = await getArgs().argv;

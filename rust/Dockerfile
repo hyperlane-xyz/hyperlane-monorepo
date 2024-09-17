@@ -25,6 +25,8 @@ COPY rust/sealevel rust/sealevel
 COPY rust/main/Cargo.toml rust/main/.
 COPY rust/main/Cargo.lock rust/main/.
 
+# Required for VERGEN_GIT_SHA to be populated
+COPY .git .git
 
 WORKDIR /usr/src/rust/main
 

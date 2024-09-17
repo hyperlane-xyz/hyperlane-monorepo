@@ -23,6 +23,7 @@ import {
   Address,
   Domain,
   ProtocolType,
+  addBufferToGasLimit,
   assert,
   deepEquals,
   eqAddress,
@@ -538,14 +539,14 @@ export class EvmIsmModule extends HyperlaneModule<
       overrides,
     );
 
-    // deploying new domain routing ISM, add 10% buffer
+    // deploying new domain routing ISM, add gas buffer
     const tx = await domainRoutingIsmFactory.deploy(
       owner,
       domainIds,
       submoduleAddresses,
       {
+        gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
-        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
       },
     );
 

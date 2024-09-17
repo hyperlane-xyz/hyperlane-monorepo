@@ -70,8 +70,8 @@ export abstract class HyperlaneAppGovernor<
     }
   }
 
-  async check() {
-    await this.checker.check();
+  async check(chainsToCheck?: ChainName[]) {
+    await this.checker.check(chainsToCheck);
   }
 
   async checkChain(chain: ChainName) {
@@ -99,52 +99,56 @@ export abstract class HyperlaneAppGovernor<
   }
 
   protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
-    const calls = this.calls[chain];
+    const calls = this.calls[chain] || [];
     console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
       calls.filter((call) => call.submissionType == submissionType);
     const summarizeCalls = async (
       submissionType: SubmissionType,
-      calls: AnnotatedCallData[],
+      callsForSubmissionType: AnnotatedCallData[],
     ): Promise<boolean> => {
-      if (calls.length > 0) {
-        console.log(
-          `> ${calls.length} calls will be submitted via ${SubmissionType[submissionType]}`,
-        );
-        calls.map((c) => {
-          console.log(`> > ${c.description}`);
-          console.log(`> > > to: ${c.to}`);
-          console.log(`> > > data: ${c.data}`);
-          console.log(`> > > value: ${c.value}`);
-        });
-        if (!requestConfirmation) return true;
-
-        const { value: confirmed } = await prompts({
-          type: 'confirm',
-          name: 'value',
-          message: 'Can you confirm?',
-          initial: false,
-        });
-
-        return !!confirmed;
+      if (!callsForSubmissionType || callsForSubmissionType.length === 0) {
+        return false;
       }
-      return false;
+
+      console.log(
+        `> ${callsForSubmissionType.length} calls will be submitted via ${SubmissionType[submissionType]}`,
+      );
+      callsForSubmissionType.map((c) => {
+        console.log(`> > ${c.description.trim()}`);
+        console.log(`> > > to: ${c.to}`);
+        console.log(`> > > data: ${c.data}`);
+        console.log(`> > > value: ${c.value}`);
+      });
+      if (!requestConfirmation) return true;
+
+      const { value: confirmed } = await prompts({
+        type: 'confirm',
+        name: 'value',
+        message: 'Can you confirm?',
+        initial: false,
+      });
+
+      return !!confirmed;
     };
 
     const sendCallsForType = async (
       submissionType: SubmissionType,
       multiSend: MultiSend,
     ) => {
-      const calls = filterCalls(submissionType);
-      if (calls.length > 0) {
-        const confirmed = await summarizeCalls(submissionType, calls);
+      const callsForSubmissionType = filterCalls(submissionType) || [];
+      if (callsForSubmissionType.length > 0) {
+        const confirmed = await summarizeCalls(
+          submissionType,
+          callsForSubmissionType,
+        );
         if (confirmed) {
           console.log(
             `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
           try {
             await multiSend.sendTransactions(
-              calls.map((call) => ({
+              callsForSubmissionType.map((call) => ({
                 to: call.to,
                 data: call.data,
                 value: call.value,
@@ -168,9 +172,7 @@ export abstract class HyperlaneAppGovernor<
 
     const safeOwner =
       this.checker.configMap[chain].ownerOverrides?._safeAddress;
-    if (!safeOwner) {
-      console.warn(`No Safe owner found for chain ${chain}`);
-    } else {
+    if (safeOwner) {
       await retryAsync(
         () =>
           sendCallsForType(
@@ -413,8 +415,13 @@ export abstract class HyperlaneAppGovernor<
             };
           } else {
             console.error(
-              `Failed to determine if signer can propose safe transactions: ${error}`,
+              `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
             );
+            return {
+              type: SubmissionType.MANUAL,
+              chain,
+              call,
+            };
           }
         }
       }
