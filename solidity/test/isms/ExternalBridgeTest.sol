@@ -167,8 +167,18 @@ abstract contract ExternalBridgeTest is Test {
         ism.verify(externalCalldata, encodedMessage);
 
         // async call - native bridges might have try catch block to prevent revert
-        _externalBridgeDestinationCall(externalCalldata, 0);
+        try
+            this.externalBridgeDestinationCallWrapper(externalCalldata, 0)
+        {} catch {}
         assertFalse(ism.isVerified(testMessage));
+    }
+
+    // try catch block to prevent revert
+    function externalBridgeDestinationCallWrapper(
+        bytes memory _encodedHookData,
+        uint256 _msgValue
+    ) external {
+        _externalBridgeDestinationCall(_encodedHookData, _msgValue);
     }
 
     /* ============ helper functions ============ */
