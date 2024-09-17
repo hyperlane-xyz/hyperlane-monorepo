@@ -5,11 +5,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import { HyperlaneDeployer } from './HyperlaneDeployer.js';
-import {
-  ProxyFactoryFactories,
-  proxyFactoryFactories,
-  proxyFactoryImplementations,
-} from './contracts.js';
+import { ProxyFactoryFactories, proxyFactoryFactories } from './contracts.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 
 export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
@@ -36,14 +32,14 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
       this.factories,
     ) as (keyof ProxyFactoryFactories)[]) {
       const factory = await this.deployContract(chain, factoryName, []);
-      this.addVerificationArtifacts(chain, [
-        {
-          name: proxyFactoryImplementations[factoryName],
-          address: await factory.implementation(),
-          constructorArguments: '',
-          isProxy: true,
-        },
-      ]);
+      // this.addVerificationArtifacts(chain, [
+      //   {
+      //     name: proxyFactoryImplementations[factoryName],
+      //     address: await factory.implementation(),
+      //     constructorArguments: '',
+      //     isProxy: true,
+      //   },
+      // ]);
       contracts[factoryName] = factory;
     }
     return contracts as HyperlaneContracts<ProxyFactoryFactories>;

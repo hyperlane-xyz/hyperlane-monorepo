@@ -11,7 +11,6 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   ProtocolType,
@@ -46,13 +45,9 @@ import {
 } from './proxy.js';
 import { OwnableConfig } from './types.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
-import {
-  ContractVerificationInput,
-  ExplorerLicenseType,
-} from './verify/types.js';
+import { ContractVerificationInput } from './verify/types.js';
 import {
   buildVerificationInput,
-  getContractVerificationInput,
   shouldAddVerificationInput,
 } from './verify/utils.js';
 
@@ -95,12 +90,12 @@ export abstract class HyperlaneDeployer<
     }
 
     // if none provided, instantiate a default verifier with the default core contract build artifact
-    this.options.contractVerifier ??= new ContractVerifier(
-      multiProvider,
-      {},
-      coreBuildArtifact,
-      ExplorerLicenseType.MIT,
-    );
+    // this.options.contractVerifier ??= new ContractVerifier(
+    //   multiProvider,
+    //   {},
+    //   coreBuildArtifact,
+    //   ExplorerLicenseType.MIT,
+    // );
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
@@ -373,28 +368,29 @@ export abstract class HyperlaneDeployer<
     shouldRecover = true,
     implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
-    if (shouldRecover) {
-      const cachedContract = this.readCache(chain, factory, contractName);
-      if (cachedContract) {
-        if (this.recoverVerificationInputs) {
-          const recoveredInputs = await this.recoverVerificationArtifacts(
-            chain,
-            contractName,
-            cachedContract,
-            constructorArgs,
-            initializeArgs,
-          );
-          this.addVerificationArtifacts(chain, recoveredInputs);
-        }
-        return cachedContract;
-      }
-    }
+    // if (shouldRecover) {
+    //   const cachedContract = this.readCache(chain, factory, contractName);
+    //   if (cachedContract) {
+    //     if (this.recoverVerificationInputs) {
+    //       const recoveredInputs = await this.recoverVerificationArtifacts(
+    //         chain,
+    //         contractName,
+    //         cachedContract,
+    //         constructorArgs,
+    //         initializeArgs,
+    //       );
+    //       this.addVerificationArtifacts(chain, recoveredInputs);
+    //     }
+    //     return cachedContract;
+    //   }
+    // }
 
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
       )})...`,
     );
+
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
@@ -417,14 +413,15 @@ export abstract class HyperlaneDeployer<
         );
 
         // Estimate gas for the initialize transaction
-        const estimatedGas = await contract.estimateGas.initialize(
-          ...initializeArgs,
-        );
+        // const estimatedGas = await contract.estimateGas.initialize(
+        //   ...initializeArgs,
+        // );
 
         // deploy with 10% buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
+
         const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: estimatedGas.add(estimatedGas.div(10)),
+          gasLimit: 10_000_000,
           ...overrides,
         });
         const receipt = await this.multiProvider.handleTx(chain, initTx);
@@ -432,25 +429,6 @@ export abstract class HyperlaneDeployer<
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
         );
       }
-    }
-
-    const verificationInput = getContractVerificationInput({
-      name: contractName,
-      contract,
-      bytecode: factory.bytecode,
-      expectedimplementation: implementationAddress,
-    });
-    this.addVerificationArtifacts(chain, [verificationInput]);
-
-    // try verifying contract
-    try {
-      await this.options.contractVerifier?.verifyContract(
-        chain,
-        verificationInput,
-      );
-    } catch (error) {
-      // log error but keep deploying, can also verify post-deployment if needed
-      this.logger.debug(`Error verifying contract: ${error}`);
     }
 
     return contract;

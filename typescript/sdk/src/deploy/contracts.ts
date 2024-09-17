@@ -7,6 +7,15 @@ import {
   StaticMessageIdMultisigIsmFactory__factory,
   StaticMessageIdWeightedMultisigIsmFactory__factory,
 } from '@hyperlane-xyz/core';
+import {
+  DomainRoutingIsmFactory__artifact,
+  StaticAggregationHookFactory__artifact,
+  StaticAggregationIsmFactory__artifact,
+  StaticMerkleRootMultisigIsmFactory__artifact,
+  StaticMerkleRootWeightedMultisigIsmFactory__artifact,
+  StaticMessageIdMultisigIsmFactory__artifact,
+  StaticMessageIdWeightedMultisigIsmFactory__artifact,
+} from '@hyperlane-xyz/core/artifacts';
 
 // Any name changes here should also be reflected in the example artifacts.
 // E.g. typescript/cli/examples/contract-artifacts.yaml
@@ -25,8 +34,27 @@ export const proxyFactoryFactories = {
 };
 
 export type ProxyFactoryFactories = typeof proxyFactoryFactories;
+export type ProxyFactoryFactoriesArtifacts =
+  typeof proxyFactoryFactoriesArtifacts;
 
 type ProxyFactoryImplementations = Record<keyof ProxyFactoryFactories, string>;
+
+export const proxyFactoryFactoriesArtifacts: Record<
+  keyof ProxyFactoryFactories,
+  any
+> = {
+  staticMerkleRootMultisigIsmFactory:
+    StaticMerkleRootMultisigIsmFactory__artifact,
+  staticMessageIdMultisigIsmFactory:
+    StaticMessageIdMultisigIsmFactory__artifact,
+  staticAggregationIsmFactory: StaticAggregationIsmFactory__artifact,
+  staticAggregationHookFactory: StaticAggregationHookFactory__artifact,
+  domainRoutingIsmFactory: DomainRoutingIsmFactory__artifact,
+  staticMerkleRootWeightedMultisigIsmFactory:
+    StaticMerkleRootWeightedMultisigIsmFactory__artifact,
+  staticMessageIdWeightedMultisigIsmFactory:
+    StaticMessageIdWeightedMultisigIsmFactory__artifact,
+} as const;
 
 // must match contract names for verification
 export const proxyFactoryImplementations: ProxyFactoryImplementations = {

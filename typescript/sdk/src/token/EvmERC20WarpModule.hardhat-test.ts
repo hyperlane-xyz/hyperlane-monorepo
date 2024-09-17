@@ -1,7 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
-import hre from 'hardhat';
+import { Wallet } from 'zksync-ethers';
 
 import {
   ERC20Test,
@@ -84,15 +84,23 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   }
 
   before(async () => {
-    [signer] = await hre.ethers.getSigners();
+    const signer = new Wallet(
+      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
+    );
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+
     factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),
     );
+    console.log('factories', factories);
     ismFactoryAddresses = serializeContracts(factories[chain]);
+
     ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
+
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
+
     routerConfigMap = coreApp.getRouterConfig(signer.address);
 
     erc20Factory = new ERC20Test__factory(signer);

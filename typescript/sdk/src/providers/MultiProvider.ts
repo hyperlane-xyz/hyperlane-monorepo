@@ -1,13 +1,18 @@
 import {
   BigNumber,
-  ContractFactory,
   ContractReceipt,
   ContractTransaction,
   PopulatedTransaction,
   Signer,
+  ethers,
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
+import {
+  ContractFactory,
+  Wallet,
+  Provider as ZKSyncProvider,
+} from 'zksync-ethers';
 
 import { Address, pick, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -89,10 +94,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (this.providers[name]) return this.providers[name];
 
     if (testChains.includes(name)) {
-      this.providers[name] = new providers.JsonRpcProvider(
-        'http://127.0.0.1:8545',
-        31337,
-      );
+      this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
     } else if (rpcUrls.length) {
       this.providers[name] = this.providerBuilder(rpcUrls, chainId);
     } else {
@@ -303,36 +305,41 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Wait for deploy tx to be confirmed
    * @throws if chain's metadata or signer has not been set or tx fails
    */
-  async handleDeploy<F extends ContractFactory>(
+  async handleDeploy(
     chainNameOrId: ChainNameOrId,
-    factory: F,
-    params: Parameters<F['deploy']>,
-  ): Promise<Awaited<ReturnType<F['deploy']>>> {
+    factory: any,
+    params: any,
+  ): Promise<any> {
     // setup contract factory
-    const overrides = this.getTransactionOverrides(chainNameOrId);
-    const signer = this.getSigner(chainNameOrId);
-    const contractFactory = await factory.connect(signer);
+    // const overrides = this.getTransactionOverrides(chainNameOrId);
+    const prov = new ZKSyncProvider('http://127.0.0.1:8011', 260);
 
-    // estimate gas
-    const deployTx = contractFactory.getDeployTransaction(...params);
-    const gasEstimated = await signer.estimateGas(deployTx);
+    const signer = new Wallet(
+      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
+      prov,
+    );
+    const contractFactory = new ContractFactory(
+      factory.interface,
+      factory.bytecode,
+      signer,
+      'create2',
+    );
 
-    // deploy with 10% buffer on gas limit
     const contract = await contractFactory.deploy(...params, {
-      gasLimit: gasEstimated.add(gasEstimated.div(10)), // 10% buffer
-      ...overrides,
+      customData: {
+        salt: ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+        factoryDeps: [
+          '0x0100011764ca9c39cccb1039ec3ecf24a0d8152ea4039de506f126a629ccd916',
+        ],
+      },
+      gasLimit: 150_000_000, // local zksync in memory node
     });
 
     this.logger.trace(
-      `Deploying contract ${contract.address} on ${chainNameOrId}:`,
-      { transaction: deployTx },
+      `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
     );
 
-    // wait for deploy tx to be confirmed
-    await this.handleTx(chainNameOrId, contract.deployTransaction);
-
-    // return deployed contract
-    return contract as Awaited<ReturnType<F['deploy']>>;
+    return contract;
   }
 
   /**

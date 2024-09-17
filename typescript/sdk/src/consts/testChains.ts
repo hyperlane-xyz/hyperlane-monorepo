@@ -30,14 +30,14 @@ export const test1: ChainMetadata = {
     estimateBlockTime: 3,
     reorgPeriod: 0,
   },
-  chainId: 9913371,
+  chainId: 260,
   displayName: 'Test 1',
-  domainId: 9913371,
+  domainId: 260,
   isTestnet: true,
   name: 'test1',
   nativeToken: { decimals: 18, name: 'Ether', symbol: 'ETH' },
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
+  rpcUrls: [{ http: 'http://127.0.0.1:8011' }],
 };
 
 export const test2: ChainMetadata = {
@@ -68,9 +68,9 @@ export const test3: ChainMetadata = {
 
 export const test4: ChainMetadata = {
   ...test1,
-  chainId: 31337,
+  chainId: 260,
   displayName: 'Test 4',
-  domainId: 31337,
+  domainId: 260,
   name: 'test4',
 };
 
