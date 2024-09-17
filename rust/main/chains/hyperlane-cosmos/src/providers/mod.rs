@@ -15,11 +15,10 @@ use hyperlane_core::{
 };
 
 use crate::address::CosmosAddress;
-use crate::grpc::WasmProvider;
+use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::libs::account::CosmosAccountId;
+use crate::providers::rpc::CosmosRpcClient;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
-
-use self::grpc::WasmGrpcProvider;
 
 /// cosmos grpc provider
 pub mod grpc;
@@ -32,7 +31,7 @@ pub struct CosmosProvider {
     domain: HyperlaneDomain,
     connection_conf: ConnectionConf,
     grpc_client: WasmGrpcProvider,
-    rpc_client: HttpClient,
+    rpc_client: CosmosRpcClient,
 }
 
 impl CosmosProvider {
@@ -51,7 +50,7 @@ impl CosmosProvider {
             locator,
             signer,
         )?;
-        let rpc_client = HttpClient::builder(
+        let http_client = HttpClient::builder(
             conf.get_rpc_url()
                 .parse()
                 .map_err(Into::<HyperlaneCosmosError>::into)?,
@@ -60,12 +59,13 @@ impl CosmosProvider {
         .compat_mode(CompatMode::latest())
         .build()
         .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let rpc_client = CosmosRpcClient::new(http_client);
 
         Ok(Self {
             domain,
             connection_conf: conf,
-            rpc_client,
             grpc_client,
+            rpc_client,
         })
     }
 
@@ -74,8 +74,8 @@ impl CosmosProvider {
         &self.grpc_client
     }
 
-    /// Get an rpc client
-    pub fn rpc(&self) -> &HttpClient {
+    /// Get a rpc client
+    pub fn rpc(&self) -> &CosmosRpcClient {
         &self.rpc_client
     }
 
@@ -182,11 +182,7 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("block hash should be of correct size");
 
-        let response = self
-            .rpc_client
-            .block_by_hash(tendermint_hash)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+        let response = self.rpc().get_block_by_hash(tendermint_hash).await?;
 
         let received_hash = H256::from_slice(response.block_id.hash.as_bytes());
 
@@ -218,11 +214,7 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
-        let response = self
-            .rpc_client
-            .tx(tendermint_hash, false)
-            .await
-            .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let response = self.rpc().get_tx_by_hash(tendermint_hash).await?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 

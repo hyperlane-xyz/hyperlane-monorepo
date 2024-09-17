@@ -2,26 +2,25 @@ use std::{fmt::Debug, num::NonZeroU64, ops::RangeInclusive, str::FromStr};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
-    Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
-};
 use once_cell::sync::Lazy;
 use tendermint::abci::EventAttribute;
 use tracing::instrument;
 
-use crate::utils::parse_logs_in_range;
-use crate::{
-    grpc::WasmProvider,
-    payloads::{general, merkle_tree_hook},
-    rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
-    utils::{
-        execute_and_parse_log_futures, get_block_height_for_lag, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
-        CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
-    },
-    ConnectionConf, CosmosProvider, HyperlaneCosmosError, Signer,
+use hyperlane_core::accumulator::incremental::IncrementalMerkle;
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
 };
+
+use crate::grpc::WasmProvider;
+use crate::payloads::{general, merkle_tree_hook};
+use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
+use crate::utils::{
+    execute_and_parse_log_futures, get_block_height_for_lag, parse_logs_in_range,
+    CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+};
+use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError, Signer};
 
 #[derive(Debug, Clone)]
 /// A reference to a MerkleTreeHook contract on some Cosmos chain
@@ -189,7 +188,7 @@ pub struct CosmosMerkleTreeHookIndexer {
     /// The CosmosMerkleTreeHook
     merkle_tree_hook: CosmosMerkleTreeHook,
     /// Cosmwasm indexer instance
-    indexer: Box<CosmosWasmIndexer>,
+    indexer: Box<CosmosWasmRpcProvider>,
 }
 
 impl CosmosMerkleTreeHookIndexer {
@@ -203,7 +202,7 @@ impl CosmosMerkleTreeHookIndexer {
         signer: Option<Signer>,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let indexer = CosmosWasmIndexer::new(
+        let indexer = CosmosWasmRpcProvider::new(
             conf.clone(),
             locator.clone(),
             Self::MERKLE_TREE_INSERTION_EVENT_TYPE.into(),
@@ -337,10 +336,12 @@ impl TryInto<MerkleTreeInsertion> for IncompleteMerkleTreeInsertion {
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_core::H256;
     use std::str::FromStr;
 
-    use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
+    use hyperlane_core::H256;
+
+    use crate::providers::rpc::ParsedEvent;
+    use crate::utils::event_attributes_from_str;
 
     use super::*;
 

@@ -1,25 +1,23 @@
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, U256,
-};
 use once_cell::sync::Lazy;
 use std::ops::RangeInclusive;
 use tendermint::abci::EventAttribute;
 use tracing::instrument;
 
-use crate::utils::parse_logs_in_range;
-use crate::{
-    rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer},
-    signers::Signer,
-    utils::{
-        execute_and_parse_log_futures, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
-        CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
-    },
-    ConnectionConf, CosmosProvider, HyperlaneCosmosError,
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, U256,
 };
+
+use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
+use crate::signers::Signer;
+use crate::utils::{
+    execute_and_parse_log_futures, parse_logs_in_range, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
+    CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+};
+use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
 
 /// A reference to a InterchainGasPaymaster contract on some Cosmos chain
 #[derive(Debug)]
@@ -90,7 +88,7 @@ static DESTINATION_ATTRIBUTE_KEY_BASE64: Lazy<String> =
 /// A reference to a InterchainGasPaymasterIndexer contract on some Cosmos chain
 #[derive(Debug, Clone)]
 pub struct CosmosInterchainGasPaymasterIndexer {
-    indexer: Box<CosmosWasmIndexer>,
+    indexer: Box<CosmosWasmRpcProvider>,
 }
 
 impl CosmosInterchainGasPaymasterIndexer {
@@ -103,7 +101,7 @@ impl CosmosInterchainGasPaymasterIndexer {
         locator: ContractLocator,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let indexer = CosmosWasmIndexer::new(
+        let indexer = CosmosWasmRpcProvider::new(
             conf,
             locator,
             Self::INTERCHAIN_GAS_PAYMENT_EVENT_TYPE.into(),
@@ -269,10 +267,12 @@ impl TryInto<InterchainGasPayment> for IncompleteInterchainGasPayment {
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_core::{InterchainGasPayment, H256, U256};
     use std::str::FromStr;
 
-    use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
+    use hyperlane_core::{InterchainGasPayment, H256, U256};
+
+    use crate::providers::rpc::ParsedEvent;
+    use crate::utils::event_attributes_from_str;
 
     use super::*;
 
