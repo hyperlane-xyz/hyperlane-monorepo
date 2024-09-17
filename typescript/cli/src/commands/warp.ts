@@ -147,18 +147,17 @@ export const init: CommandModuleWithContext<{
       type: 'boolean',
       describe: 'Create an advanced ISM',
       default: false,
-      deprecated:
-        'Please use the --yes flag to skip advanced configuration. The CLI will ask the user to configure an ISM.',
     },
     out: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
   },
-  handler: async ({ context, out }) => {
+  handler: async ({ context, advanced, out }) => {
     logGray('Hyperlane Warp Configure');
     logGray('------------------------');
 
     await createWarpRouteDeployConfig({
       context,
       outPath: out,
+      advanced,
     });
     process.exit(0);
   },
