@@ -11,6 +11,7 @@ use tendermint::Hash;
 use tendermint_rpc::client::CompatMode;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
+use tendermint_rpc::endpoint::tx;
 use tendermint_rpc::HttpClient;
 use time::OffsetDateTime;
 use tracing::{debug, instrument, trace};
@@ -33,6 +34,16 @@ pub trait WasmRpcProvider: Send + Sync {
     async fn get_logs_in_block<T>(
         &self,
         block_number: u32,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        cursor_label: &'static str,
+    ) -> ChainResult<Vec<(T, LogMeta)>>
+    where
+        T: Send + Sync + PartialEq + Debug + 'static;
+
+    /// Get logs for the given transaction using the given parser.
+    async fn get_logs_in_tx<T>(
+        &self,
+        tx_hash: Hash,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
         cursor_label: &'static str,
     ) -> ChainResult<Vec<(T, LogMeta)>>
@@ -115,17 +126,13 @@ impl CosmosWasmRpcProvider {
             return vec![];
         };
 
-        let tx_hashes: Vec<H256> = block
+        let tx_hashes: Vec<Hash> = block
             .clone()
             .block
             .data
             .into_iter()
             .filter_map(|tx| hex::decode(digest(tx.as_slice())).ok())
-            .filter_map(|hash| {
-                Hash::from_bytes(Algorithm::Sha256, hash.as_slice())
-                    .ok()
-                    .map(|hash| H256::from_slice(hash.as_bytes()))
-            })
+            .filter_map(|hash| Hash::from_bytes(Algorithm::Sha256, hash.as_slice()).ok())
             .collect();
 
         tx_results
@@ -140,7 +147,21 @@ impl CosmosWasmRpcProvider {
                     debug!(?tx_hash, "Not indexing failed transaction");
                     return None;
                 }
-                Some(self.handle_tx(block.clone(), tx.events, *tx_hash, idx, parser))
+
+                // We construct a simplified structure `tx::Response` here so that we can
+                // reuse `handle_tx` method below.
+                let tx_response = tx::Response {
+                    hash: *tx_hash,
+                    height: block_results.height,
+                    index: idx as u32,
+                    tx_result: tx,
+                    tx: vec![],
+                    proof: None,
+                };
+
+                let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
+
+                Some(self.handle_tx(tx_response, block_hash, parser))
             })
             .flatten()
             .collect()
@@ -150,15 +171,18 @@ impl CosmosWasmRpcProvider {
     // made by the contract we are indexing.
     fn handle_tx<T>(
         &self,
-        block: BlockResponse,
-        tx_events: Vec<Event>,
-        tx_hash: H256,
-        transaction_index: usize,
+        tx: tx::Response,
+        block_hash: H256,
         parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     ) -> impl Iterator<Item = (T, LogMeta)> + '_
     where
         T: PartialEq + 'static,
     {
+        let tx_events = tx.tx_result.events;
+        let tx_hash = tx.hash;
+        let tx_index = tx.index;
+        let block_height = tx.height;
+
         tx_events.into_iter().enumerate().filter_map(move |(log_idx, event)| {
             if event.kind.as_str() != self.target_event_kind {
                 return None;
@@ -183,14 +207,14 @@ impl CosmosWasmRpcProvider {
 
                     Some((parsed_event.event, LogMeta {
                         address: self.contract_address.digest(),
-                        block_number: block.block.header.height.into(),
-                        block_hash: H256::from_slice(block.block_id.hash.as_bytes()),
+                        block_number: block_height.value(),
+                        block_hash,
                         transaction_id: H256::from_slice(tx_hash.as_bytes()).into(),
-                        transaction_index: transaction_index as u64,
+                        transaction_index: tx_index as u64,
                         log_index: U256::from(log_idx),
                     }))
                 })
-            })
+        })
     }
 }
 
@@ -229,5 +253,25 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         let block_results = self.rpc_client.get_block_results(block_number).await?;
 
         Ok(self.handle_txs(block, block_results, parser, cursor_label))
+    }
+
+    #[instrument(err, skip(self, parser))]
+    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+    async fn get_logs_in_tx<T>(
+        &self,
+        hash: Hash,
+        parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+        cursor_label: &'static str,
+    ) -> ChainResult<Vec<(T, LogMeta)>>
+    where
+        T: Send + Sync + PartialEq + Debug + 'static,
+    {
+        debug!(?hash, cursor_label, domain=?self.domain, "Getting logs in transaction");
+
+        let tx = self.rpc_client.get_tx_by_hash(hash).await?;
+        let block = self.rpc_client.get_block(tx.height.value() as u32).await?;
+        let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
+
+        Ok(self.handle_tx(tx, block_hash, parser).collect())
     }
 }
