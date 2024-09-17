@@ -6,13 +6,15 @@ on:
     branches: [main]
     paths:
       - '**/*'
-      - '!rust/**'
+      - '!rust/main/**'
+      - '!rust/sealevel/**'
       - '!.github/workflows/rust.yml'
   pull_request:
     branches: [main]
     paths:
       - '**/*'
-      - '!rust/**'
+      - '!rust/main/**'
+      - '!rust/sealevel/**'
       - '!.github/workflows/rust.yml'
 
 env:
