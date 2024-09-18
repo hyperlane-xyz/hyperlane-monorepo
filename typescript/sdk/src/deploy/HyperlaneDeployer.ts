@@ -73,7 +73,6 @@ export abstract class HyperlaneDeployer<
   public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
   public cachedAddresses: HyperlaneAddressesMap<any> = {};
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
-  public startingBlockNumbers: ChainMap<number | undefined> = {};
 
   protected logger: Logger;
   protected chainTimeoutMs: number;
@@ -146,9 +145,6 @@ export abstract class HyperlaneDeployer<
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger.info(`Deploying to ${chain} from ${fromString}`);
-      this.startingBlockNumbers[chain] = await this.multiProvider
-        .getProvider(chain)
-        .getBlockNumber();
 
       const deployPromise = runWithTimeout(this.chainTimeoutMs, async () => {
         const contracts = await this.deployContracts(chain, configMap[chain]);
