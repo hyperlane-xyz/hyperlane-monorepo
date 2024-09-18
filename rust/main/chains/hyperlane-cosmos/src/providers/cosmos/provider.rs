@@ -20,11 +20,6 @@ use crate::libs::account::CosmosAccountId;
 use crate::providers::rpc::CosmosRpcClient;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
-/// cosmos grpc provider
-pub mod grpc;
-/// cosmos rpc provider
-pub mod rpc;
-
 /// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
 pub struct CosmosProvider {
