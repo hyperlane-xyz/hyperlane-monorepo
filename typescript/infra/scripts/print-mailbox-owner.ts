@@ -109,8 +109,8 @@ async function main() {
         }
 
         return {
-          address: ownerAddress,
-          owner: ownerType,
+          owner: ownerAddress,
+          type: ownerType,
         };
       },
     ),
@@ -125,7 +125,7 @@ async function main() {
     Object.values(Owner).map((ownerType) => ({
       'Owner Type': ownerType,
       'Chain Count': Object.values(mailboxOwners).filter(
-        ({ owner }) => owner === ownerType,
+        ({ type }) => type === ownerType,
       ).length,
     })),
   );
