@@ -21,6 +21,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
 
 // ============ External Imports ============
+
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**

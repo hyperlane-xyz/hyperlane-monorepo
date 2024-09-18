@@ -8,7 +8,6 @@ import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 import {StaticThresholdAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
 /**
  * @title AbstractMetaProxyMultisigIsm

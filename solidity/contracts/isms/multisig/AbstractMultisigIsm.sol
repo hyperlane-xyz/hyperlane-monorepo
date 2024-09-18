@@ -21,7 +21,6 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
 /**
  * @title AbstractMultisig
