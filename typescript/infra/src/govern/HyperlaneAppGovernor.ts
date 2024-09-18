@@ -42,6 +42,7 @@ export enum SubmissionType {
 export type AnnotatedCallData = CallData & {
   submissionType?: SubmissionType;
   description: string;
+  expandedDescription?: string;
   icaTargetChain?: ChainName;
 };
 
@@ -117,21 +118,31 @@ export abstract class HyperlaneAppGovernor<
       console.log(
         `${SubmissionType[submissionType]} calls: ${callsForSubmissionType.length}`,
       );
-      callsForSubmissionType.map(({ icaTargetChain, description, ...call }) => {
-        console.log('\n');
-        if (icaTargetChain) {
-          console.log(
-            chalk.bold(
-              `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}`,
-            ),
-          );
-        }
+      callsForSubmissionType.map(
+        ({ icaTargetChain, description, expandedDescription, ...call }) => {
+          // Print a blank line to separate calls
+          console.log('');
 
-        console.log(chalk.bold(`> ${description.trimEnd()}`));
-        console.info(chalk.gray(`to: ${call.to}`));
-        console.info(chalk.gray(`data: ${call.data}`));
-        console.info(chalk.gray(`value: ${call.value}`));
-      });
+          // Print the ICA call header if it exists
+          if (icaTargetChain) {
+            console.log(
+              chalk.bold(
+                `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}`,
+              ),
+            );
+          }
+
+          // Print the call details
+          console.log(chalk.bold(`> ${description.trimEnd()}`));
+          if (expandedDescription) {
+            console.info(chalk.gray(`${expandedDescription.trimEnd()}`));
+          }
+
+          console.info(chalk.gray(`to: ${call.to}`));
+          console.info(chalk.gray(`data: ${call.data}`));
+          console.info(chalk.gray(`value: ${call.value}`));
+        },
+      );
       if (!requestConfirmation) return true;
 
       const { value: confirmed } = await prompts({
@@ -157,7 +168,7 @@ export abstract class HyperlaneAppGovernor<
         );
         if (confirmed) {
           console.info(
-            chalk.gray(
+            chalk.italic(
               `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
             ),
           );
@@ -364,11 +375,13 @@ export abstract class HyperlaneAppGovernor<
     }
 
     // If the call to the remote ICA is valid, infer the submission type
+    const { description, expandedDescription } = call;
     const encodedCall: AnnotatedCallData = {
       to: callRemote.to,
       data: callRemote.data,
       value: callRemote.value,
-      description: `${call.description}`,
+      description,
+      expandedDescription,
     };
 
     // Try to infer the submission type for the ICA call
