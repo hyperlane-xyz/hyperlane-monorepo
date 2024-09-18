@@ -2,12 +2,13 @@ use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::crypto::PublicKey;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo};
-use cosmrs::{AccountId, Tx};
+use cosmrs::{AccountId, Any, Tx};
 use itertools::Itertools;
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::{client::CompatMode, Client, HttpClient};
 use time::OffsetDateTime;
+use tracing::error;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
@@ -128,17 +129,26 @@ impl CosmosProvider {
 
     /// Extract contract address from transaction.
     /// Assumes that there is only one `MsgExecuteContract` message in the transaction
-    fn contract(tx: &Tx) -> ChainResult<H256> {
+    fn contract(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
-        let any = tx
+        let contract_execution_messages = tx
             .body
             .messages
             .iter()
-            .find(|a| a.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("could not find contract execution message")
-            })?;
+            .filter(|a| a.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
+            .map(|a| a.clone())
+            .collect::<Vec<Any>>();
+
+        if contract_execution_messages.len() > 1 {
+            error!(
+                ?tx_hash,
+                "transaction contains multiple contract execution messages, scraper is using the first entry, manual intervention is required");
+        }
+
+        let any = contract_execution_messages.get(0).ok_or_else(|| {
+            ChainCommunicationError::from_other_str("could not find contract execution message")
+        })?;
         let proto =
             ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
         let msg = MsgExecuteContract::try_from(proto)?;
@@ -208,7 +218,7 @@ impl HyperlaneProvider for CosmosProvider {
 
         let tx = Tx::from_bytes(&response.tx)?;
 
-        let contract = Self::contract(&tx)?;
+        let contract = Self::contract(&tx, hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
         // TODO support multiple denomination for amount
