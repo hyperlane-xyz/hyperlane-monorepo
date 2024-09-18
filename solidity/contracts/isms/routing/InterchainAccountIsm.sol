@@ -10,9 +10,7 @@ import {InterchainAccountMessage} from "../../middleware/libs/InterchainAccountM
 /**
  * @title InterchainAccountIsm
  */
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
-
-contract InterchainAccountIsm is AbstractRoutingIsm, PackageVersioned {
+contract InterchainAccountIsm is AbstractRoutingIsm {
     IMailbox private immutable mailbox;
 
     // ============ Constructor ============

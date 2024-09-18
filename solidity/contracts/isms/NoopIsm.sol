@@ -2,7 +2,6 @@
 pragma solidity >=0.8.0;
 
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
-
 import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
 contract NoopIsm is IInterchainSecurityModule, PackageVersioned {

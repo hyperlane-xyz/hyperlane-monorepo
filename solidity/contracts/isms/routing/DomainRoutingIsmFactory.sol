@@ -41,12 +41,7 @@ abstract contract AbstractDomainRoutingIsmFactory {
 /**
  * @title DomainRoutingIsmFactory
  */
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
-
-contract DomainRoutingIsmFactory is
-    AbstractDomainRoutingIsmFactory,
-    PackageVersioned
-{
+contract DomainRoutingIsmFactory is AbstractDomainRoutingIsmFactory {
     // ============ Immutables ============
     address internal immutable _implementation;
 

@@ -21,16 +21,13 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractMessageIdAuthorizedIsm} from "./AbstractMessageIdAuthorizedIsm.sol";
 
 // ============ External Imports ============
-
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title ERC5164Ism
  * @notice Uses the generic eip-5164 standard to verify interchain messages.
  */
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
-
-contract ERC5164Ism is AbstractMessageIdAuthorizedIsm, PackageVersioned {
+contract ERC5164Ism is AbstractMessageIdAuthorizedIsm {
     // ============ Constants ============
 
     uint8 public constant moduleType =

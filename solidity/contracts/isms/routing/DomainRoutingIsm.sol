@@ -16,13 +16,7 @@ import {EnumerableMapExtended} from "../../libs/EnumerableMapExtended.sol";
 /**
  * @title DomainRoutingIsm
  */
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
-
-contract DomainRoutingIsm is
-    AbstractRoutingIsm,
-    OwnableUpgradeable,
-    PackageVersioned
-{
+contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
     using Message for bytes;
     using TypeCasts for bytes32;

@@ -8,6 +8,7 @@ import {AbstractMerkleRootMultisigIsm} from "./AbstractMerkleRootMultisigIsm.sol
 import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 import {StaticThresholdAddressSetFactory} from "../../libs/StaticAddressSetFactory.sol";
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
 /**
  * @title AbstractMetaProxyMultisigIsm
@@ -64,12 +65,7 @@ contract StaticMerkleRootMultisigIsmFactory is
     }
 }
 
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
-
-contract StaticMessageIdMultisigIsmFactory is
-    StaticThresholdAddressSetFactory,
-    PackageVersioned
-{
+contract StaticMessageIdMultisigIsmFactory is StaticThresholdAddressSetFactory {
     function _deployImplementation() internal override returns (address) {
         return address(new StaticMessageIdMultisigIsm());
     }
