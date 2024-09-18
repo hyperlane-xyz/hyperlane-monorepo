@@ -316,7 +316,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     const deployer = new ZKDeployer(signer);
 
-    const contract = await deployer.deploy(artifact, params);
+    const localArtifact = ZKDeployer.loadArtifactByBytecode(factory.bytecode);
+
+    const contract = await deployer.deploy(localArtifact, params);
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,

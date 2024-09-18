@@ -40,6 +40,14 @@ export class ZKDeployer {
     return artifact as any;
   }
 
+  public static loadArtifactByBytecode(bytecodeExt: string): Promise<any> {
+    const artifact = allArtifacts.find(
+      ({ bytecode }) => bytecode === bytecodeExt,
+    );
+
+    return artifact as any;
+  }
+
   /**
    * Estimates the price of calling a deploy transaction in ETH.
    *
