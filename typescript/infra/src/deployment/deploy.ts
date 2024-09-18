@@ -176,7 +176,6 @@ async function baseDeploy<
         chalk.green.bold(`Successfully deployed contracts on ${chain}`),
       );
       deployStatus[chain] = Status.SUCCESS;
-      await postDeploy(deployer, cache);
     });
 
     if (concurrentDeploy) {
@@ -211,7 +210,6 @@ export async function postDeploy<Config extends object>(
     environment: DeployEnvironment;
     module: Modules;
   },
-  chain?: ChainName,
 ) {
   if (cache.write) {
     // TODO: dedupe deployedContracts with cachedAddresses
@@ -220,13 +218,7 @@ export async function postDeploy<Config extends object>(
     const addresses = objMerge(deployedAddresses, cachedAddresses);
 
     // cache addresses of deployed contracts
-    if (chain) {
-      writeAddresses(cache.environment, cache.module, {
-        [chain]: addresses[chain],
-      });
-    } else {
-      writeAddresses(cache.environment, cache.module, addresses);
-    }
+    writeAddresses(cache.environment, cache.module, addresses);
 
     let savedVerification = {};
     try {
@@ -241,17 +233,15 @@ export async function postDeploy<Config extends object>(
 
     // deduplicate verification inputs for each chain
     const deduplicatedVerificationInputs = Object.fromEntries(
-      Object.entries(mergedVerificationInputs)
-        .filter(([c]) => !chain || c === chain)
-        .map(([c, contracts]) => [
-          c,
-          contracts.reduce((acc: any[], contract: any) => {
-            if (!acc.some((c) => c.address === contract.address)) {
-              acc.push(contract);
-            }
-            return acc;
-          }, []),
-        ]),
+      Object.entries(mergedVerificationInputs).map(([chain, contracts]) => [
+        chain,
+        contracts.reduce((acc: any[], contract: any) => {
+          if (!acc.some((c) => c.address === contract.address)) {
+            acc.push(contract);
+          }
+          return acc;
+        }, []),
+      ]),
     );
 
     // write back deduplicated verification inputs
