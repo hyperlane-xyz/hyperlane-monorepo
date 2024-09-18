@@ -26,13 +26,6 @@ export const TokenConfigSchema = z.object({
     .describe('The type of token. See TokenStandard for valid values.'),
   decimals: ZUint.lt(256).describe('The decimals value (e.g. 18 for Eth)'),
   symbol: z.string().min(1).describe('The symbol of the token'),
-  mailbox: z
-    .string()
-    .min(1)
-    .optional()
-    .describe(
-      'The address of the mailbox used by the warp route. Only required for SVM chains.',
-    ),
   name: z.string().min(1).describe('The name of the token'),
   addressOrDenom: z
     .string()
