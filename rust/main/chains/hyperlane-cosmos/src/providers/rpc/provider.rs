@@ -74,12 +74,8 @@ impl CosmosWasmRpcProvider {
         event_type: String,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let provider = CosmosProvider::new(
-            locator.domain.clone(),
-            conf.clone(),
-            Some(locator.clone()),
-            None,
-        )?;
+        let provider =
+            CosmosProvider::new(locator.domain.clone(), conf.clone(), locator.clone(), None)?;
         Ok(Self {
             provider,
             contract_address: CosmosAddress::from_h256(

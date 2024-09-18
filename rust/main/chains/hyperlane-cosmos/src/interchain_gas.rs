@@ -55,7 +55,7 @@ impl CosmosInterchainGasPaymaster {
         let provider = CosmosProvider::new(
             locator.domain.clone(),
             conf.clone(),
-            Some(locator.clone()),
+            locator.clone(),
             signer,
         )?;
 

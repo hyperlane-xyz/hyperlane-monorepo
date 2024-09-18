@@ -39,7 +39,7 @@ impl CosmosProvider {
     pub fn new(
         domain: HyperlaneDomain,
         conf: ConnectionConf,
-        locator: Option<ContractLocator>,
+        locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
