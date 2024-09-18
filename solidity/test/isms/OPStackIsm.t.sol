@@ -162,8 +162,11 @@ contract OPStackIsmTest is ExternalBridgeTest {
         ism.verifyMessageId(messageId);
     }
 
-    function _setExternalOriginSender(address _sender) internal override {
+    function _setExternalOriginSender(
+        address _sender
+    ) internal override returns (bytes memory) {
         l2Messenger.setXDomainMessageSender(_sender);
+        return "";
     }
 
     /* ============ ISM.verify ============ */

@@ -102,9 +102,11 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         );
     }
 
-    function _setExternalOriginSender(address _sender) internal override {
-        unauthorizedHookError = "ArbL2ToL1Ism: l2Sender != authorizedHook";
+    function _setExternalOriginSender(
+        address _sender
+    ) internal override returns (bytes memory unauthorizedHookErrorMsg) {
         arbBridge.setL2ToL1Sender(_sender);
+        return "ArbL2ToL1Ism: l2Sender != authorizedHook";
     }
 
     function _encodeOutboxTx(

@@ -92,9 +92,11 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         return _encodeFinalizeWithdrawalTx(_to, _msgValue, _messageId);
     }
 
-    function _setExternalOriginSender(address _sender) internal override {
-        unauthorizedHookError = "AbstractMessageIdAuthorizedIsm: sender is not the hook";
+    function _setExternalOriginSender(
+        address _sender
+    ) internal override returns (bytes memory) {
         l1Messenger.setXDomainMessageSender(_sender);
+        return "AbstractMessageIdAuthorizedIsm: sender is not the hook";
     }
 
     function _externalBridgeDestinationCall(
