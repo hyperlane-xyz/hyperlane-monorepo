@@ -27,11 +27,11 @@ send "zksynclocal\r"
 expect "Do you want to use an API key to verify on this (zksynclocal) chain's block explorer"
 send "N\r"
 
-expect "Is this deployment plan correct?"
-send "y\r"
+expect {
+    "Mailbox already exists at*" { send "y\r"; exp_continue }
+    "Is this deployment plan correct?" { send "y\r"; exp_continue }
+}
 
-expect eof
 EOF
 
 echo "Hyperlane Core deployment process completed."
-EOF
