@@ -11,7 +11,7 @@
     "decimals": 6,
     "name": "USD Coin",
     "symbol": "USDC",
-    "uri": "https://github.com/hyperlane-xyz/hyperlane-registry/blob/33a13d304d3f08be79aad29ed47e7baeeea97db0/deployments/warp_routes/USDC/metadata.json",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/77a04c0b7e214ae17853215467f8ddea5e0ac710/deployments/warp_routes/USDC/metadata.json",
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
   },
   "ethereum": {
