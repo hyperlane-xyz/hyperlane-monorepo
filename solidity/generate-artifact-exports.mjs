@@ -6,10 +6,9 @@ import { fileURLToPath } from 'url';
 const cwd = process.cwd();
 
 const allFiles = glob(cwd, [
-  `!./artifacts-zk/contracts/interfaces/**/*.json`,
+  `!./artifacts-zk/contracts/interfaces/**/*`,
   `!./artifacts-zk/contracts/**/*.dbg.json`,
   `!./artifacts-zk/@openzeppelin/**/*.dbg.json`,
-
   `./artifacts-zk/contracts/**/+([a-zA-Z0-9_]).json`,
   `./artifacts-zk/@openzeppelin/**/+([a-zA-Z0-9_]).json`,
 ]);
@@ -26,15 +25,19 @@ const allFileNames = new Set();
 // Start building the TypeScript export string
 let exportStatements = allFiles
   .map((file) => {
-    const fileName = basename(file, '.json');
+    let fileName = `${basename(file, '.json')}__artifact`;
 
     const fileContent = readFileSync(file, 'utf-8');
     const jsonObject = JSON.parse(fileContent);
 
-    allFileNames.add(`${fileName}__artifact`); // Add the filename to the array
+    if (allFileNames.has(fileName)) {
+      return;
+    }
+
+    allFileNames.add(fileName); // Add the filename to the array
 
     // Create a TypeScript object export statement
-    return `export const ${fileName}__artifact = ${JSON.stringify(
+    return `export const ${fileName} = ${JSON.stringify(
       jsonObject,
       null,
       2,
@@ -42,7 +45,7 @@ let exportStatements = allFiles
   })
   .join('\n\n');
 
-exportStatements += `\n\nexport const allArtifacts = [\n${Array.from(
+exportStatements += `\n\nexport const allArtifacts : any[] = [\n${Array.from(
   allFileNames,
 ).join(',\n')}\n] as const;`;
 
