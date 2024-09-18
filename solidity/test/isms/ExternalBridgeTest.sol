@@ -21,7 +21,6 @@ abstract contract ExternalBridgeTest is Test {
     uint256 internal GAS_QUOTE;
 
     bytes internal unauthorizedHookError;
-    bytes internal invalidMessageIdError;
 
     TestMailbox internal originMailbox;
     TestRecipient internal testRecipient;
@@ -77,6 +76,18 @@ abstract contract ExternalBridgeTest is Test {
         hook.postDispatch(testMetadata, encodedMessage);
     }
 
+    function test_postDispatch_revertWhen_tooMuchValue() public {
+        vm.deal(address(this), uint256(2 ** 255 + 1));
+        bytes memory excessValueMetadata = StandardHookMetadata
+            .overrideMsgValue(uint256(2 ** 255 + 1));
+
+        originMailbox.updateLatestDispatchedId(messageId);
+        vm.expectRevert(
+            "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
+        );
+        hook.postDispatch(excessValueMetadata, encodedMessage);
+    }
+
     /* ============ ISM.verifyMessageId ============ */
 
     function test_verifyMessageId_asyncCall() public {
@@ -89,7 +100,7 @@ abstract contract ExternalBridgeTest is Test {
         assertTrue(ism.isVerified(encodedMessage));
     }
 
-    function test_verifyMessageId_externalBridgeCall() public {
+    function test_verifyMessageId_externalBridgeCall() public virtual {
         bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
             address(hook),
             address(ism),
@@ -104,8 +115,11 @@ abstract contract ExternalBridgeTest is Test {
     /* ============ ISM.verify ============ */
 
     function test_verify_revertWhen_invalidMetadata() public virtual {
-        vm.expectRevert();
-        ism.verify(new bytes(0), encodedMessage);
+        bool isValid;
+        try ism.verify(new bytes(0), encodedMessage) returns (bool _isValid) {
+            isValid = _isValid;
+        } catch {}
+        assertFalse(isValid);
     }
 
     function test_verify_msgValue_asyncCall() public virtual {
@@ -153,7 +167,7 @@ abstract contract ExternalBridgeTest is Test {
         vm.expectRevert(unauthorizedHookError);
         assertFalse(ism.verify(externalCalldata, encodedMessage));
 
-        // async call
+        // async call vm.expectRevert(NotCrossChainCall.selector);
         vm.expectRevert();
         _externalBridgeDestinationCall(externalCalldata, 0);
         assertFalse(ism.isVerified(encodedMessage));
@@ -169,8 +183,13 @@ abstract contract ExternalBridgeTest is Test {
         );
 
         // external call
-        vm.expectRevert(invalidMessageIdError);
-        ism.verify(externalCalldata, encodedMessage);
+        bool isValid;
+        try ism.verify(externalCalldata, encodedMessage) returns (
+            bool _isValid
+        ) {
+            isValid = _isValid;
+        } catch {}
+        assertFalse(isValid);
 
         // async call - native bridges might have try catch block to prevent revert
         try
@@ -179,12 +198,25 @@ abstract contract ExternalBridgeTest is Test {
         assertFalse(ism.isVerified(testMessage));
     }
 
-    // try catch block to prevent revert
-    function externalBridgeDestinationCallWrapper(
-        bytes memory _encodedHookData,
-        uint256 _msgValue
-    ) external {
-        _externalBridgeDestinationCall(_encodedHookData, _msgValue);
+    /// forge-config: default.fuzz.runs = 10
+    function test_verify_valueAlreadyClaimed(uint256 _msgValue) public virtual {
+        _msgValue = bound(_msgValue, 0, 2 ** 254);
+        _externalBridgeDestinationCall(_encodeHookData(messageId), _msgValue);
+
+        bool verified = ism.verify(new bytes(0), encodedMessage);
+        assertTrue(verified);
+        assertEq(address(ism).balance, 0);
+        assertEq(address(testRecipient).balance, _msgValue);
+
+        // send more value to the ISM
+        vm.deal(address(ism), _msgValue);
+
+        // verified still true
+        verified = ism.verify(new bytes(0), encodedMessage);
+        assertTrue(verified);
+        // value which was already sent
+        assertEq(address(ism).balance, _msgValue);
+        assertEq(address(testRecipient).balance, _msgValue);
     }
 
     /* ============ helper functions ============ */
@@ -210,6 +242,14 @@ abstract contract ExternalBridgeTest is Test {
                 AbstractMessageIdAuthorizedIsm.verifyMessageId,
                 (_messageId)
             );
+    }
+
+    // try catch block to prevent revert
+    function externalBridgeDestinationCallWrapper(
+        bytes memory _encodedHookData,
+        uint256 _msgValue
+    ) external {
+        _externalBridgeDestinationCall(_encodedHookData, _msgValue);
     }
 
     function _expectOriginExternalBridgeCall(

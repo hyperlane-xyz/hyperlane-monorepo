@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
-
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
@@ -34,7 +32,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         ORIGIN_DOMAIN = 10;
         DESTINATION_DOMAIN = 1;
         GAS_QUOTE = 120_000;
-        invalidMessageIdError = "OPL2ToL1Ism: invalid message id";
         super.setUp();
 
         // Optimism messenger mock setup

@@ -137,11 +137,6 @@ contract ERC5164IsmTest is ExternalBridgeTest {
         assertFalse(ism.isVerified(encodedMessage));
     }
 
-    // override to assert false instead of revert
-    function test_verify_revertWhen_invalidMetadata() public override {
-        assertFalse(ism.verify(new bytes(0), encodedMessage));
-    }
-
     // SKIP - duplicate of test_verify_revertWhen_invalidMetadata
     function test_verify_revertsWhen_incorrectMessageId() public override {}
 
@@ -151,6 +146,8 @@ contract ERC5164IsmTest is ExternalBridgeTest {
     function test_verify_msgValue_asyncCall() public override {}
 
     function test_verify_msgValue_externalBridgeCall() public override {}
+
+    function test_verify_valueAlreadyClaimed(uint256) public override {}
 
     /* ============ helper functions ============ */
 

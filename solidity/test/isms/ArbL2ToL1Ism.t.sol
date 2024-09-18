@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
-
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
@@ -29,7 +27,6 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         ORIGIN_DOMAIN = 42161;
         DESTINATION_DOMAIN = 1;
         GAS_QUOTE = 120_000;
-        invalidMessageIdError = "ArbL2ToL1Ism: invalid message id";
         super.setUp();
 
         // Arbitrum bridge mock setup
@@ -94,7 +91,8 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         bytes memory _encodedHookData,
         uint256 _msgValue
     ) internal override {
-        arbBridge.executeTransaction{value: _msgValue}(
+        vm.deal(address(arbBridge), _msgValue);
+        arbBridge.executeTransaction(
             new bytes32[](0),
             MOCK_LEAF_INDEX,
             address(hook),
