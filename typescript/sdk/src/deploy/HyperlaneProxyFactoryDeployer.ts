@@ -5,7 +5,11 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import { HyperlaneDeployer } from './HyperlaneDeployer.js';
-import { ProxyFactoryFactories, proxyFactoryFactories } from './contracts.js';
+import {
+  ProxyFactoryFactories,
+  proxyFactoryFactories,
+  proxyFactoryFactoriesArtifacts,
+} from './contracts.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 
 export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
@@ -17,11 +21,16 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
     concurrentDeploy: boolean = false,
   ) {
-    super(multiProvider, proxyFactoryFactories, {
-      logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
-      contractVerifier,
-      concurrentDeploy,
-    });
+    super(
+      multiProvider,
+      proxyFactoryFactories,
+      proxyFactoryFactoriesArtifacts,
+      {
+        logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
+        contractVerifier,
+        concurrentDeploy,
+      },
+    );
   }
 
   async deployContracts(

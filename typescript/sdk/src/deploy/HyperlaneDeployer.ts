@@ -1,5 +1,6 @@
 import { Contract, PopulatedTransaction, ethers } from 'ethers';
 import { Logger } from 'pino';
+import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import {
   ITransparentUpgradeableProxy,
@@ -75,6 +76,7 @@ export abstract class HyperlaneDeployer<
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
+    protected readonly artifacts: any,
     protected readonly options: DeployerOptions = {},
     protected readonly recoverVerificationInputs = false,
     protected readonly icaAddresses = {},
@@ -366,44 +368,29 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
     shouldRecover = true,
-    implementationAddress?: Address,
+    implementationAddress?: Address | null,
+    artifact?: any,
   ): Promise<ReturnType<F['deploy']>> {
-    // if (shouldRecover) {
-    //   const cachedContract = this.readCache(chain, factory, contractName);
-    //   if (cachedContract) {
-    //     if (this.recoverVerificationInputs) {
-    //       const recoveredInputs = await this.recoverVerificationArtifacts(
-    //         chain,
-    //         contractName,
-    //         cachedContract,
-    //         constructorArgs,
-    //         initializeArgs,
-    //       );
-    //       this.addVerificationArtifacts(chain, recoveredInputs);
-    //     }
-    //     return cachedContract;
-    //   }
-    // }
-
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
       )})...`,
     );
+    const prov = new ZKSyncProvider('http://127.0.0.1:8011', 260);
+
+    console.log('Hyperlane deployer');
 
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
+      artifact,
     );
 
+    console.log('Hyperlane deployer after handleDeploy');
+
     if (initializeArgs) {
-      if (
-        await isInitialized(
-          this.multiProvider.getProvider(chain),
-          contract.address,
-        )
-      ) {
+      if (await isInitialized(prov, contract.address)) {
         this.logger.debug(
           `Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized`,
         );
@@ -421,10 +408,11 @@ export abstract class HyperlaneDeployer<
         const overrides = this.multiProvider.getTransactionOverrides(chain);
 
         const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: 10_000_000,
+          gasLimit: 150_000_000,
           ...overrides,
         });
-        const receipt = await this.multiProvider.handleTx(chain, initTx);
+        const receipt = await initTx.wait();
+
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
         );
@@ -464,6 +452,8 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       initializeArgs,
       shouldRecover,
+      null,
+      this.artifacts[contractKey],
     );
     this.writeCache(chain, contractName, contract.address);
     return contract;

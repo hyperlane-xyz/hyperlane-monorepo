@@ -4,15 +4,10 @@ import {
   ContractTransaction,
   PopulatedTransaction,
   Signer,
-  ethers,
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
-import {
-  ContractFactory,
-  Wallet,
-  Provider as ZKSyncProvider,
-} from 'zksync-ethers';
+import { Wallet, Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { Address, pick, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -20,6 +15,7 @@ import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
+import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
@@ -309,31 +305,39 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     factory: any,
     params: any,
+    artifact?: any,
   ): Promise<any> {
-    // setup contract factory
-    // const overrides = this.getTransactionOverrides(chainNameOrId);
     const prov = new ZKSyncProvider('http://127.0.0.1:8011', 260);
 
     const signer = new Wallet(
       '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
       prov,
     );
-    const contractFactory = new ContractFactory(
-      factory.interface,
-      factory.bytecode,
-      signer,
-      'create2',
-    );
 
-    const contract = await contractFactory.deploy(...params, {
-      customData: {
-        salt: ethers.utils.hexlify(ethers.utils.randomBytes(32)),
-        factoryDeps: [
-          '0x0100011764ca9c39cccb1039ec3ecf24a0d8152ea4039de506f126a629ccd916',
-        ],
-      },
-      gasLimit: 150_000_000, // local zksync in memory node
-    });
+    console.log(factory);
+
+    const deployer = new ZKDeployer(signer);
+
+    const contract = await deployer.deploy(artifact, params);
+
+    console.log('Contract deployed:', contract.address);
+
+    // const contractFactory = new ContractFactory(
+    //   factory.interface,
+    //   factory.bytecode,
+    //   signer,
+    //   'create2',
+    // );
+
+    // const factoryDeps = Object.keys(artifact.factoryDeps);
+    // console.log(factoryDeps);
+    // const contract = await contractFactory.deploy(...params, {
+    //   customData: {
+    //     salt: ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+    //     factoryDeps: factoryDeps,
+    //   },
+    //   gasLimit: 150_000_000, // local zksync in memory node
+    // });
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
