@@ -1,5 +1,7 @@
 # @hyperlane-xyz/ccip-server
 
+## 5.2.1-beta.0
+
 ## 5.2.0
 
 ### Patch Changes

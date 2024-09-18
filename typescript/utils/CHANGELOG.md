@@ -1,5 +1,7 @@
 # @hyperlane-xyz/utils
 
+## 5.2.1-beta.0
+
 ## 5.2.0
 
 ### Minor Changes

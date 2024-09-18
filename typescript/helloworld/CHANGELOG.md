@@ -1,5 +1,13 @@
 # @hyperlane-xyz/helloworld
 
+## 5.2.1-beta.0
+
+### Patch Changes
+
+- Updated dependencies [866b502c9]
+  - @hyperlane-xyz/sdk@5.2.1-beta.0
+  - @hyperlane-xyz/core@5.2.1-beta.0
+
 ## 5.2.0
 
 ### Minor Changes

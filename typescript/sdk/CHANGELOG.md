@@ -1,5 +1,13 @@
 # @hyperlane-xyz/sdk
 
+## 5.2.1-beta.0
+
+### Patch Changes
+
+- 866b502c9: Use collateral account for sealevel native warp route balance
+  - @hyperlane-xyz/core@5.2.1-beta.0
+  - @hyperlane-xyz/utils@5.2.1-beta.0
+
 ## 5.2.0
 
 ### Minor Changes

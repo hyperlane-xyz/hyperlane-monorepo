@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cli
 
+## 5.2.1-beta.0
+
+### Patch Changes
+
+- Updated dependencies [866b502c9]
+  - @hyperlane-xyz/sdk@5.2.1-beta.0
+  - @hyperlane-xyz/utils@5.2.1-beta.0
+
 ## 5.2.0
 
 ### Minor Changes

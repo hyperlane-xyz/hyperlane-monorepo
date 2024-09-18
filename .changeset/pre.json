@@ -1,0 +1,18 @@
+{
+  "mode": "pre",
+  "tag": "beta",
+  "initialVersions": {
+    "@hyperlane-xyz/core": "5.2.0",
+    "@hyperlane-xyz/ccip-server": "5.2.0",
+    "@hyperlane-xyz/cli": "5.2.0",
+    "@hyperlane-xyz/github-proxy": "5.2.0",
+    "@hyperlane-xyz/helloworld": "5.2.0",
+    "@hyperlane-xyz/infra": "5.2.0",
+    "@hyperlane-xyz/sdk": "5.2.0",
+    "@hyperlane-xyz/utils": "5.2.0",
+    "@hyperlane-xyz/widgets": "5.2.0"
+  },
+  "changesets": [
+    "curvy-baboons-deliver"
+  ]
+}
