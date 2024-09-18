@@ -30,7 +30,7 @@ pub mod rpc;
 pub struct CosmosProvider {
     domain: HyperlaneDomain,
     connection_conf: ConnectionConf,
-    grpc_client: WasmGrpcProvider,
+    grpc_provider: WasmGrpcProvider,
     rpc_client: CosmosRpcClient,
 }
 
@@ -43,7 +43,7 @@ impl CosmosProvider {
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
-        let grpc_client = WasmGrpcProvider::new(
+        let grpc_provider = WasmGrpcProvider::new(
             domain.clone(),
             conf.clone(),
             gas_price.clone(),
@@ -64,14 +64,14 @@ impl CosmosProvider {
         Ok(Self {
             domain,
             connection_conf: conf,
-            grpc_client,
+            grpc_provider,
             rpc_client,
         })
     }
 
     /// Get a grpc client
     pub fn grpc(&self) -> &WasmGrpcProvider {
-        &self.grpc_client
+        &self.grpc_provider
     }
 
     /// Get a rpc client
@@ -261,7 +261,7 @@ impl HyperlaneProvider for CosmosProvider {
     }
 
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
-        match self.grpc_client.wasm_contract_info().await {
+        match self.grpc_provider.wasm_contract_info().await {
             Ok(c) => Ok(true),
             Err(e) => Ok(false),
         }
@@ -269,7 +269,7 @@ impl HyperlaneProvider for CosmosProvider {
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         Ok(self
-            .grpc_client
+            .grpc_provider
             .get_balance(address, self.connection_conf.get_canonical_asset())
             .await?)
     }
