@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { BigNumber } from 'ethers';
 import prompts from 'prompts';
 
@@ -41,12 +42,15 @@ export enum SubmissionType {
 export type AnnotatedCallData = CallData & {
   submissionType?: SubmissionType;
   description: string;
+  expandedDescription?: string;
+  icaTargetChain?: ChainName;
 };
 
 export type InferredCall = {
   type: SubmissionType;
   chain: ChainName;
   call: AnnotatedCallData;
+  icaTargetChain?: ChainName;
 };
 
 export abstract class HyperlaneAppGovernor<
@@ -112,14 +116,33 @@ export abstract class HyperlaneAppGovernor<
       }
 
       console.log(
-        `> ${callsForSubmissionType.length} calls will be submitted via ${SubmissionType[submissionType]}`,
+        `${SubmissionType[submissionType]} calls: ${callsForSubmissionType.length}`,
       );
-      callsForSubmissionType.map((c) => {
-        console.log(`> > ${c.description.trim()}`);
-        console.log(`> > > to: ${c.to}`);
-        console.log(`> > > data: ${c.data}`);
-        console.log(`> > > value: ${c.value}`);
-      });
+      callsForSubmissionType.map(
+        ({ icaTargetChain, description, expandedDescription, ...call }) => {
+          // Print a blank line to separate calls
+          console.log('');
+
+          // Print the ICA call header if it exists
+          if (icaTargetChain) {
+            console.log(
+              chalk.bold(
+                `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}`,
+              ),
+            );
+          }
+
+          // Print the call details
+          console.log(chalk.bold(`> ${description.trimEnd()}`));
+          if (expandedDescription) {
+            console.info(chalk.gray(`${expandedDescription.trimEnd()}`));
+          }
+
+          console.info(chalk.gray(`to: ${call.to}`));
+          console.info(chalk.gray(`data: ${call.data}`));
+          console.info(chalk.gray(`value: ${call.value}`));
+        },
+      );
       if (!requestConfirmation) return true;
 
       const { value: confirmed } = await prompts({
@@ -138,13 +161,16 @@ export abstract class HyperlaneAppGovernor<
     ) => {
       const callsForSubmissionType = filterCalls(submissionType) || [];
       if (callsForSubmissionType.length > 0) {
+        this.printSeparator();
         const confirmed = await summarizeCalls(
           submissionType,
           callsForSubmissionType,
         );
         if (confirmed) {
-          console.log(
-            `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+          console.info(
+            chalk.italic(
+              `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+            ),
           );
           try {
             await multiSend.sendTransactions(
@@ -155,11 +181,15 @@ export abstract class HyperlaneAppGovernor<
               })),
             );
           } catch (error) {
-            console.error(`Error submitting calls on ${chain}: ${error}`);
+            console.error(
+              chalk.red(`Error submitting calls on ${chain}: ${error}`),
+            );
           }
         } else {
-          console.log(
-            `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
+          console.info(
+            chalk.italic(
+              `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
+            ),
           );
         }
       }
@@ -184,6 +214,14 @@ export abstract class HyperlaneAppGovernor<
     }
 
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
+
+    this.printSeparator();
+  }
+
+  private printSeparator() {
+    console.log(
+      `-------------------------------------------------------------------------------------------------------------------`,
+    );
   }
 
   protected pushCall(chain: ChainName, call: AnnotatedCallData) {
@@ -224,6 +262,7 @@ export abstract class HyperlaneAppGovernor<
       newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
       newCalls[inferredCall.chain].push({
         submissionType: inferredCall.type,
+        icaTargetChain: inferredCall.icaTargetChain,
         ...inferredCall.call,
       });
     };
@@ -236,7 +275,9 @@ export abstract class HyperlaneAppGovernor<
         }
       } catch (error) {
         console.error(
-          `Error inferring call submission types for chain ${chain}: ${error}`,
+          chalk.red(
+            `Error inferring call submission types for chain ${chain}: ${error}`,
+          ),
         );
       }
     }
@@ -244,78 +285,131 @@ export abstract class HyperlaneAppGovernor<
     this.calls = newCalls;
   }
 
+  /**
+   * Infers the submission type for a call that may be encoded for an Interchain Account (ICA).
+   *
+   * This function performs the following steps:
+   * 1. Checks if an ICA exists. If not, defaults to manual submission.
+   * 2. Retrieves the owner of the target contract.
+   * 3. Verifies if the owner is the ICA router. If not, defaults to manual submission.
+   * 4. Fetches the ICA configuration to determine the origin chain.
+   * 5. Prepares the call for remote execution via the ICA if all conditions are met.
+   *
+   * @param chain The chain where the call is to be executed
+   * @param call The call data to be executed
+   * @returns An InferredCall object with the appropriate submission type and details
+   */
   protected async inferICAEncodedSubmissionType(
     chain: ChainName,
     call: AnnotatedCallData,
   ): Promise<InferredCall> {
     const multiProvider = this.checker.multiProvider;
     const signer = multiProvider.getSigner(chain);
-    if (this.interchainAccount) {
-      const ownableAddress = call.to;
-      const ownable = Ownable__factory.connect(ownableAddress, signer);
-      const account = Ownable__factory.connect(await ownable.owner(), signer);
-      const localOwner = await account.owner();
-      if (eqAddress(localOwner, this.interchainAccount.routerAddress(chain))) {
-        const accountConfig = await this.interchainAccount.getAccountConfig(
-          chain,
-          account.address,
-        );
-        const origin = this.interchainAccount.multiProvider.getChainName(
-          accountConfig.origin,
-        );
-        console.log(
-          `Inferred call for ICA remote owner ${bytes32ToAddress(
-            accountConfig.owner,
-          )} on ${origin}`,
-        );
-        const callRemote = await this.interchainAccount.getCallRemote({
-          chain: origin,
-          destination: chain,
-          innerCalls: [
-            {
-              to: call.to,
-              data: call.data,
-              value: call.value?.toString() || '0',
-            },
-          ],
-          config: accountConfig,
-        });
-        if (!callRemote.to || !callRemote.data) {
-          return {
-            type: SubmissionType.MANUAL,
-            chain,
-            call,
-          };
-        }
-        const encodedCall: AnnotatedCallData = {
-          to: callRemote.to,
-          data: callRemote.data,
-          value: callRemote.value,
-          description: `${call.description} - interchain account call from ${origin} to ${chain}`,
-        };
-        const { type: subType } = await this.inferCallSubmissionType(
-          origin,
-          encodedCall,
-          (chain: ChainName, submitterAddress: Address) => {
-            // Require the submitter to be the owner of the ICA on the origin chain.
-            return (
-              chain === origin &&
-              eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
-            );
-          },
-          true, // Flag this as an ICA call
-        );
-        if (subType !== SubmissionType.MANUAL) {
-          return {
-            type: subType,
-            chain: origin,
-            call: encodedCall,
-          };
-        }
-      } else {
-        console.log(`Account's owner ${localOwner} is not ICA router`);
-      }
+
+    // If there is no ICA, default to manual submission
+    if (!this.interchainAccount) {
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
     }
+
+    // Get the account's owner
+    const ownableAddress = call.to;
+    const ownable = Ownable__factory.connect(ownableAddress, signer);
+    const account = Ownable__factory.connect(await ownable.owner(), signer);
+    const localOwner = await account.owner();
+
+    // If the account's owner is not the ICA router, default to manual submission
+    if (!eqAddress(localOwner, this.interchainAccount.routerAddress(chain))) {
+      console.info(
+        chalk.gray(
+          `Account's owner ${localOwner} is not ICA router. Defaulting to manual submission.`,
+        ),
+      );
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
+    }
+
+    // Get the account's config
+    const accountConfig = await this.interchainAccount.getAccountConfig(
+      chain,
+      account.address,
+    );
+    const origin = this.interchainAccount.multiProvider.getChainName(
+      accountConfig.origin,
+    );
+    console.info(
+      chalk.gray(
+        `Inferred call for ICA remote owner ${bytes32ToAddress(
+          accountConfig.owner,
+        )} on ${origin} to ${chain}`,
+      ),
+    );
+
+    // Get the encoded call to the remote ICA
+    const callRemote = await this.interchainAccount.getCallRemote({
+      chain: origin,
+      destination: chain,
+      innerCalls: [
+        {
+          to: call.to,
+          data: call.data,
+          value: call.value?.toString() || '0',
+        },
+      ],
+      config: accountConfig,
+    });
+
+    // If the call to the remote ICA is not valid, default to manual submission
+    if (!callRemote.to || !callRemote.data) {
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
+    }
+
+    // If the call to the remote ICA is valid, infer the submission type
+    const { description, expandedDescription } = call;
+    const encodedCall: AnnotatedCallData = {
+      to: callRemote.to,
+      data: callRemote.data,
+      value: callRemote.value,
+      description,
+      expandedDescription,
+    };
+
+    // Try to infer the submission type for the ICA call
+    const { type: subType } = await this.inferCallSubmissionType(
+      origin,
+      encodedCall,
+      (chain: ChainName, submitterAddress: Address) => {
+        // Require the submitter to be the owner of the ICA on the origin chain.
+        return (
+          chain === origin &&
+          eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
+        );
+      },
+      true, // Flag this as an ICA call
+    );
+
+    // If returned submission type is not MANUAL
+    // we'll return the inferred call with the ICA target chain
+    if (subType !== SubmissionType.MANUAL) {
+      return {
+        type: subType,
+        chain: origin,
+        call: encodedCall,
+        icaTargetChain: chain,
+      };
+    }
+
+    // Else, default to manual submission
     return {
       type: SubmissionType.MANUAL,
       chain,
@@ -323,6 +417,21 @@ export abstract class HyperlaneAppGovernor<
     };
   }
 
+  /**
+   * Infers the submission type for a call.
+   *
+   * This function performs the following steps:
+   * 1. Checks if the transaction will succeed with the SIGNER.
+   * 2. Checks if the transaction will succeed with a SAFE.
+   * 3. If not already an ICA call, tries to infer an ICA call.
+   * 4. If the transaction will not succeed with SIGNER, SAFE, or ICA, defaults to MANUAL submission.
+   *
+   * @param chain The chain where the call is to be executed
+   * @param call The call data to be executed
+   * @param additionalTxSuccessCriteria An optional function to check additional success criteria for the transaction
+   * @param isICACall Flag to indicate if the call is already an ICA call
+   * @returns An InferredCall object with the appropriate submission type and details
+   */
   protected async inferCallSubmissionType(
     chain: ChainName,
     call: AnnotatedCallData,
@@ -336,120 +445,120 @@ export abstract class HyperlaneAppGovernor<
     const signer = multiProvider.getSigner(chain);
     const signerAddress = await signer.getAddress();
 
-    const transactionSucceedsFromSender = async (
+    // Check if the transaction will succeed with a given submitter address
+    const checkTransactionSuccess = async (
       chain: ChainName,
       submitterAddress: Address,
     ): Promise<boolean> => {
-      // The submitter needs to have enough balance to pay for the call.
-      // Surface a warning if the submitter's balance is insufficient, as this
-      // can result in fooling the tooling into thinking otherwise valid submission
-      // types are invalid.
+      // Check if the transaction has a value and if the submitter has enough balance
       if (call.value !== undefined) {
-        const submitterBalance = await multiProvider
-          .getProvider(chain)
-          .getBalance(submitterAddress);
-        if (submitterBalance.lt(call.value)) {
-          console.warn(
-            `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance:`,
-            submitterBalance,
-            'Balance required:',
-            call.value,
-          );
-        }
+        await this.checkSubmitterBalance(chain, submitterAddress, call.value);
       }
 
+      // Check if the transaction has additional success criteria
+      if (
+        additionalTxSuccessCriteria &&
+        !additionalTxSuccessCriteria(chain, submitterAddress)
+      ) {
+        return false;
+      }
+
+      // Check if the transaction will succeed with the signer
       try {
-        if (
-          additionalTxSuccessCriteria &&
-          !additionalTxSuccessCriteria(chain, submitterAddress)
-        ) {
-          return false;
-        }
-        // Will throw if the transaction fails
         await multiProvider.estimateGas(chain, call, submitterAddress);
         return true;
-      } catch (e) {} // eslint-disable-line no-empty
-      return false;
+      } catch (e) {
+        return false;
+      }
     };
 
-    if (await transactionSucceedsFromSender(chain, signerAddress)) {
-      return {
-        type: SubmissionType.SIGNER,
-        chain,
-        call,
-      };
+    // Check if the transaction will succeed with the SIGNER
+    if (await checkTransactionSuccess(chain, signerAddress)) {
+      return { type: SubmissionType.SIGNER, chain, call };
     }
 
-    // 2. Check if the call will succeed via Gnosis Safe.
+    // Check if the transaction will succeed with a SAFE
     const safeAddress =
       this.checker.configMap[chain].ownerOverrides?._safeAddress;
-
     if (typeof safeAddress === 'string') {
-      // 2a. Confirm that the signer is a Safe owner or delegate.
-      // This should implicitly check whether or not the owner is a gnosis
-      // safe.
-      if (!this.canPropose[chain].has(safeAddress)) {
-        try {
-          const canPropose = await canProposeSafeTransactions(
-            signerAddress,
-            chain,
-            multiProvider,
-            safeAddress,
-          );
-          this.canPropose[chain].set(safeAddress, canPropose);
-        } catch (error) {
-          // if we hit this error, it's likely a custom safe chain
-          // so let's fallback to a manual submission
-          if (
-            error instanceof Error &&
-            (error.message.includes('Invalid MultiSend contract address') ||
-              error.message.includes(
-                'Invalid MultiSendCallOnly contract address',
-              ))
-          ) {
-            console.warn(`${error.message}: Setting submission type to MANUAL`);
-            return {
-              type: SubmissionType.MANUAL,
-              chain,
-              call,
-            };
-          } else {
-            console.error(
-              `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
-            );
-            return {
-              type: SubmissionType.MANUAL,
-              chain,
-              call,
-            };
-          }
-        }
-      }
-
-      // 2b. Check if calling from the owner/safeAddress will succeed.
+      // Check if the safe can propose transactions
+      const canProposeSafe = await this.checkSafeProposalEligibility(
+        chain,
+        signerAddress,
+        safeAddress,
+      );
       if (
-        this.canPropose[chain].get(safeAddress) &&
-        (await transactionSucceedsFromSender(chain, safeAddress))
+        canProposeSafe &&
+        (await checkTransactionSuccess(chain, safeAddress))
       ) {
-        return {
-          type: SubmissionType.SAFE,
-          chain,
-          call,
-        };
+        // If the transaction will succeed with the safe, return the inferred call
+        return { type: SubmissionType.SAFE, chain, call };
       }
     }
 
-    // Only try ICA encoding if this isn't already an ICA call
+    // If we're not already an ICA call, try to infer an ICA call
     if (!isICACall) {
       return this.inferICAEncodedSubmissionType(chain, call);
     }
 
-    // If it is an ICA call and we've reached this point, default to manual submission
-    return {
-      type: SubmissionType.MANUAL,
-      chain,
-      call,
-    };
+    // If the transaction will not succeed with SIGNER, SAFE or ICA, default to MANUAL submission
+    return { type: SubmissionType.MANUAL, chain, call };
+  }
+
+  private async checkSubmitterBalance(
+    chain: ChainName,
+    submitterAddress: Address,
+    requiredValue: BigNumber,
+  ): Promise<void> {
+    const submitterBalance = await this.checker.multiProvider
+      .getProvider(chain)
+      .getBalance(submitterAddress);
+    if (submitterBalance.lt(requiredValue)) {
+      console.warn(
+        chalk.yellow(
+          `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance: ${submitterBalance}, Balance required: ${requiredValue}`,
+        ),
+      );
+    }
+  }
+
+  private async checkSafeProposalEligibility(
+    chain: ChainName,
+    signerAddress: Address,
+    safeAddress: string,
+  ): Promise<boolean> {
+    if (!this.canPropose[chain].has(safeAddress)) {
+      try {
+        const canPropose = await canProposeSafeTransactions(
+          signerAddress,
+          chain,
+          this.checker.multiProvider,
+          safeAddress,
+        );
+        this.canPropose[chain].set(safeAddress, canPropose);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.message.includes('Invalid MultiSend contract address') ||
+            error.message.includes(
+              'Invalid MultiSendCallOnly contract address',
+            ))
+        ) {
+          console.warn(
+            chalk.yellow(`${error.message}: Setting submission type to MANUAL`),
+          );
+          return false;
+        } else {
+          console.error(
+            chalk.red(
+              `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
+            ),
+          );
+          return false;
+        }
+      }
+    }
+    return this.canPropose[chain].get(safeAddress) || false;
   }
 
   handleOwnerViolation(violation: OwnerViolation) {
