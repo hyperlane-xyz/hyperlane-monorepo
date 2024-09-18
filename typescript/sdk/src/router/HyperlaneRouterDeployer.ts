@@ -1,6 +1,7 @@
 import { Ownable, Router } from '@hyperlane-xyz/core';
 import {
   Address,
+  addBufferToGasLimit,
   addressToBytes32,
   objFilter,
   objMap,
@@ -90,7 +91,7 @@ export abstract class HyperlaneRouterDeployer<
         );
         // deploy with 10% buffer on gas limit
         const enrollTx = await router.enrollRemoteRouters(domains, addresses, {
-          gasLimit: estimatedGas.add(estimatedGas.div(10)),
+          gasLimit: addBufferToGasLimit(estimatedGas),
           ...this.multiProvider.getTransactionOverrides(chain),
         });
         await this.multiProvider.handleTx(chain, enrollTx);
