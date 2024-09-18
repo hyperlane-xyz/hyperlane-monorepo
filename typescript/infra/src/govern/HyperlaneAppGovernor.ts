@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { BigNumber } from 'ethers';
 import prompts from 'prompts';
 
@@ -117,17 +118,19 @@ export abstract class HyperlaneAppGovernor<
         `${SubmissionType[submissionType]} calls: ${callsForSubmissionType.length}`,
       );
       callsForSubmissionType.map(({ icaTargetChain, description, ...call }) => {
-        console.log(
-          `\n> ${
-            icaTargetChain
-              ? `INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}. `
-              : ''
-          }${description.trimEnd()}`,
-        );
+        console.log('\n');
+        if (icaTargetChain) {
+          console.log(
+            chalk.bold(
+              `> INTERCHAIN ACCOUNT CALL: ${chain} -> ${icaTargetChain}`,
+            ),
+          );
+        }
 
-        console.log(`to: ${call.to}`);
-        console.log(`data: ${call.data}`);
-        console.log(`value: ${call.value}`);
+        console.log(chalk.bold(`> ${description.trimEnd()}`));
+        console.info(chalk.gray(`to: ${call.to}`));
+        console.info(chalk.gray(`data: ${call.data}`));
+        console.info(chalk.gray(`value: ${call.value}`));
       });
       if (!requestConfirmation) return true;
 
@@ -153,8 +156,10 @@ export abstract class HyperlaneAppGovernor<
           callsForSubmissionType,
         );
         if (confirmed) {
-          console.log(
-            `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+          console.info(
+            chalk.gray(
+              `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
+            ),
           );
           try {
             await multiSend.sendTransactions(
@@ -165,11 +170,15 @@ export abstract class HyperlaneAppGovernor<
               })),
             );
           } catch (error) {
-            console.error(`Error submitting calls on ${chain}: ${error}`);
+            console.error(
+              chalk.red(`Error submitting calls on ${chain}: ${error}`),
+            );
           }
         } else {
-          console.log(
-            `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
+          console.info(
+            chalk.italic(
+              `Skipping submission of calls on ${chain} via ${SubmissionType[submissionType]}`,
+            ),
           );
         }
       }
@@ -255,7 +264,9 @@ export abstract class HyperlaneAppGovernor<
         }
       } catch (error) {
         console.error(
-          `Error inferring call submission types for chain ${chain}: ${error}`,
+          chalk.red(
+            `Error inferring call submission types for chain ${chain}: ${error}`,
+          ),
         );
       }
     }
@@ -301,7 +312,11 @@ export abstract class HyperlaneAppGovernor<
 
     // If the account's owner is not the ICA router, default to manual submission
     if (!eqAddress(localOwner, this.interchainAccount.routerAddress(chain))) {
-      console.log(`Account's owner ${localOwner} is not ICA router`);
+      console.info(
+        chalk.gray(
+          `Account's owner ${localOwner} is not ICA router. Defaulting to manual submission.`,
+        ),
+      );
       return {
         type: SubmissionType.MANUAL,
         chain,
@@ -317,10 +332,12 @@ export abstract class HyperlaneAppGovernor<
     const origin = this.interchainAccount.multiProvider.getChainName(
       accountConfig.origin,
     );
-    console.log(
-      `Inferred call for ICA remote owner ${bytes32ToAddress(
-        accountConfig.owner,
-      )} on ${origin} to ${chain}`,
+    console.info(
+      chalk.gray(
+        `Inferred call for ICA remote owner ${bytes32ToAddress(
+          accountConfig.owner,
+        )} on ${origin} to ${chain}`,
+      ),
     );
 
     // Get the encoded call to the remote ICA
@@ -485,10 +502,9 @@ export abstract class HyperlaneAppGovernor<
       .getBalance(submitterAddress);
     if (submitterBalance.lt(requiredValue)) {
       console.warn(
-        `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance:`,
-        submitterBalance,
-        'Balance required:',
-        requiredValue,
+        chalk.yellow(
+          `Submitter ${submitterAddress} has an insufficient balance for the call and is likely to fail. Balance: ${submitterBalance}, Balance required: ${requiredValue}`,
+        ),
       );
     }
   }
@@ -515,11 +531,15 @@ export abstract class HyperlaneAppGovernor<
               'Invalid MultiSendCallOnly contract address',
             ))
         ) {
-          console.warn(`${error.message}: Setting submission type to MANUAL`);
+          console.warn(
+            chalk.yellow(`${error.message}: Setting submission type to MANUAL`),
+          );
           return false;
         } else {
           console.error(
-            `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
+            chalk.red(
+              `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
+            ),
           );
           return false;
         }
