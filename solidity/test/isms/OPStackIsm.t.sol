@@ -49,7 +49,7 @@ contract OPStackIsmTest is ExternalBridgeTest {
     event ReceivedMessage(bytes32 indexed messageId);
 
     function setUp() public override {
-        GAS_QUOTE = 1_920_000; // optimism subsidized gas limit
+        GAS_QUOTE = 0;
 
         vm.etch(
             L1_MESSENGER_ADDRESS,
@@ -90,17 +90,20 @@ contract OPStackIsmTest is ExternalBridgeTest {
 
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
         l2Messenger.setXDomainMessageSender(address(hook));
-        // for sending value
-        // vm.deal(AddressAliasHelper.applyL1ToL2Alias(L1_MESSENGER_ADDRESS), 2 ** 255);
     }
 
-    /* ============ hook.quoteDispatch ============ */
-
-    function test_quoteDispatch() public view {
-        assertEq(hook.quoteDispatch(testMetadata, encodedMessage), 0);
+    function test_verify_revertWhen_invalidMetadata() public override {
+        assertFalse(ism.verify(new bytes(0), encodedMessage));
     }
 
-    /* ============ hook.postDispatch ============ */
+    function test_verify_revertsWhen_incorrectMessageId() public override {
+        bytes32 incorrectMessageId = keccak256("incorrect message id");
+
+        _externalBridgeDestinationCall(_encodeHookData(incorrectMessageId), 0);
+        assertFalse(ism.isVerified(testMessage));
+    }
+
+    /* ============ helper functions ============ */
 
     function _expectOriginExternalBridgeCall(
         bytes memory _encodedHookData

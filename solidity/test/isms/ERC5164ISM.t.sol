@@ -116,7 +116,11 @@ contract ERC5164IsmTest is ExternalBridgeTest {
         );
     }
 
-    function test_postDispatch_RevertWhen_msgValueNotAllowed() public payable {
+    function test_verify_revertWhen_invalidMetadata() public override {
+        assertFalse(ism.verify(new bytes(0), encodedMessage));
+    }
+
+    function test_postDispatch_revertWhen_msgValueNotAllowed() public payable {
         originMailbox.updateLatestDispatchedId(messageId);
 
         vm.expectRevert("ERC5164Hook: no value allowed");

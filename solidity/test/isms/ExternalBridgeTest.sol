@@ -40,6 +40,12 @@ abstract contract ExternalBridgeTest is Test {
         messageId = Message.id(encodedMessage);
     }
 
+    /* ============ hook.quoteDispatch ============ */
+
+    function test_quoteDispatch() public view {
+        assertEq(hook.quoteDispatch(testMetadata, encodedMessage), GAS_QUOTE);
+    }
+
     /* ============ Hook.postDispatch ============ */
 
     function test_postDispatch() public {
@@ -110,11 +116,8 @@ abstract contract ExternalBridgeTest is Test {
     /* ============ ISM.verify ============ */
 
     function test_verify_revertWhen_invalidMetadata() public virtual {
-        bool isValid;
-        try ism.verify(new bytes(0), encodedMessage) returns (bool _isValid) {
-            isValid = _isValid;
-        } catch {}
-        assertFalse(isValid);
+        vm.expectRevert();
+        assertFalse(ism.verify(new bytes(0), encodedMessage));
     }
 
     function test_verify_msgValue_asyncCall() public virtual {
@@ -180,17 +183,15 @@ abstract contract ExternalBridgeTest is Test {
         );
 
         // external call
-        bool isValid;
-        try ism.verify(externalCalldata, encodedMessage) returns (
-            bool _isValid
-        ) {
-            isValid = _isValid;
-        } catch {}
-        assertFalse(isValid);
+        vm.expectRevert();
+        assertFalse(ism.verify(externalCalldata, encodedMessage));
 
         // async call - native bridges might have try catch block to prevent revert
         try
-            this.externalBridgeDestinationCallWrapper(externalCalldata, 0)
+            this.externalBridgeDestinationCallWrapper(
+                _encodeHookData(incorrectMessageId),
+                0
+            )
         {} catch {}
         assertFalse(ism.isVerified(testMessage));
     }
