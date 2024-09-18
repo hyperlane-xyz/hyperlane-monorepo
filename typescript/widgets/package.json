@@ -1,19 +1,19 @@
 {
   "name": "@hyperlane-xyz/widgets",
   "description": "Common react components for Hyperlane projects",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "peerDependencies": {
     "react": "^18",
     "react-dom": "^18"
   },
   "dependencies": {
-    "@hyperlane-xyz/sdk": "5.1.0",
-    "@hyperlane-xyz/utils": "5.1.0",
+    "@hyperlane-xyz/sdk": "5.2.0",
+    "@hyperlane-xyz/utils": "5.2.0",
     "react-tooltip": "^5.28.0",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@hyperlane-xyz/registry": "4.0.0",
+    "@hyperlane-xyz/registry": "4.1.0",
     "@storybook/addon-essentials": "^7.6.14",
     "@storybook/addon-interactions": "^7.6.14",
     "@storybook/addon-links": "^7.6.14",

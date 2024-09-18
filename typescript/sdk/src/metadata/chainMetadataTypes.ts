@@ -250,8 +250,11 @@ export const ChainMetadataSchemaObject = z.object({
     .describe('Properties to include when forming transaction requests.'),
 });
 
+// Passthrough allows for extra fields to remain in the object (such as extensions consumers may want like `mailbox`)
+const ChainMetadataSchemaExtensible = ChainMetadataSchemaObject.passthrough();
+
 // Add refinements to the object schema to conditionally validate certain fields
-export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
+export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   (metadata) => {
     if (
       [ProtocolType.Ethereum, ProtocolType.Sealevel].includes(
@@ -335,7 +338,9 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
     },
   );
 
-export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
+export type ChainMetadata<Ext = object> = z.infer<
+  typeof ChainMetadataSchemaObject
+> &
   Ext;
 
 export function safeParseChainMetadata(

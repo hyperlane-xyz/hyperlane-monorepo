@@ -39,42 +39,68 @@ async function main() {
 
   const balancesObject = await Promise.all(
     chainsToCheck.map(async (chain) => {
-      const provider = multiProvider.getProvider(chain);
-      const { decimals, symbol } = await multiProvider.getNativeToken(chain);
-      const roleBalances = await Promise.all(
-        roles.map(async (role) => {
-          // Fetch key
-          const keys = await envConfig.getKeys(context, role as Role);
-          await Promise.all(Object.values(keys).map((key) => key.fetch()));
+      try {
+        const provider = multiProvider.getProvider(chain);
+        const { decimals, symbol } = await multiProvider.getNativeToken(chain);
+        const roleBalances = await Promise.all(
+          roles.map(async (role) => {
+            try {
+              let address: string | undefined;
 
-          // Default to known deployer/relayer addresses if not found
-          let address = keys[chain]?.address;
-          if (!address) {
-            if (role === Role.Deployer) {
-              address =
-                environment === 'mainnet3' ? MainnetDeployer : TestnetDeployer;
-            } else if (role === Role.Relayer) {
-              address =
-                environment === 'mainnet3' ? MainnetRelayer : TestnetRelayer;
+              if (
+                role === Role.Deployer &&
+                (environment === 'mainnet3' || environment === 'testnet4')
+              ) {
+                address =
+                  environment === 'mainnet3'
+                    ? MainnetDeployer
+                    : TestnetDeployer;
+              } else if (
+                role === Role.Relayer &&
+                (environment === 'mainnet3' || environment === 'testnet4')
+              ) {
+                address =
+                  environment === 'mainnet3' ? MainnetRelayer : TestnetRelayer;
+              } else {
+                // Fetch key only if role is not deployer/relayer or env is not mainnet/testnet
+                const keys = await envConfig.getKeys(context, role as Role);
+                await Promise.all(
+                  Object.values(keys).map((key) => key.fetch()),
+                );
+                address = keys[chain]?.address;
+              }
+
+              // Fetch balance
+              if (address) {
+                const balance = await provider.getBalance(address);
+                const formattedBalance = formatUnits(balance, decimals);
+                return Number(formattedBalance).toFixed(3);
+              }
+              return null;
+            } catch (error) {
+              console.error(
+                `Error fetching balance for ${role} on ${chain}:`,
+                error,
+              );
+              return null;
             }
-          }
-
-          // Fetch balance
-          if (address) {
-            const balance = await provider.getBalance(address);
-            const formattedBalance = formatUnits(balance, decimals);
-            return Number(formattedBalance).toFixed(3);
-          }
-          return null;
-        }),
-      );
-      return {
-        chain,
-        symbol,
-        ...Object.fromEntries(
-          roles.map((role, index) => [role, roleBalances[index]]),
-        ),
-      };
+          }),
+        );
+        return {
+          chain,
+          symbol,
+          ...Object.fromEntries(
+            roles.map((role, index) => [role, roleBalances[index]]),
+          ),
+        };
+      } catch (error) {
+        console.error(`Error processing chain ${chain}:`, error);
+        return {
+          chain,
+          symbol: 'ERROR',
+          ...Object.fromEntries(roles.map((role) => [role, null])),
+        };
+      }
     }),
   );
 

@@ -2,12 +2,19 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainTechnicalStack,
+  CoreFactories,
+  HyperlaneContracts,
   HyperlaneCore,
   HyperlaneDeploymentArtifacts,
   MultiProvider,
   buildAgentConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  objFilter,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import {
@@ -18,6 +25,7 @@ import { getCosmosChainGasPrice } from '../../src/config/gas-oracle.js';
 import {
   chainIsProtocol,
   filterRemoteDomainMetadata,
+  isEthereumProtocolChain,
   writeMergedJSONAtPath,
 } from '../../src/utils/utils.js';
 import {
@@ -50,41 +58,53 @@ export async function writeAgentConfig(
   const addressesForEnv = filterRemoteDomainMetadata(addressesMap);
   const core = HyperlaneCore.fromAddressesMap(addressesForEnv, multiProvider);
 
+  const evmContractsMap = objFilter(
+    core.contractsMap,
+    (chain, _): _ is HyperlaneContracts<CoreFactories> =>
+      isEthereumProtocolChain(chain),
+  );
+
   // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
   const startBlocks = await promiseObjAll(
-    objMap(addressesForEnv, async (chain: string, _) => {
-      const { index, technicalStack } = multiProvider.getChainMetadata(chain);
-      const indexFrom = index?.from;
+    objMap(
+      evmContractsMap,
+      async (chain: string, contracts: HyperlaneContracts<CoreFactories>) => {
+        const { index, technicalStack } = multiProvider.getChainMetadata(chain);
+        const indexFrom = index?.from;
 
-      // Arbitrum Nitro chains record the L1 block number they were deployed at,
-      // not the L2 block number.
-      // See: https://docs.arbitrum.io/build-decentralized-apps/arbitrum-vs-ethereum/block-numbers-and-time#ethereum-block-numbers-within-arbitrum
-      if (technicalStack === ChainTechnicalStack.ArbitrumNitro && !indexFrom) {
-        // Should never get here because registry should enforce this, but we're being defensive.
-        throw new Error(
-          `index.from is not set for Arbitrum Nitro chain ${chain}`,
-        );
-      }
+        // Arbitrum Nitro chains record the L1 block number they were deployed at,
+        // not the L2 block number.
+        // See: https://docs.arbitrum.io/build-decentralized-apps/arbitrum-vs-ethereum/block-numbers-and-time#ethereum-block-numbers-within-arbitrum
+        if (
+          technicalStack === ChainTechnicalStack.ArbitrumNitro &&
+          !indexFrom
+        ) {
+          // Should never get here because registry should enforce this, but we're being defensive.
+          throw new Error(
+            `index.from is not set for Arbitrum Nitro chain ${chain}`,
+          );
+        }
 
-      // If the index.from is specified in the chain metadata, use that.
-      if (indexFrom) {
-        return indexFrom;
-      }
+        // If the index.from is specified in the chain metadata, use that.
+        if (indexFrom) {
+          return indexFrom;
+        }
 
-      const mailbox = core.getContracts(chain).mailbox;
-      try {
-        const deployedBlock = await mailbox.deployedBlock();
-        return deployedBlock.toNumber();
-      } catch (err) {
-        console.error(
-          'Failed to get deployed block, defaulting to 0. Chain:',
-          chain,
-          'Error:',
-          err,
-        );
-        return 0;
-      }
-    }),
+        const mailbox = contracts.mailbox;
+        try {
+          const deployedBlock = await mailbox.deployedBlock();
+          return deployedBlock.toNumber();
+        } catch (err) {
+          console.error(
+            'Failed to get deployed block, defaulting to 0. Chain:',
+            chain,
+            'Error:',
+            err,
+          );
+          return 0;
+        }
+      },
+    ),
   );
 
   // Get gas prices for Cosmos chains.
