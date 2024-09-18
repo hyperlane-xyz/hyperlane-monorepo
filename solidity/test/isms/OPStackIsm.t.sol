@@ -49,10 +49,7 @@ contract OPStackIsmTest is ExternalBridgeTest {
     event ReceivedMessage(bytes32 indexed messageId);
 
     function setUp() public override {
-        ORIGIN_DOMAIN = 1;
-        DESTINATION_DOMAIN = 10;
         GAS_QUOTE = 1_920_000; // optimism subsidized gas limit
-        super.setUp();
 
         vm.etch(
             L1_MESSENGER_ADDRESS,
@@ -66,6 +63,7 @@ contract OPStackIsmTest is ExternalBridgeTest {
         l2Messenger = MockOptimismMessenger(L2_MESSENGER_ADDRESS);
 
         deployAll();
+        super.setUp();
     }
 
     ///////////////////////////////////////////////////////////////////

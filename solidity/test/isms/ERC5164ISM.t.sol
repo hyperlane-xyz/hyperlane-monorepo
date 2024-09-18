@@ -41,10 +41,6 @@ contract ERC5164IsmTest is ExternalBridgeTest {
     ///////////////////////////////////////////////////////////////////
 
     function setUp() public override {
-        ORIGIN_DOMAIN = 1;
-        DESTINATION_DOMAIN = 2;
-        super.setUp();
-
         dispatcher = new MockMessageDispatcher();
         executor = new MockMessageExecutor();
         originMailbox = new TestMailbox(ORIGIN_DOMAIN);
@@ -56,6 +52,7 @@ contract ERC5164IsmTest is ExternalBridgeTest {
             address(dispatcher)
         );
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
+        super.setUp();
     }
 
     ///////////////////////////////////////////////////////////////////

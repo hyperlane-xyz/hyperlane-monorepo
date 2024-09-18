@@ -24,15 +24,12 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
     MockArbBridge internal arbBridge;
 
     function setUp() public override {
-        ORIGIN_DOMAIN = 42161;
-        DESTINATION_DOMAIN = 1;
-        GAS_QUOTE = 120_000;
-        super.setUp();
-
         // Arbitrum bridge mock setup
+        GAS_QUOTE = 120_000;
         vm.etch(L2_ARBSYS_ADDRESS, address(new MockArbSys()).code);
 
         deployAll();
+        super.setUp();
     }
 
     ///////////////////////////////////////////////////////////////////

@@ -29,18 +29,15 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
     ///////////////////////////////////////////////////////////////////
 
     function setUp() public override {
-        ORIGIN_DOMAIN = 10;
-        DESTINATION_DOMAIN = 1;
-        GAS_QUOTE = 120_000;
-        super.setUp();
-
         // Optimism messenger mock setup
+        GAS_QUOTE = 120_000;
         vm.etch(
             L2_MESSENGER_ADDRESS,
             address(new MockOptimismMessenger()).code
         );
 
         deployAll();
+        super.setUp();
     }
 
     function deployHook() public {

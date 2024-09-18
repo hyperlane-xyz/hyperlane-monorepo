@@ -16,8 +16,8 @@ abstract contract ExternalBridgeTest is Test {
     using MessageUtils for bytes;
 
     uint8 internal constant HYPERLANE_VERSION = 1;
-    uint32 internal ORIGIN_DOMAIN;
-    uint32 internal DESTINATION_DOMAIN;
+    uint32 internal constant ORIGIN_DOMAIN = 1;
+    uint32 internal constant DESTINATION_DOMAIN = 2;
     uint256 internal GAS_QUOTE;
 
     bytes internal unauthorizedHookError;
@@ -52,13 +52,9 @@ abstract contract ExternalBridgeTest is Test {
     }
 
     function test_postDispatch_revertWhen_chainIDNotSupported() public {
-        bytes memory message = MessageUtils.formatMessage(
-            0,
-            uint32(0),
-            DESTINATION_DOMAIN,
+        bytes memory message = originMailbox.buildOutboundMessage(
+            3,
             TypeCasts.addressToBytes32(address(this)),
-            3, // wrong domain
-            TypeCasts.addressToBytes32(address(testRecipient)),
             testMessage
         );
 
@@ -223,11 +219,7 @@ abstract contract ExternalBridgeTest is Test {
 
     function _encodeTestMessage() internal view returns (bytes memory) {
         return
-            MessageUtils.formatMessage(
-                HYPERLANE_VERSION,
-                uint32(0),
-                ORIGIN_DOMAIN,
-                TypeCasts.addressToBytes32(address(this)),
+            originMailbox.buildOutboundMessage(
                 DESTINATION_DOMAIN,
                 TypeCasts.addressToBytes32(address(testRecipient)),
                 testMessage
