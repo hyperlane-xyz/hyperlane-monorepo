@@ -134,8 +134,8 @@ impl ChainMetadata {
                 .and_then(|v| v.try_into().ok())
                 .unwrap_or_else(|| {
                     panic!(
-                        "Invalid chain_id cannot be used as the domain_id: {:?}",
-                        self.chain_id
+                        "Unable to get domain ID for chain {:?}: domain_id is undefined and could not fall back to chain_id {:?}",
+                        self.name, self.chain_id
                     )
                 })
         })
