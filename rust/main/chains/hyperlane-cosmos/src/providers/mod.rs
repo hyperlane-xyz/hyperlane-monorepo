@@ -50,16 +50,7 @@ impl CosmosProvider {
             locator,
             signer,
         )?;
-        let http_client = HttpClient::builder(
-            conf.get_rpc_url()
-                .parse()
-                .map_err(Into::<HyperlaneCosmosError>::into)?,
-        )
-        // Consider supporting different compatibility modes.
-        .compat_mode(CompatMode::latest())
-        .build()
-        .map_err(Into::<HyperlaneCosmosError>::into)?;
-        let rpc_client = CosmosRpcClient::new(http_client);
+        let rpc_client = CosmosRpcClient::new(&conf)?;
 
         Ok(Self {
             domain,
@@ -72,11 +63,6 @@ impl CosmosProvider {
     /// Get a grpc client
     pub fn grpc(&self) -> &WasmGrpcProvider {
         &self.grpc_provider
-    }
-
-    /// Get a rpc client
-    pub fn rpc(&self) -> &CosmosRpcClient {
-        &self.rpc_client
     }
 
     fn search_payer_in_signer_infos(
@@ -182,7 +168,7 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("block hash should be of correct size");
 
-        let response = self.rpc().get_block_by_hash(tendermint_hash).await?;
+        let response = self.rpc_client.get_block_by_hash(tendermint_hash).await?;
 
         let received_hash = H256::from_slice(response.block_id.hash.as_bytes());
 
@@ -214,7 +200,7 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
-        let response = self.rpc().get_tx_by_hash(tendermint_hash).await?;
+        let response = self.rpc_client.get_tx_by_hash(tendermint_hash).await?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 

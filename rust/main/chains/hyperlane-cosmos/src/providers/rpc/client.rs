@@ -1,11 +1,12 @@
 use cosmrs::proto::tendermint::blocksync::BlockResponse;
 use tendermint::Hash;
+use tendermint_rpc::client::CompatMode;
 use tendermint_rpc::endpoint::{block, block_by_hash, block_results, tx};
 use tendermint_rpc::{Client, HttpClient};
 
 use hyperlane_core::ChainResult;
 
-use crate::HyperlaneCosmosError;
+use crate::{ConnectionConf, HyperlaneCosmosError};
 
 /// Thin wrapper around Cosmos RPC client with error mapping
 #[derive(Clone, Debug)]
@@ -15,8 +16,18 @@ pub struct CosmosRpcClient {
 
 impl CosmosRpcClient {
     /// Create new `CosmosRpcClient`
-    pub fn new(client: HttpClient) -> Self {
-        Self { client }
+    pub fn new(conf: &ConnectionConf) -> ChainResult<Self> {
+        let client = HttpClient::builder(
+            conf.get_rpc_url()
+                .parse()
+                .map_err(Into::<HyperlaneCosmosError>::into)?,
+        )
+        // Consider supporting different compatibility modes.
+        .compat_mode(CompatMode::latest())
+        .build()
+        .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        Ok(Self { client })
     }
 
     /// Request block by block height

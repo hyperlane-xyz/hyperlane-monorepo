@@ -1,19 +1,26 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::rpc::client::Client;
-use hyperlane_core::{ChainCommunicationError, ChainResult, ContractLocator, LogMeta, H256, U256};
+use futures::StreamExt;
 use sha256::digest;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
+use tendermint_rpc::client::CompatMode;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
 use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
 use tendermint_rpc::HttpClient;
+use time::OffsetDateTime;
 use tracing::{debug, instrument, trace};
 
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256,
+};
+
 use crate::address::CosmosAddress;
-use crate::providers::rpc;
+use crate::rpc::CosmosRpcClient;
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
 
 #[async_trait]
@@ -58,10 +65,11 @@ impl<T: PartialEq> ParsedEvent<T> {
 #[derive(Debug, Clone)]
 /// Cosmwasm RPC Provider
 pub struct CosmosWasmRpcProvider {
-    provider: CosmosProvider,
+    domain: HyperlaneDomain,
     contract_address: CosmosAddress,
     target_event_kind: String,
     reorg_period: u32,
+    rpc_client: CosmosRpcClient,
 }
 
 impl CosmosWasmRpcProvider {
@@ -74,10 +82,10 @@ impl CosmosWasmRpcProvider {
         event_type: String,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let provider =
-            CosmosProvider::new(locator.domain.clone(), conf.clone(), locator.clone(), None)?;
+        let rpc_client = CosmosRpcClient::new(&conf)?;
+
         Ok(Self {
-            provider,
+            domain: locator.domain.clone(),
             contract_address: CosmosAddress::from_h256(
                 locator.address,
                 conf.get_bech32_prefix().as_str(),
@@ -85,6 +93,7 @@ impl CosmosWasmRpcProvider {
             )?,
             target_event_kind: format!("{}-{}", Self::WASM_TYPE, event_type),
             reorg_period,
+            rpc_client,
         })
     }
 }
@@ -190,7 +199,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
     #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let latest_block = self.provider.rpc().get_latest_block().await?;
+        let latest_block = self.rpc_client.get_latest_block().await?;
         let latest_height: u32 = latest_block
             .block
             .header
@@ -212,13 +221,12 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
     where
         T: Send + Sync + PartialEq + Debug + 'static,
     {
-        let client = self.provider.rpc();
-        debug!(?block_number, cursor_label, domain=?self.provider.domain, "Getting logs in block");
+        debug!(?block_number, cursor_label, domain=?self.domain, "Getting logs in block");
 
         // The two calls below could be made in parallel, but on cosmos rate limiting is a bigger problem
         // than indexing latency, so we do them sequentially.
-        let block = client.get_block(block_number).await?;
-        let block_results = client.get_block_results(block_number).await?;
+        let block = self.rpc_client.get_block(block_number).await?;
+        let block_results = self.rpc_client.get_block_results(block_number).await?;
 
         Ok(self.handle_txs(block, block_results, parser, cursor_label))
     }
