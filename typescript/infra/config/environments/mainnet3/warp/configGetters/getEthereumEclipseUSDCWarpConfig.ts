@@ -25,7 +25,6 @@ export const getEthereumEclipseUSDCWarpConfig = async (
     type: TokenType.collateral,
     interchainSecurityModule: ethers.constants.AddressZero,
     token: tokens.ethereum.USDC,
-    owner: DEPLOYER,
   };
 
   return {

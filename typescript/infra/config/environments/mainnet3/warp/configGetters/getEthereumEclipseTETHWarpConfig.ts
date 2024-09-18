@@ -24,7 +24,6 @@ export const getEthereumEclipseTETHWarpConfig = async (
     type: TokenType.collateral,
     interchainSecurityModule: ethers.constants.AddressZero,
     token: '0x19e099B7aEd41FA52718D780dDA74678113C0b32',
-    owner: DEPLOYER,
   };
 
   return {
