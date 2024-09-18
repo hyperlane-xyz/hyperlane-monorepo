@@ -38,6 +38,7 @@ const standardDeployModules = [
   Modules.CORE,
   Modules.TEST_RECIPIENT,
   Modules.INTERCHAIN_GAS_PAYMASTER,
+  Modules.HOOK,
 ];
 
 export async function deployWithArtifacts<Config extends object>({
