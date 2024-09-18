@@ -589,6 +589,7 @@ fn run_locally() {
         // look for the end condition.
         if termination_invariants_met(
             hpl_rly_metrics_port,
+            hpl_scr_metrics_port,
             dispatched_messages,
             starting_relayer_balance,
         )
@@ -615,6 +616,7 @@ fn run_locally() {
 
 fn termination_invariants_met(
     relayer_metrics_port: u32,
+    scraper_metrics_port: u32,
     messages_expected: u32,
     starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
@@ -663,6 +665,54 @@ fn termination_invariants_met(
             "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
             starting_relayer_balance,
             ending_relayer_balance
+        );
+        return Ok(false);
+    }
+
+    let dispatched_messages_scraped = fetch_metric(
+        &scraper_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_dispatch"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if dispatched_messages_scraped != messages_expected {
+        log!(
+            "Scraper has scraped {} dispatched messages, expected {}",
+            dispatched_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
+
+    let gas_payments_scraped = fetch_metric(
+        &scraper_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if gas_payments_scraped != expected_gas_payments {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            expected_gas_payments
+        );
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        &scraper_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_delivery"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
         );
         return Ok(false);
     }
