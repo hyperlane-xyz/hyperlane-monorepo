@@ -165,7 +165,7 @@ async function baseDeploy<
       chalk.gray.italic(`Deploying to ${chain} from ${signerAddress}`),
     );
 
-    const deployPromise = runWithTimeout(15 * 60 * 1000, async () => {
+    const deployPromise = runWithTimeout(deployer.chainTimeoutMs, async () => {
       deployStatus[chain] = Status.PENDING;
       const contracts = await deployer.deployContracts(chain, configMap[chain]);
       deployer.deployedContracts[chain] = {

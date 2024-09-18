@@ -75,7 +75,7 @@ export abstract class HyperlaneDeployer<
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
 
   protected logger: Logger;
-  protected chainTimeoutMs: number;
+  chainTimeoutMs: number;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
