@@ -7,6 +7,7 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
+import { tokens } from '../../../../../src/config/warp.js';
 import { DEPLOYER } from '../../owners.js';
 
 export const getEthereumEclipseUSDCWarpConfig = async (
@@ -23,7 +24,7 @@ export const getEthereumEclipseUSDCWarpConfig = async (
     ...routerConfig.ethereum,
     type: TokenType.collateral,
     interchainSecurityModule: ethers.constants.AddressZero,
-    token: '0xFc8F5272d690cf19732a7eD6f246aDF5fB8708dB',
+    token: tokens.ethereum.USDC,
     owner: DEPLOYER,
   };
 
