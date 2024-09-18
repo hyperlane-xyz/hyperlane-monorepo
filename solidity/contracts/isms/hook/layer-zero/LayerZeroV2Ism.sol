@@ -27,7 +27,9 @@ import {Origin} from "@layerzerolabs/lz-evm-protocol-v2/contracts/interfaces/ILa
  * @title LayerZeroV2Ism
  * @notice Uses LayerZero V2 deliver and verify a messages Id
  */
-contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
+
+contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm, PackageVersioned {
     using Message for bytes;
     using TypeCasts for bytes32;
 

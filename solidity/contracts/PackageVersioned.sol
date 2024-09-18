@@ -2,10 +2,10 @@
 pragma solidity >=0.6.11;
 
 /**
- * @title Versioned
- * @notice Version getter for contracts
+ * @title PackageVersioned
+ * @notice Package version getter for contracts
  **/
-contract PackageVersioned {
+abstract contract PackageVersioned {
     // GENERATED CODE - DO NOT EDIT
     string public constant PACKAGE_VERSION = "5.1.0";
 }

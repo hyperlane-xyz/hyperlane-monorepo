@@ -15,7 +15,15 @@ import {IMailbox} from "./interfaces/IMailbox.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
+
+contract Mailbox is
+    IMailbox,
+    Indexed,
+    Versioned,
+    OwnableUpgradeable,
+    PackageVersioned
+{
     // ============ Libraries ============
 
     using Message for bytes;

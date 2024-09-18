@@ -11,7 +11,9 @@ import {MetaProxy} from "../../libs/MetaProxy.sol";
  * @notice Manages per-domain m-of-n ISM sets that are used to verify
  * interchain messages.
  */
-contract StaticAggregationIsm is AbstractAggregationIsm {
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
+
+contract StaticAggregationIsm is AbstractAggregationIsm, PackageVersioned {
     // ============ Public Functions ============
 
     /**

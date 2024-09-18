@@ -20,7 +20,9 @@ import {IRemoteChallenger} from "../interfaces/avs/IRemoteChallenger.sol";
 import {ISlasher} from "../interfaces/avs/vendored/ISlasher.sol";
 import {ECDSAServiceManagerBase} from "./ECDSAServiceManagerBase.sol";
 
-contract HyperlaneServiceManager is ECDSAServiceManagerBase {
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
+
+contract HyperlaneServiceManager is ECDSAServiceManagerBase, PackageVersioned {
     // ============ Libraries ============
 
     using EnumerableMapEnrollment for EnumerableMapEnrollment.AddressToEnrollmentMap;

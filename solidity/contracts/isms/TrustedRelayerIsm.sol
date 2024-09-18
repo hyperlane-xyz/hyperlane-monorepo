@@ -6,7 +6,9 @@ import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule
 import {Message} from "../libs/Message.sol";
 import {Mailbox} from "../Mailbox.sol";
 
-contract TrustedRelayerIsm is IInterchainSecurityModule {
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
+
+contract TrustedRelayerIsm is IInterchainSecurityModule, PackageVersioned {
     using Message for bytes;
 
     uint8 public immutable moduleType = uint8(Types.NULL);

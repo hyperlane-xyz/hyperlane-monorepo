@@ -28,7 +28,9 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @title ERC5164Ism
  * @notice Uses the generic eip-5164 standard to verify interchain messages.
  */
-contract ERC5164Ism is AbstractMessageIdAuthorizedIsm {
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
+
+contract ERC5164Ism is AbstractMessageIdAuthorizedIsm, PackageVersioned {
     // ============ Constants ============
 
     uint8 public constant moduleType =

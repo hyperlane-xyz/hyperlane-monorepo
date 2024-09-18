@@ -64,7 +64,12 @@ contract StaticMerkleRootMultisigIsmFactory is
     }
 }
 
-contract StaticMessageIdMultisigIsmFactory is StaticThresholdAddressSetFactory {
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
+
+contract StaticMessageIdMultisigIsmFactory is
+    StaticThresholdAddressSetFactory,
+    PackageVersioned
+{
     function _deployImplementation() internal override returns (address) {
         return address(new StaticMessageIdMultisigIsm());
     }
