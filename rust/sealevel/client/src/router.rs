@@ -111,7 +111,8 @@ pub struct RpcUrlConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ChainMetadata {
-    chain_id: u32,
+    // Can be a string or a number
+    chain_id: serde_json::Value,
     /// Hyperlane domain, only required if differs from id above
     domain_id: Option<u32>,
     name: String,
@@ -125,7 +126,19 @@ impl ChainMetadata {
     }
 
     pub fn domain_id(&self) -> u32 {
-        self.domain_id.unwrap_or(self.chain_id)
+        self.domain_id.unwrap_or_else(|| {
+            // Try to parse as a number, otherwise panic, as the domain ID must
+            // be specified if the chain id is not a number.
+            self.chain_id
+                .as_u64()
+                .and_then(|v| v.try_into().ok())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Invalid chain_id cannot be used as the domain_id: {:?}",
+                        self.chain_id
+                    )
+                })
+        })
     }
 }
 
