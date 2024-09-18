@@ -12,6 +12,7 @@ import "../contracts/hooks/MerkleTreeHook.sol";
 
 import {StandardHookMetadata} from "../contracts/hooks/libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract Empty {}
 
@@ -20,9 +21,16 @@ contract EmptyFallback {
 }
 
 contract MailboxTest is Test, Versioned {
+    // from OwnableUpgradeable
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
     using StandardHookMetadata for bytes;
     using TypeCasts for address;
     using Message for bytes;
+    using Strings for uint256;
 
     uint32 localDomain = 1;
     uint32 remoteDomain = 2;
@@ -64,10 +72,21 @@ contract MailboxTest is Test, Versioned {
     }
 
     function test_initialize() public {
-        assertEq(mailbox.owner(), owner);
-        assertEq(address(mailbox.defaultIsm()), address(defaultIsm));
-        assertEq(address(mailbox.defaultHook()), address(defaultHook));
-        assertEq(address(mailbox.requiredHook()), address(requiredHook));
+        Mailbox freshMailbox = new Mailbox(localDomain);
+        vm.expectEmit(true, false, false, false, address(freshMailbox));
+        emit OwnershipTransferred(address(0), address(this));
+        vm.expectEmit(true, false, false, false, address(freshMailbox));
+        emit OwnershipTransferred(address(this), owner);
+        freshMailbox.initialize(
+            owner,
+            address(defaultIsm),
+            address(defaultHook),
+            address(requiredHook)
+        );
+        assertEq(freshMailbox.owner(), owner);
+        assertEq(address(freshMailbox.defaultIsm()), address(defaultIsm));
+        assertEq(address(freshMailbox.defaultHook()), address(defaultHook));
+        assertEq(address(freshMailbox.requiredHook()), address(requiredHook));
     }
 
     function test_initialize_revertsWhenCalledTwice() public {
@@ -347,6 +366,17 @@ contract MailboxTest is Test, Versioned {
             nonce = mailbox.nonce();
             assertEq(nonce, i + 3);
         }
+    }
+
+    function test_dispatch_requiredValue(uint256 requiredValue) public {
+        vm.assume(requiredValue > 0);
+        requiredHook.setFee(requiredValue);
+        uint256 value = requiredValue - 1;
+        vm.deal(address(this), value);
+
+        // test mailbox passes msg.value to requiredHook for custom revert behavior
+        vm.expectRevert(bytes(value.toString()));
+        mailbox.dispatch{value: value}(remoteDomain, recipientb32, "0x");
     }
 
     // for instrumenting gas costs of merkleHook.postDispatch after several insertions

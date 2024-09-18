@@ -5,8 +5,11 @@ import {Message} from "../libs/Message.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "../hooks/libs/AbstractPostDispatchHook.sol";
 
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+
 contract TestPostDispatchHook is AbstractPostDispatchHook {
     using Message for bytes;
+    using Strings for uint256;
 
     // ============ Public Storage ============
 
@@ -38,6 +41,7 @@ contract TestPostDispatchHook is AbstractPostDispatchHook {
         bytes calldata /*metadata*/,
         bytes calldata message
     ) internal override {
+        require(msg.value >= fee, msg.value.toString());
         messageDispatched[message.id()] = true;
     }
 

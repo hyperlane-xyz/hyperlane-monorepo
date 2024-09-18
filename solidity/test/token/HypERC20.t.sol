@@ -244,6 +244,7 @@ abstract contract HypTokenTest is Test {
         address _hook,
         bytes memory _hookMetadata
     ) internal returns (bytes32 messageId) {
+        vm.deal(ALICE, _msgValue);
         vm.prank(ALICE);
         messageId = localToken.transferRemote{value: _msgValue}(
             DESTINATION,
@@ -260,13 +261,16 @@ abstract contract HypTokenTest is Test {
         uint256 fee,
         bytes calldata metadata
     ) public virtual {
+        vm.assume(fee < type(uint256).max - REQUIRED_VALUE);
+        uint256 value = fee + REQUIRED_VALUE;
+
         TestPostDispatchHook hook = new TestPostDispatchHook();
         hook.setFee(fee);
 
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
         bytes32 messageId = _performRemoteTransferWithHook(
-            REQUIRED_VALUE,
+            value,
             TRANSFER_AMT,
             address(hook),
             metadata
@@ -641,6 +645,25 @@ contract HypNativeTest is HypTokenTest {
     }
 
     function testInitialize_revert_ifAlreadyInitialized() public {}
+
+    function testTransfer_withHookSpecified(
+        uint256 fee,
+        bytes calldata metadata
+    ) public override {
+        vm.assume(fee < type(uint256).max - REQUIRED_VALUE - TRANSFER_AMT);
+        uint256 value = fee + REQUIRED_VALUE + TRANSFER_AMT;
+
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        hook.setFee(fee);
+
+        bytes32 messageId = _performRemoteTransferWithHook(
+            value,
+            TRANSFER_AMT,
+            address(hook),
+            metadata
+        );
+        assertTrue(hook.messageDispatched(messageId));
+    }
 
     function testRemoteTransfer() public {
         _performRemoteTransferWithEmit(
