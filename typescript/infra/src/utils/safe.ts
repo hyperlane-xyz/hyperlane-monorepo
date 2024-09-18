@@ -42,10 +42,12 @@ export async function createSafeTransaction(
   safeService: SafeApiKit.default,
   safeAddress: Address,
   safeTransactionData: MetaTransactionData[],
+  onlyCalls?: boolean,
 ): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     safeTransactionData,
+    onlyCalls,
     options: { nonce: nextNonce },
   });
 }

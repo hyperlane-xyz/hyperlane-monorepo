@@ -115,6 +115,7 @@ export class SafeMultiSend extends MultiSend {
       safeService,
       this.safeAddress,
       safeTransactionData,
+      true,
     );
     await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
   }
