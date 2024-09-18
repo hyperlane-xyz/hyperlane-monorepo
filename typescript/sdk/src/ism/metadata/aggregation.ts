@@ -26,7 +26,7 @@ export interface AggregationMetadata<T = string> {
 
 const RANGE_SIZE = 4;
 
-// adapted from rust/agents/relayer/src/msg/metadata/aggregation.rs
+// adapted from rust/main/agents/relayer/src/msg/metadata/aggregation.rs
 export class AggregationMetadataBuilder implements MetadataBuilder {
   protected logger = rootLogger.child({
     module: 'AggregationIsmMetadataBuilder',

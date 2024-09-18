@@ -53,7 +53,7 @@ export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,
   Config extends OwnableConfig,
 > {
-  readonly checker: HyperlaneAppChecker<App, Config>;
+  protected readonly checker: HyperlaneAppChecker<App, Config>;
   protected calls: ChainMap<AnnotatedCallData[]>;
   private canPropose: ChainMap<Map<string, boolean>>;
   readonly interchainAccount?: InterchainAccount;
@@ -68,6 +68,18 @@ export abstract class HyperlaneAppGovernor<
     if (ica) {
       this.interchainAccount = ica;
     }
+  }
+
+  async check(chainsToCheck?: ChainName[]) {
+    await this.checker.check(chainsToCheck);
+  }
+
+  async checkChain(chain: ChainName) {
+    await this.checker.checkChain(chain);
+  }
+
+  getCheckerViolations() {
+    return this.checker.violations;
   }
 
   async govern(confirm = true, chain?: ChainName) {
@@ -87,49 +99,56 @@ export abstract class HyperlaneAppGovernor<
   }
 
   protected async sendCalls(chain: ChainName, requestConfirmation: boolean) {
-    const calls = this.calls[chain];
+    const calls = this.calls[chain] || [];
     console.log(`\nFound ${calls.length} transactions for ${chain}`);
     const filterCalls = (submissionType: SubmissionType) =>
       calls.filter((call) => call.submissionType == submissionType);
     const summarizeCalls = async (
       submissionType: SubmissionType,
-      calls: AnnotatedCallData[],
+      callsForSubmissionType: AnnotatedCallData[],
     ): Promise<boolean> => {
-      if (calls.length > 0) {
-        console.log(
-          `> ${calls.length} calls will be submitted via ${SubmissionType[submissionType]}`,
-        );
-        calls.map((c) =>
-          console.log(`> > ${c.description} (to: ${c.to} data: ${c.data})`),
-        );
-        if (!requestConfirmation) return true;
-
-        const { value: confirmed } = await prompts({
-          type: 'confirm',
-          name: 'value',
-          message: 'Can you confirm?',
-          initial: false,
-        });
-
-        return !!confirmed;
+      if (!callsForSubmissionType || callsForSubmissionType.length === 0) {
+        return false;
       }
-      return false;
+
+      console.log(
+        `> ${callsForSubmissionType.length} calls will be submitted via ${SubmissionType[submissionType]}`,
+      );
+      callsForSubmissionType.map((c) => {
+        console.log(`> > ${c.description.trim()}`);
+        console.log(`> > > to: ${c.to}`);
+        console.log(`> > > data: ${c.data}`);
+        console.log(`> > > value: ${c.value}`);
+      });
+      if (!requestConfirmation) return true;
+
+      const { value: confirmed } = await prompts({
+        type: 'confirm',
+        name: 'value',
+        message: 'Can you confirm?',
+        initial: false,
+      });
+
+      return !!confirmed;
     };
 
     const sendCallsForType = async (
       submissionType: SubmissionType,
       multiSend: MultiSend,
     ) => {
-      const calls = filterCalls(submissionType);
-      if (calls.length > 0) {
-        const confirmed = await summarizeCalls(submissionType, calls);
+      const callsForSubmissionType = filterCalls(submissionType) || [];
+      if (callsForSubmissionType.length > 0) {
+        const confirmed = await summarizeCalls(
+          submissionType,
+          callsForSubmissionType,
+        );
         if (confirmed) {
           console.log(
             `Submitting calls on ${chain} via ${SubmissionType[submissionType]}`,
           );
           try {
             await multiSend.sendTransactions(
-              calls.map((call) => ({
+              callsForSubmissionType.map((call) => ({
                 to: call.to,
                 data: call.data,
                 value: call.value,
@@ -151,22 +170,33 @@ export abstract class HyperlaneAppGovernor<
       new SignerMultiSend(this.checker.multiProvider, chain),
     );
 
-    const safeOwner = this.checker.configMap[chain].owner;
-    await retryAsync(
-      () =>
-        sendCallsForType(
-          SubmissionType.SAFE,
-          new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
-        ),
-      10,
-    );
+    const safeOwner =
+      this.checker.configMap[chain].ownerOverrides?._safeAddress;
+    if (safeOwner) {
+      await retryAsync(
+        () =>
+          sendCallsForType(
+            SubmissionType.SAFE,
+            new SafeMultiSend(this.checker.multiProvider, chain, safeOwner),
+          ),
+        10,
+      );
+    }
 
     await sendCallsForType(SubmissionType.MANUAL, new ManualMultiSend(chain));
   }
 
   protected pushCall(chain: ChainName, call: AnnotatedCallData) {
     this.calls[chain] = this.calls[chain] || [];
-    this.calls[chain].push(call);
+    const isDuplicate = this.calls[chain].some(
+      (existingCall) =>
+        existingCall.to === call.to &&
+        existingCall.data === call.data &&
+        existingCall.value?.eq(call.value || 0),
+    );
+    if (!isDuplicate) {
+      this.calls[chain].push(call);
+    }
   }
 
   protected async mapViolationsToCalls(): Promise<void> {
@@ -201,19 +231,7 @@ export abstract class HyperlaneAppGovernor<
     for (const chain of Object.keys(this.calls)) {
       try {
         for (const call of this.calls[chain]) {
-          let inferredCall: InferredCall;
-
-          inferredCall = await this.inferCallSubmissionType(chain, call);
-          // If it's a manual call, it means that we're not able to make the call
-          // from a signer or Safe. In this case, we try to infer if it must be sent
-          // from an ICA controlled by a remote owner. This new inferred call will be
-          // unchanged if the call is not an ICA call after all.
-          if (inferredCall.type === SubmissionType.MANUAL) {
-            inferredCall = await this.inferICAEncodedSubmissionType(
-              chain,
-              call,
-            );
-          }
+          const inferredCall = await this.inferCallSubmissionType(chain, call);
           pushNewCall(inferredCall);
         }
       } catch (error) {
@@ -285,6 +303,7 @@ export abstract class HyperlaneAppGovernor<
               eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
             );
           },
+          true, // Flag this as an ICA call
         );
         if (subType !== SubmissionType.MANUAL) {
           return {
@@ -311,6 +330,7 @@ export abstract class HyperlaneAppGovernor<
       chain: ChainName,
       submitterAddress: Address,
     ) => boolean,
+    isICACall: boolean = false,
   ): Promise<InferredCall> {
     const multiProvider = this.checker.multiProvider;
     const signer = multiProvider.getSigner(chain);
@@ -361,7 +381,8 @@ export abstract class HyperlaneAppGovernor<
     }
 
     // 2. Check if the call will succeed via Gnosis Safe.
-    const safeAddress = this.checker.configMap[chain].owner;
+    const safeAddress =
+      this.checker.configMap[chain].ownerOverrides?._safeAddress;
 
     if (typeof safeAddress === 'string') {
       // 2a. Confirm that the signer is a Safe owner or delegate.
@@ -394,8 +415,13 @@ export abstract class HyperlaneAppGovernor<
             };
           } else {
             console.error(
-              `Failed to determine if signer can propose safe transactions: ${error}`,
+              `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
             );
+            return {
+              type: SubmissionType.MANUAL,
+              chain,
+              call,
+            };
           }
         }
       }
@@ -413,6 +439,12 @@ export abstract class HyperlaneAppGovernor<
       }
     }
 
+    // Only try ICA encoding if this isn't already an ICA call
+    if (!isICACall) {
+      return this.inferICAEncodedSubmissionType(chain, call);
+    }
+
+    // If it is an ICA call and we've reached this point, default to manual submission
     return {
       type: SubmissionType.MANUAL,
       chain,

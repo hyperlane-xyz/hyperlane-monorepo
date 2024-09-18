@@ -71,6 +71,7 @@ export enum Modules {
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
+  HAAS = 'haas',
 }
 
 export const REGISTRY_MODULES = [
@@ -166,6 +167,10 @@ export function withChains<T>(args: Argv<T>) {
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains')
   );
+}
+
+export function withChainsRequired<T>(args: Argv<T>) {
+  return withChains(args).demandOption('chains');
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {
@@ -497,7 +502,9 @@ export function getWarpAddresses(warpRouteId: string) {
   const warpRouteConfig = registry.getWarpRoute(warpRouteId);
 
   if (!warpRouteConfig) {
-    throw new Error(`Warp route config for ${warpRouteId} not found`);
+    throw new Error(
+      `Warp route config for ${warpRouteId} not found in registry`,
+    );
   }
 
   return warpConfigToWarpAddresses(warpRouteConfig);
@@ -523,7 +530,7 @@ export function writeAddresses(
 }
 
 export function getAgentConfigDirectory() {
-  return path.join('../../', 'rust', 'config');
+  return path.join('../../', 'rust', 'main', 'config');
 }
 
 export function getAgentConfigJsonPath(environment: AgentEnvironment) {

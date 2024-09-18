@@ -128,6 +128,7 @@ where
                 data_len
             };
 
+            #[allow(unexpected_cfgs)] // TODO: `rustc` 1.80.1 issue
             if cfg!(target_os = "solana") {
                 account.realloc(data_len + realloc_increment, false)?;
             } else {

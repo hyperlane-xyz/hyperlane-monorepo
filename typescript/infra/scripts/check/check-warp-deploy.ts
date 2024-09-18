@@ -13,7 +13,7 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const { environment, asDeployer, chain, fork, context, pushMetrics } =
+  const { environment, asDeployer, chains, fork, context, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
@@ -36,13 +36,13 @@ async function main() {
         environment,
         asDeployer,
         warpRouteId,
-        chain,
+        chains,
         fork,
       );
 
-      await governor.checker.check();
+      await governor.check();
 
-      const violations: any = governor.checker.violations;
+      const violations: any = governor.getCheckerViolations();
       if (violations.length > 0) {
         logViolations(violations);
 

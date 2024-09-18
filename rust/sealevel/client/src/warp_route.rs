@@ -294,6 +294,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     "--fee-payer",
                     ctx.payer_keypair_path(),
                 ]);
+
                 println!("running command: {:?}", cmd);
                 let status = cmd
                     .stdout(Stdio::inherit())
