@@ -21,6 +21,7 @@ import { ChainMap, ChainName } from '../../types.js';
 import {
   LiquidityLayerFactories,
   liquidityLayerFactories,
+  liquidityLayerFactoriesArtifacts,
 } from './contracts.js';
 
 export enum BridgeAdapterType {
@@ -64,10 +65,15 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     contractVerifier?: ContractVerifier,
     concurrentDeploy = false,
   ) {
-    super(multiProvider, liquidityLayerFactories, {
-      contractVerifier,
-      concurrentDeploy,
-    });
+    super(
+      multiProvider,
+      liquidityLayerFactories,
+      liquidityLayerFactoriesArtifacts,
+      {
+        contractVerifier,
+        concurrentDeploy,
+      },
+    );
   }
 
   routerContractName(): string {

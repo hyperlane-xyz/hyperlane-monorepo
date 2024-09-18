@@ -6,6 +6,10 @@ import {
   Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
+import {
+  ProxyAdmin__artifact,
+  TimelockController__artifact,
+} from '@hyperlane-xyz/core/artifacts';
 import { Address, AddressBytes32 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
@@ -37,6 +41,10 @@ export type ProxiedFactories = HyperlaneFactories & {
 export const proxiedFactories: ProxiedFactories = {
   proxyAdmin: new ProxyAdmin__factory(),
   timelockController: new TimelockController__factory(),
+};
+export const proxiedFactoriesArtifacts = {
+  proxyAdmin: ProxyAdmin__artifact,
+  timelockController: TimelockController__artifact,
 };
 
 export enum ClientViolationType {

@@ -14,6 +14,22 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
 } from '@hyperlane-xyz/core';
+import {
+  FastHypERC20Collateral__artifact,
+  FastHypERC20__artifact,
+  HypERC20Collateral__artifact,
+  HypERC20__artifact,
+  HypERC721Collateral__artifact,
+  HypERC721URICollateral__artifact,
+  HypERC721URIStorage__artifact,
+  HypERC721__artifact,
+  HypERC4626Collateral__artifact,
+  HypFiatToken__artifact,
+  HypNativeScaled__artifact,
+  HypNative__artifact,
+  HypXERC20Lockbox__artifact,
+  HypXERC20__artifact,
+} from '@hyperlane-xyz/core/artifacts';
 
 import { TokenType } from './config.js';
 
@@ -43,6 +59,19 @@ export const hypERC20factories = {
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNativeScaled__factory(),
 };
+export const hypERC20factoriesArtifacts: any = {
+  [TokenType.fastCollateral]: FastHypERC20Collateral__artifact,
+  [TokenType.fastSynthetic]: FastHypERC20__artifact,
+  [TokenType.synthetic]: HypERC20__artifact,
+  [TokenType.collateral]: HypERC20Collateral__artifact,
+  [TokenType.collateralVault]: HypERC4626Collateral__artifact,
+  [TokenType.collateralFiat]: HypFiatToken__artifact,
+  [TokenType.XERC20]: HypXERC20__artifact,
+  [TokenType.XERC20Lockbox]: HypXERC20Lockbox__artifact,
+  [TokenType.native]: HypNative__artifact,
+  [TokenType.nativeScaled]: HypNativeScaled__artifact,
+};
+
 export type HypERC20Factories = typeof hypERC20factories;
 
 export const hypERC721contracts = {
@@ -59,6 +88,12 @@ export const hypERC721factories = {
   [TokenType.collateral]: new HypERC721Collateral__factory(),
   [TokenType.syntheticUri]: new HypERC721URIStorage__factory(),
   [TokenType.synthetic]: new HypERC721__factory(),
+};
+export const hypERC721factoriesArtifacts = {
+  [TokenType.collateralUri]: HypERC721URICollateral__artifact,
+  [TokenType.collateral]: HypERC721Collateral__artifact,
+  [TokenType.syntheticUri]: HypERC721URIStorage__artifact,
+  [TokenType.synthetic]: HypERC721__artifact,
 };
 export type HypERC721Factories = typeof hypERC721factories;
 

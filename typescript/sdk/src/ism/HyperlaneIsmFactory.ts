@@ -22,6 +22,10 @@ import {
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
+  TestIsm__artifact,
+  TrustedRelayerIsm__artifact,
+} from '@hyperlane-xyz/core/artifacts';
+import {
   Address,
   Domain,
   assert,
@@ -178,17 +182,26 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           new TrustedRelayerIsm__factory(),
           IsmType.TRUSTED_RELAYER,
           [mailbox, config.relayer],
+          undefined,
+          false,
+          null,
+          TrustedRelayerIsm__artifact,
         );
         break;
       case IsmType.TEST_ISM:
         if (!this.deployer) {
           throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
         }
+
         contract = await this.deployer.deployContractFromFactory(
           destination,
           new TestIsm__factory(),
           IsmType.TEST_ISM,
           [],
+          undefined,
+          true,
+          null,
+          TestIsm__artifact,
         );
         break;
       default:

@@ -25,8 +25,10 @@ import {
   TokenFactories,
   hypERC20contracts,
   hypERC20factories,
+  hypERC20factoriesArtifacts,
   hypERC721contracts,
   hypERC721factories,
+  hypERC721factoriesArtifacts,
 } from './contracts.js';
 import {
   TokenRouterConfig,
@@ -43,12 +45,13 @@ abstract class TokenDeployer<
   constructor(
     multiProvider: MultiProvider,
     factories: Factories,
+    artifacts: any,
     loggerName: string,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
     concurrentDeploy = false,
   ) {
-    super(multiProvider, factories, {
+    super(multiProvider, factories, artifacts, {
       logger: rootLogger.child({ module: loggerName }),
       ismFactory,
       contractVerifier,
@@ -191,6 +194,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     super(
       multiProvider,
       hypERC20factories,
+      hypERC20factoriesArtifacts,
       'HypERC20Deployer',
       ismFactory,
       contractVerifier,
@@ -226,6 +230,7 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
     super(
       multiProvider,
       hypERC721factories,
+      hypERC721factoriesArtifacts,
       'HypERC721Deployer',
       ismFactory,
       contractVerifier,

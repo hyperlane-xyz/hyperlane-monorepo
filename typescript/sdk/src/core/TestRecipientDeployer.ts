@@ -1,4 +1,5 @@
 import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
+import { TestRecipient__artifact } from '@hyperlane-xyz/core/artifacts';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -23,6 +24,9 @@ export type TestRecipientAddresses = {
 export const testRecipientFactories = {
   testRecipient: new TestRecipient__factory(),
 };
+export const testRecipientFactoriesArtifacts = {
+  testRecipient: TestRecipient__artifact,
+};
 
 export class TestRecipientDeployer extends HyperlaneDeployer<
   TestRecipientConfig,
@@ -33,11 +37,16 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
     concurrentDeploy = false,
   ) {
-    super(multiProvider, testRecipientFactories, {
-      logger: rootLogger.child({ module: 'TestRecipientDeployer' }),
-      contractVerifier,
-      concurrentDeploy,
-    });
+    super(
+      multiProvider,
+      testRecipientFactories,
+      testRecipientFactoriesArtifacts,
+      {
+        logger: rootLogger.child({ module: 'TestRecipientDeployer' }),
+        contractVerifier,
+        concurrentDeploy,
+      },
+    );
   }
 
   async deployContracts(

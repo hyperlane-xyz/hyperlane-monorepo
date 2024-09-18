@@ -97,6 +97,7 @@ export class EvmIsmModule extends HyperlaneModule<
     this.deployer = new EvmModuleDeployer(
       this.multiProvider,
       {},
+      {},
       this.logger,
       contractVerifier,
     );
@@ -414,6 +415,7 @@ export class EvmIsmModule extends HyperlaneModule<
           factory: new TrustedRelayerIsm__factory(),
           contractName: IsmType.TRUSTED_RELAYER,
           constructorArgs: [this.args.addresses.mailbox, config.relayer],
+          implementationAddress: undefined,
         });
 
       case IsmType.TEST_ISM:

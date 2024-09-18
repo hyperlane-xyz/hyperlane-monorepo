@@ -107,7 +107,6 @@ export class ZKDeployer {
     overrides?: ethers.Overrides,
     additionalFactoryDeps?: ethers.BytesLike[],
   ): Promise<zk.Contract> {
-    console.log('Deploying:', artifact);
     const baseDeps = await this.extractFactoryDeps(artifact);
     const additionalDeps = additionalFactoryDeps
       ? additionalFactoryDeps.map((val) => ethers.utils.hexlify(val))

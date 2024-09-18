@@ -13,6 +13,7 @@ import { ChainName } from '../../types.js';
 import {
   InterchainAccountFactories,
   interchainAccountFactories,
+  interchainAccountFactoriesArtifacts,
 } from './contracts.js';
 
 export type InterchainAccountConfig = ProxiedRouterConfig;
@@ -26,10 +27,15 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
     contractVerifier?: ContractVerifier,
     concurrentDeploy?: boolean,
   ) {
-    super(multiProvider, interchainAccountFactories, {
-      contractVerifier,
-      concurrentDeploy,
-    });
+    super(
+      multiProvider,
+      interchainAccountFactories,
+      interchainAccountFactoriesArtifacts,
+      {
+        contractVerifier,
+        concurrentDeploy,
+      },
+    );
   }
   routerContractName(): string {
     return 'interchainAccountRouter';

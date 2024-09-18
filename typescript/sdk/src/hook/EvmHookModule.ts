@@ -44,7 +44,11 @@ import { CoreAddresses } from '../core/contracts.js';
 import { EvmModuleDeployer } from '../deploy/EvmModuleDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { IgpFactories, igpFactories } from '../gas/contracts.js';
+import {
+  IgpFactories,
+  igpFactories,
+  igpFactoriesArtifacts,
+} from '../gas/contracts.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
@@ -53,7 +57,12 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
-import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
+import {
+  DeployedHook,
+  HookFactories,
+  hookFactories,
+  hookFactoriesArtifacts,
+} from './contracts.js';
 import { HookConfigSchema } from './schemas.js';
 import {
   AggregationHookConfig,
@@ -110,6 +119,10 @@ export class EvmHookModule extends HyperlaneModule<
       {
         ...hookFactories,
         ...igpFactories,
+      },
+      {
+        ...hookFactoriesArtifacts,
+        ...igpFactoriesArtifacts,
       },
       this.logger,
       contractVerifier,

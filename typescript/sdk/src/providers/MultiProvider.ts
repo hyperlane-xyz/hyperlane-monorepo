@@ -314,30 +314,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       prov,
     );
 
-    console.log(factory);
-
     const deployer = new ZKDeployer(signer);
 
     const contract = await deployer.deploy(artifact, params);
-
-    console.log('Contract deployed:', contract.address);
-
-    // const contractFactory = new ContractFactory(
-    //   factory.interface,
-    //   factory.bytecode,
-    //   signer,
-    //   'create2',
-    // );
-
-    // const factoryDeps = Object.keys(artifact.factoryDeps);
-    // console.log(factoryDeps);
-    // const contract = await contractFactory.deploy(...params, {
-    //   customData: {
-    //     salt: ethers.utils.hexlify(ethers.utils.randomBytes(32)),
-    //     factoryDeps: factoryDeps,
-    //   },
-    //   gasLimit: 150_000_000, // local zksync in memory node
-    // });
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,

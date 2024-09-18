@@ -12,6 +12,7 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
+import { TransparentUpgradeableProxy__artifact } from '@hyperlane-xyz/core/artifacts';
 import {
   Address,
   ProtocolType,
@@ -378,16 +379,12 @@ export abstract class HyperlaneDeployer<
     );
     const prov = new ZKSyncProvider('http://127.0.0.1:8011', 260);
 
-    console.log('Hyperlane deployer');
-
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
       artifact,
     );
-
-    console.log('Hyperlane deployer after handleDeploy');
 
     if (initializeArgs) {
       if (await isInitialized(prov, contract.address)) {
@@ -577,6 +574,7 @@ export abstract class HyperlaneDeployer<
       undefined,
       true,
       implementation.address,
+      TransparentUpgradeableProxy__artifact,
     );
 
     return implementation.attach(proxy.address) as C;

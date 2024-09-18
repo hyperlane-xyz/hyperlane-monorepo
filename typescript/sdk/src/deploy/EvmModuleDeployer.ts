@@ -27,6 +27,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
+    protected readonly artifacts: any,
     protected readonly logger = rootLogger.child({
       module: 'EvmModuleDeployer',
     }),
@@ -48,6 +49,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     constructorArgs,
     initializeArgs,
     implementationAddress,
+    artifact,
   }: {
     chain: ChainName;
     factory: F;
@@ -55,6 +57,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     constructorArgs: Parameters<F['deploy']>;
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>;
     implementationAddress?: Address;
+    artifact?: any;
   }): Promise<ReturnType<F['deploy']>> {
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
@@ -65,6 +68,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       chain,
       factory,
       constructorArgs,
+      artifact,
     );
 
     if (initializeArgs) {
@@ -126,6 +130,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       contractName,
       constructorArgs,
       initializeArgs,
+      artifact: this.artifacts[contractKey],
     });
     return contract;
   }

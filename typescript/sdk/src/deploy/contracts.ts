@@ -9,6 +9,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   DomainRoutingIsmFactory__artifact,
+  ProxyAdmin__artifact,
   StaticAggregationHookFactory__artifact,
   StaticAggregationIsmFactory__artifact,
   StaticMerkleRootMultisigIsmFactory__artifact,
@@ -40,7 +41,7 @@ export type ProxyFactoryFactoriesArtifacts =
 type ProxyFactoryImplementations = Record<keyof ProxyFactoryFactories, string>;
 
 export const proxyFactoryFactoriesArtifacts: Record<
-  keyof ProxyFactoryFactories,
+  keyof ProxyFactoryFactories | string,
   any
 > = {
   staticMerkleRootMultisigIsmFactory:
@@ -54,6 +55,7 @@ export const proxyFactoryFactoriesArtifacts: Record<
     StaticMerkleRootWeightedMultisigIsmFactory__artifact,
   staticMessageIdWeightedMultisigIsmFactory:
     StaticMessageIdWeightedMultisigIsmFactory__artifact,
+  proxyAdmin: ProxyAdmin__artifact,
 } as const;
 
 // must match contract names for verification
