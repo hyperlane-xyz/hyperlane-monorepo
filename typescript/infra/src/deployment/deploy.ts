@@ -33,6 +33,13 @@ enum Status {
 
 const deployStatus: ChainMap<Status> = {};
 
+const standardDeployModules = [
+  Modules.PROXY_FACTORY,
+  Modules.CORE,
+  Modules.TEST_RECIPIENT,
+  Modules.INTERCHAIN_GAS_PAYMASTER,
+];
+
 export async function deployWithArtifacts<Config extends object>({
   configMap,
   deployer,
@@ -94,33 +101,26 @@ export async function deployWithArtifacts<Config extends object>({
   // deployments exceeding the timeout are still written
   process.on('beforeExit', handleExit);
 
-  // proxyfactory(ism), core, testrecipient deploys
-  // use the standard deploy loop
-  if (
-    module === Modules.PROXY_FACTORY ||
-    module === Modules.CORE ||
-    module === Modules.TEST_RECIPIENT
-  ) {
+  // Standard deploy modules are the ones that can be deployed with the
+  // abstract HyperlaneDeployer's deploy function because they don't require any special logic
+  if (standardDeployModules.includes(module)) {
     await baseDeploy(
       targetConfigMap,
       deployer,
       multiProvider,
       concurrentDeploy,
-      cache,
     );
   } else {
-    // ica and others may override deploy()
-    // so we let the deployer do its thing
     try {
       await deployer.deploy(targetConfigMap);
-    } catch (e: any) {
-      if (e?.message.includes('Timed out')) {
+    } catch (error: any) {
+      if (error?.message.includes('Timed out')) {
         console.warn(
           chalk.yellow('Contract deployment exceeding configured timeout'),
-          e,
+          error,
         );
       } else {
-        console.error(chalk.red('Contract deployment failed'), e);
+        console.error(chalk.red('Contract deployment failed'), error);
       }
     }
   }
@@ -137,13 +137,6 @@ async function baseDeploy<
   deployer: HyperlaneDeployer<Config, Factories>,
   multiProvider: MultiProvider,
   concurrentDeploy: boolean,
-  cache: {
-    verification: string;
-    read: boolean;
-    write: boolean;
-    environment: DeployEnvironment;
-    module: Modules;
-  },
 ): Promise<HyperlaneContractsMap<Factories>> {
   const configChains = Object.keys(configMap);
   const ethereumConfigChains = configChains.filter(
