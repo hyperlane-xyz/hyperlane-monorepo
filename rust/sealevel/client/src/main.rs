@@ -16,7 +16,7 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signer as _},
-    system_program,
+    system_instruction, system_program,
 };
 
 use account_utils::DiscriminatorEncode;
@@ -113,6 +113,7 @@ enum HyperlaneSealevelCmd {
     MultisigIsmMessageId(MultisigIsmMessageIdCmd),
     WarpRoute(WarpRouteCmd),
     HelloWorld(HelloWorldCmd),
+    Transfer(TransferCmd),
 }
 
 #[derive(Args)]
@@ -765,6 +766,7 @@ fn main() {
         HyperlaneSealevelCmd::WarpRoute(cmd) => process_warp_route_cmd(ctx, cmd),
         HyperlaneSealevelCmd::HelloWorld(cmd) => process_helloworld_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Igp(cmd) => process_igp_cmd(ctx, cmd),
+        HyperlaneSealevelCmd::Transfer(cmd) => process_transfer_cmd(ctx, cmd),
     }
 }
 
@@ -1390,6 +1392,72 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
             } else {
                 println!("Validator not yet announced");
             }
+        }
+    }
+}
+
+#[derive(Args)]
+struct TransferCmd {
+    #[command(subcommand)]
+    cmd: TransferSubCmd,
+}
+
+#[derive(Subcommand)]
+enum TransferSubCmd {
+    Sol(TransferSol),
+    Token2022(TransferToken2022),
+}
+
+#[derive(Args)]
+struct TransferSol {
+    #[arg(long)]
+    to: Pubkey,
+    #[arg(long)]
+    amount: u64,
+}
+
+#[derive(Args)]
+struct TransferToken2022 {
+    #[arg(long)]
+    to: Pubkey,
+    #[arg(long)]
+    amount: u64,
+    #[arg(long)]
+    mint: Pubkey,
+}
+
+fn process_transfer_cmd(ctx: Context, cmd: TransferCmd) {
+    match cmd.cmd {
+        TransferSubCmd::Sol(transfer) => {
+            let ixn =
+                system_instruction::transfer(&ctx.payer_pubkey, &transfer.to, transfer.amount);
+            ctx.new_txn().add(ixn).send_with_payer();
+        }
+        TransferSubCmd::Token2022(transfer) => {
+            println!("payer pubkey: {}", ctx.payer_pubkey);
+            let payer_ata = get_associated_token_address_with_program_id(
+                &ctx.payer_pubkey,
+                &transfer.mint,
+                &spl_token_2022::id(),
+            );
+            println!("payer ATA: {}", payer_ata);
+            let to_ata = get_associated_token_address_with_program_id(
+                &transfer.to,
+                &transfer.mint,
+                &spl_token_2022::id(),
+            );
+            println!("to ATA: {}", to_ata);
+
+            let ixn = spl_token_2022::instruction::transfer(
+                &spl_token_2022::id(),
+                &payer_ata,
+                &to_ata,
+                &ctx.payer_pubkey,
+                &[&ctx.payer_pubkey],
+                transfer.amount,
+            )
+            .unwrap();
+            ctx.new_txn().add(ixn).send_with_payer();
         }
     }
 }
