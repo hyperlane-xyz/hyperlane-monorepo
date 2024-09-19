@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::crypto::PublicKey;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo};
-use cosmrs::{AccountId, Any, Tx};
+use cosmrs::{AccountId, Any, Coin, Tx};
 use itertools::Itertools;
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
@@ -155,6 +155,25 @@ impl CosmosProvider {
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
         Ok(contract)
     }
+
+    fn report_multiple_denominations(tx: &Tx, tx_hash: &H256) {
+        let fee_amount_len = tx.auth_info.fee.amount.len();
+        let same_denom_count = tx
+            .auth_info
+            .fee
+            .amount
+            .iter()
+            .dedup_by_with_count(|c0, c1| c0.denom == c1.denom)
+            .last()
+            .map(|(count, coin)| count)
+            .unwrap_or(0);
+
+        if fee_amount_len != same_denom_count {
+            error!(
+                ?tx_hash,
+                "transaction contains multiple fees in different denomination, manual intervention is required");
+        }
+    }
 }
 
 impl HyperlaneChain for CosmosProvider {
@@ -221,7 +240,9 @@ impl HyperlaneProvider for CosmosProvider {
         let contract = Self::contract(&tx, hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
-        // TODO support multiple denomination for amount
+        // TODO support multiple denominations for amount
+        Self::report_multiple_denominations(&tx, hash);
+
         let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
         let fee = tx
             .auth_info
