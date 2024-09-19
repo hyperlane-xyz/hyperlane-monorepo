@@ -7590,7 +7590,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:4.3.2"
+    "@hyperlane-xyz/registry": "npm:4.3.6"
     "@hyperlane-xyz/sdk": "npm:5.2.0"
     "@hyperlane-xyz/utils": "npm:5.2.0"
     "@inquirer/prompts": "npm:^3.0.0"
@@ -7732,7 +7732,7 @@ __metadata:
     "@ethersproject/providers": "npm:^5.7.2"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:5.2.0"
-    "@hyperlane-xyz/registry": "npm:4.3.2"
+    "@hyperlane-xyz/registry": "npm:4.3.6"
     "@hyperlane-xyz/sdk": "npm:5.2.0"
     "@hyperlane-xyz/utils": "npm:5.2.0"
     "@inquirer/prompts": "npm:^5.3.8"
@@ -7800,13 +7800,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/registry@npm:4.3.2":
-  version: 4.3.2
-  resolution: "@hyperlane-xyz/registry@npm:4.3.2"
+"@hyperlane-xyz/registry@npm:4.3.6":
+  version: 4.3.6
+  resolution: "@hyperlane-xyz/registry@npm:4.3.6"
   dependencies:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 7b1ff07074e4499f74a4c75dbbf0b7e641b3610bfc2a67785db724748d887d7b03c9dc9738b790cb56e008d6453789432c863f3b251498f77c931f196b9dab86
+  checksum: 7cc42813f4f8b8ef09266be249f3dcec0584832166419df2f48eec3cc43ba766e58845ecc16673bf6465a711f08ff6c4fc5216da2f704bc31ef8ade52af4b6e5
   languageName: node
   linkType: hard
 
@@ -7884,7 +7884,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/widgets@workspace:typescript/widgets"
   dependencies:
-    "@hyperlane-xyz/registry": "npm:4.3.2"
+    "@hyperlane-xyz/registry": "npm:4.3.6"
     "@hyperlane-xyz/sdk": "npm:5.2.0"
     "@storybook/addon-essentials": "npm:^7.6.14"
     "@storybook/addon-interactions": "npm:^7.6.14"
