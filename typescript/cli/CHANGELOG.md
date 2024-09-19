@@ -1,5 +1,12 @@
 # @hyperlane-xyz/cli
 
+## 5.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@5.2.1
+- @hyperlane-xyz/utils@5.2.1
+
 ## 5.2.0
 
 ### Minor Changes
