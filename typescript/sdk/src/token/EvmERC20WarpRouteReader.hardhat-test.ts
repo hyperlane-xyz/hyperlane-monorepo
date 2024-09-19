@@ -107,38 +107,31 @@ describe('ERC20WarpRouterReader', async () => {
       TokenType.synthetic,
       TokenType.native,
     ] as const;
-    await Promise.all(
-      typesToDerive.map(async (type) => {
-        // Create config
-        const config = {
-          [chain]: {
-            type,
-            token:
-              type === TokenType.collateralVault
-                ? vault.address
-                : token.address,
-            hook: await mailbox.defaultHook(),
-            name: TOKEN_NAME,
-            symbol: TOKEN_NAME,
-            decimals: TOKEN_DECIMALS,
-            totalSupply: TOKEN_SUPPLY,
-            gas: GAS,
-            ...baseConfig,
-          },
-        };
-        console.log('bf warpRoute');
-        // Deploy warp route with config
-        const warpRoute = await deployer.deploy(config);
-        console.log('af warpRoute deploy');
 
-        const derivedTokenType = await evmERC20WarpRouteReader.deriveTokenType(
-          warpRoute[chain][type].address,
-        );
-        console.log('af warpRoute');
-        expect(derivedTokenType).to.equal(type);
-      }),
-    );
-    console.log('after derivation');
+    typesToDerive.forEach(async (type) => {
+      const hook = await mailbox.defaultHook();
+      const config = {
+        [chain]: {
+          type,
+          token:
+            type === TokenType.collateralVault ? vault.address : token.address,
+          hook: hook,
+          name: TOKEN_NAME,
+          symbol: TOKEN_NAME,
+          decimals: TOKEN_DECIMALS,
+          totalSupply: TOKEN_SUPPLY,
+          gas: GAS,
+          ...baseConfig,
+        },
+      };
+
+      const warpRoute = await deployer.deploy(config);
+
+      const derivedTokenType = await evmERC20WarpRouteReader.deriveTokenType(
+        warpRoute[chain][type].address,
+      );
+      expect(derivedTokenType).to.equal(type);
+    });
   });
 
   it('should derive collateral config correctly', async () => {
