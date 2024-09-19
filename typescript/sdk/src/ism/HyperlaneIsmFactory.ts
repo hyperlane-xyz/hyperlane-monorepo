@@ -407,12 +407,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         // deploying new domain routing ISM
         const owner = config.owner;
         // estimate gas
-        const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
-          owner,
-          safeConfigDomains,
-          submoduleAddresses,
-          overrides,
-        );
+        // const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
+        //   owner,
+        //   safeConfigDomains,
+        //   submoduleAddresses,
+        //   overrides,
+        // );
         // add 10% buffer
         const tx = await domainRoutingIsmFactory.deploy(
           owner,
@@ -420,7 +420,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           submoduleAddresses,
           {
             ...overrides,
-            gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+            gasLimit: 150_000_000,
           },
         );
         // TODO: Should verify contract here
@@ -504,15 +504,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       const overrides = this.multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
-      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
-        sorted,
-        threshold,
-        overrides,
-      );
+      // const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
+      //   sorted,
+      //   threshold,
+      //   overrides,
+      // );
       // add 10% buffer
       const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
         ...overrides,
-        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+        gasLimit: 150_000_000,
       });
 
       await this.multiProvider.handleTx(chain, hash);
@@ -546,16 +546,16 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       const overrides = this.multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
-      const estimatedGas = await factory.estimateGas[
-        'deploy((address,uint96)[],uint96)'
-      ](sorted, thresholdWeight, overrides);
+      // const estimatedGas = await factory.estimateGas[
+      //   'deploy((address,uint96)[],uint96)'
+      // ](sorted, thresholdWeight, overrides);
       // add 10% buffer
       const hash = await factory['deploy((address,uint96)[],uint96)'](
         sorted,
         thresholdWeight,
         {
           ...overrides,
-          gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+          gasLimit: 150_000_000,
         },
       );
 

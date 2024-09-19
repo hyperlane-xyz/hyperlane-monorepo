@@ -19,6 +19,7 @@ import {
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
+import { TrustedRelayerIsm__artifact } from '@hyperlane-xyz/core/artifacts';
 import {
   Address,
   Domain,
@@ -416,6 +417,7 @@ export class EvmIsmModule extends HyperlaneModule<
           contractName: IsmType.TRUSTED_RELAYER,
           constructorArgs: [this.args.addresses.mailbox, config.relayer],
           implementationAddress: undefined,
+          artifact: TrustedRelayerIsm__artifact,
         });
 
       case IsmType.TEST_ISM:
@@ -533,12 +535,12 @@ export class EvmIsmModule extends HyperlaneModule<
     );
 
     // estimate gas
-    const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
-      owner,
-      domainIds,
-      submoduleAddresses,
-      overrides,
-    );
+    // const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
+    //   owner,
+    //   domainIds,
+    //   submoduleAddresses,
+    //   overrides,
+    // );
 
     // deploying new domain routing ISM, add 10% buffer
     const tx = await domainRoutingIsmFactory.deploy(
@@ -547,7 +549,7 @@ export class EvmIsmModule extends HyperlaneModule<
       submoduleAddresses,
       {
         ...overrides,
-        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
+        gasLimit: 150_000_000,
       },
     );
 

@@ -84,13 +84,13 @@ export abstract class HyperlaneRouterDeployer<
           `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
         );
         const router = this.router(contracts);
-        const estimatedGas = await router.estimateGas.enrollRemoteRouters(
-          domains,
-          addresses,
-        );
+        // const estimatedGas = await router.estimateGas.enrollRemoteRouters(
+        //   domains,
+        //   addresses,
+        // );
         // deploy with 10% buffer on gas limit
         const enrollTx = await router.enrollRemoteRouters(domains, addresses, {
-          gasLimit: estimatedGas.add(estimatedGas.div(10)),
+          gasLimit: 150_000_000,
           ...this.multiProvider.getTransactionOverrides(chain),
         });
         await this.multiProvider.handleTx(chain, enrollTx);

@@ -1,4 +1,5 @@
 import { BigNumber, providers, utils } from 'ethers';
+import * as zk from 'zksync-ethers';
 
 import {
   chunk,
@@ -18,7 +19,7 @@ const NUM_LOG_BLOCK_RANGES_TO_QUERY = 10;
 const NUM_PARALLEL_LOG_QUERIES = 5;
 
 export class HyperlaneJsonRpcProvider
-  extends providers.StaticJsonRpcProvider
+  extends zk.Provider
   implements IProviderMethods
 {
   protected readonly logger = rootLogger.child({ module: 'JsonRpcProvider' });

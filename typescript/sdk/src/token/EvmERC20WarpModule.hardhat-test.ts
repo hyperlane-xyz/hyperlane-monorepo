@@ -12,7 +12,10 @@ import {
   Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import { ERC20Test__artifact } from '@hyperlane-xyz/core/artifacts';
+import {
+  ERC20Test__artifact,
+  ERC4626Test__artifact,
+} from '@hyperlane-xyz/core/artifacts';
 import {
   EvmIsmModule,
   HyperlaneAddresses,
@@ -61,11 +64,17 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let token: any;
-  let signer: SignerWithAddress;
+  let signer: Wallet;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
   let baseConfig: RouterConfig;
+  const prov = new Provider('http://127.0.0.1:8011', 260);
+
+  signer = new Wallet(
+    '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
+    prov,
+  );
 
   async function validateCoreValues(deployedToken: GasRouter) {
     expect(await deployedToken.mailbox()).to.equal(mailbox.address);
@@ -83,12 +92,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   }
 
   before(async () => {
-    const prov = new Provider('http://127.0.0.1:8011', 260);
-
-    const signer = new Wallet(
-      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
-      prov,
-    );
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
@@ -143,12 +146,14 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a collateral vault config', async () => {
-    const vaultFactory = new ERC4626Test__factory(signer);
-    const vault = await vaultFactory.deploy(
+    const deployer = new ZKDeployer(signer);
+
+    const vault = await deployer.deploy(ERC4626Test__artifact, [
       token.address,
       TOKEN_NAME,
       TOKEN_NAME,
-    );
+    ]);
+
     const config = {
       type: TokenType.collateralVault,
       token: vault.address,
