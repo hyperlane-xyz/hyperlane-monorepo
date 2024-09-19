@@ -47,7 +47,8 @@ describe('ERC20WarpRouterReader', async () => {
   let erc20Factory: ERC20Test__factory;
   let token: Contract;
   let signer: Wallet;
-  let deployer: ZKDeployer;
+  let deployer: HypERC20Deployer;
+  let zkDeployer: any;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
@@ -64,19 +65,22 @@ describe('ERC20WarpRouterReader', async () => {
       prov,
     );
 
-    deployer = new ZKDeployer(signer);
+    zkDeployer = new ZKDeployer(signer);
+    deployer = new HypERC20Deployer(multiProvider);
 
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
+
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),
     );
+
     ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
 
     routerConfigMap = coreApp.getRouterConfig(signer.address);
 
-    token = await deployer.deploy(ERC20Test__artifact, [
+    token = await zkDeployer.deploy(ERC20Test__artifact, [
       TOKEN_NAME,
       TOKEN_NAME,
       TOKEN_SUPPLY,
@@ -88,14 +92,11 @@ describe('ERC20WarpRouterReader', async () => {
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chain);
 
-    vault = await deployer.deploy(ERC4626Test__artifact, [
+    vault = await zkDeployer.deploy(ERC4626Test__artifact, [
       token.address,
       TOKEN_NAME,
       TOKEN_NAME,
     ]);
-
-    // const vaultFactory = new ERC4626Test__factory(signer);
-    // vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
   });
 
   it('should derive a token type from contract', async () => {
@@ -130,7 +131,6 @@ describe('ERC20WarpRouterReader', async () => {
         console.log('bf warpRoute');
         // Deploy warp route with config
         const warpRoute = await deployer.deploy(config);
-        console.log('bf derivedTokenType');
         const derivedTokenType = await evmERC20WarpRouteReader.deriveTokenType(
           warpRoute[chain][type].address,
         );
