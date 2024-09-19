@@ -513,12 +513,7 @@ impl Mailbox for SealevelMailbox {
                 &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
                 PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX,
             ));
-        } else {
-            instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
-                PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS,
-            ));
         }
-
         // "processed" level commitment does not guarantee finality.
         // roughly 5% of blocks end up on a dropped fork.
         // However we don't want this function to be a bottleneck and there already
