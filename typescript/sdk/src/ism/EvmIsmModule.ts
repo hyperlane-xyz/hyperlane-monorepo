@@ -91,10 +91,13 @@ export class EvmIsmModule extends HyperlaneModule<
     >,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
+    console.log('EvmIsmModule Contructor');
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
+    console.log(' before EvmModuleDeployer');
+
     this.deployer = new EvmModuleDeployer(
       this.multiProvider,
       {},
@@ -102,6 +105,7 @@ export class EvmIsmModule extends HyperlaneModule<
       this.logger,
       contractVerifier,
     );
+    console.log(' after EvmModuleDeployer');
 
     this.factories = attachAndConnectContracts(
       {
@@ -119,9 +123,11 @@ export class EvmIsmModule extends HyperlaneModule<
         staticMessageIdWeightedMultisigIsmFactory:
           params.addresses.staticMessageIdWeightedMultisigIsmFactory,
       },
+
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
     );
+    console.log('after attachAndConnectContracts');
 
     this.chain = this.multiProvider.getChainName(this.args.chain);
     this.domainId = this.multiProvider.getDomainId(this.chain);
@@ -250,6 +256,7 @@ export class EvmIsmModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmIsmModule> {
+    console.log('before new EvmIsmModule');
     const module = new EvmIsmModule(
       multiProvider,
       {
@@ -263,8 +270,10 @@ export class EvmIsmModule extends HyperlaneModule<
       },
       contractVerifier,
     );
+    console.log('before await module.deploy({ config })');
 
     const deployedIsm = await module.deploy({ config });
+    console.log('after await module.deploy({ config })');
     module.args.addresses.deployedIsm = deployedIsm.address;
 
     return module;
@@ -604,6 +613,7 @@ export class EvmIsmModule extends HyperlaneModule<
       (domain, _): _ is IsmConfig => {
         const domainId = this.multiProvider.tryGetDomainId(domain);
         if (domainId === null) {
+          console.log('inside filterRoutingIsmDomains');
           this.logger.warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
           );

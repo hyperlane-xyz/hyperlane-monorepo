@@ -1,6 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import hre from 'hardhat';
+import { Contract, Provider, Wallet } from 'zksync-ethers';
 
 import {
   ERC20Test,
@@ -10,6 +11,10 @@ import {
   Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
+import {
+  ERC20Test__artifact,
+  ERC4626Test__artifact,
+} from '@hyperlane-xyz/core/artifacts';
 import {
   HyperlaneContractsMap,
   RouterConfig,
@@ -25,6 +30,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
+import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
@@ -39,18 +45,27 @@ describe('ERC20WarpRouterReader', async () => {
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let erc20Factory: ERC20Test__factory;
-  let token: ERC20Test;
-  let signer: SignerWithAddress;
-  let deployer: HypERC20Deployer;
+  let token: Contract;
+  let signer: Wallet;
+  let deployer: ZKDeployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
   let baseConfig: RouterConfig;
   let mailbox: Mailbox;
   let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
-  let vault: ERC4626;
+  let vault: Contract;
+
   beforeEach(async () => {
-    [signer] = await hre.ethers.getSigners();
+    const prov = new Provider('http://127.0.0.1:8011', 260);
+
+    signer = new Wallet(
+      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
+      prov,
+    );
+
+    deployer = new ZKDeployer(signer);
+
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(
@@ -58,33 +73,41 @@ describe('ERC20WarpRouterReader', async () => {
     );
     ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
+
     routerConfigMap = coreApp.getRouterConfig(signer.address);
 
-    erc20Factory = new ERC20Test__factory(signer);
-    token = await erc20Factory.deploy(
+    token = await deployer.deploy(ERC20Test__artifact, [
       TOKEN_NAME,
       TOKEN_NAME,
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
-    );
+    ]);
 
     baseConfig = routerConfigMap[chain];
+
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
     evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chain);
-    deployer = new HypERC20Deployer(multiProvider);
 
-    const vaultFactory = new ERC4626Test__factory(signer);
-    vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
+    vault = await deployer.deploy(ERC4626Test__artifact, [
+      token.address,
+      TOKEN_NAME,
+      TOKEN_NAME,
+    ]);
+
+    // const vaultFactory = new ERC4626Test__factory(signer);
+    // vault = await vaultFactory.deploy(token.address, TOKEN_NAME, TOKEN_NAME);
   });
 
   it('should derive a token type from contract', async () => {
+    console.log('inside derivation');
+
     const typesToDerive = [
       TokenType.collateral,
       TokenType.collateralVault,
       TokenType.synthetic,
       TokenType.native,
     ] as const;
-
+    console.log('before derivation');
     await Promise.all(
       typesToDerive.map(async (type) => {
         // Create config
@@ -104,14 +127,18 @@ describe('ERC20WarpRouterReader', async () => {
             ...baseConfig,
           },
         };
+        console.log('bf warpRoute');
         // Deploy warp route with config
         const warpRoute = await deployer.deploy(config);
+        console.log('bf derivedTokenType');
         const derivedTokenType = await evmERC20WarpRouteReader.deriveTokenType(
           warpRoute[chain][type].address,
         );
+        console.log('af warpRoute');
         expect(derivedTokenType).to.equal(type);
       }),
     );
+    console.log('after derivation');
   });
 
   it('should derive collateral config correctly', async () => {

@@ -290,6 +290,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       config.domains,
       (domain, config): config is IsmConfig => {
         const domainId = this.multiProvider.tryGetDomainId(domain);
+        console.log('inside deployRoutingIsm');
+
         if (domainId === null) {
           logger.warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,

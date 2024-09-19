@@ -409,7 +409,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Creates a MultiProvider using the given signer for all test networks
    */
   static createTestMultiProvider(
-    params: { signer?: Signer; provider?: Provider } = {},
+    params: { signer?: Wallet; provider?: ZKSyncProvider } = {},
     chains: ChainName[] = testChains,
   ): MultiProvider {
     const { signer, provider } = params;
