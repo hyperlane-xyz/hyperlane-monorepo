@@ -13,7 +13,8 @@ optimizer_runs = 999_999
 fs_permissions = [
     { access = "read", path = "./script/avs/"},
     { access = "read", path = "../vectors" },
-    { access = "write", path = "./fixtures" }
+    { access = "write", path = "./fixtures" },
+    { access = "read", path = "../node_modules/@hyperlane-xyz/registry/dist/chains/" }
 ]
 ignored_warnings_from = [
     'lib',
@@ -28,6 +29,7 @@ verbosity = 4
 mainnet = "https://eth.merkle.io"
 optimism = "https://mainnet.optimism.io	"
 polygon = "https://rpc.ankr.com/polygon"
+blast = "https://rpc.ankr.com/blast"
 
 [fuzz]
 runs = 50
