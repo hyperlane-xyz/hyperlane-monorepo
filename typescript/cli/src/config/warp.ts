@@ -151,7 +151,7 @@ export async function createWarpRouteDeployConfig({
       createDefaultIsm = true;
     } else {
       createDefaultIsm = await confirm({
-        message: 'Use a trusted ISM for warp route',
+        message: 'Do you want to use a trusted ISM for warp route?',
       });
     }
 
