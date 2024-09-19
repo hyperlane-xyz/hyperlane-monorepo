@@ -27,7 +27,7 @@ import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
-import { deployWithArtifacts } from '../src/deployment/deploy.js';
+import { DeployCache, deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
   extractBuildArtifact,
@@ -251,7 +251,7 @@ async function main() {
 
   const verification = path.join(modulePath, 'verification.json');
 
-  const cache = {
+  const cache: DeployCache = {
     verification,
     read: environment !== 'test',
     write: !fork,

@@ -24,14 +24,14 @@ import {
 import { DeployEnvironment } from '../config/environment.js';
 import { readJSONAtPath, writeJsonAtPath } from '../utils/utils.js';
 
-enum Status {
+enum DeployStatus {
   EMPTY = '🫥',
   SUCCESS = '✅',
   PENDING = '⏳',
   FAILURE = '❌',
 }
 
-const deployStatus: ChainMap<Status> = {};
+const deployStatus: ChainMap<DeployStatus> = {};
 
 const standardDeployModules = [
   Modules.PROXY_FACTORY,
@@ -40,6 +40,14 @@ const standardDeployModules = [
   Modules.INTERCHAIN_GAS_PAYMASTER,
   Modules.HOOK,
 ];
+
+export interface DeployCache {
+  verification: string;
+  read: boolean;
+  write: boolean;
+  environment: DeployEnvironment;
+  module: Modules;
+}
 
 export async function deployWithArtifacts<Config extends object>({
   configMap,
@@ -52,13 +60,7 @@ export async function deployWithArtifacts<Config extends object>({
 }: {
   configMap: ChainMap<Config>;
   deployer: HyperlaneDeployer<Config, any>;
-  cache: {
-    verification: string;
-    read: boolean;
-    write: boolean;
-    environment: DeployEnvironment;
-    module: Modules;
-  };
+  cache: DeployCache;
   targetNetworks: ChainName[];
   module: Modules;
   multiProvider: MultiProvider;
@@ -70,12 +72,12 @@ export async function deployWithArtifacts<Config extends object>({
   }
 
   // Filter the config map to only deploy the target networks
-  let targetConfigMap = configMap;
-  if (targetNetworks.length > 0) {
-    targetConfigMap = objFilter(configMap, (chain, _): _ is Config =>
-      targetNetworks.includes(chain),
-    );
-  }
+  const targetConfigMap =
+    targetNetworks.length > 0
+      ? objFilter(configMap, (chain, _): _ is Config =>
+          targetNetworks.includes(chain),
+        )
+      : configMap;
 
   const handleExit = async () => {
     console.info(chalk.gray.italic('Running post-deploy steps'));
@@ -83,12 +85,9 @@ export async function deployWithArtifacts<Config extends object>({
     console.info('Post-deploy completed');
 
     if (Object.keys(deployStatus).length > 0) {
-      const statusTable = Object.keys(configMap).map((chain) => {
-        return {
-          chain,
-          status: deployStatus[chain] ?? Status.EMPTY,
-        };
-      });
+      const statusTable = Object.entries(deployStatus).map(
+        ([chain, status]) => ({ chain, status: status ?? DeployStatus.EMPTY }),
+      );
       console.table(statusTable);
     }
 
@@ -152,15 +151,14 @@ async function baseDeploy<
 
   console.info(`Start deploy to ${targetChains}`);
 
-  const deployPromises = [];
-  for (const chain of targetChains) {
+  const deployPromises = targetChains.map(async (chain) => {
     const signerAddress = await multiProvider.getSignerAddress(chain);
     console.info(
       chalk.gray.italic(`Deploying to ${chain} from ${signerAddress}`),
     );
 
-    const deployPromise = runWithTimeout(deployer.chainTimeoutMs, async () => {
-      deployStatus[chain] = Status.PENDING;
+    return runWithTimeout(deployer.chainTimeoutMs, async () => {
+      deployStatus[chain] = DeployStatus.PENDING;
       const contracts = await deployer.deployContracts(chain, configMap[chain]);
       deployer.deployedContracts[chain] = {
         ...deployer.deployedContracts[chain],
@@ -169,44 +167,31 @@ async function baseDeploy<
       console.info(
         chalk.green.bold(`Successfully deployed contracts on ${chain}`),
       );
-      deployStatus[chain] = Status.SUCCESS;
-    });
-
-    if (concurrentDeploy) {
-      deployPromises.push(deployPromise);
-    } else {
-      await deployPromise;
-    }
-  }
-
-  // Await all deploy promises. If concurrent deploy is not enabled, this will be a no-op.
-  const deployResults = await Promise.allSettled(deployPromises);
-  for (const [i, result] of deployResults.entries()) {
-    if (result.status === 'rejected') {
-      deployStatus[targetChains[i]] = Status.FAILURE;
+      deployStatus[chain] = DeployStatus.SUCCESS;
+    }).catch((error) => {
+      deployStatus[chain] = DeployStatus.FAILURE;
       console.error(
-        chalk.red.bold(
-          `Deployment failed on ${targetChains[i]}. Error: ${result.reason}`,
-        ),
+        chalk.red.bold(`Deployment failed on ${chain}. Error: ${error}`),
       );
+    });
+  });
+
+  if (concurrentDeploy) {
+    await Promise.all(deployPromises);
+  } else {
+    for (const promise of deployPromises) {
+      await promise;
     }
   }
 
   return deployer.deployedContracts;
 }
 
-export async function postDeploy<Config extends object>(
+async function postDeploy<Config extends object>(
   deployer: HyperlaneDeployer<Config, any>,
-  cache: {
-    verification: string;
-    read: boolean;
-    write: boolean;
-    environment: DeployEnvironment;
-    module: Modules;
-  },
+  cache: DeployCache,
 ) {
   if (cache.write) {
-    // TODO: dedupe deployedContracts with cachedAddresses
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
     const cachedAddresses = deployer.cachedAddresses;
     const addresses = objMerge(deployedAddresses, cachedAddresses);
