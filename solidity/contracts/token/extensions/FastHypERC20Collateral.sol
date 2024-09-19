@@ -24,6 +24,20 @@ contract FastHypERC20Collateral is FastTokenRouter, HypERC20Collateral {
         address _mailbox
     ) HypERC20Collateral(erc20, _mailbox) {}
 
+    function supportsInterface(
+        bytes4 interfaceId
+    )
+        public
+        view
+        virtual
+        override(FastTokenRouter, HypERC20Collateral)
+        returns (bool)
+    {
+        return
+            FastTokenRouter.supportsInterface(interfaceId) ||
+            HypERC20Collateral.supportsInterface(interfaceId);
+    }
+
     /**
      * @dev delegates transfer logic to `_transferTo`.
      * @inheritdoc FastTokenRouter

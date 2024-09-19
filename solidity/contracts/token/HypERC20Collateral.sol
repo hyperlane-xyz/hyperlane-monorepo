@@ -8,11 +8,15 @@ import {MailboxClient} from "../client/MailboxClient.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+interface ICollateral {
+    function wrappedToken() external view returns (IERC20);
+}
+
 /**
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
  * @author Abacus Works
  */
-contract HypERC20Collateral is TokenRouter {
+contract HypERC20Collateral is TokenRouter, ICollateral {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable wrappedToken;
@@ -23,6 +27,14 @@ contract HypERC20Collateral is TokenRouter {
      */
     constructor(address erc20, address _mailbox) TokenRouter(_mailbox) {
         wrappedToken = IERC20(erc20);
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override returns (bool) {
+        return
+            TokenRouter.supportsInterface(interfaceId) ||
+            interfaceId == type(ICollateral).interfaceId;
     }
 
     function initialize(

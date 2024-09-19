@@ -14,6 +14,20 @@ import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/t
 contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
     constructor(address _mailbox) TokenRouter(_mailbox) {}
 
+    function supportsInterface(
+        bytes4 interfaceId
+    )
+        public
+        view
+        virtual
+        override(ERC721EnumerableUpgradeable, TokenRouter)
+        returns (bool)
+    {
+        return
+            TokenRouter.supportsInterface(interfaceId) ||
+            ERC721EnumerableUpgradeable.supportsInterface(interfaceId);
+    }
+
     /**
      * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.
      * @param _mintAmount The amount of NFTs to mint to `msg.sender`.

@@ -6,17 +6,27 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenMessage} from "./TokenMessage.sol";
 import {TokenRouter} from "./TokenRouter.sol";
 
+import {IFastTokenRouter} from "../interfaces/IFastTokenRouter.sol";
+
 /**
  * @title Common FastTokenRouter functionality for ERC20 Tokens with remote transfer support.
  * @author Abacus Works
  */
-abstract contract FastTokenRouter is TokenRouter {
+abstract contract FastTokenRouter is TokenRouter, IFastTokenRouter {
     using TypeCasts for bytes32;
     using TokenMessage for bytes;
 
     uint256 public fastTransferId;
     // maps `fastTransferId` to the filler address.
     mapping(bytes32 => address) filledFastTransfers;
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(TokenRouter) returns (bool) {
+        return
+            TokenRouter.supportsInterface(interfaceId) ||
+            interfaceId == type(IFastTokenRouter).interfaceId;
+    }
 
     /**
      * @dev delegates transfer logic to `_transferTo`.

@@ -18,6 +18,14 @@ contract FastHypERC20 is FastTokenRouter, HypERC20 {
         address _mailbox
     ) HypERC20(__decimals, _mailbox) {}
 
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(FastTokenRouter, HypERC20) returns (bool) {
+        return
+            FastTokenRouter.supportsInterface(interfaceId) ||
+            HypERC20.supportsInterface(interfaceId);
+    }
+
     /**
      * @dev delegates transfer logic to `_transferTo`.
      * @inheritdoc TokenRouter

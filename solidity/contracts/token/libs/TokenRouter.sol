@@ -6,12 +6,15 @@ import {GasRouter} from "../../client/GasRouter.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {TokenMessage} from "./TokenMessage.sol";
+import {ITokenRouter} from "../interfaces/ITokenRouter.sol";
+
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 /**
  * @title Hyperlane Token Router that extends Router with abstract token (ERC20/ERC721) remote transfer functionality.
  * @author Abacus Works
  */
-abstract contract TokenRouter is GasRouter {
+abstract contract TokenRouter is ITokenRouter, GasRouter, IERC165 {
     using TypeCasts for bytes32;
     using TypeCasts for address;
     using TokenMessage for bytes;
@@ -41,6 +44,14 @@ abstract contract TokenRouter is GasRouter {
     );
 
     constructor(address _mailbox) GasRouter(_mailbox) {}
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual returns (bool) {
+        return
+            interfaceId == type(IERC165).interfaceId ||
+            interfaceId == type(ITokenRouter).interfaceId;
+    }
 
     /**
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
