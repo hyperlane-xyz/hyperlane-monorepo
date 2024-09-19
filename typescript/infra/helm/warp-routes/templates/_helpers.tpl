@@ -81,5 +81,5 @@ The warp-routes container
   - {{ .Values.environment}}
   envFrom:
   - secretRef:
-      name: warp-routes-env-var-secret
+      name: {{ include "hyperlane.fullname" . }}-secret
 {{- end }}

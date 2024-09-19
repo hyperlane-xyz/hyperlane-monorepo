@@ -1,7 +1,6 @@
 import { SystemProgram } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
-import yargs from 'yargs';
 
 import {
   HypXERC20Lockbox__factory,
@@ -29,9 +28,9 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { assertEnvironment } from '../../src/config/environment.js';
 import { startMetricsServer } from '../../src/utils/metrics.js';
 import { readYaml } from '../../src/utils/utils.js';
+import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const logger = rootLogger.child({ module: 'warp-balance-monitor' });
@@ -78,9 +77,7 @@ export function readWarpRouteConfig(filePath: string) {
 }
 
 async function main(): Promise<boolean> {
-  const { checkFrequency, filePath, environment } = await yargs(
-    process.argv.slice(2),
-  )
+  const { checkFrequency, filePath, environment } = await getArgs()
     .describe('checkFrequency', 'frequency to check balances in ms')
     .demandOption('checkFrequency')
     .alias('v', 'checkFrequency') // v as in Greek letter nu
@@ -92,10 +89,6 @@ async function main(): Promise<boolean> {
     )
     .demandOption('filePath')
     .string('filePath')
-    .describe('environment', 'deploy environment')
-    .coerce('environment', assertEnvironment)
-    .demandOption('environment')
-    .alias('e', 'environment')
     .parse();
 
   startMetricsServer(metricsRegister);
