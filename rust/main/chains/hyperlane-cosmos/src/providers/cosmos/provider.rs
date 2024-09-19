@@ -4,6 +4,7 @@ use cosmrs::crypto::PublicKey;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo};
 use cosmrs::{AccountId, Any, Coin, Tx};
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::{client::CompatMode, Client, HttpClient};
@@ -20,6 +21,8 @@ use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::libs::account::CosmosAccountId;
 use crate::providers::rpc::CosmosRpcClient;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
+
+static MICRO_TO_ATTO: Lazy<U256> = Lazy::new(|| U256::from(1_000_000_000_000u128));
 
 /// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
@@ -249,7 +252,8 @@ impl HyperlaneProvider for CosmosProvider {
             .fee
             .amount
             .iter()
-            .fold(U256::zero(), |acc, a| acc + a.amount);
+            .map(|c| U256::from(c.amount) * *MICRO_TO_ATTO)
+            .fold(U256::zero(), |acc, v| acc + v);
 
         let gas_price = fee / gas_limit;
 
