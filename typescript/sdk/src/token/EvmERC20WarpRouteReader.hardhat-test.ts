@@ -66,9 +66,10 @@ describe('ERC20WarpRouterReader', async () => {
     );
 
     zkDeployer = new ZKDeployer(signer);
+    multiProvider = MultiProvider.createTestMultiProvider({
+      signer,
+    });
     deployer = new HypERC20Deployer(multiProvider);
-
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
 
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     factories = await ismFactoryDeployer.deploy(
@@ -100,15 +101,12 @@ describe('ERC20WarpRouterReader', async () => {
   });
 
   it('should derive a token type from contract', async () => {
-    console.log('inside derivation');
-
     const typesToDerive = [
       TokenType.collateral,
       TokenType.collateralVault,
       TokenType.synthetic,
       TokenType.native,
     ] as const;
-    console.log('before derivation');
     await Promise.all(
       typesToDerive.map(async (type) => {
         // Create config
@@ -131,6 +129,8 @@ describe('ERC20WarpRouterReader', async () => {
         console.log('bf warpRoute');
         // Deploy warp route with config
         const warpRoute = await deployer.deploy(config);
+        console.log('af warpRoute deploy');
+
         const derivedTokenType = await evmERC20WarpRouteReader.deriveTokenType(
           warpRoute[chain][type].address,
         );
