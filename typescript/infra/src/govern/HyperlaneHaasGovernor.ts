@@ -70,9 +70,9 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
     }
   }
 
-  async check() {
-    await this.icaChecker.check();
-    await this.coreChecker.check();
+  async check(chainsToCheck?: ChainName[]) {
+    await this.icaChecker.check(chainsToCheck);
+    await this.coreChecker.check(chainsToCheck);
   }
 
   async checkChain(chain: ChainName) {

@@ -1,0 +1,10 @@
+{
+  "ethereum": {
+    "hex": "0x0000000000000000000000003ac6a6cca0b49c3f3f06d12f46e8d88eefbb7415",
+    "base58": "111111111111pVc7hF6xGk4TFPJAr7cTknNSZit"
+  },
+  "eclipsemainnet": {
+    "hex": "0x99151bae88c2a4620b24ede803232e0cedb5f762dbc11b8c65761b93df22d791",
+    "base58": "BJa3fPvvjKx8gRCWunoSrWBbsmieub37gsGpjp4BfTfW"
+  }
+}

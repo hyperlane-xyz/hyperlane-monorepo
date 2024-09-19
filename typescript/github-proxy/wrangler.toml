@@ -1,0 +1,24 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "github-proxy-prod"
+main = "src/index.ts"
+compatibility_date = "2024-08-21"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+routes = [
+  { pattern = "proxy.hyperlane.xyz", custom_domain = true }
+]
+
+# CPU limit - 10ms keeps us within the free tier. As of 9/6/2024, the median CPU time is ~1ms
+[limits]
+cpu_ms = 10
+
+# Automatically place your workloads in an optimal location to minimize latency.
+# If you are running back-end logic in a Worker, running it closer to your back-end infrastructure
+# rather than the end user may result in better performance.
+# Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+[placement]
+mode = "smart"
+
+[env.staging]
+name = "github-proxy-staging"
+workers_dev = true

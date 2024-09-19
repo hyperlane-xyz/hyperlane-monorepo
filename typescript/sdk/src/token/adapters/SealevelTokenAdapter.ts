@@ -20,7 +20,6 @@ import {
   Domain,
   addressToBytes,
   eqAddress,
-  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
@@ -50,7 +49,8 @@ import {
   SealevelTransferRemoteSchema,
 } from './serialization.js';
 
-// author @tkporter @jmrossy
+const NON_EXISTENT_ACCOUNT_ERROR = 'could not find account';
+
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
   extends BaseSealevelAdapter
@@ -109,10 +109,15 @@ export class SealevelTokenAdapter
 
   async getBalance(owner: Address): Promise<bigint> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.getProvider().getTokenAccountBalance(
-      tokenPubKey,
-    );
-    return BigInt(response.value.amount);
+    try {
+      const response = await this.getProvider().getTokenAccountBalance(
+        tokenPubKey,
+      );
+      return BigInt(response.value.amount);
+    } catch (error: any) {
+      if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
+      throw error;
+    }
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
@@ -162,6 +167,12 @@ export class SealevelTokenAdapter
   }
 }
 
+interface HypTokenAddresses {
+  token: Address;
+  warpRouter: Address;
+  mailbox: Address;
+}
+
 // The compute limit to set for the transfer remote instruction.
 // This is typically around ~160k, but can be higher depending on
 // the index in the merkle tree, which can result in more moderately
@@ -175,23 +186,17 @@ export abstract class SealevelHypTokenAdapter
   implements IHypTokenAdapter<Transaction>
 {
   public readonly warpProgramPubKey: PublicKey;
+  public readonly addresses: HypTokenAddresses;
   protected cachedTokenAccountData: SealevelHyperlaneTokenData | undefined;
 
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: {
-      token: Address;
-      warpRouter: Address;
-      mailbox: Address;
-    },
+    addresses: HypTokenAddresses,
     public readonly isSpl2022: boolean = false,
   ) {
-    // Pass in placeholder address to avoid errors for native token addresses (which as represented here as 0s)
-    const superTokenProgramId = isZeroishAddress(addresses.token)
-      ? SystemProgram.programId.toBase58()
-      : addresses.token;
-    super(chainName, multiProvider, { token: superTokenProgramId }, isSpl2022);
+    super(chainName, multiProvider, { token: addresses.token }, isSpl2022);
+    this.addresses = addresses;
     this.warpProgramPubKey = new PublicKey(addresses.warpRouter);
   }
 
@@ -488,14 +493,21 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: {
-      token: Address;
+    addresses: {
+      // A 'token' address is not required for hyp native tokens (e.g. hypSOL)
+      token?: Address;
       warpRouter: Address;
       mailbox: Address;
     },
     public readonly isSpl2022: boolean = false,
   ) {
-    super(chainName, multiProvider, addresses, isSpl2022);
+    // Pass in placeholder address for 'token' to avoid errors in the parent classes
+    super(
+      chainName,
+      multiProvider,
+      { ...addresses, token: SystemProgram.programId.toBase58() },
+      isSpl2022,
+    );
     this.wrappedNative = new SealevelNativeTokenAdapter(
       chainName,
       multiProvider,
@@ -606,10 +618,15 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
 
   override async getBalance(owner: Address): Promise<bigint> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.getProvider().getTokenAccountBalance(
-      tokenPubKey,
-    );
-    return BigInt(response.value.amount);
+    try {
+      const response = await this.getProvider().getTokenAccountBalance(
+        tokenPubKey,
+      );
+      return BigInt(response.value.amount);
+    } catch (error: any) {
+      if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
+      throw error;
+    }
   }
 
   deriveMintAuthorityAccount(): PublicKey {

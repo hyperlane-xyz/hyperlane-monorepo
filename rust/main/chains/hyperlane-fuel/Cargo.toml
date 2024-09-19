@@ -1,0 +1,24 @@
+[package]
+name = "hyperlane-fuel"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+fuels.workspace = true
+futures.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+
+[build-dependencies]
+abigen = { path = "../../utils/abigen", features = ["fuels"] }
