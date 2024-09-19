@@ -2,4 +2,4 @@
 '@hyperlane-xyz/core': patch
 ---
 
-Patch HypNative
+Patch `HypNative` with hook overrides `transferRemote` behavior
