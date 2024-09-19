@@ -7590,7 +7590,7 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.577.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:4.3.2"
+    "@hyperlane-xyz/registry": "npm:4.3.3"
     "@hyperlane-xyz/sdk": "npm:5.2.0"
     "@hyperlane-xyz/utils": "npm:5.2.0"
     "@inquirer/prompts": "npm:^3.0.0"
@@ -7683,7 +7683,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/core": "npm:5.2.0"
-    "@hyperlane-xyz/registry": "npm:4.1.0"
+    "@hyperlane-xyz/registry": "npm:4.3.3"
     "@hyperlane-xyz/sdk": "npm:5.2.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7732,7 +7732,7 @@ __metadata:
     "@ethersproject/providers": "npm:^5.7.2"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:5.2.0"
-    "@hyperlane-xyz/registry": "npm:4.3.2"
+    "@hyperlane-xyz/registry": "npm:4.3.3"
     "@hyperlane-xyz/sdk": "npm:5.2.0"
     "@hyperlane-xyz/utils": "npm:5.2.0"
     "@inquirer/prompts": "npm:^5.3.8"
@@ -7790,23 +7790,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:4.1.0":
-  version: 4.1.0
-  resolution: "@hyperlane-xyz/registry@npm:4.1.0"
+"@hyperlane-xyz/registry@npm:4.3.3":
+  version: 4.3.3
+  resolution: "@hyperlane-xyz/registry@npm:4.3.3"
   dependencies:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 5de3ef5539abfaadbfefb82e6e69fdb2413f404d8321456c91810fb50a5a70e9f93b38789495efce6ab5963682536e95a2abe636c7d0ad91ee158cc0ce6b063a
-  languageName: node
-  linkType: hard
-
-"@hyperlane-xyz/registry@npm:4.3.2":
-  version: 4.3.2
-  resolution: "@hyperlane-xyz/registry@npm:4.3.2"
-  dependencies:
-    yaml: "npm:2.4.5"
-    zod: "npm:^3.21.2"
-  checksum: 7b1ff07074e4499f74a4c75dbbf0b7e641b3610bfc2a67785db724748d887d7b03c9dc9738b790cb56e008d6453789432c863f3b251498f77c931f196b9dab86
+  checksum: 09cf9242fd9b5dd4274ae1a3ce877d157db74fe85378dcf726e40dd3fa2ce8fc97523657c4008bc866daee0ac3aa569de706a31194eef4702182ea148091e180
   languageName: node
   linkType: hard
 
@@ -7884,7 +7874,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/widgets@workspace:typescript/widgets"
   dependencies:
-    "@hyperlane-xyz/registry": "npm:4.3.2"
+    "@hyperlane-xyz/registry": "npm:4.3.3"
     "@hyperlane-xyz/sdk": "npm:5.2.0"
     "@storybook/addon-essentials": "npm:^7.6.14"
     "@storybook/addon-interactions": "npm:^7.6.14"
