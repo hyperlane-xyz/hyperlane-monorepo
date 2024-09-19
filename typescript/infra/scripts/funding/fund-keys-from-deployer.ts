@@ -887,18 +887,24 @@ class ContextFunder {
     const provider = new Connection(rpcUrls[0], 'confirmed');
 
     for (const { pubkey, walletName } of accounts) {
-      logger.info('Fetching Solana wallet balance', {
-        chain,
-        pubkey: pubkey.toString(),
-        walletName,
-      });
+      logger.info(
+        {
+          chain,
+          pubkey: pubkey.toString(),
+          walletName,
+        },
+        'Fetching sealevel wallet balance',
+      );
       const balance = await provider.getBalance(pubkey);
-      logger.info('Got Solana wallet balance', {
-        balance,
-        chain,
-        pubkey: pubkey.toString(),
-        walletName,
-      });
+      logger.info(
+        {
+          balance,
+          chain,
+          pubkey: pubkey.toString(),
+          walletName,
+        },
+        'Got sealevel chain wallet balance',
+      );
       walletBalanceGauge
         .labels({
           chain,
