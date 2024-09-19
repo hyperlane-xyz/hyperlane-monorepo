@@ -107,11 +107,6 @@ interface SealevelAccount {
 const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
   solanamainnet: [
     {
-      // The relayer
-      pubkey: new PublicKey('G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp'),
-      walletName: 'relayer',
-    },
-    {
       // WIF warp route ATA payer
       pubkey: new PublicKey('R5oMfxcbjx4ZYK1B2Aic1weqwt2tQsRzFEGe5WJfAxh'),
       walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
@@ -123,11 +118,6 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
     },
   ],
   eclipsemainnet: [
-    {
-      // The relayer
-      pubkey: new PublicKey('G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp'),
-      walletName: 'relayer',
-    },
     {
       // WIF warp route ATA payer
       pubkey: new PublicKey('HCQAfDd5ytAEidzR9g7CipjEGv2ZrSSZq1UY34oDFv8h'),
