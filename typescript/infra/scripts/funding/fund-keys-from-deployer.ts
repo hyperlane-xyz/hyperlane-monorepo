@@ -1,9 +1,11 @@
 import { EthBridger, getL2Network } from '@arbitrum/sdk';
 import { CrossChainMessenger } from '@eth-optimism/sdk';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
+import { eclipsemainnet } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -14,6 +16,7 @@ import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';
+import { getSecretRpcEndpoints } from '../../src/agents/index.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
@@ -95,6 +98,53 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 // Don't send the full amount over to RC keys
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
+
+interface SealevelAccount {
+  pubkey: PublicKey;
+  walletName: string;
+}
+
+const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
+  solanamainnet: [
+    {
+      // The relayer
+      pubkey: new PublicKey('G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp'),
+      walletName: 'relayer',
+    },
+    {
+      // WIF warp route ATA payer
+      pubkey: new PublicKey('R5oMfxcbjx4ZYK1B2Aic1weqwt2tQsRzFEGe5WJfAxh'),
+      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
+    },
+    {
+      // USDC warp route ATA payer
+      pubkey: new PublicKey('A1XtL9mAzkNEpBPinrCpDRrPqVAFjgaxDk4ATFVoQVyc'),
+      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
+    },
+  ],
+  eclipsemainnet: [
+    {
+      // The relayer
+      pubkey: new PublicKey('G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp'),
+      walletName: 'relayer',
+    },
+    {
+      // WIF warp route ATA payer
+      pubkey: new PublicKey('HCQAfDd5ytAEidzR9g7CipjEGv2ZrSSZq1UY34oDFv8h'),
+      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
+    },
+    {
+      // USDC warp route ATA payer
+      pubkey: new PublicKey('7arS1h8nwVVmmTVWSsu9rQ4WjLBN8iAi4DvHi8gWjBNC'),
+      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
+    },
+    {
+      // tETH warp route ATA payer
+      pubkey: new PublicKey('Hyy4jryRxgZm5pvuSx29fXxJ9J55SuDtXiCo89kmNuz5'),
+      walletName: 'tETH/eclipsemainnet-ethereum/ata-payer',
+    },
+  ],
+};
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
@@ -466,6 +516,13 @@ class ContextFunder {
       false,
     );
 
+    if (
+      this.environment === 'mainnet3' &&
+      this.context === Contexts.Hyperlane
+    ) {
+      await this.updateSolanaWalletBalanceGauge();
+    }
+
     return failureOccurred;
   }
 
@@ -811,6 +868,48 @@ class ContextFunder {
           ),
         ),
       );
+  }
+
+  private async updateSolanaWalletBalanceGauge() {
+    for (const chain of Object.keys(sealevelAccountsToTrack) as ChainName[]) {
+      await this.updateSealevelWalletBalanceAccounts(
+        chain,
+        sealevelAccountsToTrack[chain],
+      );
+    }
+  }
+
+  private async updateSealevelWalletBalanceAccounts(
+    chain: ChainName,
+    accounts: SealevelAccount[],
+  ) {
+    const rpcUrls = await getSecretRpcEndpoints(this.environment, chain);
+    const provider = new Connection(rpcUrls[0], 'confirmed');
+
+    for (const { pubkey, walletName } of accounts) {
+      logger.info('Fetching Solana wallet balance', {
+        chain,
+        pubkey: pubkey.toString(),
+        walletName,
+      });
+      const balance = await provider.getBalance(pubkey);
+      logger.info('Got Solana wallet balance', {
+        balance,
+        chain,
+        pubkey: pubkey.toString(),
+        walletName,
+      });
+      walletBalanceGauge
+        .labels({
+          chain,
+          wallet_address: pubkey.toString(),
+          wallet_name: walletName,
+          token_symbol: 'Native',
+          token_name: 'Native',
+          ...constMetricLabels,
+        })
+        .set(balance / 1e9);
+    }
   }
 }
 
