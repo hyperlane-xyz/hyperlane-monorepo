@@ -27,7 +27,7 @@ import { readJSONAtPath, writeJsonAtPath } from '../utils/utils.js';
 enum DeployStatus {
   EMPTY = '🫥',
   SUCCESS = '✅',
-  PENDING = '⏳',
+  INFLIGHT = '⏳',
   FAILURE = '❌',
 }
 
@@ -79,6 +79,7 @@ export async function deployWithArtifacts<Config extends object>({
         )
       : configMap;
 
+  // Run post-deploy steps
   const handleExit = async () => {
     console.info(chalk.gray.italic('Running post-deploy steps'));
     await runWithTimeout(5000, () => postDeploy(deployer, cache))
@@ -95,9 +96,33 @@ export async function deployWithArtifacts<Config extends object>({
         ([chain, status]) => ({ chain, status: status ?? DeployStatus.EMPTY }),
       );
       console.table(statusTable);
+
+      const failedChainNames = Object.entries(deployStatus)
+        .filter(([_, status]) => status === DeployStatus.FAILURE)
+        .map(([chain, _]) => chain);
+
+      // If there are failed chains, exit with a non-zero status
+      if (failedChainNames.length > 0) {
+        console.error(
+          chalk.red.bold(
+            `\nFailed to deploy on ${failedChainNames.length} chain${
+              failedChainNames.length === 1 ? '' : 's'
+            }:\n${failedChainNames.join(' ')}`,
+          ),
+        );
+        process.exit(1);
+      } else {
+        const numTotalChains = Object.keys(targetConfigMap).length;
+        console.info(
+          chalk.green.bold(
+            `Successfully deployed contracts on ${numTotalChains} chain${
+              numTotalChains === 1 ? '' : 's'
+            }`,
+          ),
+        );
+      }
     }
 
-    // Force the exit after post-deploy steps
     process.exit(0);
   };
 
@@ -161,7 +186,7 @@ async function baseDeploy<
     );
 
     return runWithTimeout(deployer.chainTimeoutMs, async () => {
-      deployStatus[chain] = DeployStatus.PENDING;
+      deployStatus[chain] = DeployStatus.INFLIGHT;
       const contracts = await deployer.deployContracts(chain, configMap[chain]);
       deployer.deployedContracts[chain] = {
         ...deployer.deployedContracts[chain],
@@ -170,24 +195,25 @@ async function baseDeploy<
     })
       .then(() => {
         deployStatus[chain] = DeployStatus.SUCCESS;
-        const pendingChains = Object.entries(deployStatus)
-          .filter(([_, status]) => status === DeployStatus.PENDING)
+        const inFlightChains = Object.entries(deployStatus)
+          .filter(([_, status]) => status === DeployStatus.INFLIGHT)
           .map(([chain, _]) => chain);
+        const numInFlight = inFlightChains.length;
         console.info(
           chalk.green.bold(`Successfully deployed contracts on ${chain}`),
           chalk.blue.italic(
-            pendingChains.length === 0
-              ? '\nNo more chains pending'
-              : `\n${
-                  pendingChains.length
-                } chains still pending: ${pendingChains.join(', ')}`,
+            numInFlight === 0
+              ? '\nAll chains deployed'
+              : `\n${numInFlight} chain${
+                  numInFlight === 1 ? '' : 's'
+                } still in-flight: ${inFlightChains.join(', ')}`,
           ),
         );
       })
       .catch((error) => {
         deployStatus[chain] = DeployStatus.FAILURE;
         console.error(
-          chalk.red.bold(`Deployment failed on ${chain}. Error: ${error}`),
+          chalk.red.bold(`Deployment failed on ${chain}. ${error}`),
         );
       });
   };
