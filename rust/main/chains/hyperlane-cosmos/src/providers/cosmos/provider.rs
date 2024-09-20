@@ -177,6 +177,21 @@ impl CosmosProvider {
                 "transaction contains fees in unsupported denominations, manual intervention is required");
         }
     }
+
+    fn convert_fee(&self, coin: &Coin) -> U256 {
+        let gas_price = self.connection_conf.get_minimum_gas_price();
+        if coin.denom.as_ref() != gas_price.denom {
+            return U256::zero();
+        }
+
+        let price = gas_price.amount.parse::<f64>().unwrap_or(1.0);
+        let amount = U256::from(coin.amount);
+        if price < 1.0 {
+            amount * *MICRO_TO_ATTO
+        } else {
+            amount
+        }
+    }
 }
 
 impl HyperlaneChain for CosmosProvider {
@@ -252,7 +267,7 @@ impl HyperlaneProvider for CosmosProvider {
             .fee
             .amount
             .iter()
-            .map(|c| U256::from(c.amount) * *MICRO_TO_ATTO)
+            .map(|c| self.convert_fee(c))
             .fold(U256::zero(), |acc, v| acc + v);
 
         let gas_price = fee / gas_limit;
