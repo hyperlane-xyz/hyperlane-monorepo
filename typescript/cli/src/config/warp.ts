@@ -132,6 +132,7 @@ export async function createWarpRouteDeployConfig({
   );
 
   const result: WarpRouteDeployConfig = {};
+  let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
 
@@ -147,7 +148,7 @@ export async function createWarpRouteDeployConfig({
 
     const type = await select({
       message: `Select ${chain}'s token type`,
-      choices: TYPE_CHOICES,
+      choices: typeChoices,
     });
 
     // TODO: restore NFT prompting
@@ -176,6 +177,19 @@ export async function createWarpRouteDeployConfig({
           }),
         };
         break;
+      case TokenType.syntheticRebase:
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          interchainSecurityModule,
+        };
+        typeChoices = includeOnlyTypeChoices([
+          TokenType.syntheticRebase,
+          TokenType.collateralVaultRebase,
+        ]);
+        break;
       case TokenType.collateralVaultRebase:
         result[chain] = {
           mailbox,
@@ -187,6 +201,8 @@ export async function createWarpRouteDeployConfig({
             message: `Enter the ERC-4626 vault address on chain ${chain}`,
           }),
         };
+
+        typeChoices = includeOnlyTypeChoices([TokenType.syntheticRebase]);
         break;
       case TokenType.collateralVault:
         result[chain] = {
@@ -223,6 +239,10 @@ export async function createWarpRouteDeployConfig({
     );
     throw e;
   }
+}
+
+function includeOnlyTypeChoices(typeChoices: TokenType[]) {
+  return TYPE_CHOICES.filter((choice) => typeChoices.includes(choice.name));
 }
 
 // Note, this is different than the function above which reads a config
