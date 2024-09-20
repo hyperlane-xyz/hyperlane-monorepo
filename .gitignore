@@ -26,7 +26,5 @@ yarn-error.log
 
 .idea
 **/*.ignore
-/.vscode
-!/.vscode/*
 
 tsconfig.editor.json
