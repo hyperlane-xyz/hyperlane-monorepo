@@ -58,6 +58,4 @@ contract MockOptimismPortal is IOptimismPortal {
         );
         CallLib.call(call);
     }
-
-    function verifyMessageId(bytes32 messageId) public payable {}
 }
