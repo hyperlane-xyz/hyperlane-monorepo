@@ -217,7 +217,7 @@ abstract contract ExternalBridgeTest is Test {
         assertEq(address(testRecipient).balance, _msgValue);
     }
 
-    function test_verify_false_arbitraryCall() public {
+    function test_verify_false_arbitraryCall() public virtual {
         bytes memory incorrectCalldata = _encodeExternalDestinationBridgeCall(
             address(hook),
             address(this),

@@ -68,7 +68,7 @@ contract OPL2ToL1Ism is
     ) external override returns (bool) {
         if (!isVerified(message)) {
             _verifyWithPortalCall(metadata, message);
-            return isVerified(message);
+            require(isVerified(message), "OPL2ToL1Ism: message not verified");
         }
         releaseValueToRecipient(message);
         return true;
