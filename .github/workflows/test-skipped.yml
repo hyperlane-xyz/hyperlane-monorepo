@@ -1,18 +1,20 @@
+# This is here to satisfy the PR requirements when only markdown changes occur.
 name: test
 
 on:
+  # Auto-pass tests if only md files are changed
   push:
     branches: [main]
     paths:
-      - '*.md'
       - '!**/*'
+      - '**/*.md'
+  # Auto-pass tests if only md files are changed
   pull_request:
     branches:
       - '*'
     paths:
-      - '*.md'
       - '!**/*'
-  merge_group:
+      - '**/*.md'
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -24,12 +26,6 @@ jobs:
     steps:
       - name: Instant pass
         run: echo "yarn-install job passed"
-
-  yarn-build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Instant pass
-        run: echo "yarn-build job passed"
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -62,13 +58,6 @@ jobs:
     steps:
       - name: Instant pass
         run: echo "e2e-matrix job passed"
-
-  e2e:
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Instant pass
-        run: echo "e2e job passed"
 
   cli-advanced-e2e:
     runs-on: ubuntu-latest

@@ -15,24 +15,18 @@ use hyperlane_core::{
 };
 
 use crate::address::CosmosAddress;
-use crate::grpc::WasmProvider;
+use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::libs::account::CosmosAccountId;
+use crate::providers::rpc::CosmosRpcClient;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
-
-use self::grpc::WasmGrpcProvider;
-
-/// cosmos grpc provider
-pub mod grpc;
-/// cosmos rpc provider
-pub mod rpc;
 
 /// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
 pub struct CosmosProvider {
     domain: HyperlaneDomain,
     connection_conf: ConnectionConf,
-    grpc_client: WasmGrpcProvider,
-    rpc_client: HttpClient,
+    grpc_provider: WasmGrpcProvider,
+    rpc_client: CosmosRpcClient,
 }
 
 impl CosmosProvider {
@@ -40,43 +34,30 @@ impl CosmosProvider {
     pub fn new(
         domain: HyperlaneDomain,
         conf: ConnectionConf,
-        locator: Option<ContractLocator>,
+        locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
-        let grpc_client = WasmGrpcProvider::new(
+        let grpc_provider = WasmGrpcProvider::new(
             domain.clone(),
             conf.clone(),
             gas_price.clone(),
             locator,
             signer,
         )?;
-        let rpc_client = HttpClient::builder(
-            conf.get_rpc_url()
-                .parse()
-                .map_err(Into::<HyperlaneCosmosError>::into)?,
-        )
-        // Consider supporting different compatibility modes.
-        .compat_mode(CompatMode::latest())
-        .build()
-        .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let rpc_client = CosmosRpcClient::new(&conf)?;
 
         Ok(Self {
             domain,
             connection_conf: conf,
+            grpc_provider,
             rpc_client,
-            grpc_client,
         })
     }
 
     /// Get a grpc client
     pub fn grpc(&self) -> &WasmGrpcProvider {
-        &self.grpc_client
-    }
-
-    /// Get an rpc client
-    pub fn rpc(&self) -> &HttpClient {
-        &self.rpc_client
+        &self.grpc_provider
     }
 
     fn search_payer_in_signer_infos(
@@ -182,11 +163,7 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("block hash should be of correct size");
 
-        let response = self
-            .rpc_client
-            .block_by_hash(tendermint_hash)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+        let response = self.rpc_client.get_block_by_hash(tendermint_hash).await?;
 
         let received_hash = H256::from_slice(response.block_id.hash.as_bytes());
 
@@ -218,11 +195,7 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
-        let response = self
-            .rpc_client
-            .tx(tendermint_hash, false)
-            .await
-            .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let response = self.rpc_client.get_tx_by_hash(tendermint_hash).await?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 
@@ -269,7 +242,7 @@ impl HyperlaneProvider for CosmosProvider {
     }
 
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
-        match self.grpc_client.wasm_contract_info().await {
+        match self.grpc_provider.wasm_contract_info().await {
             Ok(c) => Ok(true),
             Err(e) => Ok(false),
         }
@@ -277,7 +250,7 @@ impl HyperlaneProvider for CosmosProvider {
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         Ok(self
-            .grpc_client
+            .grpc_provider
             .get_balance(address, self.connection_conf.get_canonical_asset())
             .await?)
     }
