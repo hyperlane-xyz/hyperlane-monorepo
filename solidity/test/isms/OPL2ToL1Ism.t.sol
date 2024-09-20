@@ -99,15 +99,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         return "AbstractMessageIdAuthorizedIsm: sender is not the hook";
     }
 
-    // function test_verify_revertWhen_arbitraryCall() public {
-    //     deployAll();
-
-    //     bytes memory incorrectMetadata = _encodeFinalizeWithdrawalTx(address(portal), 0, messageId);
-
-    //     vm.expectRevert("OPL2ToL1Ism: message not verified");
-    //     ism.verify(incorrectMetadata, encodedMessage);
-    // }
-
     function _externalBridgeDestinationCall(
         bytes memory,
         /*_encodedHookData*/
