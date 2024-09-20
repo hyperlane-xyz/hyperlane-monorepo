@@ -81,8 +81,14 @@ export async function deployWithArtifacts<Config extends object>({
 
   const handleExit = async () => {
     console.info(chalk.gray.italic('Running post-deploy steps'));
-    await postDeploy(deployer, cache);
-    console.info('Post-deploy completed');
+    await runWithTimeout(5000, () => postDeploy(deployer, cache))
+      .then(() => console.info('Post-deploy completed'))
+      .catch((error) => {
+        console.error(
+          chalk.red('Post-deploy steps timed out or failed'),
+          error,
+        );
+      });
 
     if (Object.keys(deployStatus).length > 0) {
       const statusTable = Object.entries(deployStatus).map(
@@ -124,9 +130,6 @@ export async function deployWithArtifacts<Config extends object>({
       }
     }
   }
-
-  // Call the post-deploy hook to write artifacts
-  await postDeploy(deployer, cache);
 }
 
 async function baseDeploy<
@@ -203,7 +206,9 @@ async function postDeploy<Config extends object>(
     try {
       savedVerification = readJSONAtPath(cache.verification);
     } catch (e) {
-      console.error(chalk.red('Failed to load cached verification inputs'));
+      console.error(
+        chalk.red('Failed to load cached verification inputs. Error: ', e),
+      );
     }
 
     // merge with existing cache of verification inputs
