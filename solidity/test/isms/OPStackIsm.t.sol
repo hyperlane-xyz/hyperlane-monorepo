@@ -112,7 +112,7 @@ contract OPStackIsmTest is ExternalBridgeTest {
             L1_MESSENGER_ADDRESS,
             abi.encodeCall(
                 ICrossDomainMessenger.sendMessage,
-                (address(ism), _encodedHookData, uint32(GAS_QUOTE))
+                (address(ism), _encodedHookData, uint32(DEFAULT_GAS_LIMIT))
             )
         );
     }
