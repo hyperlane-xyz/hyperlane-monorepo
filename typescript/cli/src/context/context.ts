@@ -2,6 +2,7 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
+  DEFAULT_GITHUB_REGISTRY,
   GithubRegistry,
   IRegistry,
   MergedRegistry,
@@ -16,6 +17,7 @@ import {
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
+import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -37,6 +39,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
+    disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
   };
   if (!isDryRun && settings.fromAddress)
@@ -59,8 +62,9 @@ export async function getContext({
   key,
   requiresKey,
   skipConfirmation,
+  disableProxy = false,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri);
+  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
   let signer: ethers.Wallet | undefined = undefined;
   if (key || requiresKey) {
@@ -89,10 +93,11 @@ export async function getDryRunContext(
     key,
     fromAddress,
     skipConfirmation,
+    disableProxy = false,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri);
+  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -137,6 +142,7 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
+  enableProxy: boolean,
 ): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
   const registries = [primaryRegistryUri, overrideRegistryUri]
@@ -145,7 +151,14 @@ function getRegistry(
     .map((uri, index) => {
       const childLogger = logger.child({ uri, index });
       if (isHttpsUrl(uri)) {
-        return new GithubRegistry({ uri, logger: childLogger });
+        return new GithubRegistry({
+          uri,
+          logger: childLogger,
+          proxyUrl:
+            enableProxy && isCanonicalRepoUrl(uri)
+              ? PROXY_DEPLOYED_URL
+              : undefined,
+        });
       } else {
         return new FileSystemRegistry({
           uri,
@@ -157,6 +170,10 @@ function getRegistry(
     registries,
     logger,
   });
+}
+
+function isCanonicalRepoUrl(url: string) {
+  return url === DEFAULT_GITHUB_REGISTRY;
 }
 
 /**

@@ -35,7 +35,7 @@ import { AgentGCPKey } from './gcp.js';
 
 const HELM_CHART_PATH = join(
   getInfraPath(),
-  '/../../rust/helm/hyperlane-agent/',
+  '/../../rust/main/helm/hyperlane-agent/',
 );
 
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))

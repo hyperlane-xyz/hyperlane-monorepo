@@ -80,6 +80,9 @@
       "0x749d6e7ad949e522c92181dc77f7bbc1c5d71506"
     ]
   },
+  "everclear": {
+    "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
+  },
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
@@ -156,6 +159,9 @@
       "0x60e890b34cb44ce3fa52f38684f613f31b47a1a6",
       "0x7885fae56dbcf5176657f54adbbd881dc6714132"
     ]
+  },
+  "oortmainnet": {
+    "validators": ["0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7"]
   },
   "optimism": {
     "validators": [
