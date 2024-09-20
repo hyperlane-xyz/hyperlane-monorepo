@@ -24,7 +24,7 @@ contract LayerZeroV2IsmTest is Test {
         return
             abi.encodeCall(
                 AbstractMessageIdAuthorizedIsm.verifyMessageId,
-                (_messageId)
+                (_messageId, 0)
             );
     }
 
@@ -134,7 +134,7 @@ contract LayerZeroV2IsmTest is Test {
     }
 
     function testLzV2Ism_verifyMessageId_SetsCorrectMessageId(
-        bytes32 messageId
+        bytes memory _message
     ) public {
         lZIsm.setAuthorizedHook(hook.addressToBytes32());
         vm.startPrank(endpoint);
@@ -147,16 +147,14 @@ contract LayerZeroV2IsmTest is Test {
         ) = _makeLzParameters(
                 hook,
                 bytes32(""),
-                _encodedFunctionCall(messageId),
+                _encodedFunctionCall(_message.id()),
                 makeAddr("executor"),
                 bytes("")
             );
         lZIsm.lzReceive(origin, guid, message, executor, extraData);
         vm.stopPrank();
 
-        bool messageIdVerified = lZIsm.verifiedMessages(messageId).isBitSet(
-            lZIsm.VERIFIED_MASK_INDEX()
-        );
+        bool messageIdVerified = lZIsm.isVerified(_message);
         assertTrue(messageIdVerified);
     }
 }

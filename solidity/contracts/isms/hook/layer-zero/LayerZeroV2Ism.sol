@@ -66,7 +66,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
         address,
         bytes calldata
     ) external payable {
-        verifyMessageId(_messageId(_lzMessage));
+        verifyMessageId(_messageId(_lzMessage), _msgValue(_lzMessage));
     }
 
     // ============ Internal function ============
@@ -80,6 +80,12 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
         bytes calldata _message
     ) internal pure returns (bytes32) {
         return bytes32(_message[FUNC_SELECTOR_OFFSET:]);
+    }
+
+    function _msgValue(
+        bytes calldata _message
+    ) internal pure returns (uint256) {
+        return uint256(bytes32(_message[FUNC_SELECTOR_OFFSET + 32:]));
     }
 
     /**

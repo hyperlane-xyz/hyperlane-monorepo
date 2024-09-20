@@ -38,12 +38,9 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     using Message for bytes;
     // ============ Public Storage ============
 
-    /// @notice Maps messageId to whether or not the message has been verified
-    /// first bit is boolean for verification
-    /// rest of bits is the amount to send to the recipient
-    /// @dev bc of the bit packing, we can only send up to 2^255 wei
-    /// @dev the first bit is reserved for verification and the rest 255 bits are for the msg.value
-    mapping(bytes32 => uint256) public verifiedMessages;
+    /// @notice Maps messageId to value to whether or not the message has been verified
+    mapping(bytes32 => bool) public verifiedMessages;
+    mapping(bytes32 => uint256) public messageValues;
     /// @notice Index of verification bit in verifiedMessages
     uint256 public constant VERIFIED_MASK_INDEX = 255;
     /// @notice address for the authorized hook
@@ -90,11 +87,9 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      */
     function releaseValueToRecipient(bytes calldata message) public {
         bytes32 messageId = message.id();
-        uint256 _msgValue = verifiedMessages[messageId].clearBit(
-            VERIFIED_MASK_INDEX
-        );
+        uint256 _msgValue = messageValues[messageId];
         if (_msgValue > 0) {
-            verifiedMessages[messageId] -= _msgValue;
+            messageValues[messageId] = 0;
             payable(message.recipientAddress()).sendValue(_msgValue);
         }
     }
@@ -104,9 +99,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @param message Message to check.
      */
     function isVerified(bytes calldata message) public view returns (bool) {
-        bytes32 messageId = message.id();
-        // check for the first bit (used for verification)
-        return verifiedMessages[messageId].isBitSet(VERIFIED_MASK_INDEX);
+        return verifiedMessages[message.id()];
     }
 
     /**
@@ -114,7 +107,10 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @dev Only callable by the authorized hook.
      * @param messageId Hyperlane Id of the message.
      */
-    function verifyMessageId(bytes32 messageId) public payable virtual {
+    function verifyMessageId(
+        bytes32 messageId,
+        uint256 msgValue
+    ) public payable virtual {
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
@@ -124,7 +120,8 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
         );
 
-        verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
+        verifiedMessages[messageId] = true;
+        messageValues[messageId] = msgValue;
         emit ReceivedMessage(messageId);
     }
 

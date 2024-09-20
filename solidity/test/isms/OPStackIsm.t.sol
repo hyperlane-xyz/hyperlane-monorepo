@@ -99,8 +99,12 @@ contract OPStackIsmTest is ExternalBridgeTest {
     function test_verify_revertsWhen_incorrectMessageId() public override {
         bytes32 incorrectMessageId = keccak256("incorrect message id");
 
-        _externalBridgeDestinationCall(_encodeHookData(incorrectMessageId), 0);
+        _externalBridgeDestinationCall(
+            _encodeHookData(incorrectMessageId, MSG_VALUE),
+            0
+        );
         assertFalse(ism.isVerified(testMessage));
+        assertEq(address(testRecipient).balance, 0);
     }
 
     /* ============ helper functions ============ */
@@ -153,7 +157,7 @@ contract OPStackIsmTest is ExternalBridgeTest {
     function test_verify_revertsWhen_notAuthorizedHook() public override {
         // needs to be called by the canonical messenger on Optimism
         vm.expectRevert(NotCrossChainCall.selector);
-        ism.verifyMessageId(messageId);
+        ism.verifyMessageId(messageId, 0);
 
         vm.startPrank(L2_MESSENGER_ADDRESS);
         _setExternalOriginSender(address(this));
@@ -162,7 +166,7 @@ contract OPStackIsmTest is ExternalBridgeTest {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        ism.verifyMessageId(messageId);
+        ism.verifyMessageId(messageId, 0);
     }
 
     function _setExternalOriginSender(
@@ -180,7 +184,10 @@ contract OPStackIsmTest is ExternalBridgeTest {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
         );
-        _externalBridgeDestinationCall(_encodeHookData(messageId), _msgValue);
+        _externalBridgeDestinationCall(
+            _encodeHookData(messageId, _msgValue),
+            _msgValue
+        );
 
         assertFalse(ism.isVerified(encodedMessage));
 
