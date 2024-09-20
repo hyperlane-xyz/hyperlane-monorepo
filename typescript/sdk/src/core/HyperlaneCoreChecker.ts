@@ -1,6 +1,6 @@
 import { ethers, utils as ethersUtils } from 'ethers';
 
-import { assert, eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
@@ -36,6 +36,12 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
   async checkChain(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
+
+    if (!config) {
+      rootLogger.warn(`No config for chain ${chain}`);
+      return;
+    }
+
     // skip chains that are configured to be removed
     if (config.remove) {
       return;

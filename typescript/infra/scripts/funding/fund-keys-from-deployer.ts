@@ -72,7 +72,7 @@ const constMetricLabels = {
 const metricsRegister = new Registry();
 
 const walletBalanceGauge = new Gauge({
-  // Mirror the rust/ethers-prometheus `wallet_balance` gauge metric.
+  // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
   name: 'hyperlane_wallet_balance',
   help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
   registers: [metricsRegister],

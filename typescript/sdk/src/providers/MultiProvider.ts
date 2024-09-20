@@ -9,7 +9,12 @@ import {
 } from 'ethers';
 import { Logger } from 'pino';
 
-import { Address, pick, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addBufferToGasLimit,
+  pick,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
@@ -317,9 +322,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const deployTx = contractFactory.getDeployTransaction(...params);
     const gasEstimated = await signer.estimateGas(deployTx);
 
-    // deploy with 10% buffer on gas limit
+    // deploy with buffer on gas limit
     const contract = await contractFactory.deploy(...params, {
-      gasLimit: gasEstimated.add(gasEstimated.div(10)), // 10% buffer
+      gasLimit: addBufferToGasLimit(gasEstimated),
       ...overrides,
     });
 

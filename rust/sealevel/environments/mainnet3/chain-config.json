@@ -647,6 +647,14 @@
     ]
   },
   "eclipsemainnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.eclipse.xyz/api",
+        "family": "other",
+        "name": "Eclipse Explorer",
+        "url": "https://explorer.eclipse.xyz/"
+      }
+    ],
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 0.4,
@@ -757,6 +765,45 @@
       "maxFeePerGas": 150000000000,
       "maxPriorityFeePerGas": 5000000000
     }
+  },
+  "everclear": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://everclear.cloud.blockscout.com/api",
+        "family": "blockscout",
+        "name": "Everclear Explorer",
+        "url": "https://everclear.cloud.blockscout.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 0
+    },
+    "chainId": 25327,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Everclear",
+    "domainId": 25327,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "index": {
+      "from": 37
+    },
+    "name": "everclear",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ethereum",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.everclear.raas.gelato.cloud"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
   },
   "flare": {
     "blockExplorers": [
@@ -977,7 +1024,7 @@
       "estimateBlockTime": 1,
       "reorgPeriod": 10
     },
-    "chainId": 6909546,
+    "chainId": "injective-1",
     "deployer": {
       "name": "Abacus Works",
       "url": "https://www.hyperlane.xyz"
@@ -1497,7 +1544,7 @@
       "estimateBlockTime": 3,
       "reorgPeriod": 1
     },
-    "chainId": 1853125230,
+    "chainId": "neutron-1",
     "deployer": {
       "name": "Abacus Works",
       "url": "https://www.hyperlane.xyz"
@@ -1536,6 +1583,41 @@
     "transactionOverrides": {
       "gasPrice": "0.0075"
     }
+  },
+  "oortmainnet": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://mainnet-scan.oortech.com/api",
+        "family": "other",
+        "name": "Oort Olympus Explorer",
+        "url": "https://mainnet-scan.oortech.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 0
+    },
+    "chainId": 970,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Oort",
+    "domainId": 970,
+    "gasCurrencyCoinGeckoId": "oort",
+    "name": "oortmainnet",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Oort",
+      "symbol": "OORT"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet-rpc.oortech.com"
+      }
+    ]
   },
   "optimism": {
     "blockExplorers": [
@@ -1588,7 +1670,7 @@
       "estimateBlockTime": 3,
       "reorgPeriod": 1
     },
-    "chainId": 875,
+    "chainId": "osmosis-1",
     "deployer": {
       "name": "Mitosis",
       "url": "https://mitosis.org"
@@ -1646,13 +1728,13 @@
     },
     "displayName": "Polygon",
     "domainId": 137,
-    "gasCurrencyCoinGeckoId": "matic-network",
+    "gasCurrencyCoinGeckoId": "polygon-ecosystem-token",
     "gnosisSafeTransactionServiceUrl": "https://safe-transaction-polygon.safe.global/",
     "name": "polygon",
     "nativeToken": {
       "decimals": 18,
-      "name": "Matic",
-      "symbol": "MATIC"
+      "name": "Polygon Ecosystem Token",
+      "symbol": "POL"
     },
     "protocol": "ethereum",
     "rpcUrls": [
@@ -1879,7 +1961,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 1
+      "reorgPeriod": 30
     },
     "chainId": 534352,
     "deployer": {

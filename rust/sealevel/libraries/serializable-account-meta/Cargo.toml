@@ -11,4 +11,3 @@ solana-program.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
-
