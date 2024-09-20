@@ -365,8 +365,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 .expect("Failed to run command");
             println!("initialized metadata. Status: {status}");
 
-            // Burn the metadata pointer, metadata, and mint authorities by moving them to the mint
-            let authorities_to_transfer = &["metadata-pointer", "metadata", "mint"];
+            // Move the mint authority to the mint account.
+            // The deployer key will still hold the metadata pointer and metadata authorities.
+            let authorities_to_transfer = &["mint"];
 
             for authority in authorities_to_transfer {
                 println!("Transferring authority: {authority} to the mint account {mint_account}");

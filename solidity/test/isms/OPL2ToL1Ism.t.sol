@@ -126,7 +126,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         uint256 _value,
         bytes32 _messageId
     ) internal view returns (bytes memory) {
-        bytes memory encodedHookData = _encodeHookData(_messageId, _value);
+        bytes memory encodedHookData = _encodeHookData(_messageId);
 
         return
             abi.encodeCall(

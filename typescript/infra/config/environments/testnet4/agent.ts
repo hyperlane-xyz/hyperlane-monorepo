@@ -52,7 +52,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     optimismsepolia: true,
-    plumetestnet: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -70,7 +71,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     optimismsepolia: true,
-    plumetestnet: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -89,7 +91,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     optimismsepolia: true,
-    plumetestnet: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
@@ -174,7 +177,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '73c232b-20240912-124300',
+      tag: '5a0d68b-20240916-144115',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -220,7 +223,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '73c232b-20240912-124300',
+      tag: '5a0d68b-20240916-144115',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,

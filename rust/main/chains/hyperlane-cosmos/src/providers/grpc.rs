@@ -123,7 +123,7 @@ pub struct WasmGrpcProvider {
     conf: ConnectionConf,
     /// A contract address that can be used as the default
     /// for queries / sends / estimates.
-    contract_address: Option<CosmosAddress>,
+    contract_address: CosmosAddress,
     /// Signer for transactions.
     signer: Option<Signer>,
     /// GRPC Channel that can be cheaply cloned.
@@ -138,7 +138,7 @@ impl WasmGrpcProvider {
         domain: HyperlaneDomain,
         conf: ConnectionConf,
         gas_price: CosmosAmount,
-        locator: Option<ContractLocator>,
+        locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         // get all the configured grpc urls and convert them to a Vec<Endpoint>
@@ -156,15 +156,11 @@ impl WasmGrpcProvider {
         let fallback_provider = builder.build();
         let provider = CosmosFallbackProvider::new(fallback_provider);
 
-        let contract_address = locator
-            .map(|l| {
-                CosmosAddress::from_h256(
-                    l.address,
-                    &conf.get_bech32_prefix(),
-                    conf.get_contract_address_bytes(),
-                )
-            })
-            .transpose()?;
+        let contract_address = CosmosAddress::from_h256(
+            locator.address,
+            &conf.get_bech32_prefix(),
+            conf.get_contract_address_bytes(),
+        )?;
 
         Ok(Self {
             domain,
@@ -446,11 +442,8 @@ impl WasmGrpcProvider {
         })
     }
 
-    fn get_contract_address(&self) -> Result<&CosmosAddress, ChainCommunicationError> {
-        let contract_address = self.contract_address.as_ref().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No contract address available")
-        })?;
-        Ok(contract_address)
+    fn get_contract_address(&self) -> &CosmosAddress {
+        &self.contract_address
     }
 }
 
@@ -488,7 +481,7 @@ impl WasmProvider for WasmGrpcProvider {
     where
         T: Serialize + Send + Sync + Clone + Debug,
     {
-        let contract_address = self.get_contract_address()?;
+        let contract_address = self.get_contract_address();
         let query_data = serde_json::to_string(&payload)?.as_bytes().to_vec();
         let response = self
             .provider
@@ -522,7 +515,7 @@ impl WasmProvider for WasmGrpcProvider {
     }
 
     async fn wasm_contract_info(&self) -> ChainResult<ContractInfo> {
-        let contract_address = self.get_contract_address()?;
+        let contract_address = self.get_contract_address();
         let response = self
             .provider
             .call(move |provider| {
@@ -557,7 +550,7 @@ impl WasmProvider for WasmGrpcProvider {
         T: Serialize + Send + Sync + Clone + Debug,
     {
         let signer = self.get_signer()?;
-        let contract_address = self.get_contract_address()?;
+        let contract_address = self.get_contract_address();
         let msgs = vec![MsgExecuteContract {
             sender: signer.address.clone(),
             contract: contract_address.address(),
@@ -625,7 +618,7 @@ impl WasmProvider for WasmGrpcProvider {
         // Estimating gas requires a signer, which we can reasonably expect to have
         // since we need one to send a tx with the estimated gas anyways.
         let signer = self.get_signer()?;
-        let contract_address = self.get_contract_address()?;
+        let contract_address = self.get_contract_address();
         let msg = MsgExecuteContract {
             sender: signer.address.clone(),
             contract: contract_address.address(),

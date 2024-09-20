@@ -25,7 +25,10 @@ import {
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
-import { HyperlaneAddressesMap } from '../contracts/types.js';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+} from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
@@ -54,9 +57,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   getRouterConfig = (
     owners: Address | ChainMap<OwnableConfig>,
   ): ChainMap<RouterConfig> => {
+    // filter for EVM chains
+    const evmContractsMap = objFilter(
+      this.contractsMap,
+      (chainName, _): _ is HyperlaneContracts<CoreFactories> =>
+        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
+    );
+
     // get config
     const config = objMap(
-      this.contractsMap,
+      evmContractsMap,
       (chain, contracts): RouterConfig => ({
         mailbox: contracts.mailbox.address,
         owner: typeof owners === 'string' ? owners : owners[chain].owner,
@@ -64,12 +74,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
           typeof owners === 'string' ? undefined : owners[chain].ownerOverrides,
       }),
     );
-    // filter for EVM chains
-    return objFilter(
-      config,
-      (chainName, _): _ is RouterConfig =>
-        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
-    );
+
+    return config;
   };
 
   quoteGasPayment = (
