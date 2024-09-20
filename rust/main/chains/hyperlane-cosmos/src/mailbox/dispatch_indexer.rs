@@ -9,13 +9,13 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Decode, HyperlaneMessage, Indexed,
-    Indexer, LogMeta, SequenceAwareIndexer,
+    Indexer, LogMeta, SequenceAwareIndexer, H512,
 };
 
-use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
+use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
 use crate::utils::{
-    execute_and_parse_log_futures, parse_logs_in_range, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
-    CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+    execute_and_parse_log_futures, parse_logs_in_range, parse_logs_in_tx,
+    CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
 };
 use crate::{ConnectionConf, CosmosMailbox, HyperlaneCosmosError, Signer};
 
@@ -29,7 +29,7 @@ static MESSAGE_ATTRIBUTE_KEY_BASE64: Lazy<String> =
 #[derive(Debug, Clone)]
 pub struct CosmosMailboxDispatchIndexer {
     mailbox: CosmosMailbox,
-    indexer: Box<CosmosWasmIndexer>,
+    provider: Box<CosmosWasmRpcProvider>,
 }
 
 impl CosmosMailboxDispatchIndexer {
@@ -42,7 +42,7 @@ impl CosmosMailboxDispatchIndexer {
         reorg_period: u32,
     ) -> ChainResult<Self> {
         let mailbox = CosmosMailbox::new(conf.clone(), locator.clone(), signer.clone())?;
-        let indexer = CosmosWasmIndexer::new(
+        let provider = CosmosWasmRpcProvider::new(
             conf,
             locator,
             MESSAGE_DISPATCH_EVENT_TYPE.into(),
@@ -51,7 +51,7 @@ impl CosmosMailboxDispatchIndexer {
 
         Ok(Self {
             mailbox,
-            indexer: Box::new(indexer),
+            provider: Box::new(provider),
         })
     }
 
@@ -116,7 +116,7 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxDispatchIndexer {
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         let logs_futures = parse_logs_in_range(
             range,
-            self.indexer.clone(),
+            self.provider.clone(),
             Self::hyperlane_message_parser,
             "HyperlaneMessageCursor",
         );
@@ -125,7 +125,21 @@ impl Indexer<HyperlaneMessage> for CosmosMailboxDispatchIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
+        self.provider.get_finalized_block_number().await
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+        parse_logs_in_tx(
+            &tx_hash.into(),
+            self.provider.clone(),
+            Self::hyperlane_message_parser,
+            "HyperlaneMessageReceiver",
+        )
+        .await
+        .map(|v| v.into_iter().map(|(m, l)| (m.into(), l)).collect())
     }
 }
 
@@ -144,7 +158,8 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosMailboxDispatchIndexer {
 mod tests {
     use hyperlane_core::HyperlaneMessage;
 
-    use crate::{rpc::ParsedEvent, utils::event_attributes_from_str};
+    use crate::providers::rpc::ParsedEvent;
+    use crate::utils::event_attributes_from_str;
 
     use super::*;
 
