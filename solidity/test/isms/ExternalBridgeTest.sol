@@ -133,11 +133,11 @@ abstract contract ExternalBridgeTest is Test {
         bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
             address(hook),
             address(ism),
-            1 ether,
+            MSG_VALUE,
             messageId
         );
         ism.verify(externalCalldata, encodedMessage);
-        assertEq(address(testRecipient).balance, 1 ether);
+        assertEq(address(testRecipient).balance, MSG_VALUE);
     }
 
     function test_verify_revertsWhen_invalidIsm() public virtual {
