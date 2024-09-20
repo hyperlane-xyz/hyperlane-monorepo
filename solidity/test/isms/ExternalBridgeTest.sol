@@ -219,8 +219,37 @@ abstract contract ExternalBridgeTest is Test {
         assertEq(address(testRecipient).balance, _msgValue);
     }
 
-    // add a test where where ALICE calls postDispatch with msg.value and then BOB replays the
-    // function
+    function test_verify_msgValue_frontrun() public virtual {
+        bytes memory aliceEncodedHookData = _encodeHookData(
+            messageId,
+            MSG_VALUE
+        );
+        bytes memory bobEncodedHookData = _encodeHookData(messageId, 0);
+
+        _externalBridgeDestinationCall(bobEncodedHookData, 0);
+
+        assertTrue(ism.verify(new bytes(0), encodedMessage));
+        assertEq(address(testRecipient).balance, 0);
+
+        _externalBridgeDestinationCall(aliceEncodedHookData, MSG_VALUE);
+
+        assertTrue(ism.verify(new bytes(0), encodedMessage));
+        assertEq(address(testRecipient).balance, MSG_VALUE);
+    }
+
+    function test_verify_override_msgValue() public virtual {
+        bytes memory aliceEncodedHookData = _encodeHookData(
+            messageId,
+            MSG_VALUE
+        );
+        bytes memory bobEncodedHookData = _encodeHookData(messageId, 0);
+
+        _externalBridgeDestinationCall(aliceEncodedHookData, MSG_VALUE);
+        _externalBridgeDestinationCall(bobEncodedHookData, 0);
+
+        assertTrue(ism.verify(new bytes(0), encodedMessage));
+        assertEq(address(testRecipient).balance, MSG_VALUE);
+    }
 
     /* ============ helper functions ============ */
 

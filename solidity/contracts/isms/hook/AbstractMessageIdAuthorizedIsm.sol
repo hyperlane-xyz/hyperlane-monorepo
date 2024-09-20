@@ -121,7 +121,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
         );
 
         verifiedMessages[messageId] = true;
-        messageValues[messageId] = msgValue;
+        messageValues[messageId] += msgValue;
         emit ReceivedMessage(messageId);
     }
 
