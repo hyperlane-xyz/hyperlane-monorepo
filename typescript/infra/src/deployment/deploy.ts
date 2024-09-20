@@ -167,20 +167,33 @@ async function baseDeploy<
         ...deployer.deployedContracts[chain],
         ...contracts,
       };
-      console.info(
-        chalk.green.bold(`Successfully deployed contracts on ${chain}`),
-      );
-      deployStatus[chain] = DeployStatus.SUCCESS;
-    }).catch((error) => {
-      deployStatus[chain] = DeployStatus.FAILURE;
-      console.error(
-        chalk.red.bold(`Deployment failed on ${chain}. Error: ${error}`),
-      );
-    });
+    })
+      .then(() => {
+        deployStatus[chain] = DeployStatus.SUCCESS;
+        const pendingChains = Object.entries(deployStatus)
+          .filter(([_, status]) => status === DeployStatus.PENDING)
+          .map(([chain, _]) => chain);
+        console.info(
+          chalk.green.bold(`Successfully deployed contracts on ${chain}`),
+          chalk.blue.italic(
+            pendingChains.length === 0
+              ? '\nNo more chains pending'
+              : `\n${
+                  pendingChains.length
+                } chains still pending: ${pendingChains.join(', ')}`,
+          ),
+        );
+      })
+      .catch((error) => {
+        deployStatus[chain] = DeployStatus.FAILURE;
+        console.error(
+          chalk.red.bold(`Deployment failed on ${chain}. Error: ${error}`),
+        );
+      });
   });
 
   if (concurrentDeploy) {
-    await Promise.all(deployPromises);
+    await Promise.allSettled(deployPromises);
   } else {
     for (const promise of deployPromises) {
       await promise;
