@@ -140,7 +140,7 @@ impl CosmosProvider {
             .messages
             .iter()
             .filter(|a| a.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
-            .map(|a| a.clone())
+            .cloned()
             .collect::<Vec<Any>>();
 
         if contract_execution_messages.len() > 1 {
@@ -149,7 +149,7 @@ impl CosmosProvider {
                 "transaction contains multiple contract execution messages, scraper is using the first entry, manual intervention is required");
         }
 
-        let any = contract_execution_messages.get(0).ok_or_else(|| {
+        let any = contract_execution_messages.first().ok_or_else(|| {
             ChainCommunicationError::from_other_str("could not find contract execution message")
         })?;
         let proto =
