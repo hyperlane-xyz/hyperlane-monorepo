@@ -77,4 +77,9 @@ contract MockMailbox is Mailbox {
         Mailbox(address(this)).process("", _message);
         inboundProcessedNonce++;
     }
+
+    function processInboundMessage(uint32 _nonce) public {
+        bytes memory _message = inboundMessages[_nonce];
+        Mailbox(address(this)).process("", _message);
+    }
 }

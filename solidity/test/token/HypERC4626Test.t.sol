@@ -43,6 +43,8 @@ contract HypERC4626CollateralTest is HypTokenTest {
     HypERC4626 remoteRebasingToken;
     HypERC4626 peerRebasingToken;
 
+    event ExchangeRateUpdated(uint256 newExchangeRate, uint32 rateUpdateNonce);
+
     function setUp() public override {
         super.setUp();
 
@@ -95,6 +97,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         peerRebasingToken = HypERC4626(address(peerToken));
 
         primaryToken.transfer(ALICE, 1000e18);
+        primaryToken.transfer(BOB, 1000e18);
 
         uint32[] memory domains = new uint32[](3);
         domains[0] = ORIGIN;
@@ -144,6 +147,47 @@ contract HypERC4626CollateralTest is HypTokenTest {
             1e14,
             0
         );
+    }
+
+    function testRebase_exchangeRateUpdateInSequence() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        _accrueYield();
+
+        uint256 exchangeRateInitially = remoteRebasingToken.exchangeRate();
+
+        vm.startPrank(BOB);
+        primaryToken.approve(address(localToken), transferAmount);
+        localToken.transferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            transferAmount
+        );
+        vm.stopPrank();
+
+        _accrueYield();
+
+        vm.startPrank(ALICE);
+        primaryToken.approve(address(localToken), transferAmount);
+        localToken.transferRemote(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            transferAmount
+        );
+        vm.stopPrank();
+
+        // process ALICE's transfer
+
+        vm.expectEmit(true, true, true, true);
+        emit ExchangeRateUpdated(10721400472, 3);
+        remoteMailbox.processInboundMessage(2);
+        uint256 exchangeRateBefore = remoteRebasingToken.exchangeRate();
+
+        // process BOB's transfer
+        remoteMailbox.processInboundMessage(1);
+        uint256 exchangeRateAfter = remoteRebasingToken.exchangeRate();
+
+        assertLt(exchangeRateInitially, exchangeRateBefore); // updates bc nonce=2 is after nonce=0
+        assertEq(exchangeRateBefore, exchangeRateAfter); // doesn't update bc nonce=1 is before nonce=0
     }
 
     function testSyntheticTransfers_withRebase() public {
