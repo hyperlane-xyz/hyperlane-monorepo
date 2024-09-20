@@ -22,6 +22,7 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
+import { getWarpAddresses } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
@@ -35,7 +36,6 @@ import { logViolationDetails } from '../../src/utils/violation.js';
 import {
   Modules,
   getArgs as getRootArgs,
-  getWarpAddresses,
   withAsDeployer,
   withChains,
   withContext,
