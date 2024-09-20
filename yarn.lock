@@ -7683,7 +7683,7 @@ __metadata:
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@hyperlane-xyz/core": "npm:5.2.1"
-    "@hyperlane-xyz/registry": "npm:4.1.0"
+    "@hyperlane-xyz/registry": "npm:4.3.6"
     "@hyperlane-xyz/sdk": "npm:5.2.1"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7789,16 +7789,6 @@ __metadata:
     tsx: "npm:^4.7.1"
   languageName: unknown
   linkType: soft
-
-"@hyperlane-xyz/registry@npm:4.1.0":
-  version: 4.1.0
-  resolution: "@hyperlane-xyz/registry@npm:4.1.0"
-  dependencies:
-    yaml: "npm:2.4.5"
-    zod: "npm:^3.21.2"
-  checksum: 5de3ef5539abfaadbfefb82e6e69fdb2413f404d8321456c91810fb50a5a70e9f93b38789495efce6ab5963682536e95a2abe636c7d0ad91ee158cc0ce6b063a
-  languageName: node
-  linkType: hard
 
 "@hyperlane-xyz/registry@npm:4.3.6":
   version: 4.3.6
