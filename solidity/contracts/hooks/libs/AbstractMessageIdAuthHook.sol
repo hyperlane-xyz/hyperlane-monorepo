@@ -84,7 +84,7 @@ abstract contract AbstractMessageIdAuthHook is
         );
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (id, metadata.msgValue(0))
+            id
         );
         _sendMessageId(metadata, payload);
     }

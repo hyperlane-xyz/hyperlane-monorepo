@@ -156,7 +156,7 @@ contract PolygonPosIsmTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId, 0)
+            (messageId)
         );
 
         l1Mailbox.updateLatestDispatchedId(messageId);
@@ -237,7 +237,7 @@ contract PolygonPosIsmTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId, 0)
+            (messageId)
         );
 
         vm.startPrank(POLYGON_CROSSCHAIN_SYSTEM_ADDR);
@@ -255,7 +255,7 @@ contract PolygonPosIsmTest is Test {
             )
         );
 
-        assertTrue(polygonPosISM.isVerified(encodedMessage));
+        assertTrue(polygonPosISM.verifiedMessages(messageId).isBitSet(255));
         vm.stopPrank();
     }
 
@@ -266,7 +266,7 @@ contract PolygonPosIsmTest is Test {
 
         // needs to be called by the fxchild on Polygon
         vm.expectRevert(NotCrossChainCall.selector);
-        polygonPosISM.verifyMessageId(messageId, 0);
+        polygonPosISM.verifyMessageId(messageId);
 
         vm.startPrank(MAINNET_FX_CHILD);
 
@@ -274,7 +274,7 @@ contract PolygonPosIsmTest is Test {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        polygonPosISM.verifyMessageId(messageId, 0);
+        polygonPosISM.verifyMessageId(messageId);
     }
 
     /* ============ ISM.verify ============ */
@@ -350,7 +350,7 @@ contract PolygonPosIsmTest is Test {
 
         bytes memory encodedHookData = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (_messageId, 0)
+            (_messageId)
         );
 
         vm.prank(POLYGON_CROSSCHAIN_SYSTEM_ADDR);

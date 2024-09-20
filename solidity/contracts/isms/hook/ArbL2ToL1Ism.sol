@@ -41,8 +41,6 @@ contract ArbL2ToL1Ism is
     // module type for the ISM
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.ARB_L2_TO_L1);
-    // length of the call data for the arbOutbox.executeTransaction function
-    uint8 public constant CALLDATA_LENGTH = 68;
     // arbitrum nitro contract on L1 to forward verification
     IOutbox public arbOutbox;
 
@@ -112,10 +110,7 @@ contract ArbL2ToL1Ism is
             "ArbL2ToL1Ism: l2Sender != authorizedHook"
         );
         // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
-        require(
-            data.length == CALLDATA_LENGTH,
-            "ArbL2ToL1Ism: invalid data length"
-        );
+        require(data.length == 36, "ArbL2ToL1Ism: invalid data length");
         bytes32 messageId = message.id();
         bytes32 convertedBytes;
         assembly {

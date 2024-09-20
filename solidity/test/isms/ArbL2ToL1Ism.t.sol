@@ -115,7 +115,10 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         bytes32 _messageId,
         uint256 _value
     ) internal view returns (bytes memory) {
-        bytes memory encodedHookData = _encodeHookData(_messageId, _value);
+        bytes memory encodedHookData = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            (_messageId)
+        );
 
         bytes32[] memory proof = new bytes32[](16);
         return
