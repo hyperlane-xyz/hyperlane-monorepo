@@ -150,6 +150,8 @@ contract ERC5164IsmTest is ExternalBridgeTest {
 
     function test_verify_valueAlreadyClaimed(uint256) public override {}
 
+    function test_verify_override_msgValue() public override {}
+
     /* ============ helper functions ============ */
 
     function _externalBridgeDestinationCall(
