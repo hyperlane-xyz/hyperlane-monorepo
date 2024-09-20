@@ -893,7 +893,7 @@ class ContextFunder {
           pubkey: pubkey.toString(),
           walletName,
         },
-        'Got sealevel chain wallet balance',
+        'Retrieved sealevel chain wallet balance',
       );
       walletBalanceGauge
         .labels({
