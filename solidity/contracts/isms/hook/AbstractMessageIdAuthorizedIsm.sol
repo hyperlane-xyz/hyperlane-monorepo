@@ -123,8 +123,13 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             msg.value < 2 ** VERIFIED_MASK_INDEX,
             "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
         );
+        uint256 currentValue = verifiedMessages[messageId].clearBit(
+            VERIFIED_MASK_INDEX
+        );
 
-        verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
+        verifiedMessages[messageId] = (currentValue + msg.value).setBit(
+            VERIFIED_MASK_INDEX
+        );
         emit ReceivedMessage(messageId);
     }
 
