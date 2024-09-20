@@ -154,7 +154,7 @@ async function baseDeploy<
 
   console.info(`Start deploy to ${targetChains}`);
 
-  const deployPromises = targetChains.map(async (chain) => {
+  const deployChain = async (chain: ChainName) => {
     const signerAddress = await multiProvider.getSignerAddress(chain);
     console.info(
       chalk.gray.italic(`Deploying to ${chain} from ${signerAddress}`),
@@ -190,13 +190,13 @@ async function baseDeploy<
           chalk.red.bold(`Deployment failed on ${chain}. Error: ${error}`),
         );
       });
-  });
+  };
 
   if (concurrentDeploy) {
-    await Promise.allSettled(deployPromises);
+    await Promise.allSettled(targetChains.map(deployChain));
   } else {
-    for (const promise of deployPromises) {
-      await promise;
+    for (const chain of targetChains) {
+      await deployChain(chain);
     }
   }
 
