@@ -159,22 +159,22 @@ impl CosmosProvider {
         Ok(contract)
     }
 
-    fn report_multiple_denominations(tx: &Tx, tx_hash: &H256) {
-        let fee_amount_len = tx.auth_info.fee.amount.len();
-        let same_denom_count = tx
+    fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) {
+        let supported_denomination = self.connection_conf.get_minimum_gas_price().denom;
+        let unsupported_denominations = tx
             .auth_info
             .fee
             .amount
             .iter()
-            .dedup_by_with_count(|c0, c1| c0.denom == c1.denom)
-            .last()
-            .map(|(count, coin)| count)
-            .unwrap_or(0);
+            .filter(|c| c.denom.as_ref() != supported_denomination)
+            .map(|c| c.denom.as_ref())
+            .fold("".to_string(), |acc, denom| acc + ", " + denom);
 
-        if fee_amount_len != same_denom_count {
+        if !unsupported_denominations.is_empty() {
             error!(
                 ?tx_hash,
-                "transaction contains multiple fees in different denomination, manual intervention is required");
+                ?unsupported_denominations,
+                "transaction contains fees in unsupported denominations, manual intervention is required");
         }
     }
 }
@@ -244,7 +244,7 @@ impl HyperlaneProvider for CosmosProvider {
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
         // TODO support multiple denominations for amount
-        Self::report_multiple_denominations(&tx, hash);
+        self.report_unsupported_denominations(&tx, hash);
 
         let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
         let fee = tx
