@@ -1,14 +1,20 @@
 import { ethers } from 'ethers';
 
+import { getDomainId } from '../config/registry.js';
+
 import pendingMessages from './undelivered-eth.json';
 
 function main() {
   const undeliveredMessages = pendingMessages.filter(
     (pending) =>
       pending.message.sender.toLowerCase() ===
+        // new Eclipse warp route
         '0xcd8f7348bdee9233f64432ab826c3526692e6cb17d6a5a5ddacfe3cbd0d77a9e'.toLowerCase() &&
       pending.message.recipient.toLowerCase() ===
-        '0x000000000000000000000000fc8f5272d690cf19732a7ed6f246adf5fb8708db'.toLowerCase(),
+        // old Ethereum warp route
+        '0x000000000000000000000000fc8f5272d690cf19732a7ed6f246adf5fb8708db'.toLowerCase() &&
+      pending.message.origin == getDomainId('eclipsemainnet') &&
+      pending.message.destination == getDomainId('ethereum'),
   );
 
   let usdcSum = ethers.BigNumber.from(0);
