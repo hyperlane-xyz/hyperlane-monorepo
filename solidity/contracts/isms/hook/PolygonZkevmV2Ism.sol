@@ -19,7 +19,6 @@ import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
-import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../hook/AbstractMessageIdAuthorizedIsm.sol";
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -32,13 +31,11 @@ import {IPolygonZkEVMBridgeV2} from "../../interfaces/polygonZkevm/IPolygonZkEVM
 import {IBridgeMessageReceiver} from "../../interfaces/polygonZkevm/IBridgeMessageReceiver.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-import "forge-std/console.sol";
-
 /**
  * @title PolygonZkevmIsm
  * @notice Polygon zkEVM chain Ism that uses the Polygon zkEVM bridge to verify messages
  */
-contract PolygonZkevmIsm is
+contract PolygonZkevmV2Ism is
     ICcipReadIsm,
     AbstractMessageIdAuthorizedIsm,
     IBridgeMessageReceiver
@@ -94,7 +91,7 @@ contract PolygonZkevmIsm is
             address(this),
             offchainUrls,
             messageId,
-            PolygonZkevmIsm.verify.selector,
+            PolygonZkevmV2Ism.verify.selector,
             _message
         );
     }
@@ -195,6 +192,10 @@ contract PolygonZkevmIsm is
         );
 
         bytes32 messageId = abi.decode(data, (bytes32));
+        bool verified = verifiedMessages[messageId].isBitSet(
+            VERIFIED_MASK_INDEX
+        );
+        require(!verified, "PolygonZkevmIsm: message already verified");
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
 
         emit ReceivedMessage(messageId);

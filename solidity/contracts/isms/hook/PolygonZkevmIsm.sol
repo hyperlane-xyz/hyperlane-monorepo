@@ -19,7 +19,6 @@ import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 
-import {AbstractCcipReadIsm} from "../ccip-read/AbstractCcipReadIsm.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../hook/AbstractMessageIdAuthorizedIsm.sol";
 
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
@@ -31,8 +30,6 @@ import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
 import {IPolygonZkEVMBridge} from "../../interfaces/polygonZkevm/IPolygonZkEVMBridge.sol";
 import {IBridgeMessageReceiver} from "../../interfaces/polygonZkevm/IBridgeMessageReceiver.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-
-import "forge-std/console.sol";
 
 /**
  * @title PolygonZkevmIsm

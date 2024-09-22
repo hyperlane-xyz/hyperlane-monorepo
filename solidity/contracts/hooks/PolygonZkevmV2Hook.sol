@@ -27,15 +27,16 @@ import {IPolygonZkEVMBridgeV2} from "../interfaces/polygonZkevm/IPolygonZkEVMBri
 import {MailboxClient} from "../client/MailboxClient.sol";
 
 /**
- * @title PolygonZkevmHook
+ * @title PolygonzkEVMv2Hook
  * @notice Message hook to inform the {Polygon zkEVM chain Ism} of messages published through
  * the native Polygon zkEVM bridge bridge.
  */
-contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
+contract PolygonZkevmV2Hook is IPostDispatchHook, MailboxClient {
     using StandardHookMetadata for bytes;
     using Message for bytes;
     using TypeCasts for bytes32;
 
+    uint256 private constant GAS_LIMIT = 150_000;
     // ============ Immutable Variables ============
     IPolygonZkEVMBridgeV2 public immutable zkEvmBridge;
     IInterchainGasPaymaster public immutable interchainGasPaymaster;
@@ -60,11 +61,11 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
     ) MailboxClient(_mailbox) {
         require(
             Address.isContract(_zkEvmBridge),
-            "PolygonzkEVMHook: invalid PolygonZkEVMBridge contract"
+            "PolygonzkEVMv2Hook: invalid PolygonZkEVMBridge contract"
         );
         require(
             _destinationDomain != 0,
-            "PolygonzkEVMHook: invalid destination domain"
+            "PolygonzkEVMv2Hook: invalid destination domain"
         );
         require(
             _zkEvmBridgeDestinationNetId <= 1,
@@ -72,7 +73,7 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
         );
         require(
             Address.isContract(_interchainGasPaymaster),
-            "PolygonzkEVMHook: invalid Interchain Gas Paymaster contract"
+            "PolygonzkEVMv2Hook: invalid Interchain Gas Paymaster contract"
         );
         ism = _ism;
         destinationDomain = _destinationDomain;
@@ -96,32 +97,35 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
         bytes calldata
     ) external view override returns (uint256) {
         return
-            interchainGasPaymaster.quoteGasPayment(destinationDomain, 150_000);
+            interchainGasPaymaster.quoteGasPayment(
+                destinationDomain,
+                GAS_LIMIT
+            );
     }
 
     /// @inheritdoc IPostDispatchHook
     function postDispatch(
-        bytes calldata metadata,
-        bytes calldata message
+        bytes calldata _metadata,
+        bytes calldata _message
     ) external payable override {
-        require(
-            metadata.msgValue(0) >=
-                interchainGasPaymaster.quoteGasPayment(
-                    destinationDomain,
-                    150_000
-                ),
-            "PolygonzkEVMHook: msgValue must be more than required gas"
+        bytes32 messageId = keccak256(_message);
+        uint256 gasPayment = interchainGasPaymaster.quoteGasPayment(
+            destinationDomain,
+            150_000
         );
-        bytes32 messageId = message.id();
+        require(
+            msg.value - _metadata.msgValue(0) >= gasPayment,
+            "PolygonzkEVMv2Hook: msgValue must be more than required gas"
+        );
 
-        interchainGasPaymaster.payForGas(
+        interchainGasPaymaster.payForGas{value: gasPayment}(
             messageId,
-            message.destination(),
+            _metadata.destination(),
             150_000,
             msg.sender
         );
 
-        zkEvmBridge.bridgeMessage{value: msg.value}(
+        zkEvmBridge.bridgeMessage{value: msg.value - gasPayment}(
             zkEvmBridgeDestinationNetId,
             address(ism),
             true,
@@ -129,5 +133,7 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
         );
     }
 
-    function hookType() external view override returns (uint8) {}
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.POLYGON_ZKEVM_V2);
+    }
 }

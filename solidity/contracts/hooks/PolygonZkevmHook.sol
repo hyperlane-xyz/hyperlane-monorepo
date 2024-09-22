@@ -104,5 +104,7 @@ contract PolygonZkevmHook is IPostDispatchHook, MailboxClient {
         );
     }
 
-    function hookType() external view override returns (uint8) {}
+    function hookType() external pure override returns (uint8) {
+        return uint8(IPostDispatchHook.Types.POLYGON_ZKEVM);
+    }
 }
