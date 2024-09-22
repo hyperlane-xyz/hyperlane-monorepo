@@ -619,8 +619,12 @@ mod test {
     /// An amount of gas to add to the estimated gas
     const GAS_ESTIMATE_BUFFER: u32 = 75_000;
 
-    #[tokio::test]
-    async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
+    fn get_test_mailbox(
+        domain: HyperlaneDomain,
+    ) -> (
+        EthereumMailbox<Provider<Arc<MockProvider>>>,
+        Arc<MockProvider>,
+    ) {
         let mock_provider = Arc::new(MockProvider::new());
         let provider = Arc::new(Provider::new(mock_provider.clone()));
         let connection_conf = ConnectionConf {
@@ -635,12 +639,19 @@ mod test {
             provider.clone(),
             &connection_conf,
             &ContractLocator {
-                // An Arbitrum Nitro chain
-                domain: &HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet),
+                domain: &domain,
                 // Address doesn't matter because we're using a MockProvider
                 address: H256::default(),
             },
         );
+        (mailbox, mock_provider)
+    }
+
+    #[tokio::test]
+    async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
+        // An Arbitrum Nitro chain
+        let (mailbox, mock_provider) =
+            get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet));
 
         let message = HyperlaneMessage::default();
         let metadata: Vec<u8> = vec![];
@@ -662,12 +673,17 @@ mod test {
             EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
         mock_provider.push(gas_price).unwrap();
 
-        // RPC 3: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
+        // RPC 4: eth_estimateGas to the ArbitrumNodeInterface's estimateRetryableTicket function by process_estimate_costs
         let l2_gas_limit = U256::from(200000); // 200k gas
         mock_provider.push(l2_gas_limit).unwrap();
 
-        // RPC 2: eth_getBlockByNumber from the estimate_eip1559_fees call in process_contract_call
-        mock_provider.push(Block::<Transaction>::default()).unwrap();
+        let latest_block: Block<Transaction> = Block {
+            gas_limit: ethers::types::U256::MAX,
+            ..Block::<Transaction>::default()
+        };
+        // RPC 3: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
+        // to get the latest block gas limit and for eip 1559 fee estimation
+        mock_provider.push(latest_block).unwrap();
 
         // RPC 1: eth_estimateGas from the estimate_gas call in process_contract_call
         // Return 1M gas
@@ -679,7 +695,7 @@ mod test {
             .await
             .unwrap();
 
-        // The TxCostEstimat's gas limit includes the buffer
+        // The TxCostEstimate's gas limit includes the buffer
         let estimated_gas_limit = gas_limit.saturating_add(GAS_ESTIMATE_BUFFER.into());
 
         assert_eq!(
@@ -688,6 +704,54 @@ mod test {
                 gas_limit: estimated_gas_limit,
                 gas_price: gas_price.try_into().unwrap(),
                 l2_gas_limit: Some(l2_gas_limit),
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn test_tx_gas_limit_caps_at_block_gas_limit() {
+        let (mailbox, mock_provider) =
+            get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum));
+
+        let message = HyperlaneMessage::default();
+        let metadata: Vec<u8> = vec![];
+
+        // The MockProvider responses we push are processed in LIFO
+        // order, so we start with the final RPCs and work toward the first
+        // RPCs
+
+        // RPC 4: eth_gasPrice by process_estimate_costs
+        // Return 15 gwei
+        let gas_price: U256 =
+            EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
+        mock_provider.push(gas_price).unwrap();
+
+        let latest_block_gas_limit = U256::from(12345u32);
+        let latest_block: Block<Transaction> = Block {
+            gas_limit: latest_block_gas_limit.into(),
+            ..Block::<Transaction>::default()
+        };
+        // RPC 3: eth_getBlockByNumber from the fill_tx_gas_params call in process_contract_call
+        // to get the latest block gas limit and for eip 1559 fee estimation
+        mock_provider.push(latest_block).unwrap();
+
+        // RPC 1: eth_estimateGas from the estimate_gas call in process_contract_call
+        // Return 1M gas
+        let gas_limit = U256::from(1000000u32);
+        mock_provider.push(gas_limit).unwrap();
+
+        let tx_cost_estimate = mailbox
+            .process_estimate_costs(&message, &metadata)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            tx_cost_estimate,
+            TxCostEstimate {
+                // The block gas limit is the cap
+                gas_limit: latest_block_gas_limit,
+                gas_price: gas_price.try_into().unwrap(),
+                l2_gas_limit: None,
             },
         );
     }

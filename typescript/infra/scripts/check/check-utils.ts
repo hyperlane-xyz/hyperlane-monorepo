@@ -37,7 +37,7 @@ import {
   getArgs as getRootArgs,
   getWarpAddresses,
   withAsDeployer,
-  withChain,
+  withChains,
   withContext,
   withFork,
   withGovern,
@@ -50,7 +50,7 @@ import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
   return withAsDeployer(
-    withGovern(withChain(withFork(withContext(getRootArgs())))),
+    withGovern(withChains(withFork(withContext(getRootArgs())))),
   );
 }
 
@@ -68,7 +68,7 @@ export async function getGovernor(
   environment: DeployEnvironment,
   asDeployer: boolean,
   warpRouteId?: string,
-  chain?: string,
+  chains?: string[],
   fork?: string,
   govern?: boolean,
 ) {
@@ -217,20 +217,24 @@ export async function getGovernor(
         multiProvider,
       );
 
-    // log error and return if foreign deployment chain is specifically checked
-    if (
-      (chain && foreignDeployments[chain]) ||
-      (fork && foreignDeployments[fork])
-    ) {
+    // log error and return if requesting check on foreign deployment
+    const nonEvmChains = chains
+      ? chains.filter((c) => foreignDeployments[c])
+      : fork && foreignDeployments[fork]
+      ? [fork]
+      : [];
+
+    if (nonEvmChains.length > 0) {
+      const chainList = nonEvmChains.join(', ');
       console.log(
-        `${
-          chain ?? fork
-        } is non evm and it not compatible with warp checker tooling`,
+        `${chainList} ${
+          nonEvmChains.length > 1 ? 'are' : 'is'
+        } non-EVM and not compatible with warp checker tooling`,
       );
       throw Error(
-        `${
-          chain ?? fork
-        } is non evm and it not compatible with warp checker tooling`,
+        `${chainList} ${
+          nonEvmChains.length > 1 ? 'are' : 'is'
+        } non-EVM and not compatible with warp checker tooling`,
       );
     }
 

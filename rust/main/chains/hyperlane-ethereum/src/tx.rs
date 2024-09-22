@@ -6,7 +6,7 @@ use ethers::{
     abi::Detokenize,
     prelude::{NameOrAddress, TransactionReceipt},
     providers::{JsonRpcClient, PendingTransaction, ProviderError},
-    types::Eip1559TransactionRequest,
+    types::{Block, Eip1559TransactionRequest, TxHash},
 };
 use ethers_contract::builders::ContractCall;
 use ethers_core::{
@@ -17,7 +17,7 @@ use ethers_core::{
     },
 };
 use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{Middleware, TransactionOverrides};
 
@@ -107,6 +107,24 @@ where
     } else {
         estimated_gas_limit
     };
+
+    // Cap the gas limit to the block gas limit
+    let latest_block = provider
+        .get_block(BlockNumber::Latest)
+        .await
+        .map_err(ChainCommunicationError::from_other)?
+        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?;
+    let block_gas_limit: U256 = latest_block.gas_limit.into();
+    let gas_limit = if gas_limit > block_gas_limit {
+        warn!(
+            ?gas_limit,
+            ?block_gas_limit,
+            "Gas limit for transaction is higher than the block gas limit. Capping it to the block gas limit."
+        );
+        block_gas_limit
+    } else {
+        gas_limit
+    };
     debug!(?estimated_gas_limit, gas_override=?transaction_overrides.gas_limit, used_gas_limit=?gas_limit, "Gas limit set for transaction");
 
     if let Some(gas_price) = transaction_overrides.gas_price {
@@ -114,7 +132,8 @@ where
         return Ok(tx.gas_price(gas_price).gas(gas_limit));
     }
 
-    let Ok((base_fee, max_fee, max_priority_fee)) = estimate_eip1559_fees(provider, None).await
+    let Ok((base_fee, max_fee, max_priority_fee)) =
+        estimate_eip1559_fees(provider, None, &latest_block).await
     else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
@@ -169,15 +188,12 @@ type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU
 async fn estimate_eip1559_fees<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
+    latest_block: &Block<TxHash>,
 ) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
 where
     M: Middleware + 'static,
 {
-    let base_fee_per_gas = provider
-        .get_block(BlockNumber::Latest)
-        .await
-        .map_err(ChainCommunicationError::from_other)?
-        .ok_or_else(|| ProviderError::CustomError("Latest block not found".into()))?
+    let base_fee_per_gas = latest_block
         .base_fee_per_gas
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
 

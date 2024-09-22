@@ -10,7 +10,7 @@ async function main() {
     context,
     environment,
     asDeployer,
-    chain,
+    chains,
     fork,
     govern,
     warpRouteId,
@@ -22,7 +22,7 @@ async function main() {
     environment,
     asDeployer,
     warpRouteId,
-    chain,
+    chains,
     fork,
     govern,
   );
@@ -32,13 +32,8 @@ async function main() {
     if (govern) {
       await governor.govern(false, fork);
     }
-  } else if (chain) {
-    await governor.checkChain(chain);
-    if (govern) {
-      await governor.govern(true, chain);
-    }
   } else {
-    await governor.check();
+    await governor.check(chains);
     if (govern) {
       await governor.govern();
     }

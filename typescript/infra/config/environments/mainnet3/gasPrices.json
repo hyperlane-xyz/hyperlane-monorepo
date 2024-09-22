@@ -4,7 +4,7 @@
     "decimals": 9
   },
   "arbitrum": {
-    "amount": "0.5",
+    "amount": "0.1",
     "decimals": 9
   },
   "astar": {
@@ -12,7 +12,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.0097",
+    "amount": "0.0562",
     "decimals": 9
   },
   "avalanche": {
@@ -20,7 +20,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.013311447",
+    "amount": "0.013571998",
     "decimals": 9
   },
   "bitlayer": {
@@ -64,15 +64,15 @@
     "decimals": 9
   },
   "eclipsemainnet": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.0000001",
+    "decimals": 1
   },
   "endurance": {
     "amount": "1.500000007",
     "decimals": 9
   },
   "ethereum": {
-    "amount": "6.654595701",
+    "amount": "10",
     "decimals": 9
   },
   "everclear": {
@@ -120,7 +120,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.113932514",
+    "amount": "0.011",
     "decimals": 9
   },
   "mantle": {
@@ -140,7 +140,7 @@
     "decimals": 9
   },
   "mode": {
-    "amount": "0.1",
+    "amount": "0.01",
     "decimals": 9
   },
   "molten": {
@@ -168,7 +168,7 @@
     "decimals": 1
   },
   "polygon": {
-    "amount": "101.76455238",
+    "amount": "219.572738168",
     "decimals": 9
   },
   "polygonzkevm": {

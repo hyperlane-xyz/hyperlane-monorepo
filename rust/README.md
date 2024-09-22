@@ -90,7 +90,7 @@ env $(cat ./config/validator.fuji.env | grep -v "#" | xargs) ./target/debug/vali
 
 Clone `hyperlane-registry` repo next to `hyperlane-monorepo` repo.
 
-To perform an automated e2e test of the agents locally, from within the `hyperlane-monorepo/rust` directory, run:
+To perform an automated e2e test of the agents locally, from within the `hyperlane-monorepo/rust/main` directory, run:
 
 ```bash
 cargo run --release --bin run-locally
