@@ -194,20 +194,6 @@ contract PolygonZkevmV2IsmAndHookTest is Test {
         hook.postDispatch{value: excessPayment}(testMetadata, testMessage);
     }
 
-    function test_postDispatch_lessThanRequiredGas() public {
-        uint256 gasPayment = 1 ether;
-        uint256 insufficientValue = 0.8 ether;
-        interchainGasPaymaster.setGasPayment(gasPayment);
-
-        vm.deal(address(this), insufficientValue);
-        testMetadata = StandardHookMetadata.overrideMsgValue(0);
-
-        vm.expectRevert(
-            "PolygonzkEVMv2Hook: msgValue must be more than required gas"
-        );
-        hook.postDispatch{value: insufficientValue}(testMetadata, testMessage);
-    }
-
     function test_postDispatch_revertInsufficientGas() public {
         uint256 gasPayment = 1 ether;
         uint256 insufficientValue = 0.5 ether;
@@ -220,18 +206,6 @@ contract PolygonZkevmV2IsmAndHookTest is Test {
             "PolygonzkEVMv2Hook: msgValue must be more than required gas"
         );
         hook.postDispatch{value: insufficientValue}(testMetadata, testMessage);
-    }
-
-    function test_postDispatch_zeroValue() public {
-        uint256 gasPayment = 1 ether;
-        interchainGasPaymaster.setGasPayment(gasPayment);
-
-        testMetadata = StandardHookMetadata.overrideMsgValue(0);
-
-        vm.expectRevert(
-            "PolygonzkEVMv2Hook: msgValue must be more than required gas"
-        );
-        hook.postDispatch{value: 0}(testMetadata, testMessage);
     }
 
     function test_verify_and_onMessageReceived() public {
@@ -314,7 +288,7 @@ contract PolygonZkevmV2IsmAndHookTest is Test {
         ism.verify(metadata, testMessage);
 
         bytes32 messageId = testMessage.id();
-        vm.expectRevert("PolygonZkevmIsm: invalid sender");
+        vm.expectRevert("PolygonZkevmV2Ism: invalid sender");
         ism.onMessageReceived(address(hook), uint32(0), abi.encode(messageId));
     }
 
@@ -324,7 +298,7 @@ contract PolygonZkevmV2IsmAndHookTest is Test {
         ism.verify(metadata, testMessage);
 
         vm.prank(address(zkEvmBridge));
-        vm.expectRevert("PolygonZkevmIsm: data must be 32 bytes");
+        vm.expectRevert("PolygonZkevmV2Ism: data must be 32 bytes");
         ism.onMessageReceived(address(hook), uint32(0), abi.encode("invalid"));
     }
 
@@ -369,7 +343,7 @@ contract PolygonZkevmV2IsmAndHookTest is Test {
         bytes memory invalidMessage = abi.encodePacked("Invalid message");
 
         vm.prank(address(hook));
-        vm.expectRevert("PolygonZkevmIsm: message id does not match payload");
+        vm.expectRevert("PolygonZkevmV2Ism: message id does not match payload");
         ism.verify(metadata, invalidMessage);
     }
 

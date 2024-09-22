@@ -32,7 +32,7 @@ import {IBridgeMessageReceiver} from "../../interfaces/polygonZkevm/IBridgeMessa
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title PolygonZkevmIsm
+ * @title PolygonZkevmV2Ism
  * @notice Polygon zkEVM chain Ism that uses the Polygon zkEVM bridge to verify messages
  */
 contract PolygonZkevmV2Ism is
@@ -63,15 +63,15 @@ contract PolygonZkevmV2Ism is
     ) {
         require(
             Address.isContract(_zkEvmBridge),
-            "PolygonZkevmIsm: invalid ZkEVMBridge"
+            "PolygonZkevmV2Ism: invalid ZkEVMBridge"
         );
         require(
             Address.isContract(_mailbox),
-            "PolygonZkevmIsm: invalid Mailbox"
+            "PolygonZkevmV2Ism: invalid Mailbox"
         );
         require(
             _zkEvmBridgeDestinationNetId <= 1,
-            "PolygonZkevmIsm: invalid ZkEVMBridge destination network id"
+            "PolygonZkevmV2Ism: invalid ZkEVMBridge destination network id"
         );
         zkEvmBridgeDestinationNetId = _zkEvmBridgeDestinationNetId;
         zkEvmBridge = IPolygonZkEVMBridgeV2(_zkEvmBridge);
@@ -141,7 +141,7 @@ contract PolygonZkevmV2Ism is
 
         require(
             messageId == abi.decode(payload, (bytes32)),
-            "PolygonZkevmIsm: message id does not match payload"
+            "PolygonZkevmV2Ism: message id does not match payload"
         );
         zkEvmBridge.claimMessage(
             smtProofLocalExitRoot,
@@ -179,9 +179,9 @@ contract PolygonZkevmV2Ism is
     ) external payable override {
         require(
             msg.sender == address(zkEvmBridge),
-            "PolygonZkevmIsm: invalid sender"
+            "PolygonZkevmV2Ism: invalid sender"
         );
-        require(data.length == 32, "PolygonZkevmIsm: data must be 32 bytes");
+        require(data.length == 32, "PolygonZkevmV2Ism: data must be 32 bytes");
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
@@ -195,7 +195,7 @@ contract PolygonZkevmV2Ism is
         bool verified = verifiedMessages[messageId].isBitSet(
             VERIFIED_MASK_INDEX
         );
-        require(!verified, "PolygonZkevmIsm: message already verified");
+        require(!verified, "PolygonZkevmV2Ism: message already verified");
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
 
         emit ReceivedMessage(messageId);
