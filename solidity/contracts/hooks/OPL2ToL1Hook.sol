@@ -71,10 +71,6 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
         bytes calldata metadata,
         bytes memory payload
     ) internal override {
-        require(
-            msg.value >= metadata.msgValue(0) + GAS_QUOTE,
-            "OPL2ToL1Hook: insufficient msg.value"
-        );
         l2Messenger.sendMessage{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload,
