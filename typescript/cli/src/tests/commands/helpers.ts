@@ -64,13 +64,22 @@ export async function updateOwner(
 /**
  * Extends the Warp route deployment with a new warp config
  */
-export async function extendWarpConfig(
-  chain: string,
-  chainToExtend: string,
-  extendedConfig: TokenRouterConfig,
-  warpCorePath: string,
-  warpDeployPath: string,
-): Promise<string> {
+export async function extendWarpConfig(params: {
+  chain: string;
+  chainToExtend: string;
+  extendedConfig: TokenRouterConfig;
+  warpCorePath: string;
+  warpDeployPath: string;
+  strategyUrl?: string;
+}): Promise<string> {
+  const {
+    chain,
+    chainToExtend,
+    extendedConfig,
+    warpCorePath,
+    warpDeployPath,
+    strategyUrl,
+  } = params;
   const warpDeployConfig = await readWarpConfig(
     chain,
     warpCorePath,
@@ -78,7 +87,7 @@ export async function extendWarpConfig(
   );
   warpDeployConfig[chainToExtend] = extendedConfig;
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
-  await hyperlaneWarpApply(warpDeployPath, warpCorePath);
+  await hyperlaneWarpApply(warpDeployPath, warpCorePath, strategyUrl);
 
   return warpDeployPath;
 }

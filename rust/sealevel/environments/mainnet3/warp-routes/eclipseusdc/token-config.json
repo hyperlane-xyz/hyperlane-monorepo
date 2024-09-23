@@ -1,0 +1,23 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "splTokenProgram": "token"
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/77a04c0b7e214ae17853215467f8ddea5e0ac710/deployments/warp_routes/USDC/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "foreignDeployment": "0xe1de9910fe71cc216490ac7fcf019e13a34481d7"
+  }
+}

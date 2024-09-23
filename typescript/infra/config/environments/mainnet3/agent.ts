@@ -73,6 +73,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     endurance: true,
     ethereum: true,
+    everclear: true,
     flare: true,
     fraxtal: true,
     fusemainnet: true,
@@ -92,6 +93,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     molten: true,
     moonbeam: true,
     neutron: true,
+    oortmainnet: true,
     optimism: true,
     osmosis: true,
     polygon: true,
@@ -134,6 +136,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: true,
     endurance: true,
     ethereum: true,
+    everclear: true,
     flare: true,
     fraxtal: true,
     fusemainnet: true,
@@ -154,6 +157,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
+    oortmainnet: true,
     optimism: true,
     osmosis: true,
     polygon: true,
@@ -197,6 +201,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     eclipsemainnet: false,
     endurance: true,
     ethereum: true,
+    everclear: true,
     flare: true,
     fraxtal: true,
     fusemainnet: true,
@@ -218,6 +223,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     // Cannot scrape non-EVM chains
     neutron: false,
+    oortmainnet: true,
     optimism: true,
     // Cannot scrape non-EVM chains
     osmosis: false,
@@ -372,7 +378,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1cb1916-20240902-171411',
+      tag: '946dec8-20240919-151233',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -381,7 +387,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '1cb1916-20240902-171411',
+      tag: '9c056c7-20240911-154357',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -391,7 +397,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '707db4a-20240828-164024',
+      tag: '9c056c7-20240911-154357',
     },
     resources: scraperResources,
   },
@@ -406,7 +412,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '78b596e-20240813-123401',
+      tag: '946dec8-20240919-151233',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -418,7 +424,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '0d12ff3-20240620-173353',
+      tag: '9c056c7-20240911-154357',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -439,7 +445,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '707db4a-20240828-164024',
+      tag: '5a0d68b-20240916-144115',
     },
     gasPaymentEnforcement: [
       {

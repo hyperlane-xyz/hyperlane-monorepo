@@ -12,7 +12,6 @@ import {
   assert,
   deepEquals,
   isObjEmpty,
-  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -25,6 +24,7 @@ import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';

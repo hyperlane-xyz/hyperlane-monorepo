@@ -62,7 +62,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
   }
 
-  public async submit(...txs: PopulatedTransactions): Promise<void> {
+  public async submit(...txs: PopulatedTransactions): Promise<any[]> {
     const nextNonce: number = await this.safeService.getNextNonce(
       this.props.safeAddress,
     );
@@ -94,12 +94,14 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
     );
 
-    return this.safeService.proposeTransaction({
+    const transactionReceipts = await this.safeService.proposeTransaction({
       safeAddress: this.props.safeAddress,
       safeTransactionData,
       safeTxHash,
       senderAddress,
       senderSignature,
     });
+
+    return transactionReceipts ?? [];
   }
 }
