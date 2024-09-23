@@ -1,10 +1,8 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
 import { Provider, Wallet } from 'zksync-ethers';
 
 import {
-  ERC4626Test__factory,
   GasRouter,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -56,7 +54,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
-  const chain = TestChainName.test4;
+  const chain = TestChainName.test1;
   let mailbox: Mailbox;
   let hookAddress: string;
   let ismAddress: string;

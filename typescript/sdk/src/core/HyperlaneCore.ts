@@ -147,6 +147,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       metadata,
       hook,
     );
+
     const dispatchTx = await this.multiProvider.handleTx(
       origin,
       mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](

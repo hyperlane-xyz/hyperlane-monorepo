@@ -15,7 +15,7 @@ export type UpgradeConfig = {
 };
 
 export async function proxyImplementation(
-  provider: zk.Provider,
+  provider: zk.Provider | ethers.providers.Provider,
   proxy: Address,
 ): Promise<Address> {
   // Hardcoded storage slot for implementation per EIP-1967
@@ -27,7 +27,7 @@ export async function proxyImplementation(
 }
 
 export async function isInitialized(
-  provider: zk.Provider,
+  provider: zk.Provider | ethers.providers.Provider,
   contract: Address,
 ): Promise<boolean> {
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
@@ -39,7 +39,7 @@ export async function isInitialized(
 }
 
 export async function proxyAdmin(
-  provider: zk.Provider,
+  provider: zk.Provider | ethers.providers.Provider,
   proxy: Address,
 ): Promise<Address> {
   // Hardcoded storage slot for admin per EIP-1967
@@ -62,7 +62,7 @@ export function proxyConstructorArgs<C extends ethers.Contract>(
 }
 
 export async function isProxy(
-  provider: zk.Provider,
+  provider: zk.Provider | ethers.providers.Provider,
   proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);

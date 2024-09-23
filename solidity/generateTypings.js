@@ -16,8 +16,6 @@ async function main() {
     target: 'ethers-v5',
     flags: { node16Modules: true, alwaysGenerateOverloads: true },
   });
-
-  console.log(result);
 }
 
 main().catch(console.error);

@@ -1,9 +1,6 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import hre from 'hardhat';
 import { Wallet } from 'zksync-ethers';
 
-import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import { ERC20Test__artifact } from '@hyperlane-xyz/core/artifacts';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 

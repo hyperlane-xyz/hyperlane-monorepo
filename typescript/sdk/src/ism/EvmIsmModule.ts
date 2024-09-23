@@ -256,7 +256,6 @@ export class EvmIsmModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmIsmModule> {
-    console.log('before new EvmIsmModule');
     const module = new EvmIsmModule(
       multiProvider,
       {
@@ -270,10 +269,8 @@ export class EvmIsmModule extends HyperlaneModule<
       },
       contractVerifier,
     );
-    console.log('before await module.deploy({ config })');
 
     const deployedIsm = await module.deploy({ config });
-    console.log('after await module.deploy({ config })');
     module.args.addresses.deployedIsm = deployedIsm.address;
 
     return module;

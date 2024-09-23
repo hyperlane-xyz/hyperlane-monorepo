@@ -4,6 +4,7 @@ import {
   ContractTransaction,
   PopulatedTransaction,
   Signer,
+  ethers,
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
@@ -90,6 +91,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (this.providers[name]) return this.providers[name];
 
     if (testChains.includes(name)) {
+      console.log('inside default provider');
       this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
     } else if (rpcUrls.length) {
       this.providers[name] = this.providerBuilder(rpcUrls, chainId);
@@ -104,7 +106,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers provider for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getProvider(chainNameOrId: ChainNameOrId): Provider {
+  getProvider(
+    chainNameOrId: ChainNameOrId,
+  ): Provider | ethers.providers.Provider {
     const provider = this.tryGetProvider(chainNameOrId);
     if (!provider)
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
@@ -140,7 +144,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers signer for a given chain name, chain id, or domain id
    * If signer is not yet connected, it will be connected
    */
-  tryGetSigner(chainNameOrId: ChainNameOrId): Signer | null {
+  tryGetSigner(chainNameOrId: ChainNameOrId): Signer | Wallet | null {
     const chainName = this.tryGetChainName(chainNameOrId);
     if (!chainName) return null;
     const signer = this.signers[chainName];
@@ -307,18 +311,23 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     params: any,
     artifact?: any,
   ): Promise<any> {
-    const prov = new ZKSyncProvider('http://127.0.0.1:8011', 260);
+    // const overrides = this.getTransactionOverrides(chainNameOrId);
+    const signer = this.getSigner(chainNameOrId);
 
-    const signer = new Wallet(
-      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
-      prov,
-    );
+    // const prov = new ZKSyncProvider('http://127.0.0.1:8011', 260);
 
-    const deployer = new ZKDeployer(signer);
+    // const signer = new Wallet(
+    //   '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
+    //   prov,
+    // );
+
+    const deployer = new ZKDeployer(signer as Wallet);
 
     const localArtifact = ZKDeployer.loadArtifactByBytecode(factory.bytecode);
 
-    const contract = await deployer.deploy(localArtifact, params);
+    const contract = await deployer.deploy(localArtifact, params, {
+      gasLimit: 150_000_000,
+    });
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
@@ -335,6 +344,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     tx: ContractTransaction | Promise<ContractTransaction>,
   ): Promise<ContractReceipt> {
+    console.log('Inside handletx');
     const confirmations =
       this.getChainMetadata(chainNameOrId).blocks?.confirmations ?? 1;
     const response = await tx;
@@ -409,7 +419,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Creates a MultiProvider using the given signer for all test networks
    */
   static createTestMultiProvider(
-    params: { signer?: Wallet; provider?: ZKSyncProvider } = {},
+    params: { signer?: Wallet | Signer; provider?: ZKSyncProvider } = {},
     chains: ChainName[] = testChains,
   ): MultiProvider {
     const { signer, provider } = params;

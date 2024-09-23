@@ -180,6 +180,7 @@ abstract class TokenDeployer<
       gas: gasOverhead(config.type),
       ...config,
     }));
+
     return super.deploy(resolvedConfigMap);
   }
 }

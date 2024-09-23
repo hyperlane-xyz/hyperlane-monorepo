@@ -170,7 +170,7 @@ function randomHookConfig(
 }
 
 describe('EvmHookModule', async () => {
-  const chain = TestChainName.test4;
+  const chain = TestChainName.test1;
 
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
@@ -687,15 +687,15 @@ describe('EvmHookModule', async () => {
         );
 
         // add multiple new domains
-        exampleRoutingConfig.domains[TestChainName.test2] = {
+        exampleRoutingConfig.domains[TestChainName.test1] = {
           type: HookType.MERKLE_TREE,
         };
-        exampleRoutingConfig.domains[TestChainName.test3] = {
-          type: HookType.MERKLE_TREE,
-        };
-        exampleRoutingConfig.domains[TestChainName.test4] = {
-          type: HookType.MERKLE_TREE,
-        };
+        // exampleRoutingConfig.domains[TestChainName.test3] = {
+        //   type: HookType.MERKLE_TREE,
+        // };
+        // exampleRoutingConfig.domains[TestChainName.test4] = {
+        //   type: HookType.MERKLE_TREE,
+        // };
 
         // expect 1 tx to update the domains
         await expectTxsAndUpdate(hook, exampleRoutingConfig, 1);

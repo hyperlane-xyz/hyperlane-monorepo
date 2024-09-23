@@ -1,0 +1,1 @@
+yarn hyperlane send message -k 0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e -y --origin zksyncdocker2 --destination zksynclocal --relay

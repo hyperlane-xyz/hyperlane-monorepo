@@ -39,11 +39,9 @@ export abstract class HyperlaneRouterDeployer<
     _: ChainMap<Config>,
     foreignRouters: ChainMap<Address> = {},
   ): Promise<void> {
-    this.logger.debug(
+    this.logger.info(
       `Enrolling deployed routers with each other (if not already)...`,
     );
-
-    // Make all routers aware of each other.
 
     // Routers that were deployed.
     const deployedRouters: ChainMap<Address> = objMap(
@@ -58,7 +56,6 @@ export abstract class HyperlaneRouterDeployer<
       const allRemoteChains = this.multiProvider
         .getRemoteChains(chain)
         .filter((c) => allChains.includes(c));
-
       const enrollEntries = await Promise.all(
         allRemoteChains.map(async (remote) => {
           const remoteDomain = this.multiProvider.getDomainId(remote);
@@ -67,9 +64,11 @@ export abstract class HyperlaneRouterDeployer<
           return current !== expected ? [remoteDomain, expected] : undefined;
         }),
       );
+
       const entries = enrollEntries.filter(
         (entry): entry is [number, string] => entry !== undefined,
       );
+
       const domains = entries.map(([id]) => id);
       const addresses = entries.map(([, address]) => address);
 
@@ -80,20 +79,39 @@ export abstract class HyperlaneRouterDeployer<
 
       await super.runIfOwner(chain, this.router(contracts), async () => {
         const chains = domains.map((id) => this.multiProvider.getChainName(id));
-        this.logger.debug(
+        this.logger.info(
           `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
         );
         const router = this.router(contracts);
-        // const estimatedGas = await router.estimateGas.enrollRemoteRouters(
-        //   domains,
-        //   addresses,
-        // );
+
         // deploy with 10% buffer on gas limit
         const enrollTx = await router.enrollRemoteRouters(domains, addresses, {
           gasLimit: 150_000_000,
           ...this.multiProvider.getTransactionOverrides(chain),
         });
-        await this.multiProvider.handleTx(chain, enrollTx);
+
+        // const prov = new Provider('http://127.0.0.1:8011', 260);
+
+        // const signer = new Wallet(
+        //   '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
+        //   prov,
+        // );
+
+        // const nonce = await signer.getTransactionCount();
+        // console.log({ nonce });
+        // const rec = await signer.sendTransaction({
+        //   to: enrollTx.to,
+        //   from: enrollTx.from,
+
+        //   gasLimit: enrollTx.gasLimit,
+
+        //   data: enrollTx.data,
+        //   value: enrollTx.value,
+        // });
+        // const tx = await rec.wait();
+        // console.log({ tx });
+
+        await this.multiProvider.handleTx(260, { ...enrollTx });
       });
     }
   }
@@ -124,7 +142,6 @@ export abstract class HyperlaneRouterDeployer<
       configMap,
       (_chainName, config): config is Config => !config.foreignDeployment,
     );
-
     // Create a map of chains that have foreign deployments.
     const foreignDeployments: ChainMap<Address> = objFilter(
       objMap(configMap, (_, config) => config.foreignDeployment),
@@ -133,12 +150,15 @@ export abstract class HyperlaneRouterDeployer<
     );
 
     const deployedContractsMap = await super.deploy(configMapToDeploy);
+    console.log('af deployedContractsMap');
 
     await this.enrollRemoteRouters(
       deployedContractsMap,
       configMap,
       foreignDeployments,
     );
+    console.log('af enrollRemoteRouters');
+
     await this.configureClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
     this.logger.debug(`Finished deploying router contracts for all chains.`);

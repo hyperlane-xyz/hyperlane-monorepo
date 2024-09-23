@@ -1,16 +1,7 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import hre from 'hardhat';
 import { Contract, Provider, Wallet } from 'zksync-ethers';
 
-import {
-  ERC20Test,
-  ERC20Test__factory,
-  ERC4626,
-  ERC4626Test__factory,
-  Mailbox,
-  Mailbox__factory,
-} from '@hyperlane-xyz/core';
+import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ERC20Test__artifact,
   ERC4626Test__artifact,
@@ -44,7 +35,7 @@ describe('ERC20WarpRouterReader', async () => {
   const chain = TestChainName.test4;
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
-  let erc20Factory: ERC20Test__factory;
+  // let erc20Factory: ERC20Test__factory;
   let token: Contract;
   let signer: Wallet;
   let deployer: HypERC20Deployer;
@@ -136,12 +127,14 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive collateral config correctly', async () => {
     // Create config
+    const hook = await mailbox.defaultHook();
+    const interchainsecurityModule = await mailbox.defaultIsm();
     const config = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
-        hook: await mailbox.defaultHook(),
-        interchainsecurityModule: await mailbox.defaultIsm(),
+        hook: hook,
+        interchainsecurityModule: interchainsecurityModule,
         ...baseConfig,
       },
     };

@@ -260,6 +260,7 @@ export abstract class HyperlaneDeployer<
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredIsm = await getIsm(contract);
+
     let matches = false;
     let targetIsm: Address;
     if (typeof config === 'string') {
@@ -287,11 +288,15 @@ export abstract class HyperlaneDeployer<
     }
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
-        this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
+        this.logger.info(`Set ISM on ${chain} with address ${targetIsm}`);
+
         await this.multiProvider.sendTransaction(
           chain,
           setIsm(contract, targetIsm),
         );
+
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
@@ -335,7 +340,7 @@ export abstract class HyperlaneDeployer<
     client: MailboxClient,
     config: MailboxClientConfig,
   ): Promise<void> {
-    this.logger.debug(
+    this.logger.info(
       `Initializing mailbox client (if not already) on ${local}...`,
     );
     if (config.hook) {

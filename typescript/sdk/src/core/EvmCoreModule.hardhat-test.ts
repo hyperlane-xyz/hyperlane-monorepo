@@ -22,7 +22,7 @@ import { EvmCoreModule } from './EvmCoreModule.js';
 import { CoreConfig } from './types.js';
 
 describe('EvmCoreModule', async () => {
-  const CHAIN = TestChainName.test4;
+  const CHAIN = TestChainName.test1;
   const DELAY = 1892391283182;
   let config: CoreConfig;
   let signer: SignerWithAddress;

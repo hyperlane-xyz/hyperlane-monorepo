@@ -17,7 +17,7 @@ export async function getSigner({
 }: {
   key?: string;
   skipConfirmation?: boolean;
-}) {
+}): Promise<{ key?: string; signer: Wallet }> {
   key ||= await retrieveKey(skipConfirmation);
   const signer = privateKeyToSigner(key);
   return { key, signer };

@@ -94,7 +94,7 @@ describe('EvmIsmModule', async () => {
   let mailboxAddress: Address;
   let fundingAccount: Signer;
 
-  const chain = TestChainName.test4;
+  const chain = TestChainName.test1;
   let factoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
 
@@ -132,7 +132,7 @@ describe('EvmIsmModule', async () => {
       owner: (await multiProvider.getSignerAddress(chain)).toLowerCase(),
       domains: Object.fromEntries(
         testChains
-          .filter((c) => c !== TestChainName.test4)
+          .filter((c) => c !== TestChainName.test1)
           .map((c) => [c, randomMultisigIsmConfig(3, 5)]),
       ),
     };

@@ -28,7 +28,7 @@ export const test1: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 0,
+    reorgPeriod: 1,
   },
   chainId: 260,
   displayName: 'Test 1',
@@ -47,9 +47,9 @@ export const test2: ChainMetadata = {
     estimateBlockTime: 3,
     reorgPeriod: 1,
   },
-  chainId: 9913372,
+  chainId: 260,
   displayName: 'Test 2',
-  domainId: 9913372,
+  domainId: 260,
   name: 'test2',
 };
 
@@ -60,14 +60,19 @@ export const test3: ChainMetadata = {
     estimateBlockTime: 3,
     reorgPeriod: 2,
   },
-  chainId: 9913373,
+  chainId: 260,
   displayName: 'Test 3',
-  domainId: 9913373,
+  domainId: 260,
   name: 'test3',
 };
 
 export const test4: ChainMetadata = {
   ...test1,
+  blocks: {
+    confirmations: 1,
+    estimateBlockTime: 3,
+    reorgPeriod: 2,
+  },
   chainId: 260,
   displayName: 'Test 4',
   domainId: 260,
