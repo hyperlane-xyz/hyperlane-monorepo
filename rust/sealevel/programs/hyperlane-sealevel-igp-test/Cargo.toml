@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dev-dependencies]
-hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
@@ -17,6 +17,3 @@ hyperlane-sealevel-igp = { path = "../hyperlane-sealevel-igp" }
 solana-program-test.workspace = true
 solana-sdk.workspace = true
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
-
-[profile.release]
-overflow-checks = true

@@ -38,13 +38,6 @@
   "optimismsepolia": {
     "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
   },
-  "plumetestnet": {
-    "validators": [
-      "0xe765a214849f3ecdf00793b97d00422f2d408ea6",
-      "0xb59998f71efc65190a85ac5e81b66bd72a192a3b",
-      "0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c"
-    ]
-  },
   "polygonamoy": {
     "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
   },
@@ -61,9 +54,6 @@
       "0x469f0940684d147defc44f3647146cb90dd0bc8e",
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
-  },
-  "solanatestnet": {
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
   },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]

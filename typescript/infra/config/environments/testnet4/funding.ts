@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '874a58f-20240812-172413',
+    tag: '344aa49-20240916-102227',
   },
   // We're currently using the same deployer key as testnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -31,13 +31,14 @@ export const keyFunderConfig: KeyFunderConfig<
     basesepolia: '0.1',
     bsctestnet: '5',
     connextsepolia: '1',
-    ecotestnet: '0.1',
+    ecotestnet: '0.02',
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '5',
     holesky: '5',
     optimismsepolia: '0.1',
-    plumetestnet: '0.2',
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: '0.2',
     polygonamoy: '0.2',
     scrollsepolia: '1',
     sepolia: '5',
@@ -57,7 +58,8 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     holesky: '0',
     optimismsepolia: '0',
-    plumetestnet: '0.05',
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: '0.05',
     polygonamoy: '0',
     scrollsepolia: '1',
     sepolia: '1',
@@ -71,13 +73,14 @@ export const keyFunderConfig: KeyFunderConfig<
     basesepolia: '0.05',
     bsctestnet: '1',
     connextsepolia: '0.1',
-    ecotestnet: '0.05',
+    ecotestnet: '0.01',
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '1',
     holesky: '1',
     optimismsepolia: '0.05',
-    plumetestnet: '0.1',
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: '0.1',
     polygonamoy: '0.1',
     scrollsepolia: '0.1',
     sepolia: '1',

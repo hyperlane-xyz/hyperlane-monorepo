@@ -35,43 +35,49 @@ export abstract class HyperlaneAppChecker<
   App extends HyperlaneApp<any>,
   Config,
 > {
-  readonly multiProvider: MultiProvider;
-  readonly app: App;
-  readonly configMap: ChainMap<Config>;
-  readonly violations: CheckerViolation[];
+  readonly violations: CheckerViolation[] = [];
 
   constructor(
-    multiProvider: MultiProvider,
-    app: App,
-    configMap: ChainMap<Config>,
-  ) {
-    this.multiProvider = multiProvider;
-    this.app = app;
-    this.violations = [];
-    this.configMap = configMap;
-  }
+    readonly multiProvider: MultiProvider,
+    readonly app: App,
+    readonly configMap: ChainMap<Config>,
+  ) {}
 
   abstract checkChain(chain: ChainName): Promise<void>;
 
-  async check(): Promise<void[]> {
-    Object.keys(this.configMap)
-      .filter(
-        (chain) =>
-          this.multiProvider.getChainMetadata(chain).protocol ===
-            ProtocolType.Ethereum && !this.app.chains().includes(chain),
-      )
-      .forEach((chain: string) =>
+  async check(chainsToCheck?: ChainName[]): Promise<void[]> {
+    // Get all EVM chains from config
+    const evmChains = Object.keys(this.configMap).filter(
+      (chain) =>
+        this.multiProvider.getChainMetadata(chain).protocol ===
+        ProtocolType.Ethereum,
+    );
+
+    // Mark any EVM chains that are not deployed
+    const appChains = this.app.chains();
+    for (const chain of evmChains) {
+      if (!appChains.includes(chain)) {
         this.addViolation({
           type: ViolationType.NotDeployed,
           chain,
           expected: '',
           actual: '',
-        }),
-      );
+        });
+      }
+    }
 
+    // Finally, check the chains that were explicitly requested
+    // If no chains were requested, check all app chains
+    const chains =
+      !chainsToCheck || chainsToCheck.length === 0 ? appChains : chainsToCheck;
     return Promise.all(
-      // this.app.chains() will only return Ethereum chains that can be interacted with.
-      this.app.chains().map((chain) => this.checkChain(chain)),
+      chains
+        .filter(
+          (chain) =>
+            this.multiProvider.getChainMetadata(chain).protocol ===
+            ProtocolType.Ethereum,
+        )
+        .map((chain) => this.checkChain(chain)),
     );
   }
 

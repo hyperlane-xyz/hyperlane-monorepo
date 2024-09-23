@@ -1,5 +1,81 @@
 # @hyperlane-xyz/cli
 
+## 5.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@5.2.1
+- @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- a5afd20f3: Add CLI e2e typescript tests
+- 203084df2: Added sdk support for Stake weighted ISM
+- a46fe434a: Add hyperlane registry rpc and addresses --contract utils
+- f2783c03b: Add ChainSubmissionStrategySchema
+- 3c07ded5b: Add Safe submit functionality to warp apply
+
+### Patch Changes
+
+- Updated dependencies [a19e882fd]
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [518a1bef9]
+- Updated dependencies [203084df2]
+- Updated dependencies [74a592e58]
+- Updated dependencies [739af9a34]
+- Updated dependencies [44588c31d]
+- Updated dependencies [2bd540e0f]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [69f17d99a]
+- Updated dependencies [3ad5918da]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [9563a8beb]
+- Updated dependencies [73c232b3a]
+- Updated dependencies [445b6222c]
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [2e6176f67]
+- Updated dependencies [f2783c03b]
+- Updated dependencies [2ffb78f5c]
+- Updated dependencies [3c07ded5b]
+- Updated dependencies [815542dd7]
+  - @hyperlane-xyz/sdk@5.2.0
+  - @hyperlane-xyz/utils@5.2.0
+
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Update to registry v2.5.0
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Add output of hyperlane warp read to ./configs/warp-route-deployment.yaml
+- 013f19c64: Remove registry.getUri() from core read logging to prevent registry error
+- 013f19c64: Fixes the new chain message to display the correct command
+- 013f19c64: Add check & confirm for existing mailbox to core deploy to allow users to decide if they want to deploy a new mailbox
+
+### Patch Changes
+
+- 013f19c64: Require at least 1 chain selection in warp init
+- 013f19c64: feat: Add long-running CLI relayer
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [19f7d4fd9]
+  - @hyperlane-xyz/sdk@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
 ## 5.0.0
 
 ### Major Changes

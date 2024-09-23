@@ -16,9 +16,7 @@ trap 'jobs -p | xargs -r kill' EXIT
 # exit 1 on any subsequent failures
 set -e
 
-RPC_URL=`LOG_LEVEL=error yarn tsx ./scripts/print-chain-metadatas.ts -e $ENVIRONMENT | jq -r ".$CHAIN.rpcUrls[0].http"`
-
-anvil --fork-url $RPC_URL --fork-retry-backoff 3 --compute-units-per-second 200 --gas-price 1 --silent &
+LOG_LEVEL=error yarn tsx ./scripts/run-anvil.ts -e $ENVIRONMENT -c $CHAIN &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
@@ -39,7 +37,7 @@ execute_command() {
 }
 
 echo "Checking deploy"
-execute_command "yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"
+execute_command "yarn tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"
 
 echo "Getting balance"
 DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
@@ -53,10 +51,10 @@ DEPLOY_DELTA="$((BEFORE-AFTER))"
 
 BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 echo "Checking deploy with --govern"
-execute_command "yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE"
+execute_command "yarn tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE"
 
 AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 GOVERN_DELTA="$((BEFORE-AFTER))"
 
 echo "Checking deploy without --govern"
-execute_command "yarn tsx ./scripts/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"
+execute_command "yarn tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"

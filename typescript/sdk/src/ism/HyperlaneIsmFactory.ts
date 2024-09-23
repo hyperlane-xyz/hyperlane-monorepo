@@ -12,16 +12,19 @@ import {
   IMultisigIsm,
   IMultisigIsm__factory,
   IRoutingIsm,
+  IStaticWeightedMultisigIsm,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
+  StaticWeightedValidatorSetFactory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
+  addBufferToGasLimit,
   assert,
   eqAddress,
   objFilter,
@@ -48,6 +51,7 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
+  WeightedMultisigIsmConfig,
 } from './types.js';
 import { routingModuleDelta } from './utils.js';
 
@@ -108,6 +112,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:
         contract = await this.deployMultisigIsm(destination, config, logger);
+        break;
+      case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+      case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
+        contract = await this.deployWeightedMultisigIsm(
+          destination,
+          config,
+          logger,
+        );
         break;
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
@@ -219,6 +231,30 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       config.validators,
       logger,
       config.threshold,
+    );
+
+    return IMultisigIsm__factory.connect(address, signer);
+  }
+
+  protected async deployWeightedMultisigIsm(
+    destination: ChainName,
+    config: WeightedMultisigIsmConfig,
+    logger: Logger,
+  ): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(destination);
+    const weightedmultisigIsmFactory =
+      config.type === IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG
+        ? this.getContracts(destination)
+            .staticMerkleRootWeightedMultisigIsmFactory
+        : this.getContracts(destination)
+            .staticMessageIdWeightedMultisigIsmFactory;
+
+    const address = await this.deployStaticWeightedValidatorSet(
+      destination,
+      weightedmultisigIsmFactory,
+      config.validators,
+      config.thresholdWeight,
+      logger,
     );
 
     return IMultisigIsm__factory.connect(address, signer);
@@ -365,14 +401,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           submoduleAddresses,
           overrides,
         );
-        // add 10% buffer
+        // add gas buffer
         const tx = await domainRoutingIsmFactory.deploy(
           owner,
           safeConfigDomains,
           submoduleAddresses,
           {
+            gasLimit: addBufferToGasLimit(estimatedGas),
             ...overrides,
-            gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
           },
         );
         // TODO: Should verify contract here
@@ -461,10 +497,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         threshold,
         overrides,
       );
-      // add 10% buffer
+      // add gas buffer
       const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
-        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
       });
 
       await this.multiProvider.handleTx(chain, hash);
@@ -472,6 +508,50 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     } else {
       logger.debug(
         `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
+      );
+    }
+    return address;
+  }
+
+  async deployStaticWeightedValidatorSet(
+    chain: ChainName,
+    factory: StaticWeightedValidatorSetFactory,
+    values: IStaticWeightedMultisigIsm.ValidatorInfoStruct[],
+    thresholdWeight = 66e8,
+    logger: Logger,
+  ): Promise<Address> {
+    const sorted = [...values].sort();
+
+    const address = await factory['getAddress((address,uint96)[],uint96)'](
+      sorted,
+      thresholdWeight,
+    );
+    const code = await this.multiProvider.getProvider(chain).getCode(address);
+    if (code === '0x') {
+      logger.debug(
+        `Deploying new weighted set of ${values.length} validators with a threshold weight ${thresholdWeight} on ${chain} `,
+      );
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
+
+      // estimate gas
+      const estimatedGas = await factory.estimateGas[
+        'deploy((address,uint96)[],uint96)'
+      ](sorted, thresholdWeight, overrides);
+      // add gas buffer
+      const hash = await factory['deploy((address,uint96)[],uint96)'](
+        sorted,
+        thresholdWeight,
+        {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        },
+      );
+
+      await this.multiProvider.handleTx(chain, hash);
+      // TODO: add proxy verification artifact?
+    } else {
+      logger.debug(
+        `Recovered weighted set of ${values.length} validators on ${chain} with a threshold weight ${thresholdWeight}: ${address}`,
       );
     }
     return address;

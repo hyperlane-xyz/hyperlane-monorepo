@@ -1,16 +1,20 @@
 name: test
 
 on:
-  # Triggers the workflow on pushes to main branch
+  # Triggers the workflow on pushes to main branch, ignoring md files
   push:
     branches: [main]
-  # Triggers on pull requests ignoring md files
+    paths:
+      - '**/*'
+      - '!**/*.md'
+  # Triggers on pull requests, ignoring md files
   pull_request:
     branches:
-      - '*' # run against all branches
-  # Support for merge queues
+      - '*'
+    paths:
+      - '**/*'
+      - '!**/*.md'
   merge_group:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 concurrency:
@@ -37,12 +41,14 @@ jobs:
           submodules: recursive
 
       - name: yarn-cache
-        uses: actions/cache@v4
+        uses: buildjet/cache@v4
         with:
           path: |
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-cache-
 
       - name: yarn-install
         run: |
@@ -53,35 +59,6 @@ jobs:
             git diff
             exit 1
           fi
-
-  yarn-build:
-    runs-on: ubuntu-latest
-    needs: [yarn-install]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: yarn-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: build
-        run: yarn build
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -94,12 +71,13 @@ jobs:
           fetch-depth: 0
 
       - name: yarn-cache
-        uses: actions/cache@v4
+        uses: buildjet/cache@v4
         with:
           path: |
             **/node_modules
             .yarn
           key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          fail-on-cache-miss: true
 
       - name: lint
         run: yarn lint
@@ -115,7 +93,7 @@ jobs:
 
   yarn-test:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-install]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -126,13 +104,10 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: build-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -142,7 +117,7 @@ jobs:
 
   agent-configs:
     runs-on: ubuntu-latest
-    needs: [yarn-build]
+    needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
@@ -153,21 +128,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: yarn-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -183,10 +147,11 @@ jobs:
           fi
 
   e2e-matrix:
-    runs-on: larger-runner
+    runs-on: buildjet-8vcpu-ubuntu-2204
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-build]
+    needs: [yarn-install]
     strategy:
+      fail-fast: false
       matrix:
         e2e-type: [cosmwasm, non-cosmwasm]
     steps:
@@ -211,10 +176,13 @@ jobs:
       - name: rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
+          prefix-key: 'v2-rust-e2e'
           shared-key: ${{ matrix.e2e-type }}
+          cache-provider: 'buildjet'
+          save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
-            ./rust
+            ./rust/main
+            ${{ matrix.e2e-type == 'non-cosmwasm' && './rust/sealevel' || '' }}
 
       - name: Free disk space
         run: |
@@ -230,21 +198,15 @@ jobs:
           mold-version: 2.0.0
           make-default: true
 
-      - name: yarn-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y libudev-dev pkg-config protobuf-compiler
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -252,83 +214,24 @@ jobs:
       - name: agent tests (CosmWasm)
         run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
       - name: agent tests (EVM and Sealevel)
         run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
 
-  e2e:
-    runs-on: ubuntu-latest
-    needs: [e2e-matrix]
-    if: always() # This ensures that the job runs even if the e2e jobs fail
-    steps:
-      - name: Report Matrix Result
-        run: |
-          echo "All e2e-matrix jobs have completed."
-          # You can add additional commands here to report the result as needed
-
-  prebuild-cli-e2e:
-    runs-on: larger-runner
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-
-      - name: setup rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
-          shared-key: "cli-e2e"
-          workspaces: |
-            ./rust
-
-      - name: Free disk space
-        run: |
-          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
-      - name: Install mold linker
-        uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
-
-      - name: Build validator
-        run: cargo build --bin validator --features test-utils
-        working-directory: ./rust
-        env:
-          RUST_BACKTRACE: 'full'
-
-      - name: Build relayer
-        run: cargo build --bin relayer --features test-utils
-        working-directory: ./rust
-        env:
-          RUST_BACKTRACE: 'full'
-
   cli-advanced-e2e:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-build, prebuild-cli-e2e]
+    needs: [yarn-install]
     strategy:
       matrix:
         include:
@@ -348,49 +251,10 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: setup rust
-        uses: actions-rs/toolchain@v1
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          toolchain: stable
-          profile: minimal
-
-      - name: rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: "v1-${{ runner.os }}-rust-cache"
-          shared-key: "cli-e2e"
-          workspaces: |
-            ./rust
-
-      - name: Free disk space
-        run: |
-          # Based on https://github.com/actions/runner-images/issues/2840#issuecomment-790492173
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
-      - name: Install mold linker
-        uses: rui314/setup-mold@v1
-        with:
-          mold-version: 2.0.0
-          make-default: true
-
-      - name: yarn-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -400,8 +264,12 @@ jobs:
 
   env-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
-    needs: [yarn-build]
+    env:
+      MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+      MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+
+    timeout-minutes: 10
+    needs: [yarn-install]
     strategy:
       fail-fast: false
       matrix:
@@ -421,13 +289,10 @@ jobs:
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
 
-      - name: build-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
@@ -437,29 +302,17 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
-    needs: [yarn-test]
-
+    needs: [yarn-install]
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: yarn-cache
-        uses: actions/cache@v4
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
         with:
-          path: |
-            **/node_modules
-            .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
-
-      - name: build-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./*
-            !./rust
-          key: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
