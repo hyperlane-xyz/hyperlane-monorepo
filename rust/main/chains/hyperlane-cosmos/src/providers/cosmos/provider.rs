@@ -143,10 +143,12 @@ impl CosmosProvider {
             .cloned()
             .collect::<Vec<Any>>();
 
-        if contract_execution_messages.len() > 1 {
+        let contract_execution_messages_len = contract_execution_messages.len();
+        if contract_execution_messages_len > 1 {
             error!(
                 ?tx_hash,
-                "transaction contains multiple contract execution messages, scraper is using the first entry, manual intervention is required");
+                ?contract_execution_messages,
+                "transaction contains multiple contract execution messages, we are indexing the first entry only");
         }
 
         let any = contract_execution_messages.first().ok_or_else(|| {
