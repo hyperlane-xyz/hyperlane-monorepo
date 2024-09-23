@@ -307,25 +307,14 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     factory: any,
     params: any,
-    artifact?: any,
   ): Promise<any> {
-    // const overrides = this.getTransactionOverrides(chainNameOrId);
-    // const signer = this.getSigner(chainNameOrId);
+    const signer = this.getSigner(chainNameOrId);
 
-    const prov = new ZKSyncProvider('http://127.0.0.1:8011', 260);
-
-    const signer = new Wallet(
-      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
-      prov,
-    );
-
-    const deployer = new ZKDeployer(signer as Wallet);
+    const deployer = new ZKDeployer(signer);
 
     const localArtifact = ZKDeployer.loadArtifactByBytecode(factory.bytecode);
 
-    const contract = await deployer.deploy(localArtifact, params, {
-      gasLimit: 150_000_000,
-    });
+    const contract = await deployer.deploy(localArtifact, params);
 
     this.logger.trace(
       `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
@@ -345,11 +334,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const confirmations =
       this.getChainMetadata(chainNameOrId).blocks?.confirmations ?? 1;
     const response = await tx;
-    const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
     this.logger.info(
-      `Pending ${
-        txUrl || response.hash
-      } (waiting ${confirmations} blocks for confirmation)`,
+      `Pending (waiting ${confirmations} blocks for confirmation)`,
     );
     return response.wait(confirmations);
   }
@@ -401,6 +387,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
   ): Promise<ContractReceipt> {
+    console.log('inside sendTransaction');
     const { annotation, ...tx } = await txProm;
     if (annotation) {
       this.logger.info(annotation);
@@ -408,7 +395,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
 
-    const response = await signer.sendTransaction(txReq);
+    const response = await signer.sendTransaction({
+      ...txReq,
+      gasLimit: 150_000_000,
+    });
     this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
   }

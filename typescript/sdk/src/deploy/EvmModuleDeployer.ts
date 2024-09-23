@@ -68,7 +68,6 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       chain,
       factory,
       constructorArgs,
-      artifact,
     );
 
     if (initializeArgs) {

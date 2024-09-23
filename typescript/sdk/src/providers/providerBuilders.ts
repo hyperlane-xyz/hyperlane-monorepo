@@ -43,6 +43,7 @@ export function defaultZKSyncProviderBuilder(
   const provider = new zk.Provider(url, network);
   return { type: ProviderType.ZKSync, provider };
 }
+
 export function defaultEthersV5ProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,

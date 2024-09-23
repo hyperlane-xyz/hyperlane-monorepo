@@ -12,7 +12,7 @@ export class ZKDeployer {
 
   constructor(zkWallet: zk.Wallet, deploymentType?: zk.types.DeploymentType) {
     this.deploymentType = deploymentType;
-    let l2Provider;
+    let l2Provider: zk.Provider;
 
     // Initalize two providers: one for the Ethereum RPC (layer 1), and one for the zkSync RPC (layer 2).
     const zkWeb3Provider = new zk.Provider('http://127.0.0.1:8011', 260);
@@ -127,6 +127,7 @@ export class ZKDeployer {
       this.zkWallet,
       this.deploymentType,
     );
+
     const { customData, ..._overrides } = overrides ?? {};
 
     // Encode and send the deploy transaction providing factory dependencies.
@@ -139,6 +140,7 @@ export class ZKDeployer {
     });
 
     await contract.deployed();
+
     return contract;
   }
 

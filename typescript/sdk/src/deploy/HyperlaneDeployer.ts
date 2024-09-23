@@ -1,6 +1,5 @@
 import { Contract, PopulatedTransaction, ethers } from 'ethers';
 import { Logger } from 'pino';
-import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import {
   ITransparentUpgradeableProxy,
@@ -377,22 +376,41 @@ export abstract class HyperlaneDeployer<
     implementationAddress?: Address | null,
     artifact?: any,
   ): Promise<ReturnType<F['deploy']>> {
+    if (shouldRecover) {
+      const cachedContract = this.readCache(chain, factory, contractName);
+      if (cachedContract) {
+        if (this.recoverVerificationInputs) {
+          const recoveredInputs = await this.recoverVerificationArtifacts(
+            chain,
+            contractName,
+            cachedContract,
+            constructorArgs,
+            initializeArgs,
+          );
+          this.addVerificationArtifacts(chain, recoveredInputs);
+        }
+        return cachedContract;
+      }
+    }
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
       )})...`,
     );
-    const prov = new ZKSyncProvider('http://127.0.0.1:8011', 260);
 
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
-      artifact,
     );
 
     if (initializeArgs) {
-      if (await isInitialized(prov, contract.address)) {
+      if (
+        await isInitialized(
+          this.multiProvider.getProvider(chain),
+          contract.address,
+        )
+      ) {
         this.logger.debug(
           `Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized`,
         );
