@@ -1,8 +1,9 @@
 import yargs from 'yargs';
 
+import { Contexts } from '../../config/contexts.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import { WarpRouteMonitorHelmManager } from '../../src/warp/helm.js';
-import { assertCorrectKubeContext } from '../agent-utils.js';
+import { assertCorrectKubeContext, getAgentConfig } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
@@ -16,9 +17,15 @@ async function main() {
     .string('filePath')
     .parse();
 
-  await assertCorrectKubeContext(getEnvironmentConfig('mainnet3'));
+  const environment = 'mainnet3';
+  await assertCorrectKubeContext(getEnvironmentConfig(environment));
+  const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
 
-  const helmManager = new WarpRouteMonitorHelmManager(filePath, 'mainnet3');
+  const helmManager = new WarpRouteMonitorHelmManager(
+    filePath,
+    environment,
+    agentConfig.environmentChainNames,
+  );
   await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
 }
 
