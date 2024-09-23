@@ -18,7 +18,10 @@ import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
-import { defaultZKProviderBuilder } from './providerBuilders.js';
+import {
+  //   ProviderBuilderFn,
+  defaultZKSyncProviderBuilder,
+} from './providerBuilders.js';
 
 type Provider = providers.Provider;
 
@@ -33,7 +36,9 @@ export interface MultiProviderOptions {
  * A utility class to create and manage providers and signers for multiple chains
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
-export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
+export class ZKSyncMultiProvider<
+  MetaExt = {},
+> extends ChainMetadataManager<MetaExt> {
   readonly providers: ChainMap<ZKSyncProvider>;
   readonly providerBuilder: any;
   signers: ChainMap<Wallet>;
@@ -55,7 +60,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         module: 'MultiProvider',
       });
     this.providers = options?.providers || {};
-    this.providerBuilder = defaultZKProviderBuilder;
+    this.providerBuilder = defaultZKSyncProviderBuilder;
     this.signers = options?.signers || {};
   }
 
@@ -71,9 +76,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
   override extendChainMetadata<NewExt = {}>(
     additionalMetadata: ChainMap<NewExt>,
-  ): MultiProvider<MetaExt & NewExt> {
+  ): ZKSyncMultiProvider<MetaExt & NewExt> {
     const newMetadata = super.extendChainMetadata(additionalMetadata).metadata;
-    return new MultiProvider(newMetadata, this.options);
+    return new ZKSyncMultiProvider(newMetadata, this.options);
   }
 
   /**
@@ -250,10 +255,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     throwIfNotSubset = false,
   ): {
     intersection: ChainName[];
-    result: MultiProvider<MetaExt>;
+    result: ZKSyncMultiProvider<MetaExt>;
   } {
     const { intersection, result } = super.intersect(chains, throwIfNotSubset);
-    const multiProvider = new MultiProvider(result.metadata, {
+    const multiProvider = new ZKSyncMultiProvider(result.metadata, {
       ...this.options,
       providers: pick(this.providers, intersection),
       signers: pick(this.signers, intersection),
@@ -419,9 +424,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   static createTestMultiProvider(
     params: { signer?: Wallet; provider?: ZKSyncProvider } = {},
     chains: ChainName[] = testChains,
-  ): MultiProvider {
+  ): ZKSyncMultiProvider {
     const { signer, provider } = params;
-    const mp = new MultiProvider(testChainMetadata);
+    const mp = new ZKSyncMultiProvider(testChainMetadata);
     if (signer) {
       mp.setSharedSigner(signer);
     }

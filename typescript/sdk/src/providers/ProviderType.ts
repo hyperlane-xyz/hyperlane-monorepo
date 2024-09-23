@@ -21,10 +21,12 @@ import type {
   Transaction as VTransaction,
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
+import * as zk from 'zksync-ethers';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
+  ZKSync = 'zksync',
   EthersV5 = 'ethers-v5',
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
@@ -36,6 +38,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   ProtocolType,
   ProviderType
 > = {
+  [ProtocolType.ZKSync]: ProviderType.ZKSync,
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
@@ -44,6 +47,12 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
 
 type ProtocolTypesMapping = {
+  [ProtocolType.ZKSync]: {
+    transaction: ZKSyncTransaction;
+    provider: ZKSyncProvider;
+    contract: ZKSyncContract;
+    receipt: ZKSyncTransactionReceipt;
+  };
   [ProtocolType.Ethereum]: {
     transaction: EthersV5Transaction;
     provider: EthersV5Provider;
@@ -95,6 +104,11 @@ interface TypedProviderBase<T> {
   provider: T;
 }
 
+export interface ZKSyncProvider extends TypedProviderBase<zk.Provider> {
+  type: ProviderType.ZKSync;
+  provider: zk.Provider;
+}
+
 export interface EthersV5Provider
   extends TypedProviderBase<EV5Providers.Provider> {
   type: ProviderType.EthersV5;
@@ -140,6 +154,10 @@ interface TypedContractBase<T> {
   contract: T;
 }
 
+export interface ZKSyncContract extends TypedContractBase<zk.Contract> {
+  type: ProviderType.ZKSync;
+  contract: zk.Contract;
+}
 export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
   type: ProviderType.EthersV5;
   contract: EV5Contract;
@@ -174,7 +192,8 @@ export type TypedContract =
   | ViemContract
   | SolanaWeb3Contract
   | CosmJsContract
-  | CosmJsWasmContract;
+  | CosmJsWasmContract
+  | zk.Contract;
 
 /**
  * Transactions with discriminated union of provider type
@@ -189,6 +208,11 @@ export interface EthersV5Transaction
   extends TypedTransactionBase<EV5Transaction> {
   type: ProviderType.EthersV5;
   transaction: EV5Transaction;
+}
+export interface ZKSyncTransaction
+  extends TypedTransactionBase<zk.types.TransactionRequest> {
+  type: ProviderType.ZKSync;
+  transaction: zk.types.TransactionRequest;
 }
 
 export interface AnnotatedEV5Transaction extends EV5Transaction {
@@ -234,6 +258,11 @@ interface TypedTransactionReceiptBase<T> {
   receipt: T;
 }
 
+export interface ZKSyncTransactionReceipt
+  extends TypedTransactionReceiptBase<zk.types.TransactionReceipt> {
+  type: ProviderType.ZKSync;
+  receipt: zk.types.TransactionReceipt;
+}
 export interface EthersV5TransactionReceipt
   extends TypedTransactionReceiptBase<EV5Providers.TransactionReceipt> {
   type: ProviderType.EthersV5;

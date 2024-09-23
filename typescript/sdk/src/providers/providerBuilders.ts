@@ -1,8 +1,9 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
-import { providers } from 'ethers';
+import { ethers } from 'ethers';
 import { createPublicClient, http } from 'viem';
+import * as zk from 'zksync-ethers';
 
 import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 
@@ -16,6 +17,7 @@ import {
   SolanaWeb3Provider,
   TypedProvider,
   ViemProvider,
+  ZKSyncProvider,
 } from './ProviderType.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
 import { ProviderRetryOptions } from './SmartProvider/types.js';
@@ -32,6 +34,15 @@ const DEFAULT_RETRY_OPTIONS: ProviderRetryOptions = {
   baseRetryDelayMs: 250,
 };
 
+export function defaultZKSyncProviderBuilder(
+  rpcUrls: RpcUrl[],
+  network: ethers.providers.Networkish,
+): ZKSyncProvider {
+  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  const url = rpcUrls[0].http;
+  const provider = new zk.Provider(url, network);
+  return { type: ProviderType.ZKSync, provider };
+}
 export function defaultEthersV5ProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
@@ -113,8 +124,15 @@ export function defaultCosmJsWasmProviderBuilder(
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): providers.Provider {
+): ethers.providers.Provider {
   return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
+}
+// Kept for backwards compatibility
+export function defaultZKProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: number | string,
+): zk.Provider {
+  return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
 }
 
 export type ProviderBuilderMap = Record<
@@ -122,6 +140,7 @@ export type ProviderBuilderMap = Record<
   ProviderBuilderFn<TypedProvider>
 >;
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
+  [ProviderType.ZKSync]: defaultEthersV5ProviderBuilder,
   [ProviderType.EthersV5]: defaultEthersV5ProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
@@ -133,6 +152,7 @@ export const protocolToDefaultProviderBuilder: Record<
   ProtocolType,
   ProviderBuilderFn<TypedProvider>
 > = {
+  [ProtocolType.ZKSync]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,

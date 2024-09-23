@@ -2,6 +2,7 @@ import type { SignatureLike } from '@ethersproject/bytes';
 import type { BigNumber, ethers } from 'ethers';
 
 export enum ProtocolType {
+  ZKSync = 'zksync',
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
   Cosmos = 'cosmos',
@@ -10,6 +11,7 @@ export enum ProtocolType {
 export type ProtocolTypeValue = `${ProtocolType}`;
 
 export const ProtocolSmallestUnit = {
+  [ProtocolType.ZKSync]: 'wei',
   [ProtocolType.Ethereum]: 'wei',
   [ProtocolType.Sealevel]: 'lamports',
   [ProtocolType.Cosmos]: 'uATOM',

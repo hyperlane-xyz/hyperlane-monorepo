@@ -16,7 +16,10 @@ import {
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
-import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
+import {
+  // forkNetworkToMultiProvider,
+  verifyAnvil,
+} from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
@@ -67,7 +70,6 @@ export async function getContext({
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
   const multiProvider = await getMultiProvider(registry, signer);
-
   return {
     registry,
     chainMetadata: multiProvider.metadata,
@@ -107,13 +109,13 @@ export async function getDryRunContext(
   await verifyAnvil();
 
   let multiProvider = await getMultiProvider(registry);
-  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
+  // multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
     key,
     skipConfirmation,
   });
-  multiProvider.setSharedSigner(impersonatedSigner);
+  // multiProvider.setSharedSigner(impersonatedSigner);
 
   return {
     registry,
@@ -167,7 +169,9 @@ function getRegistry(
 async function getMultiProvider(registry: IRegistry, signer?: Wallet) {
   const chainMetadata = await registry.getMetadata();
   const multiProvider = new MultiProvider(chainMetadata);
+
   if (signer) multiProvider.setSharedSigner(signer);
+
   return multiProvider;
 }
 
