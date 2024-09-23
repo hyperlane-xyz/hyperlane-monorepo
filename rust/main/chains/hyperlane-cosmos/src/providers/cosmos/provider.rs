@@ -159,6 +159,10 @@ impl CosmosProvider {
         Ok(contract)
     }
 
+    /// Reports if transaction contains fees expressed in unsupported denominations
+    /// The only denomination we support at the moment is the one we express gas minimum price
+    /// in the configuration of a chain. If fees contain an entry in a different denomination,
+    /// we report it in the logs.
     fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) {
         let supported_denomination = self.connection_conf.get_minimum_gas_price().denom;
         let unsupported_denominations = tx
@@ -173,6 +177,7 @@ impl CosmosProvider {
         if !unsupported_denominations.is_empty() {
             error!(
                 ?tx_hash,
+                ?supported_denomination,
                 ?unsupported_denominations,
                 "transaction contains fees in unsupported denominations, manual intervention is required");
         }
