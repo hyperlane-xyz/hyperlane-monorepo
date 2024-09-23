@@ -46,6 +46,7 @@ export const CollateralRebaseConfigSchema =
 export const SyntheticRebaseConfigSchema = TokenMetadataSchema.partial().extend(
   {
     type: z.literal(TokenType.syntheticRebase),
+    collateralDomain: z.number(),
   },
 );
 
@@ -92,24 +93,30 @@ export const WarpRouteDeployConfigSchema = z
     const entries = Object.entries(configMap);
     return (
       entries.some(
-        ([_, config]) => isCollateralConfig(config) || isNativeConfig(config),
+        ([_, config]) =>
+          isCollateralConfig(config) ||
+          isCollateralRebaseConfig(config) ||
+          isNativeConfig(config),
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
-  .refine((configMap) => {
-    // If WarpConfig contains a collateralVaultRebase, then rest must be syntheticRebase
+  .refine(function isCollateralRebasePairedCorrectly(configMap) {
+    // If WarpConfig contains a collateralVaultRebase, then it must be paired with syntheticRebase(s)
     const entries = Object.entries(configMap);
 
     const hasCollateralRebase = entries.some(([_, config]) =>
       isCollateralRebaseConfig(config),
     );
 
-    const collateralConfigs = entries.filter(
+    // Filter out all the non-collateral rebase configs to check if they are only synthetic rebase
+    const otherConfigs = entries.filter(
       ([_, config]) => !isCollateralRebaseConfig(config),
     );
-    if (collateralConfigs.length === 0) return false;
 
-    const allOthersSynthetic = collateralConfigs.every(([_, config], _index) =>
+    if (otherConfigs.length === 0) return false;
+
+    // The other configs MUST be synthetic rebase
+    const allOthersSynthetic = otherConfigs.every(([_, config], _index) =>
       isSyntheticRebaseConfig(config),
     );
     return hasCollateralRebase ? allOthersSynthetic : true;
