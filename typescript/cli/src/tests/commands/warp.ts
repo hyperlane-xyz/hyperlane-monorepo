@@ -26,6 +26,7 @@ export async function hyperlaneWarpDeploy(warpCorePath: string) {
 export async function hyperlaneWarpApply(
   warpDeployPath: string,
   warpCorePath: string,
+  strategyUrl = '',
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
@@ -33,6 +34,7 @@ export async function hyperlaneWarpApply(
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
+        --strategy ${strategyUrl} \
         --yes`;
 }
 

@@ -49,7 +49,7 @@ async fn test_wasm_contract_info_no_contract() {
 fn provider(address: &str) -> WasmGrpcProvider {
     let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Neutron);
     let address = CosmosAddress::from_str(address).unwrap();
-    let locator = Some(ContractLocator::new(&domain, address.digest()));
+    let locator = ContractLocator::new(&domain, address.digest());
 
     WasmGrpcProvider::new(
         domain.clone(),

@@ -124,6 +124,7 @@ impl GasPaymentEnforcer {
                 ?policy,
                 ?current_payment,
                 ?current_expenditure,
+                ?tx_cost_estimate,
                 "Evaluating if message meets gas payment requirement",
             );
             return policy

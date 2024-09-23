@@ -99,6 +99,11 @@ export const icas: Partial<
   flare: '0x689b8DaBBF2f9Fd83D37427A062B30edF463e20b',
   molten: '0x84802CdF47565C95d8ffd59E7c4B1cf027F5452F',
   shibarium: '0x6348FAe3a8374dbAAaE84EEe5458AE4063Fe2be7',
+
+  // Sep 9, 2024 batch
+  // ----------------------------
+  everclear: '0x63B2075372D6d0565F51210D0A296D3c8a773aB6',
+  oortmainnet: '0x7021D11F9fAe455AB2f45D72dbc2C64d116Cb657',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';

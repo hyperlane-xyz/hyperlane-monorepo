@@ -12,7 +12,7 @@ export default {
       return new Response(DISALLOWED_URL_MSG, { status: 401 });
     }
 
-    const apiUrl = new URL(`${GITPUB_API_HOST}${apiUrlPath}`);
+    const apiUrl = new URL(`${GITPUB_API_HOST}${apiUrlPath}?recursive=true`);
     return fetch(apiUrl, {
       method: 'GET',
       headers: {

@@ -64,8 +64,8 @@
     "decimals": 9
   },
   "eclipsemainnet": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.0000001",
+    "decimals": 1
   },
   "endurance": {
     "amount": "1.500000007",

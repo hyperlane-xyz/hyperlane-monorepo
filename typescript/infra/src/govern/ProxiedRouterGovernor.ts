@@ -75,9 +75,10 @@ export class ProxiedRouterGovernor<
           [expectedDomains, expectedAddresses],
         ),
         value: BigNumber.from(0),
-        description: `Updating routers in ${violation.contract.address} for ${
-          expectedDomains.length
-        } remote chains:\n${stringifyObject(violation.routerDiff, 'yaml')}`,
+        description: `Updating routers in ${violation.contract.address} for ${expectedDomains.length} remote chains`,
+        expandedDescription: `Updating routers for chains ${Object.keys(
+          violation.routerDiff,
+        ).join(', ')}:\n${stringifyObject(violation.routerDiff)}`,
       },
     };
   }
