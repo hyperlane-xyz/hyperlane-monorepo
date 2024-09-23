@@ -21,6 +21,9 @@ import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 import gasPrices from './gasPrices.json';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
+import rawTokenPrices from './tokenPrices.json';
+
+const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
 const remoteOverhead = (remote: ChainName) =>
@@ -31,22 +34,26 @@ const remoteOverhead = (remote: ChainName) =>
       )
     : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
 
-const testnetTokenValue = ethersUtils.parseUnits(
-  '1',
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-);
+// Gets the exchange rate of the remote quoted in local tokens
+function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
+  const localValue = ethersUtils.parseUnits(
+    tokenPrices[local],
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  );
+  const remoteValue = ethersUtils.parseUnits(
+    tokenPrices[remote],
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  );
+
+  return getTokenExchangeRateFromValues(local, localValue, remote, remoteValue);
+}
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
     gasPrices,
-    (local: ChainName, remote: ChainName): BigNumber =>
-      getTokenExchangeRateFromValues(
-        local,
-        testnetTokenValue,
-        remote,
-        testnetTokenValue,
-      ),
+    getTokenExchangeRate,
+    (local) => parseFloat(tokenPrices[local]),
     (local) => remoteOverhead(local),
   );
 
