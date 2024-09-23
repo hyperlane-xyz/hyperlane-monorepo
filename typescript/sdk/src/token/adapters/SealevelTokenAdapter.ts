@@ -519,6 +519,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     if (eqAddress(owner, this.addresses.warpRouter)) {
       const collateralAccount = this.deriveNativeTokenCollateralAccount();
       const balance = await this.getProvider().getBalance(collateralAccount);
+      // TODO: account for rent in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4558
       return BigInt(balance.toString());
     }
     return this.wrappedNative.getBalance(owner);
