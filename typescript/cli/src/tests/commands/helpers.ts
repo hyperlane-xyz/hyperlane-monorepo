@@ -1,3 +1,4 @@
+import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   TokenRouterConfig,
@@ -122,4 +123,38 @@ export async function getChainId(chainName: string, key: string) {
   });
   const chainMetadata = await registry.getChainMetadata(chainName);
   return String(chainMetadata?.chainId);
+}
+
+export async function deployToken(privateKey: string, chain: string) {
+  const { multiProvider } = await getContext({
+    registryUri: REGISTRY_PATH,
+    registryOverrideUri: '',
+    key: privateKey,
+  });
+
+  const token = await new ERC20Test__factory(
+    multiProvider.getSigner(chain),
+  ).deploy('token', 'token', '100000000000000000000', 18);
+  await token.deployed();
+
+  return token;
+}
+
+export async function deploy4626Vault(
+  privateKey: string,
+  chain: string,
+  tokenAddress: string,
+) {
+  const { multiProvider } = await getContext({
+    registryUri: REGISTRY_PATH,
+    registryOverrideUri: '',
+    key: privateKey,
+  });
+
+  const vault = await new ERC4626Test__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(tokenAddress, 'VAULT', 'VAULT');
+  await vault.deployed();
+
+  return vault;
 }
