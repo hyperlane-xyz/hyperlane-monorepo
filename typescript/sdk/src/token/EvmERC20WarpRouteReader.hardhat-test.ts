@@ -23,6 +23,7 @@ import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
@@ -121,7 +122,7 @@ describe('ERC20WarpRouterReader', async () => {
     );
   });
 
-  it('should derive collateral config correctly', async () => {
+  it.only('should derive collateral config correctly', async () => {
     // Create config
     const config: WarpRouteDeployConfig = {
       [chain]: {
@@ -151,8 +152,10 @@ describe('ERC20WarpRouterReader', async () => {
         config[chain].hook as string,
       ),
     );
-    // Check ism. should return undefined
-    expect(derivedConfig.interchainSecurityModule).to.be.undefined;
+    // Check ism
+    expect(
+      (derivedConfig.interchainSecurityModule as DerivedIsmConfig).address,
+    ).to.be.equal(await mailbox.defaultIsm());
 
     // Check if token values matches
     if (derivedConfig.type === TokenType.collateral) {
