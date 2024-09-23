@@ -80,6 +80,8 @@ describe('readIsmConfig', () => {
   it('parsing failure, threshold > modules.length', () => {
     expect(function () {
       readIsmConfig('src/tests/ism/threshold-gt-modules-length-fail.yaml');
-    }).to.throw('Threshold cannot be greater than number of modules');
+    }).to.throw(
+      'Threshold must be less than or equal to the number of modules',
+    );
   });
 });

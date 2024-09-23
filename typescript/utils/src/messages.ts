@@ -7,7 +7,7 @@ import {
   Domain,
   HexString,
   ParsedMessage,
-  ParsedTokenMessage,
+  ParsedWarpRouteMessage,
 } from './types.js';
 
 /**
@@ -68,22 +68,24 @@ export function parseMessage(message: string): ParsedMessage {
   const version = buf.readUint8(VERSION_OFFSET);
   const nonce = buf.readUInt32BE(NONCE_OFFSET);
   const origin = buf.readUInt32BE(ORIGIN_OFFSET);
-  const sender = utils.hexlify(buf.slice(SENDER_OFFSET, DESTINATION_OFFSET));
+  const sender = utils.hexlify(buf.subarray(SENDER_OFFSET, DESTINATION_OFFSET));
   const destination = buf.readUInt32BE(DESTINATION_OFFSET);
-  const recipient = utils.hexlify(buf.slice(RECIPIENT_OFFSET, BODY_OFFSET));
-  const body = utils.hexlify(buf.slice(BODY_OFFSET));
+  const recipient = utils.hexlify(buf.subarray(RECIPIENT_OFFSET, BODY_OFFSET));
+  const body = utils.hexlify(buf.subarray(BODY_OFFSET));
   return { version, nonce, origin, sender, destination, recipient, body };
 }
 
-export function parseTokenMessage(messageBody: string): ParsedTokenMessage {
+export function parseWarpRouteMessage(
+  messageBody: string,
+): ParsedWarpRouteMessage {
   const RECIPIENT_OFFSET = 0;
   const AMOUNT_OFFSET = 32;
   const buf = fromHexString(messageBody);
   const recipient = toHexString(
-    buf.slice(RECIPIENT_OFFSET, RECIPIENT_OFFSET + 32),
+    buf.subarray(RECIPIENT_OFFSET, RECIPIENT_OFFSET + 32),
   );
-  const amount = ethers.BigNumber.from(
-    toHexString(buf.slice(AMOUNT_OFFSET, AMOUNT_OFFSET + 32)),
+  const amount = BigInt(
+    toHexString(buf.subarray(AMOUNT_OFFSET, AMOUNT_OFFSET + 32)),
   );
   return {
     recipient,

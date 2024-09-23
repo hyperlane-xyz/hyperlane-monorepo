@@ -10,6 +10,7 @@ import {
   AgentContextConfig,
   DockerConfig,
   HelmRootAgentValues,
+  KubernetesResources,
   RootAgentConfig,
 } from '../config/agent/agent.js';
 import { RelayerConfigHelper } from '../config/agent/relayer.js';
@@ -23,11 +24,7 @@ import {
   getGcpSecretLatestVersionName,
   setGCPSecretUsingClient,
 } from '../utils/gcloud.js';
-import {
-  HelmCommand,
-  buildHelmChartDependencies,
-  helmifyValues,
-} from '../utils/helm.js';
+import { HelmManager } from '../utils/helm.js';
 import {
   execCmd,
   getInfraPath,
@@ -38,7 +35,7 @@ import { AgentGCPKey } from './gcp.js';
 
 const HELM_CHART_PATH = join(
   getInfraPath(),
-  '/../../rust/helm/hyperlane-agent/',
+  '/../../rust/main/helm/hyperlane-agent/',
 );
 
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
@@ -46,9 +43,8 @@ if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
     `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
   );
 
-export abstract class AgentHelmManager {
+export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> {
   abstract readonly role: AgentRole;
-  abstract readonly helmReleaseName: string;
   readonly helmChartPath: string = HELM_CHART_PATH;
   protected abstract readonly config: AgentConfigHelper;
 
@@ -69,55 +65,8 @@ export abstract class AgentHelmManager {
     return this.config.namespace;
   }
 
-  async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {
-    const cmd = ['helm', action];
-    if (dryRun) cmd.push('--dry-run');
-
-    if (action == HelmCommand.Remove) {
-      if (dryRun) cmd.push('--dry-run');
-      cmd.push(this.helmReleaseName, this.namespace);
-      await execCmd(cmd, {}, false, true);
-      return;
-    }
-
-    const values = helmifyValues(await this.helmValues());
-    if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
-      // Delete secrets to avoid them being stale
-      const cmd = [
-        'kubectl',
-        'delete',
-        'secrets',
-        '--namespace',
-        this.namespace,
-        '--selector',
-        `app.kubernetes.io/instance=${this.helmReleaseName}`,
-      ];
-      try {
-        await execCmd(cmd, {}, false, false);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    await buildHelmChartDependencies(this.helmChartPath);
-    cmd.push(
-      this.helmReleaseName,
-      this.helmChartPath,
-      '--create-namespace',
-      '--namespace',
-      this.namespace,
-      ...values,
-    );
-    if (action == HelmCommand.UpgradeDiff) {
-      cmd.push(
-        `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,
-      );
-    }
-    await execCmd(cmd, {}, false, true);
-  }
-
   async helmValues(): Promise<HelmRootAgentValues> {
-    const dockerImage = this.dockerImage();
+    const dockerImage = this.dockerImage;
     return {
       image: {
         repository: dockerImage.repo,
@@ -138,7 +87,7 @@ export abstract class AgentHelmManager {
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
-            maxBatchSize: 4,
+            maxBatchSize: 32,
           };
         }),
       },
@@ -151,25 +100,15 @@ export abstract class AgentHelmManager {
       return RpcConsensusType.Single;
     }
 
-    return this.config.rpcConsensusType;
+    return this.config.agentRoleConfig.rpcConsensusType;
   }
 
-  async doesAgentReleaseExist() {
-    try {
-      await execCmd(
-        `helm status ${this.helmReleaseName} --namespace ${this.namespace}`,
-        {},
-        false,
-        false,
-      );
-      return true;
-    } catch (error) {
-      return false;
-    }
+  get dockerImage(): DockerConfig {
+    return this.config.agentRoleConfig.docker;
   }
 
-  dockerImage(): DockerConfig {
-    return this.config.docker;
+  kubernetesResources(): KubernetesResources | undefined {
+    return this.config.agentRoleConfig.resources;
   }
 }
 
@@ -196,7 +135,7 @@ abstract class MultichainAgentHelmManager extends AgentHelmManager {
     return parts.join('-');
   }
 
-  dockerImage(): DockerConfig {
+  get dockerImage(): DockerConfig {
     return this.config.dockerImageForChain(this.chainName);
   }
 }
@@ -216,6 +155,7 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
 
     const signers = await this.config.signers();
@@ -244,6 +184,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
     values.hyperlane.aws = false;
@@ -279,6 +220,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         originChainName: cfg.originChainName,
         interval: cfg.interval,
       })),
+      resources: this.kubernetesResources(),
     };
 
     // The name of the helm release for agents is `hyperlane-agent`.

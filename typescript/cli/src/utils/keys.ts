@@ -68,7 +68,7 @@ async function addressToImpersonatedSigner(
   if (address.length != ETHEREUM_ADDRESS_LENGTH)
     throw new Error('Invalid address length.');
   else if (ethers.utils.isHexString(ensure0x(formattedKey)))
-    return await impersonateAccount(address);
+    return impersonateAccount(address);
   else throw new Error('Invalid address format');
 }
 
@@ -93,7 +93,7 @@ async function retrieveKey(
 ): Promise<string> {
   if (skipConfirmation) throw new Error(`No private key provided`);
   else
-    return await input({
+    return input({
       message: `Please enter private key or use the HYP_KEY environment variable.`,
     });
 }

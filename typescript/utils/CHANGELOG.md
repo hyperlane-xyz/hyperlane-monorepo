@@ -1,5 +1,35 @@
 # @hyperlane-xyz/utils
 
+## 5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- d6de34ad5: Add sortArraysInConfig method, normalizeConfig implementation to call sortArraysInConfig after current behavior
+- 291c5fe36: Add addBufferToGasLimit for gas limit buffer calculations
+
+## 5.1.0
+
+## 5.0.0
+
+### Major Changes
+
+- 488f949ef: Upgrade CosmJS libs to 0.32.4
+
+### Minor Changes
+
+- 388d25517: Added HyperlaneRelayer for relaying messages from the CLI
+- dfa908796: set the errorMessage argument as required for assert util function
+
+### Patch Changes
+
+- 1474865ae: Replace `configDeepEquals` with improve `deepEquals`
+
+## 4.1.0
+
+## 4.0.0
+
 ## 3.16.0
 
 ## 3.15.1

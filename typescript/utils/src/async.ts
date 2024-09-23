@@ -1,3 +1,5 @@
+import { rootLogger } from './logging.js';
+
 /**
  * Return a promise that resolves in ms milliseconds.
  * @param ms Time to wait
@@ -95,6 +97,7 @@ export async function pollAsync<T>(
       const ret = await runner();
       return ret;
     } catch (error) {
+      rootLogger.debug(`Error in pollAsync`, { error });
       saveError = error;
       attempts += 1;
       await sleep(delayMs);

@@ -1,6 +1,9 @@
 import select from '@inquirer/select';
 
-import { Token } from '@hyperlane-xyz/sdk';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { Token, WarpCoreConfig } from '@hyperlane-xyz/sdk';
+
+import { logGreen, logRed } from '../logger.js';
 
 export async function runTokenSelectionStep(
   tokens: Token[],
@@ -16,4 +19,33 @@ export async function runTokenSelectionStep(
     pageSize: 20,
   })) as string;
   return routerAddress;
+}
+
+export async function selectRegistryWarpRoute(
+  registry: IRegistry,
+  symbol: string,
+): Promise<WarpCoreConfig> {
+  const matching = await registry.getWarpRoutes({
+    symbol,
+  });
+  const routes = Object.entries(matching);
+
+  let warpCoreConfig: WarpCoreConfig;
+  if (routes.length === 0) {
+    logRed(`No warp routes found for symbol ${symbol}`);
+    process.exit(0);
+  } else if (routes.length === 1) {
+    warpCoreConfig = routes[0][1];
+  } else {
+    logGreen(`Multiple warp routes found for symbol ${symbol}`);
+    const chosenRouteId = await select({
+      message: 'Select from matching warp routes',
+      choices: routes.map(([routeId, _]) => ({
+        value: routeId,
+      })),
+    });
+    warpCoreConfig = matching[chosenRouteId];
+  }
+
+  return warpCoreConfig;
 }

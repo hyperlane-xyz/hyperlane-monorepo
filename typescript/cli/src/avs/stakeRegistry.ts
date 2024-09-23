@@ -109,7 +109,7 @@ export async function deregisterOperator({
   );
 }
 
-async function readOperatorFromEncryptedJson(
+export async function readOperatorFromEncryptedJson(
   operatorKeyPath: string,
 ): Promise<Wallet> {
   const encryptedJson = readFileAtPath(resolvePath(operatorKeyPath));
@@ -119,7 +119,7 @@ async function readOperatorFromEncryptedJson(
     message: 'Enter the password for the operator key file: ',
   });
 
-  return await Wallet.fromEncryptedJson(encryptedJson, keyFilePassword);
+  return Wallet.fromEncryptedJson(encryptedJson, keyFilePassword);
 }
 
 async function getOperatorSignature(

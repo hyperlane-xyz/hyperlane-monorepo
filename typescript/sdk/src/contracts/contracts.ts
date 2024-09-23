@@ -131,19 +131,58 @@ export function attachContractsMapAndGetForeignDeployments<
     factories,
   );
 
+  // TODO: This function shouldn't need to be aware of application types like collateral / synthetic / native etc. Ideally this should work for any app, not just warp routes. is it safe to assume this is always an object containing 1 key/value pair, and that the value will always be an address?
   const foreignDeployments = objMap(
     filterChainMapExcludeProtocol(
       addressesMap,
       ProtocolType.Ethereum,
       metadataManager,
     ),
-    (_, addresses) => hexOrBase58ToHex(addresses.router),
+    (chain, addresses) => {
+      const router =
+        addresses.router ||
+        addresses.collateral ||
+        addresses.synthetic ||
+        addresses.native;
+      const protocolType = metadataManager.tryGetChainMetadata(chain)?.protocol;
+
+      if (!router || typeof router !== 'string') {
+        throw new Error(`Router address not found for ${chain}`);
+      }
+
+      if (!protocolType) {
+        throw new Error(`Protocol type not found for ${chain}`);
+      }
+
+      switch (protocolType) {
+        case ProtocolType.Ethereum:
+          throw new Error('Ethereum chain should not have foreign deployments');
+
+        case ProtocolType.Cosmos:
+          return router;
+
+        case ProtocolType.Sealevel:
+          return hexOrBase58ToHex(router);
+
+        default:
+          throw new Error(`Unsupported protocol type: ${protocolType}`);
+      }
+    },
   );
 
   return {
     contractsMap,
     foreignDeployments,
   };
+}
+
+export function attachAndConnectContracts<F extends HyperlaneFactories>(
+  addresses: HyperlaneAddresses<F>,
+  factories: F,
+  connection: Connection,
+): HyperlaneContracts<F> {
+  const contracts = attachContracts(addresses, factories);
+  return connectContracts(contracts, connection);
 }
 
 export function connectContracts<F extends HyperlaneFactories>(

@@ -15,18 +15,17 @@ thiserror.workspace = true
 
 account-utils = { path = "../../libraries/account-utils" }
 ecdsa-signature = { path = "../../libraries/ecdsa-signature" }
-hyperlane-sealevel-mailbox = { path = "../mailbox", features = ["no-entrypoint"] }
-hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-sealevel-mailbox = { path = "../mailbox", features = [
+    "no-entrypoint",
+] }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
 [dev-dependencies]
 hex.workspace = true
 solana-program-test.workspace = true
 solana-sdk.workspace = true
-hyperlane-test-utils ={ path = "../../libraries/test-utils" }
+hyperlane-test-utils = { path = "../../libraries/test-utils" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
-
-[profile.release]
-overflow-checks = true

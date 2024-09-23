@@ -1,14 +1,21 @@
 import { CommandModule, Options } from 'yargs';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
+import { checkValidatorAvsSetup } from '../avs/check.js';
 import {
   deregisterOperator,
   registerOperatorWithSignature,
 } from '../avs/stakeRegistry.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
-import { log } from '../logger.js';
+import { errorRed, log } from '../logger.js';
+
+import {
+  avsChainCommandOption,
+  demandOption,
+  operatorKeyPathCommandOption,
+} from './options.js';
 
 /**
  * Parent command
@@ -20,6 +27,7 @@ export const avsCommand: CommandModule = {
     yargs
       .command(registerCommand)
       .command(deregisterCommand)
+      .command(checkCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
@@ -29,17 +37,8 @@ export const avsCommand: CommandModule = {
  * Registration command
  */
 export const registrationOptions: { [k: string]: Options } = {
-  chain: {
-    type: 'string',
-    description: 'Chain to interact with the AVS on',
-    demandOption: true,
-    choices: ['holesky', 'ethereum'],
-  },
-  operatorKeyPath: {
-    type: 'string',
-    description: 'Path to the operator key file',
-    demandOption: true,
-  },
+  chain: avsChainCommandOption,
+  operatorKeyPath: demandOption(operatorKeyPathCommandOption),
   avsSigningKeyAddress: {
     type: 'string',
     description: 'Address of the AVS signing key',
@@ -84,6 +83,50 @@ const deregisterCommand: CommandModuleWithWriteContext<{
       chain,
       operatorKeyPath,
     });
+    process.exit(0);
+  },
+};
+
+const checkCommand: CommandModuleWithWriteContext<{
+  chain: ChainName;
+  operatorKeyPath?: string;
+  operatorAddress?: string;
+}> = {
+  command: 'check',
+  describe: 'Check AVS',
+  builder: {
+    chain: avsChainCommandOption,
+    operatorKeyPath: operatorKeyPathCommandOption,
+    operatorAddress: {
+      type: 'string',
+      description: 'Address of the operator to check',
+    },
+  },
+  handler: async ({ context, chain, operatorKeyPath, operatorAddress }) => {
+    const { multiProvider } = context;
+
+    // validate chain
+    if (!multiProvider.hasChain(chain)) {
+      errorRed(
+        `❌ No metadata found for ${chain}. Ensure it is included in your configured registry.`,
+      );
+      process.exit(1);
+    }
+
+    const chainMetadata = multiProvider.getChainMetadata(chain);
+
+    if (chainMetadata.protocol !== ProtocolType.Ethereum) {
+      errorRed(`\n❌ Validator AVS check only supports EVM chains. Exiting.`);
+      process.exit(1);
+    }
+
+    await checkValidatorAvsSetup(
+      chain,
+      context,
+      operatorKeyPath,
+      operatorAddress,
+    );
+
     process.exit(0);
   },
 };

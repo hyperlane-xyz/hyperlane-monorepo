@@ -93,7 +93,7 @@ export const stopImpersonatingAccount = async (
 ) => {
   rootLogger.info(`Stopping account impersonation for address (${address})...`);
 
-  if (isValidAddressEvm(address))
+  if (!isValidAddressEvm(address))
     throw new Error(
       `Cannot stop account impersonation: invalid address format: ${address}`,
     );

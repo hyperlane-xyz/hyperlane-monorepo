@@ -9,13 +9,19 @@ import {
 } from 'ethers';
 import { Logger } from 'pino';
 
-import { Address, pick, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addBufferToGasLimit,
+  pick,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
+import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
@@ -277,6 +283,18 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
+   * Get the latest block range for a given chain's RPC provider
+   */
+  async getLatestBlockRange(
+    chainNameOrId: ChainNameOrId,
+    rangeSize = this.getMaxBlockRange(chainNameOrId),
+  ): Promise<{ fromBlock: number; toBlock: number }> {
+    const toBlock = await this.getProvider(chainNameOrId).getBlock('latest');
+    const fromBlock = Math.max(toBlock.number - rangeSize, 0);
+    return { fromBlock, toBlock: toBlock.number };
+  }
+
+  /**
    * Get the transaction overrides for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
@@ -304,13 +322,16 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const deployTx = contractFactory.getDeployTransaction(...params);
     const gasEstimated = await signer.estimateGas(deployTx);
 
-    // deploy with 10% buffer on gas limit
+    // deploy with buffer on gas limit
     const contract = await contractFactory.deploy(...params, {
-      gasLimit: gasEstimated.add(gasEstimated.div(10)), // 10% buffer
+      gasLimit: addBufferToGasLimit(gasEstimated),
       ...overrides,
     });
 
-    this.logger.trace({ transaction: deployTx }, `Deploying contract`);
+    this.logger.trace(
+      `Deploying contract ${contract.address} on ${chainNameOrId}:`,
+      { transaction: deployTx },
+    );
 
     // wait for deploy tx to be confirmed
     await this.handleTx(chainNameOrId, contract.deployTransaction);
@@ -384,9 +405,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   async sendTransaction(
     chainNameOrId: ChainNameOrId,
-    tx: PopulatedTransaction | Promise<PopulatedTransaction>,
+    txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
   ): Promise<ContractReceipt> {
-    const txReq = await this.prepareTx(chainNameOrId, await tx);
+    const { annotation, ...tx } = await txProm;
+    if (annotation) {
+      this.logger.info(annotation);
+    }
+    const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);

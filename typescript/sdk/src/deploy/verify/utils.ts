@@ -1,6 +1,6 @@
 import { ethers, utils } from 'ethers';
 
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { ChainMap, ChainName } from '../../types.js';
 
@@ -30,23 +30,38 @@ export function buildVerificationInput(
   address: string,
   constructorArguments: string,
   isProxy: boolean = name.endsWith('Proxy'),
+  expectedimplementation?: string,
 ): ContractVerificationInput {
   return {
     name: name.charAt(0).toUpperCase() + name.slice(1),
     address,
     constructorArguments,
     isProxy,
+    expectedimplementation,
   };
 }
 
-export function getContractVerificationInput(
-  name: string,
-  contract: ethers.Contract,
-  bytecode: string,
-  isProxy?: boolean,
-): ContractVerificationInput {
+export function getContractVerificationInput({
+  name,
+  contract,
+  bytecode,
+  isProxy,
+  expectedimplementation,
+}: {
+  name: string;
+  contract: ethers.Contract;
+  bytecode: string;
+  isProxy?: boolean;
+  expectedimplementation?: Address;
+}): ContractVerificationInput {
   const args = getConstructorArguments(contract, bytecode);
-  return buildVerificationInput(name, contract.address, args, isProxy);
+  return buildVerificationInput(
+    name,
+    contract.address,
+    args,
+    isProxy,
+    expectedimplementation,
+  );
 }
 
 /**

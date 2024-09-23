@@ -15,7 +15,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import { IgpFactories, igpFactories } from './contracts.js';
-import { serializeDifference } from './oracle/types.js';
+import {
+  oracleConfigToOracleData,
+  serializeDifference,
+} from './oracle/types.js';
 import { IgpConfig } from './types.js';
 
 export class HyperlaneIgpDeployer extends HyperlaneDeployer<
@@ -25,10 +28,12 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy: boolean = false,
   ) {
     super(multiProvider, igpFactories, {
       logger: rootLogger.child({ module: 'IgpDeployer' }),
       contractVerifier,
+      concurrentDeploy,
     });
   }
 
@@ -120,22 +125,24 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
 
       const actual = await gasOracle.remoteGasData(remoteDomain);
 
+      const desiredData = oracleConfigToOracleData(desired);
+
       if (
         !actual.gasPrice.eq(desired.gasPrice) ||
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
         this.logger.info(
-          `${chain} -> ${remote}: ${serializeDifference(actual, desired)}`,
+          `${chain} -> ${remote}: ${serializeDifference(actual, desiredData)}`,
         );
         configsToSet.push({
           remoteDomain,
-          ...desired,
+          ...desiredData,
         });
       }
 
       const exampleRemoteGas = (config.overhead[remote] ?? 200_000) + 50_000;
-      const exampleRemoteGasCost = desired.tokenExchangeRate
-        .mul(desired.gasPrice)
+      const exampleRemoteGasCost = desiredData.tokenExchangeRate
+        .mul(desiredData.gasPrice)
         .mul(exampleRemoteGas)
         .div(TOKEN_EXCHANGE_RATE_SCALE);
       this.logger.info(

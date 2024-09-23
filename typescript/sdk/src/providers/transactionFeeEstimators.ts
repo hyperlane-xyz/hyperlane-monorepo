@@ -126,7 +126,7 @@ export async function estimateTransactionFeeSolanaWeb3({
   const { value } = await connection.simulateTransaction(
     transaction.transaction,
   );
-  assert(!value.err, `Solana gas estimation failed: ${value.err}`);
+  assert(!value.err, `Solana gas estimation failed: ${JSON.stringify(value)}`);
   const gasUnits = BigInt(value.unitsConsumed || 0);
   const recentFees = await connection.getRecentPrioritizationFees();
   const gasPrice = BigInt(recentFees[0].prioritizationFee);
@@ -209,7 +209,7 @@ export async function estimateTransactionFeeCosmJsWasm({
   };
   const wasmClient = await provider.provider;
   // @ts-ignore access a private field here to extract client URL
-  const url: string = wasmClient.tmClient.client.url;
+  const url: string = wasmClient.cometClient.client.url;
   const stargateClient = StargateClient.connect(url);
 
   return estimateTransactionFeeCosmJs({

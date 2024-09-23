@@ -1,5 +1,21 @@
 # @hyperlane-xyz/ccip-server
 
+## 5.2.1
+
+## 5.2.0
+
+### Patch Changes
+
+- 5a0d68bdc: replace import console module with direct console
+
+## 5.1.0
+
+## 5.0.0
+
+## 4.1.0
+
+## 4.0.0
+
 ## 3.16.0
 
 ## 3.15.1

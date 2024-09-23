@@ -35,6 +35,9 @@ export function logColor(
   }
 }
 export const logBlue = (...args: any) => logColor('info', chalk.blue, ...args);
+export const logBlueKeyValue = (key: string, value: string) => {
+  logBlue(`${chalk.bold(`${key}:`)} ${value}`);
+};
 export const logPink = (...args: any) =>
   logColor('info', chalk.magentaBright, ...args);
 export const logGray = (...args: any) => logColor('info', chalk.gray, ...args);
@@ -43,11 +46,16 @@ export const logGreen = (...args: any) =>
 export const logRed = (...args: any) => logColor('info', chalk.red, ...args);
 export const logBoldUnderlinedRed = (...args: any) =>
   logColor('info', chalk.red.bold.underline, ...args);
+export const logBoldBlue = (...args: any) =>
+  logColor('info', chalk.blue.bold, ...args);
 export const logTip = (...args: any) =>
   logColor('info', chalk.bgYellow, ...args);
 export const warnYellow = (...args: any) =>
   logColor('warn', chalk.yellow, ...args);
 export const errorRed = (...args: any) => logColor('error', chalk.red, ...args);
+
+export const logDebug = (msg: string, ...args: any) =>
+  logger.debug(msg, ...args);
 
 // No support for table in pino so print directly to console
 export const logTable = (...args: any) => console.table(...args);

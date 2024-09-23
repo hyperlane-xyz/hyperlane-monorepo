@@ -2,7 +2,7 @@ import { CommandModule } from 'yargs';
 
 import { CommandModuleWithContext } from '../context/types.js';
 import { readIsmConfig } from '../ism/read.js';
-import { log } from '../logger.js';
+import { log, logGray } from '../logger.js';
 
 import {
   addressCommandOption,
@@ -46,6 +46,8 @@ export const read: CommandModuleWithContext<{
     out: outputFileCommandOption(),
   },
   handler: async (argv) => {
+    logGray('Hyperlane ISM Read');
+    logGray('------------------');
     await readIsmConfig(argv);
     process.exit(0);
   },

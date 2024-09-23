@@ -11,7 +11,7 @@ This CoC applies to all members of the Hyperlane Network's community including, 
 1. Never harass or bully anyone. Not verbally, not physically, not sexually. Harassment will not be tolerated.
 2. Never discriminate on the basis of personal characteristics or group membership.
 3. Treat your fellow contributors with respect, fairness, and professionalism, especially in situations of high pressure.
-4. Seek, offer, and accept objective criticism  of yours and others work, strive to acknowledge the contributions of others.
+4. Seek, offer, and accept objective criticism of yours and others work, strive to acknowledge the contributions of others.
 5. Be transparent and honest about your qualifications and any potential conflicts of interest. Transparency is a key tenet of the Hyperlane project and we expect it from all contributors.
 6. Bring an open and curious mind, the Hyperlane project is designed to enable developers to express their curiosity, experiment, and build things we couldn't have imagined ourselves.
 7. Stay on track - Do your best to avoid off-topic discussion and make sure you are posting to the correct channel and repositories. Distractions are costly and it is far too easy for work to go off track.

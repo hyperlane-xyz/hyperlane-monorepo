@@ -12,7 +12,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { EvmWarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import { TokenRouterConfig } from './schemas.js';
@@ -70,11 +70,14 @@ describe('TokenDeployer', async () => {
 
   for (const type of [TokenType.collateral, TokenType.synthetic]) {
     describe('ERC20WarpRouterReader', async () => {
-      let reader: EvmWarpRouteReader;
+      let reader: EvmERC20WarpRouteReader;
       let routerAddress: Address;
 
       before(() => {
-        reader = new EvmWarpRouteReader(multiProvider, TestChainName.test1);
+        reader = new EvmERC20WarpRouteReader(
+          multiProvider,
+          TestChainName.test1,
+        );
       });
 
       beforeEach(async () => {
@@ -88,12 +91,9 @@ describe('TokenDeployer', async () => {
         routerAddress = warpRoute[chain][type].address;
       });
 
-      it(`should derive TokenRouterConfig from ${type} correctly`, async () => {
-        const derivedConfig = await reader.deriveWarpRouteConfig(
-          routerAddress,
-          type,
-        );
-        expect(derivedConfig).to.include(config[chain]);
+      it(`should derive TokenRouterConfig correctly`, async () => {
+        const derivedConfig = await reader.deriveWarpRouteConfig(routerAddress);
+        expect(derivedConfig.type).to.equal(config[chain].type);
       });
     });
   }

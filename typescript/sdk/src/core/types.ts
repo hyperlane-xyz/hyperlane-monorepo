@@ -1,18 +1,16 @@
+import { z } from 'zod';
+
 import type { Mailbox } from '@hyperlane-xyz/core';
 import type { Address, ParsedMessage } from '@hyperlane-xyz/utils';
 
 import type { UpgradeConfig } from '../deploy/proxy.js';
-import type { CheckerViolation, OwnableConfig } from '../deploy/types.js';
-import { HookConfig } from '../hook/types.js';
+import type { CheckerViolation } from '../deploy/types.js';
 import type { IsmConfig } from '../ism/types.js';
 import type { ChainName } from '../types.js';
 
-import { CoreFactories } from './contracts.js';
+import { CoreConfigSchema } from './schemas.js';
 
-export type CoreConfig = OwnableConfig<keyof CoreFactories> & {
-  defaultIsm: IsmConfig;
-  defaultHook: HookConfig;
-  requiredHook: HookConfig;
+export type CoreConfig = z.infer<typeof CoreConfigSchema> & {
   remove?: boolean;
   upgrade?: UpgradeConfig;
 };

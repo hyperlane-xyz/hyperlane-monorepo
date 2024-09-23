@@ -5,7 +5,10 @@ import {
   ERC20__factory,
   ERC721Enumerable__factory,
   GasRouter,
+  IERC4626__factory,
+  IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
+import { TokenType } from '@hyperlane-xyz/sdk';
 import { assert, objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
@@ -43,11 +46,13 @@ abstract class TokenDeployer<
     loggerName: string,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(multiProvider, factories, {
       logger: rootLogger.child({ module: loggerName }),
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     }); // factories not used in deploy
   }
 
@@ -57,22 +62,23 @@ abstract class TokenDeployer<
     } else if (isNativeConfig(config)) {
       return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
     } else if (isSyntheticConfig(config)) {
-      assert(config.decimals); // decimals must be defined by this point
+      assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, config.mailbox];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
   }
 
-  async initializeArgs(_: ChainName, config: TokenRouterConfig): Promise<any> {
-    // ISM config can be an object, but is not supported right now.
-    if (typeof config.interchainSecurityModule === 'object') {
-      throw new Error('Token deployer does not support ISM objects currently');
-    }
+  async initializeArgs(
+    chain: ChainName,
+    config: TokenRouterConfig,
+  ): Promise<any> {
+    const signer = await this.multiProvider.getSigner(chain).getAddress();
     const defaultArgs = [
       config.hook ?? constants.AddressZero,
       config.interchainSecurityModule ?? constants.AddressZero,
-      config.owner,
+      // TransferOwnership will happen later in RouterDeployer
+      signer,
     ];
     if (isCollateralConfig(config) || isNativeConfig(config)) {
       return defaultArgs;
@@ -121,7 +127,26 @@ abstract class TokenDeployer<
           };
         }
 
-        const erc20 = ERC20__factory.connect(config.token, provider);
+        let token: string;
+        switch (config.type) {
+          case TokenType.XERC20Lockbox:
+            token = await IXERC20Lockbox__factory.connect(
+              config.token,
+              provider,
+            ).callStatic.ERC20();
+            break;
+          case TokenType.collateralVault:
+            token = await IERC4626__factory.connect(
+              config.token,
+              provider,
+            ).callStatic.asset();
+            break;
+          default:
+            token = config.token;
+            break;
+        }
+
+        const erc20 = ERC20__factory.connect(token, provider);
         const [name, symbol, decimals] = await Promise.all([
           erc20.name(),
           erc20.symbol(),
@@ -161,6 +186,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(
       multiProvider,
@@ -168,6 +194,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
       'HypERC20Deployer',
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     );
   }
 

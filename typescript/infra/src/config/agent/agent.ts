@@ -2,7 +2,6 @@ import {
   AgentChainMetadata,
   AgentSignerAwsKey,
   AgentSignerKeyType,
-  ChainMap,
   ChainName,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
@@ -31,7 +30,7 @@ export type DeepPartial<T> = T extends object
     }
   : T;
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+// See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is the root object in the values file.
 export interface HelmRootAgentValues {
   image: HelmImageValues;
@@ -39,7 +38,7 @@ export interface HelmRootAgentValues {
   nameOverride?: string;
 }
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+// See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane` in the values file.
 interface HelmHyperlaneValues {
   runEnv: DeployEnvironment;
@@ -55,7 +54,7 @@ interface HelmHyperlaneValues {
   scraper?: HelmScraperValues;
 }
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+// See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.chains` in the values file.
 export interface HelmAgentChainOverride
   extends DeepPartial<AgentChainMetadata> {
@@ -89,8 +88,12 @@ export interface AgentContextConfig extends AgentEnvConfig {
 
 // incomplete common agent configuration for a role
 interface AgentRoleConfig {
+  // K8s-specific
   docker: DockerConfig;
   chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
+  resources?: KubernetesResources;
+
+  // Agent-specific
   rpcConsensusType: RpcConsensusType;
   index?: IndexingConfig;
 }
@@ -117,6 +120,16 @@ export interface AwsConfig {
 export interface DockerConfig {
   repo: string;
   tag: string;
+}
+
+export interface KubernetesResources {
+  requests?: KubernetesComputeResources;
+  limits?: KubernetesComputeResources;
+}
+
+export interface KubernetesComputeResources {
+  cpu: string;
+  memory: string;
 }
 
 export class RootAgentConfigHelper implements AgentContextConfig {
@@ -154,21 +167,14 @@ export class RootAgentConfigHelper implements AgentContextConfig {
   }
 }
 
-export abstract class AgentConfigHelper<R = unknown>
-  extends RootAgentConfigHelper
-  implements AgentRoleConfig
-{
-  rpcConsensusType: RpcConsensusType;
-  docker: DockerConfig;
-  chainDockerOverrides?: Record<ChainName, Partial<DockerConfig>>;
-  index?: IndexingConfig;
-
-  protected constructor(root: RootAgentConfig, agent: AgentRoleConfig) {
+export abstract class AgentConfigHelper<
+  R = unknown,
+> extends RootAgentConfigHelper {
+  protected constructor(
+    root: RootAgentConfig,
+    readonly agentRoleConfig: AgentRoleConfig,
+  ) {
     super(root);
-    this.rpcConsensusType = agent.rpcConsensusType;
-    this.docker = agent.docker;
-    this.chainDockerOverrides = agent.chainDockerOverrides;
-    this.index = agent.index;
   }
 
   // role this config is for
@@ -178,13 +184,13 @@ export abstract class AgentConfigHelper<R = unknown>
 
   // If the provided chain has an override, return the override, otherwise return the default.
   dockerImageForChain(chainName: ChainName): DockerConfig {
-    if (this.chainDockerOverrides?.[chainName]) {
+    if (this.agentRoleConfig.chainDockerOverrides?.[chainName]) {
       return {
-        ...this.docker,
-        ...this.chainDockerOverrides[chainName],
+        ...this.agentRoleConfig.docker,
+        ...this.agentRoleConfig.chainDockerOverrides[chainName],
       };
     }
-    return this.docker;
+    return this.agentRoleConfig.docker;
   }
 }
 
@@ -213,12 +219,15 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
   }
 }
 
-export type AgentChainConfig = Record<AgentRole, ChainMap<boolean>>;
+export type AgentChainConfig<SupportedChains extends readonly ChainName[]> =
+  Record<AgentRole, Record<SupportedChains[number], boolean>>;
 
 /// Converts an AgentChainConfig to an AgentChainNames object.
-export function getAgentChainNamesFromConfig(
-  config: AgentChainConfig,
-  supportedChainNames: ChainName[],
+export function getAgentChainNamesFromConfig<
+  SupportedChains extends readonly ChainName[],
+>(
+  config: AgentChainConfig<SupportedChains>,
+  supportedChainNames: SupportedChains,
 ): AgentChainNames {
   ensureAgentChainConfigIncludesAllChainNames(config, supportedChainNames);
 
@@ -230,9 +239,11 @@ export function getAgentChainNamesFromConfig(
 }
 
 // Throws if any of the roles in the config do not have all the expected chain names.
-export function ensureAgentChainConfigIncludesAllChainNames(
-  config: AgentChainConfig,
-  expectedChainNames: ChainName[],
+export function ensureAgentChainConfigIncludesAllChainNames<
+  SupportedChains extends readonly ChainName[],
+>(
+  config: AgentChainConfig<SupportedChains>,
+  expectedChainNames: SupportedChains,
 ) {
   for (const [role, roleConfig] of Object.entries(config)) {
     const chainNames = Object.keys(roleConfig);

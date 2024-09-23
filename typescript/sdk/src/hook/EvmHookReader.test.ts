@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import { randomBytes } from 'ethers/lib/utils.js';
 import sinon from 'sinon';
 
 import {
@@ -117,11 +118,13 @@ describe('EvmHookReader', () => {
   it('should derive pausable config correctly', async () => {
     const mockAddress = generateRandomAddress();
     const mockOwner = generateRandomAddress();
+    const mockPaused = randomBytes(1)[0] % 2 === 0;
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
       hookType: sandbox.stub().resolves(OnchainHookType.PAUSABLE),
       owner: sandbox.stub().resolves(mockOwner),
+      paused: sandbox.stub().resolves(mockPaused),
     };
     sandbox
       .stub(PausableHook__factory, 'connect')
@@ -132,6 +135,7 @@ describe('EvmHookReader', () => {
 
     const expectedConfig: WithAddress<PausableHookConfig> = {
       owner: mockOwner,
+      paused: mockPaused,
       address: mockAddress,
       type: HookType.PAUSABLE,
     };
@@ -180,6 +184,32 @@ describe('EvmHookReader', () => {
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.deriveOpStackConfig(mockAddress);
     expect(config).to.deep.equal(hookConfig);
+  });
+
+  it('should throw if derivation fails', async () => {
+    const mockAddress = generateRandomAddress();
+    const mockOwner = generateRandomAddress();
+
+    // Mocking the connect method + returned what we need from contract object
+    const mockContract = {
+      // No type
+      owner: sandbox.stub().resolves(mockOwner),
+    };
+    sandbox
+      .stub(MerkleTreeHook__factory, 'connect')
+      .returns(mockContract as unknown as MerkleTreeHook);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockContract as unknown as IPostDispatchHook);
+
+    // top-level method infers hook type
+    try {
+      await evmHookReader.deriveHookConfig(mockAddress);
+    } catch (e: any) {
+      expect(e.toString()).to.contain(
+        `Failed to derive undefined hook (${mockAddress}):`,
+      );
+    }
   });
 
   /*

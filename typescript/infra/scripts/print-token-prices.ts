@@ -1,9 +1,10 @@
+import { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { objMap, pick } from '@hyperlane-xyz/utils';
 
 // Intentionally circumvent `mainnet3/index.ts` and `getEnvironmentConfig('mainnet3')`
 // to avoid circular dependencies.
 import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
-import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
+import { mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 
 const CURRENCY = 'usd';
 
@@ -11,8 +12,11 @@ async function main() {
   const registry = await getMainnet3Registry();
   const chainMetadata = await registry.getMetadata();
   const metadata = pick(
-    await registry.getMetadata(),
-    mainnet3SupportedChainNames,
+    chainMetadata as Record<
+      (typeof mainnet3SupportedChainNames)[number],
+      ChainMetadata
+    >,
+    [...mainnet3SupportedChainNames],
   );
 
   const ids = objMap(

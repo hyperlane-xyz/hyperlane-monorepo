@@ -141,12 +141,17 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     ancient8: 0.5,
     base: 0.5,
     blast: 0.5,
+    bob: 0.5,
+    fraxtal: 0.5,
+    linea: 0.5,
     mantapacific: 0.5,
+    mantle: 0.5,
     mode: 0.5,
     optimism: 0.5,
     polygonzkevm: 0.5,
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 1.5,
+    taiko: 0.5,
     // Nexus adjustment
     neutron: 0.5,
   };
@@ -234,11 +239,13 @@ export async function getCosmosChainGasPrice(
 
   const nativeToken = mustGetChainNativeToken(chain);
 
-  const fee = cosmosRegistryChain.fees?.fee_tokens.find((fee) => {
-    return (
-      fee.denom === nativeToken.denom || fee.denom === `u${nativeToken.denom}`
-    );
-  });
+  const fee = cosmosRegistryChain.fees?.fee_tokens.find(
+    (fee: { denom: string }) => {
+      return (
+        fee.denom === nativeToken.denom || fee.denom === `u${nativeToken.denom}`
+      );
+    },
+  );
   if (!fee || fee.average_gas_price === undefined) {
     throw new Error(`No gas price found for Cosmos chain ${chain}`);
   }

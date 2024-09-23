@@ -21,10 +21,11 @@ export async function forkNetworkToMultiProvider(
   chain: string,
 ) {
   multiProvider = multiProvider.extendChainMetadata({
-    [chain]: { blocks: { confirmations: 0 } },
+    [chain]: { blocks: { confirmations: 1 } },
   });
 
   await setFork(multiProvider, chain);
+  return multiProvider;
 }
 
 /**

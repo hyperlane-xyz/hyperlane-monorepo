@@ -98,9 +98,9 @@ export type ParsedMessage = {
   body: string;
 };
 
-export type ParsedTokenMessage = {
+export type ParsedWarpRouteMessage = {
   recipient: string;
-  amount: BigNumber;
+  amount: bigint;
 };
 
 export type ParsedLegacyMultisigIsmMetadata = {

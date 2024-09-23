@@ -23,6 +23,14 @@
     "no-extra-boolean-cast": ["error"],
     "no-ex-assign": ["error"],
     "no-constant-condition": ["off"],
+    "no-return-await": ["error"],
+    "no-restricted-imports": ["error", {
+      "name": "console",
+      "message": "Please use a logger and/or the utils' package assert"
+    }, {
+        "name": "fs",
+        "message": "Avoid use of node-specific libraries"
+    }],
     "guard-for-in": ["error"],
     "@typescript-eslint/ban-ts-comment": ["off"],
     "@typescript-eslint/explicit-module-boundary-types": ["off"],

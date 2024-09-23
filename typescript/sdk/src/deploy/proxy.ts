@@ -25,6 +25,18 @@ export async function proxyImplementation(
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
+export async function isInitialized(
+  provider: ethers.providers.Provider,
+  contract: Address,
+): Promise<boolean> {
+  // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
+  const storageValue = await provider.getStorageAt(contract, '0x0');
+  return (
+    storageValue ===
+    '0x00000000000000000000000000000000000000000000000000000000000000ff'
+  );
+}
+
 export async function proxyAdmin(
   provider: ethers.providers.Provider,
   proxy: Address,

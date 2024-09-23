@@ -1,11 +1,16 @@
+import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
 import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
-import { parseTokenMessage } from '@hyperlane-xyz/utils';
+import { HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
+import { logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { stubMerkleTreeConfig } from '../utils/relay.js';
 
 export async function checkMessageStatus({
   context,
@@ -13,17 +18,19 @@ export async function checkMessageStatus({
   destination,
   origin,
   selfRelay,
+  dispatchTx,
 }: {
-  context: CommandContext;
+  context: WriteCommandContext;
+  dispatchTx?: string;
   messageId?: string;
   destination?: ChainName;
   origin?: ChainName;
   selfRelay?: boolean;
 }) {
-  if (!destination) {
-    destination = await runSingleChainSelectionStep(
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
       context.chainMetadata,
-      'Select the destination chain',
+      'Select the origin chain',
     );
   }
 
@@ -38,35 +45,65 @@ export async function checkMessageStatus({
     chainAddresses,
     context.multiProvider,
   );
-  const mailbox = core.getContracts(destination).mailbox;
+
+  let dispatchedReceipt: TransactionReceipt;
+
+  if (dispatchTx) {
+    dispatchedReceipt = await context.multiProvider
+      .getProvider(origin)
+      .getTransactionReceipt(dispatchTx);
+  } else {
+    try {
+      dispatchedReceipt = await core.getDispatchTx(origin, messageId);
+    } catch (e) {
+      logRed(`Failed to infer dispatch transaction for message ${messageId}`);
+
+      dispatchTx = await input({
+        message: 'Provide dispatch transaction hash',
+      });
+      dispatchedReceipt = await context.multiProvider
+        .getProvider(origin)
+        .getTransactionReceipt(dispatchTx);
+    }
+  }
+
+  const messages = core.getDispatchedMessages(dispatchedReceipt!);
+  const match = messages.find((m) => m.id === messageId);
+  assert(match, `Message ${messageId} not found in dispatch tx ${dispatchTx}`);
+  const message = match;
+  try {
+    const { amount, recipient } = parseWarpRouteMessage(message.parsed.body);
+    logGray(`Warping ${amount} to ${recipient}`);
+  } catch {}
+
+  let deliveredTx: TransactionReceipt;
+
   log(`Checking status of message ${messageId} on ${destination}`);
-  const delivered = await mailbox.delivered(messageId);
+  const delivered = await core.isDelivered(message);
   if (delivered) {
     logGreen(`Message ${messageId} was delivered`);
-    return;
-  }
-  logBlue(`Message ${messageId} was not yet delivered`);
+    deliveredTx = await core.getProcessedReceipt(message);
+  } else {
+    logBlue(`Message ${messageId} was not yet delivered`);
 
-  if (selfRelay) {
-    // TODO: implement option for tx receipt input
-    if (!origin) {
-      origin = await runSingleChainSelectionStep(
-        context.chainMetadata,
-        'Select the origin chain',
-      );
+    if (!selfRelay) {
+      return;
     }
 
-    const receipt = await core.getDispatchTx(origin, messageId);
-    const messages = core.getDispatchedMessages(receipt);
-    const messageToRelay = messages[0];
-    try {
-      const { amount, recipient } = parseTokenMessage(
-        messageToRelay.parsed.body,
-      );
-      logGray(`Warping ${amount} to ${recipient}`);
-    } catch {}
+    const relayer = new HyperlaneRelayer({ core });
 
-    await core.relayMessage(messageToRelay);
-    logGreen(`Message ${messageId} was self-relayed!`);
+    const hookAddress = await core.getSenderHookAddress(message);
+    const merkleAddress = chainAddresses[origin].merkleTreeHook;
+    stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+
+    deliveredTx = await relayer.relayMessage(dispatchedReceipt);
   }
+
+  logGreen(
+    `Message ${messageId} delivered in ${
+      context.multiProvider.tryGetExplorerTxUrl(message.parsed.destination, {
+        hash: deliveredTx.transactionHash,
+      }) ?? deliveredTx.transactionHash
+    }`,
+  );
 }

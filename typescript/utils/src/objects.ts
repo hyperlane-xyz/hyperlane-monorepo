@@ -1,3 +1,4 @@
+import { cloneDeep, isEqual } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer } from './logging.js';
@@ -8,11 +9,11 @@ export function isObject(item: any) {
 }
 
 export function deepEquals(v1: any, v2: any) {
-  return JSON.stringify(v1) === JSON.stringify(v2);
+  return isEqual(v1, v2);
 }
 
 export function deepCopy(v: any) {
-  return JSON.parse(JSON.stringify(v));
+  return cloneDeep(v);
 }
 
 export type ValueOf<T> = T[keyof T];
@@ -142,7 +143,7 @@ export function arrayToObject(keys: Array<string>, val = true) {
 }
 
 export function stringifyObject(
-  object: object,
+  object: any,
   format: 'json' | 'yaml' = 'yaml',
   space?: number,
 ): string {

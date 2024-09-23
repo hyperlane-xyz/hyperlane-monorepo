@@ -1,0 +1,28 @@
+name: 'Checkout Registry'
+description: 'Checkout the hyperlane-registry repository and move it to the parent directory'
+inputs:
+  registry_version:
+    description: 'Override the version of the hyperlane-registry to checkout'
+runs:
+  using: 'composite'
+  steps:
+    - name: Read .registryrc if registry_version not provided
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.registry_version }}" ]; then
+          REGISTRY_VERSION=$(cat .registryrc)
+          echo "REGISTRY_VERSION=$REGISTRY_VERSION" >> $GITHUB_ENV
+        else
+          echo "REGISTRY_VERSION=${{ inputs.registry_version }}" >> $GITHUB_ENV
+        fi
+
+    - name: Checkout hyperlane-registry
+      uses: actions/checkout@v4
+      with:
+        repository: hyperlane-xyz/hyperlane-registry
+        ref: ${{ env.REGISTRY_VERSION }}
+        path: ./hyperlane-registry
+
+    - name: Move hyperlane-registry to parent directory
+      shell: bash
+      run: mv ./hyperlane-registry ../

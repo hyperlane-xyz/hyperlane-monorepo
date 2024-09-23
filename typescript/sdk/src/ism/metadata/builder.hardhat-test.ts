@@ -3,8 +3,13 @@ import hre from 'hardhat';
 import { before } from 'mocha';
 import sinon from 'sinon';
 
-import { MerkleTreeHook, TestRecipient } from '@hyperlane-xyz/core';
 import {
+  MerkleTreeHook,
+  MerkleTreeHook__factory,
+  TestRecipient,
+} from '@hyperlane-xyz/core';
+import {
+  Address,
   BaseValidator,
   Checkpoint,
   CheckpointWithId,
@@ -17,12 +22,16 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { testChains } from '../../consts/testChains.js';
-import { serializeContractsMap } from '../../contracts/contracts.js';
+import {
+  HyperlaneAddresses,
+  HyperlaneContracts,
+} from '../../contracts/types.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
 import { TestRecipientDeployer } from '../../core/TestRecipientDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
-import { HyperlaneHookDeployer } from '../../hook/HyperlaneHookDeployer.js';
+import { ProxyFactoryFactories } from '../../deploy/contracts.js';
+import { EvmHookModule } from '../../hook/EvmHookModule.js';
 import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainName } from '../../types.js';
@@ -39,8 +48,10 @@ const NUM_RUNS = 16;
 describe('BaseMetadataBuilder', () => {
   let core: HyperlaneCore;
   let ismFactory: HyperlaneIsmFactory;
-  let merkleHooks: Record<Domain, MerkleTreeHook>;
+  const merkleHooks: Record<Domain, MerkleTreeHook> = {};
   let testRecipients: Record<ChainName, TestRecipient>;
+  let proxyFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
+  let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
   let relayer: SignerWithAddress;
   let validators: SignerWithAddress[];
   let metadataBuilder: BaseMetadataBuilder;
@@ -51,11 +62,10 @@ describe('BaseMetadataBuilder', () => {
       signer: relayer,
     });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    ismFactory = new HyperlaneIsmFactory(
-      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
-      multiProvider,
+    const contractsMap = await ismFactoryDeployer.deploy(
+      multiProvider.mapKnownChains(() => ({})),
     );
-
+    ismFactory = new HyperlaneIsmFactory(contractsMap, multiProvider);
     const coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
     const recipientDeployer = new TestRecipientDeployer(multiProvider);
     testRecipients = objMap(
@@ -65,24 +75,38 @@ describe('BaseMetadataBuilder', () => {
       (_, { testRecipient }) => testRecipient,
     );
     core = await coreDeployer.deployApp();
-    const hookDeployer = new HyperlaneHookDeployer(
-      multiProvider,
-      serializeContractsMap(core.contractsMap),
-      ismFactory,
-    );
     const hookConfig = objMap(
       core.chainMap,
       (): MerkleTreeHookConfig => ({
         type: HookType.MERKLE_TREE,
       }),
     );
-    const hookContracts = await hookDeployer.deploy(hookConfig);
-    merkleHooks = Object.fromEntries(
-      Object.entries(hookContracts).map(([chain, { merkleTreeHook }]) => [
-        core.multiProvider.getDomainId(chain),
-        merkleTreeHook,
-      ]),
-    );
+
+    // deploy hooks
+    for (const chain of Object.keys(hookConfig)) {
+      factoryContracts = contractsMap[chain];
+      proxyFactoryAddresses = Object.keys(factoryContracts).reduce(
+        (acc, key) => {
+          acc[key] =
+            contractsMap[chain][key as keyof ProxyFactoryFactories].address;
+          return acc;
+        },
+        {} as Record<string, Address>,
+      ) as HyperlaneAddresses<ProxyFactoryFactories>;
+      const hookModule = await EvmHookModule.create({
+        chain,
+        config: hookConfig[chain],
+        proxyFactoryFactories: proxyFactoryAddresses,
+        coreAddresses: core.getAddresses(chain),
+        multiProvider,
+      });
+      const hookAddress = hookModule.serialize().deployedHook;
+      const merkleHook = MerkleTreeHook__factory.connect(
+        hookAddress,
+        multiProvider.getProvider(chain),
+      );
+      merkleHooks[multiProvider.getDomainId(chain)] = merkleHook;
+    }
 
     metadataBuilder = new BaseMetadataBuilder(core);
 

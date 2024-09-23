@@ -1,9 +1,8 @@
-import { BigNumber, BytesLike, PopulatedTransaction } from 'ethers';
+import { BigNumber, PopulatedTransaction } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
   Address,
-  CallData,
   addressToBytes32,
   bytes32ToAddress,
 } from '@hyperlane-xyz/utils';
@@ -22,7 +21,7 @@ import {
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts.js';
-import { AccountConfig } from './types.js';
+import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   constructor(
@@ -30,6 +29,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
+  }
+
+  override async remoteChains(chainName: string): Promise<ChainName[]> {
+    return Object.keys(this.contractsMap).filter(
+      (chain) => chain !== chainName,
+    );
   }
 
   router(
@@ -50,8 +55,39 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return new InterchainAccount(helper.contractsMap, helper.multiProvider);
   }
 
+  async getAccount(
+    destinationChain: ChainName,
+    config: AccountConfig,
+    routerOverride?: Address,
+    ismOverride?: Address,
+  ): Promise<Address> {
+    return this.getOrDeployAccount(
+      false,
+      destinationChain,
+      config,
+      routerOverride,
+      ismOverride,
+    );
+  }
+
   async deployAccount(
-    chain: ChainName,
+    destinationChain: ChainName,
+    config: AccountConfig,
+    routerOverride?: Address,
+    ismOverride?: Address,
+  ): Promise<Address> {
+    return this.getOrDeployAccount(
+      true,
+      destinationChain,
+      config,
+      routerOverride,
+      ismOverride,
+    );
+  }
+
+  protected async getOrDeployAccount(
+    deployIfNotExists: boolean,
+    destinationChain: ChainName,
     config: AccountConfig,
     routerOverride?: Address,
     ismOverride?: Address,
@@ -62,39 +98,56 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         `Origin chain (${config.origin}) metadata needed for deploying ICAs ...`,
       );
     }
-    const localRouter = this.router(this.contractsMap[chain]);
-    const routerAddress =
+    const destinationRouter = this.router(this.contractsMap[destinationChain]);
+    const originRouterAddress =
       routerOverride ??
-      bytes32ToAddress(await localRouter.routers(originDomain));
-    const ismAddress =
-      ismOverride ?? bytes32ToAddress(await localRouter.isms(originDomain));
-    const account = await localRouter[
+      bytes32ToAddress(await destinationRouter.routers(originDomain));
+    const destinationIsmAddress =
+      ismOverride ??
+      bytes32ToAddress(await destinationRouter.isms(originDomain));
+    const destinationAccount = await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, routerAddress, ismAddress);
+    ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+
+    // If not deploying anything, return the account address.
+    if (!deployIfNotExists) {
+      return destinationAccount;
+    }
+
+    // If the account does not exist, deploy it.
     if (
-      (await this.multiProvider.getProvider(chain).getCode(account)) === '0x'
+      (await this.multiProvider
+        .getProvider(destinationChain)
+        .getCode(destinationAccount)) === '0x'
     ) {
       await this.multiProvider.handleTx(
-        chain,
-        localRouter[
+        destinationChain,
+        destinationRouter[
           'getDeployedInterchainAccount(uint32,address,address,address)'
-        ](originDomain, config.owner, routerAddress, ismAddress),
+        ](
+          originDomain,
+          config.owner,
+          originRouterAddress,
+          destinationIsmAddress,
+        ),
       );
-      this.logger.debug(`Interchain account deployed at ${account}`);
+      this.logger.debug(`Interchain account deployed at ${destinationAccount}`);
     } else {
-      this.logger.debug(`Interchain account recovered at ${account}`);
+      this.logger.debug(
+        `Interchain account recovered at ${destinationAccount}`,
+      );
     }
-    return account;
+    return destinationAccount;
   }
 
   // meant for ICA governance to return the populatedTx
-  async getCallRemote(
-    chain: ChainName,
-    destination: ChainName,
-    innerCalls: CallData[],
-    config: AccountConfig,
-    hookMetadata?: BytesLike,
-  ): Promise<PopulatedTransaction> {
+  async getCallRemote({
+    chain,
+    destination,
+    innerCalls,
+    config,
+    hookMetadata,
+  }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
     const localRouter = this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
     const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
@@ -139,18 +192,38 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
 
   // general helper for different overloaded callRemote functions
   // can override the gasLimit by StandardHookMetadata.overrideGasLimit for optional hookMetadata here
-  async callRemote(
-    chain: ChainName,
-    destination: ChainName,
-    calls: Array<CallData>,
-    config: AccountConfig,
-    hookMetadata?: string,
-  ): Promise<void> {
+  async callRemote({
+    chain,
+    destination,
+    innerCalls,
+    config,
+    hookMetadata,
+  }: GetCallRemoteSettings): Promise<void> {
     await this.multiProvider.sendTransaction(
       chain,
-      this.getCallRemote(chain, destination, calls, config, hookMetadata),
+      this.getCallRemote({
+        chain,
+        destination,
+        innerCalls,
+        config,
+        hookMetadata,
+      }),
     );
   }
+}
+
+export function buildInterchainAccountApp(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+  config: AccountConfig,
+): InterchainAccount {
+  if (!config.localRouter) {
+    throw new Error('localRouter is required for account deployment');
+  }
+  const addressesMap: HyperlaneAddressesMap<any> = {
+    [chain]: { interchainAccountRouter: config.localRouter },
+  };
+  return InterchainAccount.fromAddressesMap(addressesMap, multiProvider);
 }
 
 export async function deployInterchainAccount(
@@ -158,15 +231,10 @@ export async function deployInterchainAccount(
   chain: ChainName,
   config: AccountConfig,
 ): Promise<Address> {
-  if (!config.localRouter) {
-    throw new Error('localRouter is required for account deployment');
-  }
-  const addressesMap: HyperlaneAddressesMap<any> = {
-    [chain]: { interchainAccountRouter: config.localRouter },
-  };
-  const router = InterchainAccount.fromAddressesMap(
-    addressesMap,
+  const interchainAccountApp: InterchainAccount = buildInterchainAccountApp(
     multiProvider,
+    chain,
+    config,
   );
-  return router.deployAccount(chain, config);
+  return interchainAccountApp.deployAccount(chain, config);
 }

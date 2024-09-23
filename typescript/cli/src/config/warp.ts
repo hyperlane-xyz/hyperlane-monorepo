@@ -1,7 +1,10 @@
 import { input, select } from '@inquirer/prompts';
+import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  IsmConfig,
+  IsmType,
   MailboxClientConfig,
   TokenType,
   WarpCoreConfig,
@@ -9,15 +12,25 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  isAddress,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { errorRed, logBlue, logGreen } from '../logger.js';
+import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { runMultiChainSelectionStep } from '../utils/chains.js';
 import {
-  detectAndConfirmOrPrompt,
-  runMultiChainSelectionStep,
-} from '../utils/chains.js';
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+  indentYamlOrJson,
+  readYamlOrJson,
+  writeYamlOrJson,
+} from '../utils/files.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
+
+import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
@@ -94,26 +107,41 @@ export function isValidWarpRouteDeployConfig(config: any) {
 export async function createWarpRouteDeployConfig({
   context,
   outPath,
+  advanced = false,
 }: {
   context: CommandContext;
   outPath: string;
+  advanced: boolean;
 }) {
-  logBlue('Creating a new warp route deployment config');
+  logBlue('Creating a new warp route deployment config...');
 
   const owner = await detectAndConfirmOrPrompt(
     async () => context.signer?.getAddress(),
     'Enter the desired',
     'owner address',
+    'signer',
   );
 
   const warpChains = await runMultiChainSelectionStep(
     context.chainMetadata,
     'Select chains to connect',
+    1,
   );
 
   const result: WarpRouteDeployConfig = {};
   for (const chain of warpChains) {
-    logBlue(`Configuring warp route for chain ${chain}`);
+    logBlue(`${chain}: Configuring warp route...`);
+
+    // default to the mailbox from the registry and if not found ask to the user to submit one
+    const chainAddresses = await context.registry.getChainAddresses(chain);
+
+    const mailbox =
+      chainAddresses?.mailbox ??
+      (await input({
+        validate: isAddress,
+        message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
+      }));
+
     const type = await select({
       message: `Select ${chain}'s token type`,
       choices: TYPE_CHOICES,
@@ -123,14 +151,9 @@ export async function createWarpRouteDeployConfig({
     const isNft =
       type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
-    const mailbox = await detectAndConfirmOrPrompt(
-      async () => {
-        const addresses = await context.registry.getChainAddresses(chain);
-        return addresses?.mailbox;
-      },
-      `For ${chain}, enter the`,
-      'mailbox address',
-    );
+    const interchainSecurityModule = advanced
+      ? await createAdvancedIsmConfig(context)
+      : createDefaultWarpIsmConfig(owner);
 
     switch (type) {
       case TokenType.collateral:
@@ -139,29 +162,49 @@ export async function createWarpRouteDeployConfig({
       case TokenType.collateralFiat:
       case TokenType.collateralUri:
       case TokenType.fastCollateral:
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the existing token address on chain ${chain}`,
+          }),
+        };
+        break;
       case TokenType.collateralVault:
         result[chain] = {
           mailbox,
           type,
           owner,
           isNft,
+          interchainSecurityModule,
           token: await input({
-            message: `Enter the existing token address on chain ${chain}`,
+            message: `Enter the ERC-4626 vault address on chain ${chain}`,
           }),
         };
         break;
       default:
-        result[chain] = { mailbox, type, owner, isNft };
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          interchainSecurityModule,
+        };
     }
   }
 
   try {
-    const parsed = WarpRouteDeployConfigSchema.parse(result);
-    logGreen(`Warp Route config is valid, writing to file ${outPath}`);
-    writeYamlOrJson(outPath, parsed);
+    const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
+    logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
+    log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
+    writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
+    logGreen('✅ Successfully created new warp route deployment config.');
   } catch (e) {
     errorRed(
-      `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example`,
+      `Warp route deployment config is invalid, please see https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/cli/examples/warp-route-deployment.yaml for an example.`,
     );
     throw e;
   }
@@ -169,8 +212,34 @@ export async function createWarpRouteDeployConfig({
 
 // Note, this is different than the function above which reads a config
 // for a DEPLOYMENT. This gets a config for using a warp route (aka WarpCoreConfig)
-export function readWarpRouteConfig(filePath: string): WarpCoreConfig {
+export function readWarpCoreConfig(filePath: string): WarpCoreConfig {
   const config = readYamlOrJson(filePath);
   if (!config) throw new Error(`No warp route config found at ${filePath}`);
   return WarpCoreConfigSchema.parse(config);
+}
+
+/**
+ * Creates a default configuration for an ISM with a TRUSTED_RELAYER and FALLBACK_ROUTING.
+ *
+ * Properties relayer and owner are both set as input owner.
+ *
+ * @param owner - The address of the owner of the ISM.
+ * @returns The default Aggregation ISM configuration.
+ */
+function createDefaultWarpIsmConfig(owner: Address): IsmConfig {
+  return {
+    type: IsmType.AGGREGATION,
+    modules: [
+      {
+        type: IsmType.TRUSTED_RELAYER,
+        relayer: owner,
+      },
+      {
+        type: IsmType.FALLBACK_ROUTING,
+        domains: {},
+        owner,
+      },
+    ],
+    threshold: 1,
+  };
 }

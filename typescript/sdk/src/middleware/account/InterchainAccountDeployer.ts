@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import { Router } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../../contracts/types.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
@@ -23,9 +24,11 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
+    concurrentDeploy?: boolean,
   ) {
     super(multiProvider, interchainAccountFactories, {
       contractVerifier,
+      concurrentDeploy,
     });
   }
   routerContractName(): string {
@@ -49,9 +52,16 @@ export class InterchainAccountDeployer extends ProxiedRouterDeployer<
 
   async initializeArgs(chain: string, config: RouterConfig): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
+    if (config.interchainSecurityModule) {
+      assert(
+        typeof config.interchainSecurityModule === 'string',
+        'ISM objects not supported in ICA deployer',
+      );
+    }
+
     return [
       config.hook ?? ethers.constants.AddressZero,
-      config.interchainSecurityModule! as string, // deployed in deployContracts
+      config.interchainSecurityModule!,
       owner,
     ];
   }

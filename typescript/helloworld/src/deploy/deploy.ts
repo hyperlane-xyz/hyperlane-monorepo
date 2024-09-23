@@ -22,10 +22,12 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
     multiProvider: MultiProvider,
     readonly ismFactory?: HyperlaneIsmFactory,
     readonly contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
     super(multiProvider, helloWorldFactories, {
       ismFactory,
       contractVerifier,
+      concurrentDeploy,
     });
   }
 
@@ -38,8 +40,9 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   async deployContracts(chain: ChainName, config: HelloWorldConfig) {
     const router = await this.deployContract(chain, 'router', [
       config.mailbox,
-      config.hook ?? ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
     ]);
+    await super.configureClient(chain, router, config);
     return {
       router,
     };

@@ -12,6 +12,7 @@ import {
   AccountConfig,
   ChainMap,
   ChainName,
+  CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
   HyperlaneContractsMap,
@@ -26,7 +27,6 @@ import {
   TestChainName,
   TestCoreApp,
   TestCoreDeployer,
-  resolveOrDeployAccountOwner,
 } from '@hyperlane-xyz/sdk';
 import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -55,8 +55,8 @@ export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
   TestApp,
   OwnableConfig
 > {
-  protected async mapViolationsToCalls() {
-    return;
+  protected async mapViolationToCall(_violation: CheckerViolation) {
+    return undefined;
   }
 
   mockPushCall(chain: string, call: AnnotatedCallData): void {
@@ -134,11 +134,7 @@ describe('ICA governance', async () => {
       localRouter: remote.address,
     };
 
-    accountOwner = await resolveOrDeployAccountOwner(
-      multiProvider,
-      remoteChain,
-      accountConfig,
-    );
+    accountOwner = await icaApp.deployAccount(remoteChain, accountConfig);
 
     const recipientF = new TestRecipient__factory(signer);
     recipient = await recipientF.deploy();
@@ -170,7 +166,7 @@ describe('ICA governance', async () => {
 
     // arrange
     const newIsm = randomAddress();
-    await governor.checker.checkChain(TestChainName.test2);
+    await governor.checkChain(TestChainName.test2);
     const call = {
       to: recipient.address,
       data: recipient.interface.encodeFunctionData(

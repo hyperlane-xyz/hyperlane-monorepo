@@ -39,6 +39,7 @@ export {
   strip0x,
 } from './addresses.js';
 export {
+  addBufferToGasLimit,
   convertDecimals,
   eqAmountApproximate,
   fromWei,
@@ -93,7 +94,7 @@ export {
   formatMessage,
   messageId,
   parseMessage,
-  parseTokenMessage,
+  parseWarpRouteMessage,
 } from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,

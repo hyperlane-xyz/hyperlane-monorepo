@@ -31,6 +31,10 @@ contract ERC20Test is ERC20 {
     function mintTo(address account, uint256 amount) public {
         _mint(account, amount);
     }
+
+    function burnFrom(address account, uint256 amount) public {
+        _burn(account, amount);
+    }
 }
 
 contract FiatTokenTest is ERC20Test, IFiatToken {
@@ -82,6 +86,18 @@ contract XERC20Test is ERC20Test, IXERC20 {
     }
 
     function mintingCurrentLimitOf(
+        address _bridge
+    ) external view returns (uint256) {
+        return type(uint256).max;
+    }
+
+    function mintingMaxLimitOf(
+        address _bridge
+    ) external view returns (uint256) {
+        return type(uint256).max;
+    }
+
+    function burningMaxLimitOf(
         address _bridge
     ) external view returns (uint256) {
         return type(uint256).max;

@@ -2,7 +2,6 @@ import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   BridgeAdapterConfig,
   ChainMap,
-  ChainMetadata,
   ChainName,
   CoreConfig,
   IgpConfig,
@@ -18,7 +17,7 @@ import { CloudAgentKey } from '../agents/keys.js';
 import { Role } from '../roles.js';
 
 import { RootAgentConfig } from './agent/agent.js';
-import { KeyFunderConfig } from './funding.js';
+import { CheckWarpDeployConfig, KeyFunderConfig } from './funding.js';
 import { HelloWorldConfig } from './helloworld/types.js';
 import { InfrastructureConfig } from './infrastructure.js';
 import { LiquidityLayerRelayerConfig } from './middleware.js';
@@ -54,13 +53,15 @@ export type EnvironmentConfig = {
     context?: Contexts,
     role?: Role,
     useSecrets?: boolean,
+    chains?: ChainName[],
   ) => Promise<MultiProvider>;
   getKeys: (
     context?: Contexts,
     role?: Role,
   ) => Promise<ChainMap<CloudAgentKey>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
-  keyFunderConfig?: KeyFunderConfig;
+  keyFunderConfig?: KeyFunderConfig<string[]>;
+  checkWarpDeployConfig?: CheckWarpDeployConfig;
   liquidityLayerConfig?: {
     bridgeAdapters: ChainMap<BridgeAdapterConfig>;
     relayer: LiquidityLayerRelayerConfig;

@@ -1,5 +1,156 @@
 # @hyperlane-xyz/sdk
 
+## 5.2.1
+
+### Patch Changes
+
+- Updated dependencies [eb5afcf3e]
+  - @hyperlane-xyz/core@5.2.1
+  - @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- a19e882fd: Improve Router Checker/Governor tooling to support enrolling multiple routers for missing domains
+- 203084df2: Added sdk support for Stake weighted ISM
+- 74a592e58: Adds OwnerCollateral to token mapping which will output the correct standard to the warp deploy artifact.
+- 739af9a34: Support providing multiple chains for checking in HyperlaneAppChecker
+- 44588c31d: Enroll new validators for cyber degenchain kroma lisk lukso merlin metis mint proofofplay real sanko tangle xai taiko
+- 291c5fe36: Use addBufferToGasLimit from @hyperlane-xyz/utils
+- 69f17d99a: Fix to correctly infer the default set of multisend addresses for a given chain, and update to latest safe-deployments patch release
+- 9563a8beb: Sorted cwNative funds by denom in transfer tx
+- 73c232b3a: Deploy to oortmainnet
+- 445b6222c: ArbL2ToL1Ism handles value via the executeTransaction branch
+- d6de34ad5: Sort values in EvmModuleDeployer.deployStaticAddressSet
+- 2e6176f67: Deploy to everclear mainnet
+- f2783c03b: Add ChainSubmissionStrategySchema
+- 3c07ded5b: Add Safe submit functionality to warp apply
+
+### Patch Changes
+
+- 518a1bef9: add 10% gas bump to initialize call in EvmModuleDeployer
+- 2bd540e0f: Estimate and add 10% gas bump for ICA initialization and enrollment
+- 3ad5918da: Support DefaultFallbackRoutingIsm in metadata builder
+- 2ffb78f5c: Improved check for mailbox initialization
+- 815542dd7: Fix arg validation for Sealevel HypNative adapters
+  Allow extra properties in ChainMetadata objects
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [203084df2]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [445b6222c]
+  - @hyperlane-xyz/utils@5.2.0
+  - @hyperlane-xyz/core@5.2.0
+
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Add ether's error reasoning handling to SmartProvider to show clearer error messages
+- 013f19c64: Support proxiedFactories in HypERC20App and extend HypERC20Checker with ProxiedRouterChecker
+- 013f19c64: Deploy to arbitrumsepolia, basesepolia, ecotestnet, optimismsepolia, polygonamoy
+- 013f19c64: Deploy to zircuit
+- 013f19c64: Update cosmos zod schema and enroll new validators for cheesechain, xlayer, zircuit, worldchain.
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Support proxyAdmin checks for non AW owned warp router contracts
+- 013f19c64: Add stride validators to default multisig ism
+- 013f19c64: Adds CollateralFiat to token mapping which will output the correct standard to the warp deploy artifact.
+- 013f19c64: Deploy to solana + eclipse
+- 013f19c64: Added yield route with yield going to message recipient.
+- 19f7d4fd9: Support passing foreignDeployments to HypERC20App constructor
+
+### Patch Changes
+
+- 013f19c64: feat: Add long-running CLI relayer
+- 013f19c64: Support xERC20Lockbox in checkToken
+- 013f19c64: Update ProxyAdminViolation interface to include proxyAdmin and proxy contract fields
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+  - @hyperlane-xyz/core@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
+## 5.0.0
+
+### Major Changes
+
+- 488f949ef: Upgrade CosmJS libs to 0.32.4
+
+### Minor Changes
+
+- 2c0ae3cf3: Deploy to connextsepolia + superpositiontestnet
+- 0dedbf5a0: Deploy to endurance, fusemainnet, zoramainnet
+- 388d25517: Added HyperlaneRelayer for relaying messages from the CLI
+- 4907b510c: Add logic to parse SmartProvider errors to handle ethers and smart provider errors
+- c7f5a35e8: Add hyperlane core apply with update default Ism
+- f83b492de: - Enable updating of hooks through the `EvmHookModule`, including IGP and gas oracles.
+  - Drive-by fixes to ISM module and tests.
+- 79740755b: Add enroll remote router to WarpModule
+- 8533f9e66: Adds transferOwnership to warp update to allow ownership to be transferred if the onchain owner differ
+- ed65556aa: Improve WarpCore validation error message for IGP fee checks
+- cfb890dc6: Remove outdated logos in SDK (now in registry)
+- 708999433: Adds hyperlane warp apply
+- 5529d98d0: Add hyperlane core apply with update ownership
+- 62d71fad3: Add hyperlane warp update to extend a warp config
+- 49986aa92: Add collateralAddressOrDenom for collateralVault
+- 8e942d3c6: Deploy to cheesechain, worldchain, xlayer
+
+### Patch Changes
+
+- 69a39da1c: Fix issue with cosmos tx estimation
+- 7265a4087: Add rpcUrl, chainId, and method(params) to smart provider logging.
+- 0a40dcb8b: Update cosmos chain schema
+- ab827a3fa: Removes inaccurate contract verification check, resulting in proxy contracts not being marked as proxies during contract verification.
+- dfa908796: add error message for all calls to assert util
+- ed63e04c4: Creates HyperlaneReader to re-use dyn provider log level & silences provider logs in deriveIsmConfig like deriveHookConfig.
+- 5aa24611b: Add 'isInitialized' check before initializing implementation contract (for contracts that disableInitializers in constructors).
+- 7fdd3958d: Adds logic to prune and minify build artifacts to address 'entity size too large' error thrown from explorers. Note that the only identified instance of this issue is on BSC mainnet.
+- fef629673: ContractVerifier now adjusts timeouts based on explorer family, which helps with many rate-limiting related contract verification issues. In addition, the ContractVerifier verify logic has been greatly simplified to allowing for a predictable callstack + easy debugging.
+- be4617b18: Handle subdirectories for the folder in S3Validator class
+- Updated dependencies [388d25517]
+- Updated dependencies [488f949ef]
+- Updated dependencies [dfa908796]
+- Updated dependencies [90598ad44]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/utils@5.0.0
+  - @hyperlane-xyz/core@5.0.0
+
+## 4.1.0
+
+### Minor Changes
+
+- 36e75af4e: Add optional deployer field to ChainMetadata schema
+- d31677224: Deploy to bob, mantle, taiko
+- 4cc9327e5: Update warp deploy to handle xerc20, initializerArgs to be the signer, update deploy gas constants
+- 1687fca93: Add EvmWarpModule with update() for ISM
+
+### Patch Changes
+
+- @hyperlane-xyz/core@4.1.0
+- @hyperlane-xyz/utils@4.1.0
+
+## 4.0.0
+
+### Minor Changes
+
+- b05ae38ac: Gracefully handle RPC failures during warp send & fix deriving hook error that prevents warp and core test messages on the cli.
+- 9304fe241: Use metadata builders in message relaying
+- bdcbe1d16: Add EvmWarpModule with create()
+- e38d31685: Add logic to set smart provider log level to disable provider logs during Warp TokenType derive
+- e0f226806: - Enables creation of new Hooks through the `EvmHookModule`.
+  - Introduces an `EvmModuleDeployer` to perform the barebones tasks of deploying contracts/proxies.
+- 6db9fa9ad: Implement hyperlane warp deploy
+
+### Patch Changes
+
+- 6b63c5d82: Adds deployment support for IsmConfig within a WarpRouteConfig
+- Updated dependencies [44cc9bf6b]
+  - @hyperlane-xyz/core@4.0.0
+  - @hyperlane-xyz/utils@4.0.0
+
 ## 3.16.0
 
 ### Minor Changes

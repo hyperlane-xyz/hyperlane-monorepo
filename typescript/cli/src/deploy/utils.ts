@@ -1,7 +1,9 @@
+import { confirm } from '@inquirer/prompts';
 import { BigNumber, ethers } from 'ethers';
 
 import {
   ChainMap,
+  ChainMetadata,
   ChainName,
   IsmConfig,
   MultisigConfig,
@@ -10,9 +12,16 @@ import {
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
-import { WriteCommandContext } from '../context/types.js';
-import { log, logGreen, logPink } from '../logger.js';
-import { gasBalancesAreSufficient } from '../utils/balances.js';
+import { CommandContext, WriteCommandContext } from '../context/types.js';
+import {
+  log,
+  logBlue,
+  logGray,
+  logGreen,
+  logPink,
+  logTable,
+} from '../logger.js';
+import { nativeBalancesAreSufficient } from '../utils/balances.js';
 import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
 
@@ -46,13 +55,59 @@ export async function runPreflightChecksForChains({
   assertSigner(signer);
   logGreen('✅ Signer is valid');
 
-  const sufficient = await gasBalancesAreSufficient(
+  await nativeBalancesAreSufficient(
     multiProvider,
     signer,
     chainsToGasCheck ?? chains,
     minGas,
   );
-  if (sufficient) logGreen('✅ Balances are sufficient');
+}
+
+export async function runDeployPlanStep({
+  context,
+  chain,
+}: {
+  context: WriteCommandContext;
+  chain: ChainName;
+}) {
+  const { signer, chainMetadata: chainMetadataMap, skipConfirmation } = context;
+  const address = await signer.getAddress();
+
+  logBlue('\nDeployment plan');
+  logGray('===============');
+  log(`Transaction signer and owner of new contracts: ${address}`);
+  log(`Deploying core contracts to network: ${chain}`);
+  const transformedChainMetadata = transformChainMetadataForDisplay(
+    chainMetadataMap[chain],
+  );
+  logTable(transformedChainMetadata);
+  log(
+    `Note: There are several contracts required for each chain, but contracts in your provided registries will be skipped.`,
+  );
+
+  if (skipConfirmation) return;
+  await confirmExistingMailbox(context, chain);
+  const isConfirmed = await confirm({
+    message: 'Is this deployment plan correct?',
+  });
+  if (!isConfirmed) throw new Error('Deployment cancelled');
+}
+
+async function confirmExistingMailbox(
+  context: CommandContext,
+  chain: ChainName,
+) {
+  const addresses = await context.registry.getChainAddresses(chain);
+  if (addresses?.mailbox) {
+    const isConfirmed = await confirm({
+      message: `Mailbox already exists at ${addresses.mailbox}. Are you sure you want to deploy a new mailbox and overwrite existing registry artifacts?`,
+      default: false,
+    });
+
+    if (!isConfirmed) {
+      throw Error('Deployment cancelled');
+    }
+  }
 }
 
 // from parsed types
@@ -106,7 +161,7 @@ export async function completeDeploy(
       `\t- Gas required for ${command} ${
         isDryRun ? 'dry-run' : 'deploy'
       } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol
+        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
       }`,
     );
   }
@@ -116,4 +171,18 @@ export async function completeDeploy(
 
 export function toUpperCamelCase(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
+  return {
+    Name: chainMetadata.name,
+    'Display Name': chainMetadata.displayName,
+    'Chain ID': chainMetadata.chainId,
+    'Domain ID': chainMetadata.domainId,
+    Protocol: chainMetadata.protocol,
+    'JSON RPC URL': chainMetadata.rpcUrls[0].http,
+    'Native Token: Symbol': chainMetadata.nativeToken?.symbol,
+    'Native Token: Name': chainMetadata.nativeToken?.name,
+    'Native Token: Decimals': chainMetadata.nativeToken?.decimals,
+  };
 }

@@ -1,7 +1,12 @@
 import { providers } from 'ethers';
 
 import { Mailbox__factory } from '@hyperlane-xyz/core';
-import { Address, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  objMap,
+  promiseObjAll,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
@@ -19,6 +24,8 @@ export class EvmCoreReader implements CoreReader {
   provider: providers.Provider;
   evmHookReader: EvmHookReader;
   evmIsmReader: EvmIsmReader;
+  protected readonly logger = rootLogger.child({ module: 'EvmCoreReader' });
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly chain: ChainNameOrId,
@@ -54,7 +61,17 @@ export class EvmCoreReader implements CoreReader {
           defaultHook: this.evmHookReader.deriveHookConfig(defaultHook),
           requiredHook: this.evmHookReader.deriveHookConfig(requiredHook),
         },
-        async (_, readerCall) => readerCall,
+        async (_, readerCall) => {
+          try {
+            return readerCall;
+          } catch (e) {
+            this.logger.error(
+              `EvmCoreReader: readerCall failed for ${address}:`,
+              e,
+            );
+            return;
+          }
+        },
       ),
     );
 

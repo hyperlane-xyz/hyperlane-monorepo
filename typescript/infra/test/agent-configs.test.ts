@@ -1,11 +1,14 @@
 import { expect } from 'chai';
 
 import { hyperlaneContextAgentChainConfig as mainnet3AgentChainConfig } from '../config/environments/mainnet3/agent.js';
-import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
+import { mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
 import { hyperlaneContextAgentChainConfig as testnet4AgentChainConfig } from '../config/environments/testnet4/agent.js';
-import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
+import { testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 import { getAgentConfigJsonPath } from '../scripts/agent-utils.js';
-import { ensureAgentChainConfigIncludesAllChainNames } from '../src/config/agent/agent.js';
+import {
+  AgentChainConfig,
+  ensureAgentChainConfigIncludesAllChainNames,
+} from '../src/config/agent/agent.js';
 import { AgentEnvironment } from '../src/config/environment.js';
 import { readJSONAtPath } from '../src/utils/utils.js';
 
@@ -34,7 +37,9 @@ describe('Agent configs', () => {
       it('AgentChainConfig specifies all chains for each role in the agent chain config', () => {
         // This will throw if there are any inconsistencies
         ensureAgentChainConfigIncludesAllChainNames(
-          config.agentChainConfig,
+          config.agentChainConfig as AgentChainConfig<
+            typeof config.supportedChainNames
+          >,
           config.supportedChainNames,
         );
       });

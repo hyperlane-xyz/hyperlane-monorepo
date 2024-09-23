@@ -1,19 +1,29 @@
-import { PopulatedTransaction } from 'ethers';
+import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { CallData, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
+import {
+  InterchainAccount,
+  buildInterchainAccountApp,
+} from '../../../../middleware/account/InterchainAccount.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
+import {
+  CallData,
+  PopulatedTransaction,
+  PopulatedTransactions,
+} from '../../types.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
 import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
-import { EV5InterchainAccountTxTransformerProps } from './EV5TxTransformerTypes.js';
+import { EV5InterchainAccountTxTransformerProps } from './types.js';
 
 export class EV5InterchainAccountTxTransformer
   implements EV5TxTransformerInterface
 {
-  public readonly txTransformerType: TxTransformerType = TxTransformerType.ICA;
+  public readonly txTransformerType: TxTransformerType =
+    TxTransformerType.INTERCHAIN_ACCOUNT;
   protected readonly logger: Logger = rootLogger.child({
     module: 'ica-transformer',
   });
@@ -21,35 +31,48 @@ export class EV5InterchainAccountTxTransformer
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5InterchainAccountTxTransformerProps,
-  ) {}
+  ) {
+    assert(
+      this.props.config.localRouter,
+      'Invalid AccountConfig: Cannot retrieve InterchainAccount.',
+    );
+  }
 
   public async transform(
-    ...txs: PopulatedTransaction[]
-  ): Promise<PopulatedTransaction[]> {
-    const txChainsToInnerCalls: Record<ChainName, CallData[]> = {};
+    ...txs: PopulatedTransactions
+  ): Promise<ethers.PopulatedTransaction[]> {
+    const txChainsToInnerCalls: Record<ChainName, CallData[]> = txs.reduce(
+      (
+        txChainToInnerCalls: Record<ChainName, CallData[]>,
+        { to, data, chainId }: PopulatedTransaction,
+      ) => {
+        const txChain = this.multiProvider.getChainName(chainId);
+        txChainToInnerCalls[txChain] ||= [];
+        txChainToInnerCalls[txChain].push({ to, data });
+        return txChainToInnerCalls;
+      },
+      {},
+    );
 
-    txs.map(({ to, data, value, chainId }: PopulatedTransaction) => {
-      assert(to, 'Invalid PopulatedTransaction: Missing to field');
-      assert(data, 'Invalid PopulatedTransaction: Missing data field');
-      assert(chainId, 'Invalid PopulatedTransaction: Missing chainId field');
-      const txChain = this.multiProvider.getChainName(chainId);
-      if (!txChainsToInnerCalls[txChain]) txChainsToInnerCalls[txChain] = [];
-      txChainsToInnerCalls[txChain].push({ to, data, value });
-    });
+    const interchainAccountApp: InterchainAccount = buildInterchainAccountApp(
+      this.multiProvider,
+      this.props.chain,
+      this.props.config,
+    );
 
-    const transformedTxs: Promise<PopulatedTransaction>[] = [];
-    Object.keys(txChainsToInnerCalls).map((txChain: ChainName) => {
+    const transformedTxs: ethers.PopulatedTransaction[] = [];
+    objMap(txChainsToInnerCalls, async (destination, innerCalls) => {
       transformedTxs.push(
-        this.props.interchainAccount.getCallRemote(
-          this.props.chain,
-          txChain,
-          txChainsToInnerCalls[txChain],
-          this.props.accountConfig,
-          this.props.hookMetadata,
-        ),
+        await interchainAccountApp.getCallRemote({
+          chain: this.props.chain,
+          destination,
+          innerCalls,
+          config: this.props.config,
+          hookMetadata: this.props.hookMetadata,
+        }),
       );
     });
 
-    return Promise.all(transformedTxs);
+    return transformedTxs;
   }
 }

@@ -1,9 +1,14 @@
 import { z } from 'zod';
 
-import { OwnableConfigSchema } from '../deploy/schemas.js';
 import { ZHash } from '../metadata/customZodTypes.js';
+import { OwnableSchema, PausableSchema } from '../schemas.js';
 
-import { AggregationIsmConfig, IsmConfig, IsmType } from './types.js';
+import { AggregationIsmConfig, IsmType, RoutingIsmConfig } from './types.js';
+
+const ValidatorInfoSchema = z.object({
+  signingAddress: ZHash,
+  weight: z.number(),
+});
 
 export const TestIsmConfigSchema = z.object({
   type: z.literal(IsmType.TEST_ISM),
@@ -12,6 +17,11 @@ export const TestIsmConfigSchema = z.object({
 export const MultisigConfigSchema = z.object({
   validators: z.array(ZHash),
   threshold: z.number(),
+});
+
+export const WeightedMultisigConfigSchema = z.object({
+  validators: z.array(ValidatorInfoSchema),
+  thresholdWeight: z.number(),
 });
 
 export const TrustedRelayerIsmConfigSchema = z.object({
@@ -25,10 +35,14 @@ export const OpStackIsmConfigSchema = z.object({
   nativeBridge: z.string(),
 });
 
-export const PausableIsmConfigSchema = OwnableConfigSchema.and(
+export const ArbL2ToL1IsmConfigSchema = z.object({
+  type: z.literal(IsmType.ARB_L2_TO_L1),
+  bridge: z.string(),
+});
+
+export const PausableIsmConfigSchema = PausableSchema.and(
   z.object({
     type: z.literal(IsmType.PAUSABLE),
-    paused: z.boolean().optional(),
   }),
 );
 
@@ -41,40 +55,47 @@ export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
   }),
 );
 
-export const RoutingIsmConfigSchema = OwnableConfigSchema.and(
+export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
   z.object({
     type: z.union([
-      z.literal(IsmType.ROUTING),
-      z.literal(IsmType.FALLBACK_ROUTING),
+      z.literal(IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG),
+      z.literal(IsmType.WEIGHTED_MESSAGE_ID_MULTISIG),
     ]),
-    domains: z.record(z.string(), z.nativeEnum(IsmType)),
   }),
 );
 
-export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> =
-  z.lazy(() =>
-    z
-      .object({
-        type: z.literal(IsmType.AGGREGATION),
-        modules: z.array(IsmConfigSchema),
-        threshold: z.number(),
-      })
-      .refine((data) => {
-        if (data.threshold > data.modules.length) return false;
-
-        return true;
-      }),
-  );
-
-export const IsmConfigSchema: z.ZodSchema<IsmConfig> = z.lazy(() =>
-  z.union([
-    z.string(),
-    TestIsmConfigSchema,
-    OpStackIsmConfigSchema,
-    PausableIsmConfigSchema,
-    TrustedRelayerIsmConfigSchema,
-    MultisigIsmConfigSchema,
-    RoutingIsmConfigSchema,
-    AggregationIsmConfigSchema,
-  ]),
+export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
+  () =>
+    OwnableSchema.extend({
+      type: z.union([
+        z.literal(IsmType.ROUTING),
+        z.literal(IsmType.FALLBACK_ROUTING),
+      ]),
+      domains: z.record(IsmConfigSchema),
+    }),
 );
+
+export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
+  .lazy(() =>
+    z.object({
+      type: z.literal(IsmType.AGGREGATION),
+      modules: z.array(IsmConfigSchema),
+      threshold: z.number(),
+    }),
+  )
+  .refine((data) => data.threshold <= data.modules.length, {
+    message: 'Threshold must be less than or equal to the number of modules',
+  });
+
+export const IsmConfigSchema = z.union([
+  ZHash,
+  TestIsmConfigSchema,
+  OpStackIsmConfigSchema,
+  PausableIsmConfigSchema,
+  TrustedRelayerIsmConfigSchema,
+  MultisigIsmConfigSchema,
+  WeightedMultisigIsmConfigSchema,
+  RoutingIsmConfigSchema,
+  AggregationIsmConfigSchema,
+  ArbL2ToL1IsmConfigSchema,
+]);

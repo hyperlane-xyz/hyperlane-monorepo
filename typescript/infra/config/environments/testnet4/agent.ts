@@ -1,6 +1,7 @@
 import {
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
+  MatchingList,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
@@ -9,13 +10,20 @@ import {
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
-import { routerMatchingList } from '../../../src/config/agent/relayer.js';
+import {
+  BaseRelayerConfig,
+  routerMatchingList,
+} from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
-import { supportedChainNames } from './supportedChainNames.js';
+import {
+  supportedChainNames,
+  testnet4SupportedChainNames,
+} from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import plumetestnetSepoliaAddresses from './warp/plumetestnet-sepolia-addresses.json';
 
@@ -30,47 +38,73 @@ const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 //
 // This is intentionally separate and not derived from the environment's supportedChainNames
 // to allow for more fine-grained control over which chains are enabled for each agent role.
-export const hyperlaneContextAgentChainConfig: AgentChainConfig = {
+export const hyperlaneContextAgentChainConfig: AgentChainConfig<
+  typeof testnet4SupportedChainNames
+> = {
   [Role.Validator]: {
     alfajores: true,
+    arbitrumsepolia: true,
+    basesepolia: true,
     bsctestnet: true,
+    connextsepolia: true,
+    ecotestnet: true,
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
-    plumetestnet: true,
+    optimismsepolia: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
-    solanatestnet: true,
+    solanatestnet: false,
+    superpositiontestnet: true,
   },
   [Role.Relayer]: {
     alfajores: true,
+    arbitrumsepolia: true,
+    basesepolia: true,
     bsctestnet: true,
+    connextsepolia: true,
+    ecotestnet: true,
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
-    plumetestnet: true,
+    optimismsepolia: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
-    solanatestnet: true,
+    solanatestnet: false,
+    superpositiontestnet: true,
   },
   [Role.Scraper]: {
     alfajores: true,
+    arbitrumsepolia: true,
+    basesepolia: true,
     bsctestnet: true,
+    connextsepolia: false,
+    ecotestnet: true,
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,
     fuji: true,
     holesky: true,
-    plumetestnet: true,
+    optimismsepolia: true,
+    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+    // plumetestnet: true,
+    polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
     // Cannot scrape non-EVM chains
     solanatestnet: false,
+    superpositiontestnet: false,
   },
 };
 
 export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   hyperlaneContextAgentChainConfig,
-  supportedChainNames,
+  testnet4SupportedChainNames,
 );
 
 const contextBase = {
@@ -89,6 +123,51 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
 ];
 
+// Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
+const relayerResources = {
+  requests: {
+    cpu: '1000m',
+    memory: '4Gi',
+  },
+};
+
+const validatorResources = {
+  requests: {
+    cpu: '250m',
+    memory: '256Mi',
+  },
+};
+
+const scraperResources = {
+  requests: {
+    cpu: '100m',
+    memory: '1Gi',
+  },
+};
+
+const relayBlacklist: BaseRelayerConfig['blacklist'] = [
+  {
+    // In an effort to reduce some giant retry queues that resulted
+    // from spam txs to the old TestRecipient before we were charging for
+    // gas, we blacklist the old TestRecipient address.
+    recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+  },
+  // Ignore load testing done by Mitosis from sepolia when they used a different Mailbox on
+  // arbitrumsepolia and optimismsepolia.
+  {
+    originDomain: getDomainId('sepolia'),
+    senderAddress: '0xb6f4a8dccac0beab1062212f4665879d9937c83c',
+    destinationDomain: getDomainId('arbitrumsepolia'),
+    recipientAddress: '0x3da95d8d0b98d7428dc2f864511e2650e34f7087',
+  },
+  {
+    originDomain: getDomainId('sepolia'),
+    senderAddress: '0xb6f4a8dccac0beab1062212f4665879d9937c83c',
+    destinationDomain: getDomainId('optimismsepolia'),
+    recipientAddress: '0xa49942c908ec50db14652914317518661ec04904',
+  },
+];
+
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   contextChainNames: hyperlaneContextAgentChainNames,
@@ -98,17 +177,9 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3bb9d0a-20240619-130157',
+      tag: '5a0d68b-20240916-144115',
     },
-    blacklist: [
-      ...releaseCandidateHelloworldMatchingList,
-      {
-        // In an effort to reduce some giant retry queues that resulted
-        // from spam txs to the old TestRecipient before we were charging for
-        // gas, we blacklist the old TestRecipient address.
-        recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
-      },
-    ],
+    blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
     metricAppContexts: [
       {
@@ -122,21 +193,24 @@ const hyperlane: RootAgentConfig = {
         matchingList: routerMatchingList(plumetestnetSepoliaAddresses),
       },
     ],
+    resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3bb9d0a-20240619-130157',
+      tag: '73c232b-20240912-124300',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
+    resources: validatorResources,
   },
   scraper: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c9c5d37-20240510-014327',
+      tag: '73c232b-20240912-124300',
     },
+    resources: scraperResources,
   },
 };
 
@@ -149,19 +223,22 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3bb9d0a-20240619-130157',
+      tag: '5a0d68b-20240916-144115',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
+    blacklist: relayBlacklist,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
+    resources: relayerResources,
   },
   validators: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3bb9d0a-20240619-130157',
+      tag: '73c232b-20240912-124300',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
+    resources: validatorResources,
   },
 };
 

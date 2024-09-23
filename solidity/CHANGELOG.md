@@ -1,5 +1,67 @@
 # @hyperlane-xyz/core
 
+## 5.2.1
+
+### Patch Changes
+
+- eb5afcf3e: Patch `HypNative` with hook overrides `transferRemote` behavior
+  - @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- 203084df2: Added sdk support for Stake weighted ISM
+- 445b6222c: ArbL2ToL1Ism handles value via the executeTransaction branch
+
+### Patch Changes
+
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [291c5fe36]
+  - @hyperlane-xyz/utils@5.2.0
+
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Added hook/ism for using the Optimism native bridge for L2->L1 calls
+- 013f19c64: Added yield route with yield going to message recipient.
+- 013f19c64: feat: attributable fraud for signers
+- 013f19c64: Implement checkpoint fraud proofs for use in slashing
+
+### Patch Changes
+
+- 013f19c64: fix: only evaluate dynamic revert reasons in reverting branch
+  - @hyperlane-xyz/utils@5.1.0
+
+## 5.0.0
+
+### Patch Changes
+
+- 90598ad44: Removed outbox as param for ArbL2ToL1Ism
+- Updated dependencies [388d25517]
+- Updated dependencies [488f949ef]
+- Updated dependencies [dfa908796]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/utils@5.0.0
+
+## 4.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@4.1.0
+
+## 4.0.0
+
+### Minor Changes
+
+- 44cc9bf6b: Add CLI command to support AVS validator status check
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@4.0.0
+
 ## 3.16.0
 
 ### Patch Changes

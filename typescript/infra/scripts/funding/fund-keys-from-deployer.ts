@@ -1,9 +1,11 @@
 import { EthBridger, getL2Network } from '@arbitrum/sdk';
 import { CrossChainMessenger } from '@eth-optimism/sdk';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
+import { eclipsemainnet } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -14,6 +16,7 @@ import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';
+import { getSecretRpcEndpoints } from '../../src/agents/index.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
@@ -72,7 +75,7 @@ const constMetricLabels = {
 const metricsRegister = new Registry();
 
 const walletBalanceGauge = new Gauge({
-  // Mirror the rust/ethers-prometheus `wallet_balance` gauge metric.
+  // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
   name: 'hyperlane_wallet_balance',
   help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
   registers: [metricsRegister],
@@ -96,33 +99,46 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
-// The balance threshold of the IGP contract that must be met for the key funder
-// to call `claim()`
-const igpClaimThresholdPerChain: ChainMap<string> = {
-  celo: '5',
-  alfajores: '1',
-  ancient8: '0.1',
-  avalanche: '2',
-  fuji: '1',
-  ethereum: '0.4',
-  polygon: '20',
-  optimism: '0.15',
-  arbitrum: '0.1',
-  bsc: '0.3',
-  bsctestnet: '1',
-  sepolia: '1',
-  moonbeam: '5',
-  gnosis: '5',
-  scrollsepolia: '0.1',
-  base: '0.1',
-  scroll: '0.1',
-  polygonzkevm: '0.1',
-  plumetestnet: '0.1',
-  inevm: '20',
-  // unused
-  test1: '0',
-  test2: '0',
-  test3: '0',
+interface SealevelAccount {
+  pubkey: PublicKey;
+  walletName: string;
+}
+
+const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
+  solanamainnet: [
+    {
+      // WIF warp route ATA payer
+      pubkey: new PublicKey('R5oMfxcbjx4ZYK1B2Aic1weqwt2tQsRzFEGe5WJfAxh'),
+      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
+    },
+    {
+      // USDC warp route ATA payer
+      pubkey: new PublicKey('A1XtL9mAzkNEpBPinrCpDRrPqVAFjgaxDk4ATFVoQVyc'),
+      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
+    },
+  ],
+  eclipsemainnet: [
+    {
+      // WIF warp route ATA payer
+      pubkey: new PublicKey('HCQAfDd5ytAEidzR9g7CipjEGv2ZrSSZq1UY34oDFv8h'),
+      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
+    },
+    {
+      // USDC warp route ATA payer
+      pubkey: new PublicKey('7arS1h8nwVVmmTVWSsu9rQ4WjLBN8iAi4DvHi8gWjBNC'),
+      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
+    },
+    {
+      // tETH warp route ATA payer
+      pubkey: new PublicKey('Hyy4jryRxgZm5pvuSx29fXxJ9J55SuDtXiCo89kmNuz5'),
+      walletName: 'tETH/eclipsemainnet-ethereum/ata-payer',
+    },
+    {
+      // SOL warp route ATA payer
+      pubkey: new PublicKey('CijxTbPs9JZxTUfo8Hmz2imxzHtKnDFD3kZP3RPy34uJ'),
+      walletName: 'SOL/eclipsemainnet-solanamainnet/ata-payer',
+    },
+  ],
 };
 
 // Funds key addresses for multiple contexts from the deployer key of the context
@@ -176,6 +192,14 @@ async function main() {
     )
     .coerce('desired-kathy-balance-per-chain', parseBalancePerChain)
 
+    .string('igp-claim-threshold-per-chain')
+    .array('igp-claim-threshold-per-chain')
+    .describe(
+      'igp-claim-threshold-per-chain',
+      'Array indicating threshold to claim IGP balance for each chain. Each element is expected as <chainName>=<balance>',
+    )
+    .coerce('igp-claim-threshold-per-chain', parseBalancePerChain)
+
     .boolean('skip-igp-claim')
     .describe('skip-igp-claim', 'If true, never claims funds from the IGP')
     .default('skip-igp-claim', false).argv;
@@ -198,6 +222,7 @@ async function main() {
         argv.skipIgpClaim,
         argv.desiredBalancePerChain,
         argv.desiredKathyBalancePerChain ?? {},
+        argv.igpClaimThresholdPerChain ?? {},
         path,
       ),
     );
@@ -213,6 +238,7 @@ async function main() {
           argv.skipIgpClaim,
           argv.desiredBalancePerChain,
           argv.desiredKathyBalancePerChain ?? {},
+          argv.igpClaimThresholdPerChain ?? {},
         ),
       ),
     );
@@ -244,8 +270,15 @@ class ContextFunder {
     public readonly context: Contexts,
     public readonly rolesToFund: FundableRole[],
     public readonly skipIgpClaim: boolean,
-    public readonly desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
-    public readonly desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
+    public readonly desiredBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredBalancePerChain'],
+    public readonly desiredKathyBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredKathyBalancePerChain'],
+    public readonly igpClaimThresholdPerChain: KeyFunderConfig<
+      ChainName[]
+    >['igpClaimThresholdPerChain'],
   ) {
     // At the moment, only blessed EVM chains are supported
     roleKeysPerChain = objFilter(
@@ -256,10 +289,8 @@ class ContextFunder {
           multiProvider.tryGetChainName(chain) !== null;
         if (!valid) {
           logger.warn(
+            { chain },
             'Skipping funding for non-blessed or non-Ethereum chain',
-            {
-              chain,
-            },
           );
         }
         return valid;
@@ -286,13 +317,18 @@ class ContextFunder {
     multiProvider: MultiProvider,
     contextsAndRolesToFund: ContextAndRolesMap,
     skipIgpClaim: boolean,
-    desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
-    desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
+    desiredBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredBalancePerChain'],
+    desiredKathyBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredKathyBalancePerChain'],
+    igpClaimThresholdPerChain: KeyFunderConfig<
+      ChainName[]
+    >['igpClaimThresholdPerChain'],
     filePath: string,
   ) {
-    logger.info('Reading identifiers and addresses from file', {
-      filePath,
-    });
+    logger.info({ filePath }, 'Reading identifiers and addresses from file');
     // A big array of KeyAsAddress, including keys that we may not care about.
     const allIdsAndAddresses: KeyAsAddress[] = readJSONAtPath(filePath);
     if (!allIdsAndAddresses.length) {
@@ -340,11 +376,14 @@ class ContextFunder {
       },
     );
 
-    logger.info('Successfully read keys for context from file', {
-      filePath,
-      readOnlyKeysPerChain,
-      context,
-    });
+    logger.info(
+      {
+        filePath,
+        readOnlyKeysPerChain,
+        context,
+      },
+      'Successfully read keys for context from file',
+    );
 
     return new ContextFunder(
       environment,
@@ -355,6 +394,7 @@ class ContextFunder {
       skipIgpClaim,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      igpClaimThresholdPerChain,
     );
   }
 
@@ -365,8 +405,15 @@ class ContextFunder {
     context: Contexts,
     rolesToFund: FundableRole[],
     skipIgpClaim: boolean,
-    desiredBalancePerChain: KeyFunderConfig['desiredBalancePerChain'],
-    desiredKathyBalancePerChain: KeyFunderConfig['desiredKathyBalancePerChain'],
+    desiredBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredBalancePerChain'],
+    desiredKathyBalancePerChain: KeyFunderConfig<
+      ChainName[]
+    >['desiredKathyBalancePerChain'],
+    igpClaimThresholdPerChain: KeyFunderConfig<
+      ChainName[]
+    >['igpClaimThresholdPerChain'],
   ) {
     // only roles that are fundable keys ie. relayer and kathy
     const fundableRoleKeys: Record<FundableRole, Address> = {
@@ -412,6 +459,7 @@ class ContextFunder {
       skipIgpClaim,
       desiredBalancePerChain,
       desiredKathyBalancePerChain,
+      igpClaimThresholdPerChain,
     );
   }
 
@@ -449,16 +497,26 @@ class ContextFunder {
     const failureOccurred = (await Promise.allSettled(promises)).reduce(
       (failureAgg, result, i) => {
         if (result.status === 'rejected') {
-          logger.error('Funding promise for chain rejected', {
-            chain: chainKeyEntries[i][0],
-            error: format(result.reason),
-          });
+          logger.error(
+            {
+              chain: chainKeyEntries[i][0],
+              error: format(result.reason),
+            },
+            'Funding promise for chain rejected',
+          );
           return true;
         }
         return result.value || failureAgg;
       },
       false,
     );
+
+    if (
+      this.environment === 'mainnet3' &&
+      this.context === Contexts.Hyperlane
+    ) {
+      await this.updateSolanaWalletBalanceGauge();
+    }
 
     return failureOccurred;
   }
@@ -469,9 +527,7 @@ class ContextFunder {
   ): Promise<boolean> {
     const provider = this.multiProvider.tryGetProvider(chain);
     if (!provider) {
-      logger.error('Cannot get chain connection', {
-        chain,
-      });
+      logger.error({ chain }, 'Cannot get chain connection');
       // Consider this an error, but don't throw and prevent all future funding attempts
       return true;
     }
@@ -482,15 +538,18 @@ class ContextFunder {
     try {
       await this.fundKeyIfRequired(chain, key, desiredBalance);
     } catch (err) {
-      logger.error('Error funding key', {
-        key: await getKeyInfo(
-          key,
-          chain,
-          this.multiProvider.getProvider(chain),
-        ),
-        context: this.context,
-        error: err,
-      });
+      logger.error(
+        {
+          key: await getKeyInfo(
+            key,
+            chain,
+            this.multiProvider.getProvider(chain),
+          ),
+          context: this.context,
+          error: err,
+        },
+        'Error funding key',
+      );
       failureOccurred = true;
     }
     await this.updateWalletBalanceGauge(chain);
@@ -519,36 +578,60 @@ class ContextFunder {
     }
   }
 
+  // Attempts to claim from the IGP if the balance exceeds the claim threshold.
+  // If no threshold is set, infer it by reading the desired balance and dividing that by 5.
   private async attemptToClaimFromIgp(chain: ChainName) {
-    const igpClaimThresholdEther = igpClaimThresholdPerChain[chain];
+    // Determine the IGP claim threshold in Ether for the given chain.
+    // If a specific threshold is not set, use the desired balance for the chain.
+    const igpClaimThresholdEther =
+      this.igpClaimThresholdPerChain[chain] ||
+      this.desiredBalancePerChain[chain];
+
+    // If neither the IGP claim threshold nor the desired balance is set, log a warning and skip the claim attempt.
     if (!igpClaimThresholdEther) {
-      logger.warn(`No IGP claim threshold for chain ${chain}`);
+      logger.warn(
+        { chain },
+        `No IGP claim threshold or desired balance for chain ${chain}, skipping`,
+      );
       return;
     }
-    const igpClaimThreshold = ethers.utils.parseEther(igpClaimThresholdEther);
+
+    // Convert the IGP claim threshold from Ether to a BigNumber.
+    let igpClaimThreshold = ethers.utils.parseEther(igpClaimThresholdEther);
+
+    // If the IGP claim threshold is not explicitly set, infer it from the desired balance by dividing it by 5.
+    if (!this.igpClaimThresholdPerChain[chain]) {
+      igpClaimThreshold = igpClaimThreshold.div(5);
+      logger.info(
+        { chain },
+        'Inferring IGP claim threshold from desired balance',
+      );
+    }
 
     const provider = this.multiProvider.getProvider(chain);
     const igp = this.igp.getContracts(chain).interchainGasPaymaster;
     const igpBalance = await provider.getBalance(igp.address);
 
-    logger.info('Checking IGP balance', {
-      chain,
-      igpBalance: ethers.utils.formatEther(igpBalance),
-      igpClaimThreshold: ethers.utils.formatEther(igpClaimThreshold),
-    });
+    logger.info(
+      {
+        chain,
+        igpBalance: ethers.utils.formatEther(igpBalance),
+        igpClaimThreshold: ethers.utils.formatEther(igpClaimThreshold),
+      },
+      'Checking IGP balance',
+    );
 
     if (igpBalance.gt(igpClaimThreshold)) {
-      logger.info('IGP balance exceeds claim threshold, claiming', {
-        chain,
-      });
+      logger.info({ chain }, 'IGP balance exceeds claim threshold, claiming');
       await this.multiProvider.sendTransaction(
         chain,
         await igp.populateTransaction.claim(),
       );
     } else {
-      logger.info('IGP balance does not exceed claim threshold, skipping', {
-        chain,
-      });
+      logger.info(
+        { chain },
+        'IGP balance does not exceed claim threshold, skipping',
+      );
     }
   }
 
@@ -609,62 +692,77 @@ class ContextFunder {
     const funderAddress = await this.multiProvider.getSignerAddress(chain);
 
     if (fundingAmount.eq(0)) {
-      logger.info('Skipping funding for key', {
-        key: keyInfo,
-        context: this.context,
-        chain,
-      });
+      logger.info(
+        {
+          key: keyInfo,
+          context: this.context,
+          chain,
+        },
+        'Skipping funding for key',
+      );
       return;
     } else {
-      logger.info('Funding key', {
-        chain,
-        amount: ethers.utils.formatEther(fundingAmount),
-        key: keyInfo,
-        funder: {
-          address: funderAddress,
-          balance: ethers.utils.formatEther(
-            await this.multiProvider.getSigner(chain).getBalance(),
-          ),
+      logger.info(
+        {
+          chain,
+          amount: ethers.utils.formatEther(fundingAmount),
+          key: keyInfo,
+          funder: {
+            address: funderAddress,
+            balance: ethers.utils.formatEther(
+              await this.multiProvider.getSigner(chain).getBalance(),
+            ),
+          },
+          context: this.context,
         },
-        context: this.context,
-      });
+        'Funding key',
+      );
     }
 
     const tx = await this.multiProvider.sendTransaction(chain, {
       to: key.address,
       value: fundingAmount,
     });
-    logger.info('Sent transaction', {
-      key: keyInfo,
-      txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
-        hash: tx.transactionHash,
-      }),
-      context: this.context,
-      chain,
-    });
-    logger.info('Got transaction receipt', {
-      key: keyInfo,
-      tx,
-      context: this.context,
-      chain,
-    });
+    logger.info(
+      {
+        key: keyInfo,
+        txUrl: this.multiProvider.tryGetExplorerTxUrl(chain, {
+          hash: tx.transactionHash,
+        }),
+        context: this.context,
+        chain,
+      },
+      'Sent transaction',
+    );
+    logger.info(
+      {
+        key: keyInfo,
+        tx,
+        context: this.context,
+        chain,
+      },
+      'Got transaction receipt',
+    );
   }
 
   private async bridgeToL2(l2Chain: ChainName, to: string, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    logger.info('Bridging ETH to L2', {
-      amount: ethers.utils.formatEther(amount),
-      l1Funder: await getAddressInfo(
-        await this.multiProvider.getSignerAddress(l1Chain),
-        l1Chain,
-        this.multiProvider.getProvider(l1Chain),
-      ),
-      l2Funder: await getAddressInfo(
-        to,
-        l2Chain,
-        this.multiProvider.getProvider(l2Chain),
-      ),
-    });
+    logger.info(
+      {
+        amount: ethers.utils.formatEther(amount),
+        l1Funder: await getAddressInfo(
+          await this.multiProvider.getSignerAddress(l1Chain),
+          l1Chain,
+          this.multiProvider.getProvider(l1Chain),
+        ),
+        l2Funder: await getAddressInfo(
+          to,
+          l2Chain,
+          this.multiProvider.getProvider(l2Chain),
+        ),
+      },
+      'Bridging ETH to L2',
+    );
     let tx;
     if (l2Chain.includes('optimism') || l2Chain.includes('base')) {
       tx = await this.bridgeToOptimism(l2Chain, amount, to);
@@ -766,6 +864,54 @@ class ContextFunder {
         ),
       );
   }
+
+  private async updateSolanaWalletBalanceGauge() {
+    for (const chain of Object.keys(sealevelAccountsToTrack) as ChainName[]) {
+      await this.updateSealevelWalletBalanceAccounts(
+        chain,
+        sealevelAccountsToTrack[chain],
+      );
+    }
+  }
+
+  private async updateSealevelWalletBalanceAccounts(
+    chain: ChainName,
+    accounts: SealevelAccount[],
+  ) {
+    const rpcUrls = await getSecretRpcEndpoints(this.environment, chain);
+    const provider = new Connection(rpcUrls[0], 'confirmed');
+
+    for (const { pubkey, walletName } of accounts) {
+      logger.info(
+        {
+          chain,
+          pubkey: pubkey.toString(),
+          walletName,
+        },
+        'Fetching sealevel wallet balance',
+      );
+      const balance = await provider.getBalance(pubkey);
+      logger.info(
+        {
+          balance,
+          chain,
+          pubkey: pubkey.toString(),
+          walletName,
+        },
+        'Retrieved sealevel chain wallet balance',
+      );
+      walletBalanceGauge
+        .labels({
+          chain,
+          wallet_address: pubkey.toString(),
+          wallet_name: walletName,
+          token_symbol: 'Native',
+          token_name: 'Native',
+          ...constMetricLabels,
+        })
+        .set(balance / 1e9);
+    }
+  }
 }
 
 async function getAddressInfo(
@@ -857,19 +1003,25 @@ async function gracefullyHandleError(
     await fn();
     return false;
   } catch (err) {
-    logger.error(errorMessage, {
-      chain,
-      error: format(err),
-    });
+    logger.error(
+      {
+        chain,
+        error: format(err),
+      },
+      errorMessage,
+    );
   }
   return true;
 }
 
 main().catch((err) => {
-  logger.error('Error occurred in main', {
-    // JSON.stringifying an Error returns '{}'.
-    // This is a workaround from https://stackoverflow.com/a/60370781
-    error: format(err),
-  });
+  logger.error(
+    {
+      // JSON.stringifying an Error returns '{}'.
+      // This is a workaround from https://stackoverflow.com/a/60370781
+      error: format(err),
+    },
+    'Error occurred in main',
+  );
   process.exit(1);
 });

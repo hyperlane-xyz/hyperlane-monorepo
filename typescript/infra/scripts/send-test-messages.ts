@@ -1,3 +1,4 @@
+import { Provider } from '@ethersproject/providers';
 import { Wallet } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
@@ -100,15 +101,28 @@ async function main() {
   const { timeout, defaultHook, requiredHook, mineforever } = args;
   let messages = args.messages;
 
+  // Limit the test chains to a subset of the known chains
+  // E2E in Rust only knows about test1, test2 and test3
+  const kathyTestChains = [
+    TestChainName.test1,
+    TestChainName.test2,
+    TestChainName.test3,
+  ];
+
+  // Create a multi-provider with a signer
   const signer = new Wallet(ANVIL_KEY);
   const multiProvider = MultiProvider.createTestMultiProvider({ signer });
+
+  // Get the provider for the first chain
   const provider = multiProvider.getProvider(TestChainName.test1);
 
+  // Create core from addresses
   const addresses = JSON.parse(
     fs.readFileSync('./config/environments/test/core/addresses.json', 'utf8'),
   );
   const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 
+  // helper function to get a random element from a list
   const randomElement = <T>(list: T[]) =>
     list[Math.floor(Math.random() * list.length)];
 
@@ -121,9 +135,11 @@ async function main() {
   const run_forever = messages === 0;
   while (run_forever || messages-- > 0) {
     // Round robin origin chain
-    const local = core.chains()[messages % core.chains().length];
+    const local = kathyTestChains[messages % kathyTestChains.length];
     // Random remote chain
-    const remote: ChainName = randomElement(await core.remoteChains(local));
+    const remote: ChainName = randomElement(
+      kathyTestChains.filter((c) => c !== local),
+    );
     const remoteId = multiProvider.getDomainId(remote);
     const contracts = core.getContracts(local);
     const mailbox = contracts.mailbox;

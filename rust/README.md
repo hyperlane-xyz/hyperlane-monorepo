@@ -88,7 +88,9 @@ env $(cat ./config/validator.fuji.env | grep -v "#" | xargs) ./target/debug/vali
 
 #### Automated E2E Test
 
-To perform an automated e2e test of the agents locally, from within the `hyperlane-monorepo/rust` directory, run:
+Clone `hyperlane-registry` repo next to `hyperlane-monorepo` repo.
+
+To perform an automated e2e test of the agents locally, from within the `hyperlane-monorepo/rust/main` directory, run:
 
 ```bash
 cargo run --release --bin run-locally
@@ -115,7 +117,7 @@ cd rust
 
 ### Deploy Procedure
 
-The contract addresses of each deploy can be found in `rust/config`. The agents will
+The contract addresses of each deploy can be found in `rust/main/config`. The agents will
 automatically pull in all configs in this directory.
 
 When agents are deployed to point at a new environment, they cease to point at

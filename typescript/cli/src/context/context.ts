@@ -1,18 +1,27 @@
+import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
+  DEFAULT_GITHUB_REGISTRY,
   GithubRegistry,
   IRegistry,
   MergedRegistry,
 } from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainMetadata,
+  ChainName,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
+import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
 import {
@@ -30,6 +39,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
+    disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
   };
   if (!isDryRun && settings.fromAddress)
@@ -52,11 +62,12 @@ export async function getContext({
   key,
   requiresKey,
   skipConfirmation,
+  disableProxy = false,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri);
+  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
   let signer: ethers.Wallet | undefined = undefined;
-  if (requiresKey) {
+  if (key || requiresKey) {
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
   const multiProvider = await getMultiProvider(registry, signer);
@@ -82,10 +93,11 @@ export async function getDryRunContext(
     key,
     fromAddress,
     skipConfirmation,
+    disableProxy = false,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri);
+  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -99,9 +111,8 @@ export async function getDryRunContext(
   logBlue(`Dry-running against chain: ${chain}`);
   await verifyAnvil();
 
-  const multiProvider = await getMultiProvider(registry);
-  await forkNetworkToMultiProvider(multiProvider, chain);
-
+  let multiProvider = await getMultiProvider(registry);
+  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
     key,
@@ -131,6 +142,7 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
+  enableProxy: boolean,
 ): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
   const registries = [primaryRegistryUri, overrideRegistryUri]
@@ -139,7 +151,14 @@ function getRegistry(
     .map((uri, index) => {
       const childLogger = logger.child({ uri, index });
       if (isHttpsUrl(uri)) {
-        return new GithubRegistry({ uri, logger: childLogger });
+        return new GithubRegistry({
+          uri,
+          logger: childLogger,
+          proxyUrl:
+            enableProxy && isCanonicalRepoUrl(uri)
+              ? PROXY_DEPLOYED_URL
+              : undefined,
+        });
       } else {
         return new FileSystemRegistry({
           uri,
@@ -153,6 +172,10 @@ function getRegistry(
   });
 }
 
+function isCanonicalRepoUrl(url: string) {
+  return url === DEFAULT_GITHUB_REGISTRY;
+}
+
 /**
  * Retrieves a new MultiProvider based on all known chain metadata & custom user chains
  * @param customChains Custom chains specified by the user
@@ -163,4 +186,36 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   const multiProvider = new MultiProvider(chainMetadata);
   if (signer) multiProvider.setSharedSigner(signer);
   return multiProvider;
+}
+
+export async function getOrRequestApiKeys(
+  chains: ChainName[],
+  chainMetadata: ChainMap<ChainMetadata>,
+): Promise<ChainMap<string>> {
+  const apiKeys: ChainMap<string> = {};
+
+  for (const chain of chains) {
+    const wantApiKey = await confirm({
+      default: false,
+      message: `Do you want to use an API key to verify on this (${chain}) chain's block explorer`,
+    });
+    if (wantApiKey) {
+      apiKeys[chain] = await detectAndConfirmOrPrompt(
+        async () => {
+          const blockExplorers = chainMetadata[chain].blockExplorers;
+          if (!(blockExplorers && blockExplorers.length > 0)) return;
+          for (const blockExplorer of blockExplorers) {
+            /* The current apiKeys mapping only accepts one key, even if there are multiple explorer options present. */
+            if (blockExplorer.apiKey) return blockExplorer.apiKey;
+          }
+          return undefined;
+        },
+        `Enter an API key for the ${chain} explorer`,
+        `${chain} api key`,
+        `${chain} metadata blockExplorers config`,
+      );
+    }
+  }
+
+  return apiKeys;
 }

@@ -42,7 +42,7 @@ export const buildAggregationIsmConfigs = (
       (chain, config): config is MultisigConfig =>
         chain !== local && chains.includes(chain),
     ),
-    (_, config) => ({
+    (_, config): AggregationIsmConfig => ({
       type: IsmType.AGGREGATION,
       modules: [
         {
@@ -56,5 +56,5 @@ export const buildAggregationIsmConfigs = (
       ],
       threshold: 1,
     }),
-  ) as ChainMap<AggregationIsmConfig>;
+  );
 };

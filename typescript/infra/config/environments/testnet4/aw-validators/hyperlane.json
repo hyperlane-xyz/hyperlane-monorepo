@@ -6,12 +6,24 @@
       "0x86485dcec5f7bb8478dd251676372d054dea6653"
     ]
   },
+  "arbitrumsepolia": {
+    "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
+  },
+  "basesepolia": {
+    "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
+  },
   "bsctestnet": {
     "validators": [
       "0x242d8a855a8c932dec51f7999ae7d1e48b10c95e",
       "0xf620f5e3d25a3ae848fec74bccae5de3edcd8796",
       "0x1f030345963c54ff8229720dd3a711c15c554aeb"
     ]
+  },
+  "connextsepolia": {
+    "validators": ["0xffbbec8c499585d80ef69eb613db624d27e089ab"]
+  },
+  "ecotestnet": {
+    "validators": ["0xb3191420d463c2af8bd9b4a395e100ec5c05915a"]
   },
   "fuji": {
     "validators": [
@@ -23,12 +35,11 @@
   "holesky": {
     "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
   },
-  "plumetestnet": {
-    "validators": [
-      "0xe765a214849f3ecdf00793b97d00422f2d408ea6",
-      "0xb59998f71efc65190a85ac5e81b66bd72a192a3b",
-      "0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c"
-    ]
+  "optimismsepolia": {
+    "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
+  },
+  "polygonamoy": {
+    "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
   },
   "scrollsepolia": {
     "validators": [
@@ -44,7 +55,7 @@
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
   },
-  "solanatestnet": {
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  "superpositiontestnet": {
+    "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
   }
 }

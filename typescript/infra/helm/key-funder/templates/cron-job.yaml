@@ -12,6 +12,9 @@ spec:
       backoffLimit: 0
       activeDeadlineSeconds: 14400 # 60 * 60 * 4 seconds = 4 hours
       template:
+        metadata:
+          labels:
+            {{- include "hyperlane.labels" . | nindent 12 }}
         spec:
           restartPolicy: Never
           containers:
@@ -35,6 +38,10 @@ spec:
 {{- end }}
 {{- range $chain, $balance := .Values.hyperlane.desiredKathyBalancePerChain }}
             - --desired-kathy-balance-per-chain
+            - {{ $chain }}={{ $balance }}
+{{- end }}
+{{- range $chain, $balance := .Values.hyperlane.igpClaimThresholdPerChain }}
+            - --igp-claim-threshold-per-chain
             - {{ $chain }}={{ $balance }}
 {{- end }}
             env:

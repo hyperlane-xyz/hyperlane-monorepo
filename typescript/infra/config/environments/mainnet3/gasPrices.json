@@ -1,10 +1,18 @@
 {
-  "arbitrum": {
-    "amount": "0.01",
-    "decimals": 9
-  },
   "ancient8": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "arbitrum": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "astar": {
+    "amount": "779.371350051",
+    "decimals": 9
+  },
+  "astarzkevm": {
+    "amount": "0.0562",
     "decimals": 9
   },
   "avalanche": {
@@ -12,11 +20,19 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.116871685",
+    "amount": "0.013571998",
+    "decimals": 9
+  },
+  "bitlayer": {
+    "amount": "0.050000007",
     "decimals": 9
   },
   "blast": {
-    "amount": "0.01649352",
+    "amount": "0.5",
+    "decimals": 9
+  },
+  "bob": {
+    "amount": "0.001000252",
     "decimals": 9
   },
   "bsc": {
@@ -27,12 +43,52 @@
     "amount": "10.0",
     "decimals": 9
   },
+  "cheesechain": {
+    "amount": "1.0",
+    "decimals": 9
+  },
+  "coredao": {
+    "amount": "30.0",
+    "decimals": 9
+  },
+  "cyber": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "degenchain": {
+    "amount": "100.0",
+    "decimals": 9
+  },
+  "dogechain": {
+    "amount": "250.0",
+    "decimals": 9
+  },
+  "eclipsemainnet": {
+    "amount": "0.0000001",
+    "decimals": 1
+  },
+  "endurance": {
+    "amount": "1.500000007",
+    "decimals": 9
+  },
   "ethereum": {
-    "amount": "20",
+    "amount": "10",
+    "decimals": 9
+  },
+  "everclear": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "flare": {
+    "amount": "25.0",
     "decimals": 9
   },
   "fraxtal": {
     "amount": "0.001000253",
+    "decimals": 9
+  },
+  "fusemainnet": {
+    "amount": "50.0",
     "decimals": 9
   },
   "gnosis": {
@@ -47,16 +103,48 @@
     "amount": "700000000",
     "decimals": 1
   },
+  "kroma": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "linea": {
     "amount": "0.110844655",
     "decimals": 9
   },
+  "lisk": {
+    "amount": "0.00100103",
+    "decimals": 9
+  },
+  "lukso": {
+    "amount": "2.113054947",
+    "decimals": 9
+  },
   "mantapacific": {
-    "amount": "0.101967574",
+    "amount": "0.011",
+    "decimals": 9
+  },
+  "mantle": {
+    "amount": "0.02",
+    "decimals": 9
+  },
+  "merlin": {
+    "amount": "0.095",
+    "decimals": 9
+  },
+  "metis": {
+    "amount": "1.682845607",
+    "decimals": 9
+  },
+  "mint": {
+    "amount": "0.001000252",
     "decimals": 9
   },
   "mode": {
-    "amount": "0.1",
+    "amount": "0.01",
+    "decimals": 9
+  },
+  "molten": {
+    "amount": "1.0",
     "decimals": 9
   },
   "moonbeam": {
@@ -67,8 +155,12 @@
     "amount": "0.0053",
     "decimals": 1
   },
+  "oortmainnet": {
+    "amount": "100.0",
+    "decimals": 9
+  },
   "optimism": {
-    "amount": "0.061126811",
+    "amount": "0.25",
     "decimals": 9
   },
   "osmosis": {
@@ -76,15 +168,27 @@
     "decimals": 1
   },
   "polygon": {
-    "amount": "101.76455238",
+    "amount": "219.572738168",
     "decimals": 9
   },
   "polygonzkevm": {
     "amount": "3.95",
     "decimals": 9
   },
+  "proofofplay": {
+    "amount": "0.01",
+    "decimals": 9
+  },
+  "real": {
+    "amount": "0.24",
+    "decimals": 9
+  },
   "redstone": {
     "amount": "0.0003",
+    "decimals": 9
+  },
+  "sanko": {
+    "amount": "0.5",
     "decimals": 9
   },
   "scroll": {
@@ -92,6 +196,22 @@
     "decimals": 9
   },
   "sei": {
+    "amount": "120.0",
+    "decimals": 9
+  },
+  "shibarium": {
+    "amount": "54.30595191",
+    "decimals": 9
+  },
+  "solanamainnet": {
+    "amount": "0.5",
+    "decimals": 1
+  },
+  "taiko": {
+    "amount": "0.050000001",
+    "decimals": 9
+  },
+  "tangle": {
     "amount": "1.0",
     "decimals": 9
   },
@@ -99,8 +219,28 @@
     "amount": "0.25",
     "decimals": 9
   },
+  "worldchain": {
+    "amount": "0.002002589",
+    "decimals": 9
+  },
+  "xai": {
+    "amount": "0.23886",
+    "decimals": 9
+  },
+  "xlayer": {
+    "amount": "9.67",
+    "decimals": 9
+  },
   "zetachain": {
     "amount": "10.1",
+    "decimals": 9
+  },
+  "zircuit": {
+    "amount": "0.001000253",
+    "decimals": 9
+  },
+  "zoramainnet": {
+    "amount": "0.001000252",
     "decimals": 9
   }
 }

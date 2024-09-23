@@ -4,22 +4,15 @@ import { CommandModule, Options } from 'yargs';
 import { CommandModuleWithWriteContext } from '../context/types.js';
 import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
-import { sendTestTransfer } from '../send/transfer.js';
-
-import { warpCoreConfigCommandOption } from './options.js';
 
 /**
  * Parent command
  */
 export const sendCommand: CommandModule = {
   command: 'send',
-  describe: 'Send a test message or transfer',
+  describe: 'Send a test message',
   builder: (yargs) =>
-    yargs
-      .command(messageCommand)
-      .command(transferCommand)
-      .version(false)
-      .demandCommand(),
+    yargs.command(messageCommand).version(false).demandCommand(),
   handler: () => log('Command required'),
 };
 
@@ -87,58 +80,6 @@ const messageCommand: CommandModuleWithWriteContext<
       origin,
       destination,
       messageBody: ethers.utils.hexlify(ethers.utils.toUtf8Bytes(body)),
-      timeoutSec: timeout,
-      skipWaitForDelivery: quick,
-      selfRelay: relay,
-    });
-    process.exit(0);
-  },
-};
-
-/**
- * Transfer command
- */
-const transferCommand: CommandModuleWithWriteContext<
-  MessageOptionsArgTypes & {
-    warp: string;
-    router?: string;
-    wei: string;
-    recipient?: string;
-  }
-> = {
-  command: 'transfer',
-  describe: 'Send a test token transfer on a warp route',
-  builder: {
-    ...messageOptions,
-    warp: warpCoreConfigCommandOption,
-    wei: {
-      type: 'string',
-      description: 'Amount in wei to send',
-      default: 1,
-    },
-    recipient: {
-      type: 'string',
-      description: 'Token recipient address (defaults to sender)',
-    },
-  },
-  handler: async ({
-    context,
-    origin,
-    destination,
-    timeout,
-    quick,
-    relay,
-    warp,
-    wei,
-    recipient,
-  }) => {
-    await sendTestTransfer({
-      context,
-      warpConfigPath: warp,
-      origin,
-      destination,
-      wei,
-      recipient,
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,
