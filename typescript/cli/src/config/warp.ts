@@ -151,20 +151,28 @@ export async function createWarpRouteDeployConfig({
     const isNft =
       type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
-    let createDefaultIsm: boolean;
+    /**
+     * The logic from the cli is as follows:
+     *  --advanced flag is provided: the user will have to build their own configuration using the available ISM types
+     *  --yes flag is provided: the default ISM config will be used (Trusted ISM + Default fallback ISM)
+     *  -- no flag is provided: the user must choose if the default ISM config should be used:
+     *    - yes: the default ISM config will be used (Trusted ISM + Default fallback ISM)
+     *    - no: the default fallback ISM will be used
+     */
+    let interchainSecurityModule: IsmConfig;
     if (advanced) {
-      createDefaultIsm = false;
+      interchainSecurityModule = await createAdvancedIsmConfig(context);
     } else if (context.skipConfirmation) {
-      createDefaultIsm = true;
-    } else {
-      createDefaultIsm = await confirm({
+      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
+    } else if (
+      await confirm({
         message: 'Do you want to use a trusted ISM for warp route?',
-      });
+      })
+    ) {
+      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
+    } else {
+      interchainSecurityModule = createFallbackRoutingConfig(owner);
     }
-
-    const interchainSecurityModule = createDefaultIsm
-      ? createDefaultWarpIsmConfig(owner)
-      : await createAdvancedIsmConfig(context);
 
     switch (type) {
       case TokenType.collateral:
@@ -245,12 +253,22 @@ function createDefaultWarpIsmConfig(owner: Address): IsmConfig {
         type: IsmType.TRUSTED_RELAYER,
         relayer: owner,
       },
-      {
-        type: IsmType.FALLBACK_ROUTING,
-        domains: {},
-        owner,
-      },
+      createFallbackRoutingConfig(owner),
     ],
     threshold: 1,
+  };
+}
+
+/**
+ * Creates a fallback configuration for an ISM with a FALLBACK_ROUTING and the provided `owner`.
+ *
+ * @param owner - The address of the owner of the ISM.
+ * @returns The Fallback Routing ISM configuration.
+ */
+function createFallbackRoutingConfig(owner: Address): IsmConfig {
+  return {
+    type: IsmType.FALLBACK_ROUTING,
+    domains: {},
+    owner,
   };
 }
