@@ -391,7 +391,6 @@ impl HyperlaneSequenceAwareIndexerStoreReader<MerkleTreeInsertion> for Hyperlane
 impl HyperlaneSequenceAwareIndexerStoreReader<InterchainGasPayment> for HyperlaneRocksDB {
     /// Gets data by its sequence.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<InterchainGasPayment>> {
-        println!("retrieving gas payment by sequence {}", sequence);
         Ok(self.retrieve_gas_payment_by_sequence(&sequence)?)
     }
 
