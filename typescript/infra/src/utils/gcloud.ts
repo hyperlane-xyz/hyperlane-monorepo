@@ -35,6 +35,7 @@ export async function fetchGCPSecret(
     );
     output = envVarOverride;
   } else {
+    debugLog(`Fetching GCP secret with name ${secretName}`);
     output = await fetchLatestGCPSecret(secretName);
   }
 
@@ -74,8 +75,10 @@ function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
     process.env.GCP_SECRET_OVERRIDES_ENABLED &&
     process.env.GCP_SECRET_OVERRIDES_ENABLED.length > 0;
   if (!overridingEnabled) {
+    debugLog('GCP secret overrides disabled');
     return undefined;
   }
+  debugLog('GCP secret overrides enabled');
   const overrideEnvVarName = `GCP_SECRET_OVERRIDE_${gcpSecretName
     .replaceAll('-', '_')
     .toUpperCase()}`;
