@@ -14,9 +14,10 @@ import {
   HyperlaneContractsMap,
   RouterConfig,
   TestChainName,
-  TokenRouterConfig,
+  WarpRouteDeployConfig,
   test3,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -122,12 +123,12 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive collateral config correctly', async () => {
     // Create config
-    const config = {
+    const config: WarpRouteDeployConfig = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
         hook: await mailbox.defaultHook(),
-        interchainsecurityModule: await mailbox.defaultIsm(),
+        interchainSecurityModule: await mailbox.defaultIsm(),
         ...baseConfig,
       },
     };
@@ -163,10 +164,9 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive synthetic config correctly', async () => {
     // Create config
-    const config = {
+    const config: WarpRouteDeployConfig = {
       [chain]: {
         type: TokenType.synthetic,
-        token: token.address,
         hook: await mailbox.defaultHook(),
         name: TOKEN_NAME,
         symbol: TOKEN_NAME,
@@ -197,13 +197,13 @@ describe('ERC20WarpRouterReader', async () => {
 
   it('should derive native config correctly', async () => {
     // Create config
-    const config = {
+    const config: WarpRouteDeployConfig = {
       [chain]: {
         type: TokenType.native,
         hook: await mailbox.defaultHook(),
         ...baseConfig,
       },
-    } as ChainMap<TokenRouterConfig>;
+    };
     // Deploy with config
     const warpRoute = await deployer.deploy(config);
 
@@ -221,9 +221,61 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.decimals).to.equal(TOKEN_DECIMALS);
   });
 
+  it('should derive collateral vault config correctly', async () => {
+    // Create config
+    const config: WarpRouteDeployConfig = {
+      [chain]: {
+        type: TokenType.collateralVault,
+        token: vault.address,
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateralVault.address,
+    );
+
+    assert(
+      derivedConfig.type === TokenType.collateralVault,
+      'Must be collateralVault',
+    );
+    expect(derivedConfig.type).to.equal(config[chain].type);
+    expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
+    expect(derivedConfig.owner).to.equal(config[chain].owner);
+    expect(derivedConfig.token).to.equal(token.address);
+  });
+
+  it('should derive rebase collateral vault config correctly', async () => {
+    // Create config
+    const config: WarpRouteDeployConfig = {
+      [chain]: {
+        type: TokenType.collateralVaultRebase,
+        token: vault.address,
+        ...baseConfig,
+      },
+    };
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+    // Derive config and check if each value matches
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateralVaultRebase.address,
+    );
+
+    assert(
+      derivedConfig.type === TokenType.collateralVaultRebase,
+      'Must be collateralVaultRebase',
+    );
+    expect(derivedConfig.type).to.equal(config[chain].type);
+    expect(derivedConfig.mailbox).to.equal(config[chain].mailbox);
+    expect(derivedConfig.owner).to.equal(config[chain].owner);
+    expect(derivedConfig.token).to.equal(token.address);
+  });
+
   it('should return undefined if ism is not set onchain', async () => {
     // Create config
-    const config = {
+    const config: WarpRouteDeployConfig = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
@@ -246,7 +298,7 @@ describe('ERC20WarpRouterReader', async () => {
     // Create config
     const otherChain = TestChainName.test3;
     const otherChainMetadata = test3;
-    const config = {
+    const config: WarpRouteDeployConfig = {
       [chain]: {
         type: TokenType.collateral,
         token: token.address,
