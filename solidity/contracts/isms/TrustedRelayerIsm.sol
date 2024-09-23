@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Message} from "../libs/Message.sol";
 import {Mailbox} from "../Mailbox.sol";
 
@@ -14,6 +15,14 @@ contract TrustedRelayerIsm is IInterchainSecurityModule {
     address public immutable trustedRelayer;
 
     constructor(address _mailbox, address _trustedRelayer) {
+        require(
+            _trustedRelayer != address(0),
+            "TrustedRelayerIsm: invalid relayer"
+        );
+        require(
+            Address.isContract(_mailbox),
+            "TrustedRelayerIsm: invalid mailbox"
+        );
         mailbox = Mailbox(_mailbox);
         trustedRelayer = _trustedRelayer;
     }
