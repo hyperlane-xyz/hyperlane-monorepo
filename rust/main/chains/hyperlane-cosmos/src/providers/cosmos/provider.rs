@@ -185,6 +185,17 @@ impl CosmosProvider {
         }
     }
 
+    /// Converts fees to a common denomination if necessary.
+    ///
+    /// Currently, we support Injective, Neutron and Osmosis. Fees in Injective are usually
+    /// expressed in `inj` which is 10^-18 of `INJ`, while fees in Neutron and Osmosis are
+    /// usually expressed in `untrn` and `uosmo`, respectively, which are 10^-6 of corresponding
+    /// `NTRN` and `OSMO`.
+    ///
+    /// This function will convert fees expressed in `untrn` and `uosmo` to 10^-18 of `NTRN` and
+    /// `OSMO` and it will keep fees expressed in `inj` as is.
+    ///
+    /// If fees are expressed in an unsupported denomination, they will be ignored.
     fn convert_fee(&self, coin: &Coin) -> U256 {
         let gas_price = self.connection_conf.get_minimum_gas_price();
         if coin.denom.as_ref() != gas_price.denom {
