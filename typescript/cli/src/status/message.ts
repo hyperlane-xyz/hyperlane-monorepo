@@ -1,14 +1,11 @@
 import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
-import { ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
-import { HyperlaneRelayer } from '@hyperlane-xyz/sdk';
-import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
-import { assert } from '@hyperlane-xyz/utils';
+import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGray, logGreen } from '../logger.js';
-import { logRed } from '../logger.js';
+import { log, logBlue, logGray, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
 
@@ -74,6 +71,7 @@ export async function checkMessageStatus({
   try {
     const { amount, recipient } = parseWarpRouteMessage(message.parsed.body);
     logGray(`Warping ${amount} to ${recipient}`);
+    // eslint-disable-next-line no-empty
   } catch {}
 
   let deliveredTx: TransactionReceipt;
