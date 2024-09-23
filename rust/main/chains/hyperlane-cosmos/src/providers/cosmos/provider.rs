@@ -9,7 +9,7 @@ use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::{client::CompatMode, Client, HttpClient};
 use time::OffsetDateTime;
-use tracing::error;
+use tracing::{error, warn};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
@@ -22,7 +22,8 @@ use crate::libs::account::CosmosAccountId;
 use crate::providers::rpc::CosmosRpcClient;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
-static MICRO_TO_ATTO: Lazy<U256> = Lazy::new(|| U256::from(1_000_000_000_000u128));
+/// Exponent value for atto units (10^-18).
+static ATTO_EXPONENT: Lazy<u32> = Lazy::new(|| 18);
 
 /// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
@@ -197,18 +198,18 @@ impl CosmosProvider {
     ///
     /// If fees are expressed in an unsupported denomination, they will be ignored.
     fn convert_fee(&self, coin: &Coin) -> U256 {
-        let gas_price = self.connection_conf.get_minimum_gas_price();
-        if coin.denom.as_ref() != gas_price.denom {
+        let native_token = self.connection_conf.get_native_token();
+
+        if coin.denom.as_ref() != native_token.denom {
             return U256::zero();
         }
 
-        let price = gas_price.amount.parse::<f64>().unwrap_or(1.0);
-        let amount = U256::from(coin.amount);
-        if price < 1.0 {
-            amount * *MICRO_TO_ATTO
-        } else {
-            amount
-        }
+        let exponent = *ATTO_EXPONENT - native_token.decimals;
+        let coefficient = U256::from(10u128.pow(exponent));
+
+        let amount_in_native_denom = U256::from(coin.amount);
+
+        amount_in_native_denom * coefficient
     }
 }
 
@@ -289,6 +290,12 @@ impl HyperlaneProvider for CosmosProvider {
             .fold(U256::zero(), |acc, v| acc + v);
 
         let gas_price = fee / gas_limit;
+        let gas_price = if gas_price == U256::zero() {
+            warn!(?fee, ?gas_limit, "calculated zero gas price");
+            U256::one()
+        } else {
+            gas_price
+        };
 
         let tx_info = TxnInfo {
             hash: hash.to_owned(),

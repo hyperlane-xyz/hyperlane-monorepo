@@ -7,7 +7,7 @@ use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain};
 
 use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::{ConnectionConf, CosmosAmount, RawCosmosAmount};
+use crate::{ConnectionConf, CosmosAmount, NativeToken, RawCosmosAmount};
 
 #[ignore]
 #[tokio::test]
@@ -64,6 +64,10 @@ fn provider(address: &str) -> WasmGrpcProvider {
             OperationBatchConfig {
                 batch_contract_address: None,
                 max_batch_size: 1,
+            },
+            NativeToken {
+                decimals: 6,
+                denom: "untrn".to_owned(),
             },
         ),
         CosmosAmount {
