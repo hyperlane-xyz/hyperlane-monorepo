@@ -516,12 +516,9 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
   }
 
   override async getBalance(owner: Address): Promise<bigint> {
-    console.log({ owner });
     if (eqAddress(owner, this.addresses.warpRouter)) {
       const collateralAccount = this.deriveNativeTokenCollateralAccount();
-      console.log({ collateralAccount });
       const balance = await this.getProvider().getBalance(collateralAccount);
-      console.log({ balance });
       return BigInt(balance.toString());
     }
     return this.wrappedNative.getBalance(owner);
