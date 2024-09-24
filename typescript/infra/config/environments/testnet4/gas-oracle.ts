@@ -27,7 +27,8 @@ const gasPrices: Record<
   fuji: ethers.utils.parseUnits('30', 'gwei'),
   holesky: ethers.utils.parseUnits('10', 'gwei'),
   optimismsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
-  plumetestnet: ethers.utils.parseUnits('0.01', 'gwei'),
+  // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+  // plumetestnet: ethers.utils.parseUnits('0.01', 'gwei'),
   polygonamoy: ethers.utils.parseUnits('100', 'gwei'),
   scrollsepolia: ethers.utils.parseUnits('0.5', 'gwei'),
   sepolia: ethers.utils.parseUnits('5', 'gwei'),
@@ -65,7 +66,8 @@ const chainTokenRarity: Record<
   fuji: Rarity.Rare,
   holesky: Rarity.Common,
   optimismsepolia: Rarity.Common,
-  plumetestnet: Rarity.Common,
+  // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
+  // plumetestnet: Rarity.Common,
   polygonamoy: Rarity.Rare,
   scrollsepolia: Rarity.Rare,
   sepolia: Rarity.Mythic,

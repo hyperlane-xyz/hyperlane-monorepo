@@ -1,14 +1,13 @@
 import {
   ChainMap,
   IsmType,
-  RouterConfig,
   TokenRouterConfig,
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
 import { symmetricDifference } from '@hyperlane-xyz/utils';
 
-import { getRegistry } from '../../chains.js';
+import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
 const lockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
 const xERC20 = '0x2416092f143378750bb29b79eD961ab195CcEea5';
@@ -118,7 +117,7 @@ const ezEthSafes: Record<string, string> = {
 export const getRenzoEZETHWarpConfig = async (): Promise<
   ChainMap<TokenRouterConfig>
 > => {
-  const registry = await getRegistry();
+  const registry = await getMainnet3Registry();
 
   const validatorDiff = symmetricDifference(
     new Set(chainsToDeploy),
