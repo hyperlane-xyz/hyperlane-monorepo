@@ -4,6 +4,7 @@ import chaiAsPromised from 'chai-as-promised';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
+import { WarpSendLogs } from '../send/transfer.js';
 import { writeYamlOrJson } from '../utils/files.js';
 
 import {
@@ -12,12 +13,9 @@ import {
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
+  sendWarpRouteMessageRoundTrip,
 } from './commands/helpers.js';
-import {
-  hyperlaneWarpDeploy,
-  hyperlaneWarpSendRelay,
-  readWarpConfig,
-} from './commands/warp.js';
+import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
 
 chai.use(chaiAsPromised);
 chai.should();
@@ -69,7 +67,7 @@ describe('WarpDeploy e2e tests', async function () {
     await hyperlaneWarpDeploy(WARP_CONFIG_PATH).should.be.rejected;
   });
 
-  it(`should be able to bridge between a ${TokenType.collateralVaultRebase} and ${TokenType.syntheticRebase}`, async function () {
+  it(`should be able to bridge between ${TokenType.collateralVaultRebase} and ${TokenType.syntheticRebase}`, async function () {
     const warpConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateralVaultRebase,
@@ -102,10 +100,11 @@ describe('WarpDeploy e2e tests', async function () {
     );
 
     // Try to send a transaction
-    await hyperlaneWarpSendRelay(
+    const { stdout } = await sendWarpRouteMessageRoundTrip(
       CHAIN_NAME_2,
       CHAIN_NAME_3,
       WARP_CORE_CONFIG_PATH_2_3,
     );
+    expect(stdout).to.include(WarpSendLogs.SUCCESS);
   });
 });

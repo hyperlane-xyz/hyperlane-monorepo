@@ -11,7 +11,11 @@ import { getContext } from '../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './core.js';
-import { hyperlaneWarpApply, readWarpConfig } from './warp.js';
+import {
+  hyperlaneWarpApply,
+  hyperlaneWarpSendRelay,
+  readWarpConfig,
+} from './warp.js';
 
 export const TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${TEST_CONFIGS_PATH}/anvil`;
@@ -157,4 +161,21 @@ export async function deploy4626Vault(
   await vault.deployed();
 
   return vault;
+}
+
+/**
+ * Performs a round-trip warp relay between two chains using the specified warp core config.
+ *
+ * @param chain1 - The first chain to send the warp relay from.
+ * @param chain2 - The second chain to send the warp relay to and back from.
+ * @param warpCoreConfigPath - The path to the warp core config file.
+ * @returns A promise that resolves when the round-trip warp relay is complete.
+ */
+export async function sendWarpRouteMessageRoundTrip(
+  chain1: string,
+  chain2: string,
+  warpCoreConfigPath: string,
+) {
+  await hyperlaneWarpSendRelay(chain1, chain2, warpCoreConfigPath);
+  return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
 }
