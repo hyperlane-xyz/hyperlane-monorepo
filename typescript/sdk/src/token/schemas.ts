@@ -9,7 +9,6 @@ import { TokenType } from './config.js';
 
 export const WarpRouteDeployConfigSchemaErrors = {
   ONLY_SYNTHETIC_REBASE: `Config with ${TokenType.collateralVaultRebase} must be deployed with ${TokenType.syntheticRebase}`,
-  ONLY_ONE_COLLATERAL_REBASE: `Only one ${TokenType.collateralVaultRebase} can be deployed.`,
   NO_SYNTHETIC_ONLY: `Config must include Native or Collateral OR all synthetics must define token metadata`,
 };
 export const TokenMetadataSchema = z.object({
