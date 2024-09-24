@@ -5,6 +5,7 @@ import {
   HypERC20__factory,
   HypERC4626Collateral__factory,
   HypERC4626OwnerCollateral__factory,
+  HypERC4626__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -93,6 +94,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       [TokenType.collateral]: {
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
+      },
+      [TokenType.syntheticRebase]: {
+        factory: HypERC4626__factory,
+        method: 'collateralDomain',
       },
       [TokenType.synthetic]: {
         factory: HypERC20__factory,
@@ -191,7 +196,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         await this.fetchERC20Metadata(token);
 
       return { name, symbol, decimals, totalSupply, token };
-    } else if (type === TokenType.synthetic) {
+    } else if (
+      type === TokenType.synthetic ||
+      type === TokenType.syntheticRebase
+    ) {
       return this.fetchERC20Metadata(tokenAddress);
     } else if (type === TokenType.native) {
       const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
