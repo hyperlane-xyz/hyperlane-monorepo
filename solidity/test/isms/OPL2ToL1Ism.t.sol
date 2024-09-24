@@ -14,6 +14,7 @@ import {MockOptimismMessenger, MockOptimismPortal} from "../../contracts/mock/Mo
 import {OPL2ToL1Hook} from "../../contracts/hooks/OPL2ToL1Hook.sol";
 import {OPL2ToL1Ism} from "../../contracts/isms/hook/OPL2ToL1Ism.sol";
 import {ExternalBridgeTest} from "./ExternalBridgeTest.sol";
+import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 
 contract OPL2ToL1IsmTest is ExternalBridgeTest {
     address internal constant L2_MESSENGER_ADDRESS =
@@ -21,6 +22,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
     uint256 internal constant MOCK_NONCE = 0;
 
+    TestInterchainGasPaymaster internal mockOverheadIgp;
     MockOptimismPortal internal portal;
     MockOptimismMessenger internal l1Messenger;
 
@@ -30,7 +32,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
     function setUp() public override {
         // Optimism messenger mock setup
-        GAS_QUOTE = 120_000;
+        // GAS_QUOTE = 300_000;
         vm.etch(
             L2_MESSENGER_ADDRESS,
             address(new MockOptimismMessenger()).code
@@ -42,12 +44,13 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
     function deployHook() public {
         originMailbox = new TestMailbox(ORIGIN_DOMAIN);
+        mockOverheadIgp = new TestInterchainGasPaymaster();
         hook = new OPL2ToL1Hook(
             address(originMailbox),
             DESTINATION_DOMAIN,
             TypeCasts.addressToBytes32(address(ism)),
             L2_MESSENGER_ADDRESS,
-            uint32(GAS_QUOTE)
+            address(mockOverheadIgp)
         );
     }
 
@@ -76,7 +79,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
             L2_MESSENGER_ADDRESS,
             abi.encodeCall(
                 ICrossDomainMessenger.sendMessage,
-                (address(ism), _encodedHookData, uint32(GAS_QUOTE))
+                (address(ism), _encodedHookData, uint32(300_000))
             )
         );
     }

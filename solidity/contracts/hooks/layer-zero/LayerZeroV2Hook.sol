@@ -18,6 +18,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {Indexed} from "../../libs/Indexed.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractMessageIdAuthHook} from "../libs/AbstractMessageIdAuthHook.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 
 struct LayerZeroV2Metadata {
@@ -55,8 +56,13 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes memory payload
+        bytes calldata message
     ) internal override {
+        bytes memory payload = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            message.id()
+        );
+
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         (
             uint32 eid,

@@ -14,9 +14,10 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
+import {Message} from "../libs/Message.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
-import {Mailbox} from "../Mailbox.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
@@ -35,6 +36,7 @@ import {ArbSys} from "@arbitrum/nitro-contracts/src/precompiles/ArbSys.sol";
  */
 contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ Constants ============
 
@@ -72,8 +74,14 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes memory payload
+        bytes calldata message
     ) internal override {
+        bytes32 id = message.id();
+        bytes memory payload = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            id
+        );
+
         arbSys.sendTxToL1{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload
