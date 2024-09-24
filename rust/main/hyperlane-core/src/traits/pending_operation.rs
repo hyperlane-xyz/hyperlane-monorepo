@@ -197,6 +197,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Error estimating costs for process call")]
     /// Error estimating costs for process call
     ErrorEstimatingGas,
+    #[strum(to_string = "Simulating message in batch failed")]
+    /// Error simulating message in batch
+    BatchSimulationFailure,
     #[strum(to_string = "Error checking if message meets gas payment requirement")]
     /// Error checking if message meets gas payment requirement
     ErrorCheckingGasRequirement,
