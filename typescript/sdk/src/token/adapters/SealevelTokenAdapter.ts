@@ -20,6 +20,7 @@ import {
   Domain,
   addressToBytes,
   eqAddress,
+  median,
 } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
@@ -50,6 +51,22 @@ import {
 } from './serialization.js';
 
 const NON_EXISTENT_ACCOUNT_ERROR = 'could not find account';
+
+/**
+ * The compute limit to set for the transfer remote instruction.
+ * This is typically around ~160k, but can be higher depending on
+ * the index in the merkle tree, which can result in more moderately
+ * more expensive merkle tree insertion.
+ * Because a higher compute limit doesn't increase the fee for a transaction,
+ * we generously request 1M units.
+ */
+const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
+
+/**
+ * The factor by which to multiply the median prioritization fee
+ * instruction added to transfer transactions.
+ */
+const PRIORITY_FEE_PADDING_FACTOR = 2;
 
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
@@ -173,14 +190,6 @@ interface HypTokenAddresses {
   mailbox: Address;
 }
 
-// The compute limit to set for the transfer remote instruction.
-// This is typically around ~160k, but can be higher depending on
-// the index in the merkle tree, which can result in more moderately
-// more expensive merkle tree insertion.
-// Because a higher compute limit doesn't increase the fee for a transaction,
-// we generously request 1M units.
-const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
-
 export abstract class SealevelHypTokenAdapter
   extends SealevelTokenAdapter
   implements IHypTokenAdapter<Transaction>
@@ -297,10 +306,12 @@ export abstract class SealevelHypTokenAdapter
     });
 
     const setComputeLimitInstruction = ComputeBudgetProgram.setComputeUnitLimit(
-      {
-        units: TRANSFER_REMOTE_COMPUTE_LIMIT,
-      },
+      { units: TRANSFER_REMOTE_COMPUTE_LIMIT },
     );
+
+    const setPriorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: (await this.getMedianPriorityFee()) || 0,
+    });
 
     const recentBlockhash = (
       await this.getProvider().getLatestBlockhash('finalized')
@@ -313,6 +324,7 @@ export abstract class SealevelHypTokenAdapter
       recentBlockhash,
     })
       .add(setComputeLimitInstruction)
+      .add(setPriorityFeeInstruction)
       .add(transferRemoteInstruction);
     tx.partialSign(randomWallet);
     return tx;
@@ -484,6 +496,32 @@ export abstract class SealevelHypTokenAdapter
       this.warpProgramPubKey,
     );
   }
+
+  async getMedianPriorityFee(): Promise<number | undefined> {
+    this.logger.debug('Fetching priority fee history for token transfer');
+
+    const collateralAddress = this.addresses.token;
+    const fees = await this.getProvider().getRecentPrioritizationFees({
+      lockedWritableAccounts: [new PublicKey(collateralAddress)],
+    });
+
+    const nonZeroFees = fees
+      .filter((fee) => fee.prioritizationFee > 0)
+      .map((fee) => fee.prioritizationFee);
+
+    if (nonZeroFees.length < 3) {
+      this.logger.warn(
+        'Insufficient historical prioritization fee data for padding, skipping',
+      );
+      return undefined;
+    }
+
+    const medianFee = Math.floor(
+      median(nonZeroFees) * PRIORITY_FEE_PADDING_FACTOR,
+    );
+    this.logger.debug(`Median priority fee: ${medianFee}`);
+    return medianFee;
+  }
 }
 
 // Interacts with Hyp Native token programs
@@ -527,6 +565,12 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
 
   override async getMetadata(): Promise<TokenMetadata> {
     return this.wrappedNative.getMetadata();
+  }
+
+  override async getMedianPriorityFee(): Promise<number | undefined> {
+    // Native tokens don't have a collateral address, so we don't fetch
+    // prioritization fee history
+    return undefined;
   }
 
   getTransferInstructionKeyList(params: KeyListParams): Array<AccountMeta> {
