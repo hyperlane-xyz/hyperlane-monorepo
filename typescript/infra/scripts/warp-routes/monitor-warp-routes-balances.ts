@@ -17,6 +17,8 @@ import {
   CwNativeTokenAdapter,
   MultiProtocolProvider,
   SealevelHypCollateralAdapter,
+  SealevelHypNativeAdapter,
+  SealevelHypSyntheticAdapter,
   TokenType,
   WarpRouteConfig,
   WarpRouteConfigSchema,
@@ -135,8 +137,24 @@ async function checkBalance(
               );
             }
             case ProtocolType.Sealevel:
-              // TODO - solana native
-              return 0;
+              const adapter = new SealevelHypNativeAdapter(
+                chain,
+                multiProtocolProvider,
+                {
+                  token: token.tokenAddress,
+                  warpRouter: token.hypAddress,
+                  // Mailbox only required for transfers, using system as placeholder
+                  mailbox: SystemProgram.programId.toBase58(),
+                },
+                // Not used for native tokens, but required for the adapter
+                token?.isSpl2022 ?? false,
+              );
+              const balance = ethers.BigNumber.from(
+                await adapter.getBalance(token.hypAddress),
+              );
+              return parseFloat(
+                ethers.utils.formatUnits(balance, token.decimals),
+              );
             case ProtocolType.Cosmos: {
               if (!token.ibcDenom)
                 throw new Error('IBC denom missing for native token');
@@ -174,7 +192,7 @@ async function checkBalance(
             }
             case ProtocolType.Sealevel: {
               if (!token.tokenAddress)
-                throw new Error('Token address missing for synthetic token');
+                throw new Error('Token address missing for collateral token');
               const adapter = new SealevelHypCollateralAdapter(
                 chain,
                 multiProtocolProvider,
@@ -228,10 +246,27 @@ async function checkBalance(
               );
             }
             case ProtocolType.Sealevel:
-              // TODO - solana native
-              return 0;
+              if (!token.tokenAddress)
+                throw new Error('Token address missing for synthetic token');
+              const adapter = new SealevelHypSyntheticAdapter(
+                chain,
+                multiProtocolProvider,
+                {
+                  token: token.tokenAddress,
+                  warpRouter: token.hypAddress,
+                  // Mailbox only required for transfers, using system as placeholder
+                  mailbox: SystemProgram.programId.toBase58(),
+                },
+                token?.isSpl2022 ?? false,
+              );
+              const syntheticBalance = ethers.BigNumber.from(
+                await adapter.getTotalSupply(token.hypAddress),
+              );
+              return parseFloat(
+                ethers.utils.formatUnits(syntheticBalance, token.decimals),
+              );
             case ProtocolType.Cosmos:
-              // TODO - cosmos native
+              // TODO - cosmos synthetic
               return 0;
           }
           break;
