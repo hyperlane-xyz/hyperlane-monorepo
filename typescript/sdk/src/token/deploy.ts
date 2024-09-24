@@ -66,7 +66,10 @@ abstract class TokenDeployer<
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, config.mailbox];
     } else if (isSyntheticRebaseConfig(config)) {
-      return [config.decimals, config.mailbox, config.collateralDomain];
+      const collateralDomain = this.multiProvider.getDomainId(
+        config.collateralChainName,
+      );
+      return [config.decimals, config.mailbox, collateralDomain];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }

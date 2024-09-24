@@ -6,8 +6,6 @@ import {
   IsmConfig,
   IsmType,
   MailboxClientConfig,
-  MultiProvider,
-  TokenRouterConfig,
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
@@ -18,7 +16,6 @@ import {
   Address,
   assert,
   isAddress,
-  objFilter,
   objMap,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
@@ -186,7 +183,7 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           isNft,
-          collateralDomain: Number.MAX_VALUE, // This will be set after a collateralVaultRebase is set
+          collateralChainName: '', // This will be derived correctly by zod.parse() below
           interchainSecurityModule,
         };
         typeChoices = restrictChoices([
@@ -233,18 +230,9 @@ export async function createWarpRouteDeployConfig({
 
   try {
     const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
-    const modifiedWarpRouteDeployConfig = resolveCollateralDomain(
-      context.multiProvider,
-      warpRouteDeployConfig,
-    );
     logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
-    log(
-      indentYamlOrJson(
-        yamlStringify(modifiedWarpRouteDeployConfig, null, 2),
-        4,
-      ),
-    );
-    writeYamlOrJson(outPath, modifiedWarpRouteDeployConfig, 'yaml');
+    log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
+    writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');
     logGreen('✅ Successfully created new warp route deployment config.');
   } catch (e) {
     errorRed(
@@ -256,34 +244,6 @@ export async function createWarpRouteDeployConfig({
 
 function restrictChoices(typeChoices: TokenType[]) {
   return TYPE_CHOICES.filter((choice) => typeChoices.includes(choice.name));
-}
-
-/**
- * Resolves the collateral domains for synthetic rebase tokens from the collateralVaultRebase config
- *
- * @param multiProvider - A `MultiProvider` instance used to look up domain IDs.
- * @param warpRouteDeployConfig - The `WarpRouteDeployConfig` object to be modified.
- * @returns The modified `WarpRouteDeployConfig` with the `collateralDomain` property set for `syntheticRebase` tokens.
- */
-function resolveCollateralDomain(
-  multiProvider: MultiProvider,
-  warpRouteDeployConfig: WarpRouteDeployConfig,
-): WarpRouteDeployConfig {
-  const collateralRebaseConfig = objFilter(
-    warpRouteDeployConfig,
-    (_, config): config is TokenRouterConfig =>
-      config.type === TokenType.collateralVaultRebase,
-  );
-  const chainNames = Object.keys(collateralRebaseConfig);
-  assert(chainNames.length === 1, 'Should only be 1 collateralRebase config');
-
-  const collateralDomain = multiProvider.getDomainId(chainNames[0]);
-
-  return objMap(warpRouteDeployConfig, (_, config) => {
-    if (config.type === TokenType.syntheticRebase)
-      config.collateralDomain = collateralDomain;
-    return config;
-  });
 }
 
 // Note, this is different than the function above which reads a config
