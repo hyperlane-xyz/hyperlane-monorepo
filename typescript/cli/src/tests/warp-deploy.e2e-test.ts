@@ -34,7 +34,7 @@ const WARP_CONFIG_PATH = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
 const WARP_CORE_CONFIG_PATH_2_3 = `${REGISTRY_PATH}/deployments/warp_routes/VAULT/anvil2-anvil3-config.yaml`;
 
 const TEST_TIMEOUT = 60_000; // Long timeout since these tests can take a while
-describe.only('WarpDeploy e2e tests', async function () {
+describe('WarpDeploy e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
   let token: any;
   let vault: any;
