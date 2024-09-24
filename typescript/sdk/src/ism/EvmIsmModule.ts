@@ -91,12 +91,10 @@ export class EvmIsmModule extends HyperlaneModule<
     >,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
-    console.log('EvmIsmModule Contructor');
     params.config = IsmConfigSchema.parse(params.config);
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
-    console.log(' before EvmModuleDeployer');
 
     this.deployer = new EvmModuleDeployer(
       this.multiProvider,
@@ -105,7 +103,6 @@ export class EvmIsmModule extends HyperlaneModule<
       this.logger,
       contractVerifier,
     );
-    console.log(' after EvmModuleDeployer');
 
     this.factories = attachAndConnectContracts(
       {
@@ -127,7 +124,6 @@ export class EvmIsmModule extends HyperlaneModule<
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
     );
-    console.log('after attachAndConnectContracts');
 
     this.chain = this.multiProvider.getChainName(this.args.chain);
     this.domainId = this.multiProvider.getDomainId(this.chain);
@@ -423,7 +419,6 @@ export class EvmIsmModule extends HyperlaneModule<
           contractName: IsmType.TRUSTED_RELAYER,
           constructorArgs: [this.args.addresses.mailbox, config.relayer],
           implementationAddress: undefined,
-          artifact: TrustedRelayerIsm__artifact,
         });
 
       case IsmType.TEST_ISM:
@@ -555,7 +550,6 @@ export class EvmIsmModule extends HyperlaneModule<
       submoduleAddresses,
       {
         ...overrides,
-        gasLimit: 150_000_000,
       },
     );
 

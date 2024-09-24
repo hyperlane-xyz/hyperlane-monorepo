@@ -422,7 +422,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           submoduleAddresses,
           {
             ...overrides,
-            gasLimit: 150_000_000,
           },
         );
         // TODO: Should verify contract here
@@ -514,7 +513,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       // add 10% buffer
       const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
         ...overrides,
-        gasLimit: 150_000_000,
       });
 
       await this.multiProvider.handleTx(chain, hash);
@@ -557,7 +555,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         thresholdWeight,
         {
           ...overrides,
-          gasLimit: 150_000_000,
         },
       );
 

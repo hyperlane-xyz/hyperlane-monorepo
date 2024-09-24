@@ -279,7 +279,6 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       // add 10% buffer
       const hash = await factory['deploy(address[],uint8)'](values, threshold, {
         ...overrides,
-        gasLimit: 150_000_000,
       });
 
       await multiProvider.handleTx(chain, hash);

@@ -428,7 +428,6 @@ export abstract class HyperlaneDeployer<
         const overrides = this.multiProvider.getTransactionOverrides(chain);
 
         const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: 150_000_000,
           ...overrides,
         });
         const receipt = await initTx.wait();
