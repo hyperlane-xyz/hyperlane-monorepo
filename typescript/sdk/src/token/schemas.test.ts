@@ -25,7 +25,7 @@ const NON_COLLATERAL_TYPES = [
   TokenType.fastSynthetic,
 ];
 
-describe.only('WarpRouteDeployConfigSchema refine', () => {
+describe('WarpRouteDeployConfigSchema refine', () => {
   let config: WarpRouteDeployConfig;
   beforeEach(() => {
     config = {
