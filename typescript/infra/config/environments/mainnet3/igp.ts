@@ -1,4 +1,4 @@
-import { ChainMap, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
@@ -16,6 +16,14 @@ import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
+const remoteOverheadWithOverrides = (chain: ChainName) => {
+  let overhead = remoteOverhead(chain, ethereumChainNames);
+  if (chain === 'moonbeam') {
+    overhead *= 4;
+  }
+  return overhead;
+};
+
 const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
@@ -23,7 +31,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
     (local, remote) =>
       getTokenExchangeRateFromValues(local, remote, tokenPrices),
     (local) => parseFloat(tokenPrices[local]),
-    (local) => remoteOverhead(local, ethereumChainNames),
+    remoteOverheadWithOverrides,
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(
