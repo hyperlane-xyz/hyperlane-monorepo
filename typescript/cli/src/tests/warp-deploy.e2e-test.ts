@@ -64,7 +64,7 @@ describe('WarpDeploy e2e tests', async function () {
     };
 
     writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH).should.be.rejected;
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH).should.be.rejected; // TODO: revisit this to figure out how to parse the error.
   });
 
   it(`should be able to bridge between ${TokenType.collateralVaultRebase} and ${TokenType.syntheticRebase}`, async function () {
