@@ -48,9 +48,9 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
-  [TokenStandard.EvmHypCollateralRebase]: {
+  [TokenStandard.EvmHypRebaseCollateral]: {
     chainName: TestChainName.test3,
-    standard: TokenStandard.EvmHypCollateralRebase,
+    standard: TokenStandard.EvmHypRebaseCollateral,
     addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
     collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
     decimals: 18,
