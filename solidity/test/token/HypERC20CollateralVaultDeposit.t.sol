@@ -227,6 +227,28 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         );
     }
 
+    // function testERC4626VaultDeposit_TransferFromSender_CorrectMetadata() public {
+    //     uint256 transferAmount = 1000e18;
+
+    //     vm.prank(ALICE);
+    //     _mintAndApprove(transferAmount, address(localToken));
+
+    //     // Get the initial rateUpdateNonce
+    //     uint32 initialNonce = erc20CollateralVaultDeposit.rateUpdateNonce();
+
+    //     vm.prank(ALICE);
+    //     bytes memory metadata =
+    //         erc20CollateralVaultDeposit.transferRemote(DESTINATION, ALICE.addressToBytes32(), transferAmount);
+
+    //     // Decode the metadata
+    //     (uint256 precision, uint32 nonce) = abi.decode(metadata, (uint256, uint32));
+
+    //     assertEq(precision, erc20CollateralVaultDeposit.PRECISION(), "Incorrect precision in metadata");
+
+    //     assertEq(nonce, initialNonce + 1, "Incorrect nonce in metadata");
+    //     assertEq(erc20CollateralVaultDeposit.rateUpdateNonce(), initialNonce + 1, "rateUpdateNonce not incremented");
+    // }
+
     function testBenchmark_overheadGasUsage() public override {
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);

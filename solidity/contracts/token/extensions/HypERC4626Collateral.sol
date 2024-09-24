@@ -17,7 +17,9 @@ contract HypERC4626Collateral is HypERC20Collateral {
 
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
+    // Precision for the exchange rate
     uint256 public constant PRECISION = 1e10;
+    // Null recipient for rebase transfer
     bytes32 public constant NULL_RECIPIENT =
         0x0000000000000000000000000000000000000000000000000000000000000001;
     // Nonce for the rate update, to ensure sequential updates
