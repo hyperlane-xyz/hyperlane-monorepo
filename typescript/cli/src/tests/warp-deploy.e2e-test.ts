@@ -13,7 +13,11 @@ import {
   deployOrUseExistingCore,
   deployToken,
 } from './commands/helpers.js';
-import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
+import {
+  hyperlaneWarpDeploy,
+  hyperlaneWarpSendRelay,
+  readWarpConfig,
+} from './commands/warp.js';
 
 chai.use(chaiAsPromised);
 chai.should();
@@ -23,14 +27,17 @@ const CHAIN_NAME_2 = 'anvil2';
 const CHAIN_NAME_3 = 'anvil3';
 
 const EXAMPLES_PATH = './examples';
-const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
-const WARP_CORE_CONFIG_PATH_2_3 = `${REGISTRY_PATH}/deployments/warp_routes/VAULT/anvil2-anvil3-config.yaml`;
-
 const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
+const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
+const WARP_CONFIG_PATH = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+const WARP_CORE_CONFIG_PATH_2_3 = `${REGISTRY_PATH}/deployments/warp_routes/VAULT/anvil2-anvil3-config.yaml`;
+
 const TEST_TIMEOUT = 60_000; // Long timeout since these tests can take a while
-describe('WarpDeploy e2e tests', async function () {
+describe.only('WarpDeploy e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
+  let token: any;
+  let vault: any;
   this.timeout(TEST_TIMEOUT);
   before(async function () {
     chain2Addresses = await deployOrUseExistingCore(
@@ -39,12 +46,11 @@ describe('WarpDeploy e2e tests', async function () {
       ANVIL_KEY,
     );
     await deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY);
+    token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    vault = await deploy4626Vault(ANVIL_KEY, CHAIN_NAME_2, token.address);
   });
 
-  it.only('should only allow rebasing yield route to be deployed with rebasing synthetic', async function () {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
-    const vault = await deploy4626Vault(ANVIL_KEY, CHAIN_NAME_2, token.address);
+  it('should only allow rebasing yield route to be deployed with rebasing synthetic', async function () {
     const warpConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateralVaultRebase,
@@ -59,36 +65,47 @@ describe('WarpDeploy e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(warpConfigPath, warpConfig);
-    await hyperlaneWarpDeploy(warpConfigPath).should.be.rejected;
+    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH).should.be.rejected;
+  });
 
-    // Update to syntheticRebase
-    warpConfig[CHAIN_NAME_3].type = TokenType.syntheticRebase;
-    // @ts-ignore
-    warpConfig[CHAIN_NAME_3].collateralDomain = 1;
-    writeYamlOrJson(warpConfigPath, warpConfig);
-    await hyperlaneWarpDeploy(warpConfigPath);
+  it(`should be able to bridge between a ${TokenType.collateralVaultRebase} and ${TokenType.syntheticRebase}`, async function () {
+    const warpConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateralVaultRebase,
+        token: vault.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: chain2Addresses.mailbox,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.syntheticRebase,
+        mailbox: chain2Addresses.mailbox,
+        owner: chain2Addresses.mailbox,
+        collateralChainName: CHAIN_NAME_2,
+      },
+    };
+
+    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
 
     // Check collateralRebase
-    // const collateralRebaseConfig = (await readWarpConfig(
-    //   CHAIN_NAME_2,
-    //   WARP_CORE_CONFIG_PATH_2_3,
-    //   warpConfigPath,
-    // ))[CHAIN_NAME_2];
-
-    // expect(collateralRebaseConfig.type).to.equal(
-    //   TokenType.collateralVaultRebase,
-    // );
-
-    // Check syntheticRebase
-    const syntheticRebaseConfig = (
+    const collateralRebaseConfig = (
       await readWarpConfig(
-        CHAIN_NAME_3,
+        CHAIN_NAME_2,
         WARP_CORE_CONFIG_PATH_2_3,
-        warpConfigPath,
+        WARP_CONFIG_PATH,
       )
-    )[CHAIN_NAME_3];
+    )[CHAIN_NAME_2];
 
-    expect(syntheticRebaseConfig.type).to.equal(TokenType.syntheticRebase);
+    expect(collateralRebaseConfig.type).to.equal(
+      TokenType.collateralVaultRebase,
+    );
+
+    // Try to send a transaction
+    await hyperlaneWarpSendRelay(
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+      WARP_CORE_CONFIG_PATH_2_3,
+    );
   });
 });

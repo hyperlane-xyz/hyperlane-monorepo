@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { assert, randomInt } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { TokenType } from './config.js';
 import {
@@ -25,7 +25,7 @@ const NON_COLLATERAL_TYPES = [
   TokenType.fastSynthetic,
 ];
 
-describe('WarpRouteDeployConfigSchema refine', () => {
+describe.only('WarpRouteDeployConfigSchema refine', () => {
   let config: WarpRouteDeployConfig;
   beforeEach(() => {
     config = {
@@ -112,11 +112,10 @@ describe('WarpRouteDeployConfigSchema refine', () => {
         type: TokenType.syntheticRebase,
         owner: SOME_ADDRESS,
         mailbox: SOME_ADDRESS,
-        collateralDomain: randomInt(100),
+        collateralChainName: '',
       },
     };
     let parseResults = WarpRouteDeployConfigSchema.safeParse(config);
-    expect(parseResults.success).to.be.false;
     assert(!parseResults.success, 'must be false'); // Needed so 'message' shows up because parseResults is a discriminate union
     expect(parseResults.error.issues[0].message).to.equal(
       WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE,
@@ -124,7 +123,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
 
     config.ethereum.type = TokenType.syntheticRebase;
     //@ts-ignore
-    config.ethereum.collateralDomain = randomInt(100);
+    config.ethereum.collateralChainName = '';
     parseResults = WarpRouteDeployConfigSchema.safeParse(config);
     //@ts-ignore
     expect(parseResults.success).to.be.true;
@@ -150,5 +149,37 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     };
     parseResults = WarpRouteDeployConfigSchema.safeParse(config);
     expect(parseResults.success).to.be.false;
+  });
+
+  it(`should derive the collateral chain name for ${TokenType.syntheticRebase}`, async () => {
+    config = {
+      arbitrum: {
+        type: TokenType.collateralVaultRebase,
+        token: SOME_ADDRESS,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+      },
+      ethereum: {
+        type: TokenType.syntheticRebase,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        collateralChainName: '',
+      },
+      optimism: {
+        type: TokenType.syntheticRebase,
+        owner: SOME_ADDRESS,
+        mailbox: SOME_ADDRESS,
+        collateralChainName: '',
+      },
+    };
+    const parseResults = WarpRouteDeployConfigSchema.safeParse(config);
+    assert(parseResults.success, 'must be true');
+    const warpConfig: WarpRouteDeployConfig = parseResults.data;
+
+    assert(
+      warpConfig.optimism.type === TokenType.syntheticRebase,
+      'must be syntheticRebase',
+    );
+    expect(warpConfig.optimism.collateralChainName).to.equal('arbitrum');
   });
 });
