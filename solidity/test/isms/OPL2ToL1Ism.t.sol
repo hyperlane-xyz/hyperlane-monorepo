@@ -70,6 +70,20 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
     }
 
+    function test_postDispatch_childHook() public {
+        bytes memory encodedHookData = _encodeHookData(messageId);
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(encodedHookData);
+
+        bytes memory igpMetadata = StandardHookMetadata.overrideGasLimit(
+            78_000
+        );
+
+        uint256 quote = hook.quoteDispatch(igpMetadata, encodedMessage);
+        assertEq(quote, mockOverheadIgp.quoteGasPayment(ORIGIN_DOMAIN, 78_000));
+        hook.postDispatch{value: quote}(igpMetadata, encodedMessage);
+    }
+
     /* ============ helper functions ============ */
 
     function _expectOriginExternalBridgeCall(
