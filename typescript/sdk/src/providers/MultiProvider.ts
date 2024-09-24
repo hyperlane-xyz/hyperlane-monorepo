@@ -18,7 +18,7 @@ import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
-import { defaultZKProviderBuilder } from './providerBuilders.js';
+import { defaultProviderBuilder } from './providerBuilders.js';
 
 type Provider = providers.Provider;
 
@@ -55,7 +55,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         module: 'MultiProvider',
       });
     this.providers = options?.providers || {};
-    this.providerBuilder = defaultZKProviderBuilder;
+    this.providerBuilder = options?.providerBuilder || defaultProviderBuilder;
     this.signers = options?.signers || {};
   }
 
@@ -88,6 +88,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     if (testChains.includes(name)) {
       this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
+    } else if (metadata.chainId === 270 || metadata.chainId === 260) {
+      this.providers[name] = new ZKSyncProvider(rpcUrls[0].http, chainId);
     } else if (rpcUrls.length) {
       this.providers[name] = this.providerBuilder(rpcUrls, chainId);
     } else {
@@ -387,7 +389,6 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
   ): Promise<ContractReceipt> {
-    console.log('inside sendTransaction');
     const { annotation, ...tx } = await txProm;
     if (annotation) {
       this.logger.info(annotation);
@@ -397,7 +398,6 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     const response = await signer.sendTransaction({
       ...txReq,
-      gasLimit: 150_000_000,
     });
     this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);

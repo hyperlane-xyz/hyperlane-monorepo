@@ -86,32 +86,10 @@ export abstract class HyperlaneRouterDeployer<
 
         // deploy with 10% buffer on gas limit
         const enrollTx = await router.enrollRemoteRouters(domains, addresses, {
-          gasLimit: 150_000_000,
           ...this.multiProvider.getTransactionOverrides(chain),
         });
 
-        // const prov = new Provider('http://127.0.0.1:8011', 260);
-
-        // const signer = new Wallet(
-        //   '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
-        //   prov,
-        // );
-
-        // const nonce = await signer.getTransactionCount();
-        // console.log({ nonce });
-        // const rec = await signer.sendTransaction({
-        //   to: enrollTx.to,
-        //   from: enrollTx.from,
-
-        //   gasLimit: enrollTx.gasLimit,
-
-        //   data: enrollTx.data,
-        //   value: enrollTx.value,
-        // });
-        // const tx = await rec.wait();
-        // console.log({ tx });
-
-        await this.multiProvider.handleTx(260, { ...enrollTx });
+        await this.multiProvider.handleTx(chain, enrollTx);
       });
     }
   }
