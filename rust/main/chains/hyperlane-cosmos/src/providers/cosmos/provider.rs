@@ -23,7 +23,7 @@ use crate::providers::rpc::CosmosRpcClient;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 /// Exponent value for atto units (10^-18).
-static ATTO_EXPONENT: Lazy<u32> = Lazy::new(|| 18);
+const ATTO_EXPONENT: u32 = 18;
 
 /// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
@@ -204,7 +204,7 @@ impl CosmosProvider {
             return U256::zero();
         }
 
-        let exponent = *ATTO_EXPONENT - native_token.decimals;
+        let exponent = ATTO_EXPONENT - native_token.decimals;
         let coefficient = U256::from(10u128.pow(exponent));
 
         let amount_in_native_denom = U256::from(coin.amount);
