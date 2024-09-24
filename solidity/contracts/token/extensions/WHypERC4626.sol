@@ -16,6 +16,11 @@ import {HypERC4626} from "./HypERC4626.sol";
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+/**
+ * @title WHypERC4626
+ * @author Abacus Works
+ * @notice A wrapper for HypERC4626 that allows for wrapping and unwrapping of underlying rebasing tokens
+ */
 contract WHypERC4626 is ERC20 {
     HypERC4626 public immutable underlying;
 
@@ -27,6 +32,11 @@ contract WHypERC4626 is ERC20 {
         underlying = _underlying;
     }
 
+    /*
+     * @notice Wraps an amount of underlying tokens into wrapped tokens
+     * @param _underlyingAmount The amount of underlying tokens to wrap
+     * @return The amount of wrapped tokens
+     */
     function wrap(uint256 _underlyingAmount) external returns (uint256) {
         require(
             _underlyingAmount > 0,
@@ -38,6 +48,11 @@ contract WHypERC4626 is ERC20 {
         return wrappedAmount;
     }
 
+    /*
+     * @notice Unwraps an amount of wrapped tokens into underlying tokens
+     * @param _wrappedAmount The amount of wrapped tokens to unwrap
+     * @return The amount of underlying tokens
+     */
     function unwrap(uint256 _wrappedAmount) external returns (uint256) {
         require(
             _wrappedAmount > 0,
@@ -49,26 +64,48 @@ contract WHypERC4626 is ERC20 {
         return underlyingAmount;
     }
 
+    /*
+     * @notice Gets the amount of wrapped tokens for a given amount of underlying tokens
+     * @param _underlyingAmount The amount of underlying tokens
+     * @return The amount of wrapped tokens
+     */
     function getWrappedAmount(
         uint256 _underlyingAmount
     ) external view returns (uint256) {
         return underlying.assetsToShares(_underlyingAmount);
     }
 
+    /*
+     * @notice Gets the amount of underlying tokens for a given amount of wrapped tokens
+     * @param _wrappedAmount The amount of wrapped tokens
+     * @return The amount of underlying tokens
+     */
     function getUnderlyingAmount(
         uint256 _wrappedAmount
     ) external view returns (uint256) {
         return underlying.sharesToAssets(_wrappedAmount);
     }
 
+    /*
+     * @notice Gets the amount of wrapped tokens for 1 unit of underlying tokens
+     * @return The amount of wrapped tokens
+     */
     function wrappedPerUnderlying() external view returns (uint256) {
         return underlying.assetsToShares(1 * 10 ** underlying.decimals());
     }
 
+    /*
+     * @notice Gets the amount of underlying tokens for 1 unit of wrapped tokens
+     * @return The amount of underlying tokens
+     */
     function underlyingPerWrapped() external view returns (uint256) {
         return underlying.sharesToAssets(1 * 10 ** decimals());
     }
 
+    /*
+     * @notice Gets the decimals of the wrapped token
+     * @return The decimals of the wrapped token
+     */
     function decimals() public view override returns (uint8) {
         return underlying.decimals();
     }
