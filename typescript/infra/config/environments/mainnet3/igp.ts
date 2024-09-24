@@ -27,13 +27,19 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
 
-const remoteOverhead = (remote: ChainName) =>
-  ethereumChainNames.includes(remote as any)
+function remoteOverhead(remote: ChainName) {
+  let overhead = ethereumChainNames.includes(remote as any)
     ? multisigIsmVerificationCost(
         defaultMultisigConfigs[remote].threshold,
         defaultMultisigConfigs[remote].validators.length,
       )
     : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
+  if (remote === 'moonbeam') {
+    // Moonbeam has (roughly) 4x'd their gas costs, some context in https://discord.com/channels/935678348330434570/1287816893553705041
+    overhead *= 4;
+  }
+  return overhead;
+}
 
 // Gets the exchange rate of the remote quoted in local tokens
 function getTokenExchangeRate(local: ChainName, remote: ChainName): BigNumber {
