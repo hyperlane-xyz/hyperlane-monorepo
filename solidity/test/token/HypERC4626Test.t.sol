@@ -217,6 +217,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
     }
 
     function testWithdrawalWithoutYield() public {
+        uint256 bobPrimaryBefore = primaryToken.balanceOf(BOB);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
@@ -227,10 +228,14 @@ contract HypERC4626CollateralTest is HypTokenTest {
             transferAmount
         );
         localMailbox.processNextInboundMessage();
-        assertEq(primaryToken.balanceOf(BOB), transferAmount);
+        assertEq(
+            primaryToken.balanceOf(BOB) - bobPrimaryBefore,
+            transferAmount
+        );
     }
 
     function testWithdrawalWithYield() public {
+        uint256 bobPrimaryBefore = primaryToken.balanceOf(BOB);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
@@ -249,13 +254,22 @@ contract HypERC4626CollateralTest is HypTokenTest {
         uint256 _expectedBal = transferAmount + _discountedYield();
 
         // BOB gets the yield even though it didn't rebase
-        assertApproxEqRelDecimal(_bobBal, _expectedBal, 1e14, 0);
-        assertTrue(_bobBal < _expectedBal, "Transfer remote should round down");
+        assertApproxEqRelDecimal(
+            _bobBal - bobPrimaryBefore,
+            _expectedBal,
+            1e14,
+            0
+        );
+        assertTrue(
+            _bobBal - bobPrimaryBefore < _expectedBal,
+            "Transfer remote should round down"
+        );
 
         assertEq(vault.accumulatedFees(), YIELD / 10);
     }
 
     function testWithdrawalAfterYield() public {
+        uint256 bobPrimaryBefore = primaryToken.balanceOf(BOB);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
@@ -274,7 +288,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
         localMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
-            primaryToken.balanceOf(BOB),
+            primaryToken.balanceOf(BOB) - bobPrimaryBefore,
             transferAmount + _discountedYield(),
             1e14,
             0
@@ -331,6 +345,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
     }
 
     function testWithdrawalAfterDrawdown() public {
+        uint256 bobPrimaryBefore = primaryToken.balanceOf(BOB);
         _performRemoteTransferWithoutExpectation(0, transferAmount);
         assertEq(remoteToken.balanceOf(BOB), transferAmount);
 
@@ -350,7 +365,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
         localMailbox.processNextInboundMessage();
         assertApproxEqRelDecimal(
-            primaryToken.balanceOf(BOB),
+            primaryToken.balanceOf(BOB) - bobPrimaryBefore,
             transferAmount - drawdown,
             1e14,
             0
