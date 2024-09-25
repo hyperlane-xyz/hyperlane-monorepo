@@ -54,7 +54,8 @@ abstract contract ExternalBridgeTest is Test {
         originMailbox.updateLatestDispatchedId(messageId);
         _expectOriginExternalBridgeCall(encodedHookData);
 
-        hook.postDispatch{value: GAS_QUOTE}(testMetadata, encodedMessage);
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+        hook.postDispatch{value: quote}(testMetadata, encodedMessage);
     }
 
     function test_postDispatch_revertWhen_chainIDNotSupported() public {
@@ -88,6 +89,37 @@ abstract contract ExternalBridgeTest is Test {
             "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
         );
         hook.postDispatch(excessValueMetadata, encodedMessage);
+    }
+
+    function testFuzz_postDispatch_refundsExtraValue(
+        uint256 extraValue
+    ) public virtual {
+        vm.assume(extraValue < MAX_MSG_VALUE);
+        vm.deal(address(this), address(this).balance + extraValue);
+        uint256 valueBefore = address(this).balance;
+
+        bytes memory encodedHookData = _encodeHookData(messageId);
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(encodedHookData);
+
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+        hook.postDispatch{value: quote + extraValue}(
+            testMetadata,
+            encodedMessage
+        );
+
+        assertEq(address(this).balance, valueBefore - quote);
+    }
+
+    function test_postDispatch_revertWhen_insufficientValue() public {
+        bytes memory encodedHookData = _encodeHookData(messageId);
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(encodedHookData);
+
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+
+        vm.expectRevert(); //arithmetic underflow
+        hook.postDispatch{value: quote - 1}(testMetadata, encodedMessage);
     }
 
     /* ============ ISM.verifyMessageId ============ */
@@ -276,4 +308,6 @@ abstract contract ExternalBridgeTest is Test {
     function _setExternalOriginSender(
         address _sender
     ) internal virtual returns (bytes memory) {}
+
+    receive() external payable {}
 }
