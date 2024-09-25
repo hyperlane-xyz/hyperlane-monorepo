@@ -72,7 +72,7 @@ const PRIORITY_FEE_PADDING_FACTOR = 2;
  * The minimum priority fee to use if the median fee is
  * unavailable or too low.
  */
-const MINIMUM_PRIORITY_FEE = 10_000;
+const MINIMUM_PRIORITY_FEE = 20_000;
 
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
@@ -315,6 +315,10 @@ export abstract class SealevelHypTokenAdapter
       { units: TRANSFER_REMOTE_COMPUTE_LIMIT },
     );
 
+    // For more info about priority fees, see:
+    // https://solanacookbook.com/references/basic-transactions.html#how-to-change-compute-budget-fee-priority-for-a-transaction
+    // https://docs.phantom.app/developer-powertools/solana-priority-fees
+    // https://www.helius.dev/blog/priority-fees-understanding-solanas-transaction-fee-mechanics
     const setPriorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
       microLamports: (await this.getMedianPriorityFee()) || 0,
     });
@@ -503,6 +507,10 @@ export abstract class SealevelHypTokenAdapter
     );
   }
 
+  /**
+   * Fetches the median prioritization fee for transfers of the collateralAddress token.
+   * @returns The median prioritization fee in micro-lamports
+   */
   async getMedianPriorityFee(): Promise<number | undefined> {
     this.logger.debug('Fetching priority fee history for token transfer');
 
