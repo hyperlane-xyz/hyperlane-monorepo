@@ -65,7 +65,7 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
 
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            message.id()
+            (message.id(), 0)
         );
         dispatcher.dispatchMessage(
             destinationDomain,

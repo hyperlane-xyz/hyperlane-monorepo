@@ -77,7 +77,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
 
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            message.id()
+            (message.id(), metadata.msgValue(0))
         );
         _sendMessageToChild(payload);
     }
