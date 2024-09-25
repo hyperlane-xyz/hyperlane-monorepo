@@ -1,12 +1,27 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+// ============ Internal Imports ============
 import {IXERC20} from "../interfaces/IXERC20.sol";
 import {HypERC20} from "../HypERC20.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
+
+// ============ Internal Imports ============
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**
  * @title Hyperlane ERC20 Rebasing Token

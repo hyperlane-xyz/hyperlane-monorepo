@@ -16,8 +16,11 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
+import {HypERC4626} from "../../contracts/token/extensions/HypERC4626.sol";
+
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 
 import {HypERC4626OwnerCollateral} from "../../contracts/token/extensions/HypERC4626OwnerCollateral.sol";
@@ -227,27 +230,19 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         );
     }
 
-    // function testERC4626VaultDeposit_TransferFromSender_CorrectMetadata() public {
-    //     uint256 transferAmount = 1000e18;
+    function testERC4626VaultDeposit_TransferFromSender_CorrectMetadata()
+        public
+    {
+        remoteToken = new HypERC4626(18, address(remoteMailbox), ORIGIN);
+        _enrollRemoteTokenRouter();
+        vm.prank(ALICE);
 
-    //     vm.prank(ALICE);
-    //     _mintAndApprove(transferAmount, address(localToken));
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransfer(0, TRANSFER_AMT, 1);
 
-    //     // Get the initial rateUpdateNonce
-    //     uint32 initialNonce = erc20CollateralVaultDeposit.rateUpdateNonce();
-
-    //     vm.prank(ALICE);
-    //     bytes memory metadata =
-    //         erc20CollateralVaultDeposit.transferRemote(DESTINATION, ALICE.addressToBytes32(), transferAmount);
-
-    //     // Decode the metadata
-    //     (uint256 precision, uint32 nonce) = abi.decode(metadata, (uint256, uint32));
-
-    //     assertEq(precision, erc20CollateralVaultDeposit.PRECISION(), "Incorrect precision in metadata");
-
-    //     assertEq(nonce, initialNonce + 1, "Incorrect nonce in metadata");
-    //     assertEq(erc20CollateralVaultDeposit.rateUpdateNonce(), initialNonce + 1, "rateUpdateNonce not incremented");
-    // }
+        assertEq(HypERC4626(address(remoteToken)).exchangeRate(), 1e10);
+        assertEq(HypERC4626(address(remoteToken)).previousNonce(), 1);
+    }
 
     function testBenchmark_overheadGasUsage() public override {
         vm.prank(ALICE);
@@ -264,5 +259,35 @@ contract HypERC4626OwnerCollateralTest is HypTokenTest {
         );
         uint256 gasAfter = gasleft();
         console.log("Overhead gas usage: %d", gasBefore - gasAfter);
+    }
+
+    function _performRemoteTransfer(
+        uint256 _msgValue,
+        uint256 _amount,
+        uint32 _nonce
+    ) internal {
+        vm.prank(ALICE);
+        localToken.transferRemote{value: _msgValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            _amount
+        );
+
+        vm.expectEmit(true, true, false, true);
+        emit ReceivedTransferRemote(ORIGIN, BOB.addressToBytes32(), _amount);
+        bytes memory _tokenMessage = TokenMessage.format(
+            BOB.addressToBytes32(),
+            _amount,
+            abi.encode(uint256(1e10), _nonce)
+        );
+
+        vm.prank(address(remoteMailbox));
+        remoteToken.handle(
+            ORIGIN,
+            address(localToken).addressToBytes32(),
+            _tokenMessage
+        );
+
+        assertEq(remoteToken.balanceOf(BOB), _amount);
     }
 }
