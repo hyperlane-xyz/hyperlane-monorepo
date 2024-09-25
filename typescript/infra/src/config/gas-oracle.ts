@@ -54,7 +54,8 @@ function getLocalStorageGasOracleConfig(
   return remotes.reduce((agg, remote) => {
     let exchangeRate = getTokenExchangeRate(local, remote);
     if (!gasPrices[remote]) {
-      throw new Error(`No gas price found for chain ${remote}`);
+      // Will run into this case when adding new chains
+      return agg;
     }
 
     // First parse as a number, so we have floating point precision.
@@ -230,6 +231,10 @@ export function getTokenExchangeRateFromValues(
   remote: ChainName,
   tokenPrices: ChainMap<string>,
 ): BigNumber {
+  if (!tokenPrices[local] || !tokenPrices[remote]) {
+    return BigNumber.from(1);
+  }
+
   const localValue = ethers.utils.parseUnits(
     tokenPrices[local],
     TOKEN_EXCHANGE_RATE_DECIMALS,
