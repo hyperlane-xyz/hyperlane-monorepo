@@ -4,8 +4,8 @@ import { exclude, objMap } from '@hyperlane-xyz/utils';
 import {
   AllStorageGasOracleConfigs,
   getAllStorageGasOracleConfigs,
+  getOverhead,
   getTokenExchangeRateFromValues,
-  remoteOverhead,
 } from '../../../src/config/gas-oracle.js';
 
 import { ethereumChainNames } from './chains.js';
@@ -16,9 +16,9 @@ import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
-const remoteOverheadWithOverrides = (chain: ChainName) => {
-  let overhead = remoteOverhead(chain, ethereumChainNames);
-  if (chain === 'moonbeam') {
+const getOverheadWithOverrides = (local: ChainName, remote: ChainName) => {
+  let overhead = getOverhead(local, remote, ethereumChainNames);
+  if (remote === 'moonbeam') {
     overhead *= 4;
   }
   return overhead;
@@ -31,7 +31,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
     (local, remote) =>
       getTokenExchangeRateFromValues(local, remote, tokenPrices),
     (local) => parseFloat(tokenPrices[local]),
-    remoteOverheadWithOverrides,
+    getOverheadWithOverrides,
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(
@@ -49,7 +49,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
     overhead: Object.fromEntries(
       exclude(local, supportedChainNames).map((remote) => [
         remote,
-        remoteOverhead(remote, ethereumChainNames),
+        getOverheadWithOverrides(local, remote),
       ]),
     ),
     oracleConfig: storageGasOracleConfig[local],

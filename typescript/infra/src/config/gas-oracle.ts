@@ -49,7 +49,7 @@ function getLocalStorageGasOracleConfig(
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
   getTokenUsdPrice?: (chain: ChainName) => number,
-  remoteOverhead?: (remote: ChainName) => number,
+  getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): StorageGasOracleConfig {
   return remotes.reduce((agg, remote) => {
     let exchangeRate = getTokenExchangeRate(local, remote);
@@ -96,8 +96,8 @@ function getLocalStorageGasOracleConfig(
 
     // If we have access to these, let's use the USD prices to apply some minimum
     // typical USD payment heuristics.
-    if (getTokenUsdPrice && remoteOverhead) {
-      const typicalRemoteGasAmount = remoteOverhead(remote) + 50_000;
+    if (getTokenUsdPrice && getOverhead) {
+      const typicalRemoteGasAmount = getOverhead(local, remote) + 50_000;
       const typicalIgpQuoteUsd = getUsdQuote(
         local,
         gasPriceBn,
@@ -187,14 +187,15 @@ function getUsdQuote(
 const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 
 // Overhead for interchain messaging
-export function remoteOverhead(
+export function getOverhead(
+  local: ChainName,
   remote: ChainName,
   ethereumChainNames: ChainName[],
 ): number {
   return ethereumChainNames.includes(remote as any)
     ? multisigIsmVerificationCost(
-        defaultMultisigConfigs[remote].threshold,
-        defaultMultisigConfigs[remote].validators.length,
+        defaultMultisigConfigs[local].threshold,
+        defaultMultisigConfigs[local].validators.length,
       )
     : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
 }
@@ -205,7 +206,7 @@ export function getAllStorageGasOracleConfigs(
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
   getTokenUsdPrice?: (chain: ChainName) => number,
-  remoteOverhead?: (remote: ChainName) => number,
+  getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): AllStorageGasOracleConfigs {
   return chainNames.filter(isEthereumProtocolChain).reduce((agg, local) => {
     const remotes = chainNames.filter((chain) => local !== chain);
@@ -217,7 +218,7 @@ export function getAllStorageGasOracleConfigs(
         gasPrices,
         getTokenExchangeRate,
         getTokenUsdPrice,
-        remoteOverhead,
+        getOverhead,
       ),
     };
   }, {}) as AllStorageGasOracleConfigs;
