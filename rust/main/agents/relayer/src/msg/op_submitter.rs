@@ -12,7 +12,6 @@ use hyperlane_core::BatchResult;
 use hyperlane_core::ConfirmReason::*;
 use hyperlane_core::PendingOperation;
 use hyperlane_core::PendingOperationStatus;
-use hyperlane_core::ReprepareReason;
 use itertools::Either;
 use itertools::Itertools;
 use prometheus::{IntCounter, IntGaugeVec};
@@ -183,7 +182,6 @@ impl SerialSubmitter {
                 &task_monitor,
                 submit_task(
                     domain.clone(),
-                    prepare_queue.clone(),
                     submit_queue,
                     confirm_queue.clone(),
                     max_batch_size,
@@ -312,7 +310,6 @@ async fn prepare_task(
 #[instrument(skip_all, fields(%domain))]
 async fn submit_task(
     domain: HyperlaneDomain,
-    mut prepare_queue: OpQueue,
     mut submit_queue: OpQueue,
     mut confirm_queue: OpQueue,
     max_batch_size: u32,
@@ -334,7 +331,7 @@ async fn submit_task(
             }
             std::cmp::Ordering::Greater => {
                 OperationBatch::new(batch, domain.clone())
-                    .submit(&mut prepare_queue, &mut confirm_queue, &metrics)
+                    .submit(&mut confirm_queue, &metrics)
                     .await;
             }
         }
@@ -489,12 +486,7 @@ struct OperationBatch {
 }
 
 impl OperationBatch {
-    async fn submit(
-        self,
-        prepare_queue: &mut OpQueue,
-        confirm_queue: &mut OpQueue,
-        metrics: &SerialSubmitterMetrics,
-    ) {
+    async fn submit(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
         let excluded_ops = match self.try_submit_as_batch(metrics).await {
             Ok(batch_result) => {
                 Self::handle_batch_result(self.operations, batch_result, confirm_queue).await
@@ -507,16 +499,9 @@ impl OperationBatch {
 
         if !excluded_ops.is_empty() {
             warn!(excluded_ops=?excluded_ops, "Either the batch tx would revert, or the operations would revert in the batch. Sending back to the prepare queue.");
-            for op in excluded_ops {
-                prepare_queue
-                    .push(
-                        op,
-                        Some(PendingOperationStatus::Retry(
-                            ReprepareReason::BatchSimulationFailure,
-                        )),
-                    )
-                    .await
-            }
+            OperationBatch::new(excluded_ops, self.domain)
+                .submit_serially(confirm_queue, metrics)
+                .await;
         }
     }
 
@@ -577,6 +562,12 @@ impl OperationBatch {
             confirm_queue
                 .push(op, Some(PendingOperationStatus::Confirm(SubmittedBySelf)))
                 .await;
+        }
+    }
+
+    async fn submit_serially(self, confirm_queue: &mut OpQueue, metrics: &SerialSubmitterMetrics) {
+        for op in self.operations.into_iter() {
+            submit_single_operation(op, confirm_queue, metrics).await;
         }
     }
 }

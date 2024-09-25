@@ -76,6 +76,9 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     submission_outcome: Option<TxOutcome>,
+    #[new(default)]
+    #[serde(skip_serializing)]
+    metadata: Option<Vec<u8>>,
 }
 
 impl Debug for PendingMessage {
@@ -254,6 +257,7 @@ impl PendingOperation for PendingMessage {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
             }
         };
+        self.metadata = metadata.clone();
 
         let Some(metadata) = metadata else {
             return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
@@ -269,7 +273,7 @@ impl PendingOperation for PendingMessage {
             .process_estimate_costs(&self.message, &metadata)
             .await
         {
-            Ok(metadata) => metadata,
+            Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorEstimatingGas);
             }
@@ -331,6 +335,17 @@ impl PendingOperation for PendingMessage {
             .submission_data
             .clone()
             .expect("Pending message must be prepared before it can be submitted");
+
+        if let Some(metadata) = self.metadata.clone() {
+            if let Err(_) = self
+                .ctx
+                .destination_mailbox
+                .process_estimate_costs(&self.message, &metadata)
+                .await
+            {
+                return;
+            }
+        }
 
         // We use the estimated gas limit from the prior call to
         // `process_estimate_costs` to avoid a second gas estimation.
