@@ -18,7 +18,7 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 const getOverheadWithOverrides = (local: ChainName, remote: ChainName) => {
   let overhead = getOverhead(local, remote, ethereumChainNames);
-  if (local === 'moonbeam') {
+  if (remote === 'moonbeam') {
     overhead *= 4;
   }
   return overhead;
