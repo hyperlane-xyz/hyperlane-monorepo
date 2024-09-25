@@ -49,7 +49,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
     overhead: Object.fromEntries(
       exclude(local, supportedChainNames).map((remote) => [
         remote,
-        getOverhead(remote, ethereumChainNames),
+        getOverheadWithOverrides(local),
       ]),
     ),
     oracleConfig: storageGasOracleConfig[local],

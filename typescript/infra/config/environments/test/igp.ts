@@ -15,7 +15,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
   (chain, ownerConfig): IgpConfig => {
     const overhead = Object.fromEntries(
       exclude(chain, testChainNames).map((remote) => [
-        remote,
+        chain,
         multisigIsmVerificationCost(
           multisigIsm[remote].threshold,
           multisigIsm[remote].validators.length,
