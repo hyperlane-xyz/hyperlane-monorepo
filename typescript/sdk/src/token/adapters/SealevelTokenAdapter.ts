@@ -70,9 +70,10 @@ const PRIORITY_FEE_PADDING_FACTOR = 2;
 
 /**
  * The minimum priority fee to use if the median fee is
- * unavailable or too low.
+ * unavailable or too low, set in micro-lamports.
+ * 100,000 * 1e-6 * 1,000,000 (compute unit limit) / 1e9 == 0.0001 SOL
  */
-const MINIMUM_PRIORITY_FEE = 20_000;
+const MINIMUM_PRIORITY_FEE = 100_000;
 
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
