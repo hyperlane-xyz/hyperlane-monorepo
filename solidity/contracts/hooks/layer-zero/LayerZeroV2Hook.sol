@@ -60,7 +60,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
     ) internal override {
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (message.id(), metadata.msgValue(0))
+            message.id()
         );
 
         bytes calldata lZMetadata = metadata.getCustomMetadata();

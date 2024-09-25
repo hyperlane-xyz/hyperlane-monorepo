@@ -58,7 +58,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
 
     // ============ Internal functions ============
     function _quoteDispatch(
-        bytes calldata,
+        bytes calldata metadata,
         bytes calldata
     ) internal pure override returns (uint256) {
         return metadata.msgValue(0);
@@ -77,7 +77,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
 
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (message.id(), metadata.msgValue(0))
+            message.id()
         );
         _sendMessageToChild(payload);
     }

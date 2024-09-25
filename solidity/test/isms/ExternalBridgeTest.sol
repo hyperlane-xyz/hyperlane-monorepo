@@ -250,16 +250,6 @@ abstract contract ExternalBridgeTest is Test {
         assertEq(address(testRecipient).balance, _msgValue);
     }
 
-    function test_verify_override_msgValue() public virtual {
-        bytes memory encodedHookData = _encodeHookData(messageId);
-
-        _externalBridgeDestinationCall(encodedHookData, MSG_VALUE);
-        _externalBridgeDestinationCall(encodedHookData, 0);
-
-        assertTrue(ism.verify(new bytes(0), encodedMessage));
-        assertEq(address(testRecipient).balance, MSG_VALUE);
-    }
-
     /* ============ helper functions ============ */
 
     function _encodeTestMessage() internal view returns (bytes memory) {
