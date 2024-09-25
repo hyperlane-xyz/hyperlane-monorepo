@@ -1,11 +1,8 @@
 import {
   Separator,
   type Theme,
-  ValidationError,
   createPrompt,
-  isDownKey,
   isEnterKey,
-  isUpKey,
   makeTheme,
   useEffect,
   useKeypress,
@@ -16,7 +13,7 @@ import {
   useState,
 } from '@inquirer/core';
 import figures from '@inquirer/figures';
-import { confirm, input } from '@inquirer/prompts';
+import { KeypressEvent, confirm, input } from '@inquirer/prompts';
 import type { PartialDeep } from '@inquirer/type';
 import ansiEscapes from 'ansi-escapes';
 import colors from 'yoctocolors-cjs';
@@ -167,12 +164,6 @@ function toggle<Value>(item: Item<Value>): Item<Value> {
   return isSelectable(item) ? { ...item, checked: !item.checked } : item;
 }
 
-// function check(checked: boolean) {
-//   return function <Value>(item: Item<Value>): Item<Value> {
-//     return isSelectable(item) ? { ...item, checked } : item;
-//   };
-// }
-
 function normalizeChoices<Value>(
   choices:
     | ReadonlyArray<string | Separator>
@@ -228,8 +219,6 @@ function organizeItems<Value>(
   if (checkedItems.length !== 0) {
     newitems.push(new Separator('--Selected Options--'));
 
-    checkedItems.sort();
-
     newitems.push(...checkedItems.sort(sortNormalizedItems));
   }
 
@@ -243,6 +232,22 @@ function organizeItems<Value>(
   newitems.push(...nonCheckedItems.sort(sortNormalizedItems));
 
   return newitems;
+}
+
+// the isUpKey function from the inquirer package is not used
+// because it detects k and p as custom keybindings that cause
+// the option selection to go up instead of writing the letters
+// in the search string
+function isUpKey(key: KeypressEvent): boolean {
+  return key.name === 'up';
+}
+
+// the isDownKey function from the inquirer package is not used
+// because it detects j and n as custom keybindings that cause
+// the option selection to go down instead of writing the letters
+// in the search string
+function isDownKey(key: KeypressEvent): boolean {
+  return key.name === 'down';
 }
 
 export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
@@ -264,10 +269,10 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
       const prefix = usePrefix({ theme });
 
       const normalizedChoices = normalizeChoices(config.choices);
-      const [deps, setDeps] = useState({
-        items: normalizedChoices,
-        dataMap: Object.fromEntries(
-          normalizeChoices(config.choices)
+      const [optionState, setOptionState] = useState({
+        options: normalizedChoices,
+        currentOptionState: Object.fromEntries(
+          normalizedChoices
             .filter((item) => !Separator.isSeparator(item))
             .map((item) => [
               (item as NormalizedChoice<Value>).name,
@@ -279,22 +284,15 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
       const [searchTerm, setSearchTerm] = useState<string>('');
 
       const bounds = useMemo(() => {
-        const first = deps.items.findIndex(isSelectable);
+        const first = optionState.options.findIndex(isSelectable);
         // @ts-ignore
         // TODO: add polyfill for this
-        const last = deps.items.findLastIndex(isSelectable);
-
-        // TODO: fix this iff there are no items in the list as the cli will throw
-        if (first < 0) {
-          throw new ValidationError(
-            '[checkbox prompt] No selectable choices. All choices are disabled.',
-          );
-        }
+        const last = optionState.options.findLastIndex(isSelectable);
 
         return { first, last };
-      }, [deps]);
+      }, [optionState]);
 
-      const [active, setActive] = useState(bounds.first);
+      const [active, setActive] = useState<number | undefined>(bounds.first);
       const [showHelpTip, setShowHelpTip] = useState(true);
       const [errorMsg, setError] = useState<string>();
 
@@ -308,9 +306,11 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
           try {
             let filteredItems;
             if (!searchTerm) {
-              filteredItems = Object.values(deps.dataMap);
+              filteredItems = Object.values(optionState.currentOptionState);
             } else {
-              filteredItems = Object.values(deps.dataMap).filter(
+              filteredItems = Object.values(
+                optionState.currentOptionState,
+              ).filter(
                 (item) =>
                   Separator.isSeparator(item) ||
                   item.name.includes(searchTerm) ||
@@ -320,12 +320,11 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
 
             if (!controller.signal.aborted) {
               // Reset the pointer
-              setActive(bounds.first);
+              setActive(undefined);
               setError(undefined);
-              // setItems(organizeItems(filteredItems));
-              setDeps({
-                items: organizeItems(filteredItems),
-                dataMap: deps.dataMap,
+              setOptionState({
+                options: organizeItems(filteredItems),
+                currentOptionState: optionState.currentOptionState,
               });
               setStatus('idle');
             }
@@ -345,15 +344,16 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
 
       useKeypress(async (key, rl) => {
         if (isEnterKey(key)) {
-          const selection = deps.items.filter(isChecked);
+          const selection = optionState.options.filter(isChecked);
           const isValid = await validate([...selection]);
-          if (required && !deps.items.some(isChecked)) {
+          if (required && !optionState.options.some(isChecked)) {
             setError('At least one choice must be selected');
           } else if (isValid === true) {
             setStatus('done');
             done(selection.map((choice) => choice.value));
           } else {
             setError(isValid || 'You must select a valid value');
+            setSearchTerm('');
           }
         } else if (isUpKey(key) || isDownKey(key)) {
           if (
@@ -362,35 +362,48 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
             (isDownKey(key) && active !== bounds.last)
           ) {
             const offset = isUpKey(key) ? -1 : 1;
-            let next = active;
+            let next = active ?? 0;
             do {
-              next = (next + offset + deps.items.length) % deps.items.length;
-            } while (!isSelectable(deps.items[next]!));
+              next =
+                (next + offset + optionState.options.length) %
+                optionState.options.length;
+            } while (
+              optionState.options[next] &&
+              !isSelectable(optionState.options[next])
+            );
             setActive(next);
           }
-        } else if (key.name === 'tab') {
-          // Avoid the header to be printed again in the console
+        } else if (
+          key.name === 'tab' &&
+          optionState.options.length > 0 &&
+          active
+        ) {
+          // Avoid the message header to be printed again in the console
           rl.clearLine(0);
           setError(undefined);
           setShowHelpTip(false);
 
-          const currentElement = deps.items[active];
+          const currentElement = optionState.options[active];
           if (
             currentElement &&
             !Separator.isSeparator(currentElement) &&
-            deps.dataMap[currentElement.name]
+            optionState.currentOptionState[currentElement.name]
           ) {
-            const dataMap: Record<string, NormalizedChoice<Value>> = {
-              ...deps.dataMap,
+            const updatedDataMap: Record<string, NormalizedChoice<Value>> = {
+              ...optionState.currentOptionState,
               [currentElement.name]: toggle(
-                deps.dataMap[currentElement.name],
+                optionState.currentOptionState[currentElement.name],
               ) as NormalizedChoice<Value>,
             };
 
-            setDeps({ items: organizeItems(Object.values(dataMap)), dataMap });
+            setOptionState({
+              options: organizeItems(Object.values(updatedDataMap)),
+              currentOptionState: updatedDataMap,
+            });
           }
 
           setSearchTerm('');
+          setActive(undefined);
         } else {
           setSearchTerm(rl.line);
         }
@@ -400,8 +413,8 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
 
       let description;
       const page = usePagination({
-        items: deps.items,
-        active,
+        items: optionState.options,
+        active: active ?? 0,
         renderItem({ item, isActive }) {
           if (Separator.isSeparator(item)) {
             return ` ${item.separator}`;
@@ -429,9 +442,9 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
       });
 
       if (status === 'done') {
-        const selection = deps.items.filter(isChecked);
+        const selection = optionState.options.filter(isChecked);
         const answer = theme.style.answer(
-          theme.style.renderSelectedChoices(selection, deps.items),
+          theme.style.renderSelectedChoices(selection, optionState.options),
         );
 
         return `${prefix} ${message} ${answer}`;
@@ -449,16 +462,14 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
           helpTipTop = instructions;
         } else {
           const keys = [
-            `${theme.style.key('space')} to select`,
-            `${theme.style.key('a')} to toggle all`,
-            `${theme.style.key('i')} to invert selection`,
+            `${theme.style.key('tab')} to select`,
             `and ${theme.style.key('enter')} to proceed`,
           ];
           helpTipTop = ` (Press ${keys.join(', ')})`;
         }
 
         if (
-          deps.items.length > pageSize &&
+          optionState.options.length > pageSize &&
           (theme.helpMode === 'always' ||
             (theme.helpMode === 'auto' && firstRender.current))
         ) {
@@ -476,6 +487,12 @@ export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
       let error = '';
       if (errorMsg) {
         error = `\n${theme.style.error(errorMsg)}`;
+      } else if (
+        optionState.options.length === 0 &&
+        searchTerm !== '' &&
+        status === 'idle'
+      ) {
+        error = theme.style.error('No results found');
       }
 
       return `${prefix}${message}${helpTipTop} ${
