@@ -260,7 +260,7 @@ async function checkBalance(
                 token?.isSpl2022 ?? false,
               );
               const syntheticBalance = ethers.BigNumber.from(
-                await adapter.getTotalSupply(token.hypAddress),
+                await adapter.getTotalSupply(),
               );
               return parseFloat(
                 ethers.utils.formatUnits(syntheticBalance, token.decimals),
