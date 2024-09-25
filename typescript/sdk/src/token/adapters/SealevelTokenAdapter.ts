@@ -68,6 +68,12 @@ const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
  */
 const PRIORITY_FEE_PADDING_FACTOR = 2;
 
+/**
+ * The minimum priority fee to use if the median fee is
+ * unavailable or too low.
+ */
+const MINIMUM_PRIORITY_FEE = 10_000;
+
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
   extends BaseSealevelAdapter
@@ -516,9 +522,11 @@ export abstract class SealevelHypTokenAdapter
       return undefined;
     }
 
-    const medianFee = Math.floor(
-      median(nonZeroFees) * PRIORITY_FEE_PADDING_FACTOR,
+    const medianFee = Math.max(
+      Math.floor(median(nonZeroFees) * PRIORITY_FEE_PADDING_FACTOR),
+      MINIMUM_PRIORITY_FEE,
     );
+
     this.logger.debug(`Median priority fee: ${medianFee}`);
     return medianFee;
   }
