@@ -62,10 +62,10 @@ contract OPStackHook is AbstractMessageIdAuthHook {
 
     // ============ Internal functions ============
     function _quoteDispatch(
-        bytes calldata,
+        bytes calldata metadata,
         bytes calldata
     ) internal pure override returns (uint256) {
-        return 0; // gas subsidized by the L2
+        return metadata.msgValue(0); // gas subsidized by the L2
     }
 
     /// @inheritdoc AbstractMessageIdAuthHook

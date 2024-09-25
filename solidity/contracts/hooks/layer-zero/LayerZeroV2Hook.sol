@@ -102,7 +102,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
             message.senderAddress()
         );
 
-        return msgFee.nativeFee;
+        return metadata.msgValue(0) + msgFee.nativeFee;
     }
 
     /**

@@ -61,7 +61,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
         bytes calldata,
         bytes calldata
     ) internal pure override returns (uint256) {
-        return 0;
+        return metadata.msgValue(0);
     }
 
     /// @inheritdoc AbstractMessageIdAuthHook
