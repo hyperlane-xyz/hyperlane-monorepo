@@ -23,7 +23,7 @@ export const storageGasOracleConfig: AllStorageGasOracleConfigs =
     (local, remote) =>
       getTokenExchangeRateFromValues(local, remote, tokenPrices),
     (local) => parseFloat(tokenPrices[local]),
-    (chain) => getOverhead(chain, ethereumChainNames),
+    (local, remote) => getOverhead(local, remote, ethereumChainNames),
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(
@@ -38,7 +38,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
       overhead: Object.fromEntries(
         exclude(chain, supportedChainNames).map((remote) => [
           remote,
-          getOverhead(chain, ethereumChainNames),
+          getOverhead(chain, remote, ethereumChainNames),
         ]),
       ),
     };

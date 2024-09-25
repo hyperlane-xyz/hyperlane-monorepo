@@ -49,7 +49,7 @@ function getLocalStorageGasOracleConfig(
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
   getTokenUsdPrice?: (chain: ChainName) => number,
-  getOverhead?: (chain: ChainName) => number,
+  getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): StorageGasOracleConfig {
   return remotes.reduce((agg, remote) => {
     let exchangeRate = getTokenExchangeRate(local, remote);
@@ -97,7 +97,7 @@ function getLocalStorageGasOracleConfig(
     // If we have access to these, let's use the USD prices to apply some minimum
     // typical USD payment heuristics.
     if (getTokenUsdPrice && getOverhead) {
-      const typicalRemoteGasAmount = getOverhead(local) + 50_000;
+      const typicalRemoteGasAmount = getOverhead(local, remote) + 50_000;
       const typicalIgpQuoteUsd = getUsdQuote(
         local,
         gasPriceBn,
@@ -188,13 +188,14 @@ const FOREIGN_DEFAULT_OVERHEAD = 600_000;
 
 // Overhead for interchain messaging
 export function getOverhead(
-  chain: ChainName,
+  local: ChainName,
+  remote: ChainName,
   ethereumChainNames: ChainName[],
 ): number {
-  return ethereumChainNames.includes(chain as any)
+  return ethereumChainNames.includes(remote as any)
     ? multisigIsmVerificationCost(
-        defaultMultisigConfigs[chain].threshold,
-        defaultMultisigConfigs[chain].validators.length,
+        defaultMultisigConfigs[local].threshold,
+        defaultMultisigConfigs[local].validators.length,
       )
     : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
 }
@@ -205,7 +206,7 @@ export function getAllStorageGasOracleConfigs(
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
   getTokenUsdPrice?: (chain: ChainName) => number,
-  getOverhead?: (chain: ChainName) => number,
+  getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): AllStorageGasOracleConfigs {
   return chainNames.filter(isEthereumProtocolChain).reduce((agg, local) => {
     const remotes = chainNames.filter((chain) => local !== chain);

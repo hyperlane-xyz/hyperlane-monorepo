@@ -16,9 +16,9 @@ import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
-const getOverheadWithOverrides = (chain: ChainName) => {
-  let overhead = getOverhead(chain, ethereumChainNames);
-  if (chain === 'moonbeam') {
+const getOverheadWithOverrides = (local: ChainName, remote: ChainName) => {
+  let overhead = getOverhead(local, remote, ethereumChainNames);
+  if (local === 'moonbeam') {
     overhead *= 4;
   }
   return overhead;
@@ -49,7 +49,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
     overhead: Object.fromEntries(
       exclude(local, supportedChainNames).map((remote) => [
         remote,
-        getOverheadWithOverrides(local),
+        getOverheadWithOverrides(local, remote),
       ]),
     ),
     oracleConfig: storageGasOracleConfig[local],
