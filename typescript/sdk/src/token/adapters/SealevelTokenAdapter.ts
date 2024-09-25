@@ -519,7 +519,7 @@ export abstract class SealevelHypTokenAdapter
       this.logger.warn(
         'Insufficient historical prioritization fee data for padding, skipping',
       );
-      return undefined;
+      return MINIMUM_PRIORITY_FEE;
     }
 
     const medianFee = Math.max(
