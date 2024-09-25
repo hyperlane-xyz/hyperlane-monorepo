@@ -19,7 +19,7 @@ import {
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { TrustedRelayerIsm__artifact } from '@hyperlane-xyz/core/artifacts';
+// import { TrustedRelayerIsm__artifact } from '@hyperlane-xyz/core/artifacts';
 import {
   Address,
   Domain,

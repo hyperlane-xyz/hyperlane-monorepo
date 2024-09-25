@@ -18,7 +18,10 @@ import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
-import { defaultProviderBuilder } from './providerBuilders.js';
+import {
+  defaultProviderBuilder,
+  defaultZKProviderBuilder,
+} from './providerBuilders.js';
 
 type Provider = providers.Provider;
 
@@ -88,10 +91,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     if (testChains.includes(name)) {
       this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
-    } else if (metadata.chainId === 270 || metadata.chainId === 260) {
-      this.providers[name] = new ZKSyncProvider(rpcUrls[0].http, chainId);
     } else if (rpcUrls.length) {
-      this.providers[name] = this.providerBuilder(rpcUrls, chainId);
+      if (metadata.chainId === 270 || metadata.chainId === 260) {
+        console.log({ chainId, rpcUrls });
+        this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
+      } else {
+        this.providers[name] = this.providerBuilder(rpcUrls, chainId);
+      }
     } else {
       return null;
     }
