@@ -145,8 +145,7 @@ impl CLISource {
 
         log!("Uncompressing Osmosis release");
         untar(&release_comp, dir_path);
-
-        concat_path(dir_path, "osmosisd")
+        concat_path(dir_path, "release/osmosisd-26.0.1-linux-amd64")
     }
 
     pub fn install(self, dir: Option<PathBuf>) -> PathBuf {
