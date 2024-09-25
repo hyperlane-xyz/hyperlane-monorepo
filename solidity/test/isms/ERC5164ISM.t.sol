@@ -134,7 +134,7 @@ contract ERC5164IsmTest is ExternalBridgeTest {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        ism.verifyMessageId(messageId);
+        ism.verifyMessageId(messageId, 0);
         assertFalse(ism.isVerified(encodedMessage));
     }
 
@@ -161,7 +161,7 @@ contract ERC5164IsmTest is ExternalBridgeTest {
         uint256 _msgValue
     ) internal override {
         vm.prank(address(executor));
-        ism.verifyMessageId(messageId);
+        ism.verifyMessageId(messageId, 0);
     }
 
     function _encodeExternalDestinationBridgeCall(
@@ -172,7 +172,7 @@ contract ERC5164IsmTest is ExternalBridgeTest {
     ) internal override returns (bytes memory) {
         if (_from == address(hook)) {
             vm.prank(address(executor));
-            ism.verifyMessageId{value: _msgValue}(messageId);
+            ism.verifyMessageId{value: _msgValue}(messageId, 0);
         }
     }
 }

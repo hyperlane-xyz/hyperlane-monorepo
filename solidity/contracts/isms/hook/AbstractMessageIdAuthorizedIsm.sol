@@ -123,8 +123,12 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
         require(
-            msg.value < 2 ** VERIFIED_MASK_INDEX && msg.value == msgValue,
+            msg.value < 2 ** VERIFIED_MASK_INDEX,
             "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
+        );
+        require(
+            msg.value == msgValue,
+            "AbstractMessageIdAuthorizedIsm: msg.value doesn't match"
         );
 
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);

@@ -24,7 +24,7 @@ contract LayerZeroV2IsmTest is Test {
         return
             abi.encodeCall(
                 AbstractMessageIdAuthorizedIsm.verifyMessageId,
-                (_messageId)
+                (_messageId, 0)
             );
     }
 

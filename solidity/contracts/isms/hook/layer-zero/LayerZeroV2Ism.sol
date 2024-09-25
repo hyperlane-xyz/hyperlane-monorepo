@@ -66,7 +66,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
         address,
         bytes calldata
     ) external payable {
-        verifyMessageId(_messageId(_lzMessage));
+        verifyMessageId(_messageId(_lzMessage), _msgValue(_lzMessage));
     }
 
     // ============ Internal function ============
@@ -79,7 +79,18 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     function _messageId(
         bytes calldata _message
     ) internal pure returns (bytes32) {
-        return bytes32(_message[FUNC_SELECTOR_OFFSET:]);
+        return bytes32(_message[FUNC_SELECTOR_OFFSET:ORIGIN_SENDER_OFFSET]);
+    }
+
+    /**
+     * @notice Slices the msgValue from the message delivered from LayerZeroV2Hook
+     * @dev message is created as abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, (id,msgValue))
+     * @dev _message will be 68 bytes (4 bytes for function selector, and 32 bytes for messageId, another 32 for msgValue)
+     */
+    function _msgValue(
+        bytes calldata _message
+    ) internal pure returns (uint256) {
+        return uint256(bytes32(_message[ORIGIN_SENDER_OFFSET:]));
     }
 
     /**

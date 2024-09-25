@@ -58,7 +58,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
 
     // ============ Internal functions ============
     function _quoteDispatch(
-        bytes calldata,
+        bytes calldata metadata,
         bytes calldata
     ) internal pure override returns (uint256) {
         return metadata.msgValue(0);

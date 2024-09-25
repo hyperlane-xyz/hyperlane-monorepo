@@ -50,7 +50,8 @@ abstract contract ExternalBridgeTest is Test {
     /* ============ Hook.postDispatch ============ */
 
     function test_postDispatch() public {
-        bytes memory encodedHookData = _encodeHookData(messageId);
+        bytes memory hookMetadata = testMetadata;
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
         originMailbox.updateLatestDispatchedId(messageId);
         _expectOriginExternalBridgeCall(encodedHookData);
 
@@ -98,7 +99,7 @@ abstract contract ExternalBridgeTest is Test {
         vm.deal(address(this), address(this).balance + extraValue);
         uint256 valueBefore = address(this).balance;
 
-        bytes memory encodedHookData = _encodeHookData(messageId);
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
         originMailbox.updateLatestDispatchedId(messageId);
         _expectOriginExternalBridgeCall(encodedHookData);
 
@@ -112,7 +113,7 @@ abstract contract ExternalBridgeTest is Test {
     }
 
     function test_postDispatch_revertWhen_insufficientValue() public {
-        bytes memory encodedHookData = _encodeHookData(messageId);
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
         originMailbox.updateLatestDispatchedId(messageId);
         _expectOriginExternalBridgeCall(encodedHookData);
 
@@ -125,10 +126,7 @@ abstract contract ExternalBridgeTest is Test {
     /* ============ ISM.verifyMessageId ============ */
 
     function test_verifyMessageId_asyncCall() public {
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
         _externalBridgeDestinationCall(encodedHookData, 0);
 
         assertTrue(ism.isVerified(encodedMessage));
@@ -154,7 +152,7 @@ abstract contract ExternalBridgeTest is Test {
     }
 
     function test_verify_msgValue_asyncCall() public virtual {
-        bytes memory encodedHookData = _encodeHookData(messageId);
+        bytes memory encodedHookData = _encodeHookData(messageId, MSG_VALUE);
         _externalBridgeDestinationCall(encodedHookData, MSG_VALUE);
 
         assertTrue(ism.verify(new bytes(0), encodedMessage));
@@ -222,7 +220,7 @@ abstract contract ExternalBridgeTest is Test {
         // async call - native bridges might have try catch block to prevent revert
         try
             this.externalBridgeDestinationCallWrapper(
-                _encodeHookData(incorrectMessageId),
+                _encodeHookData(incorrectMessageId, 0),
                 0
             )
         {} catch {}
@@ -232,7 +230,10 @@ abstract contract ExternalBridgeTest is Test {
     /// forge-config: default.fuzz.runs = 10
     function test_verify_valueAlreadyClaimed(uint256 _msgValue) public virtual {
         _msgValue = bound(_msgValue, 0, MAX_MSG_VALUE);
-        _externalBridgeDestinationCall(_encodeHookData(messageId), _msgValue);
+        _externalBridgeDestinationCall(
+            _encodeHookData(messageId, _msgValue),
+            _msgValue
+        );
 
         bool verified = ism.verify(new bytes(0), encodedMessage);
         assertTrue(verified);
@@ -251,9 +252,13 @@ abstract contract ExternalBridgeTest is Test {
     }
 
     function test_verify_override_msgValue() public virtual {
-        bytes memory encodedHookData = _encodeHookData(messageId);
+        bytes memory encodedHookData = _encodeHookData(messageId, MSG_VALUE);
 
         _externalBridgeDestinationCall(encodedHookData, MSG_VALUE);
+
+        vm.expectRevert(
+            "AbstractMessageIdAuthorizedIsm: msg.value doesn't match"
+        );
         _externalBridgeDestinationCall(encodedHookData, 0);
 
         assertTrue(ism.verify(new bytes(0), encodedMessage));
@@ -272,12 +277,13 @@ abstract contract ExternalBridgeTest is Test {
     }
 
     function _encodeHookData(
-        bytes32 _messageId
+        bytes32 _messageId,
+        uint256 _msgValue
     ) internal pure returns (bytes memory) {
         return
             abi.encodeCall(
                 AbstractMessageIdAuthorizedIsm.verifyMessageId,
-                (_messageId)
+                (_messageId, _msgValue)
             );
     }
 

@@ -71,7 +71,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
     }
 
     function test_postDispatch_childHook() public {
-        bytes memory encodedHookData = _encodeHookData(messageId);
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
         originMailbox.updateLatestDispatchedId(messageId);
         _expectOriginExternalBridgeCall(encodedHookData);
 
@@ -82,6 +82,16 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         uint256 quote = hook.quoteDispatch(igpMetadata, encodedMessage);
         assertEq(quote, mockOverheadIgp.quoteGasPayment(ORIGIN_DOMAIN, 78_000));
         hook.postDispatch{value: quote}(igpMetadata, encodedMessage);
+    }
+
+    function test_verify_override_msgValue() public override {
+        bytes memory encodedHookData = _encodeHookData(messageId, MSG_VALUE);
+
+        _externalBridgeDestinationCall(encodedHookData, MSG_VALUE);
+        _externalBridgeDestinationCall(encodedHookData, 0);
+
+        assertTrue(ism.verify(new bytes(0), encodedMessage));
+        assertEq(address(testRecipient).balance, MSG_VALUE);
     }
 
     /* ============ helper functions ============ */
@@ -143,7 +153,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         uint256 _value,
         bytes32 _messageId
     ) internal view returns (bytes memory) {
-        bytes memory encodedHookData = _encodeHookData(_messageId);
+        bytes memory encodedHookData = _encodeHookData(_messageId, _value);
 
         return
             abi.encodeCall(

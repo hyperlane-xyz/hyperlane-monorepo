@@ -63,7 +63,7 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
     }
 
     function test_postDispatch_childHook() public {
-        bytes memory encodedHookData = _encodeHookData(messageId);
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
         originMailbox.updateLatestDispatchedId(messageId);
         _expectOriginExternalBridgeCall(encodedHookData);
 
@@ -131,10 +131,7 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         bytes32 _messageId,
         uint256 _value
     ) internal view returns (bytes memory) {
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (_messageId)
-        );
+        bytes memory encodedHookData = _encodeHookData(_messageId, _value);
 
         bytes32[] memory proof = new bytes32[](16);
         return
