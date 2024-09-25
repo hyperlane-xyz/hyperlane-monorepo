@@ -12,7 +12,7 @@ import {
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { timeout } from '@hyperlane-xyz/utils';
+import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -164,11 +164,14 @@ async function executeDelivery({
   const message: DispatchedMessage =
     HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
 
+  const parsed = parseWarpRouteMessage(message.parsed.body);
+
   logBlue(
     `Sent transfer from sender (${senderAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
   log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
+  log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
   if (selfRelay) {
     const relayer = new HyperlaneRelayer({ core });

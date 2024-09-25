@@ -154,6 +154,8 @@ contract ERC5164IsmTest is ExternalBridgeTest {
 
     function testFuzz_postDispatch_refundsExtraValue(uint256) public override {}
 
+    function test_verify_false_arbitraryCall() public override {}
+
     /* ============ helper functions ============ */
 
     function _externalBridgeDestinationCall(
