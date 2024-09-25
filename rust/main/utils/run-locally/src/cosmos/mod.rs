@@ -38,7 +38,7 @@ use self::deploy::deploy_cw_hyperlane;
 use self::source::{CLISource, CodeSource};
 
 const OSMOSIS_CLI_GIT: &str = "https://github.com/osmosis-labs/osmosis";
-const OSMOSIS_CLI_VERSION: &str = "20.5.0";
+const OSMOSIS_CLI_VERSION: &str = "26.0.1";
 
 const KEY_HPL_VALIDATOR: (&str,&str) = ("hpl-validator", "guard evolve region sentence danger sort despair eye deputy brave trim actor left recipe debate document upgrade sustain bus cage afford half demand pigeon");
 const KEY_HPL_RELAYER: (&str,&str) = ("hpl-relayer", "moral item damp melt gloom vendor notice head assume balance doctor retire fashion trim find biology saddle undo switch fault cattle toast drip empty");
@@ -139,12 +139,19 @@ pub fn install_cosmos(
     codes_dir: Option<PathBuf>,
     _codes_src: Option<CodeSource>,
 ) -> (PathBuf, BTreeMap<String, PathBuf>) {
-    let osmosisd = cli_src
-        .unwrap_or(CLISource::Remote {
-            url: OSMOSIS_CLI_GIT.to_string(),
-            version: OSMOSIS_CLI_VERSION.to_string(),
-        })
-        .install(cli_dir);
+    let cli_source = cli_src.unwrap_or(CLISource::Remote {
+        url: OSMOSIS_CLI_GIT.to_string(),
+        version: OSMOSIS_CLI_VERSION.to_string(),
+    });
+    println!(
+        "Installing Osmosis CLI and Codes from cli source {:?}",
+        cli_source
+    );
+    log!(
+        "Installing Osmosis CLI and Codes from cli source {:?}",
+        cli_source
+    );
+    let osmosisd = cli_source.install(cli_dir);
     let codes = install_codes(codes_dir, false);
 
     (osmosisd, codes)

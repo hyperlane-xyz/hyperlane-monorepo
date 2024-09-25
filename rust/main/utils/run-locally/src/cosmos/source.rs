@@ -95,6 +95,7 @@ impl CodeSource {
     }
 }
 
+#[derive(Debug)]
 pub enum CLISource {
     Local { path: String },
     Remote { url: String, version: String },
