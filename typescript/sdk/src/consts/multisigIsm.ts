@@ -131,6 +131,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  camptestnet: {
+    threshold: 1,
+    validators: ['0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e'],
+  },
+
   celo: {
     threshold: 3,
     validators: [
@@ -263,6 +268,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
+  },
+
+  formtestnet: {
+    threshold: 1,
+    validators: ['0x72ad7fddf16d17ff902d788441151982fa31a7bc'],
   },
 
   fraxtal: {
@@ -629,6 +639,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
   },
 
+  soneiumtestnet: {
+    threshold: 1,
+    validators: ['0x2e2101020ccdbe76aeda1c27823b0150f43d0c63'],
+  },
+
   stride: {
     threshold: 6,
     validators: [
@@ -643,6 +658,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x5937b7cE1029C3Ec4bD8e1AaCc0C0f9422654D7d', // stakecito
       '0x3a446ed2923c08445af06e53f0acb558c0e0413c', // staked
     ],
+  },
+
+  suavetoliman: {
+    threshold: 1,
+    validators: ['0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b'],
   },
 
   superpositiontestnet: {
