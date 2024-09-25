@@ -88,7 +88,7 @@ impl FromStr for CheckpointSyncerConf {
                     }),
                     Some(folder) => Ok(CheckpointSyncerConf::Gcs {
                         bucket: bucket.into(),
-                        folder: Some(folder.into()),
+                        folder: Some(folder),
                         service_account_key,
                         user_secrets,
                     }),
