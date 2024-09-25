@@ -18,11 +18,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 8 * 10 ** 9, // 8 gwei
     },
   },
-  scrollsepolia: {
-    transactionOverrides: {
-      gasPrice: 5 * 10 ** 8, // 0.5 gwei
-    },
-  },
 };
 
 export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
