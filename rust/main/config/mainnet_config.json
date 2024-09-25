@@ -2758,10 +2758,10 @@
     "solanamainnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.solana.com?cluster=mainnet-beta",
+          "apiUrl": "https://solscan.io",
           "family": "other",
           "name": "Solana Explorer",
-          "url": "https://explorer.solana.com?cluster=mainnet-beta"
+          "url": "https://solscan.io"
         }
       ],
       "blocks": {
