@@ -1105,20 +1105,6 @@
       "name": "ValidatorAnnounce"
     }
   ],
-  "mevmdevnet": [
-    {
-      "name": "ProxyAdmin",
-      "address": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
-      "constructorArguments": "",
-      "isProxy": false
-    },
-    {
-      "name": "Mailbox",
-      "address": "0x54148470292C24345fb828B003461a9444414517",
-      "constructorArguments": "000000000000000000000000000000000000000000000000000000000000780c",
-      "isProxy": false
-    }
-  ],
   "berabartio": [
     {
       "name": "ProxyAdmin",

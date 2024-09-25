@@ -265,18 +265,6 @@ export const validatorChainConfig = (
         'berabartio',
       ),
     },
-    mevmdevnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('mevmdevnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xd741d6676e8a5d0fbb59decf444d03281c34eefa'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'mevmdevnet',
-      ),
-    },
     citreatestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('citreatestnet'),

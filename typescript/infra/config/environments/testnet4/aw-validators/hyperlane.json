@@ -44,9 +44,6 @@
   "hyperliquidevmtestnet": {
     "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },
-  "mevmdevnet": {
-    "validators": ["0xd741d6676e8a5d0fbb59decf444d03281c34eefa"]
-  },
   "optimismsepolia": {
     "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
   },

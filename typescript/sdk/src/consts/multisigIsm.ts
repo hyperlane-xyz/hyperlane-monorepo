@@ -416,11 +416,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  mevmdevnet: {
-    threshold: 1,
-    validators: ['0xd741d6676e8a5d0fbb59decf444d03281c34eefa'],
-  },
-
   mint: {
     threshold: 2,
     validators: [
