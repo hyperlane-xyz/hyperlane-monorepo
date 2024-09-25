@@ -80,6 +80,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921'],
   },
 
+  berabartio: {
+    threshold: 1,
+    validators: ['0x541dd3cb282cf869d72883557badae245b63e1fd'],
+  },
+
   bitlayer: {
     threshold: 2,
     validators: [
@@ -152,6 +157,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x0874967a145d70b799ebe9ed861ab7c93faef95a',
       '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
     ],
+  },
+
+  citreatestnet: {
+    threshold: 1,
+    validators: ['0x60d7380a41eb95c49be18f141efd2fde5e3dba20'],
   },
 
   connextsepolia: {
@@ -297,6 +307,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
   },
 
+  hyperliquidevmtestnet: {
+    threshold: 1,
+    validators: ['0xea673a92a23ca319b9d85cc16b248645cd5158da'],
+  },
+
   inevm: {
     threshold: 2,
     validators: [
@@ -389,6 +404,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
+  },
+
+  mevmdevnet: {
+    threshold: 1,
+    validators: ['0xd741d6676e8a5d0fbb59decf444d03281c34eefa'],
   },
 
   mint: {

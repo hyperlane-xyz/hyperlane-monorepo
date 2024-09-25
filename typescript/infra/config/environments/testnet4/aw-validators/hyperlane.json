@@ -57,5 +57,17 @@
   },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
+  },
+  "hyperliquidevmtestnet": {
+    "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
+  },
+  "berabartio": {
+    "validators": ["0x541dd3cb282cf869d72883557badae245b63e1fd"]
+  },
+  "mevmdevnet": {
+    "validators": ["0xd741d6676e8a5d0fbb59decf444d03281c34eefa"]
+  },
+  "citreatestnet": {
+    "validators": ["0x60d7380a41eb95c49be18f141efd2fde5e3dba20"]
   }
 }

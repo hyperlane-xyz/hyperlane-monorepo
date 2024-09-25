@@ -173,38 +173,38 @@ export const validatorChainConfig = (
         'sepolia',
       ),
     },
-    plumetestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('plumetestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: [
-            '0xe765a214849f3ecdf00793b97d00422f2d408ea6',
-            '0xb59998f71efc65190a85ac5e81b66bd72a192a3b',
-            '0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c',
-          ],
-          [Contexts.ReleaseCandidate]: [
-            '0xe6e6aeecbf7755cdbc50c2683df9f2d100f6399d',
-            '0x27946c13a475233a3b1eb47f0bd0f7cdec3a3983',
-            '0x2596413213368475c96ddfb1ae26666d22093a8b',
-          ],
-          [Contexts.Neutron]: [],
-        },
-        'plumetestnet',
-      ),
-    },
-    solanatestnet: {
-      interval: 1,
-      reorgPeriod: getReorgPeriod('solanatestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'solanatestnet',
-      ),
-    },
+    // plumetestnet: {
+    //   interval: 5,
+    //   reorgPeriod: getReorgPeriod('plumetestnet'),
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: [
+    //         '0xe765a214849f3ecdf00793b97d00422f2d408ea6',
+    //         '0xb59998f71efc65190a85ac5e81b66bd72a192a3b',
+    //         '0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c',
+    //       ],
+    //       [Contexts.ReleaseCandidate]: [
+    //         '0xe6e6aeecbf7755cdbc50c2683df9f2d100f6399d',
+    //         '0x27946c13a475233a3b1eb47f0bd0f7cdec3a3983',
+    //         '0x2596413213368475c96ddfb1ae26666d22093a8b',
+    //       ],
+    //       [Contexts.Neutron]: [],
+    //     },
+    //     'plumetestnet',
+    //   ),
+    // },
+    // solanatestnet: {
+    //   interval: 1,
+    //   reorgPeriod: getReorgPeriod('solanatestnet'),
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+    //       [Contexts.ReleaseCandidate]: [],
+    //       [Contexts.Neutron]: [],
+    //     },
+    //     'solanatestnet',
+    //   ),
+    // },
     superpositiontestnet: {
       interval: 1,
       reorgPeriod: getReorgPeriod('superpositiontestnet'),
@@ -239,6 +239,54 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'polygonamoy',
+      ),
+    },
+    hyperliquidevmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xea673a92a23ca319b9d85cc16b248645cd5158da'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'hyperliquidevmtestnet',
+      ),
+    },
+    berabartio: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('berabartio'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x541dd3cb282cf869d72883557badae245b63e1fd'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'berabartio',
+      ),
+    },
+    mevmdevnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('mevmdevnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd741d6676e8a5d0fbb59decf444d03281c34eefa'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'mevmdevnet',
+      ),
+    },
+    citreatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('citreatestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x60d7380a41eb95c49be18f141efd2fde5e3dba20'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'citreatestnet',
       ),
     },
   };
