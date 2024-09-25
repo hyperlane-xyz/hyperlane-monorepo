@@ -5,8 +5,11 @@ import {
   ChainMap,
   ChainName,
   StorageGasOracleConfig as DestinationOracleConfig,
+  TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,
+  defaultMultisigConfigs,
   getCosmosRegistryChain,
+  multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, convertDecimals } from '@hyperlane-xyz/utils';
 
@@ -180,6 +183,22 @@ function getUsdQuote(
   return quoteUsd;
 }
 
+// cosmwasm warp route somewhat arbitrarily chosen
+const FOREIGN_DEFAULT_OVERHEAD = 600_000;
+
+// Overhead for interchain messaging
+export function remoteOverhead(
+  remote: ChainName,
+  ethereumChainNames: ChainName[],
+): number {
+  return ethereumChainNames.includes(remote as any)
+    ? multisigIsmVerificationCost(
+        defaultMultisigConfigs[remote].threshold,
+        defaultMultisigConfigs[remote].validators.length,
+      )
+    : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
+}
+
 // Gets the StorageGasOracleConfig for each local chain
 export function getAllStorageGasOracleConfigs(
   chainNames: ChainName[],
@@ -204,12 +223,21 @@ export function getAllStorageGasOracleConfigs(
   }, {}) as AllStorageGasOracleConfigs;
 }
 
+// Gets the exchange rate of the remote quoted in local tokens
 export function getTokenExchangeRateFromValues(
   local: ChainName,
-  localValue: BigNumber,
   remote: ChainName,
-  remoteValue: BigNumber,
+  tokenPrices: ChainMap<string>,
 ): BigNumber {
+  const localValue = ethers.utils.parseUnits(
+    tokenPrices[local],
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  );
+  const remoteValue = ethers.utils.parseUnits(
+    tokenPrices[remote],
+    TOKEN_EXCHANGE_RATE_DECIMALS,
+  );
+
   // This does not yet account for decimals!
   let exchangeRate = remoteValue.mul(TOKEN_EXCHANGE_RATE_SCALE).div(localValue);
   // Apply the premium
@@ -224,6 +252,7 @@ export function getTokenExchangeRateFromValues(
   );
 }
 
+// Gets the gas price for a Cosmos chain
 export async function getCosmosChainGasPrice(
   chain: ChainName,
 ): Promise<AgentCosmosGasPrice> {
