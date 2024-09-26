@@ -10,7 +10,10 @@ use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 use crate::invariants::SOL_MESSAGES_EXPECTED;
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
-use crate::{fetch_metric, AGENT_LOGGING_DIR, ZERO_MERKLE_INSERTION_KATHY_MESSAGES};
+use crate::{
+    fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
+    ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+};
 
 /// Use the metrics to check if the relayer queues are empty and the expected
 /// number of messages have been sent.
@@ -29,7 +32,11 @@ pub fn termination_invariants_met(
     };
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
 
-    let lengths = fetch_metric("9092", "hyperlane_submitter_queue_length", &hashmap! {})?;
+    let lengths = fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_submitter_queue_length",
+        &hashmap! {},
+    )?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
         log!("Relayer queues not empty. Lengths: {:?}", lengths);
@@ -38,10 +45,13 @@ pub fn termination_invariants_met(
 
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.
-    let msg_processed_count =
-        fetch_metric("9092", "hyperlane_messages_processed_count", &hashmap! {})?
-            .iter()
-            .sum::<u32>();
+    let msg_processed_count = fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_messages_processed_count",
+        &hashmap! {},
+    )?
+    .iter()
+    .sum::<u32>();
     if msg_processed_count != total_messages_expected {
         log!(
             "Relayer has {} processed messages, expected {}",
@@ -52,7 +62,7 @@ pub fn termination_invariants_met(
     }
 
     let gas_payment_events_count = fetch_metric(
-        "9092",
+        RELAYER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payments"},
     )?
@@ -114,7 +124,7 @@ pub fn termination_invariants_met(
     );
 
     let gas_payment_sealevel_events_count = fetch_metric(
-        "9092",
+        RELAYER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {
                 "data_type" => "gas_payments",
@@ -144,7 +154,7 @@ pub fn termination_invariants_met(
     }
 
     let dispatched_messages_scraped = fetch_metric(
-        "9093",
+        SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_dispatch"},
     )?
@@ -160,7 +170,7 @@ pub fn termination_invariants_met(
     }
 
     let gas_payments_scraped = fetch_metric(
-        "9093",
+        SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payment"},
     )?
@@ -180,7 +190,7 @@ pub fn termination_invariants_met(
     }
 
     let delivered_messages_scraped = fetch_metric(
-        "9093",
+        SCRAPER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "message_delivery"},
     )?

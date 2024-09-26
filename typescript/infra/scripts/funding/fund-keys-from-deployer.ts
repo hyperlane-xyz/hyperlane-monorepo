@@ -133,6 +133,11 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
       pubkey: new PublicKey('Hyy4jryRxgZm5pvuSx29fXxJ9J55SuDtXiCo89kmNuz5'),
       walletName: 'tETH/eclipsemainnet-ethereum/ata-payer',
     },
+    {
+      // SOL warp route ATA payer
+      pubkey: new PublicKey('CijxTbPs9JZxTUfo8Hmz2imxzHtKnDFD3kZP3RPy34uJ'),
+      walletName: 'SOL/eclipsemainnet-solanamainnet/ata-payer',
+    },
   ],
 };
 

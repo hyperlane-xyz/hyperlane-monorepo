@@ -168,14 +168,14 @@ abstract contract ExternalBridgeTest is Test {
             MSG_VALUE,
             messageId
         );
-        ism.verify(externalCalldata, encodedMessage);
-        assertEq(address(testRecipient).balance, MSG_VALUE);
+        assertTrue(ism.verify(externalCalldata, encodedMessage));
+        assertEq(address(testRecipient).balance, 1 ether);
     }
 
     function test_verify_revertsWhen_invalidIsm() public virtual {
         bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
             address(hook),
-            address(this),
+            address(hook),
             0,
             messageId
         );
@@ -250,6 +250,19 @@ abstract contract ExternalBridgeTest is Test {
         assertEq(address(testRecipient).balance, _msgValue);
     }
 
+    function test_verify_false_arbitraryCall() public virtual {
+        bytes memory incorrectCalldata = _encodeExternalDestinationBridgeCall(
+            address(hook),
+            address(this),
+            0,
+            messageId
+        );
+
+        vm.expectRevert();
+        ism.verify(incorrectCalldata, encodedMessage);
+        assertFalse(ism.isVerified(encodedMessage));
+    }
+
     /* ============ helper functions ============ */
 
     function _encodeTestMessage() internal view returns (bytes memory) {
@@ -300,4 +313,7 @@ abstract contract ExternalBridgeTest is Test {
     ) internal virtual returns (bytes memory) {}
 
     receive() external payable {}
+
+    // meant to be mock an arbitrary successful call made by the external bridge
+    function verifyMessageId(bytes32 /*messageId*/) public payable {}
 }
