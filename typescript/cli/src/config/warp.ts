@@ -142,15 +142,6 @@ export async function createWarpRouteDeployConfig({
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
 
-    const type = await select({
-      message: `Select ${chain}'s token type`,
-      choices: TYPE_CHOICES,
-    });
-
-    // TODO: restore NFT prompting
-    const isNft =
-      type === TokenType.syntheticUri || type === TokenType.collateralUri;
-
     /**
      * The logic from the cli is as follows:
      *  --advanced flag is provided: the user will have to build their own configuration using the available ISM types
@@ -173,6 +164,15 @@ export async function createWarpRouteDeployConfig({
     } else {
       interchainSecurityModule = createFallbackRoutingConfig(owner);
     }
+
+    const type = await select({
+      message: `Select ${chain}'s token type`,
+      choices: TYPE_CHOICES,
+    });
+
+    // TODO: restore NFT prompting
+    const isNft =
+      type === TokenType.syntheticUri || type === TokenType.collateralUri;
 
     switch (type) {
       case TokenType.collateral:
