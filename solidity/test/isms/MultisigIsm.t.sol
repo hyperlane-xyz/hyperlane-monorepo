@@ -20,6 +20,8 @@ import {Message} from "../../contracts/libs/Message.sol";
 import {ThresholdTestUtils} from "./IsmTestUtils.sol";
 import {StorageMessageIdMultisigIsm, StorageMerkleRootMultisigIsm} from "../../contracts/isms/multisig/StorageMultisigIsm.sol";
 
+uint8 constant MAX_VALIDATORS = 5;
+
 /// @notice since we removed merkle tree from the mailbox, we need to include the MerkleTreeHook in the test
 abstract contract AbstractMultisigIsmTest is Test {
     using Message for bytes;
@@ -164,7 +166,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(0 < m && m <= n && n < MAX_VALIDATORS);
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));
@@ -178,7 +180,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(0 < m && m <= n && n < MAX_VALIDATORS);
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
 
@@ -310,12 +312,17 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
     }
 }
 
-contract StorageMessageIdMultisigIsmTest is MessageIdMultisigIsmTest {
+abstract contract StorageMultisigIsmTest is AbstractMultisigIsmTest {
+    function deployIsm(
+        address[] memory validators,
+        uint8 threshold
+    ) internal virtual returns (IMultisigIsm);
+
     function addValidators(
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) internal override returns (uint256[] memory) {
+    ) internal virtual override returns (uint256[] memory) {
         uint256[] memory keys = new uint256[](n);
         address[] memory addresses = new address[](n);
         for (uint256 i = 0; i < n; i++) {
@@ -323,25 +330,96 @@ contract StorageMessageIdMultisigIsmTest is MessageIdMultisigIsmTest {
             keys[i] = key;
             addresses[i] = vm.addr(key);
         }
-        ism = IMultisigIsm(new StorageMessageIdMultisigIsm(addresses, m));
+        ism = deployIsm(addresses, m);
         return keys;
+    }
+
+    event ValidatorsAndThresholdSet(address[] validators, uint8 threshold);
+
+    function test_setValidatorsAndThreshold(
+        bytes32 seed,
+        address[] memory validators,
+        uint8 threshold
+    ) public {
+        vm.assume(
+            0 < threshold &&
+                threshold <= validators.length &&
+                validators.length <= MAX_VALIDATORS
+        );
+        addValidators(threshold, uint8(validators.length), seed);
+
+        StorageMessageIdMultisigIsm storageIsm = StorageMessageIdMultisigIsm(
+            address(ism)
+        );
+
+        address owner = storageIsm.owner();
+        address antiOwner = address(~bytes20(owner));
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(antiOwner);
+        storageIsm.setValidatorsAndThreshold(validators, threshold);
+
+        vm.expectRevert("Invalid threshold");
+        vm.prank(owner);
+        storageIsm.setValidatorsAndThreshold(
+            validators,
+            uint8(validators.length + 1)
+        );
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit ValidatorsAndThresholdSet(validators, threshold);
+        storageIsm.setValidatorsAndThreshold(validators, threshold);
+        (address[] memory _validators, uint8 _threshold) = storageIsm
+            .validatorsAndThreshold("0x");
+        assertEq(_threshold, threshold);
+        assertEq(_validators, validators);
     }
 }
 
-contract StorageMerkleRootMultisigIsmTest is MerkleRootMultisigIsmTest {
+contract StorageMessageIdMultisigIsmTest is
+    StorageMultisigIsmTest,
+    MessageIdMultisigIsmTest
+{
     function addValidators(
         uint8 m,
         uint8 n,
         bytes32 seed
-    ) internal override returns (uint256[] memory) {
-        uint256[] memory keys = new uint256[](n);
-        address[] memory addresses = new address[](n);
-        for (uint256 i = 0; i < n; i++) {
-            uint256 key = uint256(keccak256(abi.encode(seed, i)));
-            keys[i] = key;
-            addresses[i] = vm.addr(key);
-        }
-        ism = IMultisigIsm(new StorageMerkleRootMultisigIsm(addresses, m));
-        return keys;
+    )
+        internal
+        override(StorageMultisigIsmTest, AbstractMultisigIsmTest)
+        returns (uint256[] memory)
+    {
+        return StorageMultisigIsmTest.addValidators(m, n, seed);
+    }
+
+    function deployIsm(
+        address[] memory validators,
+        uint8 threshold
+    ) internal override returns (IMultisigIsm) {
+        return new StorageMessageIdMultisigIsm(validators, threshold);
+    }
+}
+
+contract StorageMerkleRootMultisigIsmTest is
+    StorageMultisigIsmTest,
+    MerkleRootMultisigIsmTest
+{
+    function addValidators(
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    )
+        internal
+        override(StorageMultisigIsmTest, AbstractMultisigIsmTest)
+        returns (uint256[] memory)
+    {
+        return StorageMultisigIsmTest.addValidators(m, n, seed);
+    }
+
+    function deployIsm(
+        address[] memory validators,
+        uint8 threshold
+    ) internal override returns (IMultisigIsm) {
+        return new StorageMerkleRootMultisigIsm(validators, threshold);
     }
 }
