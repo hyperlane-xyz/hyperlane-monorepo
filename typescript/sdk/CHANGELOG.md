@@ -1,5 +1,28 @@
 # @hyperlane-xyz/sdk
 
+## 5.3.0
+
+### Patch Changes
+
+- eb47aaee8: Use collateral account for sealevel native warp route balance
+- 50319d8ba: Make HyperlaneDeployer.chainTimeoutMs public.
+  Remove HyperlaneDeployer.startingBlockNumbers as it's not used by any deployer.
+  Update HyperlaneDeployer.deploy for better logging and error handling.
+- 8de531fa4: fix: warn on submodule metadata builder failures
+- fd536a79a: Include priority fee instruction with SVM warp transfers
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/utils@5.3.0
+  - @hyperlane-xyz/core@5.3.0
+
+## 5.2.1
+
+### Patch Changes
+
+- Updated dependencies [eb5afcf3e]
+  - @hyperlane-xyz/core@5.2.1
+  - @hyperlane-xyz/utils@5.2.1
+
 ## 5.2.0
 
 ### Minor Changes

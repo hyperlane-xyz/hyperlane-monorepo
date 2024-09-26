@@ -1,5 +1,17 @@
 # @hyperlane-xyz/utils
 
+## 5.3.0
+
+### Minor Changes
+
+- 746eeb9d9: Add parseTokenMessage util for decoding warp route transfers
+
+### Patch Changes
+
+- 50319d8ba: Ensure runWithTimeout cleans up after itself properly
+
+## 5.2.1
+
 ## 5.2.0
 
 ### Minor Changes

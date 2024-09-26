@@ -17,8 +17,8 @@ export const igp: ChainMap<IgpConfig> = objMap(
       exclude(chain, testChainNames).map((remote) => [
         remote,
         multisigIsmVerificationCost(
-          multisigIsm[remote].threshold,
-          multisigIsm[remote].validators.length,
+          multisigIsm[chain].threshold,
+          multisigIsm[chain].validators.length,
         ),
       ]),
     );

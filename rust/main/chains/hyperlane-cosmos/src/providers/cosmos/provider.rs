@@ -2,12 +2,14 @@ use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::crypto::PublicKey;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo};
-use cosmrs::{AccountId, Tx};
+use cosmrs::{AccountId, Any, Coin, Tx};
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::{client::CompatMode, Client, HttpClient};
 use time::OffsetDateTime;
+use tracing::{error, warn};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
@@ -15,24 +17,21 @@ use hyperlane_core::{
 };
 
 use crate::address::CosmosAddress;
-use crate::grpc::WasmProvider;
+use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::libs::account::CosmosAccountId;
+use crate::providers::rpc::CosmosRpcClient;
 use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
-use self::grpc::WasmGrpcProvider;
-
-/// cosmos grpc provider
-pub mod grpc;
-/// cosmos rpc provider
-pub mod rpc;
+/// Exponent value for atto units (10^-18).
+const ATTO_EXPONENT: u32 = 18;
 
 /// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
 pub struct CosmosProvider {
     domain: HyperlaneDomain,
     connection_conf: ConnectionConf,
-    grpc_client: WasmGrpcProvider,
-    rpc_client: HttpClient,
+    grpc_provider: WasmGrpcProvider,
+    rpc_client: CosmosRpcClient,
 }
 
 impl CosmosProvider {
@@ -40,43 +39,30 @@ impl CosmosProvider {
     pub fn new(
         domain: HyperlaneDomain,
         conf: ConnectionConf,
-        locator: Option<ContractLocator>,
+        locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
-        let grpc_client = WasmGrpcProvider::new(
+        let grpc_provider = WasmGrpcProvider::new(
             domain.clone(),
             conf.clone(),
             gas_price.clone(),
             locator,
             signer,
         )?;
-        let rpc_client = HttpClient::builder(
-            conf.get_rpc_url()
-                .parse()
-                .map_err(Into::<HyperlaneCosmosError>::into)?,
-        )
-        // Consider supporting different compatibility modes.
-        .compat_mode(CompatMode::latest())
-        .build()
-        .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let rpc_client = CosmosRpcClient::new(&conf)?;
 
         Ok(Self {
             domain,
             connection_conf: conf,
+            grpc_provider,
             rpc_client,
-            grpc_client,
         })
     }
 
     /// Get a grpc client
     pub fn grpc(&self) -> &WasmGrpcProvider {
-        &self.grpc_client
-    }
-
-    /// Get an rpc client
-    pub fn rpc(&self) -> &HttpClient {
-        &self.rpc_client
+        &self.grpc_provider
     }
 
     fn search_payer_in_signer_infos(
@@ -147,22 +133,83 @@ impl CosmosProvider {
 
     /// Extract contract address from transaction.
     /// Assumes that there is only one `MsgExecuteContract` message in the transaction
-    fn contract(tx: &Tx) -> ChainResult<H256> {
+    fn contract(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
-        let any = tx
+        let contract_execution_messages = tx
             .body
             .messages
             .iter()
-            .find(|a| a.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("could not find contract execution message")
-            })?;
+            .filter(|a| a.type_url == "/cosmwasm.wasm.v1.MsgExecuteContract")
+            .cloned()
+            .collect::<Vec<Any>>();
+
+        let contract_execution_messages_len = contract_execution_messages.len();
+        if contract_execution_messages_len > 1 {
+            error!(
+                ?tx_hash,
+                ?contract_execution_messages,
+                "transaction contains multiple contract execution messages, we are indexing the first entry only");
+        }
+
+        let any = contract_execution_messages.first().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("could not find contract execution message")
+        })?;
         let proto =
             ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
         let msg = MsgExecuteContract::try_from(proto)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
         Ok(contract)
+    }
+
+    /// Reports if transaction contains fees expressed in unsupported denominations
+    /// The only denomination we support at the moment is the one we express gas minimum price
+    /// in the configuration of a chain. If fees contain an entry in a different denomination,
+    /// we report it in the logs.
+    fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) {
+        let supported_denomination = self.connection_conf.get_minimum_gas_price().denom;
+        let unsupported_denominations = tx
+            .auth_info
+            .fee
+            .amount
+            .iter()
+            .filter(|c| c.denom.as_ref() != supported_denomination)
+            .map(|c| c.denom.as_ref())
+            .fold("".to_string(), |acc, denom| acc + ", " + denom);
+
+        if !unsupported_denominations.is_empty() {
+            error!(
+                ?tx_hash,
+                ?supported_denomination,
+                ?unsupported_denominations,
+                "transaction contains fees in unsupported denominations, manual intervention is required");
+        }
+    }
+
+    /// Converts fees to a common denomination if necessary.
+    ///
+    /// Currently, we support Injective, Neutron and Osmosis. Fees in Injective are usually
+    /// expressed in `inj` which is 10^-18 of `INJ`, while fees in Neutron and Osmosis are
+    /// usually expressed in `untrn` and `uosmo`, respectively, which are 10^-6 of corresponding
+    /// `NTRN` and `OSMO`.
+    ///
+    /// This function will convert fees expressed in `untrn` and `uosmo` to 10^-18 of `NTRN` and
+    /// `OSMO` and it will keep fees expressed in `inj` as is.
+    ///
+    /// If fees are expressed in an unsupported denomination, they will be ignored.
+    fn convert_fee(&self, coin: &Coin) -> U256 {
+        let native_token = self.connection_conf.get_native_token();
+
+        if coin.denom.as_ref() != native_token.denom {
+            return U256::zero();
+        }
+
+        let exponent = ATTO_EXPONENT - native_token.decimals;
+        let coefficient = U256::from(10u128.pow(exponent));
+
+        let amount_in_native_denom = U256::from(coin.amount);
+
+        amount_in_native_denom * coefficient
     }
 }
 
@@ -182,11 +229,7 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("block hash should be of correct size");
 
-        let response = self
-            .rpc_client
-            .block_by_hash(tendermint_hash)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+        let response = self.rpc_client.get_block_by_hash(tendermint_hash).await?;
 
         let received_hash = H256::from_slice(response.block_id.hash.as_bytes());
 
@@ -218,11 +261,7 @@ impl HyperlaneProvider for CosmosProvider {
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
-        let response = self
-            .rpc_client
-            .tx(tendermint_hash, false)
-            .await
-            .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let response = self.rpc_client.get_tx_by_hash(tendermint_hash).await?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 
@@ -235,19 +274,28 @@ impl HyperlaneProvider for CosmosProvider {
 
         let tx = Tx::from_bytes(&response.tx)?;
 
-        let contract = Self::contract(&tx)?;
+        let contract = Self::contract(&tx, hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
-        // TODO support multiple denomination for amount
+        // TODO support multiple denominations for amount
+        self.report_unsupported_denominations(&tx, hash);
+
         let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
         let fee = tx
             .auth_info
             .fee
             .amount
             .iter()
-            .fold(U256::zero(), |acc, a| acc + a.amount);
+            .map(|c| self.convert_fee(c))
+            .fold(U256::zero(), |acc, v| acc + v);
 
         let gas_price = fee / gas_limit;
+        let gas_price = if gas_price == U256::zero() {
+            warn!(?fee, ?gas_limit, "calculated zero gas price");
+            U256::one()
+        } else {
+            gas_price
+        };
 
         let tx_info = TxnInfo {
             hash: hash.to_owned(),
@@ -269,7 +317,7 @@ impl HyperlaneProvider for CosmosProvider {
     }
 
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
-        match self.grpc_client.wasm_contract_info().await {
+        match self.grpc_provider.wasm_contract_info().await {
             Ok(c) => Ok(true),
             Err(e) => Ok(false),
         }
@@ -277,7 +325,7 @@ impl HyperlaneProvider for CosmosProvider {
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         Ok(self
-            .grpc_client
+            .grpc_provider
             .get_balance(address, self.connection_conf.get_canonical_asset())
             .await?)
     }

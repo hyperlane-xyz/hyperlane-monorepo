@@ -497,19 +497,6 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
   }
 }
 
-export function getWarpAddresses(warpRouteId: string) {
-  const registry = getRegistry();
-  const warpRouteConfig = registry.getWarpRoute(warpRouteId);
-
-  if (!warpRouteConfig) {
-    throw new Error(
-      `Warp route config for ${warpRouteId} not found in registry`,
-    );
-  }
-
-  return warpConfigToWarpAddresses(warpRouteConfig);
-}
-
 export function writeAddresses(
   environment: DeployEnvironment,
   module: Modules,

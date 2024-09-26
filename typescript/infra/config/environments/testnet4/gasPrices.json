@@ -1,0 +1,62 @@
+{
+  "alfajores": {
+    "amount": "50.0",
+    "decimals": 9
+  },
+  "arbitrumsepolia": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "basesepolia": {
+    "amount": "0.001000263",
+    "decimals": 9
+  },
+  "bsctestnet": {
+    "amount": "5.532492",
+    "decimals": 9
+  },
+  "connextsepolia": {
+    "amount": "0.1",
+    "decimals": 9
+  },
+  "ecotestnet": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "eclipsetestnet": {
+    "amount": "0.001",
+    "decimals": 9
+  },
+  "fuji": {
+    "amount": "25.000000001",
+    "decimals": 9
+  },
+  "holesky": {
+    "amount": "0.191141087",
+    "decimals": 9
+  },
+  "optimismsepolia": {
+    "amount": "0.001000327",
+    "decimals": 9
+  },
+  "polygonamoy": {
+    "amount": "31.092000015",
+    "decimals": 9
+  },
+  "scrollsepolia": {
+    "amount": "0.059465192",
+    "decimals": 9
+  },
+  "sepolia": {
+    "amount": "7.101334009",
+    "decimals": 9
+  },
+  "solanatestnet": {
+    "amount": "0.001",
+    "decimals": 9
+  },
+  "superpositiontestnet": {
+    "amount": "0.01",
+    "decimals": 9
+  }
+}

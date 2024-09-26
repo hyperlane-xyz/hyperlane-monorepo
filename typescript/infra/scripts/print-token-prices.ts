@@ -1,22 +1,38 @@
 import { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { objMap, pick } from '@hyperlane-xyz/utils';
 
-// Intentionally circumvent `mainnet3/index.ts` and `getEnvironmentConfig('mainnet3')`
+// Intentionally circumvent `{mainnet3,testnet4}/index.ts` and `getEnvironmentConfig({'mainnet3','testnet4'})`
 // to avoid circular dependencies.
 import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
-import { mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
+import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
+import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
+import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
+
+import { getArgs } from './agent-utils.js';
 
 const CURRENCY = 'usd';
 
 async function main() {
-  const registry = await getMainnet3Registry();
+  const { environment } = await getArgs().argv;
+
+  const { registry, supportedChainNames } =
+    environment === 'mainnet3'
+      ? {
+          registry: await getMainnet3Registry(),
+          supportedChainNames: mainnet3SupportedChainNames,
+        }
+      : {
+          registry: await getTestnet4Registry(),
+          supportedChainNames: testnet4SupportedChainNames,
+        };
+
   const chainMetadata = await registry.getMetadata();
   const metadata = pick(
     chainMetadata as Record<
-      (typeof mainnet3SupportedChainNames)[number],
+      (typeof supportedChainNames)[number],
       ChainMetadata
     >,
-    [...mainnet3SupportedChainNames],
+    [...supportedChainNames],
   );
 
   const ids = objMap(

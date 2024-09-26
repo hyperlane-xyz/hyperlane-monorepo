@@ -1,8 +1,10 @@
 use eyre::eyre;
+use url::Url;
+
 use h_eth::TransactionOverrides;
 use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
-use url::Url;
+use hyperlane_cosmos::NativeToken;
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
@@ -135,6 +137,25 @@ pub fn build_cosmos_connection_conf(
         .parse_u64()
         .end();
 
+    let native_token_decimals = chain
+        .chain(err)
+        .get_key("nativeToken")
+        .get_key("decimals")
+        .parse_u32()
+        .unwrap_or(18);
+
+    let native_token_denom = chain
+        .chain(err)
+        .get_key("nativeToken")
+        .get_key("denom")
+        .parse_string()
+        .unwrap_or("");
+
+    let native_token = NativeToken {
+        decimals: native_token_decimals,
+        denom: native_token_denom.to_owned(),
+    };
+
     if !local_err.is_ok() {
         err.merge(local_err);
         None
@@ -148,6 +169,7 @@ pub fn build_cosmos_connection_conf(
             gas_price.unwrap(),
             contract_address_bytes.unwrap().try_into().unwrap(),
             operation_batch,
+            native_token,
         )))
     }
 }
