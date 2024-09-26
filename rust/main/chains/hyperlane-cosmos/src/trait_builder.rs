@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
 use derive_new::new;
-use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber};
 use url::Url;
+
+use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber};
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
@@ -27,6 +28,8 @@ pub struct ConnectionConf {
     contract_address_bytes: usize,
     /// Operation batching configuration
     pub operation_batch: OperationBatchConfig,
+    /// Native Token
+    native_token: NativeToken,
 }
 
 /// Untyped cosmos amount
@@ -55,6 +58,15 @@ impl TryFrom<RawCosmosAmount> for CosmosAmount {
             amount: FixedPointNumber::from_str(&raw.amount)?,
         })
     }
+}
+
+/// Chain native token denomination and number of decimal places
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
+pub struct NativeToken {
+    /// The number of decimal places in token which can be expressed by denomination
+    pub decimals: u32,
+    /// Denomination of the token
+    pub denom: String,
 }
 
 /// An error type when parsing a connection configuration.
@@ -108,6 +120,11 @@ impl ConnectionConf {
         self.gas_price.clone()
     }
 
+    /// Get the native token
+    pub fn get_native_token(&self) -> &NativeToken {
+        &self.native_token
+    }
+
     /// Get the number of bytes used to represent a contract address
     pub fn get_contract_address_bytes(&self) -> usize {
         self.contract_address_bytes
@@ -124,6 +141,7 @@ impl ConnectionConf {
         minimum_gas_price: RawCosmosAmount,
         contract_address_bytes: usize,
         operation_batch: OperationBatchConfig,
+        native_token: NativeToken,
     ) -> Self {
         Self {
             grpc_urls,
@@ -134,6 +152,7 @@ impl ConnectionConf {
             gas_price: minimum_gas_price,
             contract_address_bytes,
             operation_batch,
+            native_token,
         }
     }
 }

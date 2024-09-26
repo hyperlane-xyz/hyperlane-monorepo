@@ -94,6 +94,9 @@ const MONOREPO_ROOT_PATH: &str = "../../";
 
 const ZERO_MERKLE_INSERTION_KATHY_MESSAGES: u32 = 10;
 
+const RELAYER_METRICS_PORT: &str = "9092";
+const SCRAPER_METRICS_PORT: &str = "9093";
+
 type DynPath = Box<dyn AsRef<Path>>;
 
 static RUN_LOG_WATCHERS: AtomicBool = AtomicBool::new(true);
@@ -210,7 +213,7 @@ fn main() -> ExitCode {
             multicall_address_string,
         )
         .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
-        .hyp_env("METRICSPORT", "9092")
+        .hyp_env("METRICSPORT", RELAYER_METRICS_PORT)
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
@@ -284,7 +287,7 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
         .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
-        .hyp_env("METRICSPORT", "9093")
+        .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
         .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
