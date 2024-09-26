@@ -338,11 +338,12 @@ impl PendingOperation for PendingMessage {
 
         // To avoid spending gas on a tx that will revert, dry-run just before submitting.
         if let Some(metadata) = self.metadata.as_ref() {
-            if let Err(_) = self
+            if self
                 .ctx
                 .destination_mailbox
                 .process_estimate_costs(&self.message, metadata)
                 .await
+                .is_err()
             {
                 return self.on_reprepare::<String>(None, ReprepareReason::ErrorEstimatingGas);
             }
