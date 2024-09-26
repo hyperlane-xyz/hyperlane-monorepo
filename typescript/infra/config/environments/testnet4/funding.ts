@@ -32,7 +32,7 @@ export const keyFunderConfig: KeyFunderConfig<
     berabartio: '0.1',
     bsctestnet: '5',
     camptestnet: '0.1',
-    citreatestnet: '0.001',
+    // citreatestnet: '0.001',
     connextsepolia: '1',
     ecotestnet: '0.02',
     // no funding for solana
@@ -40,7 +40,7 @@ export const keyFunderConfig: KeyFunderConfig<
     formtestnet: '0.1',
     fuji: '5',
     holesky: '5',
-    hyperliquidevmtestnet: '0.1',
+    // hyperliquidevmtestnet: '0.1',
     optimismsepolia: '0.1',
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: '0.2',
