@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
+
 import {Test} from "forge-std/Test.sol";
 import {RateLimited} from "../../contracts/libs/RateLimited.sol";
 
@@ -11,6 +12,11 @@ contract RateLimitLibTest is Test {
 
     function setUp() public {
         rateLimited = new RateLimited(MAX_CAPACITY);
+    }
+
+    function testConstructor_revertsWhen_lowCapacity() public {
+        vm.expectRevert("Capacity must be greater than DURATION");
+        new RateLimited(1 days - 1);
     }
 
     function testRateLimited_setsNewLimit() external {
@@ -43,6 +49,25 @@ contract RateLimitLibTest is Test {
         vm.prank(address(0));
         vm.expectRevert();
         rateLimited.setRefillRate(1 ether);
+    }
+
+    function testConsumedFilledLevelEvent() public {
+        uint256 consumeAmount = 0.5 ether;
+
+        vm.expectEmit(true, true, false, true);
+        emit RateLimited.ConsumedFilledLevel(
+            499999999999993600,
+            block.timestamp
+        ); // precision loss
+        rateLimited.validateAndConsumeFilledLevel(consumeAmount);
+
+        assertApproxEqRelDecimal(
+            rateLimited.filledLevel(),
+            MAX_CAPACITY - consumeAmount,
+            1e14,
+            0
+        );
+        assertEq(rateLimited.lastUpdated(), block.timestamp);
     }
 
     function testRateLimited_neverReturnsGtMaxLimit(
