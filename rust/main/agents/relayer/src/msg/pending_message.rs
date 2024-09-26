@@ -325,10 +325,10 @@ impl PendingOperation for PendingMessage {
     }
 
     #[instrument]
-    async fn submit(&mut self) {
+    async fn submit(&mut self) -> PendingOperationResult {
         if self.submitted {
             // this message has already been submitted, possibly not by us
-            return;
+            return PendingOperationResult::Success;
         }
 
         let state = self
@@ -336,6 +336,7 @@ impl PendingOperation for PendingMessage {
             .clone()
             .expect("Pending message must be prepared before it can be submitted");
 
+        // To avoid spending gas on a tx that will revert, dry-run just before submitting.
         if let Some(metadata) = self.metadata.clone() {
             if let Err(_) = self
                 .ctx
@@ -343,7 +344,7 @@ impl PendingOperation for PendingMessage {
                 .process_estimate_costs(&self.message, &metadata)
                 .await
             {
-                return;
+                return self.on_reprepare::<String>(None, ReprepareReason::RevertedOrReorged);
             }
         }
 
@@ -357,9 +358,11 @@ impl PendingOperation for PendingMessage {
         match tx_outcome {
             Ok(outcome) => {
                 self.set_operation_outcome(outcome, state.gas_limit);
+                PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
             Err(e) => {
                 error!(error=?e, "Error when processing message");
+                return PendingOperationResult::Reprepare(ReprepareReason::ErrorSubmitting);
             }
         }
     }

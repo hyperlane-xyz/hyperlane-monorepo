@@ -83,7 +83,7 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     async fn prepare(&mut self) -> PendingOperationResult;
 
     /// Submit this operation to the blockchain
-    async fn submit(&mut self);
+    async fn submit(&mut self) -> PendingOperationResult;
 
     /// Set the outcome of the `submit` call
     fn set_submission_outcome(&mut self, outcome: TxOutcome);
@@ -188,6 +188,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Error getting message metadata builder")]
     /// Error getting message metadata builder
     ErrorGettingMetadataBuilder,
+    #[strum(to_string = "Error submitting")]
+    /// Error submitting
+    ErrorSubmitting,
     #[strum(to_string = "Error building metadata")]
     /// Error building metadata
     ErrorBuildingMetadata,
