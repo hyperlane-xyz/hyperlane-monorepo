@@ -108,6 +108,11 @@ contract HypERC4626CollateralTest is HypTokenTest {
         _connectRouters(domains, addresses);
     }
 
+    function testDisableInitializers() public {
+        vm.expectRevert("Initializable: contract is already initialized");
+        remoteToken.initialize(0, "", "", address(0), address(0), address(0));
+    }
+
     function test_collateralDomain() public view {
         assertEq(
             remoteRebasingToken.collateralDomain(),
@@ -223,6 +228,54 @@ contract HypERC4626CollateralTest is HypTokenTest {
             remoteToken.balanceOf(CAROL),
             transferAmount2,
             "CAROL's balance should increase"
+        );
+    }
+
+    function testTotalShares() public {
+        uint256 initialShares = remoteRebasingToken.totalShares();
+        assertEq(initialShares, 0, "Initial shares should be zero");
+
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+        uint256 sharesAfterTransfer = remoteRebasingToken.totalShares();
+        assertEq(
+            sharesAfterTransfer,
+            remoteRebasingToken.assetsToShares(transferAmount),
+            "Shares should match transferred amount converted to shares"
+        );
+
+        _accrueYield();
+        localRebasingToken.rebase(DESTINATION);
+        remoteMailbox.processNextInboundMessage();
+
+        uint256 sharesAfterYield = remoteRebasingToken.totalShares();
+        assertEq(
+            sharesAfterYield,
+            sharesAfterTransfer,
+            "Total shares should remain constant after yield accrual"
+        );
+    }
+
+    function testShareBalanceOf() public {
+        _performRemoteTransferWithoutExpectation(0, transferAmount);
+
+        uint256 bobShareBalance = remoteRebasingToken.shareBalanceOf(BOB);
+        assertEq(
+            bobShareBalance,
+            remoteRebasingToken.assetsToShares(transferAmount),
+            "Bob's share balance should match transferred amount converted to shares"
+        );
+
+        _accrueYield();
+        localRebasingToken.rebase(DESTINATION);
+        remoteMailbox.processNextInboundMessage();
+
+        uint256 bobShareBalanceAfterYield = remoteRebasingToken.shareBalanceOf(
+            BOB
+        );
+        assertEq(
+            bobShareBalanceAfterYield,
+            bobShareBalance,
+            "Bob's share balance should remain constant after yield accrual"
         );
     }
 
