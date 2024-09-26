@@ -371,17 +371,18 @@ async fn submit_single_operation(
             // Not expected to hit this case in `submit`, but it's here for completeness
         }
         PendingOperationResult::Success | PendingOperationResult::Confirm(_) => {
-            confirm_op(op, confirm_queue, metrics).await
+            send_and_confirm_op(op, confirm_queue, metrics).await
         }
     }
 }
 
-async fn confirm_op(
+async fn send_and_confirm_op(
     mut op: QueueOperation,
     confirm_queue: &mut OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
     let destination = op.destination_domain().clone();
+    op.submit().await;
     debug!(?op, "Operation submitted");
     op.set_next_attempt_after(CONFIRM_DELAY);
     confirm_queue
