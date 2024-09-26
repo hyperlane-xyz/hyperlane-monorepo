@@ -1,13 +1,14 @@
-import { Separator, checkbox } from '@inquirer/prompts';
+import { Separator, confirm } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import chalk from 'chalk';
 
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import { toTitleCase } from '@hyperlane-xyz/utils';
 
-import { log, logRed, logTip } from '../logger.js';
+import { log, logTip } from '../logger.js';
 
 import { calculatePageSize } from './cli-options.js';
+import { searchableCheckBox } from './input.js';
 
 // A special value marker to indicate user selected
 // a new chain in the list
@@ -32,23 +33,46 @@ export async function runMultiChainSelectionStep(
   chainMetadata: ChainMap<ChainMetadata>,
   message = 'Select chains',
   requireNumber = 0,
+  requiresConfirmation = false,
 ) {
   const networkType = await selectNetworkType();
   const choices = getChainChoices(chainMetadata, networkType);
+
+  let currentChoiceSelection = new Set();
   while (true) {
     logTip(
-      `Use SPACE key to select at least ${requireNumber} chains, then press ENTER`,
+      `Use TAB key to select at least ${requireNumber} chains, then press ENTER`,
     );
-    const chains = (await checkbox({
+    const chains = (await searchableCheckBox({
       message,
-      choices,
+      choices: choices.map((choice) =>
+        !Separator.isSeparator(choice) &&
+        currentChoiceSelection.has(choice.name)
+          ? { ...choice, checked: true }
+          : choice,
+      ),
       pageSize: calculatePageSize(2),
+      validate: (answer): string | boolean => {
+        if (answer.length < requireNumber) {
+          return `Please select at least ${requireNumber} chains`;
+        }
+
+        return true;
+      },
     })) as string[];
+
     handleNewChain(chains);
-    if (chains?.length < requireNumber) {
-      logRed(`Please select at least ${requireNumber} chains`);
+
+    const confirmed = !requiresConfirmation
+      ? true
+      : await confirm({
+          message: `Is this chain selection correct?: ${chains.join(', ')}`,
+        });
+    if (!confirmed) {
+      currentChoiceSelection = new Set(chains);
       continue;
     }
+
     return chains;
   }
 }

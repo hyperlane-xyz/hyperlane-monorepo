@@ -72,9 +72,8 @@ export async function inputWithInfo({
   return answer;
 }
 
-// TEST
-
-export type Status = 'loading' | 'idle' | 'done';
+// Searchable checkbox code
+export type Status = 'loading' | 'idle' | 'done' | 'pending-confirmation';
 
 type CheckboxTheme = {
   icon: {
@@ -210,28 +209,28 @@ function sortNormalizedItems<Value>(
 function organizeItems<Value>(
   items: Array<Item<Value> | Separator>,
 ): Array<Item<Value> | Separator> {
-  const newitems = [];
+  const newItems = [];
 
   const checkedItems = items.filter(
     (item) => !Separator.isSeparator(item) && item.checked,
   ) as NormalizedChoice<Value>[];
 
   if (checkedItems.length !== 0) {
-    newitems.push(new Separator('--Selected Options--'));
+    newItems.push(new Separator('--Selected Options--'));
 
-    newitems.push(...checkedItems.sort(sortNormalizedItems));
+    newItems.push(...checkedItems.sort(sortNormalizedItems));
   }
 
   // TODO: better message
-  newitems.push(new Separator('--Available Options--'));
+  newItems.push(new Separator('--Available Options--'));
 
   const nonCheckedItems = items.filter(
     (item) => !Separator.isSeparator(item) && !item.checked,
   ) as NormalizedChoice<Value>[];
 
-  newitems.push(...nonCheckedItems.sort(sortNormalizedItems));
+  newItems.push(...nonCheckedItems.sort(sortNormalizedItems));
 
-  return newitems;
+  return newItems;
 }
 
 // the isUpKey function from the inquirer package is not used
@@ -250,255 +249,264 @@ function isDownKey(key: KeypressEvent): boolean {
   return key.name === 'down';
 }
 
-export const searchableCheckBox = <Value>(config: CheckboxConfig<Value>) =>
-  createPrompt(
-    <Value>(
-      config: CheckboxConfig<Value>,
-      done: (value: Array<Value>) => void,
-    ) => {
-      const {
-        instructions,
-        pageSize = 7,
-        loop = true,
-        required,
-        validate = () => true,
-      } = config;
-      const theme = makeTheme<CheckboxTheme>(checkboxTheme, config.theme);
-      const firstRender = useRef(true);
-      const [status, setStatus] = useState<Status>('idle');
-      const prefix = usePrefix({ theme });
+export const searchableCheckBox = createPrompt(
+  <Value>(
+    config: CheckboxConfig<Value>,
+    done: (value: Array<Value>) => void,
+  ) => {
+    const {
+      instructions,
+      pageSize = 7,
+      loop = true,
+      required,
+      validate = () => true,
+    } = config;
+    const theme = makeTheme<CheckboxTheme>(checkboxTheme, config.theme);
+    const firstRender = useRef(true);
+    const [status, setStatus] = useState<Status>('idle');
+    const prefix = usePrefix({ theme });
 
-      const normalizedChoices = normalizeChoices(config.choices);
-      const [optionState, setOptionState] = useState({
-        options: normalizedChoices,
-        currentOptionState: Object.fromEntries(
-          normalizedChoices
-            .filter((item) => !Separator.isSeparator(item))
-            .map((item) => [
-              (item as NormalizedChoice<Value>).name,
-              item as NormalizedChoice<Value>,
-            ]),
-        ),
-      });
+    const normalizedChoices = normalizeChoices(config.choices);
+    const [optionState, setOptionState] = useState({
+      options: normalizedChoices,
+      currentOptionState: Object.fromEntries(
+        normalizedChoices
+          .filter((item) => !Separator.isSeparator(item))
+          .map((item) => [
+            (item as NormalizedChoice<Value>).name,
+            item as NormalizedChoice<Value>,
+          ]),
+      ),
+    });
 
-      const [searchTerm, setSearchTerm] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState<string>('');
 
-      const bounds = useMemo(() => {
-        const first = optionState.options.findIndex(isSelectable);
-        // @ts-ignore
-        // TODO: add polyfill for this
-        const last = optionState.options.findLastIndex(isSelectable);
+    const bounds = useMemo(() => {
+      const first = optionState.options.findIndex(isSelectable);
+      // findLastIndex replacement as the project must support older ES versions
+      let last = -1;
+      for (let i = optionState.options.length; i >= 0; --i) {
+        if (optionState.options[i] && isSelectable(optionState.options[i])) {
+          last = i;
+          break;
+        }
+      }
 
-        return { first, last };
-      }, [optionState]);
+      return { first, last };
+    }, [optionState]);
 
-      const [active, setActive] = useState<number | undefined>(bounds.first);
-      const [showHelpTip, setShowHelpTip] = useState(true);
-      const [errorMsg, setError] = useState<string>();
+    const [active, setActive] = useState<number | undefined>(bounds.first);
+    const [showHelpTip, setShowHelpTip] = useState(true);
+    const [errorMsg, setError] = useState<string>();
 
-      useEffect(() => {
-        const controller = new AbortController();
+    useEffect(() => {
+      const controller = new AbortController();
 
-        setStatus('loading');
-        setError(undefined);
+      setStatus('loading');
+      setError(undefined);
 
-        const fetchResults = async () => {
-          try {
-            let filteredItems;
-            if (!searchTerm) {
-              filteredItems = Object.values(optionState.currentOptionState);
-            } else {
-              filteredItems = Object.values(
-                optionState.currentOptionState,
-              ).filter(
-                (item) =>
-                  Separator.isSeparator(item) ||
-                  item.name.includes(searchTerm) ||
-                  item.checked,
-              );
-            }
-
-            if (!controller.signal.aborted) {
-              // Reset the pointer
-              setActive(undefined);
-              setError(undefined);
-              setOptionState({
-                options: organizeItems(filteredItems),
-                currentOptionState: optionState.currentOptionState,
-              });
-              setStatus('idle');
-            }
-          } catch (error: unknown) {
-            if (!controller.signal.aborted && error instanceof Error) {
-              setError(error.message);
-            }
-          }
-        };
-
-        void fetchResults();
-
-        return () => {
-          controller.abort();
-        };
-      }, [searchTerm]);
-
-      useKeypress(async (key, rl) => {
-        if (isEnterKey(key)) {
-          const selection = optionState.options.filter(isChecked);
-          const isValid = await validate([...selection]);
-          if (required && !optionState.options.some(isChecked)) {
-            setError('At least one choice must be selected');
-          } else if (isValid === true) {
-            setStatus('done');
-            done(selection.map((choice) => choice.value));
+      const fetchResults = async () => {
+        try {
+          let filteredItems;
+          if (!searchTerm) {
+            filteredItems = Object.values(optionState.currentOptionState);
           } else {
-            setError(isValid || 'You must select a valid value');
-            setSearchTerm('');
-          }
-        } else if (isUpKey(key) || isDownKey(key)) {
-          if (
-            loop ||
-            (isUpKey(key) && active !== bounds.first) ||
-            (isDownKey(key) && active !== bounds.last)
-          ) {
-            const offset = isUpKey(key) ? -1 : 1;
-            let next = active ?? 0;
-            do {
-              next =
-                (next + offset + optionState.options.length) %
-                optionState.options.length;
-            } while (
-              optionState.options[next] &&
-              !isSelectable(optionState.options[next])
+            filteredItems = Object.values(
+              optionState.currentOptionState,
+            ).filter(
+              (item) =>
+                Separator.isSeparator(item) ||
+                item.name.includes(searchTerm) ||
+                item.checked,
             );
-            setActive(next);
           }
-        } else if (
-          key.name === 'tab' &&
-          optionState.options.length > 0 &&
-          active
-        ) {
-          // Avoid the message header to be printed again in the console
-          rl.clearLine(0);
-          setError(undefined);
-          setShowHelpTip(false);
 
-          const currentElement = optionState.options[active];
-          if (
-            currentElement &&
-            !Separator.isSeparator(currentElement) &&
-            optionState.currentOptionState[currentElement.name]
-          ) {
-            const updatedDataMap: Record<string, NormalizedChoice<Value>> = {
-              ...optionState.currentOptionState,
-              [currentElement.name]: toggle(
-                optionState.currentOptionState[currentElement.name],
-              ) as NormalizedChoice<Value>,
-            };
-
+          if (!controller.signal.aborted) {
+            // Reset the pointer
+            setActive(undefined);
+            setError(undefined);
             setOptionState({
-              options: organizeItems(Object.values(updatedDataMap)),
-              currentOptionState: updatedDataMap,
+              options: organizeItems(filteredItems),
+              currentOptionState: optionState.currentOptionState,
             });
+            setStatus('idle');
           }
-
-          setSearchTerm('');
-          setActive(undefined);
-        } else {
-          setSearchTerm(rl.line);
+        } catch (error: unknown) {
+          if (!controller.signal.aborted && error instanceof Error) {
+            setError(error.message);
+          }
         }
-      });
+      };
 
-      const message = theme.style.message(config.message);
+      void fetchResults();
 
-      let description;
-      const page = usePagination({
-        items: optionState.options,
-        active: active ?? 0,
-        renderItem({ item, isActive }) {
-          if (Separator.isSeparator(item)) {
-            return ` ${item.separator}`;
-          }
+      return () => {
+        controller.abort();
+      };
+    }, [searchTerm]);
 
-          if (item.disabled) {
-            const disabledLabel =
-              typeof item.disabled === 'string' ? item.disabled : '(disabled)';
-            return theme.style.disabledChoice(`${item.name} ${disabledLabel}`);
-          }
-
-          if (isActive) {
-            description = item.description;
-          }
-
-          const checkbox = item.checked
-            ? theme.icon.checked
-            : theme.icon.unchecked;
-          const color = isActive ? theme.style.highlight : (x: string) => x;
-          const cursor = isActive ? theme.icon.cursor : ' ';
-          return color(`${cursor}${checkbox} ${item.name}`);
-        },
-        pageSize,
-        loop,
-      });
-
-      if (status === 'done') {
+    useKeypress(async (key, rl) => {
+      if (isEnterKey(key)) {
         const selection = optionState.options.filter(isChecked);
-        const answer = theme.style.answer(
-          theme.style.renderSelectedChoices(selection, optionState.options),
-        );
-
-        return `${prefix} ${message} ${answer}`;
-      }
-
-      let helpTipTop = '';
-      let helpTipBottom = '';
-      if (
-        theme.helpMode === 'always' ||
-        (theme.helpMode === 'auto' &&
-          showHelpTip &&
-          (instructions === undefined || instructions))
-      ) {
-        if (typeof instructions === 'string') {
-          helpTipTop = instructions;
+        const isValid = await validate([...selection]);
+        if (required && !optionState.options.some(isChecked)) {
+          setError('At least one choice must be selected');
+        } else if (isValid === true) {
+          setStatus('done');
+          done(selection.map((choice) => choice.value));
         } else {
-          const keys = [
-            `${theme.style.key('tab')} to select`,
-            `and ${theme.style.key('enter')} to proceed`,
-          ];
-          helpTipTop = ` (Press ${keys.join(', ')})`;
+          setError(isValid || 'You must select a valid value');
+          setSearchTerm('');
         }
-
+      } else if (isUpKey(key) || isDownKey(key)) {
         if (
-          optionState.options.length > pageSize &&
-          (theme.helpMode === 'always' ||
-            (theme.helpMode === 'auto' && firstRender.current))
+          loop ||
+          (isUpKey(key) && active !== bounds.first) ||
+          (isDownKey(key) && active !== bounds.last)
         ) {
-          helpTipBottom = `\n${theme.style.help(
-            '(Use arrow keys to reveal more choices)',
-          )}`;
-          firstRender.current = false;
+          const offset = isUpKey(key) ? -1 : 1;
+          let next = active ?? 0;
+          do {
+            next =
+              (next + offset + optionState.options.length) %
+              optionState.options.length;
+          } while (
+            optionState.options[next] &&
+            !isSelectable(optionState.options[next])
+          );
+          setActive(next);
         }
-      }
-
-      const choiceDescription = description
-        ? `\n${theme.style.description(description)}`
-        : ``;
-
-      let error = '';
-      if (errorMsg) {
-        error = `\n${theme.style.error(errorMsg)}`;
       } else if (
-        optionState.options.length === 0 &&
-        searchTerm !== '' &&
-        status === 'idle'
+        key.name === 'tab' &&
+        optionState.options.length > 0 &&
+        active
       ) {
-        error = theme.style.error('No results found');
+        // Avoid the message header to be printed again in the console
+        rl.clearLine(0);
+        setError(undefined);
+        setShowHelpTip(false);
+
+        const currentElement = optionState.options[active];
+        if (
+          currentElement &&
+          !Separator.isSeparator(currentElement) &&
+          optionState.currentOptionState[currentElement.name]
+        ) {
+          const updatedDataMap: Record<string, NormalizedChoice<Value>> = {
+            ...optionState.currentOptionState,
+            [currentElement.name]: toggle(
+              optionState.currentOptionState[currentElement.name],
+            ) as NormalizedChoice<Value>,
+          };
+
+          setOptionState({
+            options: organizeItems(Object.values(updatedDataMap)),
+            currentOptionState: updatedDataMap,
+          });
+        }
+
+        setSearchTerm('');
+        setActive(undefined);
+      } else {
+        setSearchTerm(rl.line);
+      }
+    });
+
+    const message = theme.style.message(config.message);
+
+    let description;
+    const page = usePagination({
+      items: optionState.options,
+      active: active ?? 0,
+      renderItem({ item, isActive }) {
+        if (Separator.isSeparator(item)) {
+          return ` ${item.separator}`;
+        }
+
+        if (item.disabled) {
+          const disabledLabel =
+            typeof item.disabled === 'string' ? item.disabled : '(disabled)';
+          return theme.style.disabledChoice(`${item.name} ${disabledLabel}`);
+        }
+
+        if (isActive) {
+          description = item.description;
+        }
+
+        const checkbox = item.checked
+          ? theme.icon.checked
+          : theme.icon.unchecked;
+        const color = isActive ? theme.style.highlight : (x: string) => x;
+        const cursor = isActive ? theme.icon.cursor : ' ';
+        return color(`${cursor}${checkbox} ${item.name}`);
+      },
+      pageSize,
+      loop,
+    });
+
+    if (status === 'done') {
+      const selection = optionState.options.filter(isChecked);
+      const answer = theme.style.answer(
+        theme.style.renderSelectedChoices(selection, optionState.options),
+      );
+
+      return `${prefix} ${message} ${answer}`;
+    }
+
+    if (status === 'pending-confirmation') {
+      const selection = optionState.options.filter(isChecked);
+      const answer = theme.style.answer(
+        theme.style.renderSelectedChoices(selection, optionState.options),
+      );
+
+      return `${prefix} ${message} ${answer}`;
+    }
+
+    let helpTipTop = '';
+    let helpTipBottom = '';
+    if (
+      theme.helpMode === 'always' ||
+      (theme.helpMode === 'auto' &&
+        showHelpTip &&
+        (instructions === undefined || instructions))
+    ) {
+      if (typeof instructions === 'string') {
+        helpTipTop = instructions;
+      } else {
+        const keys = [
+          `${theme.style.key('tab')} to select`,
+          `and ${theme.style.key('enter')} to proceed`,
+        ];
+        helpTipTop = ` (Press ${keys.join(', ')})`;
       }
 
-      return `${prefix}${message}${helpTipTop} ${
-        searchTerm ?? ''
-      }\n${page}${helpTipBottom}${choiceDescription}${error}${
-        ansiEscapes.cursorHide
-      }`;
-    },
-  )(config);
+      if (
+        optionState.options.length > pageSize &&
+        (theme.helpMode === 'always' ||
+          (theme.helpMode === 'auto' && firstRender.current))
+      ) {
+        helpTipBottom = `\n${theme.style.help(
+          '(Use arrow keys to reveal more choices)',
+        )}`;
+        firstRender.current = false;
+      }
+    }
+
+    const choiceDescription = description
+      ? `\n${theme.style.description(description)}`
+      : ``;
+
+    let error = '';
+    if (errorMsg) {
+      error = `\n${theme.style.error(errorMsg)}`;
+    } else if (
+      optionState.options.length === 0 &&
+      searchTerm !== '' &&
+      status === 'idle'
+    ) {
+      error = theme.style.error('No results found');
+    }
+
+    return `${prefix}${message}${helpTipTop} ${searchTerm}\n${page}${helpTipBottom}${choiceDescription}${error}${ansiEscapes.cursorHide}`;
+  },
+);
