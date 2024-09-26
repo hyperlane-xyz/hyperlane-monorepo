@@ -24,13 +24,17 @@ abstract contract AbstractStorageMultisigIsm is AbstractMultisigIsm, Ownable {
         address[] memory _validators,
         uint8 _threshold
     ) public onlyOwner {
+        require(
+            0 < _threshold && _threshold <= _validators.length,
+            "Invalid threshold"
+        );
         validators = _validators;
         threshold = _threshold;
         emit ValidatorsAndThresholdSet(_validators, _threshold);
     }
 
     function validatorsAndThreshold(
-        bytes calldata
+        bytes calldata /* _message */
     ) public view override returns (address[] memory, uint8) {
         return (validators, threshold);
     }
