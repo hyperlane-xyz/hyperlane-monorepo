@@ -33,6 +33,9 @@ jobs:
 
   build-and-push-to-gcr:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
     needs: [check-env]
