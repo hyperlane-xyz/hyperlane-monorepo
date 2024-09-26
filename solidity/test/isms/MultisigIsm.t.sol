@@ -312,16 +312,63 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
     }
 }
 
-// abstract contract StorageMultisigIsmTest is AbstractMultisigIsmTest {}
+abstract contract StorageMultisigIsmTest is AbstractMultisigIsmTest {
+    event ValidatorsAndThresholdSet(address[] validators, uint8 threshold);
 
-contract StorageMessageIdMultisigIsmTest is MessageIdMultisigIsmTest {
+    function test_setValidatorsAndThreshold(
+        bytes32 seed,
+        address[] memory validators,
+        uint8 threshold
+    ) public {
+        vm.assume(
+            0 < threshold &&
+                threshold <= validators.length &&
+                validators.length <= MAX_VALIDATORS
+        );
+        addValidators(threshold, uint8(validators.length), seed);
+
+        StorageMessageIdMultisigIsm storageIsm = StorageMessageIdMultisigIsm(
+            address(ism)
+        );
+
+        address owner = storageIsm.owner();
+        address antiOwner = address(~bytes20(owner));
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(antiOwner);
+        storageIsm.setValidatorsAndThreshold(validators, threshold);
+
+        vm.expectRevert("Invalid threshold");
+        vm.prank(owner);
+        storageIsm.setValidatorsAndThreshold(
+            validators,
+            uint8(validators.length + 1)
+        );
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit ValidatorsAndThresholdSet(validators, threshold);
+        storageIsm.setValidatorsAndThreshold(validators, threshold);
+        (address[] memory _validators, uint8 _threshold) = storageIsm
+            .validatorsAndThreshold("0x");
+        assertEq(_threshold, threshold);
+        assertEq(_validators, validators);
+    }
+}
+
+contract StorageMessageIdMultisigIsmTest is
+    StorageMultisigIsmTest,
+    MessageIdMultisigIsmTest
+{
     function setUp() public override {
         super.setUp();
         factory = new StorageMessageIdMultisigIsmFactory();
     }
 }
 
-contract StorageMerkleRootMultisigIsmTest is MerkleRootMultisigIsmTest {
+contract StorageMerkleRootMultisigIsmTest is
+    StorageMultisigIsmTest,
+    MerkleRootMultisigIsmTest
+{
     function setUp() public override {
         super.setUp();
         factory = new StorageMerkleRootMultisigIsmFactory();
