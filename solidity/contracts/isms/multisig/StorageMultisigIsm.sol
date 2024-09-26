@@ -21,7 +21,12 @@ abstract contract AbstractStorageMultisigIsm is
 
     event ValidatorsAndThresholdSet(address[] validators, uint8 threshold);
 
-    constructor() OwnableUpgradeable() {
+    constructor(
+        address[] memory _validators,
+        uint8 _threshold
+    ) OwnableUpgradeable() {
+        validators = _validators;
+        threshold = _threshold;
         _disableInitializers();
     }
 
@@ -37,10 +42,7 @@ abstract contract AbstractStorageMultisigIsm is
         address[] memory _validators,
         uint8 _threshold
     ) public onlyOwner {
-        require(
-            0 < _threshold && _threshold <= _validators.length,
-            "Invalid threshold"
-        );
+        require(_threshold <= _validators.length, "Invalid threshold");
         validators = _validators;
         threshold = _threshold;
         emit ValidatorsAndThresholdSet(_validators, _threshold);
@@ -59,6 +61,11 @@ contract StorageMerkleRootMultisigIsm is
 {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.MERKLE_ROOT_MULTISIG);
+
+    constructor(
+        address[] memory _validators,
+        uint8 _threshold
+    ) AbstractStorageMultisigIsm(_validators, _threshold) {}
 }
 
 contract StorageMessageIdMultisigIsm is
@@ -67,6 +74,11 @@ contract StorageMessageIdMultisigIsm is
 {
     uint8 public constant moduleType =
         uint8(IInterchainSecurityModule.Types.MERKLE_ROOT_MULTISIG);
+
+    constructor(
+        address[] memory _validators,
+        uint8 _threshold
+    ) AbstractStorageMultisigIsm(_validators, _threshold) {}
 }
 
 abstract contract StorageMultisigIsmFactory is IThresholdAddressFactory {
@@ -93,7 +105,9 @@ contract StorageMerkleRootMultisigIsmFactory is StorageMultisigIsmFactory {
     address internal immutable _implementation;
 
     constructor() {
-        _implementation = address(new StorageMerkleRootMultisigIsm());
+        _implementation = address(
+            new StorageMerkleRootMultisigIsm(new address[](0), 0)
+        );
     }
 
     function implementation() public view override returns (address) {
@@ -105,7 +119,9 @@ contract StorageMessageIdMultisigIsmFactory is StorageMultisigIsmFactory {
     address internal immutable _implementation;
 
     constructor() {
-        _implementation = address(new StorageMessageIdMultisigIsm());
+        _implementation = address(
+            new StorageMessageIdMultisigIsm(new address[](0), 0)
+        );
     }
 
     function implementation() public view override returns (address) {
