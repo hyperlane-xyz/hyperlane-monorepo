@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
-import { WarpRouteIds } from '../../config/warp.js';
+import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules } from '../agent-utils.js';
 

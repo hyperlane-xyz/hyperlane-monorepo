@@ -144,6 +144,7 @@ async function executeDelivery({
     throw new Error('Error validating transfer');
   }
 
+  // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
