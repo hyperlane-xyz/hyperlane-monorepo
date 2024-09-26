@@ -18,6 +18,7 @@ import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {ThresholdTestUtils} from "./IsmTestUtils.sol";
+import {StorageMessageIdMultisigIsm, StorageMerkleRootMultisigIsm} from "../../contracts/isms/multisig/StorageMultisigIsm.sol";
 
 /// @notice since we removed merkle tree from the mailbox, we need to include the MerkleTreeHook in the test
 abstract contract AbstractMultisigIsmTest is Test {
@@ -306,5 +307,41 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
         fixturePrefix(root, index, merkleTreeAddress);
 
         return abi.encodePacked(merkleTreeAddress, root, index);
+    }
+}
+
+contract StorageMessageIdMultisigIsmTest is MessageIdMultisigIsmTest {
+    function addValidators(
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) internal override returns (uint256[] memory) {
+        uint256[] memory keys = new uint256[](n);
+        address[] memory addresses = new address[](n);
+        for (uint256 i = 0; i < n; i++) {
+            uint256 key = uint256(keccak256(abi.encode(seed, i)));
+            keys[i] = key;
+            addresses[i] = vm.addr(key);
+        }
+        ism = IMultisigIsm(new StorageMessageIdMultisigIsm(addresses, m));
+        return keys;
+    }
+}
+
+contract StorageMerkleRootMultisigIsmTest is MerkleRootMultisigIsmTest {
+    function addValidators(
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) internal override returns (uint256[] memory) {
+        uint256[] memory keys = new uint256[](n);
+        address[] memory addresses = new address[](n);
+        for (uint256 i = 0; i < n; i++) {
+            uint256 key = uint256(keccak256(abi.encode(seed, i)));
+            keys[i] = key;
+            addresses[i] = vm.addr(key);
+        }
+        ism = IMultisigIsm(new StorageMerkleRootMultisigIsm(addresses, m));
+        return keys;
     }
 }
