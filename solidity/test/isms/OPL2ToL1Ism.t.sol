@@ -84,16 +84,6 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         hook.postDispatch{value: quote}(igpMetadata, encodedMessage);
     }
 
-    function test_verify_override_msgValue() public override {
-        bytes memory encodedHookData = _encodeHookData(messageId, MSG_VALUE);
-
-        _externalBridgeDestinationCall(encodedHookData, MSG_VALUE);
-        _externalBridgeDestinationCall(encodedHookData, 0);
-
-        assertTrue(ism.verify(new bytes(0), encodedMessage));
-        assertEq(address(testRecipient).balance, MSG_VALUE);
-    }
-
     /* ============ helper functions ============ */
 
     function _expectOriginExternalBridgeCall(
@@ -127,8 +117,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
     }
 
     function _externalBridgeDestinationCall(
-        bytes memory,
-        /*_encodedHookData*/
+        bytes memory _encodedHookData,
         uint256 _msgValue
     ) internal override {
         vm.deal(address(portal), _msgValue);
@@ -142,7 +131,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
                 data: _encodeMessengerCalldata(
                     address(ism),
                     _msgValue,
-                    messageId
+                    _encodedHookData
                 )
             });
         portal.finalizeWithdrawalTransaction(withdrawal);
@@ -151,10 +140,8 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
     function _encodeMessengerCalldata(
         address _ism,
         uint256 _value,
-        bytes32 _messageId
+        bytes memory _encodedHookData
     ) internal view returns (bytes memory) {
-        bytes memory encodedHookData = _encodeHookData(_messageId, _value);
-
         return
             abi.encodeCall(
                 ICrossDomainMessenger.relayMessage,
@@ -164,7 +151,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
                     _ism,
                     _value,
                     uint256(GAS_QUOTE),
-                    encodedHookData
+                    _encodedHookData
                 )
             );
     }
@@ -174,6 +161,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         uint256 _value,
         bytes32 _messageId
     ) internal view returns (bytes memory) {
+        bytes memory encodedHookData = _encodeHookData(_messageId, _value);
         return
             abi.encode(
                 MOCK_NONCE,
@@ -181,7 +169,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
                 l1Messenger,
                 _value,
                 uint256(GAS_QUOTE),
-                _encodeMessengerCalldata(_ism, _value, _messageId)
+                _encodeMessengerCalldata(_ism, _value, encodedHookData)
             );
     }
 }

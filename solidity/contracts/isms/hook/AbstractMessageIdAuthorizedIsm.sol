@@ -131,6 +131,10 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             "AbstractMessageIdAuthorizedIsm: msg.value doesn't match"
         );
 
+        if (verifiedMessages[messageId] != 0) {
+            return;
+        }
+
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
         emit ReceivedMessage(messageId, msgValue);
     }
