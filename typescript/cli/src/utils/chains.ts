@@ -19,10 +19,13 @@ export async function runSingleChainSelectionStep(
   message = 'Select chain',
 ) {
   const networkType = await selectNetworkType();
-  const choices = getChainChoices(chainMetadata, networkType);
+  const { choices, networkTypeSeparator } = getChainChoices(
+    chainMetadata,
+    networkType,
+  );
   const chain = (await select({
     message,
-    choices,
+    choices: [networkTypeSeparator, ...choices],
     pageSize: calculatePageSize(2),
   })) as string;
   handleNewChain([chain]);
@@ -36,7 +39,10 @@ export async function runMultiChainSelectionStep(
   requiresConfirmation = false,
 ) {
   const networkType = await selectNetworkType();
-  const choices = getChainChoices(chainMetadata, networkType);
+  const { choices, networkTypeSeparator } = getChainChoices(
+    chainMetadata,
+    networkType,
+  );
 
   let currentChoiceSelection = new Set();
   while (true) {
@@ -45,6 +51,7 @@ export async function runMultiChainSelectionStep(
     );
     const chains = (await searchableCheckBox({
       message,
+      selectableOptionsSeparator: networkTypeSeparator,
       choices: choices.map((choice) =>
         !Separator.isSeparator(choice) &&
         currentChoiceSelection.has(choice.name)
@@ -103,10 +110,15 @@ function getChainChoices(
   );
   const choices: Parameters<typeof select>['0']['choices'] = [
     { name: '(New custom chain)', value: NEW_CHAIN_MARKER },
-    new Separator(`--${toTitleCase(networkType)} Chains--`),
     ...chainsToChoices(filteredChains),
   ];
-  return choices;
+
+  return {
+    choices,
+    networkTypeSeparator: new Separator(
+      `--${toTitleCase(networkType)} Chains--`,
+    ),
+  };
 }
 
 function handleNewChain(chainNames: string[]) {

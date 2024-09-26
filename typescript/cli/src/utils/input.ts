@@ -72,8 +72,17 @@ export async function inputWithInfo({
   return answer;
 }
 
-// Searchable checkbox code
-export type Status = 'loading' | 'idle' | 'done';
+/**
+ * Searchable checkbox code
+ *
+ * Note that the code below hab been implemented by taking inspiration from
+ * the @inquirer/prompt package search and checkbox prompts
+ *
+ * - https://github.com/SBoudrias/Inquirer.js/blob/main/packages/search/src/index.mts
+ * - https://github.com/SBoudrias/Inquirer.js/blob/main/packages/checkbox/src/index.mts
+ */
+
+type Status = 'loading' | 'idle' | 'done';
 
 type SearchableCheckboxTheme = {
   icon: {
@@ -128,9 +137,7 @@ type NormalizedChoice<Value> = {
 
 type SearchableCheckboxConfig<
   Value,
-  ChoicesObject =
-    | ReadonlyArray<string | Separator>
-    | ReadonlyArray<Choice<Value> | Separator>,
+  ChoicesObject = ReadonlyArray<Choice<Value>>,
 > = {
   message: string;
   prefix?: string;
@@ -141,6 +148,7 @@ type SearchableCheckboxConfig<
     : ReadonlyArray<Choice<Value> | Separator>;
   loop?: boolean;
   required?: boolean;
+  selectableOptionsSeparator?: Separator;
   validate?: (
     choices: ReadonlyArray<Choice<Value>>,
   ) => boolean | string | Promise<string | boolean>;
@@ -164,22 +172,11 @@ function toggle<Value>(item: Item<Value>): Item<Value> {
 }
 
 function normalizeChoices<Value>(
-  choices:
-    | ReadonlyArray<string | Separator>
-    | ReadonlyArray<Choice<Value> | Separator>,
+  choices: ReadonlyArray<Choice<Value> | Separator>,
 ): Item<Value>[] {
   return choices.map((choice) => {
-    // @ts-ignore
-    if (Separator.isSeparator(choice)) return choice;
-
-    if (typeof choice === 'string') {
-      return {
-        value: choice as Value,
-        name: choice,
-        short: choice,
-        disabled: false,
-        checked: false,
-      };
+    if (Separator.isSeparator(choice)) {
+      return choice;
     }
 
     const name = choice.name ?? String(choice.value);
@@ -205,32 +202,33 @@ function sortNormalizedItems<Value>(
   }
 }
 
-// TODO: update this so that it allows user provided separators
 function organizeItems<Value>(
   items: Array<Item<Value> | Separator>,
+  selectableOptionsSeparator?: Separator,
 ): Array<Item<Value> | Separator> {
-  const newItems = [];
+  const orderedItems = [];
 
   const checkedItems = items.filter(
     (item) => !Separator.isSeparator(item) && item.checked,
   ) as NormalizedChoice<Value>[];
 
   if (checkedItems.length !== 0) {
-    newItems.push(new Separator('--Selected Options--'));
+    orderedItems.push(new Separator('--Selected Options--'));
 
-    newItems.push(...checkedItems.sort(sortNormalizedItems));
+    orderedItems.push(...checkedItems.sort(sortNormalizedItems));
   }
 
-  // TODO: better message
-  newItems.push(new Separator('--Available Options--'));
+  orderedItems.push(
+    selectableOptionsSeparator ?? new Separator('--Available Options--'),
+  );
 
   const nonCheckedItems = items.filter(
     (item) => !Separator.isSeparator(item) && !item.checked,
   ) as NormalizedChoice<Value>[];
 
-  newItems.push(...nonCheckedItems.sort(sortNormalizedItems));
+  orderedItems.push(...nonCheckedItems.sort(sortNormalizedItems));
 
-  return newItems;
+  return orderedItems;
 }
 
 // the isUpKey function from the inquirer package is not used
@@ -260,6 +258,7 @@ export const searchableCheckBox = createPrompt(
       loop = true,
       required,
       validate = () => true,
+      selectableOptionsSeparator,
     } = config;
     const theme = makeTheme<SearchableCheckboxTheme>(
       checkboxTheme,
@@ -329,7 +328,7 @@ export const searchableCheckBox = createPrompt(
             setActive(undefined);
             setError(undefined);
             setOptionState({
-              options: organizeItems(filteredItems),
+              options: organizeItems(filteredItems, selectableOptionsSeparator),
               currentOptionState: optionState.currentOptionState,
             });
             setStatus('idle');
@@ -403,7 +402,10 @@ export const searchableCheckBox = createPrompt(
           };
 
           setOptionState({
-            options: organizeItems(Object.values(updatedDataMap)),
+            options: organizeItems(
+              Object.values(updatedDataMap),
+              selectableOptionsSeparator,
+            ),
             currentOptionState: updatedDataMap,
           });
         }
