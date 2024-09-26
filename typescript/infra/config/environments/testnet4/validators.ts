@@ -173,38 +173,6 @@ export const validatorChainConfig = (
         'sepolia',
       ),
     },
-    // plumetestnet: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod('plumetestnet'),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: [
-    //         '0xe765a214849f3ecdf00793b97d00422f2d408ea6',
-    //         '0xb59998f71efc65190a85ac5e81b66bd72a192a3b',
-    //         '0xc906470a73e6b5aad65a4ceb4acd73e3eaf80e2c',
-    //       ],
-    //       [Contexts.ReleaseCandidate]: [
-    //         '0xe6e6aeecbf7755cdbc50c2683df9f2d100f6399d',
-    //         '0x27946c13a475233a3b1eb47f0bd0f7cdec3a3983',
-    //         '0x2596413213368475c96ddfb1ae26666d22093a8b',
-    //       ],
-    //       [Contexts.Neutron]: [],
-    //     },
-    //     'plumetestnet',
-    //   ),
-    // },
-    // solanatestnet: {
-    //   interval: 1,
-    //   reorgPeriod: getReorgPeriod('solanatestnet'),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
-    //       [Contexts.ReleaseCandidate]: [],
-    //       [Contexts.Neutron]: [],
-    //     },
-    //     'solanatestnet',
-    //   ),
-    // },
     superpositiontestnet: {
       interval: 1,
       reorgPeriod: getReorgPeriod('superpositiontestnet'),
@@ -265,18 +233,18 @@ export const validatorChainConfig = (
         'berabartio',
       ),
     },
-    // citreatestnet: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod('citreatestnet'),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: ['0x60d7380a41eb95c49be18f141efd2fde5e3dba20'],
-    //       [Contexts.ReleaseCandidate]: [],
-    //       [Contexts.Neutron]: [],
-    //     },
-    //     'citreatestnet',
-    //   ),
-    // },
+    citreatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('citreatestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x60d7380a41eb95c49be18f141efd2fde5e3dba20'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'citreatestnet',
+      ),
+    },
     camptestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('camptestnet'),

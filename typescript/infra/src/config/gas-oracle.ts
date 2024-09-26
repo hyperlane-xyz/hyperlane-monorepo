@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
@@ -55,6 +56,7 @@ function getLocalStorageGasOracleConfig(
     let exchangeRate = getTokenExchangeRate(local, remote);
     if (!gasPrices[remote]) {
       // Will run into this case when adding new chains
+      console.warn(chalk.yellow(`No gas price set for ${remote}`));
       return agg;
     }
 
@@ -231,6 +233,9 @@ export function getTokenExchangeRateFromValues(
   remote: ChainName,
   tokenPrices: ChainMap<string>,
 ): BigNumber {
+  // Workaround for chicken-egg dependency problem.
+  // We need to provide some default value here to satisfy the config on initial load,
+  // whilst knowing that it will get overwritten when a script actually gets run.
   if (!tokenPrices[local] || !tokenPrices[remote]) {
     return BigNumber.from(1);
   }

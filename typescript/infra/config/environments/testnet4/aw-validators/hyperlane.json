@@ -44,9 +44,6 @@
   "holesky": {
     "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
   },
-  "hyperliquidevmtestnet": {
-    "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
-  },
   "optimismsepolia": {
     "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
   },
