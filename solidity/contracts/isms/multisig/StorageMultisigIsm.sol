@@ -21,12 +21,14 @@ abstract contract AbstractStorageMultisigIsm is
 
     event ValidatorsAndThresholdSet(address[] validators, uint8 threshold);
 
-    constructor() OwnableUpgradeable() {}
+    constructor() OwnableUpgradeable() {
+        _disableInitializers();
+    }
 
     function initialize(
         address[] memory _validators,
         uint8 _threshold
-    ) public initializer {
+    ) external initializer {
         __Ownable_init();
         setValidatorsAndThreshold(_validators, _threshold);
     }
