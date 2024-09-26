@@ -1,3 +1,5 @@
+import chalk from 'chalk';
+
 import { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { objMap, pick } from '@hyperlane-xyz/utils';
 
@@ -11,6 +13,12 @@ import { supportedChainNames as testnet4SupportedChainNames } from '../config/en
 import { getArgs } from './agent-utils.js';
 
 const CURRENCY = 'usd';
+
+const DEFAULT_PRICE = {
+  mainnet3: '1',
+  testnet4: '10',
+  test: '100',
+};
 
 async function main() {
   const { environment } = await getArgs().argv;
@@ -50,15 +58,26 @@ async function main() {
 
   const prices = objMap(ids, (_, id) => {
     const idData = idPrices[id];
+
     if (!idData) {
-      throw new Error(
-        `No data for ${id}, did you set gasCurrencyCoinGeckoId in the metadata?`,
+      console.warn(
+        chalk.yellow(
+          `No data for ${id}, using ${DEFAULT_PRICE[environment]} as a default`,
+        ),
       );
+      return DEFAULT_PRICE[environment];
     }
+
     const price = idData[CURRENCY];
     if (!price) {
-      throw new Error(`No ${CURRENCY} price for ${id}`);
+      console.warn(
+        chalk.yellow(
+          `No ${CURRENCY} price for ${id}, using ${DEFAULT_PRICE[environment]} as a default`,
+        ),
+      );
+      return DEFAULT_PRICE[environment];
     }
+
     return price.toString();
   });
 
