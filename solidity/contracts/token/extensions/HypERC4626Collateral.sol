@@ -47,11 +47,7 @@ contract HypERC4626Collateral is HypERC20Collateral {
         // Can't override _transferFromSender only because we need to pass shares in the token message
         _transferFromSender(_amount);
         uint256 _shares = _depositIntoVault(_amount);
-        uint256 _exchangeRate = PRECISION.mulDiv(
-            vault.totalAssets(),
-            vault.totalSupply(),
-            Math.Rounding.Down
-        );
+        uint256 _exchangeRate = vault.convertToAssets(PRECISION);
         bytes memory _tokenMetadata = abi.encode(_exchangeRate);
 
         bytes memory _tokenMessage = TokenMessage.format(

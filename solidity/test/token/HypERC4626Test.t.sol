@@ -123,9 +123,11 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
-        assertEq(
+        assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
-            transferAmount + _discountedYield()
+            transferAmount + _discountedYield(),
+            1e14,
+            0
         );
     }
 
@@ -330,13 +332,23 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
         peerMailbox.processNextInboundMessage();
 
-        assertEq(remoteRebasingToken.exchangeRate(), 1045e7); // 5 * 0.9 = 4.5% yield
+        assertApproxEqRelDecimal(
+            remoteRebasingToken.exchangeRate(),
+            1045e7,
+            1e14,
+            0
+        ); // 5 * 0.9 = 4.5% yield
         assertEq(peerRebasingToken.exchangeRate(), 1e10); // assertingthat transfers by the synthetic variant don't impact the exchang rate
 
         localRebasingToken.rebase(PEER_DESTINATION);
         peerMailbox.processNextInboundMessage();
 
-        assertEq(peerRebasingToken.exchangeRate(), 1045e7); // asserting that the exchange rate is set finally by the collateral variant
+        assertApproxEqRelDecimal(
+            peerRebasingToken.exchangeRate(),
+            1045e7,
+            1e14,
+            0
+        ); // asserting that the exchange rate is set finally by the collateral variant
     }
 
     function test_cyclicTransfers() public {
@@ -400,9 +412,11 @@ contract HypERC4626CollateralTest is HypTokenTest {
 
         localRebasingToken.rebase(DESTINATION);
         remoteMailbox.processNextInboundMessage();
-        assertEq(
+        assertApproxEqRelDecimal(
             remoteToken.balanceOf(BOB),
-            transferAmount + _discountedYield()
+            transferAmount + _discountedYield(),
+            1e14,
+            0
         );
 
         vm.prank(address(localMailbox));
