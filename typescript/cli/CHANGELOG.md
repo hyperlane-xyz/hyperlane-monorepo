@@ -1,5 +1,24 @@
 # @hyperlane-xyz/cli
 
+## 5.3.0
+
+### Minor Changes
+
+- 35d4503b9: Update to registry v4.3.6
+- aef3dbf4d: Remove mailbox choice prompt if it can be automatically detected from the registry
+
+### Patch Changes
+
+- a513e1b51: Override default with merkle hook for self relay
+- Updated dependencies [eb47aaee8]
+- Updated dependencies [50319d8ba]
+- Updated dependencies [8de531fa4]
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [fd536a79a]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/sdk@5.3.0
+  - @hyperlane-xyz/utils@5.3.0
+
 ## 5.2.1
 
 ### Patch Changes

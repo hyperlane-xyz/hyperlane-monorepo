@@ -18,6 +18,6 @@
     "type": "collateral",
     "decimals": 6,
     "token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
-    "foreignDeployment": "0xFc8F5272d690cf19732a7eD6f246aDF5fB8708dB"
+    "foreignDeployment": "0xe1de9910fe71cc216490ac7fcf019e13a34481d7"
   }
 }
