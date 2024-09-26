@@ -66,7 +66,9 @@ export async function runMultiChainSelectionStep(
     const confirmed = !requiresConfirmation
       ? true
       : await confirm({
-          message: `Is this chain selection correct?: ${chains.join(', ')}`,
+          message: `Is this chain selection correct?: ${chalk.cyan(
+            chains.join(', '),
+          )}`,
         });
     if (!confirmed) {
       currentChoiceSelection = new Set(chains);

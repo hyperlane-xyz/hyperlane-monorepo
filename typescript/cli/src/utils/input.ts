@@ -16,7 +16,7 @@ import figures from '@inquirer/figures';
 import { KeypressEvent, confirm, input } from '@inquirer/prompts';
 import type { PartialDeep } from '@inquirer/type';
 import ansiEscapes from 'ansi-escapes';
-import colors from 'yoctocolors-cjs';
+import chalk from 'chalk';
 
 import { logGray } from '../logger.js';
 
@@ -73,9 +73,9 @@ export async function inputWithInfo({
 }
 
 // Searchable checkbox code
-export type Status = 'loading' | 'idle' | 'done' | 'pending-confirmation';
+export type Status = 'loading' | 'idle' | 'done';
 
-type CheckboxTheme = {
+type SearchableCheckboxTheme = {
   icon: {
     checked: string;
     unchecked: string;
@@ -92,17 +92,17 @@ type CheckboxTheme = {
   helpMode: 'always' | 'never' | 'auto';
 };
 
-const checkboxTheme: CheckboxTheme = {
+const checkboxTheme: SearchableCheckboxTheme = {
   icon: {
-    checked: colors.green(figures.circleFilled),
+    checked: chalk.green(figures.circleFilled),
     unchecked: figures.circle,
     cursor: figures.pointer,
   },
   style: {
-    disabledChoice: (text: string) => colors.dim(`- ${text}`),
+    disabledChoice: (text: string) => chalk.dim(`- ${text}`),
     renderSelectedChoices: (selectedChoices) =>
       selectedChoices.map((choice) => choice.short).join(', '),
-    description: (text: string) => colors.cyan(text),
+    description: (text: string) => chalk.cyan(text),
   },
   helpMode: 'auto',
 };
@@ -126,7 +126,7 @@ type NormalizedChoice<Value> = {
   checked: boolean;
 };
 
-type CheckboxConfig<
+type SearchableCheckboxConfig<
   Value,
   ChoicesObject =
     | ReadonlyArray<string | Separator>
@@ -144,7 +144,7 @@ type CheckboxConfig<
   validate?: (
     choices: ReadonlyArray<Choice<Value>>,
   ) => boolean | string | Promise<string | boolean>;
-  theme?: PartialDeep<Theme<CheckboxTheme>>;
+  theme?: PartialDeep<Theme<SearchableCheckboxTheme>>;
 };
 
 type Item<Value> = NormalizedChoice<Value> | Separator;
@@ -251,7 +251,7 @@ function isDownKey(key: KeypressEvent): boolean {
 
 export const searchableCheckBox = createPrompt(
   <Value>(
-    config: CheckboxConfig<Value>,
+    config: SearchableCheckboxConfig<Value>,
     done: (value: Array<Value>) => void,
   ) => {
     const {
@@ -261,7 +261,10 @@ export const searchableCheckBox = createPrompt(
       required,
       validate = () => true,
     } = config;
-    const theme = makeTheme<CheckboxTheme>(checkboxTheme, config.theme);
+    const theme = makeTheme<SearchableCheckboxTheme>(
+      checkboxTheme,
+      config.theme,
+    );
     const firstRender = useRef(true);
     const [status, setStatus] = useState<Status>('idle');
     const prefix = usePrefix({ theme });
@@ -445,15 +448,6 @@ export const searchableCheckBox = createPrompt(
     });
 
     if (status === 'done') {
-      const selection = optionState.options.filter(isChecked);
-      const answer = theme.style.answer(
-        theme.style.renderSelectedChoices(selection, optionState.options),
-      );
-
-      return `${prefix} ${message} ${answer}`;
-    }
-
-    if (status === 'pending-confirmation') {
       const selection = optionState.options.filter(isChecked);
       const answer = theme.style.answer(
         theme.style.renderSelectedChoices(selection, optionState.options),

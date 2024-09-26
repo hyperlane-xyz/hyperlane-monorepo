@@ -7615,7 +7615,6 @@ __metadata:
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
-    yoctocolors-cjs: "npm:^2.1.2"
     zod: "npm:^3.21.2"
     zod-validation-error: "npm:^3.3.0"
     zx: "npm:^8.1.4"

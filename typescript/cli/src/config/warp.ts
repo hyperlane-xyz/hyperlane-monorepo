@@ -120,6 +120,7 @@ export async function createWarpRouteDeployConfig({
     context.chainMetadata,
     'Select chains to connect',
     1,
+    true,
   );
 
   const result: WarpRouteDeployConfig = {};
