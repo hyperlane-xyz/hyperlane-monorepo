@@ -20,7 +20,7 @@ import {Message} from "../../contracts/libs/Message.sol";
 import {ThresholdTestUtils} from "./IsmTestUtils.sol";
 import {StorageMessageIdMultisigIsm, StorageMerkleRootMultisigIsm, StorageMessageIdMultisigIsmFactory, StorageMerkleRootMultisigIsmFactory} from "../../contracts/isms/multisig/StorageMultisigIsm.sol";
 
-uint8 constant MAX_VALIDATORS = 5;
+uint8 constant MAX_VALIDATORS = 20;
 
 /// @notice since we removed merkle tree from the mailbox, we need to include the MerkleTreeHook in the test
 abstract contract AbstractMultisigIsmTest is Test {
