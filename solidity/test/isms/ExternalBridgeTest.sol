@@ -330,6 +330,6 @@ abstract contract ExternalBridgeTest is Test {
 
     receive() external payable {}
 
-    // meant to be mock an arbitrary succesful call made by the external bridge
+    // meant to be mock an arbitrary successful call made by the external bridge
     function verifyMessageId(bytes32 /*messageId*/) public payable {}
 }
