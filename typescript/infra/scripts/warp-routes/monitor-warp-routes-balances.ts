@@ -449,7 +449,7 @@ export function updateTokenBalanceMetrics(
           token_address: token.tokenAddress ?? ethers.constants.AddressZero,
           token_name: token.name,
         })
-        .set(balances[chain].value);
+        .set(balances[chain].value as number);
     }
     logger.debug('Wallet balance updated for chain', {
       chain,
