@@ -1,8 +1,10 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::crypto::PublicKey;
-use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo};
-use cosmrs::{AccountId, Any, Coin, Tx};
+use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo, SignerPublicKey};
+use cosmrs::{proto, AccountId, Any, Coin, Tx};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use tendermint::hash::Algorithm;
@@ -11,6 +13,7 @@ use tendermint_rpc::{client::CompatMode, Client, HttpClient};
 use time::OffsetDateTime;
 use tracing::{error, warn};
 
+use crypto::decompress_public_key;
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
     HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256, U256,
@@ -24,6 +27,9 @@ use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 /// Exponent value for atto units (10^-18).
 const ATTO_EXPONENT: u32 = 18;
+
+/// Injective public key type URL for protobuf Any
+const INJECTIVE_PUBLIC_KEY_TYPE_URL: &str = "/injective.crypto.v1beta1.ethsecp256k1.PubKey";
 
 /// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
@@ -93,7 +99,8 @@ impl CosmosProvider {
             HyperlaneCosmosError::PublicKeyError("no public key for default signer".to_owned())
         })?;
 
-        let public_key = PublicKey::try_from(signer_public_key)?;
+        let key = self.normalize_public_key(signer_public_key)?;
+        let public_key = PublicKey::try_from(key)?;
 
         let account_id = CosmosAccountId::account_id_from_pubkey(
             public_key,
@@ -101,6 +108,59 @@ impl CosmosProvider {
         )?;
 
         Ok((account_id, signer_info.sequence))
+    }
+
+    fn normalize_public_key(
+        &self,
+        signer_public_key: SignerPublicKey,
+    ) -> ChainResult<SignerPublicKey> {
+        let public_key = match signer_public_key {
+            SignerPublicKey::Single(pk) => SignerPublicKey::from(pk),
+            SignerPublicKey::LegacyAminoMultisig(pk) => SignerPublicKey::from(pk),
+            SignerPublicKey::Any(pk) => {
+                if pk.type_url != PublicKey::ED25519_TYPE_URL
+                    && pk.type_url != PublicKey::SECP256K1_TYPE_URL
+                    && pk.type_url != INJECTIVE_PUBLIC_KEY_TYPE_URL
+                {
+                    let msg = format!(
+                        "can only normalize public keys with a known TYPE_URL: {}, {}, {}",
+                        PublicKey::ED25519_TYPE_URL,
+                        PublicKey::SECP256K1_TYPE_URL,
+                        INJECTIVE_PUBLIC_KEY_TYPE_URL
+                    );
+                    warn!(pk.type_url, msg);
+                    Err(HyperlaneCosmosError::PublicKeyError(msg.to_owned()))?
+                }
+
+                let pub_key = if pk.type_url == INJECTIVE_PUBLIC_KEY_TYPE_URL {
+                    let any = Any {
+                        type_url: PublicKey::SECP256K1_TYPE_URL.to_owned(),
+                        value: pk.value,
+                    };
+
+                    let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
+                        .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+                    let decompressed = decompress_public_key(&proto.key)
+                        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+
+                    let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed)
+                        .ok_or_else(|| {
+                            HyperlaneCosmosError::PublicKeyError(
+                                "cannot create tendermint public key".to_owned(),
+                            )
+                        })?;
+
+                    PublicKey::from(tendermint)
+                } else {
+                    PublicKey::try_from(pk)?
+                };
+
+                SignerPublicKey::Single(pub_key)
+            }
+        };
+
+        Ok(public_key)
     }
 
     /// Calculates the sender and the nonce for the transaction.
