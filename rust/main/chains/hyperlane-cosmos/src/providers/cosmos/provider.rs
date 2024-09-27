@@ -139,7 +139,7 @@ impl CosmosProvider {
                     };
 
                     let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
-                        .map_err(HyperlaneCosmosError::Prost)?;
+                        .map_err(Into::<HyperlaneCosmosError>::into)?;
 
                     let decompressed = decompress_public_key(&proto.key)
                         .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
