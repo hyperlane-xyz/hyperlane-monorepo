@@ -20,7 +20,7 @@ contract RateLimitLibTest is Test {
     }
 
     function testRateLimited_setsNewLimit() external {
-        rateLimited.setRefillRate(2 ether);
+        assert(rateLimited.setRefillRate(2 ether) > 0);
         assertApproxEqRel(rateLimited.maxCapacity(), 2 ether, ONE_PERCENT);
         assertEq(rateLimited.refillRate(), uint256(2 ether) / 1 days); // 2 ether / 1 day
     }
@@ -128,5 +128,25 @@ contract RateLimitLibTest is Test {
         vm.warp(10 days);
         currentTargetLimit = rateLimited.calculateCurrentLevel();
         assertApproxEqRel(currentTargetLimit, MAX_CAPACITY, ONE_PERCENT);
+    }
+
+    function testCalculateCurrentLevel_revertsWhenCapacityIsZero() public {
+        rateLimited.setRefillRate(0);
+
+        vm.expectRevert("RateLimitNotSet");
+        rateLimited.calculateCurrentLevel();
+    }
+
+    function testValidateAndConsumeFilledLevel_revertsWhenExceedingLimit()
+        public
+    {
+        vm.warp(1 days);
+        uint256 initialLevel = rateLimited.calculateCurrentLevel();
+
+        uint256 excessAmount = initialLevel + 1 ether;
+
+        vm.expectRevert("RateLimitExceeded");
+        rateLimited.validateAndConsumeFilledLevel(excessAmount);
+        assertEq(rateLimited.calculateCurrentLevel(), initialLevel);
     }
 }

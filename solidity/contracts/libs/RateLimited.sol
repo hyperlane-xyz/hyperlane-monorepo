@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+// ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
@@ -12,12 +25,12 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  */
 contract RateLimited is OwnableUpgradeable {
     uint256 public constant DURATION = 1 days; // 86400
-    uint256 public filledLevel;
     /// @notice Current filled level
-    uint256 public refillRate;
+    uint256 public filledLevel;
     /// @notice Tokens per second refill rate
-    uint256 public lastUpdated;
+    uint256 public refillRate;
     /// @notice Timestamp of the last time an action has been taken TODO prob can be uint40
+    uint256 public lastUpdated;
 
     event RateLimitSet(uint256 _oldCapacity, uint256 _newCapacity);
 
