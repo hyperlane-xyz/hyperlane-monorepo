@@ -27,7 +27,7 @@ jobs:
         run: echo "defined=true" >> $GITHUB_OUTPUT
 
   build-and-push-to-gcr:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
