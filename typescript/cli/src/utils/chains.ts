@@ -32,12 +32,40 @@ export async function runSingleChainSelectionStep(
   return chain;
 }
 
-export async function runMultiChainSelectionStep(
-  chainMetadata: ChainMap<ChainMetadata>,
+type RunMultiChainSelectionStepOptions = {
+  /**
+   * The metadata of the chains that will be displayed to the user
+   */
+  chainMetadata: ChainMap<ChainMetadata>;
+
+  /**
+   * The message to display to the user
+   *
+   * @default 'Select chains'
+   */
+  message?: string;
+
+  /**
+   * The minimum number of chains that must be selected
+   *
+   * @default 0
+   */
+  requireNumber?: number;
+
+  /**
+   * Whether to ask for confirmation after the selection
+   *
+   * @default false
+   */
+  requiresConfirmation?: boolean;
+};
+
+export async function runMultiChainSelectionStep({
+  chainMetadata,
   message = 'Select chains',
   requireNumber = 0,
   requiresConfirmation = false,
-) {
+}: RunMultiChainSelectionStepOptions) {
   const networkType = await selectNetworkType();
   const { choices, networkTypeSeparator } = getChainChoices(
     chainMetadata,
