@@ -1199,6 +1199,7 @@
       "timelockController": "0x0000000000000000000000000000000000000000",
       "validatorAnnounce": "0x7c5B5bdA7F1d1F70A6678ABb4d894612Fc76498F",
       "index": {
+        "chunk": 1000,
         "from": 334706
       }
     },
