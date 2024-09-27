@@ -118,30 +118,43 @@ impl CosmosProvider {
             SignerPublicKey::Single(pk) => SignerPublicKey::from(pk),
             SignerPublicKey::LegacyAminoMultisig(pk) => SignerPublicKey::from(pk),
             SignerPublicKey::Any(pk) => {
-                if pk.type_url != INJECTIVE_PUBLIC_KEY_TYPE_URL {
-                    let msg = "we don't support this kind of TYPE_URL for public key";
+                if pk.type_url != PublicKey::ED25519_TYPE_URL
+                    && pk.type_url != PublicKey::SECP256K1_TYPE_URL
+                    && pk.type_url != INJECTIVE_PUBLIC_KEY_TYPE_URL
+                {
+                    let msg = format!(
+                        "can only normalize public keys with a known TYPE_URL: {}, {}, {}",
+                        PublicKey::ED25519_TYPE_URL,
+                        PublicKey::SECP256K1_TYPE_URL,
+                        INJECTIVE_PUBLIC_KEY_TYPE_URL
+                    );
                     warn!(pk.type_url, msg);
                     Err(HyperlaneCosmosError::PublicKeyError(msg.to_owned()))?
                 }
 
-                let any = Any {
-                    type_url: PublicKey::SECP256K1_TYPE_URL.to_owned(),
-                    value: pk.value,
+                let pub_key = if pk.type_url == INJECTIVE_PUBLIC_KEY_TYPE_URL {
+                    let any = Any {
+                        type_url: PublicKey::SECP256K1_TYPE_URL.to_owned(),
+                        value: pk.value,
+                    };
+
+                    let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
+                        .map_err(HyperlaneCosmosError::Prost)?;
+
+                    let decompressed = decompress_public_key(&proto.key)
+                        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+
+                    let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed)
+                        .ok_or_else(|| {
+                            HyperlaneCosmosError::PublicKeyError(
+                                "cannot create tendermint public key".to_owned(),
+                            )
+                        })?;
+
+                    PublicKey::from(tendermint)
+                } else {
+                    PublicKey::try_from(pk)?
                 };
-
-                let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
-                    .map_err(HyperlaneCosmosError::Prost)?;
-
-                let decompressed = decompress_public_key(&proto.key)
-                    .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
-
-                let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed)
-                    .ok_or_else(|| {
-                        HyperlaneCosmosError::PublicKeyError(
-                            "cannot create tendermint public key".to_owned(),
-                        )
-                    })?;
-                let pub_key = PublicKey::from(tendermint);
 
                 SignerPublicKey::Single(pub_key)
             }
