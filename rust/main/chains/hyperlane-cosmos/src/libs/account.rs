@@ -23,7 +23,7 @@ impl<'a> CosmosAccountId<'a> {
         match prefix {
             "neutron" | "osmo" => Self::bitcoin_style(pub_key, prefix),
             "inj" => Self::ethereum_style(pub_key, prefix),
-            &_ => Err(HyperlaneCosmosError::CosmosError(cosmrs::Error::Crypto))?,
+            _ => Err(HyperlaneCosmosError::CosmosError(cosmrs::Error::Crypto))?,
         }
     }
 
