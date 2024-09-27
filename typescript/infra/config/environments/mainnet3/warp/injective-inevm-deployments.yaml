@@ -9,6 +9,7 @@ data:
       protocolType: cosmos
       type: native
       hypAddress: inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k
+      tokenCoinGeckoId: injective-protocol
       name: Injective Coin
       symbol: INJ
       decimals: 18
