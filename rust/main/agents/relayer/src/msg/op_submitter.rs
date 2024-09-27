@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use derive_new::new;
+// use ethers::types::H256;
 use futures::future::join_all;
 use futures_util::future::try_join_all;
 use hyperlane_core::total_estimated_cost;
@@ -243,6 +244,7 @@ async fn prepare_task(
     confirm_queue: OpQueue,
     max_batch_size: u32,
     metrics: SerialSubmitterMetrics,
+    // from_address: H256,
 ) {
     // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
     let ops_to_prepare = max_batch_size as usize;
