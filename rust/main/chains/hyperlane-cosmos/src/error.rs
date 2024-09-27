@@ -1,6 +1,9 @@
-use cosmrs::proto::prost;
-use hyperlane_core::ChainCommunicationError;
 use std::fmt::Debug;
+
+use cosmrs::proto::prost;
+
+use crypto::PublicKeyError;
+use hyperlane_core::ChainCommunicationError;
 
 /// Errors from the crates specific to the hyperlane-cosmos
 /// implementation.
@@ -58,5 +61,11 @@ pub enum HyperlaneCosmosError {
 impl From<HyperlaneCosmosError> for ChainCommunicationError {
     fn from(value: HyperlaneCosmosError) -> Self {
         ChainCommunicationError::from_other(value)
+    }
+}
+
+impl From<PublicKeyError> for HyperlaneCosmosError {
+    fn from(value: PublicKeyError) -> Self {
+        HyperlaneCosmosError::PublicKeyError(value.to_string())
     }
 }
