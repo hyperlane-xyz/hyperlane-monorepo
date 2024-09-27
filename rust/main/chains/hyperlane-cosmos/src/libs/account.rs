@@ -45,7 +45,7 @@ impl<'a> CosmosAccountId<'a> {
     /// Parameter `pub_key` is a compressed public key.
     fn ethereum_style(pub_key: PublicKey, prefix: &str) -> ChainResult<AccountId> {
         let decompressed_public_key = decompress_public_key(&pub_key.to_bytes())
-            .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         let hash = keccak256_hash(&decompressed_public_key[1..]);
 
