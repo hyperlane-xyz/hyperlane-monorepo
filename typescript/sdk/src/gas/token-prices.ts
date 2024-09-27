@@ -23,7 +23,7 @@ type TokenPriceCacheEntry = {
 };
 
 class TokenPriceCache {
-  protected cache: Map<ChainName, TokenPriceCacheEntry>;
+  protected cache: Map<string, TokenPriceCacheEntry>;
   protected freshSeconds: number;
   protected evictionSeconds: number;
 
@@ -136,8 +136,10 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     return chains.map((chain) => this.cache.fetch(chain));
   }
 
-  private async queryTokenPrices(chains: ChainName[]): Promise<void> {
-    const currency = 'usd';
+  private async queryTokenPrices(
+    chains: ChainName[],
+    currency: string = 'usd',
+  ): Promise<void> {
     // The CoinGecko API expects, in some cases, IDs that do not match
     // ChainNames.
     const ids = chains.map(
@@ -152,5 +154,25 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     const prices = ids.map((id) => response.data[id][currency]);
     // Update the cache with the newly fetched prices
     chains.map((chain, i) => this.cache.put(chain, prices[i]));
+  }
+
+  public async getTokenPriceByIds(
+    ids: string[],
+    currency: string = 'usd',
+  ): Promise<number[]> {
+    const toQuery = ids.filter((id) => !this.cache.isFresh(id));
+    if (toQuery.length > 0) {
+      try {
+        const response = await this.coinGecko.simple.price({
+          ids: toQuery,
+          vs_currencies: [currency],
+        });
+        const prices = toQuery.map((id) => response.data[id][currency]);
+        toQuery.map((id, i) => this.cache.put(id, prices[i]));
+      } catch (e) {
+        rootLogger.warn('Failed to query token prices', e);
+      }
+    }
+    return ids.map((id) => this.cache.fetch(id));
   }
 }

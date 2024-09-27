@@ -10,6 +10,7 @@ data:
       type: collateral
       hypAddress: '0xc2495f3183F043627CAECD56dAaa726e3B2D9c09'
       tokenAddress: '0x19e099B7aEd41FA52718D780dDA74678113C0b32'
+      tokenCoinGeckoId: turbo
       name: Turbo Eth
       symbol: tETH
       decimals: 18
