@@ -12,7 +12,7 @@
     "decimals": 9
   },
   "berabartio": {
-    "amount": "0.001000009",
+    "amount": "0.010488335",
     "decimals": 9
   },
   "bsctestnet": {
@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "citreatestnet": {
-    "amount": "1.01",
+    "amount": "0.01",
     "decimals": 9
   },
   "connextsepolia": {
@@ -48,11 +48,7 @@
     "decimals": 9
   },
   "holesky": {
-    "amount": "0.783743361",
-    "decimals": 9
-  },
-  "hyperliquidevmtestnet": {
-    "amount": "0.000000007",
+    "amount": "0.858734023",
     "decimals": 9
   },
   "optimismsepolia": {
@@ -64,11 +60,11 @@
     "decimals": 9
   },
   "scrollsepolia": {
-    "amount": "0.497427713",
+    "amount": "1",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "148.376099624",
+    "amount": "277.866557179",
     "decimals": 9
   },
   "solanatestnet": {
