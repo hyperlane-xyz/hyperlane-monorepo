@@ -22,9 +22,6 @@ import {Message} from "../../libs/Message.sol";
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 
-// ============ External Imports ============
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-
 /**
  * @title AbstractMessageIdAuthHook
  * @notice Message hook to inform an Abstract Message ID ISM of messages published through
@@ -34,7 +31,6 @@ abstract contract AbstractMessageIdAuthHook is
     AbstractPostDispatchHook,
     MailboxClient
 {
-    using Address for address payable;
     using StandardHookMetadata for bytes;
     using Message for bytes;
 
@@ -86,19 +82,11 @@ abstract contract AbstractMessageIdAuthHook is
             metadata.msgValue(0) < 2 ** 255,
             "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
         );
-
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.verifyMessageId,
             id
         );
         _sendMessageId(metadata, payload);
-
-        uint256 _overpayment = msg.value - _quoteDispatch(metadata, message);
-        if (_overpayment > 0) {
-            address _refundAddress = metadata.refundAddress(msg.sender);
-            require(_refundAddress != address(0), "no refund address");
-            payable(_refundAddress).sendValue(_overpayment);
-        }
     }
 
     /**
