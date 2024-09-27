@@ -828,9 +828,6 @@
       "testRecipient": "0xa3AB7E6cE24E6293bD5320A53329Ef2f4DE73fCA",
       "testTokenRecipient": "0xc76E477437065093D353b7d56c81ff54D167B0Ab",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": 500000000
-      },
       "validatorAnnounce": "0x527768930D889662Fe7ACF64294871e86e4C2381",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
       "staticMessageIdWeightedMultisigIsmFactory": "0x63dFf524F1c7361f4F1bf07D658Bf7f2d5Dd5B20",
