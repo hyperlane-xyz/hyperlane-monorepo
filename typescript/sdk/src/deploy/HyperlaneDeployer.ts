@@ -11,7 +11,8 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { TransparentUpgradeableProxy__artifact } from '@hyperlane-xyz/core/artifacts';
+// import { TransparentUpgradeableProxy__artifact } from '@hyperlane-xyz/core/artifacts';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   ProtocolType,
@@ -46,7 +47,10 @@ import {
 } from './proxy.js';
 import { OwnableConfig } from './types.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
-import { ContractVerificationInput } from './verify/types.js';
+import {
+  ContractVerificationInput,
+  ExplorerLicenseType,
+} from './verify/types.js';
 import {
   buildVerificationInput,
   shouldAddVerificationInput,
@@ -92,12 +96,12 @@ export abstract class HyperlaneDeployer<
     }
 
     // if none provided, instantiate a default verifier with the default core contract build artifact
-    // this.options.contractVerifier ??= new ContractVerifier(
-    //   multiProvider,
-    //   {},
-    //   coreBuildArtifact,
-    //   ExplorerLicenseType.MIT,
-    // );
+    this.options.contractVerifier ??= new ContractVerifier(
+      multiProvider,
+      {},
+      coreBuildArtifact,
+      ExplorerLicenseType.MIT,
+    );
   }
 
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
@@ -121,14 +125,21 @@ export abstract class HyperlaneDeployer<
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
     const configChains = Object.keys(configMap);
+
     const ethereumConfigChains = configChains.filter(
       (chain) =>
         this.multiProvider.getChainMetadata(chain).protocol ===
         ProtocolType.Ethereum,
     );
 
+    const zksyncConfigChains = configChains.filter(
+      (chain) =>
+        this.multiProvider.getChainMetadata(chain).protocol ===
+        ProtocolType.ZKSync,
+    );
+
     const targetChains = this.multiProvider.intersect(
-      ethereumConfigChains,
+      [...ethereumConfigChains, ...zksyncConfigChains],
       true,
     ).intersection;
 
@@ -374,7 +385,6 @@ export abstract class HyperlaneDeployer<
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
     shouldRecover = true,
     implementationAddress?: Address | null,
-    artifact?: any,
   ): Promise<ReturnType<F['deploy']>> {
     if (shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
@@ -415,7 +425,7 @@ export abstract class HyperlaneDeployer<
           `Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized`,
         );
       } else {
-        this.logger.debug(
+        this.logger.info(
           `Initializing ${contractName} (${contract.address}) on ${chain}...`,
         );
 
@@ -428,15 +438,37 @@ export abstract class HyperlaneDeployer<
         const overrides = this.multiProvider.getTransactionOverrides(chain);
 
         const initTx = await contract.initialize(...initializeArgs, {
+          // gasLimit: estimatedGas.add(estimatedGas.div(10)),
           ...overrides,
         });
-        const receipt = await initTx.wait();
+        this.logger.info(`Contract ${contractName} initialized`);
+        const receipt = await this.multiProvider.handleTx(chain, initTx);
 
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
         );
       }
     }
+
+    // const verificationInput = getContractVerificationInput({
+    //   name: contractName,
+    //   contract,
+    //   bytecode: factory.bytecode,
+    //   expectedimplementation: implementationAddress,
+    // });
+
+    // this.addVerificationArtifacts(chain, [verificationInput]);
+
+    // // try verifying contract
+    // try {
+    //   await this.options.contractVerifier?.verifyContract(
+    //     chain,
+    //     verificationInput,
+    //   );
+    // } catch (error) {
+    //   // log error but keep deploying, can also verify post-deployment if needed
+    //   this.logger.debug(`Error verifying contract: ${error}`);
+    // }
 
     return contract;
   }
@@ -472,7 +504,6 @@ export abstract class HyperlaneDeployer<
       initializeArgs,
       shouldRecover,
       null,
-      this.artifacts[contractKey],
     );
     this.writeCache(chain, contractName, contract.address);
     return contract;
@@ -596,7 +627,6 @@ export abstract class HyperlaneDeployer<
       undefined,
       true,
       implementation.address,
-      TransparentUpgradeableProxy__artifact,
     );
 
     return implementation.attach(proxy.address) as C;

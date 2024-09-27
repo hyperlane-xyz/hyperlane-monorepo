@@ -169,7 +169,7 @@ export class HyperlaneRelayer {
       12, // 12 attempts
     );
 
-    this.logger.info({ message, metadata }, `Relaying message ${message.id}`);
+    this.logger.debug({ message, metadata }, `Relaying message ${message.id}`);
     return this.core.deliver(message, metadata);
   }
 

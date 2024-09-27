@@ -33,7 +33,7 @@ export async function fetchProvider(
   if (rpcData.length === 0) {
     throw Error(`No RPC URLs found for chain: ${chainName}`);
   }
-
+  console.log('fetchProvider');
   return new HyperlaneSmartProvider(
     chainId,
     rpcData.map((url) => ({ http: url })),

@@ -1,7 +1,7 @@
 import * as ethers from 'ethers';
 import * as zk from 'zksync-ethers';
 
-import { allArtifacts } from '@hyperlane-xyz/core/artifacts';
+import { evmArtifacts, zksyncArtifacts } from '@hyperlane-xyz/core/artifacts';
 
 /**
  * An entity capable of deploying contracts to the zkSync network.
@@ -14,7 +14,6 @@ export class ZKDeployer {
     this.deploymentType = deploymentType;
     let l2Provider: zk.Provider;
 
-    // Initalize two providers: one for the Ethereum RPC (layer 1), and one for the zkSync RPC (layer 2).
     const zkWeb3Provider = new zk.Provider('http://127.0.0.1:8011', 260);
 
     l2Provider =
@@ -23,8 +22,8 @@ export class ZKDeployer {
     this.zkWallet = zkWallet.connect(l2Provider);
   }
 
-  public async loadArtifact(contractTitle: string): Promise<any> {
-    const artifact = allArtifacts.find(({ contractName, sourceName }) => {
+  public loadArtifact(contractTitle: string): Promise<any> {
+    const artifact = zksyncArtifacts.find(({ contractName, sourceName }) => {
       if (contractName === contractTitle) {
         return true;
       }
@@ -41,9 +40,19 @@ export class ZKDeployer {
   }
 
   public static loadArtifactByBytecode(bytecodeExt: string): Promise<any> {
-    const artifact = allArtifacts.find(
+    const artifact = zksyncArtifacts.find(
       ({ bytecode }) => bytecode === bytecodeExt,
     );
+
+    return artifact as any;
+  }
+
+  public loadArtifactByEvmBytecode(bytecodeExt: string): Promise<any> {
+    const evmArtifact = evmArtifacts.find(
+      ({ bytecode }) => bytecode === bytecodeExt,
+    );
+
+    const artifact = this.loadArtifact(evmArtifact.contractName);
 
     return artifact as any;
   }

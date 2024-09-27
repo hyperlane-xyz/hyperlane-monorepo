@@ -1,15 +1,16 @@
 import {
   BigNumber,
+  ContractFactory,
   ContractReceipt,
   ContractTransaction,
   PopulatedTransaction,
-  ethers,
+  Signer,
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
-import { Wallet, Provider as ZKSyncProvider } from 'zksync-ethers';
+import * as zk from 'zksync-ethers';
 
-import { Address, pick, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, pick, rootLogger } from '@hyperlane-xyz/utils';
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
@@ -19,6 +20,7 @@ import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
+  ProviderBuilderFn,
   defaultProviderBuilder,
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
@@ -27,9 +29,9 @@ type Provider = providers.Provider;
 
 export interface MultiProviderOptions {
   logger?: Logger;
-  providers?: ChainMap<ZKSyncProvider>;
-  providerBuilder?: any;
-  signers?: ChainMap<Wallet>;
+  providers?: ChainMap<Provider | zk.Provider>;
+  providerBuilder?: ProviderBuilderFn<Provider>;
+  signers?: ChainMap<Signer | zk.Wallet>;
 }
 
 /**
@@ -37,9 +39,9 @@ export interface MultiProviderOptions {
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
  */
 export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
-  readonly providers: ChainMap<ZKSyncProvider>;
-  readonly providerBuilder: any;
-  signers: ChainMap<Wallet>;
+  readonly providers: ChainMap<Provider | zk.Provider>;
+  readonly providerBuilder: ProviderBuilderFn<Provider>;
+  signers: ChainMap<zk.Wallet | Signer>;
   useSharedSigner = false; // A single signer to be used for all chains
   readonly logger: Logger;
 
@@ -82,18 +84,24 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   /**
    * Get an Ethers provider for a given chain name, chain id, or domain id
    */
-  tryGetProvider(chainNameOrId: ChainNameOrId): ZKSyncProvider | null {
+  tryGetProvider(chainNameOrId: ChainNameOrId): Provider | zk.Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls } = metadata;
+    const { name, chainId, rpcUrls, protocol } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
     if (testChains.includes(name)) {
-      this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
+      if (protocol === ProtocolType.ZKSync) {
+        this.providers[name] = new zk.Provider('http://127.0.0.1:8011', 260);
+      } else {
+        this.providers[name] = new providers.JsonRpcProvider(
+          'http://127.0.0.1:8545',
+          31337,
+        );
+      }
     } else if (rpcUrls.length) {
-      if (metadata.chainId === 270 || metadata.chainId === 260) {
-        console.log({ chainId, rpcUrls });
+      if (protocol === ProtocolType.ZKSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
       } else {
         this.providers[name] = this.providerBuilder(rpcUrls, chainId);
@@ -109,9 +117,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers provider for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set
    */
-  getProvider(
-    chainNameOrId: ChainNameOrId,
-  ): Provider | ethers.providers.Provider {
+  getProvider(chainNameOrId: ChainNameOrId): Provider | zk.Provider {
     const provider = this.tryGetProvider(chainNameOrId);
     if (!provider)
       throw new Error(`No chain metadata set for ${chainNameOrId}`);
@@ -124,13 +130,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   setProvider(
     chainNameOrId: ChainNameOrId,
-    provider: ZKSyncProvider,
+    provider: Provider | zk.Provider,
   ): Provider {
     const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
     if (signer && signer.provider) {
-      this.setSigner(chainName, signer.connect(provider));
+      this.setSigner(chainName, (signer as Signer).connect(provider));
     }
     return provider;
   }
@@ -139,7 +145,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets Ethers providers for a set of chains
    * @throws if chain's metadata has not been set
    */
-  setProviders(providers: ChainMap<ZKSyncProvider>): void {
+  setProviders(providers: ChainMap<Provider | zk.Provider>): void {
     for (const chain of Object.keys(providers)) {
       const chainName = this.getChainName(chain);
       this.providers[chainName] = providers[chain];
@@ -150,7 +156,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers signer for a given chain name, chain id, or domain id
    * If signer is not yet connected, it will be connected
    */
-  tryGetSigner(chainNameOrId: ChainNameOrId): Wallet | null {
+  tryGetSigner(chainNameOrId: ChainNameOrId): Signer | zk.Wallet | null {
     const chainName = this.tryGetChainName(chainNameOrId);
     if (!chainName) return null;
     const signer = this.signers[chainName];
@@ -158,7 +164,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (signer.provider) return signer;
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
-    return provider ? signer.connect(provider) : signer;
+    return provider ? signer.connect(provider as any) : signer;
   }
 
   /**
@@ -166,7 +172,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * If signer is not yet connected, it will be connected
    * @throws if chain's metadata or signer has not been set
    */
-  getSigner(chainNameOrId: ChainNameOrId): Wallet {
+  getSigner(chainNameOrId: ChainNameOrId): Signer | zk.Wallet {
     const signer = this.tryGetSigner(chainNameOrId);
     if (!signer) throw new Error(`No chain signer set for ${chainNameOrId}`);
     return signer;
@@ -186,7 +192,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets an Ethers Signer for a given chain name, chain id, or domain id
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
-  setSigner(chainNameOrId: ChainNameOrId, signer: Wallet): Wallet {
+  setSigner(
+    chainNameOrId: ChainNameOrId,
+    signer: Signer | zk.Wallet,
+  ): Signer | zk.Wallet {
     if (this.useSharedSigner) {
       throw new Error('MultiProvider already set to use a shared signer');
     }
@@ -202,7 +211,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets Ethers Signers for a set of chains
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
-  setSigners(signers: ChainMap<Wallet>): void {
+  setSigners(signers: ChainMap<zk.Wallet>): void {
     if (this.useSharedSigner) {
       throw new Error('MultiProvider already set to use a shared signer');
     }
@@ -217,7 +226,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   tryGetSignerOrProvider(
     chainNameOrId: ChainNameOrId,
-  ): Wallet | Provider | null {
+  ): zk.Wallet | Signer | Provider | zk.Provider | null {
     return (
       this.tryGetSigner(chainNameOrId) || this.tryGetProvider(chainNameOrId)
     );
@@ -227,7 +236,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Gets the Signer if it's been set, otherwise the provider
    * @throws if chain metadata has not been set
    */
-  getSignerOrProvider(chainNameOrId: ChainNameOrId): Wallet | Provider {
+  getSignerOrProvider(
+    chainNameOrId: ChainNameOrId,
+  ): zk.Wallet | Signer | Provider | zk.Provider {
     return this.tryGetSigner(chainNameOrId) || this.getProvider(chainNameOrId);
   }
 
@@ -236,7 +247,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Any subsequent calls to getSigner will return given signer
    * Setting sharedSigner to null clears all signers
    */
-  setSharedSigner(sharedSigner: Wallet | null): Wallet | null {
+  setSharedSigner(
+    sharedSigner: Signer | zk.Wallet | null,
+  ): Signer | zk.Wallet | null {
     if (!sharedSigner) {
       this.useSharedSigner = false;
       this.signers = {};
@@ -311,24 +324,53 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Wait for deploy tx to be confirmed
    * @throws if chain's metadata or signer has not been set or tx fails
    */
-  async handleDeploy(
+  async handleDeploy<F extends zk.ContractFactory | ContractFactory>(
     chainNameOrId: ChainNameOrId,
-    factory: any,
+    factory: F,
     params: any,
-  ): Promise<any> {
+  ): Promise<Awaited<ReturnType<F['deploy']>>> {
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
+    if (!metadata) {
+      throw new Error('Chain metadata not found!');
+    }
+
+    const { protocol } = metadata;
+
+    let contract;
+    const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
 
-    const deployer = new ZKDeployer(signer);
+    if (protocol === ProtocolType.ZKSync) {
+      const deployer = new ZKDeployer(signer as zk.Wallet);
 
-    const localArtifact = ZKDeployer.loadArtifactByBytecode(factory.bytecode);
+      const localArtifact = deployer.loadArtifactByEvmBytecode(
+        factory.bytecode,
+      );
 
-    const contract = await deployer.deploy(localArtifact, params);
+      contract = await deployer.deploy(localArtifact, params);
 
-    this.logger.trace(
-      `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
-    );
+      this.logger.trace(
+        `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
+      );
+    } else {
+      const contractFactory = factory.connect(signer);
+      const deployTx = contractFactory.getDeployTransaction(...params);
+      const gasEstimated = await signer.estimateGas(deployTx);
+      contract = await contractFactory.deploy(...params, {
+        gasLimit: gasEstimated.mul(2), // 10% buffer
+        ...overrides,
+      });
 
-    return contract;
+      this.logger.trace(
+        `Deploying contract ${contract.address} on ${chainNameOrId}:`,
+        { transaction: deployTx },
+      );
+
+      // wait for deploy tx to be confirmed
+      await this.handleTx(chainNameOrId, contract.deployTransaction);
+    }
+    // return deployed contract
+    return contract as Awaited<ReturnType<F['deploy']>>;
   }
 
   /**
@@ -413,7 +455,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Creates a MultiProvider using the given signer for all test networks
    */
   static createTestMultiProvider(
-    params: { signer?: Wallet; provider?: ZKSyncProvider } = {},
+    params: {
+      signer?: Signer | zk.Wallet;
+      provider?: Provider | zk.Provider;
+    } = {},
     chains: ChainName[] = testChains,
   ): MultiProvider {
     const { signer, provider } = params;
@@ -423,7 +468,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     const _provider = provider || signer?.provider;
     if (_provider) {
-      const providerMap: ChainMap<ZKSyncProvider> = {};
+      const providerMap: ChainMap<Provider | zk.Provider> = {};
       chains.forEach((t) => (providerMap[t] = _provider));
       mp.setProviders(providerMap);
     }

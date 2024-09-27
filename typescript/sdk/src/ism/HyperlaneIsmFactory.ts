@@ -22,10 +22,6 @@ import {
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
-  TestIsm__artifact,
-  TrustedRelayerIsm__artifact,
-} from '@hyperlane-xyz/core/artifacts';
-import {
   Address,
   Domain,
   assert,
@@ -168,7 +164,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.owner],
         );
         await this.deployer.transferOwnershipOfContracts(destination, config, {
-          [IsmType.PAUSABLE]: contract,
+          [IsmType.PAUSABLE]: contract as any,
         });
         break;
       case IsmType.TRUSTED_RELAYER:
@@ -185,7 +181,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           undefined,
           false,
           null,
-          TrustedRelayerIsm__artifact,
         );
         break;
       case IsmType.TEST_ISM:
@@ -201,7 +196,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           undefined,
           true,
           null,
-          TestIsm__artifact,
         );
         break;
       default:
@@ -239,7 +233,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     const address = await this.deployStaticAddressSet(
       destination,
-      multisigIsmFactory,
+      multisigIsmFactory as any,
       config.validators,
       logger,
       config.threshold,
@@ -263,7 +257,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     const address = await this.deployStaticWeightedValidatorSet(
       destination,
-      weightedmultisigIsmFactory,
+      weightedmultisigIsmFactory as any,
       config.validators,
       config.thresholdWeight,
       logger,
@@ -450,7 +444,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       }
     }
-    return routingIsm;
+    return routingIsm as any;
   }
 
   protected async deployAggregationIsm(params: {
@@ -462,8 +456,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IAggregationIsm> {
     const { destination, config, origin, mailbox } = params;
     const signer = this.multiProvider.getSigner(destination);
-    const staticAggregationIsmFactory =
-      this.getContracts(destination).staticAggregationIsmFactory;
+    const staticAggregationIsmFactory = this.getContracts(destination)
+      .staticAggregationIsmFactory as any;
     const addresses: Address[] = [];
     for (const module of config.modules) {
       const submodule = await this.deploy({

@@ -1,4 +1,5 @@
 import { confirm } from '@inquirer/prompts';
+import { Signer } from 'ethers';
 import { Wallet } from 'zksync-ethers';
 
 import {
@@ -65,7 +66,7 @@ export async function getContext({
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri);
 
-  let signer: Wallet | undefined = undefined;
+  let signer: Signer | Wallet | undefined = undefined;
   if (key || requiresKey) {
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
@@ -166,7 +167,7 @@ function getRegistry(
  * @param customChains Custom chains specified by the user
  * @returns a new MultiProvider
  */
-async function getMultiProvider(registry: IRegistry, signer?: Wallet) {
+async function getMultiProvider(registry: IRegistry, signer?: Signer | Wallet) {
   const chainMetadata = await registry.getMetadata();
   const multiProvider = new MultiProvider(chainMetadata);
 

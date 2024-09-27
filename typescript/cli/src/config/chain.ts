@@ -68,6 +68,13 @@ export async function createChainConfig({
     default: name[0].toUpperCase() + name.slice(1),
   });
 
+  const protocol = (await select({
+    choices: [{ value: ProtocolType.Ethereum }, { value: ProtocolType.ZKSync }],
+    message: 'Select the correct protocol',
+    default: name[0].toUpperCase() + name.slice(1),
+    pageSize: 10,
+  })) as ProtocolType;
+
   const chainId = parseInt(
     await detectAndConfirmOrPrompt(
       async () => {
@@ -91,7 +98,7 @@ export async function createChainConfig({
     displayName,
     chainId,
     domainId: chainId,
-    protocol: ProtocolType.Ethereum,
+    protocol: protocol,
     rpcUrls: [{ http: rpcUrl }],
     isTestnet,
   };

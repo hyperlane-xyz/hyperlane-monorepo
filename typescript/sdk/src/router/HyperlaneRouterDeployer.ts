@@ -128,14 +128,12 @@ export abstract class HyperlaneRouterDeployer<
     );
 
     const deployedContractsMap = await super.deploy(configMapToDeploy);
-    console.log('af deployedContractsMap');
 
     await this.enrollRemoteRouters(
       deployedContractsMap,
       configMap,
       foreignDeployments,
     );
-    console.log('af enrollRemoteRouters');
 
     await this.configureClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);

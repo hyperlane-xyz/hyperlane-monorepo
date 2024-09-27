@@ -439,9 +439,9 @@ export class ChainMetadataManager<MetaExt = {}> {
     }
 
     if (!intersection.length) {
-      throw new Error(
-        `No chains shared between known chains and list (${knownChains} and ${chains})`,
-      );
+      // throw new Error(
+      //   `No chains shared between known chains and list (${knownChains} and ${chains})`,
+      // );
     }
 
     const intersectionMetadata = pick(this.metadata, intersection);

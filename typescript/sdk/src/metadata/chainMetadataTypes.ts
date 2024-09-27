@@ -252,9 +252,11 @@ export const ChainMetadataSchemaObject = z.object({
 export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
   (metadata) => {
     if (
-      [ProtocolType.Ethereum, ProtocolType.Sealevel].includes(
-        metadata.protocol,
-      ) &&
+      [
+        ProtocolType.Ethereum,
+        ProtocolType.Sealevel,
+        ProtocolType.ZKSync,
+      ].includes(metadata.protocol) &&
       typeof metadata.chainId !== 'number'
     )
       return false;

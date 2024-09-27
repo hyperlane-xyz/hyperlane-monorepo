@@ -7,7 +7,7 @@
     "@aws-sdk/client-s3": "^3.577.0",
     "@hyperlane-xyz/registry": "2.5.0",
     "@hyperlane-xyz/sdk": "workspace:^",
-    "@hyperlane-xyz/utils": "5.1.0",
+    "@hyperlane-xyz/utils": "workspace:^",
     "@inquirer/prompts": "^3.0.0",
     "asn1.js": "^5.4.1",
     "bignumber.js": "^9.1.1",

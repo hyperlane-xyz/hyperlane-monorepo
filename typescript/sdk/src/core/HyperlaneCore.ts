@@ -139,6 +139,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     const mailbox = this.getContracts(origin).mailbox;
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const recipientBytes32 = addressToBytes32(recipient);
+
+    console.log(
+      'chain id',
+      await this.multiProvider.getSigner(origin).getChainId(),
+    );
     const quote = await this.quoteGasPayment(
       origin,
       destination,

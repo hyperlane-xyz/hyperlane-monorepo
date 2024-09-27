@@ -80,6 +80,7 @@
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:hardhat": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
     "test:hardhat:accounts": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"accounts.hardhat-test.ts\")",
+    "test:govern": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts test $(find ./src -name \"govern.hardhat-test.ts\")",
     "test:foundry": "./scripts/foundry-test.sh"
   },
   "peerDependencies": {
