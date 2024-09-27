@@ -32,7 +32,7 @@ export const keyFunderConfig: KeyFunderConfig<
     berabartio: '0.1',
     bsctestnet: '5',
     camptestnet: '0.1',
-    // citreatestnet: '0.001',
+    citreatestnet: '0.001',
     connextsepolia: '1',
     ecotestnet: '0.02',
     // no funding for solana

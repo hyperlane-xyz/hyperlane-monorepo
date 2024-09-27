@@ -6,7 +6,7 @@ export const testnet4SupportedChainNames = [
   'berabartio',
   'bsctestnet',
   'camptestnet',
-  // 'citreatestnet',
+  'citreatestnet',
   'connextsepolia',
   'ecotestnet',
   'eclipsetestnet',
