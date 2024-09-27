@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "citreatestnet": {
-    "amount": "0.01",
+    "amount": "1.0",
     "decimals": 9
   },
   "connextsepolia": {
