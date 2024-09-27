@@ -334,7 +334,6 @@ async function checkBalance(
                 balance: parseFloat(
                   ethers.utils.formatUnits(syntheticBalance, token.decimals),
                 ),
-                value: 0,
               };
             }
             case ProtocolType.Sealevel: {
