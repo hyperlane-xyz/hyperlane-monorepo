@@ -8,7 +8,7 @@ import {IServiceManager} from "../interfaces/avs/vendored/IServiceManager.sol";
 import {IServiceManagerUI} from "../interfaces/avs/vendored/IServiceManagerUI.sol";
 import {IDelegationManager} from "../interfaces/avs/vendored/IDelegationManager.sol";
 import {IStrategy} from "../interfaces/avs/vendored/IStrategy.sol";
-import {IPaymentCoordinator} from "../interfaces/avs/vendored/IPaymentCoordinator.sol";
+import {IRewardsCoordinator} from "../interfaces/avs/vendored/IRewardsCoordinator.sol";
 import {Quorum} from "../interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 import {ECDSAStakeRegistry} from "./ECDSAStakeRegistry.sol";
 
@@ -25,15 +25,14 @@ abstract contract ECDSAServiceManagerBase is
     /// @notice Address of the AVS directory contract, which manages AVS-related data for registered operators.
     address public immutable avsDirectory;
 
+    /// @notice Address of the rewards coordinator contract, which handles rewards distributions.
+    address internal immutable rewardsCoordinator;
+
     /// @notice Address of the delegation manager contract, which manages staker delegations to operators.
     address internal immutable delegationManager;
 
-    // ============ Public Storage ============
-
-    /// @notice Address of the payment coordinator contract, which handles payment distributions. Will be set once live on Eigenlayer.
-    address internal paymentCoordinator;
-
-    // ============ Modifiers ============
+    /// @notice Address of the rewards initiator, which is allowed to create AVS rewards submissions.
+    address public rewardsInitiator;
 
     /**
      * @dev Ensures that the function is only callable by the `stakeRegistry` contract.
@@ -47,49 +46,52 @@ abstract contract ECDSAServiceManagerBase is
         _;
     }
 
-    // ============ Events ============
-
     /**
-     * @notice Emitted when an operator is registered to the AVS
-     * @param operator The address of the operator
+     * @dev Ensures that the function is only callable by the `rewardsInitiator`.
      */
-    event OperatorRegisteredToAVS(address indexed operator);
+    modifier onlyRewardsInitiator() {
+        _checkRewardsInitiator();
+        _;
+    }
 
-    /**
-     * @notice Emitted when an operator is deregistered from the AVS
-     * @param operator The address of the operator
-     */
-    event OperatorDeregisteredFromAVS(address indexed operator);
-
-    // ============ Constructor ============
+    function _checkRewardsInitiator() internal view {
+        require(
+            msg.sender == rewardsInitiator,
+            "ECDSAServiceManagerBase.onlyRewardsInitiator: caller is not the rewards initiator"
+        );
+    }
 
     /**
      * @dev Constructor for ECDSAServiceManagerBase, initializing immutable contract addresses and disabling initializers.
      * @param _avsDirectory The address of the AVS directory contract, managing AVS-related data for registered operators.
      * @param _stakeRegistry The address of the stake registry contract, managing registration and stake recording.
-     * @param _paymentCoordinator The address of the payment coordinator contract, handling payment distributions.
+     * @param _rewardsCoordinator The address of the rewards coordinator contract, handling rewards distributions.
      * @param _delegationManager The address of the delegation manager contract, managing staker delegations to operators.
      */
     constructor(
         address _avsDirectory,
         address _stakeRegistry,
-        address _paymentCoordinator,
+        address _rewardsCoordinator,
         address _delegationManager
     ) {
         avsDirectory = _avsDirectory;
         stakeRegistry = _stakeRegistry;
-        paymentCoordinator = _paymentCoordinator;
+        rewardsCoordinator = _rewardsCoordinator;
         delegationManager = _delegationManager;
+        _disableInitializers();
     }
 
     /**
      * @dev Initializes the base service manager by transferring ownership to the initial owner.
      * @param initialOwner The address to which the ownership of the contract will be transferred.
+     * @param _rewardsInitiator The address which is allowed to create AVS rewards submissions.
      */
     function __ServiceManagerBase_init(
-        address initialOwner
+        address initialOwner,
+        address _rewardsInitiator
     ) internal virtual onlyInitializing {
         _transferOwnership(initialOwner);
+        _setRewardsInitiator(_rewardsInitiator);
     }
 
     /// @inheritdoc IServiceManagerUI
@@ -100,10 +102,10 @@ abstract contract ECDSAServiceManagerBase is
     }
 
     /// @inheritdoc IServiceManager
-    function payForRange(
-        IPaymentCoordinator.RangePayment[] calldata rangePayments
-    ) external virtual onlyOwner {
-        _payForRange(rangePayments);
+    function createAVSRewardsSubmission(
+        IRewardsCoordinator.RewardsSubmission[] calldata rewardsSubmissions
+    ) external virtual onlyRewardsInitiator {
+        _createAVSRewardsSubmission(rewardsSubmissions);
     }
 
     /// @inheritdoc IServiceManagerUI
@@ -139,17 +141,6 @@ abstract contract ECDSAServiceManagerBase is
     }
 
     /**
-     * @notice Sets the address of the payment coordinator contract.
-     * @dev This function is only callable by the contract owner.
-     * @param _paymentCoordinator The address of the payment coordinator contract.
-     */
-    function setPaymentCoordinator(
-        address _paymentCoordinator
-    ) external virtual onlyOwner {
-        paymentCoordinator = _paymentCoordinator;
-    }
-
-    /**
      * @notice Forwards the call to update AVS metadata URI in the AVSDirectory contract.
      * @dev This internal function is a proxy to the `updateAVSMetadataURI` function of the AVSDirectory contract.
      * @param _metadataURI The new metadata URI to be set.
@@ -174,7 +165,6 @@ abstract contract ECDSAServiceManagerBase is
             operator,
             operatorSignature
         );
-        emit OperatorRegisteredToAVS(operator);
     }
 
     /**
@@ -184,30 +174,35 @@ abstract contract ECDSAServiceManagerBase is
      */
     function _deregisterOperatorFromAVS(address operator) internal virtual {
         IAVSDirectory(avsDirectory).deregisterOperatorFromAVS(operator);
-        emit OperatorDeregisteredFromAVS(operator);
     }
 
     /**
-     * @notice Processes a batch of range payments by transferring the specified amounts from the sender to this contract and then approving the PaymentCoordinator to use these amounts.
-     * @dev This function handles the transfer and approval of tokens necessary for range payments. It then delegates the actual payment logic to the PaymentCoordinator contract.
-     * @param rangePayments An array of `RangePayment` structs, each representing a payment for a specific range.
+     * @notice Processes a batch of rewards submissions by transferring the specified amounts from the sender to this contract and then approving the RewardsCoordinator to use these amounts.
+     * @dev This function handles the transfer and approval of tokens necessary for rewards submissions. It then delegates the actual rewards logic to the RewardsCoordinator contract.
+     * @param rewardsSubmissions An array of `RewardsSubmission` structs, each representing rewards for a specific range.
      */
-    function _payForRange(
-        IPaymentCoordinator.RangePayment[] calldata rangePayments
+    function _createAVSRewardsSubmission(
+        IRewardsCoordinator.RewardsSubmission[] calldata rewardsSubmissions
     ) internal virtual {
-        for (uint256 i = 0; i < rangePayments.length; ++i) {
-            rangePayments[i].token.transferFrom(
+        for (uint256 i = 0; i < rewardsSubmissions.length; ++i) {
+            rewardsSubmissions[i].token.transferFrom(
                 msg.sender,
                 address(this),
-                rangePayments[i].amount
+                rewardsSubmissions[i].amount
             );
-            rangePayments[i].token.approve(
-                paymentCoordinator,
-                rangePayments[i].amount
+            uint256 allowance = rewardsSubmissions[i].token.allowance(
+                address(this),
+                rewardsCoordinator
+            );
+            rewardsSubmissions[i].token.approve(
+                rewardsCoordinator,
+                rewardsSubmissions[i].amount + allowance
             );
         }
 
-        IPaymentCoordinator(paymentCoordinator).payForRange(rangePayments);
+        IRewardsCoordinator(rewardsCoordinator).createAVSRewardsSubmission(
+            rewardsSubmissions
+        );
     }
 
     /**
@@ -268,7 +263,23 @@ abstract contract ECDSAServiceManagerBase is
         return restakedStrategies;
     }
 
+    /**
+     * @notice Sets the rewards initiator address.
+     * @param newRewardsInitiator The new rewards initiator address.
+     * @dev Only callable by the owner.
+     */
+    function setRewardsInitiator(
+        address newRewardsInitiator
+    ) external onlyOwner {
+        _setRewardsInitiator(newRewardsInitiator);
+    }
+
+    function _setRewardsInitiator(address newRewardsInitiator) internal {
+        emit RewardsInitiatorUpdated(rewardsInitiator, newRewardsInitiator);
+        rewardsInitiator = newRewardsInitiator;
+    }
+
     // storage gap for upgradeability
     // slither-disable-next-line shadowing-state
-    uint256[50] private __GAP;
+    uint256[49] private __GAP;
 }

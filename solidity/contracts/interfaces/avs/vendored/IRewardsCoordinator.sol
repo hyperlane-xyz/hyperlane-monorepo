@@ -5,15 +5,15 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./IStrategy.sol";
 
 /**
- * @title Interface for the `IPaymentCoordinator` contract.
+ * @title Interface for the `IRewardsCoordinator` contract.
  * @author Layr Labs, Inc.
  * @notice Terms of Service: https://docs.eigenlayer.xyz/overview/terms-of-service
- * @notice Allows AVSs to make "Range Payments", which get distributed amongst the AVSs' confirmed
+ * @notice Allows AVSs to make "Rewards Submissions", which get distributed amongst the AVSs' confirmed
  * Operators and the Stakers delegated to those Operators.
- * Calculations are performed based on the completed Range Payments, with the results posted in
+ * Calculations are performed based on the completed RewardsSubmission, with the results posted in
  * a Merkle root against which Stakers & Operators can make claims.
  */
-interface IPaymentCoordinator {
+interface IRewardsCoordinator {
     /// STRUCTS ///
     struct StrategyAndMultiplier {
         IStrategy strategy;

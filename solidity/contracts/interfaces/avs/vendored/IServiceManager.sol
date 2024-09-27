@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.0;
 
-import {IPaymentCoordinator} from "./IPaymentCoordinator.sol";
+import {IRewardsCoordinator} from "./IRewardsCoordinator.sol";
 import {IServiceManagerUI} from "./IServiceManagerUI.sol";
 
 /**
@@ -23,6 +23,6 @@ interface IServiceManager is IServiceManagerUI {
      * e.g. if the `strategies` and `weights` arrays are of non-equal lengths
      */
     function payForRange(
-        IPaymentCoordinator.RangePayment[] calldata rangePayments
+        IRewardsCoordinator.RangePayment[] calldata rangePayments
     ) external;
 }

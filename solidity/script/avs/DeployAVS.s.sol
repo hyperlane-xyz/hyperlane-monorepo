@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 
 import {IStrategy} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
 import {IAVSDirectory} from "../../contracts/interfaces/avs/vendored/IAVSDirectory.sol";
-import {IPaymentCoordinator} from "../../contracts/interfaces/avs/vendored/IPaymentCoordinator.sol";
+import {IRewardsCoordinator} from "../../contracts/interfaces/avs/vendored/IRewardsCoordinator.sol";
 import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
 
 import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
@@ -30,7 +30,7 @@ contract DeployAVS is Script {
 
     ProxyAdmin public proxyAdmin;
     IAVSDirectory public avsDirectory;
-    IPaymentCoordinator public paymentCoordinator;
+    IRewardsCoordinator public rewardsCoordinator;
     IDelegationManager public delegationManager;
 
     Quorum quorum;
@@ -61,8 +61,8 @@ contract DeployAVS is Script {
                 string(abi.encodePacked(".", targetEnv, ".delegationManager"))
             )
         );
-        // paymentCoordinator = IPaymentCoordinator(json.readAddress(string(abi.encodePacked(".", targetEnv, ".paymentCoordinator"))));
-        paymentCoordinator = new TestPaymentCoordinator(); // temporary until Eigenlayer deploys the real one
+        // paymentCoordinator = IRewardsCoordinator(json.readAddress(string(abi.encodePacked(".", targetEnv, ".paymentCoordinator"))));
+        rewardsCoordinator = new TestPaymentCoordinator(); // temporary until Eigenlayer deploys the real one
 
         StrategyInfo[] memory strategies = abi.decode(
             vm.parseJson(
@@ -117,7 +117,7 @@ contract DeployAVS is Script {
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
                 address(stakeRegistryProxy),
-                address(paymentCoordinator),
+                address(rewardsCoordinator),
                 address(delegationManager)
             );
 
