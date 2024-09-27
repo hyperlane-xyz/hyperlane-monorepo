@@ -14,13 +14,19 @@ impl Display for PublicKeyError {
 }
 
 /// Decompresses public key of secp256k1 if it was compressed
+///
+/// Public key can be expressed in compressed or decompressed forms.
+/// Compressed form contains one byte as prefix and x component of the public key.
+/// Decompressed form contains one byte as prefix, x and y components of the public key.
 pub fn decompress_public_key(public_key: &[u8]) -> Result<Vec<u8>, PublicKeyError> {
     let elliptic: elliptic_curve::PublicKey<k256::Secp256k1> =
         elliptic_curve::PublicKey::from_sec1_bytes(public_key)
             .map_err(|e| PublicKeyError::Decode(e.to_string()))?;
+
+    // if public key was compressed, encoding into the point will decompress it.
     let point = elliptic.to_encoded_point(false);
-    let uncompressed = point.to_bytes().to_vec();
-    Ok(uncompressed)
+    let decompressed = point.to_bytes().to_vec();
+    Ok(decompressed)
 }
 
 #[cfg(test)]
