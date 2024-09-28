@@ -42,7 +42,7 @@ Run the following to install `foundryup`:
 curl -L https://foundry.paradigm.xyz | bash
 ```
 
-Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`.
+Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`:
 
 ```bash
 foundryup
@@ -54,13 +54,13 @@ Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installa
 
 This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
 
-To install nvm
+To install nvm:
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 ```
 
-To install version 20
+To install version 20:
 
 ```bash
 nvm install 20
@@ -73,13 +73,13 @@ You should change versions automatically with the `.nvmrc` file.
 
 This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). Installing dependencies, building, testing, and running prettier for all packages can be done from the root directory of the repository.
 
-- Installing dependencies
+- Installing dependencies:
 
   ```bash
   yarn install
   ```
 
-- Building
+- Building:
 
   ```bash
   yarn build
@@ -105,10 +105,10 @@ See [`rust/README.md`](rust/README.md)
 
 - Tag the commit with the current date in the format `agents-yyyy-mm-dd`; e.g. `agents-2023-03-28`.
 - [Create a Github Release](https://github.com/hyperlane-xyz/hyperlane-monorepo/releases/new) with a changelog against the previous version titled `Agents MMMM DD, YYYY`, e.g. `Agents March 28, 2023`.
-- Include the agent docker image tag in the description of the release
-- Create a summary of change highlights
-- Create a "breaking changes" section with any changes required
-- Deploy agents with the new image tag (if it makes sense to)
+- Include the agent docker image tag in the description of the release.
+- Create a summary of change highlights.
+- Create a "breaking changes" section with any changes required.
+- Deploy agents with the new image tag (if it makes sense to).
 
 ### Releasing packages to NPM
 
