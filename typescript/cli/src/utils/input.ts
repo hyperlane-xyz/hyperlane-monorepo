@@ -97,6 +97,7 @@ type SearchableCheckboxTheme = {
       allChoices: ReadonlyArray<NormalizedChoice<T> | Separator>,
     ) => string;
     description: (text: string) => string;
+    helpTip: (text: string) => string;
   };
   helpMode: 'always' | 'never' | 'auto';
 };
@@ -112,50 +113,47 @@ const checkboxTheme: SearchableCheckboxTheme = {
     renderSelectedChoices: (selectedChoices) =>
       selectedChoices.map((choice) => choice.short).join(', '),
     description: (text: string) => chalk.cyan(text),
+    helpTip: (text) => ` ${text}`,
   },
   helpMode: 'auto',
 };
 
-type Choice<Value> = {
+export type SearchableCheckboxChoice<Value> = {
   value: Value;
   name?: string;
   description?: string;
   short?: string;
   disabled?: boolean | string;
   checked?: boolean;
-  type?: never;
 };
 
-type NormalizedChoice<Value> = {
-  value: Value;
-  name: string;
+type NormalizedChoice<Value> = Required<
+  Omit<SearchableCheckboxChoice<Value>, 'description'>
+> & {
   description?: string;
-  short: string;
-  disabled: boolean | string;
-  checked: boolean;
 };
 
-type SearchableCheckboxConfig<
-  Value,
-  ChoicesObject = ReadonlyArray<Choice<Value>>,
-> = {
+type SearchableCheckboxConfig<Value> = {
   message: string;
   prefix?: string;
   pageSize?: number;
   instructions?: string | boolean;
-  choices: ChoicesObject extends ReadonlyArray<string | Separator>
-    ? ChoicesObject
-    : ReadonlyArray<Choice<Value> | Separator>;
+  choices: ReadonlyArray<SearchableCheckboxChoice<Value>>;
   loop?: boolean;
   required?: boolean;
   selectableOptionsSeparator?: Separator;
   validate?: (
-    choices: ReadonlyArray<Choice<Value>>,
+    choices: ReadonlyArray<SearchableCheckboxChoice<Value>>,
   ) => boolean | string | Promise<string | boolean>;
   theme?: PartialDeep<Theme<SearchableCheckboxTheme>>;
 };
 
 type Item<Value> = NormalizedChoice<Value> | Separator;
+
+type SearchableCheckboxState<Value> = {
+  options: Item<Value>[];
+  currentOptionState: Record<string, NormalizedChoice<Value>>;
+};
 
 function isSelectable<Value>(
   item: Item<Value>,
@@ -172,13 +170,9 @@ function toggle<Value>(item: Item<Value>): Item<Value> {
 }
 
 function normalizeChoices<Value>(
-  choices: ReadonlyArray<Choice<Value> | Separator>,
-): Item<Value>[] {
+  choices: ReadonlyArray<SearchableCheckboxChoice<Value>>,
+): NormalizedChoice<Value>[] {
   return choices.map((choice) => {
-    if (Separator.isSeparator(choice)) {
-      return choice;
-    }
-
     const name = choice.name ?? String(choice.value);
     return {
       value: choice.value,
@@ -203,7 +197,7 @@ function sortNormalizedItems<Value>(
 }
 
 function organizeItems<Value>(
-  items: Array<Item<Value> | Separator>,
+  items: Array<Item<Value>>,
   selectableOptionsSeparator?: Separator,
 ): Array<Item<Value> | Separator> {
   const orderedItems = [];
@@ -227,6 +221,10 @@ function organizeItems<Value>(
   ) as NormalizedChoice<Value>[];
 
   orderedItems.push(...nonCheckedItems.sort(sortNormalizedItems));
+
+  if (orderedItems.length === 1) {
+    return [];
+  }
 
   return orderedItems;
 }
@@ -269,15 +267,12 @@ export const searchableCheckBox = createPrompt(
     const prefix = usePrefix({ theme });
 
     const normalizedChoices = normalizeChoices(config.choices);
-    const [optionState, setOptionState] = useState({
+    const [optionState, setOptionState] = useState<
+      SearchableCheckboxState<Value>
+    >({
       options: normalizedChoices,
       currentOptionState: Object.fromEntries(
-        normalizedChoices
-          .filter((item) => !Separator.isSeparator(item))
-          .map((item) => [
-            (item as NormalizedChoice<Value>).name,
-            item as NormalizedChoice<Value>,
-          ]),
+        normalizedChoices.map((item) => [item.name, item]),
       ),
     });
 
@@ -302,49 +297,27 @@ export const searchableCheckBox = createPrompt(
     const [errorMsg, setError] = useState<string>();
 
     useEffect(() => {
-      const controller = new AbortController();
-
       setStatus('loading');
       setError(undefined);
 
-      const fetchResults = async () => {
-        try {
-          let filteredItems;
-          if (!searchTerm) {
-            filteredItems = Object.values(optionState.currentOptionState);
-          } else {
-            filteredItems = Object.values(
-              optionState.currentOptionState,
-            ).filter(
-              (item) =>
-                Separator.isSeparator(item) ||
-                item.name.includes(searchTerm) ||
-                item.checked,
-            );
-          }
+      let filteredItems;
+      if (!searchTerm) {
+        filteredItems = Object.values(optionState.currentOptionState);
+      } else {
+        filteredItems = Object.values(optionState.currentOptionState).filter(
+          (item) =>
+            Separator.isSeparator(item) ||
+            item.name.includes(searchTerm) ||
+            item.checked,
+        );
+      }
 
-          if (!controller.signal.aborted) {
-            // Reset the pointer
-            setActive(undefined);
-            setError(undefined);
-            setOptionState({
-              options: organizeItems(filteredItems, selectableOptionsSeparator),
-              currentOptionState: optionState.currentOptionState,
-            });
-            setStatus('idle');
-          }
-        } catch (error: unknown) {
-          if (!controller.signal.aborted && error instanceof Error) {
-            setError(error.message);
-          }
-        }
-      };
-
-      void fetchResults();
-
-      return () => {
-        controller.abort();
-      };
+      setActive(undefined);
+      setOptionState({
+        currentOptionState: optionState.currentOptionState,
+        options: organizeItems(filteredItems, selectableOptionsSeparator),
+      });
+      setStatus('idle');
     }, [searchTerm]);
 
     useKeypress(async (key, rl) => {
@@ -415,6 +388,19 @@ export const searchableCheckBox = createPrompt(
       } else {
         setSearchTerm(rl.line);
       }
+
+      setActive(undefined);
+
+      // TODO fix state bug that causes view to be updated with delay
+      if (searchTerm === '') {
+        setOptionState({
+          options: organizeItems(
+            Object.values(optionState.currentOptionState),
+            selectableOptionsSeparator,
+          ),
+          currentOptionState: optionState.currentOptionState,
+        });
+      }
     });
 
     const message = theme.style.message(config.message);
@@ -467,13 +453,13 @@ export const searchableCheckBox = createPrompt(
         (instructions === undefined || instructions))
     ) {
       if (typeof instructions === 'string') {
-        helpTipTop = instructions;
+        helpTipTop = theme.style.helpTip(instructions);
       } else {
         const keys = [
           `${theme.style.key('tab')} to select`,
           `and ${theme.style.key('enter')} to proceed`,
         ];
-        helpTipTop = ` (Press ${keys.join(', ')})`;
+        helpTipTop = theme.style.helpTip(`(Press ${keys.join(', ')})`);
       }
 
       if (
@@ -494,7 +480,7 @@ export const searchableCheckBox = createPrompt(
 
     let error = '';
     if (errorMsg) {
-      error = `\n${theme.style.error(errorMsg)}`;
+      error = `${theme.style.error(errorMsg)}`;
     } else if (
       optionState.options.length === 0 &&
       searchTerm !== '' &&

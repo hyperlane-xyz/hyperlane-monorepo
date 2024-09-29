@@ -5,10 +5,10 @@ import chalk from 'chalk';
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 import { toTitleCase } from '@hyperlane-xyz/utils';
 
-import { log, logTip } from '../logger.js';
+import { log } from '../logger.js';
 
 import { calculatePageSize } from './cli-options.js';
-import { searchableCheckBox } from './input.js';
+import { SearchableCheckboxChoice, searchableCheckBox } from './input.js';
 
 // A special value marker to indicate user selected
 // a new chain in the list
@@ -74,18 +74,22 @@ export async function runMultiChainSelectionStep({
 
   let currentChoiceSelection = new Set();
   while (true) {
-    logTip(
-      `Use TAB key to select at least ${requireNumber} chains, then press ENTER`,
-    );
     const chains = (await searchableCheckBox({
       message,
       selectableOptionsSeparator: networkTypeSeparator,
       choices: choices.map((choice) =>
-        !Separator.isSeparator(choice) &&
         currentChoiceSelection.has(choice.name)
           ? { ...choice, checked: true }
           : choice,
       ),
+      instructions: `Use TAB key to select at least ${requireNumber} chains, then press ENTER to proceed`,
+      theme: {
+        style: {
+          // The leading space is needed because the help tip will be tightly close to the message header
+          helpTip: (text: string) => ` ${chalk.bgYellow(text)}`,
+        },
+        helpMode: 'always',
+      },
       pageSize: calculatePageSize(2),
       validate: (answer): string | boolean => {
         if (answer.length < requireNumber) {
@@ -136,7 +140,7 @@ function getChainChoices(
   const filteredChains = chains.filter((c) =>
     networkType === 'mainnet' ? !c.isTestnet : !!c.isTestnet,
   );
-  const choices: Parameters<typeof select>['0']['choices'] = [
+  const choices: SearchableCheckboxChoice<string>[] = [
     { name: '(New custom chain)', value: NEW_CHAIN_MARKER },
     ...chainsToChoices(filteredChains),
   ];
