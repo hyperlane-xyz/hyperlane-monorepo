@@ -92,7 +92,7 @@ fn chain_name_domain_records() -> BTreeSet<ChainCoordinate> {
         .flat_map(|x: &Settings| {
             x.chains.values().map(|v| ChainCoordinate {
                 name: v.domain.name().into(),
-                domain: (&v.domain).try_into().expect("Invalid domain id"),
+                domain: (&v.domain).into(),
             })
         })
         .collect()

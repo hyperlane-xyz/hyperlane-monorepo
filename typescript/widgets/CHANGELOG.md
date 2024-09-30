@@ -1,5 +1,19 @@
 # @hyperlane-xyz/widgets
 
+## 5.3.0
+
+### Minor Changes
+
+- 35d4503b9: Update to registry v4.3.6
+
+### Patch Changes
+
+- Updated dependencies [eb47aaee8]
+- Updated dependencies [50319d8ba]
+- Updated dependencies [8de531fa4]
+- Updated dependencies [fd536a79a]
+  - @hyperlane-xyz/sdk@5.3.0
+
 ## 5.2.1
 
 ### Patch Changes

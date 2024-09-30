@@ -44,7 +44,7 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
       'Building aggregation metadata',
     );
     assert(maxDepth > 0, 'Max depth reached');
-    const promises = await Promise.allSettled(
+    const results = await Promise.allSettled(
       context.ism.modules.map((module) =>
         timeout(
           this.base.build(
@@ -58,10 +58,20 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
         ),
       ),
     );
-    const metadatas = promises.map((r) =>
-      r.status === 'fulfilled' ? r.value ?? null : null,
-    );
-    const included = metadatas.filter((m) => m !== null).length;
+
+    const metadatas = results.map((result, index) => {
+      if (result.status === 'rejected') {
+        this.logger.warn(
+          `Failed to build for submodule ${index}: ${result.reason}`,
+        );
+        return null;
+      } else {
+        this.logger.debug(`Built metadata for submodule ${index}`);
+        return result.value;
+      }
+    });
+
+    const included = metadatas.filter((meta) => meta !== null).length;
     assert(
       included >= context.ism.threshold,
       `Only built ${included} of ${context.ism.threshold} required modules`,
