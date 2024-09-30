@@ -148,8 +148,7 @@ export class HyperlaneRelayer {
       return this.core.getProcessedReceipt(message);
     }
 
-    // causes error with zksync
-    // await this.core.estimateHandle(message);
+    await this.core.estimateHandle(message);
 
     // parallelizable because configs are on different chains
     const [ism, hook] = await Promise.all([
