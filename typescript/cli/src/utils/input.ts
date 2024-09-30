@@ -290,9 +290,9 @@ export const searchableCheckBox = createPrompt(
       }
 
       return { first, last };
-    }, [optionState]);
+    }, [optionState.options]);
 
-    const [active, setActive] = useState<number | undefined>(bounds.first);
+    const [active, setActive] = useState(bounds.first);
     const [showHelpTip, setShowHelpTip] = useState(true);
     const [errorMsg, setError] = useState<string>();
 
@@ -309,7 +309,7 @@ export const searchableCheckBox = createPrompt(
         );
       }
 
-      setActive(undefined);
+      setActive(0);
       setError(undefined);
       setOptionState({
         currentOptionState: optionState.currentOptionState,
@@ -337,7 +337,7 @@ export const searchableCheckBox = createPrompt(
           (isDownKey(key) && active !== bounds.last)
         ) {
           const offset = isUpKey(key) ? -1 : 1;
-          let next = active ?? 0;
+          let next = active;
           do {
             next =
               (next + offset + optionState.options.length) %
@@ -348,15 +348,9 @@ export const searchableCheckBox = createPrompt(
           );
           setActive(next);
         }
-      } else if (
-        key.name === 'tab' &&
-        optionState.options.length > 0 &&
-        active
-      ) {
+      } else if (key.name === 'tab' && optionState.options.length > 0) {
         // Avoid the message header to be printed again in the console
         rl.clearLine(0);
-        setError(undefined);
-        setShowHelpTip(false);
 
         const currentElement = optionState.options[active];
         if (
@@ -371,6 +365,8 @@ export const searchableCheckBox = createPrompt(
             ) as NormalizedChoice<Value>,
           };
 
+          setError(undefined);
+          setShowHelpTip(false);
           setOptionState({
             options: organizeItems(
               Object.values(updatedDataMap),
@@ -378,23 +374,10 @@ export const searchableCheckBox = createPrompt(
             ),
             currentOptionState: updatedDataMap,
           });
+          setSearchTerm('');
         }
-
-        setSearchTerm('');
-        setActive(undefined);
       } else {
         setSearchTerm(rl.line);
-      }
-
-      // TODO fix state bug that causes view to be updated with delay
-      if (searchTerm === '') {
-        setOptionState({
-          options: organizeItems(
-            Object.values(optionState.currentOptionState),
-            selectableOptionsSeparator,
-          ),
-          currentOptionState: optionState.currentOptionState,
-        });
       }
     });
 
@@ -403,7 +386,7 @@ export const searchableCheckBox = createPrompt(
     let description;
     const page = usePagination({
       items: optionState.options,
-      active: active ?? 0,
+      active,
       renderItem({ item, isActive }) {
         if (Separator.isSeparator(item)) {
           return ` ${item.separator}`;
