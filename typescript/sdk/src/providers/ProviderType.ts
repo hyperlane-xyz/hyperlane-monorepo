@@ -298,4 +298,5 @@ export type TypedTransactionReceipt =
   | ViemTransactionReceipt
   | SolanaWeb3TransactionReceipt
   | CosmJsTransactionReceipt
-  | CosmJsWasmTransactionReceipt;
+  | CosmJsWasmTransactionReceipt
+  | ZKSyncTransactionReceipt;
