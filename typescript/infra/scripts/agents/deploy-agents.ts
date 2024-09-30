@@ -31,12 +31,15 @@ async function getCommitsBehindMain(): Promise<number> {
         'Checking if current branch is up-to-date with origin/main...',
       ),
     );
-    const [behindCount] = execSync(
+    const execResult = execSync(
       'git rev-list --left-right --count origin/main...HEAD',
-    )
-      .toString()
-      .trim()
-      .split('\t');
+    );
+
+    // The output of the git command is something like:
+    // $ git rev-list --left-right --count origin/main...HEAD
+    // 0    2
+    // We only care about the first number, which is the number of commits behind origin/main.
+    const [behindCount] = execResult.toString().trim().split('\t');
     return parseInt(behindCount);
   } catch (error) {
     console.error(chalk.red('Error checking git status:', error));
