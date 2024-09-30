@@ -297,9 +297,6 @@ export const searchableCheckBox = createPrompt(
     const [errorMsg, setError] = useState<string>();
 
     useEffect(() => {
-      setStatus('loading');
-      setError(undefined);
-
       let filteredItems;
       if (!searchTerm) {
         filteredItems = Object.values(optionState.currentOptionState);
@@ -313,11 +310,11 @@ export const searchableCheckBox = createPrompt(
       }
 
       setActive(undefined);
+      setError(undefined);
       setOptionState({
         currentOptionState: optionState.currentOptionState,
         options: organizeItems(filteredItems, selectableOptionsSeparator),
       });
-      setStatus('idle');
     }, [searchTerm]);
 
     useKeypress(async (key, rl) => {
@@ -388,8 +385,6 @@ export const searchableCheckBox = createPrompt(
       } else {
         setSearchTerm(rl.line);
       }
-
-      setActive(undefined);
 
       // TODO fix state bug that causes view to be updated with delay
       if (searchTerm === '') {
