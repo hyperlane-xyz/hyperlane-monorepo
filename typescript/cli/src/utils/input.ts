@@ -467,6 +467,6 @@ export const searchableCheckBox = createPrompt(
       error = theme.style.error('No results found');
     }
 
-    return `${prefix}${message}${helpTipTop} ${searchTerm}\n${page}${helpTipBottom}${choiceDescription}${error}${ansiEscapes.cursorHide}`;
+    return `${prefix} ${message}${helpTipTop} ${searchTerm}\n${page}${helpTipBottom}${choiceDescription}${error}${ansiEscapes.cursorHide}`;
   },
 );
