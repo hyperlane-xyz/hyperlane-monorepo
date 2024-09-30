@@ -50,8 +50,9 @@ if (missing.length > 0) {
   console.error(
     `Missing ${REQUIRED_METHOD} method in the following contracts:`,
   );
-  console.error(
-    missing.map(([path]) => basename(path).replace('.json', '')).join('\n'),
+  const contracts = missing.map(([path]) =>
+    basename(path).replace('.json', ''),
   );
+  console.error(contracts.map((contract) => ` - ${contract}`).join('\n'));
   process.exit(1);
 }
