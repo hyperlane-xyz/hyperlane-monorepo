@@ -18,12 +18,15 @@ import {
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   StaticWeightedValidatorSetFactory,
+  StorageMerkleRootMultisigIsm__factory,
+  StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
+  addBufferToGasLimit,
   assert,
   eqAddress,
   objFilter,
@@ -110,6 +113,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         contract = await this.deployMultisigIsm(destination, config, logger);
         break;
       case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
@@ -164,7 +169,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.owner],
         );
         await this.deployer.transferOwnershipOfContracts(destination, config, {
-          [IsmType.PAUSABLE]: contract as any,
+          [IsmType.PAUSABLE]: contract,
         });
         break;
       case IsmType.TRUSTED_RELAYER:
@@ -178,24 +183,17 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           new TrustedRelayerIsm__factory(),
           IsmType.TRUSTED_RELAYER,
           [mailbox, config.relayer],
-          undefined,
-          false,
-          null,
         );
         break;
       case IsmType.TEST_ISM:
         if (!this.deployer) {
           throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
         }
-
         contract = await this.deployer.deployContractFromFactory(
           destination,
           new TestIsm__factory(),
           IsmType.TEST_ISM,
           [],
-          undefined,
-          true,
-          null,
         );
         break;
       default:
@@ -226,18 +224,55 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     logger: Logger,
   ): Promise<IMultisigIsm> {
     const signer = this.multiProvider.getSigner(destination);
-    const multisigIsmFactory =
-      config.type === IsmType.MERKLE_ROOT_MULTISIG
-        ? this.getContracts(destination).staticMerkleRootMultisigIsmFactory
-        : this.getContracts(destination).staticMessageIdMultisigIsmFactory;
 
-    const address = await this.deployStaticAddressSet(
-      destination,
-      multisigIsmFactory as any,
-      config.validators,
-      logger,
-      config.threshold,
-    );
+    const deployStatic = (factory: StaticThresholdAddressSetFactory) =>
+      this.deployStaticAddressSet(
+        destination,
+        factory,
+        config.validators,
+        logger,
+        config.threshold,
+      );
+
+    const deployStorage = async (
+      factory:
+        | StorageMerkleRootMultisigIsm__factory
+        | StorageMessageIdMultisigIsm__factory,
+    ) => {
+      const contract = await this.multiProvider.handleDeploy(
+        destination,
+        factory,
+        [config.validators, config.threshold],
+      );
+      return contract.address;
+    };
+
+    let address: string;
+    switch (config.type) {
+      case IsmType.MERKLE_ROOT_MULTISIG:
+        address = await deployStatic(
+          this.getContracts(destination).staticMerkleRootMultisigIsmFactory,
+        );
+        break;
+      case IsmType.MESSAGE_ID_MULTISIG:
+        address = await deployStatic(
+          this.getContracts(destination).staticMessageIdMultisigIsmFactory,
+        );
+        break;
+      // TODO: support using minimal proxy factories for storage multisig ISMs too
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+        address = await deployStorage(
+          new StorageMerkleRootMultisigIsm__factory(),
+        );
+        break;
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+        address = await deployStorage(
+          new StorageMessageIdMultisigIsm__factory(),
+        );
+        break;
+      default:
+        throw new Error(`Unsupported multisig ISM type ${config.type}`);
+    }
 
     return IMultisigIsm__factory.connect(address, signer);
   }
@@ -257,7 +292,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     const address = await this.deployStaticWeightedValidatorSet(
       destination,
-      weightedmultisigIsmFactory as any,
+      weightedmultisigIsmFactory,
       config.validators,
       config.thresholdWeight,
       logger,
@@ -284,8 +319,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       config.domains,
       (domain, config): config is IsmConfig => {
         const domainId = this.multiProvider.tryGetDomainId(domain);
-        console.log('inside deployRoutingIsm');
-
         if (domainId === null) {
           logger.warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
@@ -403,18 +436,19 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         // deploying new domain routing ISM
         const owner = config.owner;
         // estimate gas
-        // const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
-        //   owner,
-        //   safeConfigDomains,
-        //   submoduleAddresses,
-        //   overrides,
-        // );
-        // add 10% buffer
+        const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
+          owner,
+          safeConfigDomains,
+          submoduleAddresses,
+          overrides,
+        );
+        // add gas buffer
         const tx = await domainRoutingIsmFactory.deploy(
           owner,
           safeConfigDomains,
           submoduleAddresses,
           {
+            gasLimit: addBufferToGasLimit(estimatedGas),
             ...overrides,
           },
         );
@@ -444,7 +478,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
       }
     }
-    return routingIsm as any;
+    return routingIsm;
   }
 
   protected async deployAggregationIsm(params: {
@@ -456,8 +490,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IAggregationIsm> {
     const { destination, config, origin, mailbox } = params;
     const signer = this.multiProvider.getSigner(destination);
-    const staticAggregationIsmFactory = this.getContracts(destination)
-      .staticAggregationIsmFactory as any;
+    const staticAggregationIsmFactory =
+      this.getContracts(destination).staticAggregationIsmFactory;
     const addresses: Address[] = [];
     for (const module of config.modules) {
       const submodule = await this.deploy({
@@ -499,13 +533,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       const overrides = this.multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
-      // const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
-      //   sorted,
-      //   threshold,
-      //   overrides,
-      // );
-      // add 10% buffer
+      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
+        sorted,
+        threshold,
+        overrides,
+      );
+      // add gas buffer
       const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
 
@@ -540,14 +575,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       const overrides = this.multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
-      // const estimatedGas = await factory.estimateGas[
-      //   'deploy((address,uint96)[],uint96)'
-      // ](sorted, thresholdWeight, overrides);
-      // add 10% buffer
+      const estimatedGas = await factory.estimateGas[
+        'deploy((address,uint96)[],uint96)'
+      ](sorted, thresholdWeight, overrides);
+      // add gas buffer
       const hash = await factory['deploy((address,uint96)[],uint96)'](
         sorted,
         thresholdWeight,
         {
+          gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
         },
       );

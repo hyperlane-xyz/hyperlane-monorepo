@@ -499,7 +499,11 @@ export {
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 
-export { AggregationIsmConfigSchema, IsmConfigSchema } from './ism/schemas.js';
+export {
+  AggregationIsmConfigSchema,
+  IsmConfigSchema,
+  MultisigIsmConfigSchema,
+} from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   CollateralConfig,
