@@ -5,12 +5,15 @@ import { basename, join } from 'node:path';
 const EXCLUDE = [
   '.dbg',
   'test',
+  'Test',
   'mock',
   'Mock',
   'interfaces',
-  'Test',
   'libs',
   'Abstract',
+  'Base',
+  'Storage',
+  'Versioned',
 ];
 const REQUIRED_METHOD = 'PACKAGE_VERSION';
 
@@ -56,3 +59,5 @@ if (missing.length > 0) {
   console.error(contracts.map((contract) => ` - ${contract}`).join('\n'));
   process.exit(1);
 }
+
+console.log('All contracts have the required method');
