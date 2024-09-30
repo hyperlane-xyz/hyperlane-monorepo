@@ -24,8 +24,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Directory containing your JSON files
-const outputFile = join(__dirname, 'types/artifacts/index.ts');
-const outputDir = join(__dirname, 'types/artifacts');
+const outputFile = join(__dirname, 'types/zksync/artifacts/index.ts');
+const outputDir = join(__dirname, 'types/zksync/artifacts');
 
 const zkSyncFileNames = new Set();
 const evmFileNames = new Set();

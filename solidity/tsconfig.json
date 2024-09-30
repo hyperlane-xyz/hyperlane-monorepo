@@ -4,5 +4,11 @@
     "outDir": "./dist",
     "rootDir": "./types"
   },
-  "exclude": ["./test", "hardhat.config.cts", "./dist", "./typechain-types"]
+  "exclude": [
+    "./test",
+    "hardhat.config.cts",
+    "zk-hardhat.config.cts",
+    "./dist",
+    "./zksync"
+  ]
 }
