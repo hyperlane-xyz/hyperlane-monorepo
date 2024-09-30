@@ -217,16 +217,24 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   protected getRecipient(message: DispatchedMessage): IMessageRecipient {
     return IMessageRecipient__factory.connect(
       bytes32ToAddress(message.parsed.recipient),
-      this.multiProvider.getSigner(this.getDestination(message)),
+      this.multiProvider.getProvider(this.getDestination(message)),
     );
   }
 
   async estimateHandle(message: DispatchedMessage): Promise<string> {
+    // This estimation is not possible on zksync as it is overriding transaction.from
+    // transaction.from must be a signer on zksync
+    if (
+      this.multiProvider.getProtocol(this.getDestination(message)) ===
+      ProtocolType.ZKSync
+    )
+      return '0';
     return (
       await this.getRecipient(message).estimateGas.handle(
         message.parsed.origin,
         message.parsed.sender,
         message.parsed.body,
+        { from: this.getAddresses(this.getDestination(message)).mailbox },
       )
     ).toString();
   }
