@@ -19,7 +19,7 @@ use url::Url;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode,
+    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod,
 };
 
 use crate::settings::{
@@ -136,8 +136,8 @@ fn parse_chain(
         .chain(&mut err)
         .get_opt_key("blocks")
         .get_key("reorgPeriod")
-        .parse_u32()
-        .unwrap_or(1);
+        .parse_value("Invalid reorgPeriod")
+        .unwrap_or(ReorgPeriod::Blocks(1));
 
     let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err);
 

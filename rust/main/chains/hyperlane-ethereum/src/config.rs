@@ -1,4 +1,6 @@
-use hyperlane_core::{config::OperationBatchConfig, U256};
+use ethers_core::types::{BlockId, BlockNumber};
+use eyre::{eyre, Report};
+use hyperlane_core::{config::OperationBatchConfig, ReorgPeriod, U256};
 use url::Url;
 
 /// Ethereum RPC connection configuration
@@ -51,4 +53,34 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+}
+
+/// Ethereum reorg period
+#[derive(Copy, Clone, Debug)]
+pub enum EthereumReorgPeriod {
+    /// Number of blocks
+    Blocks(u32),
+    /// A block tag
+    Tag(BlockId),
+}
+
+impl TryFrom<&ReorgPeriod> for EthereumReorgPeriod {
+    type Error = Report;
+
+    fn try_from(value: &ReorgPeriod) -> Result<Self, Self::Error> {
+        match value {
+            ReorgPeriod::Blocks(blocks) => Ok(EthereumReorgPeriod::Blocks(*blocks)),
+            ReorgPeriod::Tag(tag) => {
+                let tag = match tag.as_str() {
+                    "latest" => BlockNumber::Latest,
+                    "finalized" => BlockNumber::Finalized,
+                    "safe" => BlockNumber::Safe,
+                    "earliest" => BlockNumber::Earliest,
+                    "pending" => BlockNumber::Pending,
+                    _ => return Err(eyre!("Invalid Ethereum reorg period")),
+                };
+                Ok(EthereumReorgPeriod::Tag(tag.into()))
+            }
+        }
+    }
 }

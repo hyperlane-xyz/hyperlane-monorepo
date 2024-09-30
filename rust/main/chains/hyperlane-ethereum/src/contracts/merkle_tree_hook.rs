@@ -10,18 +10,18 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
+    ChainResult, Checkpoint, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    SequenceAwareIndexer, H256, H512,
 };
 
 use crate::interfaces::merkle_tree_hook::{
     InsertedIntoTreeFilter, MerkleTreeHook as MerkleTreeHookContract, Tree,
 };
 use crate::tx::call_with_lag;
-use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod};
 
-use super::utils::fetch_raw_logs_and_meta;
+use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 
 // We don't need the reverse of this impl, so it's ok to disable the clippy lint
 #[allow(clippy::from_over_into)]
@@ -58,7 +58,7 @@ impl BuildableWithProvider for MerkleTreeHookBuilder {
 }
 
 pub struct MerkleTreeHookIndexerBuilder {
-    pub reorg_period: u32,
+    pub reorg_period: EthereumReorgPeriod,
 }
 
 #[async_trait]
@@ -88,7 +88,7 @@ where
 {
     contract: Arc<MerkleTreeHookContract<M>>,
     provider: Arc<M>,
-    reorg_period: u32,
+    reorg_period: EthereumReorgPeriod,
 }
 
 impl<M> EthereumMerkleTreeHookIndexer<M>
@@ -96,7 +96,11 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumMerkleTreeHookIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, reorg_period: u32) -> Self {
+    pub fn new(
+        provider: Arc<M>,
+        locator: &ContractLocator,
+        reorg_period: EthereumReorgPeriod,
+    ) -> Self {
         Self {
             contract: Arc::new(MerkleTreeHookContract::new(
                 locator.address,
@@ -143,13 +147,7 @@ where
     #[instrument(level = "debug", err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .as_u32()
-            .saturating_sub(self.reorg_period))
+        get_finalized_block_number(&self.provider, self.reorg_period).await
     }
 
     async fn fetch_logs_by_tx_hash(

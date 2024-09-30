@@ -6,9 +6,10 @@ use std::{
 };
 
 use derive_new::new;
+use eyre::{eyre, Report};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
@@ -36,6 +37,29 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
             self.domain.id(),
             self.address
         )
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum ReorgPeriod {
+    Blocks(u32),
+    Tag(String),
+}
+
+impl ReorgPeriod {
+    pub fn as_number(&self) -> Result<u32, Report> {
+        if let ReorgPeriod::Blocks(blocks) = self {
+            Ok(*blocks)
+        } else {
+            Err(eyre!("Invalid reorg period"))
+        }
+    }
+}
+
+impl Default for ReorgPeriod {
+    fn default() -> Self {
+        ReorgPeriod::Blocks(0)
     }
 }
 
