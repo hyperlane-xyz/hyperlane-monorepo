@@ -42,13 +42,13 @@ export async function estimateTransactionFeeEthersV5({
   sender: Address;
 }): Promise<TransactionFeeEstimate> {
   const ethersProvider = provider.provider;
-  // const gasUnits = await ethersProvider.estimateGas({
-  //   ...transaction.transaction,
-  //   from: sender,
-  // });
+  const gasUnits = await ethersProvider.estimateGas({
+    ...transaction.transaction,
+    from: sender,
+  });
   return estimateTransactionFeeEthersV5ForGasUnits({
     provider: ethersProvider,
-    gasUnits: BigInt('150_000_000'),
+    gasUnits: BigInt(gasUnits.toString()),
   });
 }
 
