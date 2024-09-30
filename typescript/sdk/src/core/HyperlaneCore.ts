@@ -217,7 +217,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   protected getRecipient(message: DispatchedMessage): IMessageRecipient {
     return IMessageRecipient__factory.connect(
       bytes32ToAddress(message.parsed.recipient),
-      this.multiProvider.getProvider(this.getDestination(message)),
+      this.multiProvider.getSigner(this.getDestination(message)),
     );
   }
 
@@ -227,7 +227,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         message.parsed.origin,
         message.parsed.sender,
         message.parsed.body,
-        { from: this.getAddresses(this.getDestination(message)).mailbox },
       )
     ).toString();
   }
