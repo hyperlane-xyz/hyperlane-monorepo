@@ -115,6 +115,7 @@ export function isValidAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.Ethereum]: isValidAddressEvm,
       [ProtocolType.Sealevel]: isValidAddressSealevel,
       [ProtocolType.Cosmos]: isValidAddressCosmos,
+      [ProtocolType.ZKSync]: isValidAddressEvm,
     },
     address,
     false,
@@ -155,6 +156,7 @@ export function normalizeAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.Ethereum]: normalizeAddressEvm,
       [ProtocolType.Sealevel]: normalizeAddressSealevel,
       [ProtocolType.Cosmos]: normalizeAddressCosmos,
+      [ProtocolType.ZKSync]: normalizeAddressEvm,
     },
     address,
     address,
@@ -183,6 +185,7 @@ export function eqAddress(a1: Address, a2: Address) {
       [ProtocolType.Ethereum]: (_a1) => eqAddressEvm(_a1, a2),
       [ProtocolType.Sealevel]: (_a1) => eqAddressSol(_a1, a2),
       [ProtocolType.Cosmos]: (_a1) => eqAddressCosmos(_a1, a2),
+      [ProtocolType.ZKSync]: (_a1) => eqAddressEvm(_a1, a2),
     },
     a1,
     false,
@@ -203,7 +206,7 @@ export function isValidTransactionHashCosmos(input: string) {
 }
 
 export function isValidTransactionHash(input: string, protocol: ProtocolType) {
-  if (protocol === ProtocolType.Ethereum) {
+  if (protocol === ProtocolType.Ethereum || protocol === ProtocolType.ZKSync) {
     return isValidTransactionHashEvm(input);
   } else if (protocol === ProtocolType.Sealevel) {
     return isValidTransactionHashSealevel(input);
@@ -272,6 +275,7 @@ export function addressToBytes(
       [ProtocolType.Ethereum]: addressToBytesEvm,
       [ProtocolType.Sealevel]: addressToBytesSol,
       [ProtocolType.Cosmos]: addressToBytesCosmos,
+      [ProtocolType.ZKSync]: addressToBytesEvm,
     },
     address,
     new Uint8Array(),
@@ -341,7 +345,10 @@ export function bytesToProtocolAddress(
     bytes.length && !bytes.every((b) => b == 0),
     'address bytes must not be empty',
   );
-  if (toProtocol === ProtocolType.Ethereum) {
+  if (
+    toProtocol === ProtocolType.Ethereum ||
+    toProtocol === ProtocolType.ZKSync
+  ) {
     return bytesToAddressEvm(bytes);
   } else if (toProtocol === ProtocolType.Sealevel) {
     return bytesToAddressSol(bytes);
