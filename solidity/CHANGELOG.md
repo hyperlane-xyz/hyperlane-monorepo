@@ -1,5 +1,20 @@
 # @hyperlane-xyz/core
 
+## 5.3.0
+
+### Patch Changes
+
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/utils@5.3.0
+
+## 5.2.1
+
+### Patch Changes
+
+- eb5afcf3e: Patch `HypNative` with hook overrides `transferRemote` behavior
+  - @hyperlane-xyz/utils@5.2.1
+
 ## 5.2.0
 
 ### Minor Changes

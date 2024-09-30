@@ -1,14 +1,14 @@
 {
-  "solanamainnet": {
-    "hex": "0xd9aa20b2eb8965db1c5ac0af8608dd1f1e223838b4c0324767728a4a250f95cb",
-    "base58": "Fefw54S6NDdwNbPngPePvW4tiFTFQDT7gBPvFoDFeGqg"
+  "eclipsemainnet": {
+    "hex": "0xcd8f7348bdee9233f64432ab826c3526692e6cb17d6a5a5ddacfe3cbd0d77a9e",
+    "base58": "EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m"
   },
   "ethereum": {
-    "hex": "0x000000000000000000000000fc8f5272d690cf19732a7ed6f246adf5fb8708db",
-    "base58": "1111111111114X5Wp5Z6aWk6v7FMSteKXMS6myvi"
+    "hex": "0x000000000000000000000000e1de9910fe71cc216490ac7fcf019e13a34481d7",
+    "base58": "11111111111149We9K5tM8ijcyNy9zDMG9RyDBCJ"
   },
-  "eclipsemainnet": {
-    "hex": "0xb3c4dfa7156aada50e24f6e5c5630a246265ad2fd9a5856233481e8ed52c9f84",
-    "base58": "D6k6T3G74ij6atCtBiWBs5TbFa1hFVcrFUSGZHuV7q3Z"
+  "solanamainnet": {
+    "hex": "0x21419dfbe06b0ab41171d012ac511e058f2d036333e003f0c2e6003ac8dea12c",
+    "base58": "3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm"
   }
 }
