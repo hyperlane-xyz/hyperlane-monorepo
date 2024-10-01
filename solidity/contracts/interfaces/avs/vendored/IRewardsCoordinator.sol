@@ -21,26 +21,39 @@ interface IRewardsCoordinator {
         uint96 multiplier;
     }
 
-    struct RangePayment {
-        // Strategies & relative weights of shares in the strategies
+    /* @notice RewardsSubmission struct submitted by AVSs when making rewards for their operators and stakers
+     * RewardsSubmission can be for a time range within the valid window for startTimestamp and must be within max duration.
+     * See `createAVSRewardsSubmission()` for more details.
+     * @param strategiesAndMultipliers The strategies and their relative weights
+     * cannot have duplicate strategies and need to be sorted in ascending address order
+     * @param token The rewards token to be distributed
+     * @param amount The total amount of tokens to be distributed
+     * @param startTimestamp The timestamp (seconds) at which the submission range is considered for distribution
+     * could start in the past or in the future but within a valid range. See the diagram above.
+     * @param duration The duration of the submission range in seconds. Must be <= MAX_REWARDS_DURATION
+     */
+    struct RewardsSubmission {
         StrategyAndMultiplier[] strategiesAndMultipliers;
         IERC20 token;
         uint256 amount;
-        uint64 startTimestamp;
-        uint64 duration;
+        uint32 startTimestamp;
+        uint32 duration;
     }
 
     /// EXTERNAL FUNCTIONS ///
 
     /**
-     * @notice Creates a new range payment on behalf of an AVS, to be split amongst the
+     * @notice Creates a new rewards submission on behalf of an AVS, to be split amongst the
      * set of stakers delegated to operators who are registered to the `avs`
-     * @param rangePayments The range payments being created
-     * @dev Expected to be called by the ServiceManager of the AVS on behalf of which the payment is being made
-     * @dev The duration of the `rangePayment` cannot exceed `MAX_PAYMENT_DURATION`
-     * @dev The tokens are sent to the `claimingManager` contract
-     * @dev This function will revert if the `rangePayment` is malformed,
+     * @param rewardsSubmissions The rewards submissions being created
+     * @dev Expected to be called by the ServiceManager of the AVS on behalf of which the submission is being made
+     * @dev The duration of the `rewardsSubmission` cannot exceed `MAX_REWARDS_DURATION`
+     * @dev The tokens are sent to the `RewardsCoordinator` contract
+     * @dev Strategies must be in ascending order of addresses to check for duplicates
+     * @dev This function will revert if the `rewardsSubmission` is malformed,
      * e.g. if the `strategies` and `weights` arrays are of non-equal lengths
      */
-    function payForRange(RangePayment[] calldata rangePayments) external;
+    function createAVSRewardsSubmission(
+        RewardsSubmission[] calldata rewardsSubmissions
+    ) external;
 }

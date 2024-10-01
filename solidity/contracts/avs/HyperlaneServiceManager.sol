@@ -34,6 +34,12 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     // ============ Events ============
 
     /**
+     * @notice Emitted when an operator is deregistered from the AVS
+     * @param operator The address of the operator
+     */
+    event OperatorDeregisteredFromAVS(address indexed operator);
+
+    /**
      * @notice Emitted when an operator is enrolled in a challenger
      * @param operator The address of the operator
      * @param challenger The address of the challenger
@@ -92,13 +98,13 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
     constructor(
         address _avsDirectory,
         address _stakeRegistry,
-        address _paymentCoordinator,
+        address _rewardsCoordinator,
         address _delegationManager
     )
         ECDSAServiceManagerBase(
             _avsDirectory,
             _stakeRegistry,
-            _paymentCoordinator,
+            _rewardsCoordinator,
             _delegationManager
         )
     {}
@@ -107,7 +113,8 @@ contract HyperlaneServiceManager is ECDSAServiceManagerBase {
      * @notice Initializes the HyperlaneServiceManager contract with the owner address
      */
     function initialize(address _owner) public initializer {
-        __ServiceManagerBase_init(_owner);
+        // TODO: add a rewardsInitiator
+        __ServiceManagerBase_init(_owner, _owner);
     }
 
     // ============ External Functions ============

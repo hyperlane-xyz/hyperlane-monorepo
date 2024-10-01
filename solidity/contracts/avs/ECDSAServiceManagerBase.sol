@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity >=0.8.0;
 
+import {console} from "forge-std/console.sol";
+
 import {ISignatureUtils} from "../interfaces/avs/vendored/ISignatureUtils.sol";
 import {IAVSDirectory} from "../interfaces/avs/vendored/IAVSDirectory.sol";
 
@@ -90,6 +92,10 @@ abstract contract ECDSAServiceManagerBase is
         address initialOwner,
         address _rewardsInitiator
     ) internal virtual onlyInitializing {
+        console.log(
+            "Initializing ECDSAServiceManagerBase with rewardsInitiator",
+            _rewardsInitiator
+        );
         _transferOwnership(initialOwner);
         _setRewardsInitiator(_rewardsInitiator);
     }

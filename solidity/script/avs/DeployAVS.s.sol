@@ -13,10 +13,7 @@ import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUp
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
-import {ECDSAServiceManagerBase} from "../../contracts/avs/ECDSAServiceManagerBase.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
-
-import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
 
 contract DeployAVS is Script {
     using stdJson for string;
@@ -61,8 +58,11 @@ contract DeployAVS is Script {
                 string(abi.encodePacked(".", targetEnv, ".delegationManager"))
             )
         );
-        // paymentCoordinator = IRewardsCoordinator(json.readAddress(string(abi.encodePacked(".", targetEnv, ".paymentCoordinator"))));
-        rewardsCoordinator = new TestPaymentCoordinator(); // temporary until Eigenlayer deploys the real one
+        rewardsCoordinator = IRewardsCoordinator(
+            json.readAddress(
+                string(abi.encodePacked(".", targetEnv, ".rewardsCoordinator"))
+            )
+        );
 
         StrategyInfo[] memory strategies = abi.decode(
             vm.parseJson(
@@ -199,7 +199,7 @@ contract DeployAVS is Script {
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
                 stakeRegistryProxy,
-                address(paymentCoordinator),
+                address(rewardsCoordinator),
                 address(delegationManager)
             );
         console.log("Deployed new impl at", address(strategyManagerImpl));

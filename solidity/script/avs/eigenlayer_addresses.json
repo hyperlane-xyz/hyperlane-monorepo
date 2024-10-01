@@ -3,7 +3,7 @@
     "proxyAdmin": "0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659",
     "delegationManager": "0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A",
     "avsDirectory": "0x135DDa560e946695d6f155dACaFC6f1F25C1F5AF",
-    "paymentCoordinator": "",
+    "rewardsCoordinator": "",
     "strategies": [
       {
         "name": "swETH",
@@ -63,7 +63,7 @@
     "proxyAdmin": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
     "delegationManager": "0xA44151489861Fe9e3055d95adC98FbD462B948e7",
     "avsDirectory": "0x055733000064333CaDDbC92763c58BF0192fFeBf",
-    "paymentCoordinator": "",
+    "rewardsCoordinator": "",
     "strategies": [
       {
         "name": "cbETH",
