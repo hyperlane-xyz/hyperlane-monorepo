@@ -9,11 +9,8 @@ import {
 } from '../../../../middleware/account/InterchainAccount.js';
 import { ChainName } from '../../../../types.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import {
-  CallData,
-  PopulatedTransaction,
-  PopulatedTransactions,
-} from '../../types.js';
+import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
+import { CallData } from '../../types.js';
 import { TxTransformerType } from '../TxTransformerTypes.js';
 
 import { EV5TxTransformerInterface } from './EV5TxTransformerInterface.js';
@@ -39,16 +36,17 @@ export class EV5InterchainAccountTxTransformer
   }
 
   public async transform(
-    ...txs: PopulatedTransactions
+    ...txs: AnnotatedEV5Transaction[]
   ): Promise<ethers.PopulatedTransaction[]> {
     const txChainsToInnerCalls: Record<ChainName, CallData[]> = txs.reduce(
       (
         txChainToInnerCalls: Record<ChainName, CallData[]>,
-        { to, data, chainId }: PopulatedTransaction,
+        { to, data, chain }: AnnotatedEV5Transaction,
       ) => {
-        const txChain = this.multiProvider.getChainName(chainId);
-        txChainToInnerCalls[txChain] ||= [];
-        txChainToInnerCalls[txChain].push({ to, data });
+        assert(to, 'Invalid transaction: Missing "to" address');
+        assert(data, 'Invalid transaction: Missing "data"');
+        txChainToInnerCalls[chain] ||= [];
+        txChainToInnerCalls[chain].push({ to, data });
         return txChainToInnerCalls;
       },
       {},

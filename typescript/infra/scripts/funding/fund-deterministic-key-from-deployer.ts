@@ -80,6 +80,7 @@ async function main() {
           `Funding ${address} on chain '${chain}' with ${value} native tokens`,
         );
         await multiProvider.sendTransaction(chain, {
+          chain,
           to: address,
           value,
         });

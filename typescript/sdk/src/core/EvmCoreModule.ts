@@ -17,6 +17,7 @@ import {
 } from '../contracts/types.js';
 import { DeployedCoreAddresses } from '../core/schemas.js';
 import { CoreConfig } from '../core/types.js';
+import { EvmModuleDeployer } from '../deploy/EvmModuleDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
   ProxyFactoryFactories,
@@ -137,6 +138,7 @@ export class EvmCoreModule extends HyperlaneModule<
         data: contractToUpdate.interface.encodeFunctionData('setDefaultIsm', [
           deployedIsm,
         ]),
+        chain: this.chainName,
       });
     }
 
@@ -201,11 +203,12 @@ export class EvmCoreModule extends HyperlaneModule<
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
-    return EvmCoreModule.createTransferOwnershipTx({
+    return EvmModuleDeployer.createTransferOwnershipTx({
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,
       deployedAddress: this.args.addresses.mailbox,
       chainId: this.domainId,
+      chain: this.chainName,
     });
   }
 

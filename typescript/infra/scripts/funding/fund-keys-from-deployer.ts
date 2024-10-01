@@ -623,10 +623,10 @@ class ContextFunder {
 
     if (igpBalance.gt(igpClaimThreshold)) {
       logger.info({ chain }, 'IGP balance exceeds claim threshold, claiming');
-      await this.multiProvider.sendTransaction(
+      await this.multiProvider.sendTransaction(chain, {
+        ...(await igp.populateTransaction.claim()),
         chain,
-        await igp.populateTransaction.claim(),
-      );
+      });
     } else {
       logger.info(
         { chain },
@@ -720,6 +720,7 @@ class ContextFunder {
     }
 
     const tx = await this.multiProvider.sendTransaction(chain, {
+      chain,
       to: key.address,
       value: fundingAmount,
     });

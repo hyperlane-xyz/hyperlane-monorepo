@@ -34,6 +34,7 @@ export class SignerMultiSend extends MultiSend {
     for (const call of calls) {
       const estimate = await this.multiProvider.estimateGas(this.chain, call);
       const receipt = await this.multiProvider.sendTransaction(this.chain, {
+        chain: this.chain,
         gasLimit: addBufferToGasLimit(estimate),
         ...call,
       });
