@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
-import { objMerge, objSlice } from '@hyperlane-xyz/utils';
+import { objMerge, objOmit } from '@hyperlane-xyz/utils';
 
 // Increment this when persist state has breaking changes
 const PERSIST_STATE_VERSION = 0;
@@ -58,7 +58,7 @@ export const useWidgetStore = create<HyperlaneWidgetsState>()(
         set((state) => {
           const currentValues = state.chainMetadataOverrides;
           const sliceValues = { [chainName]: override };
-          const sliced = objSlice<ChainMap<Partial<ChainMetadata>>>(
+          const sliced = objOmit<ChainMap<Partial<ChainMetadata>>>(
             currentValues,
             sliceValues,
             10,
