@@ -62,7 +62,8 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
   }
 
-  public async submit(...txs: PopulatedTransactions): Promise<any[]> {
+  public async createSafeTransaction(txs: PopulatedTransactions): Promise<any> {
+    // TODO: Fix any time when we update Safe SDK
     const nextNonce: number = await this.safeService.getNextNonce(
       this.props.safeAddress,
     );
@@ -76,10 +77,14 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
         return { to, data, value: value?.toString() ?? '0' };
       },
     );
-    const safeTransaction = await this.safe.createTransaction({
+    return this.safe.createTransaction({
       safeTransactionData: safeTransactionBatch,
       options: { nonce: nextNonce },
     });
+  }
+
+  public async submit(...txs: PopulatedTransactions): Promise<any[]> {
+    const safeTransaction = await this.createSafeTransaction(txs);
     const safeTransactionData: any = safeTransaction.data;
     const safeTxHash: string = await this.safe.getTransactionHash(
       safeTransaction,

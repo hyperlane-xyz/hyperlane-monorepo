@@ -7,6 +7,15 @@ export const EV5GnosisSafeTxSubmitterPropsSchema = z.object({
   safeAddress: ZHash,
 });
 
+export const EV5GnosisSafeTxBuilderPropsSchema = z.object({
+  version: z.string(),
+  chain: ZChainName,
+  meta: z.object({
+    txBuilderVersion: z.string(),
+  }),
+  safeAddress: ZHash,
+});
+
 export const EV5ImpersonatedAccountTxSubmitterPropsSchema = z.object({
   userAddress: ZHash,
 });
