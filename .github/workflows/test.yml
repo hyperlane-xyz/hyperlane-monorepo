@@ -4,16 +4,10 @@ on:
   # Triggers the workflow on pushes to main branch, ignoring md files
   push:
     branches: [main]
-    paths:
-      - '**/*'
-      - '!**/*.md'
   # Triggers on pull requests, ignoring md files
   pull_request:
     branches:
       - '*'
-    paths:
-      - '**/*'
-      - '!**/*.md'
   merge_group:
   workflow_dispatch:
 
