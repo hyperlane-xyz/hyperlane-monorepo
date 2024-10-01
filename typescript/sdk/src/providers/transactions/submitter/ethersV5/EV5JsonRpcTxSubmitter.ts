@@ -25,7 +25,6 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     const receipts: TransactionReceipt[] = [];
     for (const tx of txs) {
       const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
-        tx.chain,
         tx,
       );
       this.logger.debug(

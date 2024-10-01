@@ -404,7 +404,6 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * @throws if chain's metadata or signer has not been set or tx fails
    */
   async sendTransaction(
-    _: ChainNameOrId,
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
   ): Promise<ContractReceipt> {
     const { chain, annotation, ...tx } = await txProm;
