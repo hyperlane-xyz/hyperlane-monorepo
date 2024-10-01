@@ -1,11 +1,14 @@
 import React, { ComponentType, Key, useMemo, useState } from 'react';
 
+import { deepEquals, isObject, toTitleCase } from '@hyperlane-xyz/utils';
+
 import { ColorPalette } from '../color.js';
+import { ArrowIcon } from '../icons/Arrow.js';
 import { ChevronIcon } from '../icons/Chevron.js';
-import { FilterIcon } from '../icons/Filter.js';
 import { GearIcon } from '../icons/Gear.js';
 import { PencilIcon } from '../icons/Pencil.js';
 import { SearchIcon } from '../icons/Search.js';
+import { XIcon } from '../icons/X.js';
 import { DropdownMenu } from '../layout/DropdownMenu.js';
 import { Popover } from '../layout/Popover.js';
 
@@ -14,52 +17,59 @@ import { InputProps, TextInput } from './TextInput.js';
 
 export interface SearchMenuProps<
   ListItemData extends { disabled?: boolean },
-  SortAndFilterState,
+  SortBy extends string,
+  FilterState,
 > {
   data: ListItemData[];
+  ListComponent: ComponentType<{ data: ListItemData }>;
+  onClickItem: (item: ListItemData) => void;
+  onClickEditItem: (item: ListItemData) => void;
   searchFn: (
     data: ListItemData[],
     query: string,
-    filter: SortAndFilterState,
+    sort: SortState<SortBy>,
+    filter: FilterState,
   ) => ListItemData[];
-  onClickItem: (item: ListItemData) => void;
-  onClickEditItem: (item: ListItemData) => void;
-  ListComponent: ComponentType<{ data: ListItemData }>;
-  defaultSortAndFilterState: SortAndFilterState;
+  sortOptions: SortBy[];
+  defaultFilterState: FilterState;
   FilterComponent: ComponentType<{
-    value: SortAndFilterState;
-    onChange: (s: SortAndFilterState) => void;
+    value: FilterState;
+    onChange: (s: FilterState) => void;
   }>;
   placeholder?: string;
 }
 
 export function SearchMenu<
   ListItem extends { disabled?: boolean },
-  SortAndFilterState,
+  SortBy extends string,
+  FilterState,
 >({
   data,
+  ListComponent,
   searchFn,
   onClickItem,
   onClickEditItem,
-  ListComponent,
-  defaultSortAndFilterState,
+  sortOptions,
+  defaultFilterState,
   FilterComponent,
   placeholder,
-}: SearchMenuProps<ListItem, SortAndFilterState>) {
+}: SearchMenuProps<ListItem, SortBy, FilterState>) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filterState, setFilterState] = useState<SortAndFilterState>(
-    defaultSortAndFilterState,
-  );
+  const [sortState, setSortState] = useState<SortState<SortBy>>({
+    sortBy: sortOptions[0],
+    sortOrder: SortOrderOption.Asc,
+  });
+  const [filterState, setFilterState] =
+    useState<FilterState>(defaultFilterState);
 
   const results = useMemo(
-    () => searchFn(data, searchQuery, filterState),
-    [data, searchQuery, filterState, searchFn],
+    () => searchFn(data, searchQuery, sortState, filterState),
+    [data, searchQuery, sortState, filterState, searchFn],
   );
 
   return (
-    <div className="htw-flex htw-flex-col">
+    <div className="htw-flex htw-flex-col htw-gap-2">
       <div className="htw-relative">
         <SearchBar
           value={searchQuery}
@@ -68,27 +78,23 @@ export function SearchMenu<
         />
         <SearchBarButtons
           isEditMode={isEditMode}
-          isFilterOpen={isFilterOpen}
           setIsEditMode={setIsEditMode}
-          setIsFilterOpen={setIsFilterOpen}
         />
       </div>
-      <div className="htw-flex htw-items-center htw-justify-between">
-        <DropdownMenu
-          button={<button>Sort</button>}
-          menuItems={[<div>a</div>, <div>b</div>]}
+      <div className="htw-flex htw-items-center htw-gap-5">
+        <SortDropdown
+          options={sortOptions}
+          value={sortState}
+          onChange={setSortState}
         />
-        <Popover button={<button>Filter</button>}>Test</Popover>
+        <FilterDropdown
+          value={filterState}
+          defaultValue={defaultFilterState}
+          onChange={setFilterState}
+          FilterComponent={FilterComponent}
+        />
       </div>
-      <div
-        className={`htw-px-4 ${
-          isFilterOpen ? 'htw-max-h-28 htw-pt-2 htw-pb-1' : 'htw-max-h-0'
-        } htw-overflow-hidden htw-transition-all htw-duration-300`}
-      >
-        <FilterComponent value={filterState} onChange={setFilterState} />
-      </div>
-
-      <div className="htw-mt-2.5 htw-flex htw-flex-col htw-divide-y htw-divide-gray-100">
+      <div className="htw-flex htw-flex-col htw-divide-y htw-divide-gray-100">
         {results.length ? (
           results.map((data, i) => (
             <ListItem
@@ -120,7 +126,7 @@ function SearchBar(props: InputProps) {
       />
       <TextInput
         {...props}
-        className="htw-w-full htw-rounded-full htw-px-11 htw-py-3"
+        className="htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
       />
     </div>
   );
@@ -128,27 +134,13 @@ function SearchBar(props: InputProps) {
 
 function SearchBarButtons({
   isEditMode,
-  isFilterOpen,
   setIsEditMode: setEditMode,
-  setIsFilterOpen,
 }: {
-  isFilterOpen: boolean;
-  setIsFilterOpen: (isOpen: boolean) => void;
   isEditMode: boolean;
   setIsEditMode: (isEditMode: boolean) => void;
 }) {
   return (
     <div className="htw-flex htw-items-center htw-gap-4 htw-absolute htw-right-4 htw-top-1/2 -htw-translate-y-1/2">
-      <IconButton
-        onClick={() => setIsFilterOpen(!isFilterOpen)}
-        title="Sort & Filter"
-      >
-        <FilterIcon
-          width={20}
-          height={20}
-          color={isFilterOpen ? ColorPalette.Blue : undefined}
-        />
-      </IconButton>
       <IconButton
         onClick={() => setEditMode(!isEditMode)}
         className="hover:htw-rotate-45"
@@ -159,6 +151,124 @@ function SearchBarButtons({
           height={20}
           color={isEditMode ? ColorPalette.Blue : undefined}
         />
+      </IconButton>
+    </div>
+  );
+}
+
+function SortDropdown<SortBy extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: SortBy[];
+  value: SortState<SortBy>;
+  onChange: (v: SortState<SortBy>) => void;
+}) {
+  const onToggleOrder = () => {
+    onChange({
+      ...value,
+      sortOrder:
+        value.sortOrder === SortOrderOption.Asc
+          ? SortOrderOption.Desc
+          : SortOrderOption.Asc,
+    });
+  };
+
+  const onSetSortBy = (sortBy: SortBy) => {
+    onChange({
+      ...value,
+      sortBy,
+    });
+  };
+
+  return (
+    <div className="htw-h-7 htw-flex htw-items-stretch htw-text-sm htw-rounded htw-border htw-border-gray-200">
+      <div className="htw-flex htw-bg-gray-100 htw-px-2">
+        <span className="htw-place-self-center">Sort</span>
+      </div>
+      <DropdownMenu
+        button={
+          <span className="htw-place-self-center htw-px-2">
+            {toTitleCase(value.sortBy)}
+          </span>
+        }
+        buttonClassname="htw-flex htw-items-stretch hover:htw-bg-gray-100 active:htw-scale-95"
+        menuClassname="htw-py-1.5 htw-px-2 htw-flex htw-flex-col htw-gap-2 htw-text-sm"
+        menuItems={options.map((o) => (
+          <div
+            className="htw-rounded htw-p-1.5 hover:htw-bg-gray-200"
+            onClick={() => onSetSortBy(o)}
+          >
+            {toTitleCase(o)}
+          </div>
+        ))}
+        menuProps={{ anchor: 'bottom start' }}
+      />
+      <IconButton
+        onClick={onToggleOrder}
+        className="hover:htw-bg-gray-100 active:htw-scale-95 htw-px-0.5 htw-py-1.5"
+        title="Toggle sort"
+      >
+        <ArrowIcon
+          direction={value.sortOrder === SortOrderOption.Asc ? 'n' : 's'}
+          width={15}
+          height={15}
+        />
+      </IconButton>
+    </div>
+  );
+}
+
+function FilterDropdown<FilterState>({
+  value,
+  defaultValue,
+  onChange,
+  FilterComponent,
+}: {
+  value: FilterState;
+  defaultValue: FilterState;
+  onChange: (v: FilterState) => void;
+  FilterComponent: ComponentType<{
+    value: FilterState;
+    onChange: (s: FilterState) => void;
+  }>;
+}) {
+  const filterKeys = useMemo(() => {
+    if (!value || !isObject(value)) return [];
+    return Object.keys(value).filter(
+      (k) => !deepEquals(value[k], defaultValue[k]),
+    );
+  }, [value]);
+
+  const onClear = () => {
+    onChange(defaultValue);
+  };
+
+  return (
+    <div className="htw-h-7 htw-flex htw-items-stretch htw-text-sm htw-rounded htw-border htw-border-gray-200">
+      <div className="htw-flex htw-bg-gray-100 htw-px-2">
+        <span className="htw-place-self-center">Filter</span>
+      </div>
+      <Popover
+        button={
+          <span className="htw-place-self-center htw-px-3">
+            {filterKeys.length
+              ? filterKeys.map(toTitleCase).join(', ')
+              : 'None'}
+          </span>
+        }
+        buttonClassname="htw-h-full htw-flex htw-items-stretch hover:htw-bg-gray-100 active:htw-scale-95"
+      >
+        <FilterComponent value={value} onChange={onChange} />
+      </Popover>
+      <IconButton
+        disabled={!filterKeys.length}
+        onClick={onClear}
+        className="hover:htw-bg-gray-100 active:htw-scale-95 htw-px-1 htw-py-1.5"
+        title="Clear filters"
+      >
+        <XIcon width={9} height={9} />
       </IconButton>
     </div>
   );
@@ -208,6 +318,11 @@ function ListItem<ListItemData extends { disabled?: boolean }>({
       </div>
     </button>
   );
+}
+
+export interface SortState<SortBy> {
+  sortBy: SortBy;
+  sortOrder: SortOrderOption;
 }
 
 export enum SortOrderOption {

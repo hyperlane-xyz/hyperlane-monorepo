@@ -15,8 +15,8 @@ export function DropdownMenu({
   button,
   buttonClassname,
   buttonProps,
-  menuClassname: panelClassname,
-  menuProps: panelProps,
+  menuClassname,
+  menuProps,
   menuItems,
 }: DropdownMenuProps) {
   return (
@@ -31,10 +31,10 @@ export function DropdownMenu({
         transition
         anchor="bottom"
         className={clsx(
-          'htw-rounded htw-bg-white/70 htw-border htw-border-gray-100 htw-shadow-md htw-drop-shadow-md htw-backdrop-blur htw-transition htw-duration-200 htw-ease-in-out htw-focus:outline-none [--anchor-gap:var(--spacing-5)] data-[closed]:htw--translate-y-1 data-[closed]:htw-opacity-0',
-          panelClassname,
+          'htw-rounded htw-bg-white/90 htw-border htw-border-gray-100 htw-shadow-md htw-drop-shadow-md htw-backdrop-blur htw-transition htw-duration-200 htw-ease-in-out htw-focus:outline-none [--anchor-gap:var(--spacing-5)] data-[closed]:htw--translate-y-1 data-[closed]:htw-opacity-0 htw-cursor-pointer',
+          menuClassname,
         )}
-        {...panelProps}
+        {...menuProps}
       >
         {menuItems.map((mi, i) => (
           <MenuItem key={`menu-item-${i}`}>{mi}</MenuItem>

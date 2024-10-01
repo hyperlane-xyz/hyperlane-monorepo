@@ -3,17 +3,19 @@ import React, { useCallback, useMemo } from 'react';
 import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { SearchMenu, SortOrderOption } from '../components/SearchMenu.js';
+import {
+  SearchMenu,
+  SortOrderOption,
+  SortState,
+} from '../components/SearchMenu.js';
 import { SegmentedControl } from '../components/SegmentedControl.js';
-import { FunnelIcon } from '../icons/Funnel.js';
-import { UpDownArrowsIcon } from '../icons/UpDownArrows.js';
 
 import { ChainDetailsMenu } from './ChainDetailsMenu.js';
 import { ChainLogo } from './ChainLogo.js';
 
 enum ChainSortByOption {
   Name = 'name',
-  ChainId = 'chainId',
+  ChainId = 'chain id',
   Protocol = 'protocol',
 }
 
@@ -22,18 +24,14 @@ enum FilterTestnetOption {
   Mainnet = 'mainnet',
 }
 
-interface ChainSortAndFilterState {
-  sortBy: ChainSortByOption;
-  sortOrder: SortOrderOption;
-  filterTestnet?: FilterTestnetOption;
-  filterProtocol?: ProtocolType;
+interface ChainFilterState {
+  type?: FilterTestnetOption;
+  protocol?: ProtocolType;
 }
 
-const defaultSortAndFilterState: ChainSortAndFilterState = {
-  sortBy: ChainSortByOption.Name,
-  sortOrder: SortOrderOption.Asc,
-  filterTestnet: undefined,
-  filterProtocol: undefined,
+const defaultFilterState: ChainFilterState = {
+  type: undefined,
+  protocol: undefined,
 };
 
 interface CustomListItemField {
@@ -83,14 +81,16 @@ export function ChainSearchMenu({
     return (
       <SearchMenu<
         ChainMetadata<{ disabled?: boolean }>,
-        ChainSortAndFilterState
+        ChainSortByOption,
+        ChainFilterState
       >
         data={data}
+        ListComponent={ChainListItemWithCustom}
         searchFn={chainSearch}
         onClickItem={onClickChain}
         onClickEditItem={(chain) => setDrilldownChain(chain.name)}
-        defaultSortAndFilterState={defaultSortAndFilterState}
-        ListComponent={ChainListItemWithCustom}
+        sortOptions={Object.values(ChainSortByOption)}
+        defaultFilterState={defaultFilterState}
         FilterComponent={ChainFilters}
         placeholder="Chain name or id"
       />
@@ -136,45 +136,27 @@ function ChainFilters({
   value,
   onChange,
 }: {
-  value: ChainSortAndFilterState;
-  onChange: (s: ChainSortAndFilterState) => void;
+  value: ChainFilterState;
+  onChange: (s: ChainFilterState) => void;
 }) {
   return (
-    <div className="htw-space-y-2">
-      <div className="htw-flex htw-items-center htw-justify-end htw-gap-1 sm:htw-gap-2">
-        <SegmentedControl
-          options={Object.values(ChainSortByOption)}
-          onChange={(selected) => onChange({ ...value, sortBy: selected! })}
-        />
-        <SegmentedControl
-          options={Object.values(SortOrderOption)}
-          onChange={(selected) => onChange({ ...value, sortOrder: selected! })}
-        />
-        <UpDownArrowsIcon
-          width={17}
-          height={17}
-          className="htw-hidden sm:htw-block"
-        />
-      </div>
-      <div className="htw-flex htw-items-center htw-justify-end htw-gap-1 sm:htw-gap-2">
+    <div className="htw-py-3 htw-px-2.5 htw-space-y-4">
+      <div className="htw-flex htw-flex-col htw-items-start htw-gap-2">
+        <label className="htw-text-sm htw-text-gray-600 htw-pl-px">Type</label>
         <SegmentedControl
           options={Object.values(FilterTestnetOption)}
-          onChange={(selected) =>
-            onChange({ ...value, filterTestnet: selected })
-          }
+          onChange={(selected) => onChange({ ...value, type: selected })}
           allowEmpty
         />
+      </div>
+      <div className="htw-flex htw-flex-col htw-items-start htw-gap-2">
+        <label className="htw-text-sm htw-text-gray-600 htw-pl-px">
+          Protocol
+        </label>
         <SegmentedControl
           options={Object.values(ProtocolType)}
-          onChange={(selected) =>
-            onChange({ ...value, filterProtocol: selected })
-          }
+          onChange={(selected) => onChange({ ...value, protocol: selected })}
           allowEmpty
-        />
-        <FunnelIcon
-          width={18}
-          height={18}
-          className="htw-hidden sm:htw-block"
         />
       </div>
     </div>
@@ -184,7 +166,8 @@ function ChainFilters({
 function chainSearch(
   data: ChainMetadata[],
   query: string,
-  filter: ChainSortAndFilterState,
+  sort: SortState<ChainSortByOption>,
+  filter: ChainFilterState,
 ) {
   const queryFormatted = query.trim().toLowerCase();
   return (
@@ -200,13 +183,12 @@ function chainSearch(
       // Filter options
       .filter((chain) => {
         let included = true;
-        if (filter.filterTestnet) {
+        if (filter.type) {
           included &&=
-            !!chain.isTestnet ===
-            (filter.filterTestnet === FilterTestnetOption.Testnet);
+            !!chain.isTestnet === (filter.type === FilterTestnetOption.Testnet);
         }
-        if (filter.filterProtocol) {
-          included &&= chain.protocol === filter.filterProtocol;
+        if (filter.protocol) {
+          included &&= chain.protocol === filter.protocol;
         }
         return included;
       })
@@ -214,14 +196,14 @@ function chainSearch(
       .sort((c1, c2) => {
         let sortValue1 = c1.name;
         let sortValue2 = c2.name;
-        if (filter.sortBy === ChainSortByOption.ChainId) {
+        if (sort.sortBy === ChainSortByOption.ChainId) {
           sortValue1 = c1.chainId.toString();
           sortValue2 = c2.chainId.toString();
-        } else if (filter.sortBy === ChainSortByOption.Protocol) {
+        } else if (sort.sortBy === ChainSortByOption.Protocol) {
           sortValue1 = c1.protocol;
           sortValue2 = c2.protocol;
         }
-        return filter.sortOrder === SortOrderOption.Asc
+        return sort.sortOrder === SortOrderOption.Asc
           ? sortValue1.localeCompare(sortValue2)
           : sortValue2.localeCompare(sortValue1);
       })
