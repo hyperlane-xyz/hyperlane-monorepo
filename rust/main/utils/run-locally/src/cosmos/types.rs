@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use hyperlane_cosmos::RawCosmosAmount;
+use hyperlane_cosmos::{NativeToken, RawCosmosAmount};
 use hyperlane_cosmwasm_interface::types::bech32_decode;
 
 use super::{cli::OsmosisCLI, CosmosNetwork};
@@ -125,6 +125,7 @@ pub struct AgentConfig {
     pub index: AgentConfigIndex,
     pub gas_price: RawCosmosAmount,
     pub contract_address_bytes: usize,
+    pub native_token: NativeToken,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -178,6 +179,10 @@ impl AgentConfig {
             },
             contract_address_bytes: 32,
             index: AgentConfigIndex { from: 1, chunk: 5 },
+            native_token: NativeToken {
+                decimals: 6,
+                denom: "uosmo".to_string(),
+            },
         }
     }
 }

@@ -5,13 +5,13 @@
     "remoteDecimals": 18,
     "name": "Turbo ETH",
     "symbol": "tETH",
-    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/77a04c0b7e214ae17853215467f8ddea5e0ac710/deployments/warp_routes/tETH/metadata.json",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/f5c3d59c5f0155618ae156c971ace5894a88cec6/deployments/warp_routes/tETH/metadata.json",
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
   },
   "ethereum": {
     "type": "collateral",
     "decimals": 18,
     "token": "0x19e099B7aEd41FA52718D780dDA74678113C0b32",
-    "foreignDeployment": "0x3Ac6A6Cca0b49C3f3f06D12F46e8d88EEfbB7415"
+    "foreignDeployment": "0xc2495f3183F043627CAECD56dAaa726e3B2D9c09"
   }
 }

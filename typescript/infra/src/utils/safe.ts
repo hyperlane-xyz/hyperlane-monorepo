@@ -5,6 +5,7 @@ import {
   MetaTransactionData,
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
+import chalk from 'chalk';
 import { ethers } from 'ethers';
 
 import {
@@ -72,7 +73,9 @@ export async function proposeSafeTransaction(
     senderSignature: senderSignature.data,
   });
 
-  console.log(`Proposed transaction on ${chain} with hash ${safeTxHash}`);
+  console.log(
+    chalk.green(`Proposed transaction on ${chain} with hash ${safeTxHash}`),
+  );
 }
 
 export async function deleteAllPendingSafeTxs(
@@ -91,7 +94,9 @@ export async function deleteAllPendingSafeTxs(
   });
 
   if (!pendingTxsResponse.ok) {
-    console.error(`Failed to fetch pending transactions for ${safeAddress}`);
+    console.error(
+      chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
+    );
     return;
   }
 
@@ -126,7 +131,9 @@ export async function deleteSafeTx(
   });
 
   if (!txDetailsResponse.ok) {
-    console.error(`Failed to fetch transaction details for ${safeTxHash}`);
+    console.error(
+      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+    );
     return;
   }
 
@@ -134,7 +141,7 @@ export async function deleteSafeTx(
   const proposer = txDetails.proposer;
 
   if (!proposer) {
-    console.error(`No proposer found for transaction ${safeTxHash}`);
+    console.error(chalk.red(`No proposer found for transaction ${safeTxHash}`));
     return;
   }
 
@@ -142,7 +149,9 @@ export async function deleteSafeTx(
   const signerAddress = await signer.getAddress();
   if (proposer !== signerAddress) {
     console.log(
-      `Skipping deletion of transaction ${safeTxHash} proposed by ${proposer}`,
+      chalk.italic(
+        `Skipping deletion of transaction ${safeTxHash} proposed by ${proposer}`,
+      ),
     );
     return;
   }
@@ -192,17 +201,23 @@ export async function deleteSafeTx(
     });
 
     if (res.status === 204) {
-      console.log(`Successfully deleted transaction ${safeTxHash} on ${chain}`);
+      console.log(
+        chalk.green(
+          `Successfully deleted transaction ${safeTxHash} on ${chain}`,
+        ),
+      );
       return;
     }
 
     const errorBody = await res.text();
     console.error(
-      `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
+      chalk.red(
+        `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
+      ),
     );
   } catch (error) {
     console.error(
-      `Failed to delete transaction ${safeTxHash} on ${chain}:`,
+      chalk.red(`Failed to delete transaction ${safeTxHash} on ${chain}:`),
       error,
     );
   }

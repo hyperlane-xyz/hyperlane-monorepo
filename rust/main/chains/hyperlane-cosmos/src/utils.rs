@@ -6,13 +6,15 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use futures::future;
 use once_cell::sync::Lazy;
 use tendermint::abci::EventAttribute;
+use tendermint::hash::Algorithm;
+use tendermint::Hash;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta};
+use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta, H256};
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
+use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
 
 type FutureChainResults<T> = Vec<JoinHandle<(ChainResult<Vec<(T, LogMeta)>>, u32)>>;
 
@@ -43,19 +45,35 @@ pub(crate) async fn get_block_height_for_lag(
 
 pub(crate) fn parse_logs_in_range<T: PartialEq + Send + Sync + Debug + 'static>(
     range: RangeInclusive<u32>,
-    indexer: Box<CosmosWasmIndexer>,
+    provider: Box<CosmosWasmRpcProvider>,
     parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
     label: &'static str,
 ) -> FutureChainResults<T> {
     range
         .map(|block_number| {
-            let indexer = indexer.clone();
+            let provider = provider.clone();
             tokio::spawn(async move {
-                let logs = indexer.get_logs_in_block(block_number, parser, label).await;
+                let logs = provider
+                    .get_logs_in_block(block_number, parser, label)
+                    .await;
                 (logs, block_number)
             })
         })
         .collect()
+}
+
+pub(crate) async fn parse_logs_in_tx<T: PartialEq + Send + Sync + Debug + 'static>(
+    hash: &H256,
+    provider: Box<CosmosWasmRpcProvider>,
+    parser: for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>,
+    label: &'static str,
+) -> ChainResult<Vec<(T, LogMeta)>> {
+    let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
+        .expect("transaction hash should be of correct size");
+
+    provider
+        .get_logs_in_tx(tendermint_hash, parser, label)
+        .await
 }
 
 #[allow(clippy::type_complexity)]

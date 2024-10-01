@@ -11,22 +11,25 @@ use std::{
 
 use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
-use h_cosmos::RawCosmosAmount;
-use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode,
-};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
 
-pub use self::json_value_parser::ValueParser;
-pub use super::envs::*;
+use h_cosmos::RawCosmosAmount;
+use hyperlane_core::{
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneDomainTechnicalStack, IndexMode,
+};
+
 use crate::settings::{
     chains::IndexSettings, parser::connection_parser::build_connection_conf, trace::TracingConfig,
     ChainConf, CoreContractAddresses, Settings, SignerConf,
 };
+
+pub use super::envs::*;
+
+pub use self::json_value_parser::ValueParser;
 
 mod connection_parser;
 mod json_value_parser;
