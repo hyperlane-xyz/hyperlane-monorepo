@@ -10,7 +10,7 @@ use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256, H512,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::grpc::WasmProvider;
@@ -76,7 +76,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, lag: Option<&ReorgPeriod>) -> ChainResult<IncrementalMerkle> {
         let payload = merkle_tree_hook::MerkleTreeRequest {
             tree: general::EmptyStruct {},
         };
@@ -110,7 +110,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     }
 
     /// Gets the current leaf count of the merkle tree
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
         let payload = merkle_tree_hook::MerkleTreeCountRequest {
             count: general::EmptyStruct {},
         };
@@ -121,7 +121,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     }
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, lag: Option<&ReorgPeriod>) -> ChainResult<Checkpoint> {
         let payload = merkle_tree_hook::CheckPointRequest {
             check_point: general::EmptyStruct {},
         };

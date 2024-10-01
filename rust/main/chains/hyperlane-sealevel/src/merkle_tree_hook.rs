@@ -1,11 +1,11 @@
-use std::{num::NonZeroU64, ops::RangeInclusive};
+use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     HyperlaneChain, HyperlaneMessage, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, SequenceAwareIndexer,
+    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
 use solana_sdk::commitment_config::CommitmentConfig;
@@ -17,7 +17,7 @@ use crate::{SealevelMailbox, SealevelMailboxIndexer};
 impl MerkleTreeHook for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, lag: Option<&ReorgPeriod>) -> ChainResult<IncrementalMerkle> {
         assert!(
             lag.is_none(),
             "Sealevel does not support querying point-in-time"
@@ -41,7 +41,7 @@ impl MerkleTreeHook for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, lag: Option<&ReorgPeriod>) -> ChainResult<Checkpoint> {
         assert!(
             lag.is_none(),
             "Sealevel does not support querying point-in-time"
@@ -70,7 +70,7 @@ impl MerkleTreeHook for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, _maybe_lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
         let tree = self.tree(_maybe_lag).await?;
 
         tree.count()

@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use crate::server as validator_server;
 use async_trait::async_trait;
@@ -19,8 +19,8 @@ use hyperlane_base::{
 
 use hyperlane_core::{
     Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce,
-    H256, U256,
+    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 
@@ -44,7 +44,7 @@ pub struct Validator {
     signer: SingletonSignerHandle,
     // temporary holder until `run` is called
     signer_instance: Option<Box<SingletonSigner>>,
-    reorg_period: u64,
+    reorg_period: ReorgPeriod,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     core_metrics: Arc<CoreMetrics>,
@@ -180,7 +180,7 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        let reorg_period = NonZeroU64::new(self.reorg_period);
+        let reorg_period = Some(&self.reorg_period);
 
         // Ensure that the merkle tree hook has count > 0 before we begin indexing
         // messages or submitting checkpoints.
@@ -237,7 +237,7 @@ impl Validator {
     async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<()>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
-            self.reorg_period,
+            self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
@@ -245,7 +245,7 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        let reorg_period = NonZeroU64::new(self.reorg_period);
+        let reorg_period = Some(&self.reorg_period);
         let tip_tree = self
             .merkle_tree_hook
             .tree(reorg_period)

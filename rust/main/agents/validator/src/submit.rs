@@ -1,10 +1,9 @@
-use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{ChainResult, MerkleTreeHook};
+use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgPeriod};
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
@@ -19,7 +18,7 @@ use hyperlane_ethereum::SingletonSignerHandle;
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
-    reorg_period: Option<NonZeroU64>,
+    reorg_period: Option<ReorgPeriod>,
     signer: SingletonSignerHandle,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -30,7 +29,7 @@ pub(crate) struct ValidatorSubmitter {
 impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: Duration,
-        reorg_period: u64,
+        reorg_period: ReorgPeriod,
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
         signer: SingletonSignerHandle,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -38,7 +37,7 @@ impl ValidatorSubmitter {
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
-            reorg_period: NonZeroU64::new(reorg_period),
+            reorg_period: Some(reorg_period),
             interval,
             merkle_tree_hook,
             signer,
@@ -93,7 +92,12 @@ impl ValidatorSubmitter {
             // Lag by reorg period because this is our correctness checkpoint.
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.merkle_tree_hook.clone();
-                Box::pin(async move { merkle_tree_hook.latest_checkpoint(self.reorg_period).await })
+                let reorg_period = self.reorg_period.clone();
+                Box::pin(async move {
+                    merkle_tree_hook
+                        .latest_checkpoint(reorg_period.as_ref())
+                        .await
+                })
             })
             .await;
 

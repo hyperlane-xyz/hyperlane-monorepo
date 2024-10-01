@@ -1,4 +1,3 @@
-use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,10 +15,12 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
+use hyperlane_core::{
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ReorgPeriod, H256, U256,
+};
 use tracing::{debug, error, info, warn};
 
-use crate::{Middleware, TransactionOverrides};
+use crate::{EthereumReorgPeriod, Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
 pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
@@ -219,20 +220,25 @@ where
 pub(crate) async fn call_with_lag<M, T>(
     call: ethers::contract::builders::ContractCall<M, T>,
     provider: &M,
-    maybe_lag: Option<NonZeroU64>,
+    maybe_lag: Option<&ReorgPeriod>,
 ) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
 where
     M: Middleware + 'static,
     T: Detokenize,
 {
-    if let Some(lag) = maybe_lag {
-        let fixed_block_number: BlockNumber = provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag.get().into())
-            .into();
-        Ok(call.block(fixed_block_number))
+    if let Some(reorg_period) = maybe_lag {
+        let reorg_period = EthereumReorgPeriod::try_from(reorg_period)?;
+        let block = match reorg_period {
+            EthereumReorgPeriod::Blocks(lag) => provider
+                .get_block_number()
+                .await
+                .map_err(ChainCommunicationError::from_other)?
+                .saturating_sub(lag.into())
+                .into(),
+            EthereumReorgPeriod::Tag(tag) => tag,
+        };
+
+        Ok(call.block(block))
     } else {
         Ok(call)
     }

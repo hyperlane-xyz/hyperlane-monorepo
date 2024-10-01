@@ -2,7 +2,6 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -14,7 +13,7 @@ use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{BatchResult, QueueOperation, H512};
+use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
 use itertools::Itertools;
 use tracing::instrument;
 
@@ -461,7 +460,7 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
         let call = call_with_lag(self.contract.nonce(), &self.provider, maybe_lag).await?;
         let nonce = call.call().await?;
         Ok(nonce)

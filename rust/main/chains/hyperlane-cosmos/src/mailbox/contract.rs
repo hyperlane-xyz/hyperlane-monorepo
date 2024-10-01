@@ -8,7 +8,7 @@ use tracing::instrument;
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
-    TxCostEstimate, TxOutcome, H256, U256,
+    ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::address::CosmosAddress;
@@ -83,7 +83,7 @@ impl HyperlaneChain for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
         let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
         self.nonce_at_block(block_height).await
     }

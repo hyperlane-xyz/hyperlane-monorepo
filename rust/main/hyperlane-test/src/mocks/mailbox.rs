@@ -1,7 +1,5 @@
 #![allow(non_snake_case)]
 
-use std::num::NonZeroU64;
-
 use async_trait::async_trait;
 use mockall::*;
 
@@ -28,11 +26,11 @@ mock! {
             nonce: usize,
         ) -> ChainResult<Option<H256>> {}
 
-        pub fn _tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {}
+        pub fn _tree<'a>(&self, maybe_lag: Option<&'a ReorgPeriod>) -> ChainResult<IncrementalMerkle> {}
 
-        pub fn _count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {}
+        pub fn _count<'a>(&self, maybe_lag: Option<&'a ReorgPeriod>) -> ChainResult<u32> {}
 
-        pub fn _latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {}
+        pub fn _latest_checkpoint<'a>(&self, maybe_lag: Option<&'a ReorgPeriod>) -> ChainResult<Checkpoint> {}
 
         pub fn _default_ism(&self) -> ChainResult<H256> {}
         pub fn _recipient_ism(&self, recipient: H256) -> ChainResult<H256> {}
@@ -68,7 +66,7 @@ impl std::fmt::Debug for MockMailboxContract {
 
 #[async_trait]
 impl Mailbox for MockMailboxContract {
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
         self._count(maybe_lag)
     }
 

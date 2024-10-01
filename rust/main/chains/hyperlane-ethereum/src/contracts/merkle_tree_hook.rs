@@ -1,5 +1,4 @@
 #![allow(missing_docs)]
-use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -11,7 +10,7 @@ use tracing::instrument;
 
 use hyperlane_core::{
     ChainResult, Checkpoint, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
+    HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod,
     SequenceAwareIndexer, H256, H512,
 };
 
@@ -251,7 +250,7 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<Checkpoint> {
         let call =
             call_with_lag(self.contract.latest_checkpoint(), &self.provider, maybe_lag).await?;
 
@@ -266,14 +265,14 @@ where
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<IncrementalMerkle> {
         let call = call_with_lag(self.contract.tree(), &self.provider, maybe_lag).await?;
 
         Ok(call.call().await?.into())
     }
 
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
         let call = call_with_lag(self.contract.count(), &self.provider, maybe_lag).await?;
         let count = call.call().await?;
         Ok(count)
