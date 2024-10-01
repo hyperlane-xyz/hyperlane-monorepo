@@ -24,18 +24,19 @@ export interface SearchMenuProps<
   ListComponent: ComponentType<{ data: ListItemData }>;
   onClickItem: (item: ListItemData) => void;
   onClickEditItem: (item: ListItemData) => void;
-  searchFn: (
-    data: ListItemData[],
-    query: string,
-    sort: SortState<SortBy>,
-    filter: FilterState,
-  ) => ListItemData[];
+  searchFn: (args: {
+    data: ListItemData[];
+    query: string;
+    sort: SortState<SortBy>;
+    filter: FilterState;
+  }) => ListItemData[];
   sortOptions: SortBy[];
-  defaultFilterState: FilterState;
+  defaultSortState?: SortState<SortBy>;
   FilterComponent: ComponentType<{
     value: FilterState;
     onChange: (s: FilterState) => void;
   }>;
+  defaultFilterState: FilterState;
   placeholder?: string;
 }
 
@@ -50,21 +51,30 @@ export function SearchMenu<
   onClickItem,
   onClickEditItem,
   sortOptions,
-  defaultFilterState,
+  defaultSortState,
   FilterComponent,
+  defaultFilterState,
   placeholder,
 }: SearchMenuProps<ListItem, SortBy, FilterState>) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
-  const [sortState, setSortState] = useState<SortState<SortBy>>({
-    sortBy: sortOptions[0],
-    sortOrder: SortOrderOption.Asc,
-  });
+  const [sortState, setSortState] = useState<SortState<SortBy>>(
+    defaultSortState || {
+      sortBy: sortOptions[0],
+      sortOrder: SortOrderOption.Asc,
+    },
+  );
   const [filterState, setFilterState] =
     useState<FilterState>(defaultFilterState);
 
   const results = useMemo(
-    () => searchFn(data, searchQuery, sortState, filterState),
+    () =>
+      searchFn({
+        data,
+        query: searchQuery,
+        sort: sortState,
+        filter: filterState,
+      }),
     [data, searchQuery, sortState, filterState, searchFn],
   );
 
@@ -212,8 +222,8 @@ function SortDropdown<SortBy extends string>({
       >
         <ArrowIcon
           direction={value.sortOrder === SortOrderOption.Asc ? 'n' : 's'}
-          width={15}
-          height={15}
+          width={14}
+          height={14}
         />
       </IconButton>
     </div>

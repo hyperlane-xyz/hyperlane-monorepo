@@ -1,6 +1,7 @@
 import { Meta, StoryObj } from '@storybook/react';
 
 import { chainMetadata } from '@hyperlane-xyz/registry';
+import { pick } from '@hyperlane-xyz/utils';
 
 import { ChainSearchMenu } from '../chains/ChainSearchMenu.js';
 
@@ -20,12 +21,13 @@ export const DefaultChainSearch = {
 
 export const WithCustomField = {
   args: {
-    chainMetadata,
+    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
     customListItemField: {
-      header: 'Custom Field',
+      header: 'Warp Routes',
       data: {
-        alfajores: 'Custom Data',
-        arbitrum: 'Custom Data',
+        alfajores: { display: '1 token', sortValue: 1 },
+        arbitrum: { display: '2 tokens', sortValue: 2 },
+        ethereum: { display: '1 token', sortValue: 1 },
       },
     },
   },

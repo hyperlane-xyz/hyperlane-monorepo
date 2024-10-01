@@ -36,7 +36,7 @@ const defaultFilterState: ChainFilterState = {
 
 interface CustomListItemField {
   header: string;
-  data: ChainMap<string>;
+  data: ChainMap<{ display: string; sortValue: number }>;
 }
 
 export interface ChainSearchMenuProps {
@@ -60,15 +60,8 @@ export function ChainSearchMenu({
 
   const data = useMemo(() => Object.values(chainMetadata), [chainMetadata]);
 
-  // Create closure of ChainListItem but with the custom field bound on already.
-  // This is needed because the SearchMenu component will do the rendering but the
-  // custom data is more specific to this ChainSearchMenu.
-  const ChainListItemWithCustom = useCallback(
-    ({ data }: { data: ChainMetadata<{ disabled?: boolean }> }) => (
-      <ChainListItem data={data} customField={customListItemField} />
-    ),
-    [ChainListItem, customListItemField],
-  );
+  const { ListComponent, searchFn, sortOptions, defaultSortState } =
+    useCustomizedListItems(customListItemField);
 
   if (drilldownChain && chainMetadata[drilldownChain]) {
     return (
@@ -77,25 +70,26 @@ export function ChainSearchMenu({
         onClickBack={() => setDrilldownChain(undefined)}
       />
     );
-  } else {
-    return (
-      <SearchMenu<
-        ChainMetadata<{ disabled?: boolean }>,
-        ChainSortByOption,
-        ChainFilterState
-      >
-        data={data}
-        ListComponent={ChainListItemWithCustom}
-        searchFn={chainSearch}
-        onClickItem={onClickChain}
-        onClickEditItem={(chain) => setDrilldownChain(chain.name)}
-        sortOptions={Object.values(ChainSortByOption)}
-        defaultFilterState={defaultFilterState}
-        FilterComponent={ChainFilters}
-        placeholder="Chain name or id"
-      />
-    );
   }
+
+  return (
+    <SearchMenu<
+      ChainMetadata<{ disabled?: boolean }>,
+      ChainSortByOption,
+      ChainFilterState
+    >
+      data={data}
+      ListComponent={ListComponent}
+      searchFn={searchFn}
+      onClickItem={onClickChain}
+      onClickEditItem={(chain) => setDrilldownChain(chain.name)}
+      sortOptions={sortOptions}
+      defaultSortState={defaultSortState}
+      FilterComponent={ChainFilters}
+      defaultFilterState={defaultFilterState}
+      placeholder="Chain Name or ID"
+    />
+  );
 }
 
 function ChainListItem({
@@ -121,7 +115,7 @@ function ChainListItem({
       <div className="htw-text-left">
         <div className="htw-text-sm">
           {customField
-            ? customField.data[chain.name] || 'Unknown'
+            ? customField.data[chain.name].display || 'Unknown'
             : chain.deployer?.name || 'Unknown deployer'}
         </div>
         <div className="htw-text-[0.7rem] htw-text-gray-500">
@@ -163,12 +157,19 @@ function ChainFilters({
   );
 }
 
-function chainSearch(
-  data: ChainMetadata[],
-  query: string,
-  sort: SortState<ChainSortByOption>,
-  filter: ChainFilterState,
-) {
+function chainSearch({
+  data,
+  query,
+  sort,
+  filter,
+  customListItemField,
+}: {
+  data: ChainMetadata[];
+  query: string;
+  sort: SortState<ChainSortByOption>;
+  filter: ChainFilterState;
+  customListItemField?: CustomListItemField;
+}) {
   const queryFormatted = query.trim().toLowerCase();
   return (
     data
@@ -194,6 +195,16 @@ function chainSearch(
       })
       // Sort options
       .sort((c1, c2) => {
+        // Special case handling for if the chains are being sorted by the
+        // custom field provided to ChainSearchMenu
+        if (customListItemField && sort.sortBy === customListItemField.header) {
+          const result =
+            customListItemField.data[c1.name].sortValue -
+            customListItemField.data[c2.name].sortValue;
+          return sort.sortOrder === SortOrderOption.Asc ? result : -result;
+        }
+
+        // Otherwise sort by the default options
         let sortValue1 = c1.name;
         let sortValue2 = c2.name;
         if (sort.sortBy === ChainSortByOption.ChainId) {
@@ -208,4 +219,49 @@ function chainSearch(
           : sortValue2.localeCompare(sortValue1);
       })
   );
+}
+
+/**
+ * This hook creates closures around the provided customListItemField data
+ * This is useful because SearchMenu will do handle the list item rendering and
+ * management but the custom data is more or a chain-search-specific concern
+ */
+function useCustomizedListItems(customListItemField) {
+  // Create closure of ChainListItem but with customField pre-bound
+  const ListComponent = useCallback(
+    ({ data }: { data: ChainMetadata<{ disabled?: boolean }> }) => (
+      <ChainListItem data={data} customField={customListItemField} />
+    ),
+    [ChainListItem, customListItemField],
+  );
+
+  // Bind the custom field to the search function
+  const searchFn = useCallback(
+    (args: Parameters<typeof chainSearch>[0]) =>
+      chainSearch({ ...args, customListItemField }),
+    [customListItemField],
+  );
+
+  // Merge the custom field into the sort options if a custom field exists
+  const sortOptions = useMemo(
+    () => [
+      ...(customListItemField ? [customListItemField.header] : []),
+      ...Object.values(ChainSortByOption),
+    ],
+    [customListItemField],
+  ) as ChainSortByOption[];
+
+  // Sort by the custom field by default, if one is provided
+  const defaultSortState = useMemo(
+    () =>
+      customListItemField
+        ? {
+            sortBy: customListItemField.header,
+            sortOrder: SortOrderOption.Desc,
+          }
+        : undefined,
+    [customListItemField],
+  ) as SortState<ChainSortByOption> | undefined;
+
+  return { ListComponent, searchFn, sortOptions, defaultSortState };
 }
