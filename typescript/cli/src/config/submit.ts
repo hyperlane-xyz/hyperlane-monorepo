@@ -1,11 +1,9 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  PopulatedTransactions,
-  PopulatedTransactionsSchema,
+  AnnotatedEV5Transaction,
   SubmissionStrategy,
 } from '@hyperlane-xyz/sdk';
-import { PopulatedTransaction } from '@hyperlane-xyz/sdk';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { assert, errorToString } from '@hyperlane-xyz/utils';
 
@@ -72,20 +70,19 @@ export async function runSubmit({
  */
 function getChainFromTxs(
   multiProvider: MultiProvider,
-  transactions: PopulatedTransactions,
+  transactions: AnnotatedEV5Transaction[],
 ) {
   const firstTransaction = transactions[0];
   const sameChainIds = transactions.every(
-    (t: PopulatedTransaction) => t.chainId === firstTransaction.chainId,
+    (t: AnnotatedEV5Transaction) => t.chainId === firstTransaction.chainId,
   );
   assert(sameChainIds, 'Transactions must be submitted on the same chains');
 
-  return multiProvider.getChainName(firstTransaction.domainId);
+  return multiProvider.getChainName(firstTransaction.chain);
 }
 
-function getTransactions(transactionsFilepath: string): PopulatedTransactions {
-  const transactionsFileContent = readYamlOrJson<any[]>(
-    transactionsFilepath.trim(),
-  );
-  return PopulatedTransactionsSchema.parse(transactionsFileContent);
+function getTransactions(
+  transactionsFilepath: string,
+): AnnotatedEV5Transaction[] {
+  return readYamlOrJson<AnnotatedEV5Transaction[]>(transactionsFilepath.trim());
 }
