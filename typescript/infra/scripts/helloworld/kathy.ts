@@ -232,13 +232,15 @@ async function main(): Promise<boolean> {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
 
-  chains.map(async (chain) => {
-    return updateWalletBalanceMetricFor(
-      app,
-      chain,
-      coreConfig.owners[chain].owner,
-    );
-  });
+  await Promise.allSettled(
+    chains.map(async (chain) => {
+      return updateWalletBalanceMetricFor(
+        app,
+        chain,
+        coreConfig.owners[chain].owner,
+      );
+    }),
+  );
 
   // Incremented each time an entire cycle has occurred
   let currentCycle = 0;
@@ -431,10 +433,10 @@ async function sendMessage(
     let txReceipt: TypedTransactionReceipt;
     if (tx.type == ProviderType.EthersV5) {
       // Utilize the legacy evm-specific multiprovider utils to send the transaction
-      const receipt = await multiProvider.sendTransaction(
-        origin,
-        tx.transaction,
-      );
+      const receipt = await multiProvider.sendTransaction(origin, {
+        chain: origin,
+        ...tx.transaction,
+      });
       txReceipt = {
         type: ProviderType.EthersV5,
         receipt,

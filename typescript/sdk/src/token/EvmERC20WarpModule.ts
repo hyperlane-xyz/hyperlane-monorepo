@@ -19,11 +19,12 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
+import { EvmModuleDeployer } from '../deploy/EvmModuleDeployer.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -41,6 +42,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     module: 'EvmERC20WarpModule',
   });
   reader: EvmERC20WarpRouteReader;
+  public readonly chainName: ChainName;
   // We use domainId here because MultiProvider.getDomainId() will always
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
@@ -58,6 +60,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     super(args);
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainName = multiProvider.getChainName(args.chain);
     this.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
@@ -135,6 +138,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       );
 
       updateTransactions.push({
+        chain: this.chainName,
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         chainId: this.domainId,
         to: contractToUpdate.address,
@@ -189,6 +193,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           this.multiProvider.getProvider(this.domainId),
         );
         updateTransactions.push({
+          chain: this.chainName,
           annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
           chainId: this.domainId,
           to: contractToUpdate.address,
@@ -214,11 +219,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    return EvmERC20WarpModule.createTransferOwnershipTx({
+    return EvmModuleDeployer.createTransferOwnershipTx({
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,
       deployedAddress: this.args.addresses.deployedTokenRoute,
       chainId: this.domainId,
+      chain: this.chainName,
     });
   }
 

@@ -220,6 +220,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // Return an ownership transfer transaction if required
     if (!eqAddress(targetConfig.owner, owner)) {
       updateTxs.push({
+        chain: this.chain,
         annotation: 'Transferring ownership of ownable ISM...',
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,
@@ -279,7 +280,7 @@ export class EvmIsmModule extends HyperlaneModule<
     logger: Logger;
   }): Promise<AnnotatedEV5Transaction[]> {
     const routingIsmInterface = DomainRoutingIsm__factory.createInterface();
-    const updateTxs = [];
+    const updateTxs: AnnotatedEV5Transaction[] = [];
 
     // filter out domains which are not part of the multiprovider
     current = {
@@ -311,6 +312,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
       const domainId = this.multiProvider.getDomainId(origin);
       updateTxs.push({
+        chain: this.chain,
         annotation: `Setting new ISM for origin ${origin}...`,
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,
@@ -325,6 +327,7 @@ export class EvmIsmModule extends HyperlaneModule<
     for (const origin of domainsToUnenroll) {
       const domainId = this.multiProvider.getDomainId(origin);
       updateTxs.push({
+        chain: this.chain,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         chainId: this.domainId,
         to: this.args.addresses.deployedIsm,

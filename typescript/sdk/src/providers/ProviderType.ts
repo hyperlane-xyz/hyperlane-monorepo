@@ -24,6 +24,8 @@ import type {
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { ChainName } from '../types.js';
+
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
   Viem = 'viem',
@@ -193,6 +195,7 @@ export interface EthersV5Transaction
 }
 
 export interface AnnotatedEV5Transaction extends EV5Transaction {
+  chain: ChainName;
   annotation?: string;
 }
 

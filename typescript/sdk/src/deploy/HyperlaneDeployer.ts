@@ -1,4 +1,4 @@
-import { Contract, PopulatedTransaction, ethers } from 'ethers';
+import { Contract, ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -34,6 +34,7 @@ import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { MailboxClientConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -260,7 +261,7 @@ export abstract class HyperlaneDeployer<
     contract: C,
     config: IsmConfig,
     getIsm: (contract: C) => Promise<Address>,
-    setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
+    setIsm: (contract: C, ism: Address) => Promise<AnnotatedEV5Transaction>,
   ): Promise<void> {
     const configuredIsm = await getIsm(contract);
     let matches = false;
@@ -307,7 +308,7 @@ export abstract class HyperlaneDeployer<
     contract: C,
     config: HookConfig,
     getHook: (contract: C) => Promise<Address>,
-    setHook: (contract: C, hook: Address) => Promise<PopulatedTransaction>,
+    setHook: (contract: C, hook: Address) => Promise<AnnotatedEV5Transaction>,
   ): Promise<void> {
     if (typeof config !== 'string') {
       throw new Error('Legacy deployer does not support hook objects');
@@ -347,7 +348,10 @@ export abstract class HyperlaneDeployer<
         client,
         config.hook,
         (_client) => _client.hook(),
-        (_client, _hook) => _client.populateTransaction.setHook(_hook),
+        async (_client, _hook) => {
+          const tx = await _client.populateTransaction.setHook(_hook);
+          return { ...tx, chain: local };
+        },
       );
     }
 
@@ -357,8 +361,13 @@ export abstract class HyperlaneDeployer<
         client,
         config.interchainSecurityModule,
         (_client) => _client.interchainSecurityModule(),
-        (_client, _module) =>
-          _client.populateTransaction.setInterchainSecurityModule(_module),
+        async (_client, _module) => {
+          const tx =
+            await _client.populateTransaction.setInterchainSecurityModule(
+              _module,
+            );
+          return { ...tx, chain: local };
+        },
       );
     }
 

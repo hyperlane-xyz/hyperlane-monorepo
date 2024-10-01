@@ -1,4 +1,4 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
+import { BigNumber } from 'ethers';
 
 import { InterchainAccountRouter } from '@hyperlane-xyz/core';
 import {
@@ -14,6 +14,7 @@ import {
   HyperlaneContractsMap,
 } from '../../contracts/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../../providers/ProviderType.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainName } from '../../types.js';
 
@@ -147,7 +148,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     innerCalls,
     config,
     hookMetadata,
-  }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
+  }: GetCallRemoteSettings): Promise<AnnotatedEV5Transaction> {
     const localRouter = this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
     const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
@@ -172,7 +173,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       hookMetadata ?? '0x',
       { value: quote },
     );
-    return callEncoded;
+    return { ...callEncoded, chain };
   }
 
   async getAccountConfig(

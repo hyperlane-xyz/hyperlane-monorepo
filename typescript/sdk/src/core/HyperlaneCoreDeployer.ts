@@ -143,8 +143,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
       defaultHook.address,
       (_mailbox) => _mailbox.defaultHook(),
-      (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setDefaultHook(_hook, { ...txOverrides }),
+      async (_mailbox, _hook) => {
+        const tx = await _mailbox.populateTransaction.setDefaultHook(_hook, {
+          ...txOverrides,
+        });
+        return { ...tx, chain };
+      },
     );
 
     await this.configureHook(
@@ -152,8 +156,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
       requiredHook.address,
       (_mailbox) => _mailbox.requiredHook(),
-      (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setRequiredHook(_hook, { ...txOverrides }),
+      async (_mailbox, _hook) => {
+        const tx = await _mailbox.populateTransaction.setRequiredHook(_hook, {
+          ...txOverrides,
+        });
+        return { ...tx, chain };
+      },
     );
 
     await this.configureIsm(
@@ -161,8 +169,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       mailbox,
       defaultIsm,
       (_mailbox) => _mailbox.defaultIsm(),
-      (_mailbox, _module) =>
-        _mailbox.populateTransaction.setDefaultIsm(_module),
+      async (_mailbox, _module) => {
+        const tx = await _mailbox.populateTransaction.setDefaultIsm(_module);
+        return { ...tx, chain };
+      },
     );
 
     return mailbox;

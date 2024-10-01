@@ -81,6 +81,7 @@ export class HyperlaneTestGovernor extends HyperlaneAppGovernor<
   ): Promise<void> {
     for (const call of calls) {
       await this.checker.multiProvider.sendTransaction(chain, {
+        chain,
         to: call.to,
         data: call.data,
         value: call.value,
