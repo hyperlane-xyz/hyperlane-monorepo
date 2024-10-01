@@ -7,6 +7,7 @@ import { ContractVerifier, ExplorerLicenseType } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Domain,
+  EvmChainId,
   ProtocolType,
   addressToBytes32,
   assert,
@@ -41,9 +42,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     module: 'EvmERC20WarpModule',
   });
   reader: EvmERC20WarpRouteReader;
-  // We use domainId here because MultiProvider.getDomainId() will always
-  // return a number, and EVM the domainId and chainId are the same.
+  // Domain IDs are unique, Chain IDs are not.
   public readonly domainId: Domain;
+  public readonly chainId: EvmChainId;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -58,6 +59,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     super(args);
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainId = multiProvider.getEvmChainId(args.chain);
+
     this.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
@@ -136,7 +139,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
       updateTransactions.push({
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData(
           'enrollRemoteRouters',
@@ -190,7 +193,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         );
         updateTransactions.push({
           annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
-          chainId: this.domainId,
+          chainId: this.chainId,
           to: contractToUpdate.address,
           data: contractToUpdate.interface.encodeFunctionData(
             'setInterchainSecurityModule',
@@ -218,7 +221,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,
       deployedAddress: this.args.addresses.deployedTokenRoute,
-      chainId: this.domainId,
+      chainId: this.chainId,
     });
   }
 

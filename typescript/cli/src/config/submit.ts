@@ -80,7 +80,7 @@ function getChainFromTxs(
   );
   assert(sameChainIds, 'Transactions must be submitted on the same chains');
 
-  return multiProvider.getChainName(firstTransaction.chainId);
+  return multiProvider.getChainName(firstTransaction.domainId);
 }
 
 function getTransactions(transactionsFilepath: string): PopulatedTransactions {

@@ -8,6 +8,7 @@ export const PopulatedTransactionSchema = z.object({
   to: ZHash,
   data: z.string(),
   chainId: z.number(),
+  domainId: z.number(),
 });
 
 export const PopulatedTransactionsSchema =

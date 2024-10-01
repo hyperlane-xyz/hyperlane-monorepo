@@ -46,9 +46,8 @@ export class EvmCoreModule extends HyperlaneModule<
   protected coreReader: EvmCoreReader;
   public readonly chainName: string;
 
-  // We use domainId here because MultiProvider.getDomainId() will always
-  // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
+  public readonly chainId: Domain;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -57,7 +56,8 @@ export class EvmCoreModule extends HyperlaneModule<
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
     this.chainName = this.multiProvider.getChainName(this.args.chain);
-    this.domainId = multiProvider.getDomainId(args.chain);
+    this.domainId = this.multiProvider.getDomainId(this.args.chain);
+    this.chainId = this.multiProvider.getEvmChainId(this.args.chain);
   }
 
   /**
@@ -127,7 +127,7 @@ export class EvmCoreModule extends HyperlaneModule<
       );
       updateTransactions.push({
         annotation: `Setting default ISM for Mailbox ${mailbox} to ${deployedIsm}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData('setDefaultIsm', [
           deployedIsm,
@@ -200,7 +200,7 @@ export class EvmCoreModule extends HyperlaneModule<
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,
       deployedAddress: this.args.addresses.mailbox,
-      chainId: this.domainId,
+      chainId: this.chainId,
     });
   }
 

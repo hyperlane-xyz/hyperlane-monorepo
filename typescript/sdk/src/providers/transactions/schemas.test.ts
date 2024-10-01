@@ -9,6 +9,7 @@ describe('transactions schemas', () => {
   const ADDRESS_MOCK: Address = '0x1234567890123456789012345678901234567890';
   const DATA_MOCK: string = '0xabcdef';
   const CHAIN_ID_MOCK: number = 1;
+  const DOMAIN_ID_MOCK: number = 1;
   const VALUE_MOCK: string = '100';
 
   const INVALID_ADDRESS: Address = '0x1';
@@ -19,6 +20,7 @@ describe('transactions schemas', () => {
         to: ADDRESS_MOCK,
         data: DATA_MOCK,
         chainId: CHAIN_ID_MOCK,
+        domainId: DOMAIN_ID_MOCK,
       };
       const result = PopulatedTransactionSchema.safeParse(
         validPopulatedTransaction,
@@ -31,6 +33,7 @@ describe('transactions schemas', () => {
         to: INVALID_ADDRESS,
         data: DATA_MOCK,
         chainId: CHAIN_ID_MOCK,
+        domainId: DOMAIN_ID_MOCK,
       };
       const result = PopulatedTransactionSchema.safeParse(
         invalidPopulatedTransaction,
