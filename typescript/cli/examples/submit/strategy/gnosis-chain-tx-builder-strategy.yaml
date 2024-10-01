@@ -1,0 +1,8 @@
+basesepolia:
+  submitter:
+    chain: 'basesepolia'
+    type: gnosisSafeTxBuilder
+    version: '1.0'
+    meta:
+      txBuilderVersion: '1.13.1'
+    safeAddress: '0x7232Ad76d905ae9D8D00379359DDa744a7A21C46'
