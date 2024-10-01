@@ -221,18 +221,8 @@ export function readWarpCoreConfig(filePath: string): WarpCoreConfig {
  */
 function createDefaultWarpIsmConfig(owner: Address): IsmConfig {
   return {
-    type: IsmType.AGGREGATION,
-    modules: [
-      {
-        type: IsmType.TRUSTED_RELAYER,
-        relayer: owner,
-      },
-      {
-        type: IsmType.FALLBACK_ROUTING,
-        domains: {},
-        owner,
-      },
-    ],
+    type: IsmType.STORAGE_MERKLE_ROOT_MULTISIG,
+    validators: [owner],
     threshold: 1,
   };
 }

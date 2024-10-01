@@ -47,12 +47,6 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
 
 type ProtocolTypesMapping = {
-  [ProtocolType.ZKSync]: {
-    transaction: ZKSyncTransaction;
-    provider: ZKSyncProvider;
-    contract: ZKSyncContract;
-    receipt: ZKSyncTransactionReceipt;
-  };
   [ProtocolType.Ethereum]: {
     transaction: EthersV5Transaction;
     provider: EthersV5Provider;
@@ -70,6 +64,12 @@ type ProtocolTypesMapping = {
     provider: CosmJsWasmProvider;
     contract: CosmJsWasmContract;
     receipt: CosmJsWasmTransactionReceipt;
+  };
+  [ProtocolType.ZKSync]: {
+    transaction: ZKSyncTransaction;
+    provider: ZKSyncProvider;
+    contract: ZKSyncContract;
+    receipt: ZKSyncTransactionReceipt;
   };
 };
 
@@ -143,7 +143,8 @@ export type TypedProvider =
   | ViemProvider
   | SolanaWeb3Provider
   | CosmJsProvider
-  | CosmJsWasmProvider;
+  | CosmJsWasmProvider
+  | ZKSyncProvider;
 
 /**
  * Contracts with discriminated union of provider type

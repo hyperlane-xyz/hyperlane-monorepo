@@ -34,16 +34,6 @@ const DEFAULT_RETRY_OPTIONS: ProviderRetryOptions = {
   baseRetryDelayMs: 250,
 };
 
-export function defaultZKSyncProviderBuilder(
-  rpcUrls: RpcUrl[],
-  network: ethers.providers.Networkish,
-): ZKSyncProvider {
-  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
-  const url = rpcUrls[0].http;
-  const provider = new zk.Provider(url, network);
-  return { type: ProviderType.ZKSync, provider };
-}
-
 export function defaultEthersV5ProviderBuilder(
   rpcUrls: RpcUrl[],
   network: number | string,
@@ -121,6 +111,16 @@ export function defaultCosmJsWasmProviderBuilder(
   };
 }
 
+export function defaultZKSyncProviderBuilder(
+  rpcUrls: RpcUrl[],
+  network: ethers.providers.Networkish,
+): ZKSyncProvider {
+  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  const url = rpcUrls[0].http;
+  const provider = new zk.Provider(url, network);
+  return { type: ProviderType.ZKSync, provider };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
@@ -141,20 +141,20 @@ export type ProviderBuilderMap = Record<
   ProviderBuilderFn<TypedProvider>
 >;
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
-  [ProviderType.ZKSync]: defaultEthersV5ProviderBuilder,
   [ProviderType.EthersV5]: defaultEthersV5ProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
+  [ProviderType.ZKSync]: defaultZKSyncProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
   ProtocolType,
   ProviderBuilderFn<TypedProvider>
 > = {
-  [ProtocolType.ZKSync]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
+  [ProtocolType.ZKSync]: defaultZKSyncProviderBuilder,
 };

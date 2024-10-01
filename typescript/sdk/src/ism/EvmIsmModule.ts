@@ -16,6 +16,7 @@ import {
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
+  StorageMerkleRootMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -428,10 +429,33 @@ export class EvmIsmModule extends HyperlaneModule<
           contractName: IsmType.TEST_ISM,
           constructorArgs: [],
         });
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+        return this.deployStorageMultisigIsm({
+          config,
+          logger,
+        });
 
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
+  }
+
+  protected async deployStorageMultisigIsm({
+    config,
+    logger,
+  }: {
+    config: MultisigIsmConfig;
+    logger: Logger;
+  }): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(this.chain);
+
+    const contract = await this.deployer.deployContractFromFactory({
+      chain: this.chain,
+      factory: new StorageMerkleRootMultisigIsm__factory(),
+      contractName: IsmType.STORAGE_MERKLE_ROOT_MULTISIG,
+      constructorArgs: [config.validators, config.threshold],
+    });
+    return IMultisigIsm__factory.connect(contract.address, signer);
   }
 
   protected async deployMultisigIsm({
