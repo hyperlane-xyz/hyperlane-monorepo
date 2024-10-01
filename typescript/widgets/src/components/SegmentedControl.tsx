@@ -30,15 +30,15 @@ export function SegmentedControl<O extends string>({
   };
 
   return (
-    <div className="htw-inline-flex htw-rounded-full htw-border htw-border-gray-300 htw-divide-x">
+    <div className="htw-inline-flex htw-rounded-lg htw-border htw-border-gray-200 htw-divide-x">
       {options.map((option, index) => (
         <button
           key={index}
           onClick={() => handleSelect(index)}
-          className={`htw-px-2 sm:htw-px-4 htw-py-1 htw-text-gray-800 htw-text-xs sm:htw-text-sm htw-transition-all htw-duration-200 htw-ease-in-out htw-focus:outline-none first:htw-rounded-l-full last:htw-rounded-r-full
+          className={`htw-px-2 sm:htw-px-4 htw-py-1 htw-text-gray-800 htw-text-xs sm:htw-text-sm htw-transition-all htw-duration-200 htw-ease-in-out htw-focus:outline-none first:htw-rounded-l-lg last:htw-rounded-r-lg
             ${
               selectedIndex === index
-                ? 'htw-bg-gray-200'
+                ? 'htw-bg-gray-100 htw-font-medium'
                 : 'htw-bg-white hover:htw-bg-gray-100'
             } 
       `}

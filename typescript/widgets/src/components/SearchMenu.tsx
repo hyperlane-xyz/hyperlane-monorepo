@@ -6,6 +6,8 @@ import { FilterIcon } from '../icons/Filter.js';
 import { GearIcon } from '../icons/Gear.js';
 import { PencilIcon } from '../icons/Pencil.js';
 import { SearchIcon } from '../icons/Search.js';
+import { DropdownMenu } from '../layout/DropdownMenu.js';
+import { Popover } from '../layout/Popover.js';
 
 import { IconButton } from './IconButton.js';
 import { InputProps, TextInput } from './TextInput.js';
@@ -28,6 +30,7 @@ export interface SearchMenuProps<
     value: SortAndFilterState;
     onChange: (s: SortAndFilterState) => void;
   }>;
+  placeholder?: string;
 }
 
 export function SearchMenu<
@@ -41,6 +44,7 @@ export function SearchMenu<
   ListComponent,
   defaultSortAndFilterState,
   FilterComponent,
+  placeholder,
 }: SearchMenuProps<ListItem, SortAndFilterState>) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
@@ -57,13 +61,24 @@ export function SearchMenu<
   return (
     <div className="htw-flex htw-flex-col">
       <div className="htw-relative">
-        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={placeholder}
+        />
         <SearchBarButtons
           isEditMode={isEditMode}
           isFilterOpen={isFilterOpen}
           setIsEditMode={setIsEditMode}
           setIsFilterOpen={setIsFilterOpen}
         />
+      </div>
+      <div className="htw-flex htw-items-center htw-justify-between">
+        <DropdownMenu
+          button={<button>Sort</button>}
+          menuItems={[<div>a</div>, <div>b</div>]}
+        />
+        <Popover button={<button>Filter</button>}>Test</Popover>
       </div>
       <div
         className={`htw-px-4 ${

@@ -92,6 +92,7 @@ export function ChainSearchMenu({
         defaultSortAndFilterState={defaultSortAndFilterState}
         ListComponent={ChainListItemWithCustom}
         FilterComponent={ChainFilters}
+        placeholder="Chain name or id"
       />
     );
   }
@@ -192,6 +193,7 @@ function chainSearch(
       .filter(
         (chain) =>
           chain.name.includes(queryFormatted) ||
+          chain.displayName?.includes(queryFormatted) ||
           chain.chainId.toString().includes(queryFormatted) ||
           chain.domainId?.toString().includes(queryFormatted),
       )
