@@ -34,11 +34,9 @@ export function getExplorerApiUrl(
   metadata: ChainMetadata,
   index = 0,
 ): string | null {
-  const { protocol, blockExplorers } = metadata;
-  // TODO solana + cosmos support here as needed
-  if (protocol !== ProtocolType.Ethereum) return null;
-  if (!blockExplorers?.length || !blockExplorers[index].apiUrl) return null;
-  const { apiUrl, apiKey } = blockExplorers[index];
+  const explorer = getExplorerApi(metadata, index)!;
+  if (!explorer) return null;
+  const { apiUrl, apiKey } = explorer;
   if (!apiKey) return apiUrl;
   const url = new URL(apiUrl);
   url.searchParams.set('apikey', apiKey);

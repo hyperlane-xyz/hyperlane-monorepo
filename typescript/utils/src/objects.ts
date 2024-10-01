@@ -145,7 +145,7 @@ export function objMerge<T = any>(
  * @param max_depth The maximum depth to recurse
  * @param sliceArrays If true, arrays will have values sliced out instead of being removed entirely
  */
-export function objSlice<T extends Record<string, any> = any>(
+export function objOmit<T extends Record<string, any> = any>(
   a: Record<string, any>,
   b: Record<string, any>,
   max_depth = 10,
@@ -167,12 +167,12 @@ export function objSlice<T extends Record<string, any> = any>(
           (v: any) => !b[key].some((bv: any) => deepEquals(v, bv)),
         );
       } else if (isObject(a[key]) && isObject(b[key])) {
-        const sliced = objSlice(a[key], b[key], max_depth - 1, sliceArrays);
+        const sliced = objOmit(a[key], b[key], max_depth - 1, sliceArrays);
         if (Object.keys(sliced).length > 0) {
           ret[key] = sliced;
         }
-      } else if (b[key] !== true) {
-        ret[key] = objSlice(a[key], b[key], max_depth - 1, sliceArrays);
+      } else if (!!b[key] == false) {
+        ret[key] = objOmit(a[key], b[key], max_depth - 1, sliceArrays);
       }
     } else {
       ret[key] = a[key];

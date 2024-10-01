@@ -115,7 +115,7 @@ export {
   objMap,
   objMapEntries,
   objMerge,
-  objSlice,
+  objOmit,
   pick,
   promiseObjAll,
   stringifyObject,

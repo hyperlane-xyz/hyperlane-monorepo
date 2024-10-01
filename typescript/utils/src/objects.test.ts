@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { deepCopy, deepEquals, objMerge, objSlice } from './objects.js';
+import { deepCopy, deepEquals, objMerge, objOmit } from './objects.js';
 
 describe('Object utilities', () => {
   it('deepEquals', () => {
@@ -28,22 +28,36 @@ describe('Object utilities', () => {
     expect(merged).to.eql({ a: 2, b: { c: ['arr1', 'arr2'] } });
   });
 
+  it('objMerge without array', () => {
+    const obj1 = { a: 1, b: { c: ['arr1'] } };
+    const obj2 = { a: 2, b: { c: ['arr2'] } };
+    const merged = objMerge(obj1, obj2, 10, false);
+    expect(merged).to.eql({ a: 2, b: { c: ['arr2'] } });
+  });
+
   it('objSlice', () => {
     const obj1 = { a: 1, b: { c: ['arr1'], d: 'string' } };
     const obj2 = { a: true, b: { c: true } };
-    const sliced = objSlice(obj1, obj2);
+    const sliced = objOmit(obj1, obj2);
     expect(sliced).to.eql({ b: { d: 'string' } });
   });
 
   it('objSlice with array', () => {
     const obj1 = { a: 1, b: { c: ['arr1', 'arr2'], d: 'string' } };
     const obj2 = { b: { c: ['arr1'] } };
-    const sliced1_2 = objSlice(obj1, obj2, 10, true);
+    const sliced1_2 = objOmit(obj1, obj2, 10, true);
     expect(sliced1_2).to.eql({ a: 1, b: { c: ['arr2'], d: 'string' } });
 
     const obj3 = { a: [{ b: 1 }], c: 2 };
     const obj4 = { a: [{ b: 1 }] };
-    const sliced3_4 = objSlice(obj3, obj4, 10, true);
+    const sliced3_4 = objOmit(obj3, obj4, 10, true);
     expect(sliced3_4).to.eql({ a: [], c: 2 });
+  });
+
+  it('objSlice without array', () => {
+    const obj1 = { a: 1, b: { c: ['arr1', 'arr2'], d: 'string' } };
+    const obj2 = { b: { c: ['arr1'] } };
+    const sliced1_2 = objOmit(obj1, obj2, 10, false);
+    expect(sliced1_2).to.eql({ a: 1, b: { d: 'string' } });
   });
 });
