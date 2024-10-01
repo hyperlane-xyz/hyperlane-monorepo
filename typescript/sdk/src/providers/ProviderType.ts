@@ -22,6 +22,7 @@ import type {
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
 
+import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
@@ -192,6 +193,7 @@ export interface EthersV5Transaction
 }
 
 export interface AnnotatedEV5Transaction extends EV5Transaction {
+  chain: ChainName;
   annotation?: string;
 }
 

@@ -312,15 +312,8 @@ export {
   excludeProviderMethods,
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
-export {
-  PopulatedTransactionSchema,
-  PopulatedTransactionsSchema,
-} from './providers/transactions/schemas.js';
-export {
-  CallData,
-  PopulatedTransaction,
-  PopulatedTransactions,
-} from './providers/transactions/types.js';
+
+export { CallData } from './providers/transactions/types.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';

@@ -2,15 +2,22 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  Ownable__factory,
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addBufferToGasLimit,
+  eqAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { isProxy, proxyConstructorArgs } from './proxy.js';
@@ -314,5 +321,42 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     // );
 
     return address;
+  }
+
+  /**
+   * Transfers ownership of a contract to a new owner.
+   *
+   * @param actualOwner - The current owner of the contract.
+   * @param expectedOwner - The expected new owner of the contract.
+   * @param deployedAddress - The address of the deployed contract.
+   * @param chainId - The chain ID of the network the contract is deployed on.
+   * @returns An array of annotated EV5 transactions that need to be executed to update the owner.
+   */
+  static createTransferOwnershipTx(params: {
+    actualOwner: Address;
+    expectedOwner: Address;
+    deployedAddress: Address;
+    chainId: number;
+    chain: ChainName;
+  }): AnnotatedEV5Transaction[] {
+    const { actualOwner, expectedOwner, deployedAddress, chainId, chain } =
+      params;
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (eqAddress(actualOwner, expectedOwner)) {
+      return [];
+    }
+
+    updateTransactions.push({
+      chain,
+      annotation: `Transferring ownership of ${deployedAddress} from current owner ${actualOwner} to new owner ${expectedOwner}`,
+      chainId,
+      to: deployedAddress,
+      data: Ownable__factory.createInterface().encodeFunctionData(
+        'transferOwnership(address)',
+        [expectedOwner],
+      ),
+    });
+
+    return updateTransactions;
   }
 }

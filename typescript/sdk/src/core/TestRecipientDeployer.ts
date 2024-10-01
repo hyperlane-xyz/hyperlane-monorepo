@@ -53,7 +53,12 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
         testRecipient,
         config.interchainSecurityModule,
         (tr) => tr.interchainSecurityModule(),
-        (tr, ism) => tr.populateTransaction.setInterchainSecurityModule(ism),
+        async (tr, ism) => {
+          const tx = await tr.populateTransaction.setInterchainSecurityModule(
+            ism,
+          );
+          return { tx, chain };
+        },
       );
     } else {
       this.logger.warn(`No ISM config provided for TestRecipient on ${chain}`);

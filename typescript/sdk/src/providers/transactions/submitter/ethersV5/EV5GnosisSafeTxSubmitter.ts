@@ -6,7 +6,7 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 // @ts-ignore
 import { canProposeSafeTransactions, getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
+import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
@@ -62,16 +62,15 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
   }
 
-  public async submit(...txs: PopulatedTransactions): Promise<any[]> {
+  public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any[]> {
     const nextNonce: number = await this.safeService.getNextNonce(
       this.props.safeAddress,
     );
     const safeTransactionBatch: any[] = txs.map(
-      ({ to, data, value, domainId }: PopulatedTransaction) => {
-        const txChain = this.multiProvider.getChainName(domainId);
+      ({ to, data, value, chain }: AnnotatedEV5Transaction) => {
         assert(
-          txChain === this.props.chain,
-          `Invalid PopulatedTransaction: Cannot submit ${txChain} tx to ${this.props.chain} submitter.`,
+          chain === this.props.chain,
+          `Invalid PopulatedTransaction: Cannot submit ${chain} tx to ${this.props.chain} submitter.`,
         );
         return { to, data, value: value?.toString() ?? '0' };
       },
