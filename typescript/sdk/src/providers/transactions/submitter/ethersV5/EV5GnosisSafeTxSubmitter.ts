@@ -67,8 +67,8 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       this.props.safeAddress,
     );
     const safeTransactionBatch: any[] = txs.map(
-      ({ to, data, value, chainId }: PopulatedTransaction) => {
-        const txChain = this.multiProvider.getChainName(chainId);
+      ({ to, data, value, domainId }: PopulatedTransaction) => {
+        const txChain = this.multiProvider.getChainName(domainId);
         assert(
           txChain === this.props.chain,
           `Invalid PopulatedTransaction: Cannot submit ${txChain} tx to ${this.props.chain} submitter.`,

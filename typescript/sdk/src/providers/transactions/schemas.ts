@@ -7,7 +7,6 @@ export const BigNumberSchema = z.string();
 export const PopulatedTransactionSchema = z.object({
   to: ZHash,
   data: z.string(),
-  chainId: z.number(),
   domainId: z.number(),
 });
 

@@ -44,9 +44,9 @@ export class EV5InterchainAccountTxTransformer
     const txChainsToInnerCalls: Record<ChainName, CallData[]> = txs.reduce(
       (
         txChainToInnerCalls: Record<ChainName, CallData[]>,
-        { to, data, chainId }: PopulatedTransaction,
+        { to, data, domainId }: PopulatedTransaction,
       ) => {
-        const txChain = this.multiProvider.getChainName(chainId);
+        const txChain = this.multiProvider.getChainName(domainId);
         txChainToInnerCalls[txChain] ||= [];
         txChainToInnerCalls[txChain].push({ to, data });
         return txChainToInnerCalls;
