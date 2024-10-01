@@ -35,29 +35,29 @@ describe('Object utilities', () => {
     expect(merged).to.eql({ a: 2, b: { c: ['arr2'] } });
   });
 
-  it('objSlice', () => {
+  it('objOmit', () => {
     const obj1 = { a: 1, b: { c: ['arr1'], d: 'string' } };
     const obj2 = { a: true, b: { c: true } };
-    const sliced = objOmit(obj1, obj2);
-    expect(sliced).to.eql({ b: { d: 'string' } });
+    const omitted = objOmit(obj1, obj2);
+    expect(omitted).to.eql({ b: { d: 'string' } });
   });
 
-  it('objSlice with array', () => {
+  it('objOmit with array', () => {
     const obj1 = { a: 1, b: { c: ['arr1', 'arr2'], d: 'string' } };
     const obj2 = { b: { c: ['arr1'] } };
-    const sliced1_2 = objOmit(obj1, obj2, 10, true);
-    expect(sliced1_2).to.eql({ a: 1, b: { c: ['arr2'], d: 'string' } });
+    const omitted1_2 = objOmit(obj1, obj2, 10, true);
+    expect(omitted1_2).to.eql({ a: 1, b: { c: ['arr2'], d: 'string' } });
 
     const obj3 = { a: [{ b: 1 }], c: 2 };
     const obj4 = { a: [{ b: 1 }] };
-    const sliced3_4 = objOmit(obj3, obj4, 10, true);
-    expect(sliced3_4).to.eql({ a: [], c: 2 });
+    const omitted3_4 = objOmit(obj3, obj4, 10, true);
+    expect(omitted3_4).to.eql({ a: [], c: 2 });
   });
 
-  it('objSlice without array', () => {
+  it('objOmit without array', () => {
     const obj1 = { a: 1, b: { c: ['arr1', 'arr2'], d: 'string' } };
     const obj2 = { b: { c: ['arr1'] } };
-    const sliced1_2 = objOmit(obj1, obj2, 10, false);
-    expect(sliced1_2).to.eql({ a: 1, b: { d: 'string' } });
+    const omitted1_2 = objOmit(obj1, obj2, 10, false);
+    expect(omitted1_2).to.eql({ a: 1, b: { d: 'string' } });
   });
 });
