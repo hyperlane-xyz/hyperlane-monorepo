@@ -784,8 +784,8 @@ class ContextFunder {
   ) {
     const l1Chain = L2ToL1[l2Chain];
     const crossChainMessenger = new CrossChainMessenger({
-      l1ChainId: this.multiProvider.getDomainId(l1Chain),
-      l2ChainId: this.multiProvider.getDomainId(l2Chain),
+      l1ChainId: this.multiProvider.getEvmChainId(l1Chain),
+      l2ChainId: this.multiProvider.getEvmChainId(l2Chain),
       l1SignerOrProvider: this.multiProvider.getSignerOrProvider(l1Chain),
       l2SignerOrProvider: this.multiProvider.getSignerOrProvider(l2Chain),
     });

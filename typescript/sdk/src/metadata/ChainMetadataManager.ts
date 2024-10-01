@@ -1,6 +1,12 @@
 import { Logger } from 'pino';
 
-import { ProtocolType, exclude, pick, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  EvmChainId,
+  ProtocolType,
+  exclude,
+  pick,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
@@ -90,7 +96,7 @@ export class ChainMetadataManager<MetaExt = {}> {
     if (this.metadata[chainNameOrId]) return this.metadata[chainNameOrId];
     // Otherwise search by chain id and domain id
     const chainMetadata = Object.values(this.metadata).find(
-      (m) => m.chainId == chainNameOrId || m.domainId == chainNameOrId,
+      (m) => m.domainId == chainNameOrId,
     );
     return chainMetadata || null;
   }
@@ -161,6 +167,21 @@ export class ChainMetadataManager<MetaExt = {}> {
    */
   getChainId(chainNameOrId: ChainNameOrId): number | string {
     return this.getChainMetadata(chainNameOrId).chainId;
+  }
+
+  /**
+   * Get the id for a given EVM chain name or domain id
+   * @throws if chain's metadata has not been set
+   */
+  getEvmChainId(chainNameOrId: ChainNameOrId): EvmChainId {
+    const { protocol, chainId } = this.getChainMetadata(chainNameOrId);
+    if (protocol !== ProtocolType.Ethereum) {
+      throw new Error(`Chain is not an EVM chain: ${chainNameOrId}`);
+    }
+    if (typeof chainId !== 'number') {
+      throw new Error(`Chain ID is not a number: ${chainId}`);
+    }
+    return chainId;
   }
 
   /**

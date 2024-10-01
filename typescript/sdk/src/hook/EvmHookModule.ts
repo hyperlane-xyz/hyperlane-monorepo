@@ -26,6 +26,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  Domain,
+  EvmChainId,
   ProtocolType,
   addressToBytes32,
   deepEquals,
@@ -49,7 +51,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
@@ -85,10 +87,9 @@ export class EvmHookModule extends HyperlaneModule<
   protected readonly deployer: EvmModuleDeployer<HookFactories & IgpFactories>;
 
   // Adding these to reduce how often we need to grab from MultiProvider.
-  public readonly chain: string;
-  // We use domainId here because MultiProvider.getDomainId() will always
-  // return a number, and EVM the domainId and chainId are the same.
-  public readonly domainId: number;
+  public readonly chain: ChainName;
+  public readonly domainId: Domain;
+  public readonly chainId: EvmChainId;
 
   // Transaction overrides for the chain
   protected readonly txOverrides: Partial<ethers.providers.TransactionRequest>;
@@ -117,6 +118,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     this.chain = this.multiProvider.getChainName(this.args.chain);
     this.domainId = this.multiProvider.getDomainId(this.chain);
+    this.chainId = this.multiProvider.getEvmChainId(this.chain);
 
     this.txOverrides = this.multiProvider.getTransactionOverrides(this.chain);
   }
@@ -212,7 +214,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         chain: this.chain,
         annotation: 'Transferring ownership of ownable Hook...',
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: Ownable__factory.createInterface().encodeFunctionData(
           'transferOwnership(address)',
@@ -315,7 +317,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         chain: this.chain,
         annotation: `Updating paused state to ${targetConfig.paused}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data,
       });
@@ -339,7 +341,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         chain: this.chain,
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: igpInterface.encodeFunctionData('setBeneficiary(address)', [
           targetConfig.beneficiary,
@@ -441,7 +443,7 @@ export class EvmHookModule extends HyperlaneModule<
         annotation: `Updating overhead for domains ${Object.keys(
           targetOverheads,
         ).join(', ')}...`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: interchainGasPaymaster,
         data: InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
           'setDestinationGasConfigs((uint32,(address,uint96))[])',
@@ -508,7 +510,7 @@ export class EvmHookModule extends HyperlaneModule<
         annotation: `Updating gas oracle config for domains ${Object.keys(
           targetOracleConfig,
         ).join(', ')}...`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: gasOracle,
         data: StorageGasOracle__factory.createInterface().encodeFunctionData(
           'setRemoteGasDataConfigs((uint32,uint128,uint128)[])',
@@ -540,7 +542,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         chain: this.chain,
         annotation: `Updating protocol fee from ${currentConfig.protocolFee} to ${targetConfig.protocolFee}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: protocolFeeInterface.encodeFunctionData(
           'setProtocolFee(uint256)',
@@ -554,7 +556,7 @@ export class EvmHookModule extends HyperlaneModule<
       updateTxs.push({
         chain: this.chain,
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: protocolFeeInterface.encodeFunctionData(
           'setBeneficiary(address)',
@@ -603,7 +605,7 @@ export class EvmHookModule extends HyperlaneModule<
       {
         chain: this.chain,
         annotation: 'Updating routing hooks...',
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: DomainRoutingHook__factory.createInterface().encodeFunctionData(
           'setHooks((uint32,address)[])',
@@ -839,7 +841,7 @@ export class EvmHookModule extends HyperlaneModule<
     const chain = this.chain;
     const mailbox = this.args.addresses.mailbox;
 
-    const destinationChain = this.multiProvider.getChainId(
+    const destinationChain = this.multiProvider.getDomainId(
       config.destinationChain,
     );
     if (typeof destinationChain !== 'number') {

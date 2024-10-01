@@ -119,7 +119,7 @@ export async function deleteSafeTx(
   safeTxHash: string,
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
-  const domainId = multiProvider.getDomainId(chain);
+  const chainId = multiProvider.getChainId(chain);
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
@@ -176,7 +176,7 @@ export async function deleteSafeTx(
       domain: {
         name: 'Safe Transaction Service',
         version: '1.0',
-        chainId: domainId,
+        chainId,
         verifyingContract: safeAddress,
       },
       primaryType: 'DeleteRequest',
