@@ -6,15 +6,15 @@ on:
   push:
     branches: [main]
     paths:
-      - '!**/*'
       - '**/*.md'
+      - '!**/*.!(md)'
   # Auto-pass tests if only md files are changed
   pull_request:
     branches:
       - '*'
     paths:
-      - '!**/*'
       - '**/*.md'
+      - '!**/*.!(md)'
 
 concurrency:
   group: e2e-${{ github.ref }}
