@@ -24,13 +24,12 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
   ): Promise<TransactionReceipt[]> {
     const receipts: TransactionReceipt[] = [];
     for (const tx of txs) {
-      const txChain = this.multiProvider.getChainName(tx.chain);
       const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
-        txChain,
+        tx.chain,
         tx,
       );
       this.logger.debug(
-        `Submitted populated transaction on ${txChain}: ${receipt.transactionHash}`,
+        `Submitted populated transaction on ${tx.chain}: ${receipt.transactionHash}`,
       );
       receipts.push(receipt);
     }
