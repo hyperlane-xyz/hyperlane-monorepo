@@ -1,7 +1,6 @@
-use std::path::PathBuf;
-use std::{io, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc};
 
-use hyperlane_core::{ChainCommunicationError, HyperlaneProtocolError};
+use super::error::DbError;
 use rocksdb::{Options, DB as Rocks};
 use tracing::info;
 
@@ -30,37 +29,6 @@ pub struct DB(Arc<Rocks>);
 impl From<Rocks> for DB {
     fn from(rocks: Rocks) -> Self {
         Self(Arc::new(rocks))
-    }
-}
-
-/// DB Error type
-#[derive(thiserror::Error, Debug)]
-pub enum DbError {
-    /// Rocks DB Error
-    #[error("{0}")]
-    RockError(#[from] rocksdb::Error),
-    #[error("Failed to open {path}, canonicalized as {canonicalized}: {source}")]
-    /// Error opening the database
-    OpeningError {
-        /// Rocksdb error during opening
-        #[source]
-        source: rocksdb::Error,
-        /// Raw database path provided
-        path: PathBuf,
-        /// Parsed path used
-        canonicalized: PathBuf,
-    },
-    /// Could not parse the provided database path string
-    #[error("Invalid database path supplied {1:?}; {0}")]
-    InvalidDbPath(#[source] io::Error, String),
-    /// Hyperlane Error
-    #[error("{0}")]
-    HyperlaneError(#[from] HyperlaneProtocolError),
-}
-
-impl From<DbError> for ChainCommunicationError {
-    fn from(value: DbError) -> Self {
-        ChainCommunicationError::from_other(value)
     }
 }
 

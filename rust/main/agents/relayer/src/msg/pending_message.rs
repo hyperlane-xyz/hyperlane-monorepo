@@ -9,7 +9,10 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
+use hyperlane_base::{
+    db::{HyperlaneDB, HyperlaneRocksDB},
+    CoreMetrics,
+};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
