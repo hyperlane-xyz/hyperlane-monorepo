@@ -31,11 +31,13 @@ abstract contract AbstractStorageMultisigIsm is
     }
 
     function initialize(
+        address _owner,
         address[] memory _validators,
         uint8 _threshold
     ) external initializer {
         __Ownable_init();
         setValidatorsAndThreshold(_validators, _threshold);
+        transferOwnership(_owner);
     }
 
     function setValidatorsAndThreshold(
@@ -95,7 +97,11 @@ abstract contract StorageMultisigIsmFactory is IThresholdAddressFactory {
     ) external returns (address ism) {
         ism = MinimalProxy.create(implementation());
         emit ModuleDeployed(ism);
-        AbstractStorageMultisigIsm(ism).initialize(_validators, _threshold);
+        AbstractStorageMultisigIsm(ism).initialize(
+            msg.sender,
+            _validators,
+            _threshold
+        );
     }
 
     function implementation() public view virtual returns (address);

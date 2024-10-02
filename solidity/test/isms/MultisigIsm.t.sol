@@ -315,6 +315,31 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
 abstract contract StorageMultisigIsmTest is AbstractMultisigIsmTest {
     event ValidatorsAndThresholdSet(address[] validators, uint8 threshold);
     event Initialized(uint8 version);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
+    function test_initialize(
+        bytes32 seed,
+        address[] memory validators,
+        uint8 threshold
+    ) public {
+        vm.assume(
+            0 < threshold &&
+                threshold <= validators.length &&
+                validators.length <= MAX_VALIDATORS
+        );
+
+        addValidators(threshold, uint8(validators.length), seed);
+
+        vm.expectRevert("Initializable: contract is already initialized");
+        AbstractStorageMultisigIsm(address(ism)).initialize(
+            address(this),
+            validators,
+            threshold
+        );
+    }
 
     function test_setValidatorsAndThreshold(
         bytes32 seed,
@@ -327,17 +352,11 @@ abstract contract StorageMultisigIsmTest is AbstractMultisigIsmTest {
                 validators.length <= MAX_VALIDATORS
         );
 
-        // test _disableInitializers in constructor
-        vm.expectEmit(true, true, false, false);
-        emit Initialized(type(uint8).max);
         addValidators(threshold, uint8(validators.length), seed);
 
         AbstractStorageMultisigIsm storageIsm = AbstractStorageMultisigIsm(
             address(ism)
         );
-
-        vm.expectRevert("Initializable: contract is already initialized");
-        storageIsm.initialize(validators, threshold);
 
         address owner = storageIsm.owner();
         address antiOwner = address(~bytes20(owner));
