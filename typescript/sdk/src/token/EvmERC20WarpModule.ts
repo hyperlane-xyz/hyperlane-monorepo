@@ -25,7 +25,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrDomain } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -287,7 +287,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @returns A new instance of the EvmERC20WarpHyperlaneModule.
    */
   public static async create(params: {
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
     config: TokenRouterConfig;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;

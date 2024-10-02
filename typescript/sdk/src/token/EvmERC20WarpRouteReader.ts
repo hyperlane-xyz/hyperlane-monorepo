@@ -24,7 +24,7 @@ import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RemoteRouters } from '../router/types.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainNameOrDomain } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { CollateralExtensions } from './config.js';
@@ -39,7 +39,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly chain: ChainNameOrId,
+    protected readonly chain: ChainNameOrDomain,
     protected readonly concurrency: number = DEFAULT_CONTRACT_READ_CONCURRENCY,
   ) {
     super(multiProvider, chain);

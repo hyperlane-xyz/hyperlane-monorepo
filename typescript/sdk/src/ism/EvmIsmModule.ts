@@ -21,7 +21,6 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  Domain,
   EvmChainId,
   ProtocolType,
   addBufferToGasLimit,
@@ -46,7 +45,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrDomain } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
@@ -80,7 +79,6 @@ export class EvmIsmModule extends HyperlaneModule<
 
   // Adding these to reduce how often we need to grab from MultiProvider.
   public readonly chain: ChainName;
-  public readonly domainId: Domain;
   public readonly chainId: EvmChainId;
 
   constructor(
@@ -123,7 +121,6 @@ export class EvmIsmModule extends HyperlaneModule<
     );
 
     this.chain = this.multiProvider.getChainName(this.args.chain);
-    this.domainId = this.multiProvider.getDomainId(this.chain);
     this.chainId = this.multiProvider.getEvmChainId(this.chain);
   }
 
@@ -244,7 +241,7 @@ export class EvmIsmModule extends HyperlaneModule<
     multiProvider,
     contractVerifier,
   }: {
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
     config: IsmConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     mailbox: Address;

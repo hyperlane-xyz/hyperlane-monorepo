@@ -462,7 +462,7 @@ export {
   TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
 } from './token/TokenStandard.js';
-export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
+export { ChainMap, ChainName, ChainNameOrDomain, Connection } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { filterByChains } from './utils/filter.js';
 export {

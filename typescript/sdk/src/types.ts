@@ -7,6 +7,6 @@ export type ChainName = string;
 // A map of chain names to a value type
 export type ChainMap<Value> = Record<string, Value>;
 
-export type ChainNameOrId = ChainName | Domain;
+export type ChainNameOrDomain = ChainName | Domain;
 
 export type Connection = ethers.providers.Provider | ethers.Signer;
