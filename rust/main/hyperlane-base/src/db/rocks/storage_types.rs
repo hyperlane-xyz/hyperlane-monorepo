@@ -8,7 +8,7 @@ use hyperlane_core::{
 /// Subset of `InterchainGasPayment` excluding the message id which is stored in
 /// the key.
 #[derive(Debug, Copy, Clone)]
-pub(super) struct InterchainGasPaymentData {
+pub struct InterchainGasPaymentData {
     pub payment: U256,
     pub gas_amount: U256,
 }
@@ -16,7 +16,7 @@ pub(super) struct InterchainGasPaymentData {
 /// Subset of `InterchainGasExpenditure` excluding the message id which is
 /// stored in the key.
 #[derive(Debug, Copy, Clone)]
-pub(super) struct InterchainGasExpenditureData {
+pub struct InterchainGasExpenditureData {
     pub tokens_used: U256,
     pub gas_used: U256,
 }

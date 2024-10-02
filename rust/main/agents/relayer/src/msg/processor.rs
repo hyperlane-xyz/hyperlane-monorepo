@@ -11,7 +11,7 @@ use derive_new::new;
 use ethers::utils::hex;
 use eyre::Result;
 use hyperlane_base::{
-    db::{HyperlaneRocksDB, ProcessMessage},
+    db::{HyperlaneDB, HyperlaneRocksDB},
     CoreMetrics,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation};
@@ -52,7 +52,7 @@ struct ForwardBackwardIterator {
 
 impl ForwardBackwardIterator {
     #[instrument(skip(db), ret)]
-    fn new(db: Arc<dyn ProcessMessage>) -> Self {
+    fn new(db: Arc<dyn HyperlaneDB>) -> Self {
         let high_nonce = db.retrieve_highest_seen_message_nonce().ok().flatten();
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
@@ -125,7 +125,7 @@ enum NonceDirection {
 struct DirectionalNonceIterator {
     nonce: Option<u32>,
     direction: NonceDirection,
-    db: Arc<dyn ProcessMessage>,
+    db: Arc<dyn HyperlaneDB>,
     domain_name: String,
 }
 
@@ -196,7 +196,10 @@ impl DirectionalNonceIterator {
         let Some(nonce) = self.nonce else {
             return Ok(false);
         };
-        let processed = self.db.retrieve_processed_by_nonce(nonce)?.unwrap_or(false);
+        let processed = self
+            .db
+            .retrieve_processed_by_nonce(&nonce)?
+            .unwrap_or(false);
         if processed {
             trace!(
                 nonce,
@@ -326,7 +329,7 @@ impl MessageProcessor {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn ProcessMessage>),
+            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDB>),
         }
     }
 
@@ -591,7 +594,7 @@ mod test {
             fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
         }
 
-        impl ProcessMessage for Db {
+        impl HyperlaneDB for Db {
             fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
             fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
             fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>>;

@@ -1,6 +1,6 @@
 use hyperlane_core::{Decode, Encode, HyperlaneDomain};
 
-use crate::db::{DbError, DB};
+use crate::db::{error::DbError, DB};
 
 type Result<T> = std::result::Result<T, DbError>;
 

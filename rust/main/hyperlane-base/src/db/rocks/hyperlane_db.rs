@@ -1,10 +1,9 @@
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use paste::paste;
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
+    Decode, Encode, GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, Indexed,
     InterchainGasExpenditure, InterchainGasPayment, InterchainGasPaymentMeta, LogMeta,
     MerkleTreeInsertion, PendingOperationStatus, H256,
@@ -120,14 +119,9 @@ impl HyperlaneRocksDB {
             .retrieve_highest_seen_message_nonce()?
             .unwrap_or_default();
         if nonce >= current_max {
-            self.store_highest_seen_message_nonce_number(&Default::default(), &nonce)?;
+            self.store_highest_seen_message_nonce_number(&nonce)?;
         }
         Ok(())
-    }
-
-    /// Retrieve the nonce of the highest processed message we're aware of
-    pub fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
-        self.retrieve_highest_seen_message_nonce_number(&Default::default())
     }
 
     /// If the provided gas payment, identified by its metadata, has not been
@@ -444,7 +438,7 @@ impl HyperlaneWatermarkedLogStore<MerkleTreeInsertion> for HyperlaneRocksDB {
 }
 
 /// Database interface required for processing messages
-pub trait ProcessMessage: Send + Sync {
+pub trait HyperlaneDB: Send + Sync {
     /// Retrieve the nonce of the highest processed message we're aware of
     fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
 
@@ -452,100 +446,381 @@ pub trait ProcessMessage: Send + Sync {
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
 
     /// Retrieve whether a message has been processed
-    fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>>;
+    fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
 
     /// Get the origin domain of the database
     fn domain(&self) -> &HyperlaneDomain;
+
+    fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()>;
+
+    fn retrieve_message_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H256>>;
+
+    fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()>;
+
+    fn retrieve_message_by_id(&self, id: &H256) -> DbResult<Option<HyperlaneMessage>>;
+
+    fn store_dispatched_block_number_by_nonce(
+        &self,
+        nonce: &u32,
+        block_number: &u64,
+    ) -> DbResult<()>;
+
+    fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>>;
+
+    /// Store whether a message was processed by its nonce
+    fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()>;
+
+    fn store_processed_by_gas_payment_meta(
+        &self,
+        meta: &InterchainGasPaymentMeta,
+        processed: &bool,
+    ) -> DbResult<()>;
+
+    fn retrieve_processed_by_gas_payment_meta(
+        &self,
+        meta: &InterchainGasPaymentMeta,
+    ) -> DbResult<Option<bool>>;
+
+    fn store_interchain_gas_expenditure_data_by_message_id(
+        &self,
+        message_id: &H256,
+        data: &InterchainGasExpenditureData,
+    ) -> DbResult<()>;
+
+    fn retrieve_interchain_gas_expenditure_data_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<InterchainGasExpenditureData>>;
+
+    /// Store the status of an operation by its message id
+    fn store_status_by_message_id(
+        &self,
+        message_id: &H256,
+        status: &PendingOperationStatus,
+    ) -> DbResult<()>;
+
+    /// Retrieve the status of an operation by its message id
+    fn retrieve_status_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<PendingOperationStatus>>;
+
+    fn store_interchain_gas_payment_data_by_gas_payment_key(
+        &self,
+        key: &GasPaymentKey,
+        data: &InterchainGasPaymentData,
+    ) -> DbResult<()>;
+
+    fn retrieve_interchain_gas_payment_data_by_gas_payment_key(
+        &self,
+        key: &GasPaymentKey,
+    ) -> DbResult<Option<InterchainGasPaymentData>>;
+
+    fn store_gas_payment_by_sequence(
+        &self,
+        sequence: &u32,
+        payment: &InterchainGasPayment,
+    ) -> DbResult<()>;
+
+    fn retrieve_gas_payment_by_sequence(
+        &self,
+        sequence: &u32,
+    ) -> DbResult<Option<InterchainGasPayment>>;
+
+    fn store_gas_payment_block_by_sequence(
+        &self,
+        sequence: &u32,
+        block_number: &u64,
+    ) -> DbResult<()>;
+
+    fn retrieve_gas_payment_block_by_sequence(&self, sequence: &u32) -> DbResult<Option<u64>>;
+
+    /// Store the retry count for a pending message by its message id
+    fn store_pending_message_retry_count_by_message_id(
+        &self,
+        message_id: &H256,
+        count: &u32,
+    ) -> DbResult<()>;
+
+    /// Retrieve the retry count for a pending message by its message id
+    fn retrieve_pending_message_retry_count_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<u32>>;
+
+    fn store_merkle_tree_insertion_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+        insertion: &MerkleTreeInsertion,
+    ) -> DbResult<()>;
+
+    /// Retrieve the merkle tree insertion event by its leaf index
+    fn retrieve_merkle_tree_insertion_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<MerkleTreeInsertion>>;
+
+    fn store_merkle_leaf_index_by_message_id(
+        &self,
+        message_id: &H256,
+        leaf_index: &u32,
+    ) -> DbResult<()>;
+
+    /// Retrieve the merkle leaf index of a message in the merkle tree
+    fn retrieve_merkle_leaf_index_by_message_id(&self, message_id: &H256) -> DbResult<Option<u32>>;
+
+    fn store_merkle_tree_insertion_block_number_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+        block_number: &u64,
+    ) -> DbResult<()>;
+
+    fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<u64>>;
+
+    fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
+
+    /// Retrieve the nonce of the highest processed message we're aware of
+    fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
 }
 
-impl ProcessMessage for HyperlaneRocksDB {
+impl HyperlaneDB for HyperlaneRocksDB {
     fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>> {
-        self.retrieve_highest_seen_message_nonce()
+        self.retrieve_highest_seen_message_nonce_number()
     }
 
     fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>> {
         self.retrieve_message_by_nonce(nonce)
     }
 
-    fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>> {
-        self.retrieve_processed_by_nonce(&nonce)
-    }
-
     fn domain(&self) -> &HyperlaneDomain {
         self.domain()
     }
+
+    fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()> {
+        self.store_value_by_key(MESSAGE_ID, nonce, id)
+    }
+
+    fn retrieve_message_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H256>> {
+        self.retrieve_value_by_key(MESSAGE_ID, nonce)
+    }
+
+    fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()> {
+        self.store_value_by_key(MESSAGE, id, message)
+    }
+
+    fn retrieve_message_by_id(&self, id: &H256) -> DbResult<Option<HyperlaneMessage>> {
+        self.retrieve_value_by_key(MESSAGE, id)
+    }
+
+    fn store_dispatched_block_number_by_nonce(
+        &self,
+        nonce: &u32,
+        block_number: &u64,
+    ) -> DbResult<()> {
+        self.store_value_by_key(MESSAGE_DISPATCHED_BLOCK_NUMBER, nonce, block_number)
+    }
+
+    fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>> {
+        self.retrieve_value_by_key(MESSAGE_DISPATCHED_BLOCK_NUMBER, nonce)
+    }
+
+    /// Store whether a message was processed by its nonce
+    fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()> {
+        self.store_value_by_key(NONCE_PROCESSED, nonce, processed)
+    }
+
+    fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>> {
+        self.retrieve_value_by_key(NONCE_PROCESSED, nonce)
+    }
+
+    fn store_processed_by_gas_payment_meta(
+        &self,
+        meta: &InterchainGasPaymentMeta,
+        processed: &bool,
+    ) -> DbResult<()> {
+        self.store_value_by_key(GAS_PAYMENT_META_PROCESSED, meta, processed)
+    }
+
+    fn retrieve_processed_by_gas_payment_meta(
+        &self,
+        meta: &InterchainGasPaymentMeta,
+    ) -> DbResult<Option<bool>> {
+        self.retrieve_value_by_key(GAS_PAYMENT_META_PROCESSED, meta)
+    }
+
+    fn store_interchain_gas_expenditure_data_by_message_id(
+        &self,
+        message_id: &H256,
+        data: &InterchainGasExpenditureData,
+    ) -> DbResult<()> {
+        self.store_value_by_key(GAS_EXPENDITURE_FOR_MESSAGE_ID, message_id, data)
+    }
+
+    fn retrieve_interchain_gas_expenditure_data_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<InterchainGasExpenditureData>> {
+        self.retrieve_value_by_key(GAS_EXPENDITURE_FOR_MESSAGE_ID, message_id)
+    }
+
+    /// Store the status of an operation by its message id
+    fn store_status_by_message_id(
+        &self,
+        message_id: &H256,
+        status: &PendingOperationStatus,
+    ) -> DbResult<()> {
+        self.store_value_by_key(STATUS_BY_MESSAGE_ID, message_id, status)
+    }
+
+    /// Retrieve the status of an operation by its message id
+    fn retrieve_status_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<PendingOperationStatus>> {
+        self.retrieve_value_by_key(STATUS_BY_MESSAGE_ID, message_id)
+    }
+
+    fn store_interchain_gas_payment_data_by_gas_payment_key(
+        &self,
+        key: &GasPaymentKey,
+        data: &InterchainGasPaymentData,
+    ) -> DbResult<()> {
+        self.store_value_by_key(GAS_PAYMENT_FOR_MESSAGE_ID, key, data)
+    }
+
+    fn retrieve_interchain_gas_payment_data_by_gas_payment_key(
+        &self,
+        key: &GasPaymentKey,
+    ) -> DbResult<Option<InterchainGasPaymentData>> {
+        self.retrieve_value_by_key(GAS_PAYMENT_FOR_MESSAGE_ID, key)
+    }
+
+    fn store_gas_payment_by_sequence(
+        &self,
+        sequence: &u32,
+        payment: &InterchainGasPayment,
+    ) -> DbResult<()> {
+        self.store_value_by_key(GAS_PAYMENT_BY_SEQUENCE, sequence, payment)
+    }
+
+    fn retrieve_gas_payment_by_sequence(
+        &self,
+        sequence: &u32,
+    ) -> DbResult<Option<InterchainGasPayment>> {
+        self.retrieve_value_by_key(GAS_PAYMENT_BY_SEQUENCE, sequence)
+    }
+
+    fn store_gas_payment_block_by_sequence(
+        &self,
+        sequence: &u32,
+        block_number: &u64,
+    ) -> DbResult<()> {
+        self.store_value_by_key(GAS_PAYMENT_BLOCK_BY_SEQUENCE, sequence, block_number)
+    }
+
+    fn retrieve_gas_payment_block_by_sequence(&self, sequence: &u32) -> DbResult<Option<u64>> {
+        self.retrieve_value_by_key(GAS_PAYMENT_BLOCK_BY_SEQUENCE, sequence)
+    }
+
+    /// Store the retry count for a pending message by its message id
+    fn store_pending_message_retry_count_by_message_id(
+        &self,
+        message_id: &H256,
+        count: &u32,
+    ) -> DbResult<()> {
+        self.store_value_by_key(
+            PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID,
+            message_id,
+            count,
+        )
+    }
+
+    /// Retrieve the retry count for a pending message by its message id
+    fn retrieve_pending_message_retry_count_by_message_id(
+        &self,
+        message_id: &H256,
+    ) -> DbResult<Option<u32>> {
+        self.retrieve_value_by_key(PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID, message_id)
+    }
+
+    fn store_merkle_tree_insertion_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+        insertion: &MerkleTreeInsertion,
+    ) -> DbResult<()> {
+        self.store_value_by_key(MERKLE_TREE_INSERTION, leaf_index, insertion)
+    }
+
+    /// Retrieve the merkle tree insertion event by its leaf index
+    fn retrieve_merkle_tree_insertion_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<MerkleTreeInsertion>> {
+        self.retrieve_value_by_key(MERKLE_TREE_INSERTION, leaf_index)
+    }
+
+    fn store_merkle_leaf_index_by_message_id(
+        &self,
+        message_id: &H256,
+        leaf_index: &u32,
+    ) -> DbResult<()> {
+        self.store_value_by_key(MERKLE_LEAF_INDEX_BY_MESSAGE_ID, message_id, leaf_index)
+    }
+
+    /// Retrieve the merkle leaf index of a message in the merkle tree
+    fn retrieve_merkle_leaf_index_by_message_id(&self, message_id: &H256) -> DbResult<Option<u32>> {
+        self.retrieve_value_by_key(MERKLE_LEAF_INDEX_BY_MESSAGE_ID, message_id)
+    }
+
+    fn store_merkle_tree_insertion_block_number_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+        block_number: &u64,
+    ) -> DbResult<()> {
+        self.store_value_by_key(
+            MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
+            leaf_index,
+            block_number,
+        )
+    }
+
+    fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+        &self,
+        leaf_index: &u32,
+    ) -> DbResult<Option<u64>> {
+        self.retrieve_value_by_key(MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX, leaf_index)
+    }
+
+    fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()> {
+        // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
+        self.store_value_by_key(HIGHEST_SEEN_MESSAGE_NONCE, &bool::default(), nonce)
+    }
+
+    /// Retrieve the nonce of the highest processed message we're aware of
+    fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>> {
+        // There's no unit struct Encode/Decode impl, so just use `bool` and always use the `Default::default()` key
+        self.retrieve_value_by_key(HIGHEST_SEEN_MESSAGE_NONCE, &bool::default())
+    }
 }
 
-/// Generate a call to ChainSetup for the given builder
-macro_rules! make_store_and_retrieve {
-    ($vis:vis, $name_suffix:ident, $key_prefix: ident, $key_ty:ty, $val_ty:ty$(,)?) => {
-        impl HyperlaneRocksDB {
-            paste! {
-                /// Stores a key value pair in the DB
-                $vis fn [<store_ $name_suffix>] (
-                    &self,
-                    key: &$key_ty,
-                    val: &$val_ty,
-                ) -> DbResult<()> {
-                    self.store_keyed_encodable($key_prefix, key, val)
-                }
+impl HyperlaneRocksDB {
+    fn store_value_by_key<K: Encode, V: Encode>(
+        &self,
+        prefix: impl AsRef<[u8]>,
+        key: &K,
+        value: &V,
+    ) -> DbResult<()> {
+        self.store_encodable(prefix, key.to_vec(), value)
+    }
 
-                /// Retrieves a key value pair from the DB
-                $vis fn [<retrieve_ $name_suffix>] (
-                    &self,
-                    key: &$key_ty,
-                ) -> DbResult<Option<$val_ty>> {
-                    self.retrieve_keyed_decodable($key_prefix, key)
-                }
-            }
-        }
-    };
+    fn retrieve_value_by_key<K: Encode, V: Decode>(
+        &self,
+        prefix: impl AsRef<[u8]>,
+        key: &K,
+    ) -> DbResult<Option<V>> {
+        self.retrieve_decodable(prefix, key.to_vec())
+    }
 }
-
-make_store_and_retrieve!(pub, message_id_by_nonce, MESSAGE_ID, u32, H256);
-make_store_and_retrieve!(pub(self), message_by_id, MESSAGE, H256, HyperlaneMessage);
-make_store_and_retrieve!(pub(self), dispatched_block_number_by_nonce, MESSAGE_DISPATCHED_BLOCK_NUMBER, u32, u64);
-make_store_and_retrieve!(pub, processed_by_nonce, NONCE_PROCESSED, u32, bool);
-make_store_and_retrieve!(pub(self), processed_by_gas_payment_meta, GAS_PAYMENT_META_PROCESSED, InterchainGasPaymentMeta, bool);
-make_store_and_retrieve!(pub(self), interchain_gas_expenditure_data_by_message_id, GAS_EXPENDITURE_FOR_MESSAGE_ID, H256, InterchainGasExpenditureData);
-make_store_and_retrieve!(
-    pub,
-    status_by_message_id,
-    STATUS_BY_MESSAGE_ID,
-    H256,
-    PendingOperationStatus
-);
-make_store_and_retrieve!(pub(self), interchain_gas_payment_data_by_gas_payment_key, GAS_PAYMENT_FOR_MESSAGE_ID, GasPaymentKey, InterchainGasPaymentData);
-make_store_and_retrieve!(pub(self), gas_payment_by_sequence, GAS_PAYMENT_BY_SEQUENCE, u32, InterchainGasPayment);
-make_store_and_retrieve!(pub(self), gas_payment_block_by_sequence, GAS_PAYMENT_BLOCK_BY_SEQUENCE, u32, u64);
-make_store_and_retrieve!(
-    pub,
-    pending_message_retry_count_by_message_id,
-    PENDING_MESSAGE_RETRY_COUNT_FOR_MESSAGE_ID,
-    H256,
-    u32
-);
-make_store_and_retrieve!(
-    pub,
-    merkle_tree_insertion_by_leaf_index,
-    MERKLE_TREE_INSERTION,
-    u32,
-    MerkleTreeInsertion
-);
-make_store_and_retrieve!(
-    pub,
-    merkle_leaf_index_by_message_id,
-    MERKLE_LEAF_INDEX_BY_MESSAGE_ID,
-    H256,
-    u32
-);
-make_store_and_retrieve!(
-    pub,
-    merkle_tree_insertion_block_number_by_leaf_index,
-    MERKLE_TREE_INSERTION_BLOCK_NUMBER_BY_LEAF_INDEX,
-    u32,
-    u64
-);
-// There's no unit struct Encode/Decode impl, so just use `bool`, have visibility be private (by omitting the first argument), and wrap
-// with a function that always uses the `Default::default()` key
-make_store_and_retrieve!(, highest_seen_message_nonce_number, HIGHEST_SEEN_MESSAGE_NONCE, bool, u32);
