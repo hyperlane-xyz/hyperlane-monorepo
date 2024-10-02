@@ -75,7 +75,7 @@ contract StorageMessageIdMultisigIsm is
     AbstractStorageMultisigIsm
 {
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MERKLE_ROOT_MULTISIG);
+        uint8(IInterchainSecurityModule.Types.MESSAGE_ID_MULTISIG);
 
     constructor(
         address[] memory _validators,
