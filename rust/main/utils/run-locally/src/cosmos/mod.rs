@@ -574,7 +574,7 @@ fn run_locally() {
     }
 }
 
-fn dispatch(osmosisd: &PathBuf, linker: &str, nodes: &Vec<CosmosNetwork>) -> u32 {
+fn dispatch(osmosisd: &Path, linker: &str, nodes: &[CosmosNetwork]) -> u32 {
     let mut dispatched_messages = 0;
     for node in nodes.iter() {
         let targets = nodes
@@ -593,7 +593,7 @@ fn dispatch(osmosisd: &PathBuf, linker: &str, nodes: &Vec<CosmosNetwork>) -> u32
         for target in targets {
             dispatched_messages += 1;
             let cli = OsmosisCLI::new(
-                osmosisd.clone(),
+                osmosisd.to_path_buf(),
                 node.launch_resp.home_path.to_str().unwrap(),
             );
 
