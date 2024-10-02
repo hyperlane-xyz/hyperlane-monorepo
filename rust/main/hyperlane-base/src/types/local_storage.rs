@@ -4,7 +4,7 @@ use crate::traits::CheckpointSyncer;
 use crate::AgentMetadata;
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 
 #[derive(Debug, Clone)]
@@ -39,6 +39,10 @@ impl LocalStorage {
 
     fn announcement_file_path(&self) -> PathBuf {
         self.path.join("announcement.json")
+    }
+
+    fn reorg_file_path(&self) -> PathBuf {
+        self.path.join("reorg_status.json")
     }
 
     fn metadata_file_path(&self) -> PathBuf {
@@ -115,5 +119,22 @@ impl CheckpointSyncer for LocalStorage {
 
     fn announcement_location(&self) -> String {
         format!("file://{}", self.path.to_str().unwrap())
+    }
+
+    async fn write_reorg_status(&self, reorged_event: Option<ReorgEvent>) -> Result<()> {
+        let serialized_reorg = serde_json::to_string_pretty(&reorged_event)?;
+        let path = self.reorg_file_path();
+        tokio::fs::write(&path, &serialized_reorg)
+            .await
+            .with_context(|| format!("Writing reorg status to {path:?}"))?;
+        Ok(())
+    }
+
+    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
+        let Ok(data) = tokio::fs::read(self.reorg_file_path()).await else {
+            return Ok(None);
+        };
+        let reorg = serde_json::from_slice(&data)?;
+        Ok(Some(reorg))
     }
 }

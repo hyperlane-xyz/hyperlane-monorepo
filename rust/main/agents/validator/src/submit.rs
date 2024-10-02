@@ -3,8 +3,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
+use hyperlane_base::db::HyperlaneDB;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{ChainResult, MerkleTreeHook};
+use hyperlane_core::{ChainResult, MerkleTreeHook, ReorgEvent};
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
@@ -210,7 +211,27 @@ impl ValidatorSubmitter {
                 ?correctness_checkpoint,
                 "Incorrect tree root, something went wrong"
             );
-            panic!("Incorrect tree root, something went wrong");
+            // TODO: if a mismatch is detected, post details to the checkpoint syncer
+            // ReorgEvent
+            let reorg_event = ReorgEvent::new(
+                tree.root(),
+                correctness_checkpoint.root,
+                checkpoint.index,
+                chrono::Utc::now().timestamp() as u64,
+                self.reorg_period.map(|x| x.get()).unwrap_or(0),
+            );
+            let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
+            if let Err(e) = self
+                .checkpoint_syncer
+                .write_reorg_status(Some(reorg_event))
+                .await
+            {
+                panic_message.push_str(&format!(
+                    " Reorg troubleshooting details couldn't be written to checkpoint storage: {}",
+                    e
+                ));
+            }
+            panic!("{panic_message}");
         }
 
         if !checkpoint_queue.is_empty() {

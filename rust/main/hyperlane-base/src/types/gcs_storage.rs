@@ -2,7 +2,7 @@ use crate::{AgentMetadata, CheckpointSyncer};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use std::fmt;
 use ya_gcp::{
     storage::{
@@ -216,6 +216,14 @@ impl CheckpointSyncer for GcsStorageClient {
     /// Return the announcement storage location for this syncer
     fn announcement_location(&self) -> String {
         format!("gs://{}/{}", &self.bucket, ANNOUNCEMENT_KEY)
+    }
+
+    async fn write_reorg_status(&self, _reorged_event: Option<ReorgEvent>) -> Result<()> {
+        Ok(())
+    }
+
+    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
+        Ok(None)
     }
 }
 
