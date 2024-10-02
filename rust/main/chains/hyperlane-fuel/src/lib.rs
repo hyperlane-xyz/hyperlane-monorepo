@@ -6,14 +6,19 @@
 #![allow(unused_variables)]
 
 pub use self::{
-    interchain_gas::*, mailbox::*, multisig_ism::*, provider::*, routing_ism::*, trait_builder::*,
+    aggregation_ism::*, indexer::*, interchain_gas::*, interchain_security_module::*, mailbox::*,
+    merkle_tree_hook::*, multisig_ism::*, provider::*, routing_ism::*, trait_builder::*,
     validator_announce::*,
 };
 
+mod aggregation_ism;
 mod contracts;
 mod conversions;
+mod indexer;
 mod interchain_gas;
+mod interchain_security_module;
 mod mailbox;
+mod merkle_tree_hook;
 mod multisig_ism;
 mod provider;
 mod routing_ism;

@@ -1,0 +1,409 @@
+{
+  "programType": "contract",
+  "specVersion": "1",
+  "encodingVersion": "1",
+  "concreteTypes": [
+    {
+      "type": "()",
+      "concreteTypeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+    },
+    {
+      "type": "(b256, u32)",
+      "concreteTypeId": "ca65b5ac32a1d2b9c2c913a704974f17a67f9ed81cdd78007c6584eb8feb5e95",
+      "metadataTypeId": 0
+    },
+    {
+      "type": "b256",
+      "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+    },
+    {
+      "type": "bool",
+      "concreteTypeId": "b760f44fa5965c2474a3b471467a22c43185152129295af588b022ae50b50903"
+    },
+    {
+      "type": "enum interfaces::merkle_tree_hook::MerkleTreeError",
+      "concreteTypeId": "5410af966c0a9e8479bc59d683495479f235475d5ba3ac58c55b46d7e508aab5",
+      "metadataTypeId": 2
+    },
+    {
+      "type": "enum interfaces::merkle_tree_hook::MerkleTreeEvent",
+      "concreteTypeId": "13d1ea5564f062bef216aab38d2d55b58fb43f440a67b87a5f44af5c09faabcd",
+      "metadataTypeId": 3
+    },
+    {
+      "type": "enum interfaces::post_dispatch_hook::PostDispatchHookType",
+      "concreteTypeId": "92d375dbe21d8ba43fcbaa7f70e70c94baee06743f2d11d49bbe4fb8785becff",
+      "metadataTypeId": 4
+    },
+    {
+      "type": "enum merkle::MerkleError",
+      "concreteTypeId": "ddd5d04db81b028838a7ccd28dd2d24122ce431e475b353a1d076c740b9168cb",
+      "metadataTypeId": 5
+    },
+    {
+      "type": "struct merkle::MerkleTree",
+      "concreteTypeId": "4f367a560e7594cc203b566f49d1b5f9a43fb5e5c4172cef5eb32b9dc5a0d0df",
+      "metadataTypeId": 7
+    },
+    {
+      "type": "struct std::bytes::Bytes",
+      "concreteTypeId": "cdd87b7d12fe505416570c294c884bca819364863efe3bf539245fa18515fbbb",
+      "metadataTypeId": 8
+    },
+    {
+      "type": "struct std::contract_id::ContractId",
+      "concreteTypeId": "29c10735d33b5159f0c71ee1dbd17b36a3e69e41f00fab0d42e1bd9f428d8a54",
+      "metadataTypeId": 10
+    },
+    {
+      "type": "u32",
+      "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+    },
+    {
+      "type": "u64",
+      "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+    }
+  ],
+  "metadataTypes": [
+    {
+      "type": "(_, _)",
+      "metadataTypeId": 0,
+      "components": [
+        {
+          "name": "__tuple_element",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        },
+        {
+          "name": "__tuple_element",
+          "typeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        }
+      ]
+    },
+    {
+      "type": "[_; 32]",
+      "metadataTypeId": 1,
+      "components": [
+        {
+          "name": "__array_element",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ]
+    },
+    {
+      "type": "enum interfaces::merkle_tree_hook::MerkleTreeError",
+      "metadataTypeId": 2,
+      "components": [
+        {
+          "name": "MessageNotDispatching",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        },
+        {
+          "name": "NoValueExpected",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "ContractNotInitialized",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "ContractAlreadyInitialized",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        }
+      ]
+    },
+    {
+      "type": "enum interfaces::merkle_tree_hook::MerkleTreeEvent",
+      "metadataTypeId": 3,
+      "components": [
+        {
+          "name": "InsertedIntoTree",
+          "typeId": 0
+        }
+      ]
+    },
+    {
+      "type": "enum interfaces::post_dispatch_hook::PostDispatchHookType",
+      "metadataTypeId": 4,
+      "components": [
+        {
+          "name": "UNUSED",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "ROUTING",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "AGGREGATION",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "MERKLE_TREE",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "INTERCHAIN_GAS_PAYMASTER",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "FALLBACK_ROUTING",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "ID_AUTH_ISM",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "PAUSABLE",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "PROTOCOL_FEE",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "LAYER_ZERO_V1",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "RATE_LIMITED_HOOK",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        }
+      ]
+    },
+    {
+      "type": "enum merkle::MerkleError",
+      "metadataTypeId": 5,
+      "components": [
+        {
+          "name": "MerkleTreeFull",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        }
+      ]
+    },
+    {
+      "type": "raw untyped ptr",
+      "metadataTypeId": 6
+    },
+    {
+      "type": "struct merkle::MerkleTree",
+      "metadataTypeId": 7,
+      "components": [
+        {
+          "name": "branch",
+          "typeId": 1
+        },
+        {
+          "name": "count",
+          "typeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        }
+      ]
+    },
+    {
+      "type": "struct std::bytes::Bytes",
+      "metadataTypeId": 8,
+      "components": [
+        {
+          "name": "buf",
+          "typeId": 9
+        },
+        {
+          "name": "len",
+          "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        }
+      ]
+    },
+    {
+      "type": "struct std::bytes::RawBytes",
+      "metadataTypeId": 9,
+      "components": [
+        {
+          "name": "ptr",
+          "typeId": 6
+        },
+        {
+          "name": "cap",
+          "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        }
+      ]
+    },
+    {
+      "type": "struct std::contract_id::ContractId",
+      "metadataTypeId": 10,
+      "components": [
+        {
+          "name": "bits",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "inputs": [],
+      "name": "count",
+      "output": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "mailbox",
+          "concreteTypeId": "29c10735d33b5159f0c71ee1dbd17b36a3e69e41f00fab0d42e1bd9f428d8a54"
+        }
+      ],
+      "name": "initialize",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "latest_checkpoint",
+      "output": "ca65b5ac32a1d2b9c2c913a704974f17a67f9ed81cdd78007c6584eb8feb5e95",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "root",
+      "output": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "tree",
+      "output": "4f367a560e7594cc203b566f49d1b5f9a43fb5e5c4172cef5eb32b9dc5a0d0df",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "hook_type",
+      "output": "92d375dbe21d8ba43fcbaa7f70e70c94baee06743f2d11d49bbe4fb8785becff",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "_metadata",
+          "concreteTypeId": "cdd87b7d12fe505416570c294c884bca819364863efe3bf539245fa18515fbbb"
+        },
+        {
+          "name": "message",
+          "concreteTypeId": "cdd87b7d12fe505416570c294c884bca819364863efe3bf539245fa18515fbbb"
+        }
+      ],
+      "name": "post_dispatch",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "payable",
+          "arguments": []
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "_metadata",
+          "concreteTypeId": "cdd87b7d12fe505416570c294c884bca819364863efe3bf539245fa18515fbbb"
+        },
+        {
+          "name": "_message",
+          "concreteTypeId": "cdd87b7d12fe505416570c294c884bca819364863efe3bf539245fa18515fbbb"
+        }
+      ],
+      "name": "quote_dispatch",
+      "output": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "_metadata",
+          "concreteTypeId": "cdd87b7d12fe505416570c294c884bca819364863efe3bf539245fa18515fbbb"
+        }
+      ],
+      "name": "supports_metadata",
+      "output": "b760f44fa5965c2474a3b471467a22c43185152129295af588b022ae50b50903",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    }
+  ],
+  "loggedTypes": [
+    {
+      "logId": "6057534559405907588",
+      "concreteTypeId": "5410af966c0a9e8479bc59d683495479f235475d5ba3ac58c55b46d7e508aab5"
+    },
+    {
+      "logId": "15984911484641280648",
+      "concreteTypeId": "ddd5d04db81b028838a7ccd28dd2d24122ce431e475b353a1d076c740b9168cb"
+    },
+    {
+      "logId": "1428180209339753150",
+      "concreteTypeId": "13d1ea5564f062bef216aab38d2d55b58fb43f440a67b87a5f44af5c09faabcd"
+    }
+  ],
+  "messagesTypes": [],
+  "configurables": []
+}

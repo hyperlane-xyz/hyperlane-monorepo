@@ -16,6 +16,7 @@ serde.workspace = true
 thiserror.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
+hex.workspace = true
 url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }

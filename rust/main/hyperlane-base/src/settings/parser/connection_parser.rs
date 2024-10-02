@@ -168,10 +168,12 @@ pub fn build_connection_conf(
             default_rpc_consensus_type,
             operation_batch,
         ),
-        HyperlaneDomainProtocol::Fuel => rpcs
-            .iter()
-            .next()
-            .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
+        HyperlaneDomainProtocol::Fuel => rpcs.iter().next().map(|url| {
+            ChainConnectionConf::Fuel(h_fuel::ConnectionConf {
+                url: url.clone(),
+                operation_batch,
+            })
+        }),
         HyperlaneDomainProtocol::Sealevel => rpcs.iter().next().map(|url| {
             ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
                 url: url.clone(),

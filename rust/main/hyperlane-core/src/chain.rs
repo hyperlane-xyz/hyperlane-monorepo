@@ -125,6 +125,7 @@ pub enum KnownHyperlaneDomain {
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SuperpositionTestnet = 98985,
+    FuelTestnet = 1717982312,
 }
 
 #[derive(Clone, Serialize)]
@@ -242,7 +243,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet
+                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet, FuelTestnet
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
@@ -270,7 +271,7 @@ impl KnownHyperlaneDomain {
                 ScrollSepolia, Sepolia, SuperpositionTestnet
 
             ],
-            HyperlaneDomainProtocol::Fuel: [FuelTest1],
+            HyperlaneDomainProtocol::Fuel: [FuelTest1, FuelTestnet],
             HyperlaneDomainProtocol::Sealevel: [EclipseMainnet, SolanaMainnet, SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [
                 Injective, Neutron, Osmosis,
@@ -300,7 +301,7 @@ impl KnownHyperlaneDomain {
 
                 // Local chains
                 CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,
-                Test2, Test3,
+                Test2, Test3, FuelTestnet,
 
                 // Test chains
                 Alfajores, BinanceSmartChainTestnet, Chiado, Holesky, MoonbaseAlpha, ScrollSepolia,

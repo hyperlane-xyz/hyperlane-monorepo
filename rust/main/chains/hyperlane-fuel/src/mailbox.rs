@@ -1,11 +1,16 @@
 use crate::{
-    contracts::mailbox::Mailbox as FuelMailboxInner, conversions::*, ConnectionConf, FuelProvider,
+    contracts::mailbox::Mailbox as FuelMailboxContract, conversions::*, ConnectionConf,
+    FuelIndexer, FuelProvider, TransactionEventType,
 };
 use async_trait::async_trait;
 use fuels::{
     prelude::{Bech32ContractId, WalletUnlocked},
+    programs::{calls::Execution, contract},
     tx::{Receipt, ScriptExecutionResult},
-    types::{transaction::TxPolicies, Bytes},
+    types::{
+        transaction::TxPolicies, transaction_response::TransactionResponse, tx_status::TxStatus,
+        Bytes, Bytes32,
+    },
 };
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
@@ -23,7 +28,7 @@ use tracing::{instrument, warn};
 
 /// A reference to a Mailbox contract on some Fuel chain
 pub struct FuelMailbox {
-    contract: FuelMailboxInner<WalletUnlocked>,
+    contract: FuelMailboxContract<WalletUnlocked>,
     provider: FuelProvider,
     domain: HyperlaneDomain,
 }
@@ -41,7 +46,7 @@ impl FuelMailbox {
         let address = Bech32ContractId::from_h256(&locator.address);
 
         Ok(FuelMailbox {
-            contract: FuelMailboxInner::new(address, wallet),
+            contract: FuelMailboxContract::new(address, wallet),
             domain: locator.domain.clone(),
             provider: fuel_provider,
         })
@@ -82,7 +87,7 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .nonce()
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
             .map_err(ChainCommunicationError::from_other)
@@ -94,7 +99,7 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .delivered(fuels::types::Bits256::from_h256(&id))
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
             .map_err(ChainCommunicationError::from_other)
@@ -106,7 +111,7 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .default_ism()
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value.into_h256())
             .map_err(ChainCommunicationError::from_other)
@@ -118,7 +123,7 @@ impl Mailbox for FuelMailbox {
         self.contract
             .methods()
             .recipient_ism(Bech32ContractId::from_h256(&recipient))
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value.into_h256())
             .map_err(ChainCommunicationError::from_other)
@@ -219,11 +224,17 @@ impl Mailbox for FuelMailbox {
     }
 }
 
+// ----------------------------------------------------------
+// ---------------------- Indexer ---------------------------
+// ----------------------------------------------------------
+
+const NON_DISPATCH_LOG_LEN: usize = 32;
+const NON_HYP_MESSAGE_BYTES: usize = 76;
 /// Struct that retrieves event data for a Fuel Mailbox contract
 #[derive(Debug)]
 pub struct FuelMailboxIndexer {
-    contract: FuelMailboxInner<WalletUnlocked>,
-    provider: FuelProvider,
+    indexer: FuelIndexer,
+    contract: FuelMailboxContract<WalletUnlocked>,
 }
 
 impl FuelMailboxIndexer {
@@ -233,15 +244,60 @@ impl FuelMailboxIndexer {
         locator: ContractLocator<'_>,
         wallet: WalletUnlocked,
     ) -> ChainResult<Self> {
-        let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
+        let contract = FuelMailboxContract::new(
+            Bech32ContractId::from_h256(&locator.address),
+            wallet.clone(),
+        );
+        let indexer =
+            FuelIndexer::new(conf, locator, wallet, TransactionEventType::MailboxDispatch).await;
 
-        let address = Bech32ContractId::from_h256(&locator.address);
-        let contract = FuelMailboxInner::new(address, wallet);
+        Ok(Self { indexer, contract })
+    }
 
-        Ok(FuelMailboxIndexer {
-            contract,
-            provider: fuel_provider,
-        })
+    pub fn mailbox_parser(
+        transactions: Vec<(Bytes32, TransactionResponse)>,
+    ) -> Vec<(Bytes32, TransactionResponse, HyperlaneMessage, U256)> {
+        transactions
+            .into_iter()
+            .filter_map(|(tx_id, tx_data)| {
+                let receipts = match &tx_data.status {
+                    TxStatus::Success { receipts } => receipts,
+                    _ => return None,
+                };
+
+                let (log_index, mut receipt_log_data) = receipts
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(log_index, rec)| {
+                        // We only care about LogData receipts with data length greater than 32 bytes
+                        match rec {
+                            Receipt::LogData { .. }
+                                if rec
+                                    .data()
+                                    .is_some_and(|data| data.len() > NON_DISPATCH_LOG_LEN) =>
+                            {
+                                let data = rec.data().map(|data| data.to_owned());
+
+                                match data {
+                                    Some(data) => Some((U256::from(log_index), data)),
+                                    _ => None,
+                                }
+                            }
+                            _ => None,
+                        }
+                    })
+                    .next()?; // Each dispatch call should have only one receipt with the appropriate length
+
+                if !receipt_log_data.is_empty() {
+                    // We cut out the message id, recipient and domain which are encoded in the first 76 bytes
+                    receipt_log_data.drain(0..NON_HYP_MESSAGE_BYTES);
+                    let encoded_message = HyperlaneMessage::from(receipt_log_data);
+                    Some((tx_id, tx_data, encoded_message, log_index))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<(Bytes32, TransactionResponse, HyperlaneMessage, U256)>>()
     }
 }
 
@@ -251,14 +307,13 @@ impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let mailbox_address = self.contract.contract_id().clone();
-        self.provider
-            .index_logs_in_range(range, mailbox_address)
+        self.indexer
+            .index_logs_in_range(range, Self::mailbox_parser)
             .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.provider.get_finalized_block_number().await
+        self.indexer.provider().get_finalized_block_number().await
     }
 }
 
@@ -272,7 +327,7 @@ impl Indexer<H256> for FuelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.provider.get_finalized_block_number().await
+        self.indexer.provider().get_finalized_block_number().await
     }
 }
 
@@ -295,7 +350,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for FuelMailboxIndexer {
         self.contract
             .methods()
             .nonce()
-            .simulate()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
             .map_err(ChainCommunicationError::from_other)
