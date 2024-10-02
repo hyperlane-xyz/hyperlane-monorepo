@@ -59,10 +59,7 @@ pub async fn format_queue(queue: OperationPriorityQueue) -> String {
         .lock()
         .await
         .iter()
-        .map(|reverse| {
-            // let t =
-            serde_json::to_value(OperationWithId::new(&reverse.0))
-        })
+        .map(|reverse| serde_json::to_value(OperationWithId::new(&reverse.0)))
         .collect();
     match res.and_then(|v| serde_json::to_string_pretty(&v)) {
         Ok(s) => s,
