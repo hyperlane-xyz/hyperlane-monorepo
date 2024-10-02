@@ -3,8 +3,8 @@ use axum::{
     routing, Router,
 };
 use derive_new::new;
-use hyperlane_core::QueueOperation;
-use serde::Deserialize;
+use hyperlane_core::{QueueOperation, H256};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -39,12 +39,30 @@ async fn list_operations(
     format_queue(op_queue.clone()).await
 }
 
+#[derive(Debug, Serialize)]
+struct OperationWithId<'a> {
+    id: H256,
+    operation: &'a QueueOperation,
+}
+
+impl<'a> OperationWithId<'a> {
+    fn new(operation: &'a QueueOperation) -> Self {
+        Self {
+            id: operation.id(),
+            operation,
+        }
+    }
+}
+
 pub async fn format_queue(queue: OperationPriorityQueue) -> String {
     let res: Result<Vec<Value>, _> = queue
         .lock()
         .await
         .iter()
-        .map(|reverse| serde_json::to_value(&reverse.0))
+        .map(|reverse| {
+            // let t =
+            serde_json::to_value(OperationWithId::new(&reverse.0))
+        })
         .collect();
     match res.and_then(|v| serde_json::to_string_pretty(&v)) {
         Ok(s) => s,
@@ -76,7 +94,7 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
     use hyperlane_core::KnownHyperlaneDomain;
-    use std::{cmp::Reverse, net::SocketAddr, sync::Arc};
+    use std::{cmp::Reverse, net::SocketAddr, str::FromStr, sync::Arc};
     use tokio::sync::{self, Mutex};
 
     const DUMMY_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
@@ -108,15 +126,40 @@ mod tests {
     #[tokio::test]
     async fn test_message_id_retry() {
         let (addr, op_queue) = setup_test_server();
-        let dummy_operation_1 =
-            Box::new(MockPendingOperation::new(1, DUMMY_DOMAIN.into())) as QueueOperation;
-        let dummy_operation_2 =
-            Box::new(MockPendingOperation::new(2, DUMMY_DOMAIN.into())) as QueueOperation;
-        let v = vec![
-            serde_json::to_value(&dummy_operation_1).unwrap(),
-            serde_json::to_value(&dummy_operation_2).unwrap(),
-        ];
-        let expected_response = serde_json::to_string_pretty(&v).unwrap();
+        let id_1 = "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b";
+        let id_2 = "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914";
+        let dummy_operation_1 = Box::new(
+            MockPendingOperation::new(1, DUMMY_DOMAIN.into())
+                .with_id(H256::from_str(id_1).unwrap()),
+        ) as QueueOperation;
+        let dummy_operation_2 = Box::new(
+            MockPendingOperation::new(2, DUMMY_DOMAIN.into())
+                .with_id(H256::from_str(id_2).unwrap()),
+        ) as QueueOperation;
+        let expected_response = r#"[
+  {
+    "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+    "operation": {
+      "destination_domain": {
+        "Known": "Arbitrum"
+      },
+      "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+      "seconds_to_next_attempt": 1,
+      "type": "MockPendingOperation"
+    }
+  },
+  {
+    "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+    "operation": {
+      "destination_domain": {
+        "Known": "Arbitrum"
+      },
+      "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+      "seconds_to_next_attempt": 2,
+      "type": "MockPendingOperation"
+    }
+  }
+]"#;
         op_queue.lock().await.push(Reverse(dummy_operation_1));
         op_queue.lock().await.push(Reverse(dummy_operation_2));
 
