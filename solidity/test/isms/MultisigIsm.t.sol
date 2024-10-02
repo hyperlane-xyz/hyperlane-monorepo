@@ -18,7 +18,7 @@ import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {ThresholdTestUtils} from "./IsmTestUtils.sol";
-import {StorageMessageIdMultisigIsm, StorageMerkleRootMultisigIsm, StorageMessageIdMultisigIsmFactory, StorageMerkleRootMultisigIsmFactory} from "../../contracts/isms/multisig/StorageMultisigIsm.sol";
+import {StorageMessageIdMultisigIsm, StorageMerkleRootMultisigIsm, StorageMessageIdMultisigIsmFactory, StorageMerkleRootMultisigIsmFactory, AbstractStorageMultisigIsm} from "../../contracts/isms/multisig/StorageMultisigIsm.sol";
 
 uint8 constant MAX_VALIDATORS = 20;
 
@@ -314,6 +314,7 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
 
 abstract contract StorageMultisigIsmTest is AbstractMultisigIsmTest {
     event ValidatorsAndThresholdSet(address[] validators, uint8 threshold);
+    event Initialized(uint8 version);
 
     function test_setValidatorsAndThreshold(
         bytes32 seed,
@@ -325,11 +326,18 @@ abstract contract StorageMultisigIsmTest is AbstractMultisigIsmTest {
                 threshold <= validators.length &&
                 validators.length <= MAX_VALIDATORS
         );
+
+        // test _disableInitializers in constructor
+        vm.expectEmit(true, true, false, false);
+        emit Initialized(type(uint8).max);
         addValidators(threshold, uint8(validators.length), seed);
 
-        StorageMessageIdMultisigIsm storageIsm = StorageMessageIdMultisigIsm(
+        AbstractStorageMultisigIsm storageIsm = AbstractStorageMultisigIsm(
             address(ism)
         );
+
+        vm.expectRevert("Initializable: contract is already initialized");
+        storageIsm.initialize(validators, threshold);
 
         address owner = storageIsm.owner();
         address antiOwner = address(~bytes20(owner));
