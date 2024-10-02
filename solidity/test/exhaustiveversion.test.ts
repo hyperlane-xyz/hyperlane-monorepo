@@ -3,12 +3,12 @@ import { readFile, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 const EXCLUDE_PATTERNS: RegExp[] = [
-  /.*\.dbg/g,
-  /interfaces\/.*/g,
-  /libs\/.*/g,
-  /Abstract.*/g,
-  /Test.*/g,
-  /Mock.*/g,
+  /\.dbg/g,
+  /interfaces\//g,
+  /libs\//g,
+  /Abstract/g,
+  /Test/g,
+  /Mock/g,
   /Versioned/g,
   // also abstract
   /ECDSAServiceManagerBase/g,
