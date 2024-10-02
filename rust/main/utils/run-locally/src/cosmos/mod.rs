@@ -463,6 +463,12 @@ fn run_locally() {
         .unwrap()
     );
 
+    // count all the dispatched messages
+    let mut dispatched_messages = 0;
+
+    // dispatch the first batch of messages (before agents start)
+    dispatched_messages += dispatch(&osmosisd, linker, &nodes);
+
     let config_dir = tempdir().unwrap();
 
     // export agent config
@@ -525,9 +531,51 @@ fn run_locally() {
 
     let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
 
-    // dispatch messages
-    let mut dispatched_messages = 0;
+    // dispatch the second batch of messages (after agents start)
+    dispatched_messages += dispatch(&osmosisd, linker, &nodes);
 
+    let _stack = CosmosHyperlaneStack {
+        validators: hpl_val.into_iter().map(|v| v.join()).collect(),
+        relayer: hpl_rly.join(),
+        scraper: hpl_scr.join(),
+        postgres,
+    };
+
+    // Mostly copy-pasta from `rust/main/utils/run-locally/src/main.rs`
+    // TODO: refactor to share code
+    let loop_start = Instant::now();
+    let mut failure_occurred = false;
+    loop {
+        // look for the end condition.
+        if termination_invariants_met(
+            hpl_rly_metrics_port,
+            hpl_scr_metrics_port,
+            dispatched_messages,
+            starting_relayer_balance,
+        )
+        .unwrap_or(false)
+        {
+            // end condition reached successfully
+            break;
+        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
+            // we ran out of time
+            log!("timeout reached before message submission was confirmed");
+            failure_occurred = true;
+            break;
+        }
+
+        sleep(Duration::from_secs(5));
+    }
+
+    if failure_occurred {
+        panic!("E2E tests failed");
+    } else {
+        log!("E2E tests passed");
+    }
+}
+
+fn dispatch(osmosisd: &PathBuf, linker: &str, nodes: &Vec<CosmosNetwork>) -> u32 {
+    let mut dispatched_messages = 0;
     for node in nodes.iter() {
         let targets = nodes
             .iter()
@@ -574,44 +622,7 @@ fn run_locally() {
         }
     }
 
-    let _stack = CosmosHyperlaneStack {
-        validators: hpl_val.into_iter().map(|v| v.join()).collect(),
-        relayer: hpl_rly.join(),
-        scraper: hpl_scr.join(),
-        postgres,
-    };
-
-    // Mostly copy-pasta from `rust/main/utils/run-locally/src/main.rs`
-    // TODO: refactor to share code
-    let loop_start = Instant::now();
-    let mut failure_occurred = false;
-    loop {
-        // look for the end condition.
-        if termination_invariants_met(
-            hpl_rly_metrics_port,
-            hpl_scr_metrics_port,
-            dispatched_messages,
-            starting_relayer_balance,
-        )
-        .unwrap_or(false)
-        {
-            // end condition reached successfully
-            break;
-        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
-            // we ran out of time
-            log!("timeout reached before message submission was confirmed");
-            failure_occurred = true;
-            break;
-        }
-
-        sleep(Duration::from_secs(5));
-    }
-
-    if failure_occurred {
-        panic!("E2E tests failed");
-    } else {
-        log!("E2E tests passed");
-    }
+    dispatched_messages
 }
 
 fn termination_invariants_met(
