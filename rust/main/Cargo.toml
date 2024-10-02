@@ -13,6 +13,7 @@ members = [
   "hyperlane-test",
   "utils/abigen",
   "utils/backtrace-oneline",
+  "utils/crypto",
   "utils/hex",
   "utils/run-locally",
 ]
@@ -68,10 +69,10 @@ futures-util = "0.3"
 generic-array = { version = "0.14", features = ["serde", "more_lengths"] }
 # Required for WASM support https://docs.rs/getrandom/latest/getrandom/#webassembly-support
 bech32 = "0.9.1"
-elliptic-curve = "0.12.3"
+elliptic-curve = "0.13.8"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-http = "*"
+http = "0.2.12"
 hyper = "0.14"
 hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
@@ -80,7 +81,7 @@ injective-std = "=0.1.5"
 itertools = "*"
 jobserver = "=0.1.26"
 jsonrpc-core = "18.0"
-k256 = { version = "0.13.1", features = ["std", "ecdsa"] }
+k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
 log = "0.4"
 macro_rules_attribute = "0.2"
 maplit = "1.0"
@@ -230,16 +231,6 @@ tag = "2024-04-25"
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
 tag = "2024-04-25"
-
-[patch.crates-io.cargo-platform]
-git = "https://github.com/rust-lang/cargo"
-tag = "0.76.0"
-version = "=0.1.6"
-
-[patch.crates-io.predicates-core]
-git = "https://github.com/assert-rs/predicates-rs"
-tag = "predicates-core-v1.0.6"
-version = "=1.0.6"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"

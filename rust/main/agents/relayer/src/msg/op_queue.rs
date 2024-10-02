@@ -196,7 +196,7 @@ pub mod test {
 
         /// Submit this operation to the blockchain and report if it was successful
         /// or not.
-        async fn submit(&mut self) {
+        async fn submit(&mut self) -> PendingOperationResult {
             todo!()
         }
 

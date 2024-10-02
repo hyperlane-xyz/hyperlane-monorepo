@@ -7,7 +7,7 @@ use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain};
 
 use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::{ConnectionConf, CosmosAmount, RawCosmosAmount};
+use crate::{ConnectionConf, CosmosAmount, NativeToken, RawCosmosAmount};
 
 #[ignore]
 #[tokio::test]
@@ -49,7 +49,7 @@ async fn test_wasm_contract_info_no_contract() {
 fn provider(address: &str) -> WasmGrpcProvider {
     let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Neutron);
     let address = CosmosAddress::from_str(address).unwrap();
-    let locator = Some(ContractLocator::new(&domain, address.digest()));
+    let locator = ContractLocator::new(&domain, address.digest());
 
     WasmGrpcProvider::new(
         domain.clone(),
@@ -64,6 +64,10 @@ fn provider(address: &str) -> WasmGrpcProvider {
             OperationBatchConfig {
                 batch_contract_address: None,
                 max_batch_size: 1,
+            },
+            NativeToken {
+                decimals: 6,
+                denom: "untrn".to_owned(),
             },
         ),
         CosmosAmount {

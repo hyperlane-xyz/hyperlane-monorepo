@@ -20,8 +20,7 @@ pub struct CosmosAddress {
 }
 
 impl CosmosAddress {
-    /// Returns a Bitcoin style address: RIPEMD160(SHA256(pubkey))
-    /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
+    /// Calculates an account address depending on prefix
     pub fn from_pubkey(pubkey: PublicKey, prefix: &str) -> ChainResult<Self> {
         let account_id = CosmosAccountId::account_id_from_pubkey(pubkey, prefix)?;
         Self::from_account_id(account_id)
@@ -35,8 +34,7 @@ impl CosmosAddress {
         Self::from_pubkey(pubkey, prefix)
     }
 
-    /// Returns a Bitcoin style address calculated from Bech32 encoding
-    /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
+    /// Returns an account address calculated from Bech32 encoding
     pub fn from_account_id(account_id: AccountId) -> ChainResult<Self> {
         // Hex digest
         let digest = H256::try_from(&CosmosAccountId::new(&account_id))?;

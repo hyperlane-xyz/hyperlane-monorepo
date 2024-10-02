@@ -9,14 +9,14 @@ use tendermint::abci::EventAttribute;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, Delivery, Indexed, Indexer, LogMeta,
-    SequenceAwareIndexer, H256,
+    ChainCommunicationError, ChainResult, ContractLocator, Delivery, HyperlaneMessage, Indexed,
+    Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
 };
 
-use crate::rpc::{CosmosWasmIndexer, ParsedEvent, WasmIndexer};
+use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
 use crate::utils::{
-    execute_and_parse_log_futures, parse_logs_in_range, CONTRACT_ADDRESS_ATTRIBUTE_KEY,
-    CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+    execute_and_parse_log_futures, parse_logs_in_range, parse_logs_in_tx,
+    CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
 };
 use crate::{ConnectionConf, HyperlaneCosmosError, Signer};
 
@@ -28,7 +28,7 @@ static MESSAGE_ID_ATTRIBUTE_KEY_BASE64: Lazy<String> =
 
 /// Struct that retrieves delivery event data for a Cosmos Mailbox contract
 pub struct CosmosMailboxDeliveryIndexer {
-    indexer: Box<CosmosWasmIndexer>,
+    provider: Box<CosmosWasmRpcProvider>,
 }
 
 impl CosmosMailboxDeliveryIndexer {
@@ -40,7 +40,7 @@ impl CosmosMailboxDeliveryIndexer {
         signer: Option<Signer>,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let indexer = CosmosWasmIndexer::new(
+        let provider = CosmosWasmRpcProvider::new(
             conf,
             locator,
             MESSAGE_DELIVERY_EVENT_TYPE.to_owned(),
@@ -48,7 +48,7 @@ impl CosmosMailboxDeliveryIndexer {
         )?;
 
         Ok(Self {
-            indexer: Box::new(indexer),
+            provider: Box::new(provider),
         })
     }
 
@@ -114,7 +114,7 @@ impl Indexer<H256> for CosmosMailboxDeliveryIndexer {
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         let logs_futures = parse_logs_in_range(
             range,
-            self.indexer.clone(),
+            self.provider.clone(),
             Self::hyperlane_delivery_parser,
             "DeliveryCursor",
         );
@@ -123,7 +123,21 @@ impl Indexer<H256> for CosmosMailboxDeliveryIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.get_finalized_block_number().await
+        self.provider.get_finalized_block_number().await
+    }
+
+    async fn fetch_logs_by_tx_hash(
+        &self,
+        tx_hash: H512,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
+        parse_logs_in_tx(
+            &tx_hash.into(),
+            self.provider.clone(),
+            Self::hyperlane_delivery_parser,
+            "DeliveryReceiver",
+        )
+        .await
+        .map(|v| v.into_iter().map(|(m, l)| (m.into(), l)).collect())
     }
 }
 

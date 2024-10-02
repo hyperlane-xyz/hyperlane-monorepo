@@ -31,6 +31,14 @@ use cursors::ForwardBackwardSequenceAwareSyncCursor;
 
 const SLEEP_DURATION: Duration = Duration::from_secs(5);
 
+#[derive(Debug, derive_new::new)]
+#[allow(dead_code)]
+/// Utility struct for pretty-printing indexed items.
+struct IndexedTxIdAndSequence {
+    tx_id: H512,
+    sequence: Option<u32>,
+}
+
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
 /// `indexer` and fills the agent's db with this data.
@@ -172,7 +180,7 @@ where
                     ?range,
                     num_logs = logs_found,
                     estimated_time_to_sync = fmt_sync_time(eta),
-                    sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                    sequences = ?logs.iter().map(|(log, meta)| IndexedTxIdAndSequence::new(meta.transaction_id, log.sequence)).collect::<Vec<_>>(),
                     cursor = ?cursor,
                     "Found log(s) in index range"
                 );

@@ -15,7 +15,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
-import { getDomainId } from '../../registry.js';
+import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
@@ -32,11 +32,11 @@ import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 import merklyEthAddresses from './warp/merkly-eth-addresses.json';
-import renzoEzEthAddressesV1 from './warp/renzo-ezETH-addresses-v1.json';
 import renzoEzEthAddressesV3 from './warp/renzo-ezETH-addresses-v3.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
 import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
+import { WarpRouteIds } from './warp/warpIds.js';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
 //   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -328,9 +328,24 @@ const metricAppContexts = [
     matchingList: matchingList(renzoEzEthAddressesV3),
   },
   {
-    // preserving old addresses in case any transactions are still in flight and need to be processed
-    name: 'renzo_ezeth_old',
-    matchingList: matchingList(renzoEzEthAddressesV1),
+    name: 'eclipse_usdc',
+    matchingList: matchingList(
+      getWarpAddresses(WarpRouteIds.EthereumEclipseUSDC),
+    ),
+  },
+  {
+    name: 'eclipse_teth',
+    matchingList: matchingList(
+      getWarpAddresses(WarpRouteIds.EthereumEclipseTETH),
+    ),
+  },
+  {
+    name: 'eclipse_wif',
+    matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaWIF)),
+  },
+  {
+    name: 'eclipse_sol',
+    matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaSOL)),
   },
   // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
   // {
@@ -378,7 +393,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9c056c7-20240911-154357',
+      tag: 'bf53f08-20240926-223824',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -412,7 +427,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9c056c7-20240911-154357',
+      tag: '5cb1787-20240924-192934',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -445,7 +460,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '74a592e-20240906-191210',
+      tag: '5a0d68b-20240916-144115',
     },
     gasPaymentEnforcement: [
       {
