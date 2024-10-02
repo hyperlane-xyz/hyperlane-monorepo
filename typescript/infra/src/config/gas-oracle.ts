@@ -236,16 +236,13 @@ export function getTokenExchangeRateFromValues(
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
-  if (!tokenPrices[local] || !tokenPrices[remote]) {
-    return BigNumber.from(1);
-  }
-
+  const defaultValue = '1';
   const localValue = ethers.utils.parseUnits(
-    tokenPrices[local],
+    tokenPrices[local] ?? defaultValue,
     TOKEN_EXCHANGE_RATE_DECIMALS,
   );
   const remoteValue = ethers.utils.parseUnits(
-    tokenPrices[remote],
+    tokenPrices[remote] ?? defaultValue,
     TOKEN_EXCHANGE_RATE_DECIMALS,
   );
 
