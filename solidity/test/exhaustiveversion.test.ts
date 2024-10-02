@@ -2,18 +2,17 @@ import { CompilerOutputContract } from 'hardhat/types';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
-const EXCLUDE = [
-  '.dbg',
-  'test',
-  'Test',
-  'mock',
-  'Mock',
-  'interfaces',
-  'libs',
-  'Abstract',
-  'Base',
-  'Storage',
-  'Versioned',
+const EXCLUDE_PATTERNS: RegExp[] = [
+  /.*\.dbg/g,
+  /interfaces\/.*/g,
+  /libs\/.*/g,
+  /Abstract.*/g,
+  /Test.*/g,
+  /Mock.*/g,
+  /Versioned/g,
+  // also abstract
+  /ECDSAServiceManagerBase/g,
+  /ECDSAStakeRegistryStorage/g,
 ];
 const REQUIRED_METHOD = 'PACKAGE_VERSION';
 
@@ -32,8 +31,8 @@ const artifacts = (await walk('artifacts/contracts')).flat(
   Number.POSITIVE_INFINITY,
 );
 
-const filtered = artifacts.filter((path) =>
-  EXCLUDE.every((excluded) => !path.includes(excluded)),
+const filtered = artifacts.filter((path: string) =>
+  EXCLUDE_PATTERNS.every((excluded) => path.match(excluded) === null),
 );
 
 const results = await Promise.all(
@@ -42,7 +41,8 @@ const results = await Promise.all(
     const compilerOutput: CompilerOutputContract = JSON.parse(content);
     return [
       path,
-      compilerOutput.abi.some((elem) => elem.name === REQUIRED_METHOD),
+      compilerOutput.abi &&
+        compilerOutput.abi.some((elem) => elem.name === REQUIRED_METHOD),
     ];
   }),
 );
