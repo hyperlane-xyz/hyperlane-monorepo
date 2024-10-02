@@ -4,14 +4,25 @@ import { assert } from '@hyperlane-xyz/utils';
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { PopulatedTransactions } from '../../types.js';
+import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
+import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5GnosisSafeTxSubmitter } from './EV5GnosisSafeTxSubmitter.js';
 import { EV5GnosisSafeTxBuilderProps } from './types.js';
 
-// This class is used to create ao Safe Transaction Builder compatible file. It is not a true Submitter because it does not submits any transactions.
+// This class is used to create ao Safe Transaction Builder compatible file.
+// It is not a true Submitter because it does not submits any transactions.
 export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
-  private async writeToFile() {}
+  public readonly txSubmitterType: TxSubmitterType =
+    TxSubmitterType.GNOSIS_TX_BUILDER;
+  constructor(
+    public readonly multiProvider: MultiProvider,
+    public readonly props: EV5GnosisSafeTxBuilderProps,
+    safe: any,
+    safeService: any,
+  ) {
+    super(multiProvider, props, safe, safeService);
+  }
 
   static async create(
     multiProvider: MultiProvider,
@@ -34,11 +45,20 @@ export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
       safeService,
     );
   }
-  public async submit(...txs: PopulatedTransactions): Promise<any[]> {
-    const safeTransaction = await this.createSafeTransaction(txs);
-    console.log('safeTransaction', safeTransaction);
-    await this.writeToFile();
-
-    return [];
+  public async submit(...txs: PopulatedTransactions): Promise<any> {
+    const transactions = await Promise.all(
+      txs.map(
+        async (tx: PopulatedTransaction) =>
+          (
+            await this.createSafeTransaction(tx)
+          ).data,
+      ),
+    );
+    return {
+      version: this.props.version,
+      chainId: this.multiProvider.getChainId(this.props.chain).toString(),
+      meta: this.props.meta,
+      transactions,
+    };
   }
 }
