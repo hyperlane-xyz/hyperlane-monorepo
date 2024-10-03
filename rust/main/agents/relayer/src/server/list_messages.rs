@@ -133,6 +133,9 @@ mod tests {
             MockPendingOperation::new(2, DUMMY_DOMAIN.into())
                 .with_id(H256::from_str(id_2).unwrap()),
         ) as QueueOperation;
+
+        // The reason there already is an id inside `operation` here is because it's a field on `MockPendingOperation` - that field is
+        // missing on `PendingMessage` because it's derived, hence the need to hence the need to have it explicitly serialized alongside the operation.
         let expected_response = r#"[
   {
     "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
