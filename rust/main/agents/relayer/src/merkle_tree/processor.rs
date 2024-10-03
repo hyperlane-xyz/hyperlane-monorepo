@@ -7,7 +7,7 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use hyperlane_base::db::{HyperlaneDB, HyperlaneRocksDB};
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_core::{HyperlaneDomain, MerkleTreeInsertion};
 use prometheus::IntGauge;
 use tokio::sync::RwLock;

@@ -145,6 +145,10 @@ pub mod test {
                 destination_domain,
             }
         }
+
+        pub fn with_id(self, id: H256) -> Self {
+            Self { id, ..self }
+        }
     }
 
     impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}

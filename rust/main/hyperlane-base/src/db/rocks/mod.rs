@@ -15,9 +15,6 @@ mod hyperlane_db;
 /// Type-specific db operations
 mod typed_db;
 
-/// Internal-use storage types.
-mod storage_types;
-
 /// Database test utilities.
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils;
