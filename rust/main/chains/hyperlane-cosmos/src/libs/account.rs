@@ -7,7 +7,7 @@ use crypto::decompress_public_key;
 use hyperlane_core::Error::Overflow;
 use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
 
-use crate::HyperlaneCosmosError;
+use crate::{AccountIdType, HyperlaneCosmosError};
 
 pub(crate) struct CosmosAccountId<'a> {
     account_id: &'a AccountId,
@@ -19,11 +19,14 @@ impl<'a> CosmosAccountId<'a> {
     }
 
     /// Calculate AccountId from public key depending on provided prefix
-    pub fn account_id_from_pubkey(pub_key: PublicKey, prefix: &str) -> ChainResult<AccountId> {
-        match prefix {
-            "neutron" | "osmo" => Self::bitcoin_style(pub_key, prefix),
-            "inj" => Self::ethereum_style(pub_key, prefix),
-            _ => Err(HyperlaneCosmosError::CosmosError(cosmrs::Error::Crypto))?,
+    pub fn account_id_from_pubkey(
+        pub_key: PublicKey,
+        prefix: &str,
+        account_id_type: AccountIdType,
+    ) -> ChainResult<AccountId> {
+        match account_id_type {
+            AccountIdType::BITCOIN => Self::bitcoin_style(pub_key, prefix),
+            AccountIdType::ETHEREUM => Self::ethereum_style(pub_key, prefix),
         }
     }
 

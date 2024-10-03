@@ -332,9 +332,16 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .get_key("prefix")
                 .parse_string()
                 .unwrap_or_default();
+            let account_id_type = signer
+                .chain(&mut err)
+                .get_opt_key("account_id_type")
+                .parse_string()
+                .end()
+                .unwrap_or("BITCOIN");
             err.into_result(SignerConf::CosmosKey {
                 key,
                 prefix: prefix.to_string(),
+                account_id_type: account_id_type.to_string(),
             })
         }};
     }

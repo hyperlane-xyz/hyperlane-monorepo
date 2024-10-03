@@ -23,7 +23,7 @@ use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::libs::account::CosmosAccountId;
 use crate::providers::rpc::CosmosRpcClient;
-use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
+use crate::{AccountIdType, ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
 
 /// Exponent value for atto units (10^-18).
 const ATTO_EXPONENT: u32 = 18;
@@ -99,12 +99,13 @@ impl CosmosProvider {
             HyperlaneCosmosError::PublicKeyError("no public key for default signer".to_owned())
         })?;
 
-        let key = self.normalize_public_key(signer_public_key)?;
+        let (key, account_id_type) = self.normalize_public_key(signer_public_key)?;
         let public_key = PublicKey::try_from(key)?;
 
         let account_id = CosmosAccountId::account_id_from_pubkey(
             public_key,
             &self.connection_conf.get_bech32_prefix(),
+            account_id_type,
         )?;
 
         Ok((account_id, signer_info.sequence))
@@ -113,10 +114,12 @@ impl CosmosProvider {
     fn normalize_public_key(
         &self,
         signer_public_key: SignerPublicKey,
-    ) -> ChainResult<SignerPublicKey> {
-        let public_key = match signer_public_key {
-            SignerPublicKey::Single(pk) => SignerPublicKey::from(pk),
-            SignerPublicKey::LegacyAminoMultisig(pk) => SignerPublicKey::from(pk),
+    ) -> ChainResult<(SignerPublicKey, AccountIdType)> {
+        let public_key_and_account_id_type = match signer_public_key {
+            SignerPublicKey::Single(pk) => (SignerPublicKey::from(pk), AccountIdType::BITCOIN),
+            SignerPublicKey::LegacyAminoMultisig(pk) => {
+                (SignerPublicKey::from(pk), AccountIdType::BITCOIN)
+            }
             SignerPublicKey::Any(pk) => {
                 if pk.type_url != PublicKey::ED25519_TYPE_URL
                     && pk.type_url != PublicKey::SECP256K1_TYPE_URL
@@ -132,7 +135,7 @@ impl CosmosProvider {
                     Err(HyperlaneCosmosError::PublicKeyError(msg.to_owned()))?
                 }
 
-                let pub_key = if pk.type_url == INJECTIVE_PUBLIC_KEY_TYPE_URL {
+                let (pub_key, account_id_type) = if pk.type_url == INJECTIVE_PUBLIC_KEY_TYPE_URL {
                     let any = Any {
                         type_url: PublicKey::SECP256K1_TYPE_URL.to_owned(),
                         value: pk.value,
@@ -151,16 +154,16 @@ impl CosmosProvider {
                             )
                         })?;
 
-                    PublicKey::from(tendermint)
+                    (PublicKey::from(tendermint), AccountIdType::ETHEREUM)
                 } else {
-                    PublicKey::try_from(pk)?
+                    (PublicKey::try_from(pk)?, AccountIdType::BITCOIN)
                 };
 
-                SignerPublicKey::Single(pub_key)
+                (SignerPublicKey::Single(pub_key), account_id_type)
             }
         };
 
-        Ok(public_key)
+        Ok(public_key_and_account_id_type)
     }
 
     /// Calculates the sender and the nonce for the transaction.

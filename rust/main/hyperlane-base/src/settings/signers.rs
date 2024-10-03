@@ -34,6 +34,8 @@ pub enum SignerConf {
         key: H256,
         /// Prefix for cosmos address
         prefix: String,
+        /// Account ID type for cosmos address
+        account_id_type: String,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -143,10 +145,16 @@ impl ChainSigner for Keypair {
 #[async_trait]
 impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        if let SignerConf::CosmosKey { key, prefix } = conf {
+        if let SignerConf::CosmosKey {
+            key,
+            prefix,
+            account_id_type,
+        } = conf
+        {
             Ok(hyperlane_cosmos::Signer::new(
                 key.as_bytes().to_vec(),
                 prefix.clone(),
+                account_id_type,
             )?)
         } else {
             bail!(format!("{conf:?} key is not supported by cosmos"));

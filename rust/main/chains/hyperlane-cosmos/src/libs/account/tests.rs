@@ -2,8 +2,10 @@ use cosmrs::crypto::PublicKey;
 use cosmwasm_std::HexBinary;
 
 use crypto::decompress_public_key;
+use AccountIdType::{BITCOIN, ETHEREUM};
 
 use crate::libs::account::CosmosAccountId;
+use crate::AccountIdType;
 
 const COMPRESSED_PUBLIC_KEY: &str =
     "02962d010010b6eec66846322704181570d89e28236796579c535d2e44d20931f4";
@@ -16,8 +18,10 @@ fn test_account_id() {
     let pub_key = compressed_public_key();
 
     // when
-    let neutron_account_id = CosmosAccountId::account_id_from_pubkey(pub_key, "neutron").unwrap();
-    let injective_account_id = CosmosAccountId::account_id_from_pubkey(pub_key, "inj").unwrap();
+    let neutron_account_id =
+        CosmosAccountId::account_id_from_pubkey(pub_key, "neutron", BITCOIN).unwrap();
+    let injective_account_id =
+        CosmosAccountId::account_id_from_pubkey(pub_key, "inj", ETHEREUM).unwrap();
 
     // then
     assert_eq!(neutron_account_id.as_ref(), NEUTRON_ADDRESS);
