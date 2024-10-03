@@ -37,10 +37,12 @@ hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
 
 [dev-dependencies]
+mockall.workspace = true
 tokio-test.workspace = true
 reqwest.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 k256.workspace = true
+hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum", features = ["test-utils"] }
 
 [features]
 default = ["color-eyre", "oneline-errors"]

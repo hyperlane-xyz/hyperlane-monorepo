@@ -404,8 +404,8 @@ mod test {
         settings::{ChainConf, ChainConnectionConf, Settings},
     };
     use hyperlane_core::{
-        GasPaymentKey, InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
-        PendingOperationStatus, H256,
+        test_utils::dummy_domain, GasPaymentKey, InterchainGasPayment, InterchainGasPaymentMeta,
+        MerkleTreeInsertion, PendingOperationStatus, H256,
     };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
     use prometheus::{IntCounter, Registry};
@@ -534,17 +534,6 @@ mod test {
         if retry_count > 0 {
             db.store_pending_message_retry_count_by_message_id(&msg.id(), &retry_count)
                 .unwrap();
-        }
-    }
-
-    fn dummy_domain(domain_id: u32, name: &str) -> HyperlaneDomain {
-        let test_domain = HyperlaneDomain::new_test_domain(name);
-        HyperlaneDomain::Unknown {
-            domain_id,
-            domain_name: name.to_owned(),
-            domain_type: test_domain.domain_type(),
-            domain_protocol: test_domain.domain_protocol(),
-            domain_technical_stack: test_domain.domain_technical_stack(),
         }
     }
 

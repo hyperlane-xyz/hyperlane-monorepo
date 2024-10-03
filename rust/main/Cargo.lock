@@ -10377,6 +10377,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-test",
  "k256 0.13.3",
+ "mockall",
  "prometheus",
  "reqwest",
  "serde",
