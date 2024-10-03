@@ -19,11 +19,12 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256, U256,
 };
 
-use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::libs::account::CosmosAccountId;
 use crate::providers::rpc::CosmosRpcClient;
-use crate::{AccountIdType, ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
+use crate::{
+    AccountIdType, ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount,
+    HyperlaneCosmosError, Signer,
+};
 
 /// Exponent value for atto units (10^-18).
 const ATTO_EXPONENT: u32 = 18;

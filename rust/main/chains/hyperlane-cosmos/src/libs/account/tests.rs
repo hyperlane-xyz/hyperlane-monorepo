@@ -4,8 +4,8 @@ use cosmwasm_std::HexBinary;
 use crypto::decompress_public_key;
 use AccountIdType::{BITCOIN, ETHEREUM};
 
-use crate::libs::account::CosmosAccountId;
 use crate::AccountIdType;
+use crate::CosmosAccountId;
 
 const COMPRESSED_PUBLIC_KEY: &str =
     "02962d010010b6eec66846322704181570d89e28236796579c535d2e44d20931f4";

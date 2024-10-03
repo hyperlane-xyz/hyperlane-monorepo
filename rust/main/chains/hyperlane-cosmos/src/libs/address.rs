@@ -7,8 +7,7 @@ use cosmrs::{
 use derive_new::new;
 use hyperlane_core::{ChainCommunicationError, ChainResult, Error::Overflow, H256};
 
-use crate::libs::account::CosmosAccountId;
-use crate::{AccountIdType, HyperlaneCosmosError};
+use crate::{AccountIdType, CosmosAccountId, HyperlaneCosmosError};
 
 /// Wrapper around the cosmrs AccountId type that abstracts bech32 encoding
 #[derive(new, Debug, Clone)]

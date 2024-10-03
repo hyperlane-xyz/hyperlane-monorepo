@@ -1,7 +1,7 @@
 use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
 use hyperlane_core::ChainResult;
 
-use crate::{address::CosmosAddress, AccountIdType, HyperlaneCosmosError};
+use crate::{AccountIdType, CosmosAddress, HyperlaneCosmosError};
 
 #[derive(Clone, Debug)]
 /// Signer for cosmos chain
