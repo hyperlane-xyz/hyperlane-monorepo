@@ -146,8 +146,8 @@ impl S3Storage {
         "announcement.json".to_owned()
     }
 
-    fn reorg_key() -> String {
-        "reorg_status.json".to_owned()
+    fn reorg_flag_key() -> String {
+        "reorg_flag.json".to_owned()
     }
 }
 
@@ -223,13 +223,13 @@ impl CheckpointSyncer for S3Storage {
 
     async fn write_reorg_status(&self, reorged_event: Option<ReorgEvent>) -> Result<()> {
         let serialized_reorg = serde_json::to_string(&reorged_event)?;
-        self.write_to_bucket(S3Storage::reorg_key(), &serialized_reorg)
+        self.write_to_bucket(S3Storage::reorg_flag_key(), &serialized_reorg)
             .await?;
         Ok(())
     }
 
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        self.anonymously_read_from_bucket(S3Storage::reorg_key())
+        self.anonymously_read_from_bucket(S3Storage::reorg_flag_key())
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()

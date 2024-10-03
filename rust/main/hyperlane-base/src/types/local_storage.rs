@@ -41,8 +41,8 @@ impl LocalStorage {
         self.path.join("announcement.json")
     }
 
-    fn reorg_file_path(&self) -> PathBuf {
-        self.path.join("reorg_status.json")
+    fn reorg_flag_path(&self) -> PathBuf {
+        self.path.join("reorg_flag.json")
     }
 
     fn metadata_file_path(&self) -> PathBuf {
@@ -123,7 +123,7 @@ impl CheckpointSyncer for LocalStorage {
 
     async fn write_reorg_status(&self, reorged_event: Option<ReorgEvent>) -> Result<()> {
         let serialized_reorg = serde_json::to_string_pretty(&reorged_event)?;
-        let path = self.reorg_file_path();
+        let path = self.reorg_flag_path();
         tokio::fs::write(&path, &serialized_reorg)
             .await
             .with_context(|| format!("Writing reorg status to {path:?}"))?;
@@ -131,7 +131,7 @@ impl CheckpointSyncer for LocalStorage {
     }
 
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
-        let Ok(data) = tokio::fs::read(self.reorg_file_path()).await else {
+        let Ok(data) = tokio::fs::read(self.reorg_flag_path()).await else {
             return Ok(None);
         };
         let reorg = serde_json::from_slice(&data)?;
