@@ -11,7 +11,7 @@ use derive_new::new;
 use ethers::utils::hex;
 use eyre::Result;
 use hyperlane_base::{
-    db::{HyperlaneRocksDB, ProcessMessage},
+    db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
 };
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation};
@@ -52,7 +52,7 @@ struct ForwardBackwardIterator {
 
 impl ForwardBackwardIterator {
     #[instrument(skip(db), ret)]
-    fn new(db: Arc<dyn ProcessMessage>) -> Self {
+    fn new(db: Arc<dyn HyperlaneDb>) -> Self {
         let high_nonce = db.retrieve_highest_seen_message_nonce().ok().flatten();
         let domain = db.domain().name().to_owned();
         let high_nonce_iter = DirectionalNonceIterator::new(
@@ -125,7 +125,7 @@ enum NonceDirection {
 struct DirectionalNonceIterator {
     nonce: Option<u32>,
     direction: NonceDirection,
-    db: Arc<dyn ProcessMessage>,
+    db: Arc<dyn HyperlaneDb>,
     domain_name: String,
 }
 
@@ -196,7 +196,10 @@ impl DirectionalNonceIterator {
         let Some(nonce) = self.nonce else {
             return Ok(false);
         };
-        let processed = self.db.retrieve_processed_by_nonce(nonce)?.unwrap_or(false);
+        let processed = self
+            .db
+            .retrieve_processed_by_nonce(&nonce)?
+            .unwrap_or(false);
         if processed {
             trace!(
                 nonce,
@@ -326,7 +329,7 @@ impl MessageProcessor {
             send_channels,
             destination_ctxs,
             metric_app_contexts,
-            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn ProcessMessage>),
+            nonce_iterator: ForwardBackwardIterator::new(Arc::new(db) as Arc<dyn HyperlaneDb>),
         }
     }
 
@@ -394,8 +397,15 @@ mod test {
 
     use super::*;
     use hyperlane_base::{
-        db::{test_utils, DbResult, HyperlaneRocksDB},
+        db::{
+            test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
+            InterchainGasPaymentData,
+        },
         settings::{ChainConf, ChainConnectionConf, Settings},
+    };
+    use hyperlane_core::{
+        GasPaymentKey, InterchainGasPayment, InterchainGasPaymentMeta, MerkleTreeInsertion,
+        PendingOperationStatus, H256,
     };
     use hyperlane_test::mocks::{MockMailboxContract, MockValidatorAnnounceContract};
     use prometheus::{IntCounter, Registry};
@@ -591,11 +601,153 @@ mod test {
             fn fmt<'a>(&self, f: &mut std::fmt::Formatter<'a>) -> std::fmt::Result;
         }
 
-        impl ProcessMessage for Db {
+        impl HyperlaneDb for Db {
+            /// Retrieve the nonce of the highest processed message we're aware of
             fn retrieve_highest_seen_message_nonce(&self) -> DbResult<Option<u32>>;
+
+            /// Retrieve a message by its nonce
             fn retrieve_message_by_nonce(&self, nonce: u32) -> DbResult<Option<HyperlaneMessage>>;
-            fn retrieve_processed_by_nonce(&self, nonce: u32) -> DbResult<Option<bool>>;
+
+            /// Retrieve whether a message has been processed
+            fn retrieve_processed_by_nonce(&self, nonce: &u32) -> DbResult<Option<bool>>;
+
+            /// Get the origin domain of the database
             fn domain(&self) -> &HyperlaneDomain;
+
+            fn store_message_id_by_nonce(&self, nonce: &u32, id: &H256) -> DbResult<()>;
+
+            fn retrieve_message_id_by_nonce(&self, nonce: &u32) -> DbResult<Option<H256>>;
+
+            fn store_message_by_id(&self, id: &H256, message: &HyperlaneMessage) -> DbResult<()>;
+
+            fn retrieve_message_by_id(&self, id: &H256) -> DbResult<Option<HyperlaneMessage>>;
+
+            fn store_dispatched_block_number_by_nonce(
+                &self,
+                nonce: &u32,
+                block_number: &u64,
+            ) -> DbResult<()>;
+
+            fn retrieve_dispatched_block_number_by_nonce(&self, nonce: &u32) -> DbResult<Option<u64>>;
+
+            /// Store whether a message was processed by its nonce
+            fn store_processed_by_nonce(&self, nonce: &u32, processed: &bool) -> DbResult<()>;
+
+            fn store_processed_by_gas_payment_meta(
+                &self,
+                meta: &InterchainGasPaymentMeta,
+                processed: &bool,
+            ) -> DbResult<()>;
+
+            fn retrieve_processed_by_gas_payment_meta(
+                &self,
+                meta: &InterchainGasPaymentMeta,
+            ) -> DbResult<Option<bool>>;
+
+            fn store_interchain_gas_expenditure_data_by_message_id(
+                &self,
+                message_id: &H256,
+                data: &InterchainGasExpenditureData,
+            ) -> DbResult<()>;
+
+            fn retrieve_interchain_gas_expenditure_data_by_message_id(
+                &self,
+                message_id: &H256,
+            ) -> DbResult<Option<InterchainGasExpenditureData>>;
+
+            /// Store the status of an operation by its message id
+            fn store_status_by_message_id(
+                &self,
+                message_id: &H256,
+                status: &PendingOperationStatus,
+            ) -> DbResult<()>;
+
+            /// Retrieve the status of an operation by its message id
+            fn retrieve_status_by_message_id(
+                &self,
+                message_id: &H256,
+            ) -> DbResult<Option<PendingOperationStatus>>;
+
+            fn store_interchain_gas_payment_data_by_gas_payment_key(
+                &self,
+                key: &GasPaymentKey,
+                data: &InterchainGasPaymentData,
+            ) -> DbResult<()>;
+
+            fn retrieve_interchain_gas_payment_data_by_gas_payment_key(
+                &self,
+                key: &GasPaymentKey,
+            ) -> DbResult<Option<InterchainGasPaymentData>>;
+
+            fn store_gas_payment_by_sequence(
+                &self,
+                sequence: &u32,
+                payment: &InterchainGasPayment,
+            ) -> DbResult<()>;
+
+            fn retrieve_gas_payment_by_sequence(
+                &self,
+                sequence: &u32,
+            ) -> DbResult<Option<InterchainGasPayment>>;
+
+            fn store_gas_payment_block_by_sequence(
+                &self,
+                sequence: &u32,
+                block_number: &u64,
+            ) -> DbResult<()>;
+
+            fn retrieve_gas_payment_block_by_sequence(&self, sequence: &u32) -> DbResult<Option<u64>>;
+
+            /// Store the retry count for a pending message by its message id
+            fn store_pending_message_retry_count_by_message_id(
+                &self,
+                message_id: &H256,
+                count: &u32,
+            ) -> DbResult<()>;
+
+            /// Retrieve the retry count for a pending message by its message id
+            fn retrieve_pending_message_retry_count_by_message_id(
+                &self,
+                message_id: &H256,
+            ) -> DbResult<Option<u32>>;
+
+            fn store_merkle_tree_insertion_by_leaf_index(
+                &self,
+                leaf_index: &u32,
+                insertion: &MerkleTreeInsertion,
+            ) -> DbResult<()>;
+
+            /// Retrieve the merkle tree insertion event by its leaf index
+            fn retrieve_merkle_tree_insertion_by_leaf_index(
+                &self,
+                leaf_index: &u32,
+            ) -> DbResult<Option<MerkleTreeInsertion>>;
+
+            fn store_merkle_leaf_index_by_message_id(
+                &self,
+                message_id: &H256,
+                leaf_index: &u32,
+            ) -> DbResult<()>;
+
+            /// Retrieve the merkle leaf index of a message in the merkle tree
+            fn retrieve_merkle_leaf_index_by_message_id(&self, message_id: &H256) -> DbResult<Option<u32>>;
+
+            fn store_merkle_tree_insertion_block_number_by_leaf_index(
+                &self,
+                leaf_index: &u32,
+                block_number: &u64,
+            ) -> DbResult<()>;
+
+            fn retrieve_merkle_tree_insertion_block_number_by_leaf_index(
+                &self,
+                leaf_index: &u32,
+            ) -> DbResult<Option<u64>>;
+
+            fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
+
+            /// Retrieve the nonce of the highest processed message we're aware of
+            fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
+
         }
     }
 

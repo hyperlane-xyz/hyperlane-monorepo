@@ -22,7 +22,7 @@ use crate::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
