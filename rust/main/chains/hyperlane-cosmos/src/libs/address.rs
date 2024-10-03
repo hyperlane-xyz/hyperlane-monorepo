@@ -124,7 +124,7 @@ pub mod test {
         let hex_key = "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
         let key = hex_or_base58_to_h256(hex_key).unwrap();
         let prefix = "neutron";
-        let addr = CosmosAddress::from_privkey(key.as_bytes(), prefix, AccountIdType::BITCOIN)
+        let addr = CosmosAddress::from_privkey(key.as_bytes(), prefix, AccountIdType::Bitcoin)
             .expect("Cosmos address creation failed");
         assert_eq!(
             addr.address(),

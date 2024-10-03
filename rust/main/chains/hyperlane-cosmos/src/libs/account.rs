@@ -25,8 +25,8 @@ impl<'a> CosmosAccountId<'a> {
         account_id_type: AccountIdType,
     ) -> ChainResult<AccountId> {
         match account_id_type {
-            AccountIdType::BITCOIN => Self::bitcoin_style(pub_key, prefix),
-            AccountIdType::ETHEREUM => Self::ethereum_style(pub_key, prefix),
+            AccountIdType::Bitcoin => Self::bitcoin_style(pub_key, prefix),
+            AccountIdType::Ethereum => Self::ethereum_style(pub_key, prefix),
         }
     }
 

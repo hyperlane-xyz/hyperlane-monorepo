@@ -117,9 +117,9 @@ impl CosmosProvider {
         signer_public_key: SignerPublicKey,
     ) -> ChainResult<(SignerPublicKey, AccountIdType)> {
         let public_key_and_account_id_type = match signer_public_key {
-            SignerPublicKey::Single(pk) => (SignerPublicKey::from(pk), AccountIdType::BITCOIN),
+            SignerPublicKey::Single(pk) => (SignerPublicKey::from(pk), AccountIdType::Bitcoin),
             SignerPublicKey::LegacyAminoMultisig(pk) => {
-                (SignerPublicKey::from(pk), AccountIdType::BITCOIN)
+                (SignerPublicKey::from(pk), AccountIdType::Bitcoin)
             }
             SignerPublicKey::Any(pk) => {
                 if pk.type_url != PublicKey::ED25519_TYPE_URL
@@ -155,9 +155,9 @@ impl CosmosProvider {
                             )
                         })?;
 
-                    (PublicKey::from(tendermint), AccountIdType::ETHEREUM)
+                    (PublicKey::from(tendermint), AccountIdType::Ethereum)
                 } else {
-                    (PublicKey::try_from(pk)?, AccountIdType::BITCOIN)
+                    (PublicKey::try_from(pk)?, AccountIdType::Bitcoin)
                 };
 
                 (SignerPublicKey::Single(pub_key), account_id_type)

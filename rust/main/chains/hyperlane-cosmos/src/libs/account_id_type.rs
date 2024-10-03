@@ -3,9 +3,9 @@ use crate::HyperlaneCosmosError;
 /// Specifies the account id (address) type
 pub enum AccountIdType {
     /// Bitcoin style address: RIPEMD160(SHA256(pubkey))
-    BITCOIN,
+    Bitcoin,
     /// Ethereum style address: KECCAK256(pubkey)[20]
-    ETHEREUM,
+    Ethereum,
 }
 
 impl TryFrom<&str> for AccountIdType {
@@ -13,8 +13,8 @@ impl TryFrom<&str> for AccountIdType {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "BITCOIN" => Ok(AccountIdType::BITCOIN),
-            "ETHEREUM" => Ok(AccountIdType::ETHEREUM),
+            "BITCOIN" => Ok(AccountIdType::Bitcoin),
+            "ETHEREUM" => Ok(AccountIdType::Ethereum),
             _ => Err(HyperlaneCosmosError::PublicKeyError(format!(
                 "unsupported account id type: {}, supported types: BITCOIN, ETHEREUM",
                 value
