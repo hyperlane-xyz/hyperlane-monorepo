@@ -1,3 +1,4 @@
+import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 import { Logger } from 'pino';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -67,7 +68,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     data,
     value,
     chainId,
-  }: PopulatedTransaction): Promise<any> {
+  }: PopulatedTransaction): Promise<SafeTransaction> {
     const nextNonce: number = await this.safeService.getNextNonce(
       this.props.safeAddress,
     );
@@ -83,35 +84,41 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   }
 
   public async submit(...txs: PopulatedTransactions): Promise<any[]> {
-    return Promise.all(
-      txs.map(async (tx: PopulatedTransaction) => {
-        const safeTransaction = await this.createSafeTransaction(tx);
+    return this.proposeIndividualTransactions(txs);
+  }
 
-        const safeTransactionData: any = safeTransaction.data;
-        const safeTxHash: string = await this.safe.getTransactionHash(
-          safeTransaction,
-        );
-        const senderAddress: Address =
-          await this.multiProvider.getSignerAddress(this.props.chain);
-        const safeSignature: any = await this.safe.signTransactionHash(
-          safeTxHash,
-        );
-        const senderSignature: string = safeSignature.data;
+  private async proposeIndividualTransactions(txs: PopulatedTransactions) {
+    const safeTransactions: SafeTransaction[] = [];
+    for (const tx of txs) {
+      const safeTransaction = await this.createSafeTransaction(tx);
+      await this.proposeSafeTransaction(safeTransaction);
+      safeTransactions.push(safeTransaction);
+    }
+    return safeTransactions;
+  }
 
-        this.logger.info(
-          `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
-        );
-
-        const transactionReceipts = await this.safeService.proposeTransaction({
-          safeAddress: this.props.safeAddress,
-          safeTransactionData,
-          safeTxHash,
-          senderAddress,
-          senderSignature,
-        });
-
-        return transactionReceipts ?? [];
-      }),
+  private async proposeSafeTransaction(
+    safeTransaction: SafeTransaction,
+  ): Promise<void> {
+    const safeTxHash: string = await this.safe.getTransactionHash(
+      safeTransaction,
     );
+    const senderAddress: Address = await this.multiProvider.getSignerAddress(
+      this.props.chain,
+    );
+    const safeSignature: any = await this.safe.signTransactionHash(safeTxHash);
+    const senderSignature: string = safeSignature.data;
+
+    this.logger.info(
+      `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
+    );
+
+    return this.safeService.proposeTransaction({
+      safeAddress: this.props.safeAddress,
+      safeTransactionData: safeTransaction.data,
+      safeTxHash,
+      senderAddress,
+      senderSignature,
+    });
   }
 }
