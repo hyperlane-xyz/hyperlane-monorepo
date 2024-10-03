@@ -436,7 +436,7 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
 export async function runWarpRouteApply(
   params: WarpApplyParams,
 ): Promise<void> {
-  const { warpDeployConfig, warpCoreConfig, context, strategyUrl } = params;
+  const { warpDeployConfig, warpCoreConfig, context } = params;
   const { registry, multiProvider, chainMetadata, skipConfirmation } = context;
 
   WarpRouteDeployConfigSchema.parse(warpDeployConfig);
