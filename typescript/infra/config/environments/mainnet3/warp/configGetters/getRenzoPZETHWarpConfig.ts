@@ -9,6 +9,8 @@ import { symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
+import { ezEthSafes, ezEthValidators } from './getRenzoEZETHWarpConfig.js';
+
 const lockbox = '0xbC5511354C4A9a50DE928F56DB01DD327c4e56d5';
 const xERC20 = '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7';
 const lockboxChain = 'ethereum';
@@ -17,26 +19,14 @@ const warpRouteOverheadGas = 200_000;
 
 const chainsToDeploy = ['ethereum', 'zircuit'];
 
-const ezEthValidators = {
-  ethereum: {
-    threshold: 1,
-    validators: [
-      '0x1fd889337f60986aa57166bc5ac121efd13e4fdd', // Everclear
-      '0xc7f7b94a6baf2fffa54dfe1dde6e5fcbb749e04f', // Renzo
-    ],
-  },
-  zircuit: {
-    threshold: 1,
-    validators: [
-      '0x1da9176c2ce5cc7115340496fa7d1800a98911ce', // Renzo
-      '0x7ac6584c068eb2a72d4db82a7b7cd5ab34044061', // luganodes
-    ],
-  },
+const pzEthValidators = {
+  ethereum: ezEthValidators.ethereum,
+  zircuit: ezEthValidators.zircuit,
 };
 
-const ezEthSafes: Record<string, string> = {
-  ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
-  zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+const pzEthSafes: Record<string, string> = {
+  ethereum: ezEthSafes.ethereum,
+  zircuit: ezEthSafes.zircuit,
 };
 
 export const getRenzoPZETHWarpConfig = async (): Promise<
@@ -46,11 +36,11 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
 
   const validatorDiff = symmetricDifference(
     new Set(chainsToDeploy),
-    new Set(Object.keys(ezEthValidators)),
+    new Set(Object.keys(pzEthValidators)),
   );
   const safeDiff = symmetricDifference(
     new Set(chainsToDeploy),
-    new Set(Object.keys(ezEthSafes)),
+    new Set(Object.keys(pzEthSafes)),
   );
   if (validatorDiff.size > 0) {
     throw new Error(
@@ -78,7 +68,7 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
                   ? TokenType.XERC20Lockbox
                   : TokenType.XERC20,
               token: chain === lockboxChain ? lockbox : xERC20,
-              owner: ezEthSafes[chain],
+              owner: pzEthSafes[chain],
               gas: warpRouteOverheadGas,
               mailbox: (await registry.getChainAddresses(chain))!.mailbox,
               interchainSecurityModule: {
@@ -87,17 +77,17 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
                 modules: [
                   {
                     type: IsmType.ROUTING,
-                    owner: ezEthSafes[chain],
+                    owner: pzEthSafes[chain],
                     domains: buildAggregationIsmConfigs(
                       chain,
                       chainsToDeploy,
-                      ezEthValidators,
+                      pzEthValidators,
                     ),
                   },
                   {
                     type: IsmType.FALLBACK_ROUTING,
                     domains: {},
-                    owner: ezEthSafes[chain],
+                    owner: pzEthSafes[chain],
                   },
                 ],
               },
