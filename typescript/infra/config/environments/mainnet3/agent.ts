@@ -106,7 +106,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     rari: true,
     real: true,
     redstone: true,
-    rootstock: true,
+    rootstock: false,
     sanko: true,
     scroll: true,
     sei: true,
@@ -177,7 +177,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     rari: true,
     real: true,
     redstone: true,
-    rootstock: true,
+    rootstock: false,
     sanko: true,
     scroll: true,
     sei: true,
@@ -251,7 +251,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     rari: true,
     real: true,
     redstone: true,
-    rootstock: true,
+    rootstock: false,
     sanko: true,
     scroll: true,
     // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
@@ -414,7 +414,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '422876d-20241003-134649',
+      tag: 'b25821a-20241003-164055',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -423,7 +423,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '422876d-20241003-134649',
+      tag: 'b25821a-20241003-164055',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -433,7 +433,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '422876d-20241003-134649',
+      tag: 'b25821a-20241003-164055',
     },
     resources: scraperResources,
   },
