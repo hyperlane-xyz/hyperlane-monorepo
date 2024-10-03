@@ -77,6 +77,7 @@ import {
   isFile,
   readYamlOrJson,
   runFileSelectionStep,
+  writeYamlOrJson,
 } from '../utils/files.js';
 
 import {
@@ -93,6 +94,7 @@ interface DeployParams {
 interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
   strategyUrl?: string;
+  receiptsDir: string;
 }
 
 export async function runWarpRouteDeploy({
@@ -489,18 +491,7 @@ export async function runWarpRouteApply(
             return logGreen(
               `Warp config on ${chain} is the same as target. No updates needed.`,
             );
-          const submitter: TxSubmitterBuilder<ProtocolType> =
-            await getWarpApplySubmitter({
-              chain,
-              context,
-              strategyUrl,
-            });
-          const transactionReceipts = await submitter.submit(...transactions);
-
-          return logGreen(
-            `✅ Warp config update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
-            indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-          );
+          await submitWarpApplyTransactions(chain, params, transactions);
         } catch (e) {
           logRed(`Warp config on ${chain} failed to update.`, e);
         }
@@ -542,7 +533,7 @@ export async function runWarpRouteApply(
       warpCoreConfigByChain,
     );
 
-    await enrollRemoteRouters(context, mergedRouters, strategyUrl);
+    await enrollRemoteRouters(params, mergedRouters);
 
     const updatedWarpCoreConfig = await getWarpCoreConfig(
       params,
@@ -623,12 +614,11 @@ function mergeAllRouters(
  * @param multiProvider - A MultiProvider instance to interact with multiple chains.
  */
 async function enrollRemoteRouters(
-  context: WriteCommandContext,
+  params: WarpApplyParams,
   deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
-  strategyUrl?: string,
 ): Promise<void> {
-  logBlue(`Enrolling deployed routers with each other (if not already)...`);
-  const { multiProvider } = context;
+  logBlue(`Enrolling deployed routers with each other...`);
+  const { multiProvider } = params.context;
   const deployedRouters: ChainMap<Address> = objMap(
     deployedContractsMap,
     (_, contracts) => getRouter(contracts).address,
@@ -666,19 +656,9 @@ async function enrollRemoteRouters(
 
       if (mutatedConfigTxs.length == 0)
         return logGreen(
-          `Mutated warp config on ${chain} is the same as target. No updates needed.`,
+          `Warp config on ${chain} is the same as target. No updates needed.`,
         );
-      const submitter: TxSubmitterBuilder<ProtocolType> =
-        await getWarpApplySubmitter({
-          chain,
-          context,
-          strategyUrl,
-        });
-      const transactionReceipts = await submitter.submit(...mutatedConfigTxs);
-      return logGreen(
-        `✅ Router enrollment update successfully submitted with ${submitter.txSubmitterType} on ${chain}:\n\n`,
-        indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-      );
+      await submitWarpApplyTransactions(chain, params, mutatedConfigTxs);
     }),
   );
 }
@@ -816,6 +796,34 @@ function transformIsmConfigForDisplay(ismConfig: IsmConfig): any[] {
     default:
       return [ismConfig];
   }
+}
+
+/**
+ * Submits a set of transactions to the specified chain and outputs transaction receipts
+ */
+async function submitWarpApplyTransactions(
+  chain: string,
+  params: WarpApplyParams,
+  transactions: AnnotatedEV5Transaction[],
+) {
+  const submitter: TxSubmitterBuilder<ProtocolType> =
+    await getWarpApplySubmitter({
+      chain,
+      context: params.context,
+      strategyUrl: params.strategyUrl,
+    });
+
+  const transactionReceipts = await submitter.submit(...transactions);
+  if (transactionReceipts) {
+    const receiptPath = `${params.receiptsDir}/${chain}-${submitter.txSubmitterType}-receipts.json`;
+    writeYamlOrJson(receiptPath, transactionReceipts);
+    logGreen(`Transactions receipts successfully written to ${receiptPath}`);
+  }
+
+  return logGreen(
+    `✅ Warp route update success with ${submitter.txSubmitterType} on ${chain}:\n\n`,
+    indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 0),
+  );
 }
 
 /**
