@@ -3,7 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 
-import { getRenzoEZETHWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConifg.js';
+import { getRenzoEZETHWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 
 async function main() {
   const tokenConfig = await getRenzoEZETHWarpConfig();
