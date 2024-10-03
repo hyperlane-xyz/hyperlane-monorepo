@@ -10,9 +10,7 @@ export const EV5GnosisSafeTxSubmitterPropsSchema = z.object({
 export const EV5GnosisSafeTxBuilderPropsSchema = z.object({
   version: z.string(),
   chain: ZChainName,
-  meta: z.object({
-    txBuilderVersion: z.string(),
-  }),
+  meta: z.object({}),
   safeAddress: ZHash,
 });
 
