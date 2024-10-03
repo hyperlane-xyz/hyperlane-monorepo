@@ -6,8 +6,9 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 
 // ============ Internal Imports ============
 import {MetaProxy} from "./MetaProxy.sol";
+import {IThresholdAddressFactory} from "../interfaces/IThresholdAddressFactory.sol";
 
-abstract contract StaticThresholdAddressSetFactory {
+abstract contract StaticThresholdAddressSetFactory is IThresholdAddressFactory {
     // ============ Immutables ============
     address public immutable implementation;
 

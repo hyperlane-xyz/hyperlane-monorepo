@@ -54,6 +54,8 @@ export enum IsmType {
   AGGREGATION = 'staticAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
+  STORAGE_MERKLE_ROOT_MULTISIG = 'storageMerkleRootMultisigIsm',
+  STORAGE_MESSAGE_ID_MULTISIG = 'storageMessageIdMultisigIsm',
   TEST_ISM = 'testIsm',
   PAUSABLE = 'pausableIsm',
   TRUSTED_RELAYER = 'trustedRelayerIsm',
@@ -79,8 +81,10 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.AGGREGATION:
       return ModuleType.AGGREGATION;
     case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
       return ModuleType.MERKLE_ROOT_MULTISIG;
     case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
       return ModuleType.MESSAGE_ID_MULTISIG;
     case IsmType.OP_STACK:
     case IsmType.TEST_ISM:
@@ -140,6 +144,8 @@ export type DeployedIsmType = {
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
   [IsmType.MESSAGE_ID_MULTISIG]: IMultisigIsm;
+  [IsmType.STORAGE_MERKLE_ROOT_MULTISIG]: IMultisigIsm;
+  [IsmType.STORAGE_MESSAGE_ID_MULTISIG]: IMultisigIsm;
   [IsmType.OP_STACK]: OPStackIsm;
   [IsmType.TEST_ISM]: TestIsm;
   [IsmType.PAUSABLE]: PausableIsm;

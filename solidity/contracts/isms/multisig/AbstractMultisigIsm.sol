@@ -67,7 +67,7 @@ abstract contract AbstractMultisig {
  * @notice Manages per-domain m-of-n Validator sets of AbstractMultisig that are used to verify
  * interchain messages.
  */
-abstract contract AbstractMultisigIsm is AbstractMultisig {
+abstract contract AbstractMultisigIsm is AbstractMultisig, IMultisigIsm {
     // ============ Virtual Functions ============
     // ======= OVERRIDE THESE TO IMPLEMENT =======
 

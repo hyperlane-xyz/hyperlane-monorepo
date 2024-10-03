@@ -18,6 +18,8 @@ import {
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   StaticWeightedValidatorSetFactory,
+  StorageMerkleRootMultisigIsm__factory,
+  StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -111,6 +113,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         contract = await this.deployMultisigIsm(destination, config, logger);
         break;
       case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
@@ -220,18 +224,55 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     logger: Logger,
   ): Promise<IMultisigIsm> {
     const signer = this.multiProvider.getSigner(destination);
-    const multisigIsmFactory =
-      config.type === IsmType.MERKLE_ROOT_MULTISIG
-        ? this.getContracts(destination).staticMerkleRootMultisigIsmFactory
-        : this.getContracts(destination).staticMessageIdMultisigIsmFactory;
 
-    const address = await this.deployStaticAddressSet(
-      destination,
-      multisigIsmFactory,
-      config.validators,
-      logger,
-      config.threshold,
-    );
+    const deployStatic = (factory: StaticThresholdAddressSetFactory) =>
+      this.deployStaticAddressSet(
+        destination,
+        factory,
+        config.validators,
+        logger,
+        config.threshold,
+      );
+
+    const deployStorage = async (
+      factory:
+        | StorageMerkleRootMultisigIsm__factory
+        | StorageMessageIdMultisigIsm__factory,
+    ) => {
+      const contract = await this.multiProvider.handleDeploy(
+        destination,
+        factory,
+        [config.validators, config.threshold],
+      );
+      return contract.address;
+    };
+
+    let address: string;
+    switch (config.type) {
+      case IsmType.MERKLE_ROOT_MULTISIG:
+        address = await deployStatic(
+          this.getContracts(destination).staticMerkleRootMultisigIsmFactory,
+        );
+        break;
+      case IsmType.MESSAGE_ID_MULTISIG:
+        address = await deployStatic(
+          this.getContracts(destination).staticMessageIdMultisigIsmFactory,
+        );
+        break;
+      // TODO: support using minimal proxy factories for storage multisig ISMs too
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+        address = await deployStorage(
+          new StorageMerkleRootMultisigIsm__factory(),
+        );
+        break;
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+        address = await deployStorage(
+          new StorageMessageIdMultisigIsm__factory(),
+        );
+        break;
+      default:
+        throw new Error(`Unsupported multisig ISM type ${config.type}`);
+    }
 
     return IMultisigIsm__factory.connect(address, signer);
   }
