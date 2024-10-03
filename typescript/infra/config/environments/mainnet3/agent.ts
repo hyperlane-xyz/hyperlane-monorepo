@@ -414,7 +414,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'bf53f08-20240926-223824',
+      tag: '451400c-20241003-103616',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -423,7 +423,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9c056c7-20240911-154357',
+      tag: '451400c-20241003-103616',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -433,7 +433,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9c056c7-20240911-154357',
+      tag: '451400c-20241003-103616',
     },
     resources: scraperResources,
   },
