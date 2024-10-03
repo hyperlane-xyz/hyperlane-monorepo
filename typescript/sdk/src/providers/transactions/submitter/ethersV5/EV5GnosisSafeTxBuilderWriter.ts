@@ -10,8 +10,10 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
 import { EV5GnosisSafeTxSubmitter } from './EV5GnosisSafeTxSubmitter.js';
 import { EV5GnosisSafeTxBuilderProps } from './types.js';
 
-// This class is used to create ao Safe Transaction Builder compatible file.
-// It is not a true Submitter because it does not submits any transactions.
+/**
+ * This class is used to create a Safe Transaction Builder compatible object.
+ * It is not a true Submitter because it does not submits any transactions.
+ */
 export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.GNOSIS_TX_BUILDER;
@@ -45,6 +47,13 @@ export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
       safeService,
     );
   }
+
+  /**
+   * Creates a Gnosis Safe transaction builder object using the PopulatedTransactions
+   *
+   * @param txs - An array of populated transactions
+   * TODO: Figure out the return Schema from Gnosis Safe.
+   */
   public async submit(...txs: PopulatedTransactions): Promise<any> {
     const transactions = await Promise.all(
       txs.map(
