@@ -39,7 +39,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bsc: '5',
     celo: '3',
     cheesechain: '50',
-    chiliz: '100',
+    chiliz: '200',
     coredao: '25',
     cyber: '0.05',
     degenchain: '100',
