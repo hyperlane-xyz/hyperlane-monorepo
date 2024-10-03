@@ -3,10 +3,10 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 
-import { getRenzoEZETHWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
+import { getRenzoPZETHWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 
 async function main() {
-  const tokenConfig = await getRenzoEZETHWarpConfig();
+  const tokenConfig = await getRenzoPZETHWarpConfig();
   const parsed = WarpRouteDeployConfigSchema.safeParse(tokenConfig);
 
   if (!parsed.success) {
@@ -15,7 +15,7 @@ async function main() {
   }
 
   writeFileSync(
-    'renzo-warp-route-config.yaml',
+    'renzo-pzeth-warp-route-config.yaml',
     yamlStringify(parsed.data, null, 2),
   );
 }
