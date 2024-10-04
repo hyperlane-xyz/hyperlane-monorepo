@@ -210,7 +210,7 @@ impl CosmosProvider {
 
         let contract_execution_messages_len = contract_execution_messages.len();
         if contract_execution_messages_len > 1 {
-            error!(
+            warn!(
                 ?tx_hash,
                 ?contract_execution_messages,
                 "transaction contains multiple contract execution messages, we are indexing the first entry only");
@@ -242,7 +242,7 @@ impl CosmosProvider {
             .fold("".to_string(), |acc, denom| acc + ", " + denom);
 
         if !unsupported_denominations.is_empty() {
-            error!(
+            warn!(
                 ?tx_hash,
                 ?supported_denomination,
                 ?unsupported_denominations,
