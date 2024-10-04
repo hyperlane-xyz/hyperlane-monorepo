@@ -54,12 +54,9 @@ describe('InterchainAccounts', async () => {
   });
 
   beforeEach(async () => {
-    console.log('inside beforeEach');
-
     contracts = await new InterchainAccountDeployer(multiProvider).deploy(
       config,
     );
-    console.log('af InterchainAccountDeployer');
     local = contracts[localChain].interchainAccountRouter;
     remote = contracts[remoteChain].interchainAccountRouter;
     app = new InterchainAccount(contracts, multiProvider);

@@ -17,6 +17,7 @@ import {
   Ownable__factory,
   PausableIsm__factory,
   StorageMerkleRootMultisigIsm__factory,
+  StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -429,6 +430,11 @@ export class EvmIsmModule extends HyperlaneModule<
           contractName: IsmType.TEST_ISM,
           constructorArgs: [],
         });
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+        return this.deployStorageMessageIdMultisigIsm({
+          config,
+          logger,
+        });
       case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         return this.deployStorageMultisigIsm({
           config,
@@ -440,6 +446,26 @@ export class EvmIsmModule extends HyperlaneModule<
     }
   }
 
+  // TODO: handle logging part
+  protected async deployStorageMessageIdMultisigIsm({
+    config,
+    logger,
+  }: {
+    config: MultisigIsmConfig;
+    logger: Logger;
+  }): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(this.chain);
+
+    const contract = await this.deployer.deployContractFromFactory({
+      chain: this.chain,
+      factory: new StorageMessageIdMultisigIsm__factory(),
+      contractName: IsmType.STORAGE_MESSAGE_ID_MULTISIG,
+      constructorArgs: [config.validators, config.threshold],
+    });
+    return IMultisigIsm__factory.connect(contract.address, signer);
+  }
+
+  // TODO: handle logging part
   protected async deployStorageMultisigIsm({
     config,
     logger,
