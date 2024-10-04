@@ -110,7 +110,7 @@ describe('EvmCoreModule', async () => {
       const { interchainGasPaymaster: _, ...coreContracts } =
         evmCoreModule.serialize();
 
-      objMap(coreContracts as any, (name, address) => {
+      objMap(coreContracts as any, (_, address) => {
         expect(address).to.exist;
         expect(address).to.not.equal(constants.AddressZero);
       });
