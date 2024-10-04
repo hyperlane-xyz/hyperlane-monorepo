@@ -39,12 +39,15 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   ProviderType
 > = {
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
-  [ProtocolType.GnosisTxBuilder]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
+
+enum EthereumProtocolType {
+  GnosisTxBuilder = 'gnosisTxBuilder',
+}
 
 type ProtocolTypesMapping = {
   [ProtocolType.Ethereum]: {
@@ -52,12 +55,6 @@ type ProtocolTypesMapping = {
     provider: EthersV5Provider;
     contract: EthersV5Contract;
     receipt: EthersV5TransactionReceipt;
-  };
-  [ProtocolType.GnosisTxBuilder]: {
-    transaction: EthersV5Transaction;
-    provider: EthersV5Provider;
-    contract: EthersV5Contract;
-    receipt: GnosisTransactionBuilderReceipt;
   };
   [ProtocolType.Sealevel]: {
     transaction: SolanaWeb3Transaction;
@@ -70,6 +67,12 @@ type ProtocolTypesMapping = {
     provider: CosmJsWasmProvider;
     contract: CosmJsWasmContract;
     receipt: CosmJsWasmTransactionReceipt;
+  };
+  [EthereumProtocolType.GnosisTxBuilder]: {
+    transaction: EthersV5Transaction;
+    provider: EthersV5Provider;
+    contract: EthersV5Contract;
+    receipt: GnosisTransactionBuilderReceipt;
   };
 };
 
