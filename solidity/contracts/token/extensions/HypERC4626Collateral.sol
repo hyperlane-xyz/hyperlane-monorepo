@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+// ============ Internal Imports ============
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+
+// ============ External Imports ============
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 /**
  * @title Hyperlane ERC4626 Token Collateral with deposits collateral to a vault
@@ -17,7 +32,9 @@ contract HypERC4626Collateral is HypERC20Collateral {
 
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
+    // Precision for the exchange rate
     uint256 public constant PRECISION = 1e10;
+    // Null recipient for rebase transfer
     bytes32 public constant NULL_RECIPIENT =
         0x0000000000000000000000000000000000000000000000000000000000000001;
     // Nonce for the rate update, to ensure sequential updates
