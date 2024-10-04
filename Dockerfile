@@ -27,7 +27,6 @@ RUN yarn install && yarn cache clean
 COPY tsconfig.json ./
 COPY typescript ./typescript
 COPY solidity ./solidity
-COPY solidity/bytecodeversion.sh ./solidity/
 
 RUN yarn build
 
