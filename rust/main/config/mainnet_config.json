@@ -4433,7 +4433,6 @@
         }
       ],
       "transactionOverrides": {
-        "gasLimit": 6800000,
         "gasPrice": 70000000
       },
       "aggregationHook": "0xA530b21B2c1517ceFcAAE890c7f8A167e4C0f51E",
