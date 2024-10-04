@@ -123,16 +123,16 @@ abstract contract ExternalBridgeTest is Test {
         hook.postDispatch{value: quote - 1}(testMetadata, encodedMessage);
     }
 
-    /* ============ ISM.verifyMessageId ============ */
+    /* ============ ISM.preVerifyMessage ============ */
 
-    function test_verifyMessageId_asyncCall() public {
+    function test_preVerifyMessage_asyncCall() public {
         bytes memory encodedHookData = _encodeHookData(messageId, 0);
         _externalBridgeDestinationCall(encodedHookData, 0);
 
         assertTrue(ism.isVerified(encodedMessage));
     }
 
-    function test_verifyMessageId_externalBridgeCall() public virtual {
+    function test_preVerifyMessage_externalBridgeCall() public virtual {
         bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
             address(hook),
             address(ism),
@@ -256,9 +256,7 @@ abstract contract ExternalBridgeTest is Test {
 
         _externalBridgeDestinationCall(encodedHookData, MSG_VALUE);
 
-        vm.expectRevert(
-            "AbstractMessageIdAuthorizedIsm: msg.value doesn't match"
-        );
+        vm.expectRevert("AbstractMessageIdAuthorizedIsm: invalid msg.value");
         _externalBridgeDestinationCall(encodedHookData, 0);
 
         assertTrue(ism.verify(new bytes(0), encodedMessage));
@@ -295,7 +293,7 @@ abstract contract ExternalBridgeTest is Test {
     ) internal pure returns (bytes memory) {
         return
             abi.encodeCall(
-                AbstractMessageIdAuthorizedIsm.verifyMessageId,
+                AbstractMessageIdAuthorizedIsm.preVerifyMessage,
                 (_messageId, _msgValue)
             );
     }
@@ -331,5 +329,5 @@ abstract contract ExternalBridgeTest is Test {
     receive() external payable {}
 
     // meant to be mock an arbitrary successful call made by the external bridge
-    function verifyMessageId(bytes32 /*messageId*/) public payable {}
+    function preVerifyMessage(bytes32 /*messageId*/) public payable {}
 }

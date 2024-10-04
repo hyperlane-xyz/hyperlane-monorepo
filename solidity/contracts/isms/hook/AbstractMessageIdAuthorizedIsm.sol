@@ -100,7 +100,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     }
 
     /**
-     * @notice Check if a message is verified through verifyMessageId first.
+     * @notice Check if a message is verified through preVerifyMessage first.
      * @param message Message to check.
      */
     function isVerified(bytes calldata message) public view returns (bool) {
@@ -114,7 +114,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @dev Only callable by the authorized hook.
      * @param messageId Hyperlane Id of the message.
      */
-    function verifyMessageId(
+    function preVerifyMessage(
         bytes32 messageId,
         uint256 msgValue
     ) public payable virtual {
@@ -123,17 +123,13 @@ abstract contract AbstractMessageIdAuthorizedIsm is
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
         require(
-            msg.value < 2 ** VERIFIED_MASK_INDEX,
-            "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
+            msg.value < 2 ** VERIFIED_MASK_INDEX && msg.value == msgValue,
+            "AbstractMessageIdAuthorizedIsm: invalid msg.value"
         );
         require(
-            msg.value == msgValue,
-            "AbstractMessageIdAuthorizedIsm: msg.value doesn't match"
+            verifiedMessages[messageId] == 0,
+            "AbstractMessageIdAuthorizedIsm: message already verified"
         );
-
-        if (verifiedMessages[messageId] != 0) {
-            return;
-        }
 
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
         emit ReceivedMessage(messageId, msgValue);
@@ -142,7 +138,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     // ============ Internal Functions ============
 
     /**
-     * @notice Check if sender is authorized to message `verifyMessageId`.
+     * @notice Check if sender is authorized to message `preVerifyMessage`.
      */
     function _isAuthorized() internal view virtual returns (bool);
 }

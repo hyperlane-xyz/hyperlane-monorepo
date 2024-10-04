@@ -20,7 +20,7 @@ library OPL2ToL1Metadata {
     //          LENGTH                      = 32 bytes
     // } = 252 bytes
     uint256 private constant FIXED_METADATA_LENGTH = 252;
-    // metadata here is double encoded call relayMessage(..., verifyMessageId)
+    // metadata here is double encoded call relayMessage(..., preVerifyMessage)
     // Σ {
     //      _selector                       =  4 bytes
     //      _nonce                          = 32 bytes
@@ -31,7 +31,7 @@ library OPL2ToL1Metadata {
     //      _data
     //          OFFSET                      = 32 bytes
     //          LENGTH                      = 32 bytes
-    //          PADDING + verifyMessageId   = 96 bytes
+    //          PADDING + preVerifyMessage   = 96 bytes
     // } = 324 bytes
     uint256 private constant MESSENGER_CALLDATA_LENGTH = 324;
 

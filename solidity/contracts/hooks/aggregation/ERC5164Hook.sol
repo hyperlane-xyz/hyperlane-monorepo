@@ -65,7 +65,7 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
         require(msg.value == 0, "ERC5164Hook: no value allowed");
 
         bytes memory payload = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
             (message.id(), metadata.msgValue(0))
         );
         dispatcher.dispatchMessage(
