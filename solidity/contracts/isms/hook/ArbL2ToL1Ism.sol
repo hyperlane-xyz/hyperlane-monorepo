@@ -44,6 +44,10 @@ contract ArbL2ToL1Ism is
     // arbitrum nitro contract on L1 to forward verification
     IOutbox public arbOutbox;
 
+    uint256 private constant DATA_LENGTH = 68;
+
+    uint256 private constant MESSAGE_ID_END = 36;
+
     // ============ Constructor ============
 
     constructor(address _bridge) CrossChainEnabledArbitrumL1(_bridge) {
@@ -110,13 +114,16 @@ contract ArbL2ToL1Ism is
             l2Sender == TypeCasts.bytes32ToAddress(authorizedHook),
             "ArbL2ToL1Ism: l2Sender != authorizedHook"
         );
-        // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
-        require(data.length == 36, "ArbL2ToL1Ism: invalid data length");
+        // this data is an abi encoded call of preVerifyMessage(bytes32 messageId)
+        require(
+            data.length == DATA_LENGTH,
+            "ArbL2ToL1Ism: invalid data length"
+        );
         bytes32 messageId = message.id();
         bytes32 convertedBytes;
         assembly {
             // data = 0x[4 bytes function signature][32 bytes messageId]
-            convertedBytes := mload(add(data, 36))
+            convertedBytes := mload(add(data, MESSAGE_ID_END))
         }
         // check if the parsed message id matches the message id of the message
         require(
