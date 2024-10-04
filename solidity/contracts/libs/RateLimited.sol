@@ -29,7 +29,7 @@ contract RateLimited is OwnableUpgradeable {
     uint256 public filledLevel;
     /// @notice Tokens per second refill rate
     uint256 public refillRate;
-    /// @notice Timestamp of the last time an action has been taken TODO prob can be uint40
+    /// @notice Timestamp of the last time an action has been taken
     uint256 public lastUpdated;
 
     event RateLimitSet(uint256 _oldCapacity, uint256 _newCapacity);
