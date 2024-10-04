@@ -26,7 +26,14 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
+import {
+  log,
+  logCommandHeader,
+  logGray,
+  logGreen,
+  logRed,
+  logTable,
+} from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
@@ -84,8 +91,8 @@ export const apply: CommandModuleWithWriteContext<{
     strategy: { ...strategyCommandOption, demandOption: false },
   },
   handler: async ({ context, config, symbol, warp, strategy: strategyUrl }) => {
-    logGray(`Hyperlane Warp Apply`);
-    logGray('--------------------'); // @TODO consider creating a helper function for these dashes
+    logCommandHeader('Hyperlane Warp Apply');
+
     let warpCoreConfig: WarpCoreConfig;
     if (symbol) {
       warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
@@ -120,8 +127,9 @@ export const deploy: CommandModuleWithWriteContext<{
     'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config, dryRun }) => {
-    logGray(`Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`);
-    logGray('------------------------------------------------');
+    logCommandHeader(
+      `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
+    );
 
     try {
       await runWarpRouteDeploy({
@@ -151,8 +159,7 @@ export const init: CommandModuleWithContext<{
     out: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
   },
   handler: async ({ context, advanced, out }) => {
-    logGray('Hyperlane Warp Configure');
-    logGray('------------------------');
+    logCommandHeader('Hyperlane Warp Configure');
 
     await createWarpRouteDeployConfig({
       context,
@@ -197,8 +204,7 @@ export const read: CommandModuleWithContext<{
     config: configFilePath,
     symbol,
   }) => {
-    logGray('Hyperlane Warp Reader');
-    logGray('---------------------');
+    logCommandHeader('Hyperlane Warp Reader');
 
     const { multiProvider } = context;
 
