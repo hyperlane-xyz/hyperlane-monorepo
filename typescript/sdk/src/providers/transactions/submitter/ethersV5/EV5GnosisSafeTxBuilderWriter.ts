@@ -1,9 +1,12 @@
+import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
+
 import { assert } from '@hyperlane-xyz/utils';
 
 // prettier-ignore
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
+import { GnosisTransactionBuilderObject } from '../../../ProviderType.js';
 import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
@@ -52,10 +55,11 @@ export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
    * Creates a Gnosis Safe transaction builder object using the PopulatedTransactions
    *
    * @param txs - An array of populated transactions
-   * TODO: Figure out the return Schema from Gnosis Safe.
    */
-  public async submit(...txs: PopulatedTransactions): Promise<any> {
-    const transactions = await Promise.all(
+  public async submit(
+    ...txs: PopulatedTransactions
+  ): Promise<GnosisTransactionBuilderObject> {
+    const transactions: SafeTransactionData[] = await Promise.all(
       txs.map(
         async (tx: PopulatedTransaction) =>
           (

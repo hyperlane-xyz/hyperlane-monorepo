@@ -123,6 +123,7 @@ export type ProviderBuilderMap = Record<
 >;
 export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.EthersV5]: defaultEthersV5ProviderBuilder,
+  [ProviderType.GnosisTxBuilder]: defaultEthersV5ProviderBuilder,
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
@@ -134,6 +135,7 @@ export const protocolToDefaultProviderBuilder: Record<
   ProviderBuilderFn<TypedProvider>
 > = {
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,
+  [ProtocolType.GnosisTxBuilder]: defaultEthersV5ProviderBuilder,
   [ProtocolType.Sealevel]: defaultSolProviderBuilder,
   [ProtocolType.Cosmos]: defaultCosmJsWasmProviderBuilder,
 };

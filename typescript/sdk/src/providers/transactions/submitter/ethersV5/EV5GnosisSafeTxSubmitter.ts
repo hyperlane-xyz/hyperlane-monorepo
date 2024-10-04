@@ -83,7 +83,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     });
   }
 
-  public async submit(...txs: PopulatedTransactions): Promise<any[]> {
+  public async submit(...txs: PopulatedTransactions): Promise<any> {
     return this.proposeIndividualTransactions(txs);
   }
 
