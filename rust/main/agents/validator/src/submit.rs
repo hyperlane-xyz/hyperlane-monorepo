@@ -3,13 +3,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::vec;
 
+use hyperlane_base::db::HyperlaneDb;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{ChainResult, MerkleTreeHook};
 use prometheus::IntGauge;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
 
-use hyperlane_base::{db::HyperlaneRocksDB, CheckpointSyncer, CoreMetrics};
+use hyperlane_base::{CheckpointSyncer, CoreMetrics};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, Checkpoint, CheckpointWithMessageId,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSignerExt,
@@ -23,7 +24,7 @@ pub(crate) struct ValidatorSubmitter {
     signer: SingletonSignerHandle,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
-    message_db: HyperlaneRocksDB,
+    db: Arc<dyn HyperlaneDb>,
     metrics: ValidatorSubmitterMetrics,
 }
 
@@ -34,7 +35,7 @@ impl ValidatorSubmitter {
         merkle_tree_hook: Arc<dyn MerkleTreeHook>,
         signer: SingletonSignerHandle,
         checkpoint_syncer: Arc<dyn CheckpointSyncer>,
-        message_db: HyperlaneRocksDB,
+        db: Arc<dyn HyperlaneDb>,
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
@@ -43,7 +44,7 @@ impl ValidatorSubmitter {
             merkle_tree_hook,
             signer,
             checkpoint_syncer,
-            message_db,
+            db,
             metrics,
         }
     }
@@ -159,7 +160,7 @@ impl ValidatorSubmitter {
         // and convert the correctness_checkpoint.index to a count by adding 1.
         while tree.count() as u32 <= correctness_checkpoint.index {
             if let Some(insertion) = self
-                .message_db
+                .db
                 .retrieve_merkle_tree_insertion_by_leaf_index(&(tree.count() as u32))
                 .unwrap_or_else(|err| {
                     panic!(

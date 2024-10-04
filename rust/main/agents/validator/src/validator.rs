@@ -10,7 +10,7 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
-    db::{HyperlaneRocksDB, DB},
+    db::{HyperlaneDb, HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
     settings::ChainConf,
     AgentMetadata, BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer,
@@ -241,7 +241,7 @@ impl Validator {
             self.merkle_tree_hook.clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
-            self.db.clone(),
+            Arc::new(self.db.clone()) as Arc<dyn HyperlaneDb>,
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 

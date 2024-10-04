@@ -13,7 +13,6 @@ members = [
   "hyperlane-test",
   "utils/abigen",
   "utils/backtrace-oneline",
-  "utils/crypto",
   "utils/hex",
   "utils/run-locally",
 ]
@@ -69,10 +68,10 @@ futures-util = "0.3"
 generic-array = { version = "0.14", features = ["serde", "more_lengths"] }
 # Required for WASM support https://docs.rs/getrandom/latest/getrandom/#webassembly-support
 bech32 = "0.9.1"
-elliptic-curve = "0.13.8"
+elliptic-curve = "0.12.3"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-http = "0.2.12"
+http = "*"
 hyper = "0.14"
 hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
@@ -81,7 +80,7 @@ injective-std = "=0.1.5"
 itertools = "*"
 jobserver = "=0.1.26"
 jsonrpc-core = "18.0"
-k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
+k256 = { version = "0.13.1", features = ["std", "ecdsa"] }
 log = "0.4"
 macro_rules_attribute = "0.2"
 maplit = "1.0"
