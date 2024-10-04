@@ -20,6 +20,7 @@ COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/widgets/package.json ./typescript/widgets/
 COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY solidity/package.json ./solidity/
+COPY solidity/bytecodeversion.sh ./solidity/
 
 RUN yarn install && yarn cache clean
 
