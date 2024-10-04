@@ -20,7 +20,7 @@ import {Message} from "../../libs/Message.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 
-// ============ Internal Imports ============
+// ============ External Imports ============
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 /**

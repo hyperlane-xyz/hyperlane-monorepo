@@ -26,7 +26,7 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
 contract HypERC4626OwnerCollateral is HypERC20Collateral {
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
-    // standby precision for exchange rate (not useful)
+    // standby precision for exchange rate
     uint256 public constant PRECISION = 1e10;
     // Internal balance of total asset deposited
     uint256 public assetDeposited;
