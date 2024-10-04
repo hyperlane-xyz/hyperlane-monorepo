@@ -40,7 +40,7 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
     // precompile contract on L2 for sending messages to L1
     ICrossDomainMessenger public immutable l2Messenger;
     // child hook to call first
-    AbstractPostDispatchHook public immutable childHook;
+    IPostDispatchHook public immutable childHook;
     // Minimum gas limit that the message can be executed with - OP specific
     uint32 public constant MIN_GAS_LIMIT = 300_000;
 
