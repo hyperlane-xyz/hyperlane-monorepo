@@ -211,6 +211,9 @@
   "redstone": {
     "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
   },
+  "rootstock": {
+    "validators": ["0xcb8e3a72cf427feff27416d0e2ec375a052eaaee"]
+  },
   "sanko": {
     "validators": ["0x795c37d5babbc44094b084b0c89ed9db9b5fae39"]
   },
@@ -235,9 +238,6 @@
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
-  },
-  "tangle": {
-    "validators": ["0x1ee52cbbfacd7dcb0ba4e91efaa6fbc61602b15b"]
   },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
