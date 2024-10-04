@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
 use futures_util::TryStreamExt;
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use prometheus::IntGauge;
 use rusoto_core::{
     credential::{Anonymous, AwsCredentials, StaticProvider},
@@ -145,6 +145,10 @@ impl S3Storage {
     fn announcement_key() -> String {
         "announcement.json".to_owned()
     }
+
+    fn reorg_flag_key() -> String {
+        "reorg_flag.json".to_owned()
+    }
 }
 
 #[async_trait]
@@ -215,5 +219,20 @@ impl CheckpointSyncer for S3Storage {
                 format!("s3://{}/{}/{}", self.bucket, self.region.name(), folder_str)
             }
         }
+    }
+
+    async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
+        let serialized_reorg = serde_json::to_string(reorged_event)?;
+        self.write_to_bucket(S3Storage::reorg_flag_key(), &serialized_reorg)
+            .await?;
+        Ok(())
+    }
+
+    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
+        self.anonymously_read_from_bucket(S3Storage::reorg_flag_key())
+            .await?
+            .map(|data| serde_json::from_slice(&data))
+            .transpose()
+            .map_err(Into::into)
     }
 }
