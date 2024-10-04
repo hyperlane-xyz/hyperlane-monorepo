@@ -10,6 +10,7 @@ const TokenConfigSchema = z.object({
   type: z.nativeEnum(TokenType),
   hypAddress: z.string(), // HypERC20Collateral, HypERC20Synthetic, HypNativeToken address
   tokenAddress: z.string().optional(), // external token address needed for collateral type eg tokenAddress.balanceOf(hypAddress)
+  tokenCoinGeckoId: z.string().optional(), // CoinGecko id for token
   name: z.string(),
   symbol: z.string(),
   decimals: z.number(),
