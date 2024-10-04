@@ -41,8 +41,7 @@ contract HypERC4626 is HypERC20 {
         address to,
         uint256 amount
     ) public virtual override returns (bool) {
-        address owner = _msgSender();
-        _transfer(owner, to, assetsToShares(amount));
+        _transfer(_msgSender(), to, assetsToShares(amount));
         return true;
     }
 
@@ -63,7 +62,7 @@ contract HypERC4626 is HypERC20 {
     /// Override totalSupply to return the total assets instead of shares. This reflects the actual circulating supply in terms of assets, accounting for rebasing
     /// @inheritdoc ERC20Upgradeable
     function totalSupply() public view virtual override returns (uint256) {
-        return sharesToAssets(super.totalSupply());
+        return sharesToAssets(totalShares());
     }
 
     /// This returns the balance of the account in terms of assets, accounting for rebasing
@@ -71,7 +70,7 @@ contract HypERC4626 is HypERC20 {
     function balanceOf(
         address account
     ) public view virtual override returns (uint256) {
-        return sharesToAssets(super.balanceOf(account));
+        return sharesToAssets(shareBalanceOf(account));
     }
 
     /// This function provides the total supply in terms of shares
