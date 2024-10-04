@@ -11,13 +11,11 @@ import {
   ChainMap,
   EvmERC20WarpRouteReader,
   TokenStandard,
-  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import {
   createWarpRouteDeployConfig,
-  readWarpCoreConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import {
@@ -31,11 +29,11 @@ import {
   logCommandHeader,
   logGray,
   logGreen,
-  logRed,
   logTable,
 } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import { getWarpCoreConfigOrExit } from '../utils/input.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
@@ -93,15 +91,11 @@ export const apply: CommandModuleWithWriteContext<{
   handler: async ({ context, config, symbol, warp, strategy: strategyUrl }) => {
     logCommandHeader('Hyperlane Warp Apply');
 
-    let warpCoreConfig: WarpCoreConfig;
-    if (symbol) {
-      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
-    } else if (warp) {
-      warpCoreConfig = readWarpCoreConfig(warp);
-    } else {
-      logRed(`Please specify either a symbol or warp config`);
-      process.exit(0);
-    }
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      symbol,
+      warp,
+      context,
+    });
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
 
     await runWarpRouteApply({
@@ -329,15 +323,11 @@ const send: CommandModuleWithWriteContext<
     amount,
     recipient,
   }) => {
-    let warpCoreConfig: WarpCoreConfig;
-    if (symbol) {
-      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
-    } else if (warp) {
-      warpCoreConfig = readWarpCoreConfig(warp);
-    } else {
-      logRed(`Please specify either a symbol or warp config`);
-      process.exit(0);
-    }
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      symbol,
+      warp,
+      context,
+    });
 
     await sendTestTransfer({
       context,
