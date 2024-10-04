@@ -1,5 +1,5 @@
 import {
-  EV5GnosisSafeTxBuilderWriter,
+  EV5GnosisSafeTxBuilderFactory,
   EV5GnosisSafeTxSubmitter,
   EV5ImpersonatedAccountTxSubmitter,
   EV5InterchainAccountTxTransformer,
@@ -49,7 +49,7 @@ async function getSubmitter<TProtocol extends ProtocolType>(
         ...submitterMetadata,
       });
     case TxSubmitterType.GNOSIS_TX_BUILDER:
-      return EV5GnosisSafeTxBuilderWriter.create(multiProvider, {
+      return EV5GnosisSafeTxBuilderFactory.create(multiProvider, {
         ...submitterMetadata,
       });
     default:
