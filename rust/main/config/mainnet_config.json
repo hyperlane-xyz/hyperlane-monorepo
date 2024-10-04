@@ -4190,9 +4190,6 @@
       "validatorAnnounce": "0xE56Da9D48E698eB70F56aeCC0BC25Ff1710EEA76",
       "index": {
         "from": 17051552
-      },
-      "transactionOverrides": {
-        "gasPrice": 2600000000000
       }
     },
     "immutablezkevm": {
@@ -4261,8 +4258,8 @@
         "from": 12797545
       },
       "transactionOverrides": {
-        "maxPriorityFeePerGas": 10000000000,
-        "maxFeePerGas": 15000000000
+        "maxPriorityFeePerGas": 100000000000,
+        "maxFeePerGas": 100000000000
       }
     },
     "lumia": {
