@@ -11,7 +11,7 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-// import { TransparentUpgradeableProxy__artifact } from '@hyperlane-xyz/core/artifacts';
+import { TimelockController__artifact } from '@hyperlane-xyz/core/artifacts';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
@@ -36,6 +36,7 @@ import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
+import { getArtifactByContractName } from '../utils/zksync.js';
 
 import {
   UpgradeConfig,
@@ -408,10 +409,13 @@ export abstract class HyperlaneDeployer<
       )})...`,
     );
 
+    const artifact = getArtifactByContractName(contractName);
+
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
+      artifact,
     );
 
     if (initializeArgs) {
@@ -646,6 +650,7 @@ export abstract class HyperlaneDeployer<
         [timelockConfig.roles.executor],
         ethers.constants.AddressZero,
       ],
+      TimelockController__artifact,
     );
   }
 

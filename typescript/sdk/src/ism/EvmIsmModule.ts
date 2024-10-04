@@ -21,6 +21,7 @@ import {
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
+import { DefaultFallbackRoutingIsm__artifact } from '@hyperlane-xyz/core/artifacts';
 // import { TrustedRelayerIsm__artifact } from '@hyperlane-xyz/core/artifacts';
 import {
   Address,
@@ -542,6 +543,7 @@ export class EvmIsmModule extends HyperlaneModule<
         this.chain,
         new DefaultFallbackRoutingIsm__factory(),
         [this.args.addresses.mailbox],
+        DefaultFallbackRoutingIsm__artifact,
       );
 
       // initialize the fallback routing ISM

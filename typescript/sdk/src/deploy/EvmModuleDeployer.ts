@@ -12,6 +12,7 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
+import { getArtifactByContractName } from '../utils/zksync.js';
 
 import { isProxy, proxyConstructorArgs } from './proxy.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
@@ -63,10 +64,14 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
         ', ',
       )})...`,
     );
+
+    const artifact = getArtifactByContractName(contractName);
+
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
+      artifact,
     );
 
     if (initializeArgs) {

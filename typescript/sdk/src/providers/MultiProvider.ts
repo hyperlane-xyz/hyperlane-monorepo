@@ -328,6 +328,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     factory: F,
     params: any,
+    artifact: any,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) {
@@ -343,11 +344,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (protocol === ProtocolType.ZKSync) {
       const deployer = new ZKDeployer(signer as zk.Wallet);
 
-      const localArtifact = deployer.loadArtifactByEvmBytecode(
-        factory.bytecode,
-      );
-
-      contract = await deployer.deploy(localArtifact, params);
+      contract = await deployer.deploy(artifact, params);
 
       this.logger.trace(
         `Contract deployed at ${contract.address} on ${chainNameOrId}:`,

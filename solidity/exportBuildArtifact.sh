@@ -65,7 +65,7 @@ if [ ! -f "$jsonFiles" ]; then
 fi
 
 # Extract required keys and write to outputFile
-if jq -c '{input, solcLongVersion}' "$jsonFiles" > "$outputFileJson"; then
+if jq -c '{input, solcLongVersion, zk_version: .output.zk_version}' "$jsonFiles" > "$outputFileJson"; then
   echo "export const buildArtifact = " > "$outputFileJs"
   cat "$outputFileJson" >> "$outputFileJs"
   echo "export const buildArtifact: any" > "$outputFileTsd"
