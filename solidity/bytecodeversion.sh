@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 FILEPATH="contracts/PackageVersioned.sol"
 TEMPFILE=$(mktemp)
