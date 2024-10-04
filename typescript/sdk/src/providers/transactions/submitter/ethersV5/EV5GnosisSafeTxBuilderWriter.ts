@@ -6,7 +6,7 @@ import { assert } from '@hyperlane-xyz/utils';
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { GnosisTransactionBuilderObject } from '../../../ProviderType.js';
+import { GnosisTransactionBuilderPayload } from '../../../ProviderType.js';
 import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
@@ -17,7 +17,7 @@ import { EV5GnosisSafeTxBuilderProps } from './types.js';
  * This class is used to create a Safe Transaction Builder compatible object.
  * It is not a true Submitter because it does not submits any transactions.
  */
-export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
+export class EV5GnosisSafeTxBuilderFactory extends EV5GnosisSafeTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.GNOSIS_TX_BUILDER;
   constructor(
@@ -32,7 +32,7 @@ export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
   static async create(
     multiProvider: MultiProvider,
     props: EV5GnosisSafeTxBuilderProps,
-  ): Promise<EV5GnosisSafeTxBuilderWriter> {
+  ): Promise<EV5GnosisSafeTxBuilderFactory> {
     const { chain, safeAddress } = props;
     const { gnosisSafeTransactionServiceUrl } =
       multiProvider.getChainMetadata(chain);
@@ -43,7 +43,7 @@ export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
     const safe = await getSafe(chain, multiProvider, safeAddress);
     const safeService = await getSafeService(chain, multiProvider);
 
-    return new EV5GnosisSafeTxBuilderWriter(
+    return new EV5GnosisSafeTxBuilderFactory(
       multiProvider,
       props,
       safe,
@@ -58,7 +58,7 @@ export class EV5GnosisSafeTxBuilderWriter extends EV5GnosisSafeTxSubmitter {
    */
   public async submit(
     ...txs: PopulatedTransactions
-  ): Promise<GnosisTransactionBuilderObject> {
+  ): Promise<GnosisTransactionBuilderPayload> {
     const transactions: SafeTransactionData[] = await Promise.all(
       txs.map(
         async (tx: PopulatedTransaction) =>

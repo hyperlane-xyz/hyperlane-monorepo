@@ -268,12 +268,12 @@ export interface CosmJsTransactionReceipt
 }
 
 export interface GnosisTransactionBuilderReceipt
-  extends TypedTransactionReceiptBase<GnosisTransactionBuilderObject> {
+  extends TypedTransactionReceiptBase<GnosisTransactionBuilderPayload> {
   type: ProviderType.GnosisTxBuilder;
-  receipt: GnosisTransactionBuilderObject;
+  receipt: GnosisTransactionBuilderPayload;
 }
 
-export interface GnosisTransactionBuilderObject {
+export interface GnosisTransactionBuilderPayload {
   version: string;
   chainId: string;
   meta: {};
