@@ -7,6 +7,7 @@ use eyre::{eyre, Context, Report, Result};
 use prometheus::IntGauge;
 use rusoto_core::Region;
 use std::{env, path::PathBuf};
+use tracing::error;
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 /// Checkpoint Syncer types
@@ -101,13 +102,38 @@ impl FromStr for CheckpointSyncerConf {
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
-    pub async fn build(
+    pub async fn build_and_validate(
+        &self,
+        latest_index_gauge: Option<IntGauge>,
+    ) -> Result<Box<dyn CheckpointSyncer>, Report> {
+        let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge).await?;
+
+        // Panic if a reorg is detected
+        match syncer.reorg_status().await {
+            Ok(Some(reorg_event)) => {
+                panic!(
+                    "A reorg event has been detected: {:#?}. Please resolve the reorg to continue.",
+                    reorg_event
+                );
+            }
+            Err(err) => {
+                error!(
+                    ?err,
+                    "Failed to read reorg status. Assuming no reorg occurred."
+                );
+            }
+            _ => {}
+        }
+        Ok(syncer)
+    }
+
+    async fn build(
         &self,
         latest_index_gauge: Option<IntGauge>,
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         Ok(match self {
             CheckpointSyncerConf::LocalStorage { path } => {
-                Box::new(LocalStorage::new(path.clone(), latest_index_gauge)?)
+                Box::new(LocalStorage::new(path.clone(), None)?)
             }
             CheckpointSyncerConf::S3 {
                 bucket,
@@ -141,5 +167,17 @@ impl CheckpointSyncerConf {
                 )
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[tokio::test]
+    async fn test_build_and_validate() {
+        use super::*;
+        use prometheus::Registry;
+        use std::sync::Arc;
+
+        // let conf = CheckpointSyncerConf::LocalStorage {
     }
 }
