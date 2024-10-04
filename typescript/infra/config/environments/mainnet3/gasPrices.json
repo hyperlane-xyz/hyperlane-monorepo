@@ -16,7 +16,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.103",
+    "amount": "0.0357",
     "decimals": 9
   },
   "avalanche": {
@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.010944834",
+    "amount": "0.003185677",
     "decimals": 9
   },
   "bitlayer": {
@@ -76,7 +76,7 @@
     "decimals": 9
   },
   "endurance": {
-    "amount": "1.3",
+    "amount": "3.0756015",
     "decimals": 9
   },
   "ethereum": {
@@ -88,7 +88,7 @@
     "decimals": 9
   },
   "flare": {
-    "amount": "33.897874961",
+    "amount": "25.0",
     "decimals": 9
   },
   "fraxtal": {
@@ -104,7 +104,7 @@
     "decimals": 9
   },
   "immutablezkevm": {
-    "amount": "11",
+    "amount": "10.00000005",
     "decimals": 9
   },
   "inevm": {
@@ -200,7 +200,7 @@
     "decimals": 9
   },
   "real": {
-    "amount": "0.013",
+    "amount": "0.022",
     "decimals": 9
   },
   "redstone": {
@@ -224,7 +224,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "4.000000015",
+    "amount": "8.558763474",
     "decimals": 9
   },
   "solanamainnet": {
