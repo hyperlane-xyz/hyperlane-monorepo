@@ -9,7 +9,7 @@ use derive_new::new;
 use eyre::{eyre, Report};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
@@ -40,8 +40,7 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ReorgPeriod {
     Blocks(u32),
     Tag(String),
@@ -60,6 +59,45 @@ impl ReorgPeriod {
 impl Default for ReorgPeriod {
     fn default() -> Self {
         ReorgPeriod::Blocks(0)
+    }
+}
+
+impl<'de> Deserialize<'de> for ReorgPeriod {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de;
+
+        struct ReorgPeriodVisitor;
+
+        impl<'de> de::Visitor<'de> for ReorgPeriodVisitor {
+            type Value = ReorgPeriod;
+
+            fn expecting(&self, f: &mut Formatter) -> std::fmt::Result {
+                f.write_str("reorgPeriod as a number or string")
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let v = v.try_into().map_err(de::Error::custom)?;
+                Ok(ReorgPeriod::Blocks(v))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                match v.parse::<u32>() {
+                    Ok(v) => Ok(ReorgPeriod::Blocks(v)),
+                    Err(_) => Ok(ReorgPeriod::Tag(v.to_string())),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(ReorgPeriodVisitor)
     }
 }
 
@@ -520,7 +558,7 @@ impl HyperlaneDomain {
 mod tests {
     use std::str::FromStr;
 
-    use crate::KnownHyperlaneDomain;
+    use crate::{KnownHyperlaneDomain, ReorgPeriod};
 
     #[test]
     fn domain_strings() {
@@ -572,5 +610,23 @@ mod tests {
             Ok(56)
         );
         assert!("foo".parse::<KnownHyperlaneDomain>().is_err());
+    }
+
+    #[test]
+    fn parse_reorg_period() {
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>(12.into()).unwrap(),
+            ReorgPeriod::Blocks(12)
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("12".into()).unwrap(),
+            ReorgPeriod::Blocks(12)
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("finalized".into()).unwrap(),
+            ReorgPeriod::Tag("finalized".into())
+        );
     }
 }
