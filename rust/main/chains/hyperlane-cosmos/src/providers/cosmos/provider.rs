@@ -210,10 +210,9 @@ impl CosmosProvider {
 
         let contract_execution_messages_len = contract_execution_messages.len();
         if contract_execution_messages_len > 1 {
-            warn!(
-                ?tx_hash,
-                ?contract_execution_messages,
-                "transaction contains multiple contract execution messages, we are indexing the first entry only");
+            let msg = "transaction contains multiple contract execution messages, we are indexing the first entry only";
+            warn!(?tx_hash, ?contract_execution_messages, msg);
+            Err(ChainCommunicationError::CustomError(msg.to_owned()))?
         }
 
         let any = contract_execution_messages.first().ok_or_else(|| {
@@ -230,7 +229,7 @@ impl CosmosProvider {
     /// The only denomination we support at the moment is the one we express gas minimum price
     /// in the configuration of a chain. If fees contain an entry in a different denomination,
     /// we report it in the logs.
-    fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) {
+    fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) -> ChainResult<()> {
         let supported_denomination = self.connection_conf.get_minimum_gas_price().denom;
         let unsupported_denominations = tx
             .auth_info
@@ -242,12 +241,17 @@ impl CosmosProvider {
             .fold("".to_string(), |acc, denom| acc + ", " + denom);
 
         if !unsupported_denominations.is_empty() {
+            let msg = "transaction contains fees in unsupported denominations, manual intervention is required";
             warn!(
                 ?tx_hash,
                 ?supported_denomination,
                 ?unsupported_denominations,
-                "transaction contains fees in unsupported denominations, manual intervention is required");
+                msg,
+            );
+            Err(ChainCommunicationError::CustomError(msg.to_owned()))?
         }
+
+        Ok(())
     }
 
     /// Converts fees to a common denomination if necessary.
@@ -342,7 +346,7 @@ impl HyperlaneProvider for CosmosProvider {
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
 
         // TODO support multiple denominations for amount
-        self.report_unsupported_denominations(&tx, hash);
+        self.report_unsupported_denominations(&tx, hash)?;
 
         let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
         let fee = tx
