@@ -15,6 +15,6 @@ pub struct ReorgEvent {
     pub checkpoint_index: u32,
     /// the timestamp when the reorg was detected, in seconds since the Unix epoch
     pub unix_timestamp: u64,
-    /// (optional) the height of the block when the reorg was detected
+    /// the reorg period configured for the agent, in blocks
     pub reorg_period: u64,
 }

@@ -121,8 +121,8 @@ impl CheckpointSyncer for LocalStorage {
         format!("file://{}", self.path.to_str().unwrap())
     }
 
-    async fn write_reorg_status(&self, reorged_event: Option<ReorgEvent>) -> Result<()> {
-        let serialized_reorg = serde_json::to_string_pretty(&reorged_event)?;
+    async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
+        let serialized_reorg = serde_json::to_string_pretty(reorged_event)?;
         let path = self.reorg_flag_path();
         tokio::fs::write(&path, &serialized_reorg)
             .await

@@ -37,7 +37,7 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     /// If a bigger than expected reorg was detected on the validated chain, this flag can be set to inform
     /// the validator agent to stop publishing checkpoints. Once any remediation is done, this flag can be reset
     /// to resume operation.
-    async fn write_reorg_status(&self, reorg_event: Option<ReorgEvent>) -> Result<()>;
+    async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;
     /// Read the reorg status of the chain being validated
     async fn reorg_status(&self) -> Result<Option<ReorgEvent>>;
 }

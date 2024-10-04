@@ -206,12 +206,6 @@ impl ValidatorSubmitter {
         // If the tree's checkpoint doesn't match the correctness checkpoint, something went wrong
         // and we bail loudly.
         if checkpoint != *correctness_checkpoint {
-            error!(
-                ?checkpoint,
-                ?correctness_checkpoint,
-                "Incorrect tree root, something went wrong"
-            );
-
             let reorg_event = ReorgEvent::new(
                 tree.root(),
                 correctness_checkpoint.root,
@@ -219,10 +213,17 @@ impl ValidatorSubmitter {
                 chrono::Utc::now().timestamp() as u64,
                 self.reorg_period.map(|x| x.get()).unwrap_or(0),
             );
+            error!(
+                ?checkpoint,
+                ?correctness_checkpoint,
+                ?reorg_event,
+                "Incorrect tree root, something went wrong"
+            );
+
             let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
             if let Err(e) = self
                 .checkpoint_syncer
-                .write_reorg_status(Some(reorg_event))
+                .write_reorg_status(&reorg_event)
                 .await
             {
                 panic_message.push_str(&format!(
@@ -511,7 +512,7 @@ mod test {
             async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()>;
             async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
             fn announcement_location(&self) -> String;
-            async fn write_reorg_status(&self, reorg_event: Option<ReorgEvent>) -> Result<()>;
+            async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;
             async fn reorg_status(&self) -> Result<Option<ReorgEvent>>;
         }
     }
@@ -527,7 +528,7 @@ mod test {
     }
 
     fn reorg_event_is_correct(
-        reorg_event: ReorgEvent,
+        reorg_event: &ReorgEvent,
         expected_local_merkle_tree: &IncrementalMerkle,
         mock_onchain_merkle_tree: &IncrementalMerkle,
         unix_timestamp: u64,
@@ -612,7 +613,7 @@ mod test {
             .returning(move |reorg_event| {
                 // unit test correctness criteria
                 reorg_event_is_correct(
-                    reorg_event.unwrap(),
+                    reorg_event,
                     &expected_local_merkle_tree,
                     &mock_onchain_merkle_tree_clone,
                     unix_timestamp,

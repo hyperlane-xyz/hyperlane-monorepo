@@ -221,8 +221,8 @@ impl CheckpointSyncer for S3Storage {
         }
     }
 
-    async fn write_reorg_status(&self, reorged_event: Option<ReorgEvent>) -> Result<()> {
-        let serialized_reorg = serde_json::to_string(&reorged_event)?;
+    async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
+        let serialized_reorg = serde_json::to_string(reorged_event)?;
         self.write_to_bucket(S3Storage::reorg_flag_key(), &serialized_reorg)
             .await?;
         Ok(())
