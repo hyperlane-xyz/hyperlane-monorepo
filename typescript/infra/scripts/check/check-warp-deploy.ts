@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
-import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
+import { CheckerWarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules } from '../agent-utils.js';
 
@@ -25,7 +25,7 @@ async function main() {
   const failedWarpRoutesChecks: string[] = [];
 
   // TODO: consider retrying this if check throws an error
-  for (const warpRouteId of Object.values(WarpRouteIds)) {
+  for (const warpRouteId of Object.values(CheckerWarpRouteIds)) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
     const warpModule = Modules.WARP;
 
