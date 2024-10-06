@@ -1,0 +1,27 @@
+{
+  "chains": {
+    "pragmadevnet": {
+      "name": "pragmadevnet",
+      "chainId": 6363709688837902390235593852244,
+      "domainId": 23448591,
+      "mailbox": "0x41c20175af14a0bfebfc9ae2f3bda29230a0bceb551844197d9f46faf76d6da",
+      "merkleTreeHook": "0xb9a75496355e223652c40fe50d45b5f39b86d3cc5c4f7aed44be6c7f6a8b4c",
+      "interchainGasPaymaster": "0x0",
+      "validatorAnnounce": "0x2305250e0adab1bafabe58bc905cf94440a55e0fc7664ff095250fe2f8684b8",
+      "protocol": "starknet",
+      "blocks": {
+        "reorgPeriod": 0,
+        "confirmations": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "https://madara-pragma-prod.karnot.xyz/"
+        }
+      ],
+      "index": {
+        "from": 150000,
+        "mode": "sequence"
+      }
+    }
+  }
+}
