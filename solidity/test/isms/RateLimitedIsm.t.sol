@@ -25,18 +25,20 @@ contract RateLimitedIsmTest is Test {
     function setUp() external {
         localMailbox = new TestMailbox(ORIGIN);
 
+        testRecipient = new TestRecipient();
         rateLimitedIsm = new RateLimitedIsm(
             address(localMailbox),
-            MAX_CAPACITY
+            MAX_CAPACITY,
+            address(testRecipient)
         );
-        testRecipient = new TestRecipient();
 
         testRecipient.setInterchainSecurityModule(address(rateLimitedIsm));
     }
 
     function testRateLimitedIsm_revertsIDeliveredFalse(
-        bytes calldata _message
+        uint256 _amount
     ) external {
+        bytes memory _message = _encodeTestMessage(_amount);
         vm.prank(address(localMailbox));
         vm.expectRevert("InvalidDeliveredMessage");
         rateLimitedIsm.verify(bytes(""), _message);
