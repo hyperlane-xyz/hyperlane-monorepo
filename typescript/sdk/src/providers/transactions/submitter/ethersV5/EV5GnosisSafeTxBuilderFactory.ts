@@ -70,7 +70,7 @@ export class EV5GnosisSafeTxBuilderFactory extends EV5GnosisSafeTxSubmitter {
     return {
       version: this.props.version,
       chainId: this.multiProvider.getChainId(this.props.chain).toString(),
-      meta: this.props.meta,
+      meta: {},
       transactions,
     };
   }
