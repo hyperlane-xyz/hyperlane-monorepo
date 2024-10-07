@@ -625,79 +625,45 @@ async function enrollRemoteRouters(
     (_, contracts) => getRouter(contracts).address,
   );
   const allChains = Object.keys(deployedRouters);
-  for (const chain of allChains) {
-    const contracts = deployedContractsMap[chain];
-    await retryAsync(async () => {
-      const router = getRouter(contracts); // Assume deployedContract always has 1 value
+  await promiseObjAll(
+    objMap(deployedContractsMap, async (chain, contracts) => {
+      await retryAsync(async () => {
+        const router = getRouter(contracts); // Assume deployedContract always has 1 value
 
-      // Mutate the config.remoteRouters by setting it to all other routers to update
-      const warpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chain);
-      const mutatedWarpRouteConfig =
-        await warpRouteReader.deriveWarpRouteConfig(router.address);
-      const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
-        config: mutatedWarpRouteConfig,
-        chain,
-        addresses: { deployedTokenRoute: router.address },
-      });
-
-      const otherChains = multiProvider
-        .getRemoteChains(chain)
-        .filter((c) => allChains.includes(c));
-
-      mutatedWarpRouteConfig.remoteRouters = otherChains.reduce<RemoteRouters>(
-        (remoteRouters, chain) => {
-          remoteRouters[multiProvider.getDomainId(chain)] =
-            deployedRouters[chain];
-          return remoteRouters;
-        },
-        {},
-      );
-      const mutatedConfigTxs: AnnotatedEV5Transaction[] =
-        await evmERC20WarpModule.update(mutatedWarpRouteConfig);
-
-      if (mutatedConfigTxs.length == 0)
-        return logGreen(
-          `Warp config on ${chain} is the same as target. No updates needed.`,
+        // Mutate the config.remoteRouters by setting it to all other routers to update
+        const warpRouteReader = new EvmERC20WarpRouteReader(
+          multiProvider,
+          chain,
         );
-      await submitWarpApplyTransactions(chain, params, mutatedConfigTxs);
-    });
-  }
-  // await promiseObjAll(
-  //   objMap(deployedContractsMap, async (chain, contracts) => {
-  //     const router = getRouter(contracts); // Assume deployedContract always has 1 value
+        const mutatedWarpRouteConfig =
+          await warpRouteReader.deriveWarpRouteConfig(router.address);
+        const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
+          config: mutatedWarpRouteConfig,
+          chain,
+          addresses: { deployedTokenRoute: router.address },
+        });
 
-  //     // Mutate the config.remoteRouters by setting it to all other routers to update
-  //     const warpRouteReader = new EvmERC20WarpRouteReader(multiProvider, chain);
-  //     const mutatedWarpRouteConfig =
-  //       await warpRouteReader.deriveWarpRouteConfig(router.address);
-  //     const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
-  //       config: mutatedWarpRouteConfig,
-  //       chain,
-  //       addresses: { deployedTokenRoute: router.address },
-  //     });
+        const otherChains = multiProvider
+          .getRemoteChains(chain)
+          .filter((c) => allChains.includes(c));
 
-  //     const otherChains = multiProvider
-  //       .getRemoteChains(chain)
-  //       .filter((c) => allChains.includes(c));
+        mutatedWarpRouteConfig.remoteRouters =
+          otherChains.reduce<RemoteRouters>((remoteRouters, chain) => {
+            remoteRouters[multiProvider.getDomainId(chain)] =
+              deployedRouters[chain];
+            return remoteRouters;
+          }, {});
+        const mutatedConfigTxs: AnnotatedEV5Transaction[] =
+          await evmERC20WarpModule.update(mutatedWarpRouteConfig);
 
-  //     mutatedWarpRouteConfig.remoteRouters = otherChains.reduce<RemoteRouters>(
-  //       (remoteRouters, chain) => {
-  //         remoteRouters[multiProvider.getDomainId(chain)] =
-  //           deployedRouters[chain];
-  //         return remoteRouters;
-  //       },
-  //       {},
-  //     );
-  //     const mutatedConfigTxs: AnnotatedEV5Transaction[] =
-  //       await evmERC20WarpModule.update(mutatedWarpRouteConfig);
-
-  //     if (mutatedConfigTxs.length == 0)
-  //       return logGreen(
-  //         `Warp config on ${chain} is the same as target. No updates needed.`,
-  //       );
-  //     await submitWarpApplyTransactions(chain, params, mutatedConfigTxs);
-  //   }),
-  // );
+        if (mutatedConfigTxs.length == 0)
+          return logGreen(
+            `Warp config on ${chain} is the same as target. No updates needed.`,
+          );
+        await submitWarpApplyTransactions(chain, params, mutatedConfigTxs);
+      });
+    }),
+  );
 }
 
 function getRouter(contracts: HyperlaneContracts<HypERC20Factories>) {
