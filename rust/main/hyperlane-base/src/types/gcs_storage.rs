@@ -11,6 +11,7 @@ use ya_gcp::{
     },
     AuthFlow, ClientBuilder, ClientBuilderConfig,
 };
+use tracing::{info, error};
 
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
@@ -80,6 +81,8 @@ pub struct GcsStorageClient {
     inner: StorageClient,
     // bucket name of this client's storage
     bucket: String,
+    // folder name of this client's storage
+    folder: Option<String>,
 }
 
 impl GcsStorageClientBuilder {
@@ -94,13 +97,12 @@ impl GcsStorageClientBuilder {
         let inner = ClientBuilder::new(ClientBuilderConfig::new().auth_flow(self.auth))
             .await?
             .build_storage_client();
-        let bucket = if let Some(folder) = folder {
-            format! {"{}/{}", bucket_name.into(), folder}
-        } else {
-            bucket_name.into()
-        };
 
-        Ok(GcsStorageClient { inner, bucket })
+        let bucket = bucket_name.into();
+        let folder = folder;
+
+        GcsStorageClient::validate_bucket_name(&bucket)?;
+        Ok(GcsStorageClient { inner, bucket, folder })
     }
 }
 
@@ -109,6 +111,24 @@ impl GcsStorageClient {
     fn get_checkpoint_key(index: u32) -> String {
         format!("checkpoint_{index}_with_id.json")
     }
+
+    fn object_path(&self, object_name: &str) -> String {
+        if let Some(folder) = &self.folder {
+            format!("{}/{}", folder.trim_end_matches('/'), object_name)
+        } else {
+            object_name.to_string()
+        }
+    }
+
+    fn validate_bucket_name(bucket: &str) -> Result<()> {
+        if bucket.contains('/') {
+            error!("Bucket name '{}' has an invalid symbol '/'", bucket);
+            bail!("Bucket name '{}' has an invalid symbol '/'", bucket);
+        } else {
+            Ok(())
+        }
+    }
+
     // #test only method[s]
     #[cfg(test)]
     pub(crate) async fn get_by_path(&self, path: impl AsRef<str>) -> Result<()> {
@@ -117,11 +137,12 @@ impl GcsStorageClient {
     }
 }
 
-// required by `CheckpointSyncer`
+// Required by `CheckpointSyncer`
 impl fmt::Debug for GcsStorageClient {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("S3Storage")
+        f.debug_struct("GcsStorageClient")
             .field("bucket", &self.bucket)
+            .field("folder", &self.folder)
             .finish()
     }
 }
@@ -195,28 +216,42 @@ impl CheckpointSyncer for GcsStorageClient {
 
     /// Write the agent metadata to this syncer
     async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
+        let object_name = self.object_path(METADATA_KEY);
         let serialized_metadata = serde_json::to_string_pretty(metadata)?;
-        self.inner
-            .insert_object(&self.bucket, METADATA_KEY, serialized_metadata)
-            .await?;
-        Ok(())
+
+        match self.inner.insert_object(&self.bucket, &object_name, serialized_metadata.into_bytes()).await {
+            Ok(_) => {
+                info!("Successfully uploaded metadata to '{}'", object_name);
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to upload metadata to '{}': {:?}", object_name, e);
+                Err(e.into())
+            }
+        }
     }
 
     /// Write the signed announcement to this syncer
-    async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
-        self.inner
-            .insert_object(
-                &self.bucket,
-                ANNOUNCEMENT_KEY,
-                serde_json::to_string(signed_announcement)?,
-            )
-            .await?;
-        Ok(())
+    async fn write_announcement(&self, announcement: &SignedAnnouncement) -> Result<()> {
+        let object_name = self.object_path("announcement.json");
+        let data = serde_json::to_vec(announcement)?;
+
+        match self.inner.insert_object(&self.bucket, &object_name, data).await {
+            Ok(_) => {
+                info!("Successfully uploaded announcement to '{}'", object_name);
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to upload announcement to '{}': {:?}", object_name, e);
+                Err(e.into())
+            }
+        }
     }
 
     /// Return the announcement storage location for this syncer
     fn announcement_location(&self) -> String {
-        format!("gs://{}/{}", &self.bucket, ANNOUNCEMENT_KEY)
+        let location = format!("gs://{}/{}", &self.bucket, self.object_path(ANNOUNCEMENT_KEY));
+        location
     }
 
     async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
