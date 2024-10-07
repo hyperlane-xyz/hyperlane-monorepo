@@ -239,6 +239,9 @@
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
   },
+  "tangle": {
+    "validators": ["0x1ee52cbbfacd7dcb0ba4e91efaa6fbc61602b15b"]
+  },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
   },
