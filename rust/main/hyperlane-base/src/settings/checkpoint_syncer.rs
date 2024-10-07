@@ -133,7 +133,7 @@ impl CheckpointSyncerConf {
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         Ok(match self {
             CheckpointSyncerConf::LocalStorage { path } => {
-                Box::new(LocalStorage::new(path.clone(), None)?)
+                Box::new(LocalStorage::new(path.clone(), latest_index_gauge)?)
             }
             CheckpointSyncerConf::S3 {
                 bucket,
@@ -172,12 +172,75 @@ impl CheckpointSyncerConf {
 
 #[cfg(test)]
 mod test {
+    use std::panic::AssertUnwindSafe;
+
+    use futures_util::FutureExt;
+    use hyperlane_core::{ReorgEvent, H256};
+
     #[tokio::test]
     async fn test_build_and_validate() {
         use super::*;
-        use prometheus::Registry;
-        use std::sync::Arc;
 
-        // let conf = CheckpointSyncerConf::LocalStorage {
+        // initialize a local checkpoint store and post a fraud flag there.
+        // expect the checkpoint syncer to detect it and panic.
+
+        let temp_checkpoint_dir = tempfile::tempdir().unwrap();
+        let checkpoint_path = format!("file://{}", temp_checkpoint_dir.path().to_str().unwrap());
+        let checkpoint_syncer_conf = CheckpointSyncerConf::from_str(&checkpoint_path).unwrap();
+
+        // create a checkpoint syncer and write a reorg event
+        {
+            let checkpoint_syncer = checkpoint_syncer_conf
+                .build_and_validate(None)
+                .await
+                .unwrap();
+
+            let dummy_local_merkle_root = H256::from_str(
+                "0x8da44bc8198e9874db215ec2000037c58e16918c94743d70c838ecb10e243c64",
+            )
+            .unwrap();
+            let dummy_canonical_merkle_root = H256::from_str(
+                "0xb437b888332ef12f7260c7f679aad3c96b91ab81c2dc7242f8b290f0b6bba92b",
+            )
+            .unwrap();
+            let dummy_checkpoint_index = 56;
+            let unix_timestamp = 1620000000;
+            let reorg_period = 5;
+            let dummy_reorg_event = ReorgEvent {
+                local_merkle_root: dummy_local_merkle_root,
+                canonical_merkle_root: dummy_canonical_merkle_root,
+                checkpoint_index: dummy_checkpoint_index,
+                unix_timestamp,
+                reorg_period,
+            };
+            checkpoint_syncer
+                .write_reorg_status(&dummy_reorg_event)
+                .await
+                .unwrap();
+        }
+
+        // Initialize a new checkpoint syncer and expect it to panic.
+        // `AssertUnwindSafe` is required for ignoring some type checks so the panic can be caught
+        let startup_result = AssertUnwindSafe(checkpoint_syncer_conf.build_and_validate(None))
+            .catch_unwind()
+            .await
+            .unwrap_err();
+        if let Some(err) = startup_result.downcast_ref::<String>() {
+            assert_eq!(
+                *err,
+                r#"A reorg event has been detected: ReorgEvent {
+    local_merkle_root: 0x8da44bc8198e9874db215ec2000037c58e16918c94743d70c838ecb10e243c64,
+    canonical_merkle_root: 0xb437b888332ef12f7260c7f679aad3c96b91ab81c2dc7242f8b290f0b6bba92b,
+    checkpoint_index: 56,
+    unix_timestamp: 1620000000,
+    reorg_period: 5,
+}. Please resolve the reorg to continue."#
+            );
+        } else {
+            panic!(
+                "Caught a different panic than the expected one: {:?}",
+                startup_result
+            );
+        }
     }
 }
