@@ -26,6 +26,7 @@ const chainsToDeploy = [
   'ethereum',
   'fraxtal',
   'zircuit',
+  'taiko',
 ];
 
 export const ezEthValidators = {
@@ -99,6 +100,13 @@ export const ezEthValidators = {
       '0x7ac6584c068eb2a72d4db82a7b7cd5ab34044061', // luganodes
     ],
   },
+  taiko: {
+    threshold: 1,
+    validators: [
+      '0x2f007c82672f2bb97227d4e3f80ac481bfb40a2a', // luganodes
+      '0xd4F6000d8e1108bd4998215d51d5dF559BdB43a1', // Renzo
+    ],
+  },
 };
 
 export const ezEthSafes: Record<string, string> = {
@@ -112,6 +120,7 @@ export const ezEthSafes: Record<string, string> = {
   ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
   fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  taiko: `0x8410927C286A38883BC23721e640F31D3E3E79F8`,
 };
 
 export const getRenzoEZETHWarpConfig = async (): Promise<
