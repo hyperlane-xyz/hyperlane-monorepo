@@ -815,7 +815,9 @@ async function submitWarpApplyTransactions(
 
   const transactionReceipts = await submitter.submit(...transactions);
   if (transactionReceipts) {
-    const receiptPath = `${params.receiptsDir}/${chain}-${submitter.txSubmitterType}-receipts.json`;
+    const receiptPath = `${params.receiptsDir}/${chain}-${
+      submitter.txSubmitterType
+    }-${Date.now()}-receipts.json`;
     writeYamlOrJson(receiptPath, transactionReceipts);
     logGreen(`Transactions receipts successfully written to ${receiptPath}`);
   }
