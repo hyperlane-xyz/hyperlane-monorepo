@@ -108,7 +108,6 @@ impl CheckpointSyncerConf {
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         let syncer: Box<dyn CheckpointSyncer> = self.build(latest_index_gauge).await?;
 
-        // Panic if a reorg is detected
         match syncer.reorg_status().await {
             Ok(Some(reorg_event)) => {
                 panic!(
