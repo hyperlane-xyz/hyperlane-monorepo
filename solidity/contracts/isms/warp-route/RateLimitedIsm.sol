@@ -42,7 +42,7 @@ contract RateLimitedIsm is
 
     /// @inheritdoc IInterchainSecurityModule
     function moduleType() external pure returns (uint8) {
-        return uint8(IInterchainSecurityModule.Types.UNUSED);
+        return uint8(IInterchainSecurityModule.Types.NULL);
     }
 
     /**
