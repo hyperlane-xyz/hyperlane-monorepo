@@ -14,6 +14,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
+import { runWarpRouteCheck } from '../check/warp.js';
 import {
   createWarpRouteDeployConfig,
   readWarpRouteDeployConfig,
@@ -58,6 +59,7 @@ export const warpCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(apply)
+      .command(check)
       .command(deploy)
       .command(init)
       .command(read)
@@ -340,6 +342,47 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
     });
+    process.exit(0);
+  },
+};
+
+export const check: CommandModuleWithContext<{
+  config: string;
+  symbol?: string;
+  warp?: string;
+}> = {
+  command: 'check',
+  describe:
+    'Verifies that a warp route configuration matches the on chain configuration.',
+  builder: {
+    config: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+  },
+  handler: async ({ context, config, symbol, warp }) => {
+    logCommandHeader('Hyperlane Warp Check');
+
+    const warpRouteConfig = await readWarpRouteDeployConfig(config, context);
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      symbol,
+      warp,
+      context,
+    });
+
+    const violations = await runWarpRouteCheck({
+      context,
+      warpCoreConfig,
+      warpRouteConfig,
+    });
+
+    console.log(violations);
+
     process.exit(0);
   },
 };
