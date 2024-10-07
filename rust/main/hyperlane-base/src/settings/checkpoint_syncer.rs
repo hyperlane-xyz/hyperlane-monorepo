@@ -106,7 +106,7 @@ impl CheckpointSyncerConf {
     /// # Panics
     ///
     /// Panics if a reorg event has been posted to the checkpoint store,
-    /// to prevent any operations until the reorg is resolved.
+    /// to prevent any operation processing until the reorg is resolved.
     pub async fn build_and_validate(
         &self,
         latest_index_gauge: Option<IntGauge>,
