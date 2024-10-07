@@ -120,7 +120,7 @@ export const ezEthSafes: Record<string, string> = {
   ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
   fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
-  taiko: `0x8410927C286A38883BC23721e640F31D3E3E79F8`,
+  taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
 };
 
 export const getRenzoEZETHWarpConfig = async (): Promise<
