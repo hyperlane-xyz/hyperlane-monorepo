@@ -17,7 +17,7 @@ import { EV5GnosisSafeTxBuilderProps } from './types.js';
  * This class is used to create a Safe Transaction Builder compatible object.
  * It is not a true Submitter because it does not submits any transactions.
  */
-export class EV5GnosisSafeTxBuilderFactory extends EV5GnosisSafeTxSubmitter {
+export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.GNOSIS_TX_BUILDER;
   constructor(
@@ -32,7 +32,7 @@ export class EV5GnosisSafeTxBuilderFactory extends EV5GnosisSafeTxSubmitter {
   static async create(
     multiProvider: MultiProvider,
     props: EV5GnosisSafeTxBuilderProps,
-  ): Promise<EV5GnosisSafeTxBuilderFactory> {
+  ): Promise<EV5GnosisSafeTxBuilder> {
     const { chain, safeAddress } = props;
     const { gnosisSafeTransactionServiceUrl } =
       multiProvider.getChainMetadata(chain);
@@ -43,12 +43,7 @@ export class EV5GnosisSafeTxBuilderFactory extends EV5GnosisSafeTxSubmitter {
     const safe = await getSafe(chain, multiProvider, safeAddress);
     const safeService = await getSafeService(chain, multiProvider);
 
-    return new EV5GnosisSafeTxBuilderFactory(
-      multiProvider,
-      props,
-      safe,
-      safeService,
-    );
+    return new EV5GnosisSafeTxBuilder(multiProvider, props, safe, safeService);
   }
 
   /**
