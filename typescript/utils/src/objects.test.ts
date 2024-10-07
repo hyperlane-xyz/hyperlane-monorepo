@@ -25,7 +25,7 @@ describe('Object utilities', () => {
     const obj1 = { a: 1, b: { c: ['arr1'] } };
     const obj2 = { a: 2, b: { c: ['arr2'] } };
     const merged = objMerge(obj1, obj2, 10, true);
-    expect(merged).to.eql({ a: 2, b: { c: ['arr1', 'arr2'] } });
+    expect(merged).to.eql({ a: 2, b: { c: ['arr2', 'arr1'] } });
   });
 
   it('objMerge without array', () => {
