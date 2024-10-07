@@ -125,7 +125,7 @@ export function objMerge<T = any>(
   for (const key of allKeys.values()) {
     if (aKeys.has(key) && bKeys.has(key)) {
       if (mergeArrays && Array.isArray(a[key]) && Array.isArray(b[key])) {
-        ret[key] = [...a[key], ...b[key]];
+        ret[key] = [...b[key], ...a[key]];
       } else {
         ret[key] = objMerge(a[key], b[key], max_depth - 1, mergeArrays);
       }

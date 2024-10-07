@@ -4,15 +4,16 @@ import {
   Popover as _Popover,
 } from '@headlessui/react';
 import clsx from 'clsx';
-import React, { ComponentProps, PropsWithChildren, ReactNode } from 'react';
+import React, { ComponentProps, ReactNode } from 'react';
 
-export type PopoverProps = PropsWithChildren<{
+export type PopoverProps = {
   button: ReactNode;
   buttonClassname?: string;
   buttonProps?: ComponentProps<typeof PopoverButton>;
   panelClassname?: string;
   panelProps?: ComponentProps<typeof PopoverPanel>;
-}>;
+  children: ComponentProps<typeof PopoverPanel>['children'];
+};
 
 export function Popover({
   button,
@@ -34,7 +35,7 @@ export function Popover({
         transition
         anchor="bottom"
         className={clsx(
-          'htw-rounded htw-bg-white/90 htw-border htw-border-gray-100 htw-shadow-md htw-drop-shadow-md htw-backdrop-blur htw-transition htw-duration-200 htw-ease-in-out htw-focus:outline-none [--anchor-gap:var(--spacing-5)] data-[closed]:htw--translate-y-1 data-[closed]:htw-opacity-0',
+          'htw-rounded htw-bg-white htw-border htw-border-gray-100 htw-shadow-md htw-drop-shadow-md htw-backdrop-blur htw-transition htw-duration-200 htw-ease-in-out htw-focus:outline-none [--anchor-gap:var(--spacing-5)] data-[closed]:htw--translate-y-1 data-[closed]:htw-opacity-0 htw-z-30',
           panelClassname,
         )}
         {...panelProps}

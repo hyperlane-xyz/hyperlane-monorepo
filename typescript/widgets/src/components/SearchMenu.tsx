@@ -1,4 +1,5 @@
-import React, { ComponentType, Key, useMemo, useState } from 'react';
+import clsx from 'clsx';
+import React, { ComponentType, useMemo, useState } from 'react';
 
 import { deepEquals, isObject, toTitleCase } from '@hyperlane-xyz/utils';
 
@@ -7,6 +8,7 @@ import { ArrowIcon } from '../icons/Arrow.js';
 import { ChevronIcon } from '../icons/Chevron.js';
 import { GearIcon } from '../icons/Gear.js';
 import { PencilIcon } from '../icons/Pencil.js';
+import { PlusIcon } from '../icons/Plus.js';
 import { SearchIcon } from '../icons/Search.js';
 import { XIcon } from '../icons/X.js';
 import { DropdownMenu } from '../layout/DropdownMenu.js';
@@ -20,24 +22,36 @@ export interface SearchMenuProps<
   SortBy extends string,
   FilterState,
 > {
+  // The list of data items to show
   data: ListItemData[];
+  // The component with which the list items will be rendered
   ListComponent: ComponentType<{ data: ListItemData }>;
+  // Handler for list item click event
   onClickItem: (item: ListItemData) => void;
+  // Handler for edit list item click event
   onClickEditItem: (item: ListItemData) => void;
+  // Handler for searching through list item data
   searchFn: (args: {
     data: ListItemData[];
     query: string;
     sort: SortState<SortBy>;
     filter: FilterState;
   }) => ListItemData[];
+  // List of sort options
   sortOptions: SortBy[];
+  // Default sort state for list data
   defaultSortState?: SortState<SortBy>;
+  // The component with which the filter state will be rendered
   FilterComponent: ComponentType<{
     value: FilterState;
     onChange: (s: FilterState) => void;
   }>;
+  // Default filter state for list data
   defaultFilterState: FilterState;
+  // Placeholder text for the search input
   placeholder?: string;
+  // Handler for add button click event
+  onClickAddItem?: () => void;
 }
 
 export function SearchMenu<
@@ -55,6 +69,7 @@ export function SearchMenu<
   FilterComponent,
   defaultFilterState,
   placeholder,
+  onClickAddItem,
 }: SearchMenuProps<ListItem, SortBy, FilterState>) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
@@ -91,18 +106,29 @@ export function SearchMenu<
           setIsEditMode={setIsEditMode}
         />
       </div>
-      <div className="htw-flex htw-items-center htw-gap-5">
-        <SortDropdown
-          options={sortOptions}
-          value={sortState}
-          onChange={setSortState}
-        />
-        <FilterDropdown
-          value={filterState}
-          defaultValue={defaultFilterState}
-          onChange={setFilterState}
-          FilterComponent={FilterComponent}
-        />
+      <div className="htw-flex htw-items-center htw-justify-between">
+        <div className="htw-flex htw-items-center htw-gap-5">
+          <SortDropdown
+            options={sortOptions}
+            value={sortState}
+            onChange={setSortState}
+          />
+          <FilterDropdown
+            value={filterState}
+            defaultValue={defaultFilterState}
+            onChange={setFilterState}
+            FilterComponent={FilterComponent}
+          />
+        </div>
+        {onClickAddItem && (
+          <IconButton
+            onClick={onClickAddItem}
+            className="htw-p-0.5 htw-mr-0.5 htw-border htw-border-gray-200 htw-rounded-full"
+            title="Add item"
+          >
+            <PlusIcon width={20} height={20} />
+          </IconButton>
+        )}
       </div>
       <div className="htw-flex htw-flex-col htw-divide-y htw-divide-gray-100">
         {results.length ? (
@@ -204,7 +230,7 @@ function SortDropdown<SortBy extends string>({
           </span>
         }
         buttonClassname="htw-flex htw-items-stretch hover:htw-bg-gray-100 active:htw-scale-95"
-        menuClassname="htw-py-1.5 htw-px-2 htw-flex htw-flex-col htw-gap-2 htw-text-sm"
+        menuClassname="htw-py-1.5 htw-px-2 htw-flex htw-flex-col htw-gap-2 htw-text-sm htw-border htw-border-gray-100"
         menuItems={options.map((o) => (
           <div
             className="htw-rounded htw-p-1.5 hover:htw-bg-gray-200"
@@ -285,7 +311,6 @@ function FilterDropdown<FilterState>({
 }
 
 interface ListItemProps<ListItemData extends { disabled?: boolean }> {
-  key: Key;
   data: ListItemData;
   isEditMode: boolean;
   onClickItem: (item: ListItemData) => void;
@@ -294,7 +319,6 @@ interface ListItemProps<ListItemData extends { disabled?: boolean }> {
 }
 
 function ListItem<ListItemData extends { disabled?: boolean }>({
-  key,
   data,
   isEditMode,
   onClickEditItem,
@@ -303,12 +327,12 @@ function ListItem<ListItemData extends { disabled?: boolean }>({
 }: ListItemProps<ListItemData>) {
   return (
     <button
-      className={`-htw-mx-2 htw-px-2.5 htw-py-2.5 htw-rounded htw-grid htw-grid-cols-[1fr,1fr,auto] htw-items-center ${
+      className={clsx(
+        '-htw-mx-2 htw-px-2.5 htw-py-2.5 htw-grid htw-grid-cols-[1fr,1fr,auto] htw-items-center htw-relative htw-rounded htw-transition-all htw-duration-250',
         data.disabled
           ? 'htw-opacity-50'
-          : 'hover:htw-bg-gray-100 active:htw-scale-95'
-      } htw-transition-all htw-duration-250`}
-      key={key}
+          : 'hover:htw-bg-gray-100 active:htw-scale-95',
+      )}
       type="button"
       disabled={data.disabled}
       onClick={() => (isEditMode ? onClickEditItem(data) : onClickItem(data))}

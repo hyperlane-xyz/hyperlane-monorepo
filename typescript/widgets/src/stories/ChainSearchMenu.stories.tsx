@@ -15,6 +15,7 @@ type Story = StoryObj<typeof meta>;
 export const DefaultChainSearch = {
   args: {
     chainMetadata,
+    onChangeOverrideMetadata: () => {},
     onClickChain: (chain) => console.log('Clicked', chain),
   },
 } satisfies Story;
@@ -22,6 +23,7 @@ export const DefaultChainSearch = {
 export const WithCustomField = {
   args: {
     chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
+    onChangeOverrideMetadata: () => {},
     customListItemField: {
       header: 'Warp Routes',
       data: {
@@ -30,5 +32,17 @@ export const WithCustomField = {
         ethereum: { display: '1 token', sortValue: 1 },
       },
     },
+    showAddChainButton: true,
+  },
+} satisfies Story;
+
+export const WithOverrideChain = {
+  args: {
+    chainMetadata: pick(chainMetadata, ['alfajores']),
+    overrideChainMetadata: {
+      arbitrum: { ...chainMetadata['arbitrum'], displayName: 'Fake Arb' },
+    },
+    onChangeOverrideMetadata: () => {},
+    showAddChainButton: true,
   },
 } satisfies Story;

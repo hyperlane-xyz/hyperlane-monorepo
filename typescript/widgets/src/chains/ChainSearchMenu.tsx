@@ -1,6 +1,11 @@
 import React, { useCallback, useMemo } from 'react';
 
-import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainMetadata,
+  ChainName,
+  mergeChainMetadataMap,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
@@ -10,6 +15,7 @@ import {
 } from '../components/SearchMenu.js';
 import { SegmentedControl } from '../components/SegmentedControl.js';
 
+import { ChainAddMenu } from './ChainAddMenu.js';
 import { ChainDetailsMenu } from './ChainDetailsMenu.js';
 import { ChainLogo } from './ChainLogo.js';
 
@@ -41,33 +47,75 @@ interface CustomListItemField {
 
 export interface ChainSearchMenuProps {
   chainMetadata: ChainMap<ChainMetadata>;
+  overrideChainMetadata?: ChainMap<Partial<ChainMetadata> | undefined>;
+  onChangeOverrideMetadata: (
+    overrides?: ChainMap<Partial<ChainMetadata> | undefined>,
+  ) => void;
   onClickChain: (chain: ChainMetadata) => void;
   // To replace the default 2nd column (deployer) with custom data
   customListItemField?: CustomListItemField;
   // To auto-navigate to a chain details menu
   defaultDrilldownChain?: ChainName;
+  showAddChainButton?: boolean;
 }
 
 export function ChainSearchMenu({
   chainMetadata,
+  onChangeOverrideMetadata,
+  overrideChainMetadata,
   onClickChain,
   customListItemField,
   defaultDrilldownChain,
+  showAddChainButton,
 }: ChainSearchMenuProps) {
   const [drilldownChain, setDrilldownChain] = React.useState<
     ChainName | undefined
   >(defaultDrilldownChain);
 
-  const data = useMemo(() => Object.values(chainMetadata), [chainMetadata]);
+  const [addChain, setAddChain] = React.useState(false);
+
+  const { listData, mergedMetadata } = useMemo(() => {
+    const mergedMetadata = mergeChainMetadataMap(
+      chainMetadata,
+      overrideChainMetadata,
+    );
+    return { mergedMetadata, listData: Object.values(mergedMetadata) };
+  }, [chainMetadata]);
 
   const { ListComponent, searchFn, sortOptions, defaultSortState } =
     useCustomizedListItems(customListItemField);
 
-  if (drilldownChain && chainMetadata[drilldownChain]) {
+  if (drilldownChain && mergedMetadata[drilldownChain]) {
+    const isLocalOverrideChain = !chainMetadata[drilldownChain];
+    const onRemoveChain = () => {
+      const newOverrides = { ...overrideChainMetadata };
+      delete newOverrides[drilldownChain];
+      onChangeOverrideMetadata(newOverrides);
+    };
+
     return (
       <ChainDetailsMenu
         chainMetadata={chainMetadata[drilldownChain]}
+        overrideChainMetadata={overrideChainMetadata?.[drilldownChain]}
+        onChangeOverrideMetadata={(o) =>
+          onChangeOverrideMetadata({
+            ...overrideChainMetadata,
+            [drilldownChain]: o,
+          })
+        }
         onClickBack={() => setDrilldownChain(undefined)}
+        onRemoveChain={isLocalOverrideChain ? onRemoveChain : undefined}
+      />
+    );
+  }
+
+  if (addChain) {
+    return (
+      <ChainAddMenu
+        chainMetadata={chainMetadata}
+        overrideChainMetadata={overrideChainMetadata}
+        onChangeOverrideMetadata={onChangeOverrideMetadata}
+        onClickBack={() => setAddChain(false)}
       />
     );
   }
@@ -78,7 +126,7 @@ export function ChainSearchMenu({
       ChainSortByOption,
       ChainFilterState
     >
-      data={data}
+      data={listData}
       ListComponent={ListComponent}
       searchFn={searchFn}
       onClickItem={onClickChain}
@@ -88,6 +136,7 @@ export function ChainSearchMenu({
       FilterComponent={ChainFilters}
       defaultFilterState={defaultFilterState}
       placeholder="Chain Name or ID"
+      onClickAddItem={showAddChainButton ? () => setAddChain(true) : undefined}
     />
   );
 }
@@ -103,17 +152,19 @@ function ChainListItem({
     <>
       <div className="htw-flex htw-items-center">
         <div className="htw-shrink-0">
-          <ChainLogo chainName={chain.name} logoUri={chain.logoURI} size={36} />
+          <ChainLogo chainName={chain.name} logoUri={chain.logoURI} size={32} />
         </div>
-        <div className="htw-ml-3 htw-text-left htw-shrink-0">
-          <div className="htw-text-sm htw-font-medium">{chain.displayName}</div>
+        <div className="htw-ml-3 htw-text-left htw-overflow-hidden">
+          <div className="htw-text-sm htw-font-medium truncate">
+            {chain.displayName}
+          </div>
           <div className="htw-text-[0.7rem] htw-text-gray-500">
             {chain.isTestnet ? 'Testnet' : 'Mainnet'}
           </div>
         </div>
       </div>
-      <div className="htw-text-left">
-        <div className="htw-text-sm">
+      <div className="htw-text-left htw-overflow-hidden">
+        <div className="htw-text-sm truncate">
           {customField
             ? customField.data[chain.name].display || 'Unknown'
             : chain.deployer?.name || 'Unknown deployer'}
@@ -177,7 +228,7 @@ function chainSearch({
       .filter(
         (chain) =>
           chain.name.includes(queryFormatted) ||
-          chain.displayName?.includes(queryFormatted) ||
+          chain.displayName?.toLowerCase().includes(queryFormatted) ||
           chain.chainId.toString().includes(queryFormatted) ||
           chain.domainId?.toString().includes(queryFormatted),
       )

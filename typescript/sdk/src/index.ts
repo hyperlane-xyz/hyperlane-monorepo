@@ -209,6 +209,8 @@ export {
   getDomainId,
   getReorgPeriod,
   isValidChainMetadata,
+  mergeChainMetadata,
+  mergeChainMetadataMap,
 } from './metadata/chainMetadataTypes.js';
 export { ZChainName, ZHash } from './metadata/customZodTypes.js';
 export {

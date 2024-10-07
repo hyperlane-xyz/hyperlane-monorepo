@@ -4,7 +4,9 @@
  */
 import { SafeParseReturnType, z } from 'zod';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+
+import { ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 
@@ -369,4 +371,18 @@ export function getReorgPeriod(chainMetadata: ChainMetadata): number {
   if (chainMetadata.blocks?.reorgPeriod !== undefined)
     return chainMetadata.blocks.reorgPeriod;
   else throw new Error('Chain has no reorg period');
+}
+
+export function mergeChainMetadata(
+  base: ChainMetadata,
+  overrides: Partial<ChainMetadata> | undefined,
+): ChainMetadata {
+  return objMerge<ChainMetadata>(base, overrides || {}, 10, true);
+}
+
+export function mergeChainMetadataMap(
+  base: ChainMap<ChainMetadata>,
+  overrides: ChainMap<Partial<ChainMetadata> | undefined> | undefined,
+): ChainMap<ChainMetadata> {
+  return objMerge<ChainMap<ChainMetadata>>(base, overrides || {}, 10, true);
 }

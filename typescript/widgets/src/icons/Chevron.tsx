@@ -6,7 +6,7 @@ type Props = SVGProps<SVGSVGElement> & {
   direction: 'n' | 'e' | 's' | 'w';
 };
 
-function _ChevronIcon({ fill, className, direction, ...rest }: Props) {
+function _ChevronIcon({ color, className, direction, ...rest }: Props) {
   let directionClass;
   switch (direction) {
     case 'n':
@@ -37,7 +37,7 @@ function _ChevronIcon({ fill, className, direction, ...rest }: Props) {
     >
       <path
         d="M15.1 1.4 13.8.1 8 5.9 2.2.2 1 1.6l7.2 7 7-7.2Z"
-        fill={fill || ColorPalette.Black}
+        fill={color || ColorPalette.Black}
       />
     </svg>
   );

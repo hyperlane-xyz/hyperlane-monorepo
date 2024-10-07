@@ -8,7 +8,7 @@ export type DropdownMenuProps = {
   buttonProps?: ComponentProps<typeof MenuButton>;
   menuClassname?: string;
   menuProps?: ComponentProps<typeof MenuItems>;
-  menuItems: ReactNode[];
+  menuItems: Array<ComponentProps<typeof MenuItem>['children']>;
 };
 
 export function DropdownMenu({
@@ -31,7 +31,7 @@ export function DropdownMenu({
         transition
         anchor="bottom"
         className={clsx(
-          'htw-rounded htw-bg-white/90 htw-border htw-border-gray-100 htw-shadow-md htw-drop-shadow-md htw-backdrop-blur htw-transition htw-duration-200 htw-ease-in-out htw-focus:outline-none [--anchor-gap:var(--spacing-5)] data-[closed]:htw--translate-y-1 data-[closed]:htw-opacity-0 htw-cursor-pointer',
+          'htw-rounded htw-bg-white htw-shadow-md htw-drop-shadow-md htw-backdrop-blur htw-transition htw-duration-200 htw-ease-in-out htw-focus:outline-none [--anchor-gap:var(--spacing-5)] data-[closed]:htw--translate-y-1 data-[closed]:htw-opacity-0 htw-cursor-pointer htw-z-30',
           menuClassname,
         )}
         {...menuProps}
