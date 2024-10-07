@@ -1,5 +1,12 @@
 # @hyperlane-xyz/widgets
 
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/sdk@5.4.0
+
 ## 5.3.0
 
 ### Minor Changes
