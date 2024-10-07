@@ -127,6 +127,7 @@ impl CheckpointSyncerConf {
         Ok(syncer)
     }
 
+    // keep this private to force all initializations to perform the reorg check via `build_and_validate`
     async fn build(
         &self,
         latest_index_gauge: Option<IntGauge>,
@@ -181,14 +182,13 @@ mod test {
     async fn test_build_and_validate() {
         use super::*;
 
-        // initialize a local checkpoint store and post a fraud flag there.
-        // expect the checkpoint syncer to detect it and panic.
-
+        // initialize a local checkpoint store
         let temp_checkpoint_dir = tempfile::tempdir().unwrap();
         let checkpoint_path = format!("file://{}", temp_checkpoint_dir.path().to_str().unwrap());
         let checkpoint_syncer_conf = CheckpointSyncerConf::from_str(&checkpoint_path).unwrap();
 
         // create a checkpoint syncer and write a reorg event
+        // then `drop` it, to simulate a restart
         {
             let checkpoint_syncer = checkpoint_syncer_conf
                 .build_and_validate(None)
@@ -219,8 +219,8 @@ mod test {
                 .unwrap();
         }
 
-        // Initialize a new checkpoint syncer and expect it to panic.
-        // `AssertUnwindSafe` is required for ignoring some type checks so the panic can be caught
+        // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
+        // `AssertUnwindSafe` is required for ignoring some type checks so the panic can be caught.
         let startup_result = AssertUnwindSafe(checkpoint_syncer_conf.build_and_validate(None))
             .catch_unwind()
             .await
@@ -238,7 +238,7 @@ mod test {
             );
         } else {
             panic!(
-                "Caught a different panic than the expected one: {:?}",
+                "Caught panic has a different type than the expected one (`String`): {:?}",
                 startup_result
             );
         }
