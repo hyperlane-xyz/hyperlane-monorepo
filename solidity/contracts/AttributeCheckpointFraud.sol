@@ -5,6 +5,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
 import {TREE_DEPTH} from "./libs/Merkle.sol";
 import {CheckpointLib, Checkpoint} from "./libs/CheckpointLib.sol";
 import {CheckpointFraudProofs} from "./CheckpointFraudProofs.sol";
@@ -26,7 +27,8 @@ struct Attribution {
  * @title AttributeCheckpointFraud
  * @dev The AttributeCheckpointFraud contract is used to attribute fraud to a specific ECDSA checkpoint signer.
  */
-contract AttributeCheckpointFraud is Ownable {
+
+contract AttributeCheckpointFraud is Ownable, PackageVersioned {
     using CheckpointLib for Checkpoint;
     using Address for address;
 

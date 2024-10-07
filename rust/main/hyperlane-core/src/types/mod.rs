@@ -13,6 +13,7 @@ pub use indexing::*;
 pub use log_metadata::*;
 pub use merkle_tree::*;
 pub use message::*;
+pub use reorg::*;
 pub use transaction::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
@@ -24,6 +25,7 @@ mod indexing;
 mod log_metadata;
 mod merkle_tree;
 mod message;
+mod reorg;
 mod serialize;
 mod transaction;
 

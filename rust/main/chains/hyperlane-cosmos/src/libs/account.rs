@@ -1,9 +1,7 @@
 use cosmrs::{crypto::PublicKey, AccountId};
-use hyperlane_cosmwasm_interface::types::keccak256_hash;
 use tendermint::account::Id as TendermintAccountId;
 use tendermint::public_key::PublicKey as TendermintPublicKey;
 
-use crypto::decompress_public_key;
 use hyperlane_core::Error::Overflow;
 use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
 
@@ -18,18 +16,7 @@ impl<'a> CosmosAccountId<'a> {
         Self { account_id }
     }
 
-    /// Calculate AccountId from public key depending on provided prefix
     pub fn account_id_from_pubkey(pub_key: PublicKey, prefix: &str) -> ChainResult<AccountId> {
-        match prefix {
-            "neutron" | "osmo" => Self::bitcoin_style(pub_key, prefix),
-            "inj" => Self::ethereum_style(pub_key, prefix),
-            _ => Err(HyperlaneCosmosError::CosmosError(cosmrs::Error::Crypto))?,
-        }
-    }
-
-    /// Returns a Bitcoin style address: RIPEMD160(SHA256(pubkey))
-    /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
-    fn bitcoin_style(pub_key: PublicKey, prefix: &str) -> ChainResult<AccountId> {
         // Get the inner type
         let tendermint_pub_key = TendermintPublicKey::from(pub_key);
         // Get the RIPEMD160(SHA256(pub_key))
@@ -37,23 +24,6 @@ impl<'a> CosmosAccountId<'a> {
         // Bech32 encoding
         let account_id = AccountId::new(prefix, tendermint_id.as_bytes())
             .map_err(Into::<HyperlaneCosmosError>::into)?;
-
-        Ok(account_id)
-    }
-
-    /// Returns an Ethereum style address: KECCAK256(pubkey)[20]
-    /// Parameter `pub_key` is a compressed public key.
-    fn ethereum_style(pub_key: PublicKey, prefix: &str) -> ChainResult<AccountId> {
-        let decompressed_public_key = decompress_public_key(&pub_key.to_bytes())
-            .map_err(Into::<HyperlaneCosmosError>::into)?;
-
-        let hash = keccak256_hash(&decompressed_public_key[1..]);
-
-        let mut bytes = [0u8; 20];
-        bytes.copy_from_slice(&hash.as_slice()[12..]);
-
-        let account_id =
-            AccountId::new(prefix, bytes.as_slice()).map_err(Into::<HyperlaneCosmosError>::into)?;
 
         Ok(account_id)
     }
@@ -85,6 +55,3 @@ impl TryFrom<CosmosAccountId<'_>> for H256 {
         (&account_id).try_into()
     }
 }
-
-#[cfg(test)]
-mod tests;
