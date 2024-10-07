@@ -64,6 +64,12 @@ contract RateLimitedIsmTest is Test {
         rateLimitedIsm.verify(bytes(""), encodedMessage);
     }
 
+    function test_verifyOnlyRecipient() external {
+        bytes memory _message = MessageUtils.build(ORIGIN);
+        vm.expectRevert("InvalidRecipient");
+        rateLimitedIsm.verify(bytes(""), _message);
+    }
+
     function _encodeTestMessage(
         uint256 _amount
     ) internal view returns (bytes memory) {
