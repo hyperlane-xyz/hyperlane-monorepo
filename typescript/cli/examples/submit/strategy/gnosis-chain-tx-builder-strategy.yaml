@@ -3,5 +3,4 @@ basesepolia:
     chain: 'basesepolia'
     type: gnosisSafeTxBuilder
     version: '1.0'
-    meta: {}
     safeAddress: '0x7232Ad76d905ae9D8D00379359DDa744a7A21C46'
