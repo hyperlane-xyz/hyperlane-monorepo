@@ -20,7 +20,7 @@ pub use transaction::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
 
-/// This module contains enum for account id (address) type
+/// This module contains enum for account address type
 mod account_address_type;
 mod announcement;
 mod chain_data;
