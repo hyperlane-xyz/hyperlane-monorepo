@@ -18,7 +18,7 @@ use url::Url;
 
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
+    cfg_unwrap_all, config::*, AccountAddressType, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneDomainTechnicalStack, IndexMode,
 };
 
@@ -332,16 +332,16 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .get_key("prefix")
                 .parse_string()
                 .unwrap_or_default();
-            let account_id_type = signer
+            let account_address_type = signer
                 .chain(&mut err)
-                .get_opt_key("account_id_type")
-                .parse_string()
+                .get_opt_key("accountAddressType")
+                .parse_from_str("Expected Account Address Type")
                 .end()
-                .unwrap_or("BITCOIN");
+                .unwrap_or(AccountAddressType::default());
             err.into_result(SignerConf::CosmosKey {
                 key,
                 prefix: prefix.to_string(),
-                account_id_type: account_id_type.to_string(),
+                account_address_type,
             })
         }};
     }

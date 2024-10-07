@@ -5,9 +5,11 @@ use cosmrs::{
     AccountId,
 };
 use derive_new::new;
-use hyperlane_core::{ChainCommunicationError, ChainResult, Error::Overflow, H256};
+use hyperlane_core::{
+    AccountAddressType, ChainCommunicationError, ChainResult, Error::Overflow, H256,
+};
 
-use crate::{AccountIdType, CosmosAccountId, HyperlaneCosmosError};
+use crate::{CosmosAccountId, HyperlaneCosmosError};
 
 /// Wrapper around the cosmrs AccountId type that abstracts bech32 encoding
 #[derive(new, Debug, Clone)]
@@ -23,12 +25,12 @@ impl CosmosAddress {
     pub fn from_privkey(
         priv_key: &[u8],
         prefix: &str,
-        account_id_type: AccountIdType,
+        account_address_type: &AccountAddressType,
     ) -> ChainResult<Self> {
         let pubkey = SigningKey::from_slice(priv_key)
             .map_err(Into::<HyperlaneCosmosError>::into)?
             .public_key();
-        Self::from_pubkey(pubkey, prefix, account_id_type)
+        Self::from_pubkey(pubkey, prefix, account_address_type)
     }
 
     /// Returns an account address calculated from Bech32 encoding
@@ -73,13 +75,14 @@ impl CosmosAddress {
         self.digest
     }
 
-    /// Calculates an account address depending on prefix and account id type
+    /// Calculates an account address depending on prefix and account address type
     fn from_pubkey(
         pubkey: PublicKey,
         prefix: &str,
-        account_id_type: AccountIdType,
+        account_address_type: &AccountAddressType,
     ) -> ChainResult<Self> {
-        let account_id = CosmosAccountId::account_id_from_pubkey(pubkey, prefix, account_id_type)?;
+        let account_id =
+            CosmosAccountId::account_id_from_pubkey(pubkey, prefix, account_address_type)?;
         Self::from_account_id(account_id)
     }
 }
@@ -124,8 +127,9 @@ pub mod test {
         let hex_key = "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
         let key = hex_or_base58_to_h256(hex_key).unwrap();
         let prefix = "neutron";
-        let addr = CosmosAddress::from_privkey(key.as_bytes(), prefix, AccountIdType::Bitcoin)
-            .expect("Cosmos address creation failed");
+        let addr =
+            CosmosAddress::from_privkey(key.as_bytes(), prefix, &AccountAddressType::Bitcoin)
+                .expect("Cosmos address creation failed");
         assert_eq!(
             addr.address(),
             "neutron1kknekjxg0ear00dky5ykzs8wwp2gz62z9s6aaj"

@@ -3,7 +3,7 @@ use ed25519_dalek::SecretKey;
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
-use hyperlane_core::H256;
+use hyperlane_core::{AccountAddressType, H256};
 use hyperlane_sealevel::Keypair;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
@@ -34,8 +34,8 @@ pub enum SignerConf {
         key: H256,
         /// Prefix for cosmos address
         prefix: String,
-        /// Account ID type for cosmos address
-        account_id_type: String,
+        /// Account address type for cosmos address
+        account_address_type: AccountAddressType,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -148,13 +148,13 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
         if let SignerConf::CosmosKey {
             key,
             prefix,
-            account_id_type,
+            account_address_type,
         } = conf
         {
             Ok(hyperlane_cosmos::Signer::new(
                 key.as_bytes().to_vec(),
                 prefix.clone(),
-                account_id_type,
+                account_address_type,
             )?)
         } else {
             bail!(format!("{conf:?} key is not supported by cosmos"));

@@ -5,9 +5,9 @@ use tendermint::public_key::PublicKey as TendermintPublicKey;
 
 use crypto::decompress_public_key;
 use hyperlane_core::Error::Overflow;
-use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
+use hyperlane_core::{AccountAddressType, ChainCommunicationError, ChainResult, H256};
 
-use crate::{AccountIdType, HyperlaneCosmosError};
+use crate::HyperlaneCosmosError;
 
 pub(crate) struct CosmosAccountId<'a> {
     account_id: &'a AccountId,
@@ -22,11 +22,11 @@ impl<'a> CosmosAccountId<'a> {
     pub fn account_id_from_pubkey(
         pub_key: PublicKey,
         prefix: &str,
-        account_id_type: AccountIdType,
+        account_address_type: &AccountAddressType,
     ) -> ChainResult<AccountId> {
-        match account_id_type {
-            AccountIdType::Bitcoin => Self::bitcoin_style(pub_key, prefix),
-            AccountIdType::Ethereum => Self::ethereum_style(pub_key, prefix),
+        match account_address_type {
+            AccountAddressType::Bitcoin => Self::bitcoin_style(pub_key, prefix),
+            AccountAddressType::Ethereum => Self::ethereum_style(pub_key, prefix),
         }
     }
 

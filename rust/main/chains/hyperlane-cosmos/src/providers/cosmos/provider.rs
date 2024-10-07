@@ -15,15 +15,15 @@ use tracing::{error, warn};
 
 use crypto::decompress_public_key;
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256, U256,
+    AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
+    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo,
+    H256, U256,
 };
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::providers::rpc::CosmosRpcClient;
 use crate::{
-    AccountIdType, ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount,
-    HyperlaneCosmosError, Signer,
+    ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
 };
 
 /// Exponent value for atto units (10^-18).
@@ -100,13 +100,13 @@ impl CosmosProvider {
             HyperlaneCosmosError::PublicKeyError("no public key for default signer".to_owned())
         })?;
 
-        let (key, account_id_type) = self.normalize_public_key(signer_public_key)?;
+        let (key, account_address_type) = self.normalize_public_key(signer_public_key)?;
         let public_key = PublicKey::try_from(key)?;
 
         let account_id = CosmosAccountId::account_id_from_pubkey(
             public_key,
             &self.connection_conf.get_bech32_prefix(),
-            account_id_type,
+            &account_address_type,
         )?;
 
         Ok((account_id, signer_info.sequence))
@@ -115,11 +115,11 @@ impl CosmosProvider {
     fn normalize_public_key(
         &self,
         signer_public_key: SignerPublicKey,
-    ) -> ChainResult<(SignerPublicKey, AccountIdType)> {
-        let public_key_and_account_id_type = match signer_public_key {
-            SignerPublicKey::Single(pk) => (SignerPublicKey::from(pk), AccountIdType::Bitcoin),
+    ) -> ChainResult<(SignerPublicKey, AccountAddressType)> {
+        let public_key_and_account_address_type = match signer_public_key {
+            SignerPublicKey::Single(pk) => (SignerPublicKey::from(pk), AccountAddressType::Bitcoin),
             SignerPublicKey::LegacyAminoMultisig(pk) => {
-                (SignerPublicKey::from(pk), AccountIdType::Bitcoin)
+                (SignerPublicKey::from(pk), AccountAddressType::Bitcoin)
             }
             SignerPublicKey::Any(pk) => {
                 if pk.type_url != PublicKey::ED25519_TYPE_URL
@@ -136,35 +136,36 @@ impl CosmosProvider {
                     Err(HyperlaneCosmosError::PublicKeyError(msg.to_owned()))?
                 }
 
-                let (pub_key, account_id_type) = if pk.type_url == INJECTIVE_PUBLIC_KEY_TYPE_URL {
-                    let any = Any {
-                        type_url: PublicKey::SECP256K1_TYPE_URL.to_owned(),
-                        value: pk.value,
-                    };
+                let (pub_key, account_address_type) =
+                    if pk.type_url == INJECTIVE_PUBLIC_KEY_TYPE_URL {
+                        let any = Any {
+                            type_url: PublicKey::SECP256K1_TYPE_URL.to_owned(),
+                            value: pk.value,
+                        };
 
-                    let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
-                        .map_err(Into::<HyperlaneCosmosError>::into)?;
+                        let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
+                            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
-                    let decompressed = decompress_public_key(&proto.key)
-                        .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+                        let decompressed = decompress_public_key(&proto.key)
+                            .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
 
-                    let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed)
-                        .ok_or_else(|| {
+                        let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed)
+                            .ok_or_else(|| {
                             HyperlaneCosmosError::PublicKeyError(
                                 "cannot create tendermint public key".to_owned(),
                             )
                         })?;
 
-                    (PublicKey::from(tendermint), AccountIdType::Ethereum)
-                } else {
-                    (PublicKey::try_from(pk)?, AccountIdType::Bitcoin)
-                };
+                        (PublicKey::from(tendermint), AccountAddressType::Ethereum)
+                    } else {
+                        (PublicKey::try_from(pk)?, AccountAddressType::Bitcoin)
+                    };
 
-                (SignerPublicKey::Single(pub_key), account_id_type)
+                (SignerPublicKey::Single(pub_key), account_address_type)
             }
         };
 
-        Ok(public_key_and_account_id_type)
+        Ok(public_key_and_account_address_type)
     }
 
     /// Calculates the sender and the nonce for the transaction.
