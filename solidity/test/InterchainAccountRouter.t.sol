@@ -13,6 +13,8 @@ import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPay
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {CallLib, OwnableMulticall, InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
+import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
+import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
@@ -106,10 +108,11 @@ contract InterchainAccountRouterTestBase is Test {
         address owner = address(this);
         originIcaRouter = deployProxiedIcaRouter(
             environment.mailboxes(origin),
-            environment.igps(destination),
+            environment.igps(origin),
             icaIsm,
             owner
         );
+
         destinationIcaRouter = deployProxiedIcaRouter(
             environment.mailboxes(destination),
             environment.igps(destination),
@@ -150,6 +153,15 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
                 address(environment.isms(destination))
             );
         assertEq(_account.owner(), address(destinationIcaRouter));
+    }
+
+    function test_setHook_revertsWhen_reInitializing() public {
+        TestInterchainGasPaymaster newIgp = new TestInterchainGasPaymaster();
+
+        vm.expectRevert("Initializable: contract is not initializing");
+        originIcaRouter.setHook(address(newIgp));
+
+        assertEq(address(originIcaRouter.hook()), address(0x0));
     }
 
     function testFuzz_getRemoteInterchainAccount(
@@ -384,6 +396,25 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         );
     }
 
+    function test_quoteDispatch_differentHook() public {
+        // arrange
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+        originIcaRouter = deployProxiedIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            icaIsm,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        assertEq(originIcaRouter.quoteGasPayment(destination), 0);
+    }
+
     function testFuzz_singleCallRemoteWithDefault(bytes32 data) public {
         // arrange
         originIcaRouter.enrollRemoteRouterAndIsm(
@@ -427,6 +458,32 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 balanceAfter = address(this).balance;
         assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
+    }
+
+    function testFuzz_callRemoteWithDefault_differentHook(bytes32 data) public {
+        // arrange
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+        originIcaRouter = deployProxiedIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            icaIsm,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // assert
+        vm.expectCall(
+            address(testHook),
+            0,
+            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
+        );
+
+        // act
+        originIcaRouter.callRemote(destination, getCalls(data));
     }
 
     function testFuzz_overrideAndCallRemote(bytes32 data) public {
@@ -534,6 +591,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 balanceAfter = address(this).balance;
         assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
+        assertEq(address(originIcaRouter.hook()), address(0));
     }
 
     function testFuzz_callRemoteWithOverrides_metadata(
@@ -558,6 +616,35 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 balanceAfter = address(this).balance;
         assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, gasLimit);
+    }
+
+    function testFuzz_callRemoteWithOverrides_withHook(bytes32 data) public {
+        TestPostDispatchHook testHook = new TestPostDispatchHook();
+
+        originIcaRouter = deployProxiedIcaRouter(
+            environment.mailboxes(origin),
+            testHook,
+            icaIsm,
+            address(this)
+        );
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        vm.expectCall(
+            address(testHook),
+            0,
+            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
+        );
+        originIcaRouter.callRemoteWithOverrides(
+            destination,
+            routerOverride,
+            ismOverride,
+            getCalls(data),
+            new bytes(0)
+        );
     }
 
     function testFuzz_callRemoteWithFailingIsmOverride(bytes32 data) public {
