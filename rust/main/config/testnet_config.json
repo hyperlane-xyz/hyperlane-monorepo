@@ -1278,10 +1278,10 @@
     "hyperliquidevmtestnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.hyperliquid.xyz/api",
-          "family": "other",
+          "apiUrl": "https://explorer.hyperlend.finance/api",
+          "family": "blockscout",
           "name": "Hyperliquid EVM Testnet Explorer",
-          "url": "https://explorer.hyperliquid.xyz"
+          "url": "https://explorer.hyperlend.finance"
         }
       ],
       "blocks": {
