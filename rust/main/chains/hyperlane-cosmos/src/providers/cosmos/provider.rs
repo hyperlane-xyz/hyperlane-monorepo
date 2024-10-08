@@ -217,7 +217,9 @@ impl CosmosProvider {
         }
 
         let any = contract_execution_messages.first().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("could not find contract execution message")
+            let msg = "could not find contract execution message";
+            warn!(?tx_hash, msg);
+            ChainCommunicationError::from_other_str(msg)
         })?;
         let proto =
             ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
