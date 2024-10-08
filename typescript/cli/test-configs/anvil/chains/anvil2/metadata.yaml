@@ -1,6 +1,3 @@
-# Configs for describing chain metadata for use in Hyperlane deployments or apps
-# Consists of a map of chain names to metadata
-# Schema here: https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/metadata/chainMetadataTypes.ts
 ---
 chainId: 31338
 domainId: 31338
@@ -8,15 +5,3 @@ name: anvil2
 protocol: ethereum
 rpcUrls:
   - http: http://127.0.0.1:8555
-blockExplorers: # Array: List of BlockExplorer configs
-  # Required fields:
-  - name: My Chain Explorer # String: Human-readable name for the explorer
-    url: https://mychain.com/explorer # String: Base URL for the explorer
-    apiUrl: https://mychain.com/api # String: Base URL for the explorer API
-    # Optional fields:
-    apiKey: myapikey # String: API key for the explorer (optional)
-    family: etherscan # ExplorerFamily: See ExplorerFamily for valid values
-nativeToken:
-  name: Ether
-  symbol: ETH
-  decimals: 18

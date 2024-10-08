@@ -9,12 +9,6 @@
       "0x3369e12edd52570806f126eb50be269ba5e65843"
     ]
   },
-  "astar": {
-    "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
-  },
-  "astarzkevm": {
-    "validators": ["0x89ecdd6caf138934bf3a2fb7b323984d72fd66de"]
-  },
   "avalanche": {
     "validators": [
       "0x3fb8263859843bffb02950c492d492cae169f4cf",
@@ -28,9 +22,6 @@
       "0x4512985a574cb127b2af2d4bb676876ce804e3f8",
       "0xb144bb2f599a5af095bc30367856f27ea8a8adc7"
     ]
-  },
-  "bitlayer": {
-    "validators": ["0x1d9b0f4ea80dbfc71cb7d64d8005eccf7c41e75f"]
   },
   "blast": {
     "validators": ["0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"]
@@ -55,20 +46,14 @@
   "cheesechain": {
     "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"]
   },
-  "coredao": {
-    "validators": ["0xbd6e158a3f5830d99d7d2bce192695bc4a148de2"]
-  },
   "cyber": {
     "validators": ["0x94d7119ceeb802173b6924e6cc8c4cd731089a27"]
   },
   "degenchain": {
     "validators": ["0x433e311f19524cd64fb2123ad0aa1579a4e1fc83"]
   },
-  "dogechain": {
-    "validators": ["0xe43f742c37858746e6d7e458bc591180d0cba440"]
-  },
-  "eclipsemainnet": {
-    "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
+  "eclipse": {
+    "validators": ["0x54c96aa1666596c043b07d694da552aa4b596306"]
   },
   "endurance": {
     "validators": ["0x28c5b322da06f184ebf68693c5d19df4d4af13e5"]
@@ -79,12 +64,6 @@
       "0x4346776b10f5e0d9995d884b7a1dbaee4e24c016",
       "0x749d6e7ad949e522c92181dc77f7bbc1c5d71506"
     ]
-  },
-  "everclear": {
-    "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
-  },
-  "flare": {
-    "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
@@ -143,9 +122,6 @@
   "mode": {
     "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
   },
-  "molten": {
-    "validators": ["0xad5aa33f0d67f6fa258abbe75458ea4908f1dc9f"]
-  },
   "moonbeam": {
     "validators": [
       "0x2225e2f4e9221049456da93b71d2de41f3b6b2a8",
@@ -159,9 +135,6 @@
       "0x60e890b34cb44ce3fa52f38684f613f31b47a1a6",
       "0x7885fae56dbcf5176657f54adbbd881dc6714132"
     ]
-  },
-  "oortmainnet": {
-    "validators": ["0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7"]
   },
   "optimism": {
     "validators": [
@@ -209,11 +182,8 @@
   "sei": {
     "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
   },
-  "shibarium": {
-    "validators": ["0xfa33391ee38597cbeef72ccde8c9e13e01e78521"]
-  },
-  "solanamainnet": {
-    "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
+  "solana": {
+    "validators": ["0x0621eaf2e4dc6f5aa193532e6ec8b71d3d529415"]
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]

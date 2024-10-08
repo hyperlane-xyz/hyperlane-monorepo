@@ -33,26 +33,23 @@ export function timeout<T>(
  * @param timeoutMs How long to wait for the promise in milliseconds.
  * @param callback The callback to run.
  * @returns callback return value
- * @throws Error if the timeout is reached before the callback completes
  */
 export async function runWithTimeout<T>(
   timeoutMs: number,
   callback: () => Promise<T>,
-): Promise<T> {
-  let timeoutId: NodeJS.Timeout;
-  const timeoutProm = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(`Timed out in ${timeoutMs}ms.`));
-    }, timeoutMs);
-  });
-
-  try {
-    const result = await Promise.race([callback(), timeoutProm]);
-    return result as T;
-  } finally {
-    // @ts-ignore timeout gets set immediately by the promise constructor
-    clearTimeout(timeoutId);
-  }
+): Promise<T | void> {
+  let timeout: NodeJS.Timeout;
+  const timeoutProm = new Promise<void>(
+    (_, reject) =>
+      (timeout = setTimeout(
+        () => reject(new Error(`Timed out in ${timeoutMs}ms.`)),
+        timeoutMs,
+      )),
+  );
+  const ret = await Promise.race([callback(), timeoutProm]);
+  // @ts-ignore timeout gets set immediately by the promise constructor
+  clearTimeout(timeout);
+  return ret;
 }
 
 /**

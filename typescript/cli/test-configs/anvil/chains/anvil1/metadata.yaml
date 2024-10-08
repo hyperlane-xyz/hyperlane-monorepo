@@ -8,14 +8,6 @@ name: anvil1
 protocol: ethereum
 rpcUrls:
   - http: http://127.0.0.1:8545
-blockExplorers: # Array: List of BlockExplorer configs
-  # Required fields:
-  - name: My Chain Explorer # String: Human-readable name for the explorer
-    url: https://mychain.com/explorer # String: Base URL for the explorer
-    apiUrl: https://mychain.com/api # String: Base URL for the explorer API
-    # Optional fields:
-    apiKey: myapikey # String: API key for the explorer (optional)
-    family: etherscan # ExplorerFamily: See ExplorerFamily for valid values
 nativeToken:
   name: Ether
   symbol: ETH

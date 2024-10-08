@@ -12,16 +12,11 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {EnumerableMapExtended} from "../../libs/EnumerableMapExtended.sol";
-import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
  * @title DomainRoutingIsm
  */
-contract DomainRoutingIsm is
-    AbstractRoutingIsm,
-    OwnableUpgradeable,
-    PackageVersioned
-{
+contract DomainRoutingIsm is AbstractRoutingIsm, OwnableUpgradeable {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
     using Message for bytes;
     using TypeCasts for bytes32;

@@ -87,7 +87,7 @@ function handleNewChain(chainNames: string[]) {
   if (chainNames.includes(NEW_CHAIN_MARKER)) {
     log(
       chalk.blue('Use the'),
-      chalk.magentaBright('hyperlane registry init'),
+      chalk.magentaBright('hyperlane config create'),
       chalk.blue('command to create new configs'),
     );
     process.exit(0);

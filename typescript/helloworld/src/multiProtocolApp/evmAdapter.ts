@@ -7,7 +7,7 @@ import {
   MultiProtocolProvider,
   ProviderType,
 } from '@hyperlane-xyz/sdk';
-import { Address, addBufferToGasLimit } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HelloWorld, HelloWorld__factory } from '../types/index.js';
 
@@ -54,13 +54,14 @@ export class EvmHelloWorldAdapter
         value: BigNumber.from(value).add(quote),
       },
     );
+    const gasLimit = estimated.mul(12).div(10);
 
     const tx = await contract.populateTransaction.sendHelloWorld(
       toDomain,
       message,
       {
-        gasLimit: addBufferToGasLimit(estimated),
         ...transactionOverrides,
+        gasLimit,
         value: BigNumber.from(value).add(quote),
       },
     );

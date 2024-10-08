@@ -8,34 +8,19 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 // to avoid circular dependencies.
 import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
 import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
-import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
-import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
 import {
   GasPriceConfig,
   getCosmosChainGasPrice,
 } from '../src/config/gas-oracle.js';
 
-import { getArgs } from './agent-utils.js';
-
 async function main() {
-  const { environment } = await getArgs().argv;
-  const { registry, supportedChainNames } =
-    environment === 'mainnet3'
-      ? {
-          registry: await getMainnet3Registry(),
-          supportedChainNames: mainnet3SupportedChainNames,
-        }
-      : {
-          registry: await getTestnet4Registry(),
-          supportedChainNames: testnet4SupportedChainNames,
-        };
-
+  const registry = await getMainnet3Registry();
   const chainMetadata = await registry.getMetadata();
   const mpp = new MultiProtocolProvider(chainMetadata);
 
   const prices: ChainMap<GasPriceConfig> = Object.fromEntries(
     await Promise.all(
-      supportedChainNames.map(async (chain) => [
+      mainnet3SupportedChainNames.map(async (chain) => [
         chain,
         await getGasPrice(mpp, chain),
       ]),

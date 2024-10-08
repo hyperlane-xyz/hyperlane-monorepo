@@ -1,0 +1,14 @@
+{
+  "solanadevnet": {
+    "hex": "0x05b6502b1d91c60ca0c0d0ab20a16ec40c66f2559becc7888a4fc3c0cefff9a5",
+    "base58": "PJH5QAbxAqrrnSXfH3GHR8icua8CDFZmo97z91xmpvx"
+  },
+  "proteustestnet": {
+    "hex": "0x00000000000000000000000034a9af13c5555bad0783c220911b9ef59cfdbcef",
+    "base58": "111111111111jZ775N1rpEpJ2M8RAzLNNr9Lh7U"
+  },
+  "bsctestnet": {
+    "hex": "0x00000000000000000000000031b5234a896fbc4b3e2f7237592d054716762131",
+    "base58": "111111111111hAc1aTgvQGRBFHrYpXpfUqGyqgk"
+  }
+}

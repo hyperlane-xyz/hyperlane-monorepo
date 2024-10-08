@@ -97,7 +97,6 @@ export {
   CheckerViolation,
   OwnableConfig,
   OwnerViolation,
-  ProxyAdminViolation,
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
@@ -165,7 +164,6 @@ export {
   PausableIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
-  WeightedMultisigIsmConfig,
 } from './ism/types.js';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
 export {
@@ -336,18 +334,11 @@ export {
   EV5ImpersonatedAccountTxSubmitterProps,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
-export {
-  SubmissionStrategySchema,
-  ChainSubmissionStrategySchema,
-} from './providers/transactions/submitter/builder/schemas.js';
+export { SubmissionStrategySchema } from './providers/transactions/submitter/builder/schemas.js';
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
-export {
-  SubmissionStrategy,
-  ChainSubmissionStrategy,
-} from './providers/transactions/submitter/builder/types.js';
+export { SubmissionStrategy } from './providers/transactions/submitter/builder/types.js';
 
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
-export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
@@ -514,13 +505,9 @@ export {
 } from './token/schemas.js';
 export { isCompliant } from './utils/schemas.js';
 
-export {
-  canProposeSafeTransactions,
-  getSafe,
-  getSafeDelegates,
-  getSafeService,
-  // @ts-ignore
-} from './utils/gnosisSafe.js';
+// prettier-ignore
+// @ts-ignore
+export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
@@ -530,4 +517,3 @@ export {
   ProxyFactoryFactoriesAddresses,
 } from './deploy/schemas.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
-export { proxyAdmin } from './deploy/proxy.js';

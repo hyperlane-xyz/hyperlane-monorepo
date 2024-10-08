@@ -1,28 +1,22 @@
-import { setRpcUrlsInteractive } from '../../src/utils/rpcUrls.js';
-import {
-  assertCorrectKubeContext,
-  getArgs,
-  withChainsRequired,
-} from '../agent-utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
+import { setAndVerifyRpcUrls } from '../../src/utils/rpcUrls.js';
+import { getArgs, withChainRequired, withRpcUrls } from '../agent-utils.js';
 
 async function main() {
-  const { environment, chains } = await withChainsRequired(getArgs())
-    // For ease of use and backward compatibility, we allow the `chain` argument to be
-    // singular or plural.
-    .alias('chain', 'chains').argv;
+  const { environment, chain, rpcUrls } = await withRpcUrls(
+    withChainRequired(getArgs()),
+  ).argv;
 
-  await assertCorrectKubeContext(getEnvironmentConfig(environment));
+  const rpcUrlsArray = rpcUrls
+    .split(/,\s*/)
+    .filter(Boolean) // filter out empty strings
+    .map((url) => url.trim());
 
-  if (!chains || chains.length === 0) {
-    console.error('No chains provided, Exiting.');
+  if (!rpcUrlsArray.length) {
+    console.error('No rpc urls provided, Exiting.');
     process.exit(1);
   }
 
-  for (const chain of chains) {
-    console.log(`Setting RPC URLs for chain: ${chain}`);
-    await setRpcUrlsInteractive(environment, chain);
-  }
+  await setAndVerifyRpcUrls(environment, chain, rpcUrlsArray);
 }
 
 main()

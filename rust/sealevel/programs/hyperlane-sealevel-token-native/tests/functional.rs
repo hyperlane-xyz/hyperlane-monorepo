@@ -22,7 +22,6 @@ use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
     mailbox_process_authority_pda_seeds,
-    protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -264,16 +263,10 @@ async fn test_initialize() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &mailbox_program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        ONE_SOL_IN_LAMPORTS,
-        ProtocolFee::default(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts =
+        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
+            .await
+            .unwrap();
 
     let igp_accounts =
         initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
@@ -356,16 +349,10 @@ async fn test_transfer_remote() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &mailbox_program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        ONE_SOL_IN_LAMPORTS,
-        ProtocolFee::default(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts =
+        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
+            .await
+            .unwrap();
 
     let igp_accounts =
         initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
@@ -581,16 +568,10 @@ async fn transfer_from_remote(
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &mailbox_program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        ONE_SOL_IN_LAMPORTS,
-        ProtocolFee::default(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts =
+        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
+            .await
+            .unwrap();
 
     let igp_accounts =
         initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
@@ -741,16 +722,10 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let _mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &mailbox_program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        ONE_SOL_IN_LAMPORTS,
-        ProtocolFee::default(),
-    )
-    .await
-    .unwrap();
+    let _mailbox_accounts =
+        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
+            .await
+            .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)

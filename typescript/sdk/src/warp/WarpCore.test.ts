@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-imports */
 import { expect } from 'chai';
 import fs from 'fs';
 import sinon from 'sinon';

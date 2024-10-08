@@ -1,11 +1,15 @@
-import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { ethers } from 'ethers';
 
-import { getArgs as getEnvArgs, withChainsRequired } from './agent-utils.js';
+import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
+import { assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
+
+import { getSecretRpcEndpoints } from '../src/agents/index.js';
+
+import { getArgs as getEnvArgs, withChainRequired } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 function getArgs() {
-  return withChainsRequired(getEnvArgs())
+  return withChainRequired(getEnvArgs())
     .option('ownerChain', {
       type: 'string',
       description: 'Origin chain where the governing owner lives',
@@ -22,14 +26,14 @@ function getArgs() {
       description: 'Deploys the ICA if it does not exist',
       default: false,
     })
-    .alias('chains', 'destinationChains').argv;
+    .alias('chain', 'destinationChain').argv;
 }
 
 async function main() {
   const {
     environment,
     ownerChain,
-    chains,
+    chain,
     deploy,
     owner: ownerOverride,
   } = await getArgs();
@@ -41,7 +45,7 @@ async function main() {
     throw new Error(`No owner found for ${ownerChain}`);
   }
 
-  console.log(`Governance owner on ${ownerChain}: ${originOwner}`);
+  rootLogger.info(`Governance owner on ${ownerChain}: ${originOwner}`);
 
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
   const ica = InterchainAccount.fromAddressesMap(chainAddresses, multiProvider);
@@ -51,22 +55,23 @@ async function main() {
     owner: originOwner,
   };
 
-  const results: Record<string, { ICA: Address; Deployed?: string }> = {};
-  for (const chain of chains) {
-    const account = await ica.getAccount(chain, ownerConfig);
-    results[chain] = { ICA: account };
+  const account = await ica.getAccount(chain, ownerConfig);
 
-    if (deploy) {
-      const deployedAccount = await ica.deployAccount(chain, ownerConfig);
-      assert(
-        eqAddress(account, deployedAccount),
-        'Fatal mismatch between account and deployed account',
-      );
-      results[chain].Deployed = '✅';
-    }
+  rootLogger.info(`ICA on ${chain}: ${account}`);
+
+  if (deploy) {
+    // Ensuring the account was deployed
+    const deployedAccount = await ica.deployAccount(chain, ownerConfig);
+    // This shouldn't ever happen, but let's be safe
+    assert(
+      eqAddress(account, deployedAccount),
+      'Fatal mismatch between account and deployed account',
+    );
+
+    rootLogger.info(
+      `ICA deployed or recovered on ${chain}: ${deployedAccount}`,
+    );
   }
-
-  console.table(results);
 }
 
 main()

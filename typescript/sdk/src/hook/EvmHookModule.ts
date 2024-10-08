@@ -30,6 +30,7 @@ import {
   addressToBytes32,
   deepEquals,
   eqAddress,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -50,7 +51,6 @@ import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';

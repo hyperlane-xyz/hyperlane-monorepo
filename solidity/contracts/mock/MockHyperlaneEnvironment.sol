@@ -8,8 +8,8 @@ import "../test/TestIsm.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract MockHyperlaneEnvironment {
-    uint32 public originDomain;
-    uint32 public destinationDomain;
+    uint32 originDomain;
+    uint32 destinationDomain;
 
     mapping(uint32 => MockMailbox) public mailboxes;
     mapping(uint32 => TestInterchainGasPaymaster) public igps;

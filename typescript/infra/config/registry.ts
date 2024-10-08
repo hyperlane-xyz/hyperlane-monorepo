@@ -5,7 +5,6 @@ import {
   ChainAddresses,
   MergedRegistry,
   PartialRegistry,
-  warpConfigToWarpAddresses,
 } from '@hyperlane-xyz/registry';
 import { FileSystemRegistry } from '@hyperlane-xyz/registry/fs';
 import {
@@ -89,19 +88,6 @@ export function getChainMetadata(): ChainMap<ChainMetadata> {
 
 export function getChainAddresses(): ChainMap<ChainAddresses> {
   return getRegistry().getAddresses();
-}
-
-export function getWarpAddresses(warpRouteId: string) {
-  const registry = getRegistry();
-  const warpRouteConfig = registry.getWarpRoute(warpRouteId);
-
-  if (!warpRouteConfig) {
-    throw new Error(
-      `Warp route config for ${warpRouteId} not found in registry`,
-    );
-  }
-
-  return warpConfigToWarpAddresses(warpRouteConfig);
 }
 
 export function getEnvChains(env: DeployEnvironment): ChainName[] {

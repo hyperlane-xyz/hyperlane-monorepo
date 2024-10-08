@@ -28,11 +28,7 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import {
-  indentYamlOrJson,
-  removeEndingSlash,
-  writeYamlOrJson,
-} from '../utils/files.js';
+import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
@@ -41,7 +37,6 @@ import {
   dryRunCommandOption,
   fromAddressCommandOption,
   outputFileCommandOption,
-  strategyCommandOption,
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
@@ -71,8 +66,6 @@ export const apply: CommandModuleWithWriteContext<{
   config: string;
   symbol?: string;
   warp: string;
-  strategy?: string;
-  receiptsDir: string;
 }> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
@@ -86,22 +79,8 @@ export const apply: CommandModuleWithWriteContext<{
       ...warpCoreConfigCommandOption,
       demandOption: false,
     },
-    strategy: { ...strategyCommandOption, demandOption: false },
-    'receipts-dir': {
-      type: 'string',
-      description: 'The directory to output transaction receipts.',
-      default: './generated/transactions',
-      coerce: (dir) => removeEndingSlash(dir),
-    },
   },
-  handler: async ({
-    context,
-    config,
-    symbol,
-    warp,
-    strategy: strategyUrl,
-    receiptsDir,
-  }) => {
+  handler: async ({ context, config, symbol, warp }) => {
     logGray(`Hyperlane Warp Apply`);
     logGray('--------------------'); // @TODO consider creating a helper function for these dashes
     let warpCoreConfig: WarpCoreConfig;
@@ -114,13 +93,10 @@ export const apply: CommandModuleWithWriteContext<{
       process.exit(0);
     }
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
-
     await runWarpRouteApply({
       context,
       warpDeployConfig,
       warpCoreConfig,
-      strategyUrl,
-      receiptsDir,
     });
     process.exit(0);
   },

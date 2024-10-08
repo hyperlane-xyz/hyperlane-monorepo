@@ -25,14 +25,20 @@ _main() {
 
     DEPLOYER=$(cast rpc eth_accounts | jq -r '.[0]');
 
-    # TODO: fix `resetFork` after a dry-run. Related: https://github.com/foundry-rs/foundry/pull/8768
-    # run_hyperlane_deploy_core_dry_run;
-    # run_hyperlane_deploy_warp_dry_run;
-    # reset_anvil;
+    run_hyperlane_deploy_core_dry_run;
+    run_hyperlane_deploy_warp_dry_run;
+
+    reset_anvil;
 
     run_hyperlane_deploy_core;
     run_hyperlane_deploy_warp;
     run_hyperlane_send_message;
+
+    # cd ./rust;
+
+    # run_validator;
+    # run_relayer;
+    # run_hyperlane_status;
 
     kill_anvil;
 
@@ -252,6 +258,104 @@ run_hyperlane_send_message() {
 
     MESSAGE2_ID=`cat /tmp/message2 | grep "Message ID" | grep -E -o '0x[0-9a-f]+'`
     echo "Message 2 ID: $MESSAGE2_ID"
+}
+
+run_validator() {
+    echo -e "\nPre-building validator with cargo"
+    cargo build --bin validator --features test-utils
+
+    # set some default agent env vars, used by both validators and relayer
+    export HYP_CHAINS_${CHAIN1_CAPS}_BLOCKS_REORGPERIOD=0
+    export HYP_CHAINS_${CHAIN1_CAPS}_CUSTOMRPCURLS="http://127.0.0.1:${CHAIN1_PORT}"
+    export HYP_CHAINS_${CHAIN2_CAPS}_BLOCKS_REORGPERIOD=0
+    export HYP_CHAINS_${CHAIN2_CAPS}_CUSTOMRPCURLS="http://127.0.0.1:${CHAIN2_PORT}"
+
+    VALIDATOR_PORT=9091
+
+    for CHAIN in ${CHAIN1} ${CHAIN2}
+    do
+        # don't need the second validator for pi<>core test
+        if [ "$CHAIN" == "$CHAIN2" ] && [ "$TEST_TYPE" == "$TEST_TYPE_PI_CORE" ]; then
+            echo "Skipping validator for $CHAIN2 due to $TEST_TYPE_PI_CORE test type"
+            continue
+        fi
+
+        VALIDATOR_PORT=$((VALIDATOR_PORT+1))
+        echo "Running validator on $CHAIN on port $VALIDATOR_PORT"
+        export CONFIG_FILES=/tmp/agent-config.json
+        export HYP_ORIGINCHAINNAME=${CHAIN}
+        export HYP_VALIDATOR_INTERVAL=1
+        export HYP_VALIDATOR_TYPE=hexKey
+        export HYP_VALIDATOR_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+        export HYP_CHECKPOINTSYNCER_TYPE=localStorage
+        export HYP_CHECKPOINTSYNCER_PATH=/tmp/${CHAIN}/validator
+        export HYP_TRACING_LEVEL=debug
+        export HYP_TRACING_FMT=compact
+        export HYP_METRICSPORT=$VALIDATOR_PORT
+
+        cargo run --bin validator > /tmp/${CHAIN}/validator-logs.txt &
+    done
+
+    echo "Validator running, sleeping to let it sync"
+    # This needs to be long to allow time for the cargo build to finish
+    sleep 20
+    echo "Done sleeping"
+
+    for CHAIN in ${CHAIN1} ${CHAIN2}
+    do
+        # only have one validator announce in pi<>core test
+        if [ "$CHAIN" == "$CHAIN2" ] && [ "$TEST_TYPE" == "$TEST_TYPE_PI_CORE" ]; then
+            echo "Skipping validator for $CHAIN2 due to $TEST_TYPE_PI_CORE test type"
+            continue
+        fi
+
+        echo "Validator Announcement for ${CHAIN}:"
+        cat /tmp/${CHAIN}/validator/announcement.json
+    done
+}
+
+run_relayer() {
+    echo -e "\nPre-building relayer with cargo"
+    cargo build --bin relayer --features test-utils
+
+    echo "Running relayer"
+    export CONFIG_FILES=/tmp/agent-config.json
+    export HYP_RELAYCHAINS=${CHAIN1},${CHAIN2}
+    export HYP_ALLOWLOCALCHECKPOINTSYNCERS=true
+    export HYP_DB=/tmp/relayer
+    export HYP_GASPAYMENTENFORCEMENT='[{"type":"none"}]'
+    export HYP_CHAINS_${CHAIN1_CAPS}_SIGNER_TYPE=hexKey
+    export HYP_CHAINS_${CHAIN1_CAPS}_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+    export HYP_CHAINS_${CHAIN2_CAPS}_SIGNER_TYPE=hexKey
+    export HYP_CHAINS_${CHAIN2_CAPS}_SIGNER_KEY=0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97
+    export HYP_METRICSPORT=9090
+
+    cargo run --bin relayer > /tmp/relayer/relayer-logs.txt &
+
+    # This needs to be long to allow time for the cargo build to finish
+    echo "Waiting for relayer..."
+    sleep 20
+    echo "Done running relayer, checking message delivery statuses"
+}
+
+run_hyperlane_status() {
+    for i in "1 $MESSAGE1_ID" "2 $MESSAGE2_ID"
+    do
+        set -- $i
+        echo "Checking delivery status of $1: $2"
+        yarn workspace @hyperlane-xyz/cli run hyperlane status \
+            --id $2 \
+            --destination ${CHAIN2} \
+            --registry $REGISTRY_PATH \
+            --overrides " " \
+            | tee /tmp/message-status-$1
+        if ! grep -q "$2 was delivered" /tmp/message-status-$1; then
+            echo "ERROR: Message $1 was not delivered"
+            exit 1
+        else
+            echo "Message $1 was delivered!"
+        fi
+    done
 }
 
 update_deployer_balance() {

@@ -13,8 +13,6 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
-const SOLANA_DOMAIN: u32 = 1399811149;
-
 pub(crate) fn account_exists(client: &RpcClient, account: &Pubkey) -> Result<bool, ClientError> {
     // Using `get_account_with_commitment` instead of `get_account` so we get Ok(None) when the account
     // doesn't exist, rather than an error
@@ -31,17 +29,10 @@ pub(crate) fn deploy_program_idempotent(
     program_keypair_path: &str,
     program_path: &str,
     url: &str,
-    local_domain: u32,
 ) -> Result<(), ClientError> {
     let client = RpcClient::new(url.to_string());
     if !account_exists(&client, &program_keypair.pubkey())? {
-        deploy_program(
-            payer_keypair_path,
-            program_keypair_path,
-            program_path,
-            url,
-            local_domain,
-        );
+        deploy_program(payer_keypair_path, program_keypair_path, program_path, url);
     } else {
         println!("Program {} already deployed", program_keypair.pubkey());
     }
@@ -54,29 +45,25 @@ pub(crate) fn deploy_program(
     program_keypair_path: &str,
     program_path: &str,
     url: &str,
-    local_domain: u32,
 ) {
-    let mut command = vec![
-        "solana",
-        "--url",
-        url,
-        "-k",
-        payer_keypair_path,
-        "program",
-        "deploy",
-        program_path,
-        "--upgrade-authority",
-        payer_keypair_path,
-        "--program-id",
-        program_keypair_path,
-    ];
-
-    if local_domain.eq(&SOLANA_DOMAIN) {
-        // May need tweaking depending on gas prices / available balance
-        command.append(&mut vec!["--with-compute-unit-price", "550000"]);
-    }
-
-    build_cmd(command.as_slice(), None, None);
+    build_cmd(
+        &[
+            "solana",
+            "--url",
+            url,
+            "-k",
+            payer_keypair_path,
+            "program",
+            "deploy",
+            program_path,
+            "--upgrade-authority",
+            payer_keypair_path,
+            "--program-id",
+            program_keypair_path,
+        ],
+        None,
+        None,
+    );
 }
 
 pub(crate) fn create_new_directory(parent_dir: &Path, name: &str) -> PathBuf {
@@ -125,7 +112,6 @@ fn build_cmd(cmd: &[&str], wd: Option<&str>, env: Option<&HashMap<&str, &str>>) 
     if let Some(env) = env {
         c.envs(env);
     }
-    println!("Running command: {:?}", c);
     let status = c.status().expect("Failed to run command");
     assert!(
         status.success(),

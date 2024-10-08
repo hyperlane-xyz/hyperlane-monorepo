@@ -4,7 +4,9 @@ kind: Pod
 metadata:
   name: {{ include "hyperlane.fullname" . }}-cycle-once-{{ (randAlphaNum 4 | nospace | lower) }}
   labels: &metadata_labels
-    {{- include "hyperlane.labels" . | nindent 4 }}
+    hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
+    hyperlane/context: {{ .Values.hyperlane.context | quote }}
+    app.kubernetes.io/component: kathy
 spec:
   restartPolicy: Never
   containers:

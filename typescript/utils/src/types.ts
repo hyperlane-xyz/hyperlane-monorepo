@@ -5,7 +5,6 @@ export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
   Cosmos = 'cosmos',
-  GnosisTxBuilder = 'gnosisTxBuilder',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;
@@ -97,11 +96,6 @@ export type ParsedMessage = {
   destinationChain?: string;
   recipient: string;
   body: string;
-};
-
-export type ParsedWarpRouteMessage = {
-  recipient: string;
-  amount: bigint;
 };
 
 export type ParsedLegacyMultisigIsmMetadata = {

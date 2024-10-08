@@ -45,9 +45,9 @@ graph LR
 
 The Token Router contract comes in several flavors and a warp route can be composed of a combination of these flavors.
 
-- [`Native`](./HypNative.sol) - for warping native assets (e.g. ETH) from the canonical chain
-- [`Collateral`](./HypERC20Collateral.sol) - for warping tokens, ERC20 or ERC721, from the canonical chain
-- [`Synthetic`](./HypERC20.sol) - for representing tokens, Native/ERC20 or ERC721, on a non-canonical chain
+- [`Native`](./contracts/HypNative.sol) - for warping native assets (e.g. ETH) from the canonical chain
+- [`Collateral`](./contracts/HypERC20Collateral.sol) - for warping tokens, ERC20 or ERC721, from the canonical chain
+- [`Synthetic`](./contracts/HypERC20.sol) - for representing tokens, Native/ERC20 or ERC721, on a non-canonical chain
 
 ## Interchain Security Models
 

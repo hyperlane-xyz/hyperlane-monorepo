@@ -3,6 +3,7 @@ import {
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   AgentChainConfig,
@@ -15,7 +16,7 @@ import {
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
-import { getDomainId, getWarpAddresses } from '../../registry.js';
+import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
@@ -32,11 +33,10 @@ import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
 import merklyEthAddresses from './warp/merkly-eth-addresses.json';
-import renzoEzEthAddressesV3 from './warp/renzo-ezETH-addresses-v3.json';
+import renzoEzEthAddresses from './warp/renzo-ezETH-addresses.json';
 import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
 import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
-import { WarpRouteIds } from './warp/warpIds.js';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
 //   helloWorld[Contexts.ReleaseCandidate].addresses,
@@ -56,25 +56,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     ancient8: true,
     arbitrum: true,
-    astar: true,
-    astarzkevm: true,
     avalanche: true,
     base: true,
-    bitlayer: true,
     blast: true,
     bob: true,
     bsc: true,
     celo: true,
     cheesechain: true,
-    coredao: true,
     cyber: true,
     degenchain: true,
-    dogechain: true,
-    eclipsemainnet: true,
+    eclipse: true,
     endurance: true,
     ethereum: true,
-    everclear: true,
-    flare: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -90,10 +83,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     metis: true,
     mint: true,
     mode: true,
-    molten: true,
     moonbeam: true,
     neutron: true,
-    oortmainnet: true,
     optimism: true,
     osmosis: true,
     polygon: true,
@@ -104,10 +95,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sanko: true,
     scroll: true,
     sei: true,
-    shibarium: true,
-    solanamainnet: true,
+    solana: true,
     taiko: true,
-    tangle: false,
+    tangle: true,
     viction: true,
     worldchain: true,
     xai: true,
@@ -119,25 +109,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     ancient8: true,
     arbitrum: true,
-    astar: true,
-    astarzkevm: true,
     avalanche: true,
     base: true,
-    bitlayer: true,
     blast: true,
     bob: true,
     bsc: true,
     celo: true,
     cheesechain: true,
-    coredao: true,
     cyber: true,
     degenchain: true,
-    dogechain: true,
-    eclipsemainnet: true,
+    eclipse: true,
     endurance: true,
     ethereum: true,
-    everclear: true,
-    flare: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -153,11 +136,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     metis: true,
     mint: true,
     mode: true,
-    molten: true,
     moonbeam: true,
     // At the moment, we only relay between Neutron and Manta Pacific on the neutron context.
     neutron: false,
-    oortmainnet: true,
     optimism: true,
     osmosis: true,
     polygon: true,
@@ -168,10 +149,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sanko: true,
     scroll: true,
     sei: true,
-    shibarium: true,
-    solanamainnet: true,
+    solana: true,
     taiko: true,
-    tangle: false,
+    tangle: true,
     viction: true,
     worldchain: true,
     xai: true,
@@ -183,26 +163,19 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     ancient8: true,
     arbitrum: true,
-    astar: true,
-    astarzkevm: true,
     avalanche: true,
     base: true,
-    bitlayer: true,
     blast: true,
     bob: true,
     bsc: true,
     celo: true,
     cheesechain: true,
-    coredao: true,
     cyber: true,
     degenchain: true,
-    dogechain: true,
     // Cannot scrape non-EVM chains
-    eclipsemainnet: false,
+    eclipse: false,
     endurance: true,
     ethereum: true,
-    everclear: true,
-    flare: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -219,11 +192,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     metis: true,
     mint: true,
     mode: true,
-    molten: true,
     moonbeam: true,
     // Cannot scrape non-EVM chains
     neutron: false,
-    oortmainnet: true,
     optimism: true,
     // Cannot scrape non-EVM chains
     osmosis: false,
@@ -237,11 +208,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
     // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
     sei: false,
-    shibarium: true,
     // Cannot scrape non-EVM chains
-    solanamainnet: false,
+    solana: false,
     taiko: true,
-    tangle: false,
+    tangle: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
     worldchain: true,
@@ -325,27 +295,20 @@ const metricAppContexts = [
   },
   {
     name: 'renzo_ezeth',
-    matchingList: matchingList(renzoEzEthAddressesV3),
+    matchingList: routerMatchingList(renzoEzEthAddresses),
   },
   {
-    name: 'eclipse_usdc',
-    matchingList: matchingList(
-      getWarpAddresses(WarpRouteIds.EthereumEclipseUSDC),
-    ),
-  },
-  {
-    name: 'eclipse_teth',
-    matchingList: matchingList(
-      getWarpAddresses(WarpRouteIds.EthereumEclipseTETH),
-    ),
-  },
-  {
-    name: 'eclipse_wif',
-    matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaWIF)),
-  },
-  {
-    name: 'eclipse_sol',
-    matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaSOL)),
+    name: 'renzo_ezeth_old',
+    // There's an old message to Base that's stuck around, we
+    // just care about this one for now.
+    matchingList: [
+      {
+        recipientAddress: addressToBytes32(
+          '0x584BA77ec804f8B6A559D196661C0242C6844F49',
+        ),
+        destinationDomain: getDomainId('base'),
+      },
+    ],
   },
   // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
   // {
@@ -393,7 +356,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'bf53f08-20240926-223824',
+      tag: '78b596e-20240813-123401',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -402,7 +365,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9c056c7-20240911-154357',
+      tag: '78b596e-20240813-123401',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -412,7 +375,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9c056c7-20240911-154357',
+      tag: '78b596e-20240813-123401',
     },
     resources: scraperResources,
   },
@@ -427,7 +390,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5cb1787-20240924-192934',
+      tag: '79f2aed-20240731-172847',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -439,7 +402,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9c056c7-20240911-154357',
+      tag: '0d12ff3-20240620-173353',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -460,7 +423,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5a0d68b-20240916-144115',
+      tag: 'dcd6dc5-20240716-120804',
     },
     gasPaymentEnforcement: [
       {

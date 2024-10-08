@@ -7,7 +7,6 @@ use hyperlane_sealevel_mailbox::{
     error::Error as MailboxError,
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds,
-    protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_test_ism::{program::TestIsmError, test_client::TestIsmTestClient};
 use hyperlane_sealevel_test_send_receiver::{
@@ -22,7 +21,6 @@ use hyperlane_test_utils::{
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    rent::Rent,
     system_program,
 };
 use solana_program_test::*;
@@ -41,8 +39,6 @@ use crate::utils::{
 
 const LOCAL_DOMAIN: u32 = 13775;
 const REMOTE_DOMAIN: u32 = 69420;
-const PROTOCOL_FEE: u64 = 1_000_000_000;
-const MAX_PROTOCOL_FEE: u64 = 1_000_000_001;
 
 async fn setup_client() -> (
     BanksClient,
@@ -96,28 +92,14 @@ async fn setup_client() -> (
     (banks_client, payer, test_send_receiver, test_ism)
 }
 
-fn test_protocol_fee_config() -> ProtocolFee {
-    ProtocolFee {
-        fee: PROTOCOL_FEE,
-        beneficiary: Pubkey::new_unique(),
-    }
-}
-
 #[tokio::test]
 async fn test_initialize() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
-    let protocol_fee_config = test_protocol_fee_config();
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        protocol_fee_config.clone(),
-    )
-    .await
-    .unwrap();
+
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     // Make sure the outbox account was created.
     assert_outbox(
@@ -128,8 +110,6 @@ async fn test_initialize() {
             outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
             owner: Some(payer.pubkey()),
             tree: MerkleTree::default(),
-            max_protocol_fee: MAX_PROTOCOL_FEE,
-            protocol_fee: protocol_fee_config,
         },
     )
     .await;
@@ -161,28 +141,13 @@ async fn test_initialize_errors_if_called_twice() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     // Different local domain to force a different transaction signature,
     // otherwise we'll get a (silent) duplicate transaction error.
-    let result = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN + 1,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await;
+    let result = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN + 1).await;
     assert_transaction_error(
         result,
         TransactionError::InstructionError(0, InstructionError::AccountAlreadyInitialized),
@@ -193,18 +158,10 @@ async fn test_initialize_errors_if_called_twice() {
 async fn test_dispatch_from_eoa() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
-    let protocol_fee_config = test_protocol_fee_config();
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        protocol_fee_config.clone(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient = H256::random();
     let message_body = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -256,8 +213,6 @@ async fn test_dispatch_from_eoa() {
             outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
             owner: Some(payer.pubkey()),
             tree: expected_tree.clone(),
-            max_protocol_fee: MAX_PROTOCOL_FEE,
-            protocol_fee: protocol_fee_config.clone(),
         },
     )
     .await;
@@ -311,251 +266,10 @@ async fn test_dispatch_from_eoa() {
             local_domain: LOCAL_DOMAIN,
             outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
             owner: Some(payer.pubkey()),
-            tree: expected_tree.clone(),
-            max_protocol_fee: MAX_PROTOCOL_FEE,
-            protocol_fee: protocol_fee_config,
+            tree: expected_tree,
         },
     )
     .await;
-}
-
-#[tokio::test]
-async fn test_protocol_fee() {
-    let program_id = mailbox_id();
-    let (mut banks_client, payer, _, _) = setup_client().await;
-    let protocol_fee_config = test_protocol_fee_config();
-
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        protocol_fee_config.clone(),
-    )
-    .await
-    .unwrap();
-
-    let recipient = H256::random();
-    let message_body = vec![];
-    let outbox_dispatch = OutboxDispatch {
-        sender: payer.pubkey(),
-        destination_domain: REMOTE_DOMAIN,
-        recipient,
-        message_body: message_body.clone(),
-    };
-
-    // ---- Test protocol fee payment ----
-    let outbox_balance_before = banks_client
-        .get_balance(mailbox_accounts.outbox)
-        .await
-        .unwrap();
-
-    dispatch_from_payer(
-        &mut banks_client,
-        &payer,
-        &mailbox_accounts,
-        outbox_dispatch,
-    )
-    .await
-    .unwrap();
-
-    let outbox_balance_after = banks_client
-        .get_balance(mailbox_accounts.outbox)
-        .await
-        .unwrap();
-
-    // The outbox pda has been paid `protocol_fee.fee`
-    assert_eq!(
-        outbox_balance_after - outbox_balance_before,
-        protocol_fee_config.fee,
-    );
-
-    // ---- Test protocol fee claiming ----
-    let non_beneficiary = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
-
-    let beneficiary_balance_before = banks_client
-        .get_balance(protocol_fee_config.beneficiary)
-        .await
-        .unwrap();
-
-    // Accounts:
-    // 0. `[writeable]` The outbox account.
-    // 1. `[writeable]` The protocol fees beneficiary.
-    process_instruction(
-        &mut banks_client,
-        Instruction::new_with_borsh(
-            program_id,
-            &MailboxInstruction::ClaimProtocolFees,
-            vec![
-                AccountMeta::new(mailbox_accounts.outbox, false),
-                AccountMeta::new(protocol_fee_config.beneficiary, false),
-            ],
-        ),
-        &non_beneficiary,
-        &[&non_beneficiary],
-    )
-    .await
-    .unwrap();
-
-    let beneficiary_balance_after = banks_client
-        .get_balance(protocol_fee_config.beneficiary)
-        .await
-        .unwrap();
-    assert_eq!(
-        beneficiary_balance_after - beneficiary_balance_before,
-        protocol_fee_config.fee,
-    );
-
-    // Make sure the outbox account is still rent exempt
-    let outbox_account = banks_client
-        .get_account(mailbox_accounts.outbox)
-        .await
-        .unwrap()
-        .unwrap();
-    let rent_exempt_balance = Rent::default().minimum_balance(outbox_account.data.len());
-    assert_eq!(outbox_account.lamports, rent_exempt_balance);
-}
-
-#[tokio::test]
-async fn test_setting_valid_protocol_fee_config_works() {
-    let program_id = mailbox_id();
-    let (mut banks_client, payer, _, _) = setup_client().await;
-    let protocol_fee_config = test_protocol_fee_config();
-
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        protocol_fee_config.clone(),
-    )
-    .await
-    .unwrap();
-
-    let new_protocol_fee = ProtocolFee {
-        fee: protocol_fee_config.fee + 1,
-        beneficiary: Pubkey::new_unique(),
-    };
-
-    process_instruction(
-        &mut banks_client,
-        Instruction::new_with_borsh(
-            program_id,
-            &MailboxInstruction::SetProtocolFeeConfig(new_protocol_fee.clone()),
-            vec![
-                AccountMeta::new(mailbox_accounts.outbox, false),
-                AccountMeta::new_readonly(payer.pubkey(), true),
-            ],
-        ),
-        &payer,
-        &[&payer],
-    )
-    .await
-    .unwrap();
-
-    // Make sure the outbox account was updated.
-    assert_outbox(
-        &mut banks_client,
-        mailbox_accounts.outbox,
-        Outbox {
-            local_domain: LOCAL_DOMAIN,
-            outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
-            owner: Some(payer.pubkey()),
-            tree: MerkleTree::default(),
-            max_protocol_fee: MAX_PROTOCOL_FEE,
-            protocol_fee: new_protocol_fee,
-        },
-    )
-    .await;
-}
-
-#[tokio::test]
-async fn test_setting_invalid_protocol_fee_config_fails() {
-    let program_id = mailbox_id();
-    let (mut banks_client, payer, _, _) = setup_client().await;
-    let protocol_fee_config = test_protocol_fee_config();
-
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        protocol_fee_config.clone(),
-    )
-    .await
-    .unwrap();
-
-    let new_protocol_fee = ProtocolFee {
-        fee: MAX_PROTOCOL_FEE + 1,
-        beneficiary: Pubkey::new_unique(),
-    };
-
-    let result = process_instruction(
-        &mut banks_client,
-        Instruction::new_with_borsh(
-            program_id,
-            &MailboxInstruction::SetProtocolFeeConfig(new_protocol_fee.clone()),
-            vec![
-                AccountMeta::new(mailbox_accounts.outbox, false),
-                AccountMeta::new_readonly(payer.pubkey(), true),
-            ],
-        ),
-        &payer,
-        &[&payer],
-    )
-    .await;
-
-    assert_transaction_error(
-        result,
-        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
-    )
-}
-
-#[tokio::test]
-async fn test_setting_protocol_fee_config_from_unauthorized_account_fails() {
-    let program_id = mailbox_id();
-    let (mut banks_client, payer, _, _) = setup_client().await;
-    let protocol_fee_config = test_protocol_fee_config();
-
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        protocol_fee_config.clone(),
-    )
-    .await
-    .unwrap();
-
-    let new_protocol_fee = ProtocolFee {
-        fee: MAX_PROTOCOL_FEE + 1,
-        beneficiary: Pubkey::new_unique(),
-    };
-    let unauthorized_account = new_funded_keypair(&mut banks_client, &payer, 1000000000).await;
-
-    let result = process_instruction(
-        &mut banks_client,
-        Instruction::new_with_borsh(
-            program_id,
-            &MailboxInstruction::SetProtocolFeeConfig(new_protocol_fee.clone()),
-            vec![
-                AccountMeta::new(mailbox_accounts.outbox, false),
-                AccountMeta::new_readonly(unauthorized_account.pubkey(), true),
-            ],
-        ),
-        &unauthorized_account,
-        &[&unauthorized_account],
-    )
-    .await;
-
-    assert_transaction_error(
-        result,
-        TransactionError::InstructionError(0, InstructionError::InvalidArgument),
-    )
 }
 
 #[tokio::test]
@@ -563,18 +277,10 @@ async fn test_dispatch_from_program() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
     let test_sender_receiver_program_id = test_send_receiver.id();
-    let protocol_fee_config = test_protocol_fee_config();
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        protocol_fee_config.clone(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient = H256::random();
     let message_body = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -624,12 +330,45 @@ async fn test_dispatch_from_program() {
             local_domain: LOCAL_DOMAIN,
             outbox_bump_seed: mailbox_accounts.outbox_bump_seed,
             owner: Some(payer.pubkey()),
-            tree: expected_tree.clone(),
-            max_protocol_fee: MAX_PROTOCOL_FEE,
-            protocol_fee: protocol_fee_config,
+            tree: expected_tree,
         },
     )
     .await;
+}
+
+#[tokio::test]
+async fn test_dispatch_errors_if_message_too_large() {
+    let program_id = mailbox_id();
+    let (mut banks_client, payer, _, _) = setup_client().await;
+
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
+
+    let recipient = H256::random();
+    let message_body = vec![1; 2049];
+    let outbox_dispatch = OutboxDispatch {
+        sender: payer.pubkey(),
+        destination_domain: REMOTE_DOMAIN,
+        recipient,
+        message_body,
+    };
+
+    let result = dispatch_from_payer(
+        &mut banks_client,
+        &payer,
+        &mailbox_accounts,
+        outbox_dispatch,
+    )
+    .await;
+
+    assert_transaction_error(
+        result,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(MailboxError::MaxMessageSizeExceeded as u32),
+        ),
+    );
 }
 
 #[tokio::test]
@@ -637,16 +376,9 @@ async fn test_dispatch_returns_message_id() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient = H256::random();
     let message_body = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -721,16 +453,9 @@ async fn test_get_recipient_ism_when_specified() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = test_send_receiver.id();
 
@@ -753,16 +478,9 @@ async fn test_get_recipient_ism_when_option_none_returned() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = test_send_receiver.id();
 
@@ -786,16 +504,9 @@ async fn test_get_recipient_ism_when_no_return_data() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = test_send_receiver.id();
 
@@ -823,16 +534,9 @@ async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_da
     let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = test_send_receiver.id();
 
@@ -863,16 +567,9 @@ async fn test_process_successful_verify_and_handle() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
@@ -943,16 +640,9 @@ async fn test_process_errors_if_message_already_processed() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
@@ -998,16 +688,9 @@ async fn test_process_errors_if_ism_verify_fails() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, mut test_ism) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
@@ -1048,16 +731,9 @@ async fn test_process_errors_if_recipient_handle_fails() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
@@ -1101,16 +777,9 @@ async fn test_process_errors_if_incorrect_destination_domain() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
@@ -1150,16 +819,9 @@ async fn test_process_errors_if_wrong_message_version() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
@@ -1198,16 +860,9 @@ async fn test_process_errors_if_recipient_not_a_program() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let message = HyperlaneMessage {
         version: 1,
@@ -1238,16 +893,9 @@ async fn test_process_errors_if_reentrant() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, mut test_send_receiver, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     test_send_receiver
         .set_handle_mode(HandleMode::ReenterProcess)
@@ -1303,16 +951,9 @@ async fn test_inbox_set_default_ism() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let new_default_ism = Pubkey::new_unique();
 
@@ -1355,16 +996,9 @@ async fn test_inbox_set_default_ism_errors_if_owner_not_signer() {
     let program_id = mailbox_id();
     let (mut banks_client, payer, _, _) = setup_client().await;
 
-    let mailbox_accounts = initialize_mailbox(
-        &mut banks_client,
-        &program_id,
-        &payer,
-        LOCAL_DOMAIN,
-        MAX_PROTOCOL_FEE,
-        test_protocol_fee_config(),
-    )
-    .await
-    .unwrap();
+    let mailbox_accounts = initialize_mailbox(&mut banks_client, &program_id, &payer, LOCAL_DOMAIN)
+        .await
+        .unwrap();
 
     let new_default_ism = Pubkey::new_unique();
 

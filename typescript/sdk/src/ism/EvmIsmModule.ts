@@ -23,10 +23,10 @@ import {
   Address,
   Domain,
   ProtocolType,
-  addBufferToGasLimit,
   assert,
   deepEquals,
   eqAddress,
+  normalizeConfig,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -46,7 +46,6 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
@@ -113,10 +112,6 @@ export class EvmIsmModule extends HyperlaneModule<
         staticAggregationHookFactory:
           params.addresses.staticAggregationHookFactory,
         domainRoutingIsmFactory: params.addresses.domainRoutingIsmFactory,
-        staticMerkleRootWeightedMultisigIsmFactory:
-          params.addresses.staticMerkleRootWeightedMultisigIsmFactory,
-        staticMessageIdWeightedMultisigIsmFactory:
-          params.addresses.staticMessageIdWeightedMultisigIsmFactory,
       },
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
@@ -539,14 +534,14 @@ export class EvmIsmModule extends HyperlaneModule<
       overrides,
     );
 
-    // deploying new domain routing ISM, add gas buffer
+    // deploying new domain routing ISM, add 10% buffer
     const tx = await domainRoutingIsmFactory.deploy(
       owner,
       domainIds,
       submoduleAddresses,
       {
-        gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
+        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
       },
     );
 

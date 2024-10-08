@@ -5,9 +5,8 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../libs/Message.sol";
 import {Mailbox} from "../Mailbox.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
-contract TrustedRelayerIsm is IInterchainSecurityModule, PackageVersioned {
+contract TrustedRelayerIsm is IInterchainSecurityModule {
     using Message for bytes;
 
     uint8 public immutable moduleType = uint8(Types.NULL);

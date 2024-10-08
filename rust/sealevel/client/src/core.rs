@@ -1,10 +1,7 @@
-use borsh::BorshDeserialize;
-use hyperlane_sealevel_mailbox::protocol_fee::ProtocolFee;
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
-use solana_sdk::{compute_budget, compute_budget::ComputeBudgetInstruction};
 
 use std::collections::HashMap;
 use std::{fs::File, path::Path};
@@ -15,77 +12,12 @@ use crate::{
     multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
-use crate::{DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT, ONE_SOL_IN_LAMPORTS};
 use hyperlane_core::H256;
 use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
-
-pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
-    if chain_name.eq("solanamainnet") {
-        let mut initial_instructions = ctx.initial_instructions.borrow_mut();
-        const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 50_000_000;
-        const MICRO_LAMPORT_FEE_PER_LIMIT: u64 =
-            // Convert to micro-lamports
-            (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
-        // Divide by the max compute units
-        / DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT as u64;
-
-        for i in initial_instructions.iter_mut() {
-            if i.instruction.program_id != compute_budget::id() {
-                continue;
-            }
-            if let Ok(compute_budget_instruction) =
-                ComputeBudgetInstruction::try_from_slice(&i.instruction.data)
-            {
-                if matches!(
-                    compute_budget_instruction,
-                    ComputeBudgetInstruction::SetComputeUnitPrice { .. }
-                ) {
-                    // The compute unit price has already been set, so we override it and return early
-                    i.instruction = ComputeBudgetInstruction::set_compute_unit_price(
-                        MICRO_LAMPORT_FEE_PER_LIMIT,
-                    );
-                    return;
-                }
-            }
-        }
-
-        initial_instructions.push(
-            (
-                ComputeBudgetInstruction::set_compute_unit_price(MICRO_LAMPORT_FEE_PER_LIMIT),
-                Some(format!(
-                    "Set compute unit price to {}",
-                    MICRO_LAMPORT_FEE_PER_LIMIT
-                )),
-            )
-                .into(),
-        );
-    }
-}
-
-#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
-struct ProtocolFeeConfig {
-    max_protocol_fee: u64,
-    fee: u64,
-    #[serde(with = "crate::serde::serde_option_pubkey")]
-    beneficiary: Option<Pubkey>,
-}
-
-impl Default for ProtocolFeeConfig {
-    fn default() -> Self {
-        Self {
-            max_protocol_fee: ONE_SOL_IN_LAMPORTS,
-            fee: 0,
-            beneficiary: None,
-        }
-    }
-}
 
 pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
     match cmd.cmd {
         CoreSubCmd::Deploy(core) => {
-            adjust_gas_price_if_needed(core.chain.as_str(), &mut ctx);
-
             let environments_dir =
                 create_new_directory(&core.env_args.environments_dir, &core.env_args.environment);
             let chain_dir = create_new_directory(&environments_dir, &core.chain);
@@ -97,11 +29,9 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
                 &core.built_so_dir,
                 core.use_existing_keys,
                 &key_dir,
-                core.local_domain,
             );
 
-            let mailbox_program_id =
-                deploy_mailbox(&mut ctx, &core, &key_dir, ism_program_id, core.local_domain);
+            let mailbox_program_id = deploy_mailbox(&mut ctx, &core, &key_dir, ism_program_id);
 
             let validator_announce_program_id =
                 deploy_validator_announce(&mut ctx, &core, &key_dir, mailbox_program_id);
@@ -127,7 +57,6 @@ fn deploy_mailbox(
     core: &CoreDeploy,
     key_dir: &Path,
     default_ism: Pubkey,
-    local_domain: u32,
 ) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
@@ -144,33 +73,15 @@ fn deploy_mailbox(
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-        local_domain,
     );
 
     println!("Deployed Mailbox at program ID {}", program_id);
-
-    let protocol_fee_config = core
-        .protocol_fee_config_file
-        .as_deref()
-        .map(|p| {
-            let file = File::open(p).expect("Failed to open oracle config file");
-            serde_json::from_reader::<_, ProtocolFeeConfig>(file)
-                .expect("Failed to parse oracle config file")
-        })
-        .unwrap_or_default();
-
-    let protocol_fee_beneficiary = protocol_fee_config.beneficiary.unwrap_or(ctx.payer_pubkey);
 
     // Initialize
     let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
         program_id,
         core.local_domain,
         default_ism,
-        protocol_fee_config.max_protocol_fee,
-        ProtocolFee {
-            fee: protocol_fee_config.fee,
-            beneficiary: protocol_fee_beneficiary,
-        },
         ctx.payer_pubkey,
     )
     .unwrap();
@@ -203,7 +114,6 @@ fn deploy_validator_announce(
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-        core.local_domain,
     );
 
     println!("Deployed ValidatorAnnounce at program ID {}", program_id);
@@ -289,7 +199,6 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-        core.local_domain,
     );
 
     println!("Deployed IGP at program ID {}", program_id);
@@ -417,26 +326,4 @@ pub(crate) fn read_core_program_ids(
         .join("core")
         .join("program-ids.json");
     read_json(&path)
-}
-
-#[cfg(test)]
-mod test {
-    use solana_program::pubkey::Pubkey;
-
-    #[test]
-    fn test_protocol_fee_serialization() {
-        let protocol_fee_config = super::ProtocolFeeConfig {
-            max_protocol_fee: 100,
-            fee: 10,
-            beneficiary: Some(Pubkey::new_unique()),
-        };
-        let json_serialized = serde_json::to_string(&protocol_fee_config).unwrap();
-        assert_eq!(
-            json_serialized,
-            r#"{"maxProtocolFee":100,"fee":10,"beneficiary":"1111111QLbz7JHiBTspS962RLKV8GndWFwiEaqKM"}"#
-        );
-        let deserialized: super::ProtocolFeeConfig =
-            serde_json::from_str(&json_serialized).unwrap();
-        assert_eq!(deserialized, protocol_fee_config);
-    }
 }
