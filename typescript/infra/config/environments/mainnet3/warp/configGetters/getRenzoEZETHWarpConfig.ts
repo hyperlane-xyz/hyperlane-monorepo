@@ -21,6 +21,7 @@ const chainsToDeploy = [
   'fraxtal',
   'zircuit',
   'sei',
+  'taiko',
 ];
 const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
@@ -37,6 +38,7 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   ethereum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   fraxtal: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   zircuit: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  taiko: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   sei: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // redEth
 };
 
@@ -111,6 +113,13 @@ export const ezEthValidators = {
       '0x7ac6584c068eb2a72d4db82a7b7cd5ab34044061', // luganodes
     ],
   },
+  taiko: {
+    threshold: 1,
+    validators: [
+      '0x2f007c82672f2bb97227d4e3f80ac481bfb40a2a', // luganodes
+      '0xd4F6000d8e1108bd4998215d51d5dF559BdB43a1', // Renzo
+    ],
+  },
   sei: {
     threshold: 1,
     validators: [
@@ -131,6 +140,7 @@ export const ezEthSafes: Record<string, string> = {
   ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
   fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
 };
 
