@@ -126,7 +126,7 @@ export async function runCoreApply(params: ApplyParams) {
   if (transactions.length) {
     logGray('Updating deployed core contracts');
     for (const transaction of transactions) {
-      await multiProvider.sendTransaction(chain, transaction);
+      await multiProvider.sendTransaction(transaction);
     }
 
     logGreen(`Core config updated on ${chain}.`);

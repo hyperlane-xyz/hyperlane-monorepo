@@ -21,7 +21,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
-  Domain,
+  EvmChainId,
   ProtocolType,
   addBufferToGasLimit,
   assert,
@@ -45,7 +45,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrDomain } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
@@ -79,9 +79,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
   // Adding these to reduce how often we need to grab from MultiProvider.
   public readonly chain: ChainName;
-  // We use domainId here because MultiProvider.getDomainId() will always
-  // return a number, and EVM the domainId and chainId are the same.
-  public readonly domainId: Domain;
+  public readonly chainId: EvmChainId;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -123,7 +121,7 @@ export class EvmIsmModule extends HyperlaneModule<
     );
 
     this.chain = this.multiProvider.getChainName(this.args.chain);
-    this.domainId = this.multiProvider.getDomainId(this.chain);
+    this.chainId = this.multiProvider.getEvmChainId(this.chain);
   }
 
   public async read(): Promise<IsmConfig> {
@@ -222,7 +220,7 @@ export class EvmIsmModule extends HyperlaneModule<
       updateTxs.push({
         chain: this.chain,
         annotation: 'Transferring ownership of ownable ISM...',
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedIsm,
         data: Ownable__factory.createInterface().encodeFunctionData(
           'transferOwnership(address)',
@@ -243,7 +241,7 @@ export class EvmIsmModule extends HyperlaneModule<
     multiProvider,
     contractVerifier,
   }: {
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
     config: IsmConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     mailbox: Address;
@@ -314,7 +312,7 @@ export class EvmIsmModule extends HyperlaneModule<
       updateTxs.push({
         chain: this.chain,
         annotation: `Setting new ISM for origin ${origin}...`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedIsm,
         data: routingIsmInterface.encodeFunctionData('set(uint32,address)', [
           domainId,
@@ -329,7 +327,7 @@ export class EvmIsmModule extends HyperlaneModule<
       updateTxs.push({
         chain: this.chain,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedIsm,
         data: routingIsmInterface.encodeFunctionData('remove(uint32)', [
           domainId,

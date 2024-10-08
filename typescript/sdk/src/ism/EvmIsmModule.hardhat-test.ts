@@ -186,7 +186,7 @@ describe('EvmIsmModule', async () => {
     expect(txs.length).to.equal(n);
 
     for (const tx of txs) {
-      await multiProvider.sendTransaction(chain, tx);
+      await multiProvider.sendTransaction(tx);
     }
   }
 

@@ -623,9 +623,9 @@ class ContextFunder {
 
     if (igpBalance.gt(igpClaimThreshold)) {
       logger.info({ chain }, 'IGP balance exceeds claim threshold, claiming');
-      await this.multiProvider.sendTransaction(chain, {
-        ...(await igp.populateTransaction.claim()),
+      await this.multiProvider.sendTransaction({
         chain,
+        ...(await igp.populateTransaction.claim()),
       });
     } else {
       logger.info(
@@ -719,7 +719,7 @@ class ContextFunder {
       );
     }
 
-    const tx = await this.multiProvider.sendTransaction(chain, {
+    const tx = await this.multiProvider.sendTransaction({
       chain,
       to: key.address,
       value: fundingAmount,
@@ -784,8 +784,8 @@ class ContextFunder {
   ) {
     const l1Chain = L2ToL1[l2Chain];
     const crossChainMessenger = new CrossChainMessenger({
-      l1ChainId: this.multiProvider.getDomainId(l1Chain),
-      l2ChainId: this.multiProvider.getDomainId(l2Chain),
+      l1ChainId: this.multiProvider.getEvmChainId(l1Chain),
+      l2ChainId: this.multiProvider.getEvmChainId(l2Chain),
       l1SignerOrProvider: this.multiProvider.getSignerOrProvider(l1Chain),
       l2SignerOrProvider: this.multiProvider.getSignerOrProvider(l2Chain),
     });

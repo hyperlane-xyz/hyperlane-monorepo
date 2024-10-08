@@ -8,7 +8,7 @@ import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ProxiedRouterConfig } from '../router/types.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainNameOrDomain } from '../types.js';
 
 import {
   HyperlaneModule,
@@ -58,7 +58,7 @@ export class EvmIcaModule extends HyperlaneModule<
     multiProvider,
     contractVerifier,
   }: {
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
     config: InterchainAccountConfig;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;

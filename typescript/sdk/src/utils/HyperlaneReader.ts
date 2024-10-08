@@ -3,14 +3,14 @@ import { LevelWithSilentOrString } from 'pino';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { HyperlaneSmartProvider } from '../providers/SmartProvider/SmartProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainNameOrDomain } from '../types.js';
 
 export class HyperlaneReader {
   provider: providers.Provider;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly chain: ChainNameOrId,
+    protected readonly chain: ChainNameOrDomain,
   ) {
     this.provider = this.multiProvider.getProvider(chain);
   }

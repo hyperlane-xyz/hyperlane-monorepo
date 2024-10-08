@@ -36,7 +36,7 @@ describe('EvmCoreModule', async () => {
   let timelockControllerContract: any;
   async function sendTxs(txs: AnnotatedEV5Transaction[]) {
     for (const tx of txs) {
-      await multiProvider.sendTransaction(CHAIN, tx);
+      await multiProvider.sendTransaction(tx);
     }
   }
   before(async () => {
@@ -130,7 +130,7 @@ describe('EvmCoreModule', async () => {
 
       // Check that it's actually a mailbox by calling one of it's methods
       expect(await mailboxContract.localDomain()).to.equal(
-        multiProvider.getChainId(CHAIN),
+        multiProvider.getDomainId(CHAIN),
       );
     });
 

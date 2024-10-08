@@ -433,7 +433,7 @@ async function sendMessage(
     let txReceipt: TypedTransactionReceipt;
     if (tx.type == ProviderType.EthersV5) {
       // Utilize the legacy evm-specific multiprovider utils to send the transaction
-      const receipt = await multiProvider.sendTransaction(origin, {
+      const receipt = await multiProvider.sendTransaction({
         chain: origin,
         ...tx.transaction,
       });

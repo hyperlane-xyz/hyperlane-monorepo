@@ -1,4 +1,4 @@
-import { Contract, ethers } from 'ethers';
+import { Contract, PopulatedTransaction, ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -34,7 +34,6 @@ import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { MailboxClientConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
@@ -261,7 +260,7 @@ export abstract class HyperlaneDeployer<
     contract: C,
     config: IsmConfig,
     getIsm: (contract: C) => Promise<Address>,
-    setIsm: (contract: C, ism: Address) => Promise<AnnotatedEV5Transaction>,
+    setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredIsm = await getIsm(contract);
     let matches = false;
@@ -292,10 +291,10 @@ export abstract class HyperlaneDeployer<
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
-        await this.multiProvider.sendTransaction(
+        await this.multiProvider.sendTransaction({
           chain,
-          setIsm(contract, targetIsm),
-        );
+          ...setIsm(contract, targetIsm),
+        });
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
@@ -308,7 +307,7 @@ export abstract class HyperlaneDeployer<
     contract: C,
     config: HookConfig,
     getHook: (contract: C) => Promise<Address>,
-    setHook: (contract: C, hook: Address) => Promise<AnnotatedEV5Transaction>,
+    setHook: (contract: C, hook: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     if (typeof config !== 'string') {
       throw new Error('Legacy deployer does not support hook objects');
@@ -320,10 +319,10 @@ export abstract class HyperlaneDeployer<
         this.logger.debug(
           `Set hook on ${chain} to ${config}, currently is ${configuredHook}`,
         );
-        await this.multiProvider.sendTransaction(
+        await this.multiProvider.sendTransaction({
           chain,
-          setHook(contract, config),
-        );
+          ...setHook(contract, config),
+        });
         const actualHook = await getHook(contract);
         if (!eqAddress(config, actualHook)) {
           throw new Error(

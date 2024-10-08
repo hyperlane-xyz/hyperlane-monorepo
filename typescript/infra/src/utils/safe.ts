@@ -9,7 +9,7 @@ import chalk from 'chalk';
 import { ethers } from 'ethers';
 
 import {
-  ChainNameOrId,
+  ChainNameOrDomain,
   MultiProvider,
   getSafe,
   getSafeService,
@@ -17,7 +17,7 @@ import {
 import { Address, CallData } from '@hyperlane-xyz/utils';
 
 export async function getSafeAndService(
-  chain: ChainNameOrId,
+  chain: ChainNameOrDomain,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
@@ -54,7 +54,7 @@ export async function createSafeTransaction(
 }
 
 export async function proposeSafeTransaction(
-  chain: ChainNameOrId,
+  chain: ChainNameOrDomain,
   safeSdk: Safe.default,
   safeService: SafeApiKit.default,
   safeTransaction: SafeTransaction,
@@ -79,7 +79,7 @@ export async function proposeSafeTransaction(
 }
 
 export async function deleteAllPendingSafeTxs(
-  chain: ChainNameOrId,
+  chain: ChainNameOrDomain,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<void> {
@@ -113,13 +113,13 @@ export async function deleteAllPendingSafeTxs(
 }
 
 export async function deleteSafeTx(
-  chain: ChainNameOrId,
+  chain: ChainNameOrDomain,
   multiProvider: MultiProvider,
   safeAddress: Address,
   safeTxHash: string,
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
-  const domainId = multiProvider.getDomainId(chain);
+  const chainId = multiProvider.getChainId(chain);
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
@@ -176,7 +176,7 @@ export async function deleteSafeTx(
       domain: {
         name: 'Safe Transaction Service',
         version: '1.0',
-        chainId: domainId,
+        chainId,
         verifyingContract: safeAddress,
       },
       primaryType: 'DeleteRequest',

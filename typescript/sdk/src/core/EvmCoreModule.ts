@@ -2,6 +2,7 @@ import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
+  EvmChainId,
   ProtocolType,
   eqAddress,
   rootLogger,
@@ -31,7 +32,7 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainNameOrDomain } from '../types.js';
 
 import {
   HyperlaneModule,
@@ -52,9 +53,8 @@ export class EvmCoreModule extends HyperlaneModule<
   protected coreReader: EvmCoreReader;
   public readonly chainName: string;
 
-  // We use domainId here because MultiProvider.getDomainId() will always
-  // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
+  public readonly chainId: EvmChainId;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -63,7 +63,8 @@ export class EvmCoreModule extends HyperlaneModule<
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
     this.chainName = this.multiProvider.getChainName(this.args.chain);
-    this.domainId = multiProvider.getDomainId(args.chain);
+    this.domainId = this.multiProvider.getDomainId(this.args.chain);
+    this.chainId = this.multiProvider.getEvmChainId(this.args.chain);
   }
 
   /**
@@ -133,7 +134,7 @@ export class EvmCoreModule extends HyperlaneModule<
       );
       updateTransactions.push({
         annotation: `Setting default ISM for Mailbox ${mailbox} to ${deployedIsm}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData('setDefaultIsm', [
           deployedIsm,
@@ -207,7 +208,7 @@ export class EvmCoreModule extends HyperlaneModule<
       actualOwner: actualConfig.owner,
       expectedOwner: expectedConfig.owner,
       deployedAddress: this.args.addresses.mailbox,
-      chainId: this.domainId,
+      chainId: this.chainId,
       chain: this.chainName,
     });
   }
@@ -218,7 +219,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns The created EvmCoreModule instance.
    */
   public static async create(params: {
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
     config: CoreConfig;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
@@ -248,7 +249,7 @@ export class EvmCoreModule extends HyperlaneModule<
   static async deploy(params: {
     config: CoreConfig;
     multiProvider: MultiProvider;
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
     contractVerifier?: ContractVerifier;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, contractVerifier } = params;
@@ -381,7 +382,7 @@ export class EvmCoreModule extends HyperlaneModule<
     proxyAdmin: Address;
     coreDeployer: HyperlaneCoreDeployer;
     multiProvider: MultiProvider;
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
   }): Promise<Mailbox> {
     const {
       config,
