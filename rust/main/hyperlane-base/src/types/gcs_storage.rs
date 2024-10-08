@@ -233,8 +233,8 @@ impl CheckpointSyncer for GcsStorageClient {
 
     /// Write the signed announcement to this syncer
     async fn write_announcement(&self, announcement: &SignedAnnouncement) -> Result<()> {
-        let object_name = self.object_path("announcement.json");
-        let data = serde_json::to_vec(announcement)?;
+        let object_name = self.object_path(ANNOUNCEMENT_KEY);
+        let data = serde_json::to_string(announcement)?;
 
         match self.inner.insert_object(&self.bucket, &object_name, data).await {
             Ok(_) => {
