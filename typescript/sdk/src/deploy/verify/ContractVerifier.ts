@@ -2,7 +2,11 @@ import fetch from 'cross-fetch';
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
+import {
+  //  ProtocolType,
+  rootLogger,
+  sleep, // strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -10,11 +14,12 @@ import { ChainMap, ChainName } from '../../types.js';
 
 import {
   BuildArtifact,
-  CompilerOptions,
+  CompilerOptions, // CompilerOptions,
   ContractVerificationInput,
   EXPLORER_GET_ACTIONS,
   ExplorerApiActions,
   ExplorerApiErrors,
+  ExplorerLicenseType,
   FormOptions,
   SolidityStandardJsonInput,
 } from './types.js';
@@ -25,18 +30,24 @@ export class ContractVerifier {
   protected contractSourceMap: { [contractName: string]: string } = {};
 
   protected readonly standardInputJson: SolidityStandardJsonInput;
-  protected readonly compilerOptions: CompilerOptions;
+  protected readonly compilerOptions: {
+    codeformat: 'solidity-standard-json-input';
+    licenseType?: ExplorerLicenseType;
+    compilerSolcVersion: string;
+    compilerZksolcVersion: string;
+    compilerversion: string;
+  };
 
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly apiKeys: ChainMap<string>,
-    buildArtifact: BuildArtifact,
+    buildArtifact: any,
     licenseType: CompilerOptions['licenseType'],
   ) {
     this.standardInputJson = buildArtifact.input;
 
-    const compilerversion = `v${buildArtifact.solcLongVersion}`;
-
+    const compilerSolcVersion = buildArtifact.solcLongVersion;
+    const compilerZksolcVersion = buildArtifact.zk_version;
     // TODO: make it compatible with ZKSync compiler
     // double check compiler version matches expected format
     // const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
@@ -49,14 +60,16 @@ export class ContractVerifier {
     // only license type is configurable, empty if not provided
     this.compilerOptions = {
       codeformat: 'solidity-standard-json-input',
-      compilerversion,
+      compilerSolcVersion,
+      compilerZksolcVersion,
+      compilerversion: '0.8.19',
       licenseType,
     };
 
     // process input to create mapping of contract names to source names
     // this is required to construct the fully qualified contract name
     const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
-    Object.entries(buildArtifact.input.sources).forEach(
+    Object.entries((buildArtifact as BuildArtifact).input.sources).forEach(
       ([sourceName, { content }]) => {
         const matches = content.matchAll(contractRegex);
         for (const match of matches) {
@@ -81,6 +94,7 @@ export class ContractVerifier {
     });
 
     const metadata = this.multiProvider.tryGetChainMetadata(chain);
+
     const rpcUrl = metadata?.rpcUrls[0].http ?? '';
     if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
       verificationLogger.debug('Skipping verification for local endpoints');
@@ -125,15 +139,10 @@ export class ContractVerifier {
       family,
       apiKey = this.apiKeys[chain],
     } = this.multiProvider.getExplorerApi(chain);
-    const params = new URLSearchParams();
-
-    params.set('module', 'contract');
-    params.set('action', action);
-    if (apiKey) params.set('apikey', apiKey);
-
-    for (const [key, value] of Object.entries(options ?? {})) {
-      params.set(key, value);
-    }
+    const params: Record<string, any> = { ...options };
+    if (apiKey) return;
+    params['module'] = 'contract';
+    params['action'] = action;
 
     let timeout: number = 1000;
     const url = new URL(apiUrl);
@@ -152,6 +161,13 @@ export class ContractVerifier {
       case ExplorerFamily.Routescan:
         timeout = 500;
         break;
+      case ExplorerFamily.zksync:
+        params['module'] = 'contract';
+        params['optimizationUsed'] = '1';
+        params['runs'] = 999_999;
+        params['zkCompilerVersion'] = 'v1.5.3';
+        timeout = 8000;
+        break;
       case ExplorerFamily.Other:
       default:
         throw new Error(
@@ -169,12 +185,14 @@ export class ContractVerifier {
         method: 'GET',
       });
     } else {
-      const init: RequestInit = {
+      const init = {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: { 'Content-Type': 'application/json' },
         body: params,
       };
-      response = await fetch(url.toString(), init);
+      response = await fetch(url.toString(), JSON.parse(JSON.stringify(init)));
+      const text = await response.text();
+      console.log({ text });
     }
     let responseJson;
     try {
@@ -349,6 +367,7 @@ export class ContractVerifier {
     verificationLogger: Logger,
   ) {
     const sourceName = this.contractSourceMap[input.name];
+
     if (!sourceName) {
       const errorMessage = `Contract '${input.name}' not found in provided build artifact`;
       verificationLogger.error(errorMessage);
@@ -363,11 +382,12 @@ export class ContractVerifier {
       );
 
     return {
-      sourceCode: JSON.stringify(filteredStandardInputJson),
+      sourceCode: filteredStandardInputJson,
       contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
       /* TYPO IS ENFORCED BY API */
-      constructorArguements: strip0x(input.constructorArguments ?? ''),
+      // constructorArguements: strip0x(input.constructorArguments ?? ''),
+      // constructorArguments: strip0x(input.constructorArguments ?? ''),
       ...this.compilerOptions,
     };
   }

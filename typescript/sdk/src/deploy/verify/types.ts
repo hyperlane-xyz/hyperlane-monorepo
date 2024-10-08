@@ -49,8 +49,10 @@ export enum ExplorerLicenseType {
 
 export type CompilerOptions = {
   codeformat: 'solidity-standard-json-input';
-  compilerversion: string; // see https://etherscan.io/solcversions for list of support versions
+  compilerversion?: string; // see https://etherscan.io/solcversions for list of support versions
   licenseType?: ExplorerLicenseType;
+  compilerSolcVersion?: string;
+  compilerZksolcVersion?: string;
 };
 
 export enum ExplorerApiActions {
@@ -86,7 +88,7 @@ export type FormOptions<Action extends ExplorerApiActions> =
     : Action extends ExplorerApiActions.VERIFY_IMPLEMENTATION
     ? CompilerOptions & {
         contractaddress: string;
-        sourceCode: string;
+        sourceCode: any;
         contractname: string;
         /* TYPO IS ENFORCED BY API */
         constructorArguements?: string;

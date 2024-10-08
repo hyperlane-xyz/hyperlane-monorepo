@@ -12,7 +12,7 @@ import {
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { TimelockController__artifact } from '@hyperlane-xyz/core/artifacts';
-import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
 import {
   Address,
   ProtocolType,
@@ -96,7 +96,7 @@ export abstract class HyperlaneDeployer<
         multiProvider,
       );
     }
-
+    console.log({ coreBuildArtifact });
     // if none provided, instantiate a default verifier with the default core contract build artifact
     this.options.contractVerifier ??= new ContractVerifier(
       multiProvider,

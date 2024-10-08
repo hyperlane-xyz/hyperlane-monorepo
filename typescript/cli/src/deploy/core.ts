@@ -1,6 +1,6 @@
 import { stringify as yamlStringify } from 'yaml';
 
-import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
 import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,

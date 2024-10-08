@@ -47,6 +47,7 @@
     ".": "./dist/index.js",
     "./mailbox": "./dist/contracts/Mailbox.js",
     "./buildArtifact.js": "./dist/buildArtifact.js",
+    "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
     "./buildArtifact.json": "./dist/buildArtifact.json",
     "./contracts": "./contracts",
     "./artifacts": "./dist/zksync/artifacts/index.js",
