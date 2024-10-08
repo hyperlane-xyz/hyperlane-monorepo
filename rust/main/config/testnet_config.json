@@ -833,6 +833,66 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x63dFf524F1c7361f4F1bf07D658Bf7f2d5Dd5B20",
       "gasCurrencyCoinGeckoId": "ethereum"
     },
+    "zksyncsepolia": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://block-explorer-api.sepolia.zksync.dev/api",
+          "family": "etherscan",
+          "name": "Etherscan",
+          "url": "https://sepolia.explorer.zksync.io/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 13,
+        "reorgPeriod": 2
+      },
+      "chainId": 300,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Sepolia",
+      "domainId": 300,
+      "index": {
+        "from": 3861500
+      },
+      "isTestnet": true,
+      "name": "sepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "domainRoutingIsmFactory": "0x3F546D1A90eEf20B8E39397242aAa1F9cb254C16",
+      "interchainAccountIsm": "0x464e02f22C859Bf101cC5A0c56BC714ed16862cb",
+      "interchainAccountRouter": "0x5983251A08E6757675EB35D10Ca0Ae3431691754",
+      "mailbox": "0x9a2C2eEFaD9e7D547f504C869370ac3801ec28cC",
+      "proxyAdmin": "0x9C1A6BaC2100C11dac24343111eFa246A4275051",
+      "staticAggregationHookFactory": "0x54A9819e505Cd836E7c8c07ebAB233436BE40C51",
+      "staticAggregationIsmFactory": "0x5BfA1671D29107c1FA73804AE249DAfaF308A4dc",
+      "staticMerkleRootMultisigIsmFactory": "0xF5b52AD451350bd50d4Cb3328ECd5DBCA3493FCe",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x2D02ed060D7Eb0Db0205f4086e77954A9D7777B9",
+      "staticMessageIdMultisigIsmFactory": "0xF070E8fAa5b1679783325330Aa835dFd253d2A3b",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x9f1A68e50Bb316d083ca15593C287782FdEdfE0B",
+      "testRecipient": "0xcb73F64958dB65450Fa23c54dAe44f68d9c3fF54",
+      "validatorAnnounce": "0x7F751A29b2f6C699d83AcD786Df8BAAbb8251abA",
+      "merkleTreeHook": "0xcD60F38921967cbEA5255e8c0fAc98DF607C3FA2",
+      "rpcUrls": [
+        {
+          "http": "https://sepolia.era.zksync.dev"
+        },
+        {
+          "http": "https://zksync-sepolia.drpc.org"
+        },
+        {
+          "http": "https://zksync-era-sepolia.blockpi.network/v1/rpc/public"
+        }
+      ],
+      "gasCurrencyCoinGeckoId": "ethereum"
+    },
     "sepolia": {
       "aggregationHook": "0xe3147d5618f5e2e100690B50ec923009a4cde14A",
       "blockExplorers": [
