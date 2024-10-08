@@ -1,5 +1,45 @@
 # @hyperlane-xyz/core
 
+## 5.4.0
+
+### Minor Changes
+
+- bb75eba74: fix: constrain rate limited ISM to a single message recipient
+- c5c217f8e: Embed NPM package version in bytecode constant
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+
+## 5.3.0
+
+### Patch Changes
+
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/utils@5.3.0
+
+## 5.2.1
+
+### Patch Changes
+
+- eb5afcf3e: Patch `HypNative` with hook overrides `transferRemote` behavior
+  - @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- 203084df2: Added sdk support for Stake weighted ISM
+- 445b6222c: ArbL2ToL1Ism handles value via the executeTransaction branch
+
+### Patch Changes
+
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [291c5fe36]
+  - @hyperlane-xyz/utils@5.2.0
+
 ## 5.1.0
 
 ### Minor Changes

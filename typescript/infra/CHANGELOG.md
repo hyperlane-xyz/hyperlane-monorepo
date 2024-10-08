@@ -1,5 +1,71 @@
 # @hyperlane-xyz/infra
 
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+  - @hyperlane-xyz/sdk@5.4.0
+  - @hyperlane-xyz/helloworld@5.4.0
+
+## 5.3.0
+
+### Patch Changes
+
+- Updated dependencies [eb47aaee8]
+- Updated dependencies [50319d8ba]
+- Updated dependencies [35d4503b9]
+- Updated dependencies [8de531fa4]
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [fd536a79a]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/sdk@5.3.0
+  - @hyperlane-xyz/helloworld@5.3.0
+  - @hyperlane-xyz/utils@5.3.0
+
+## 5.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@5.2.1
+- @hyperlane-xyz/sdk@5.2.1
+- @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- 203084df2: Added sdk support for Stake weighted ISM
+
+### Patch Changes
+
+- 5a0d68bdc: replace import console module with direct console
+- Updated dependencies [a19e882fd]
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [518a1bef9]
+- Updated dependencies [203084df2]
+- Updated dependencies [74a592e58]
+- Updated dependencies [739af9a34]
+- Updated dependencies [44588c31d]
+- Updated dependencies [2bd540e0f]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [69f17d99a]
+- Updated dependencies [3ad5918da]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [9563a8beb]
+- Updated dependencies [73c232b3a]
+- Updated dependencies [445b6222c]
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [2e6176f67]
+- Updated dependencies [f2783c03b]
+- Updated dependencies [2ffb78f5c]
+- Updated dependencies [3c07ded5b]
+- Updated dependencies [815542dd7]
+  - @hyperlane-xyz/sdk@5.2.0
+  - @hyperlane-xyz/utils@5.2.0
+  - @hyperlane-xyz/helloworld@5.2.0
+
 ## 5.1.0
 
 ### Minor Changes

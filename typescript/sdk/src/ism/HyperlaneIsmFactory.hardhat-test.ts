@@ -6,9 +6,10 @@ import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
 import { Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
-import { TestCoreApp } from '../core/TestCoreApp.js';
+import { HyperlaneContractsMap } from '../contracts/types.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
+import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { randomAddress } from '../test/testUtils.js';
 
@@ -132,29 +133,42 @@ export const randomIsmConfig = (
 };
 
 describe('HyperlaneIsmFactory', async () => {
-  let ismFactory: HyperlaneIsmFactory;
-  let coreApp: TestCoreApp;
-  let multiProvider: MultiProvider;
   let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
+  let ismFactory: HyperlaneIsmFactory;
+  let multiProvider: MultiProvider;
   let exampleRoutingConfig: RoutingIsmConfig;
-  let mailboxAddress: Address, newMailboxAddress: Address;
+  let mailboxAddress: Address;
+  let newMailboxAddress: Address;
+  let contractsMap: HyperlaneContractsMap<ProxyFactoryFactories> = {};
+
   const chain = TestChainName.test1;
+
+  before(async () => {
+    const [signer] = await hre.ethers.getSigners();
+    multiProvider = MultiProvider.createTestMultiProvider({ signer });
+
+    ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    contractsMap = await ismFactoryDeployer.deploy(
+      multiProvider.mapKnownChains(() => ({})),
+    );
+    ismFactory = new HyperlaneIsmFactory(contractsMap, multiProvider);
+
+    mailboxAddress = (
+      await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
+    ).getContracts(chain).mailbox.address;
+
+    newMailboxAddress = (
+      await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
+    ).getContracts(chain).mailbox.address;
+  });
 
   beforeEach(async () => {
     const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-    ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    ismFactory = new HyperlaneIsmFactory(
-      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
-      multiProvider,
-    );
-    let coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
-    coreApp = await coreDeployer.deployApp();
-    mailboxAddress = coreApp.getContracts(chain).mailbox.address;
 
-    coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
-    coreApp = await coreDeployer.deployApp();
-    newMailboxAddress = coreApp.getContracts(chain).mailbox.address;
+    ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
+    ismFactory = new HyperlaneIsmFactory(contractsMap, multiProvider);
+    ismFactory.setDeployer(new TestCoreDeployer(multiProvider, ismFactory));
 
     exampleRoutingConfig = {
       type: IsmType.ROUTING,

@@ -15,6 +15,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   Address,
   ProtocolType,
+  addBufferToGasLimit,
   eqAddress,
   isZeroishAddress,
   rootLogger,
@@ -72,10 +73,9 @@ export abstract class HyperlaneDeployer<
   public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
   public cachedAddresses: HyperlaneAddressesMap<any> = {};
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
-  public startingBlockNumbers: ChainMap<number | undefined> = {};
 
   protected logger: Logger;
-  protected chainTimeoutMs: number;
+  chainTimeoutMs: number;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -137,40 +137,41 @@ export abstract class HyperlaneDeployer<
 
     this.logger.debug(`Start deploy to ${targetChains}`);
 
-    const deployPromises = [];
-    for (const chain of targetChains) {
+    const failedChains: ChainName[] = [];
+    const deployChain = async (chain: ChainName) => {
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
       );
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger.info(`Deploying to ${chain} from ${fromString}`);
-      this.startingBlockNumbers[chain] = await this.multiProvider
-        .getProvider(chain)
-        .getBlockNumber();
 
-      const deployPromise = runWithTimeout(this.chainTimeoutMs, async () => {
+      return runWithTimeout(this.chainTimeoutMs, async () => {
         const contracts = await this.deployContracts(chain, configMap[chain]);
         this.addDeployedContracts(chain, contracts);
-        this.logger.info(`Successfully deployed contracts on ${chain}`);
-      });
-      if (this.options.concurrentDeploy) {
-        deployPromises.push(deployPromise);
-      } else {
-        await deployPromise;
+      })
+        .then(() => {
+          this.logger.info(`Successfully deployed contracts on ${chain}`);
+        })
+        .catch((error) => {
+          failedChains.push(chain);
+          this.logger.error(`Deployment failed on ${chain}. Error: ${error}`);
+          throw error;
+        });
+    };
+
+    if (this.options.concurrentDeploy) {
+      await Promise.allSettled(targetChains.map(deployChain));
+    } else {
+      for (const chain of targetChains) {
+        await deployChain(chain);
       }
     }
 
-    // Await all deploy promises. If concurrent deploy is not enabled, this will be a no-op.
-    const deployResults = await Promise.allSettled(deployPromises);
-    for (const [i, result] of deployResults.entries()) {
-      if (result.status === 'rejected') {
-        this.logger.error(
-          { chain: targetChains[i], error: result.reason },
-          'Deployment failed',
-        );
-        throw result.reason;
-      }
+    if (failedChains.length > 0) {
+      throw new Error(
+        `Deployment failed on chains: ${failedChains.join(', ')}`,
+      );
     }
 
     return this.deployedContracts;
@@ -415,8 +416,18 @@ export abstract class HyperlaneDeployer<
         this.logger.debug(
           `Initializing ${contractName} (${contract.address}) on ${chain}...`,
         );
+
+        // Estimate gas for the initialize transaction
+        const estimatedGas = await contract.estimateGas.initialize(
+          ...initializeArgs,
+        );
+
+        // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
-        const initTx = await contract.initialize(...initializeArgs, overrides);
+        const initTx = await contract.initialize(...initializeArgs, {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        });
         const receipt = await this.multiProvider.handleTx(chain, initTx);
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,

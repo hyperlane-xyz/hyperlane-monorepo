@@ -10,7 +10,7 @@ async function main() {
     context,
     environment,
     asDeployer,
-    chain,
+    chains,
     fork,
     govern,
     warpRouteId,
@@ -22,30 +22,25 @@ async function main() {
     environment,
     asDeployer,
     warpRouteId,
-    chain,
+    chains,
     fork,
     govern,
   );
 
   if (fork) {
-    await governor.checker.checkChain(fork);
+    await governor.checkChain(fork);
     if (govern) {
       await governor.govern(false, fork);
     }
-  } else if (chain) {
-    await governor.checker.checkChain(chain);
-    if (govern) {
-      await governor.govern(true, chain);
-    }
   } else {
-    await governor.checker.check();
+    await governor.check(chains);
     if (govern) {
       await governor.govern();
     }
   }
 
   if (!govern) {
-    const violations = governor.checker.violations;
+    const violations = governor.getCheckerViolations();
     if (violations.length > 0) {
       logViolations(violations);
 

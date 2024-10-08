@@ -22,10 +22,12 @@ import { eqAddress, objFilter } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
+import { getWarpAddresses } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
+import { HyperlaneHaasGovernor } from '../../src/govern/HyperlaneHaasGovernor.js';
 import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../../src/govern/ProxiedRouterGovernor.js';
 import { Role } from '../../src/roles.js';
@@ -34,9 +36,8 @@ import { logViolationDetails } from '../../src/utils/violation.js';
 import {
   Modules,
   getArgs as getRootArgs,
-  getWarpAddresses,
   withAsDeployer,
-  withChain,
+  withChains,
   withContext,
   withFork,
   withGovern,
@@ -49,7 +50,7 @@ import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
   return withAsDeployer(
-    withGovern(withChain(withFork(withContext(getRootArgs())))),
+    withGovern(withChains(withFork(withContext(getRootArgs())))),
   );
 }
 
@@ -67,7 +68,7 @@ export async function getGovernor(
   environment: DeployEnvironment,
   asDeployer: boolean,
   warpRouteId?: string,
-  chain?: string,
+  chains?: string[],
   fork?: string,
   govern?: boolean,
 ) {
@@ -106,7 +107,7 @@ export async function getGovernor(
 
   const icaChainAddresses = objFilter(
     chainAddresses,
-    (chain, addresses): addresses is Record<string, string> =>
+    (chain, _): _ is Record<string, string> =>
       !!chainAddresses[chain]?.interchainAccountRouter,
   );
   const ica = InterchainAccount.fromAddressesMap(
@@ -137,6 +138,23 @@ export async function getGovernor(
       ),
     );
     governor = new ProxiedRouterGovernor(checker);
+  } else if (module === Modules.HAAS) {
+    const icaChecker = new InterchainAccountChecker(
+      multiProvider,
+      ica,
+      objFilter(
+        routerConfig,
+        (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
+      ),
+    );
+    const coreChecker = new HyperlaneCoreChecker(
+      multiProvider,
+      core,
+      envConfig.core,
+      ismFactory,
+      chainAddresses,
+    );
+    governor = new HyperlaneHaasGovernor(ica, icaChecker, coreChecker);
   } else if (module === Modules.INTERCHAIN_QUERY_SYSTEM) {
     const iqs = InterchainQuery.fromAddressesMap(chainAddresses, multiProvider);
     const checker = new InterchainQueryChecker(
@@ -199,20 +217,24 @@ export async function getGovernor(
         multiProvider,
       );
 
-    // log error and return if foreign deployment chain is specifically checked
-    if (
-      (chain && foreignDeployments[chain]) ||
-      (fork && foreignDeployments[fork])
-    ) {
+    // log error and return if requesting check on foreign deployment
+    const nonEvmChains = chains
+      ? chains.filter((c) => foreignDeployments[c])
+      : fork && foreignDeployments[fork]
+      ? [fork]
+      : [];
+
+    if (nonEvmChains.length > 0) {
+      const chainList = nonEvmChains.join(', ');
       console.log(
-        `${
-          chain ?? fork
-        } is non evm and it not compatible with warp checker tooling`,
+        `${chainList} ${
+          nonEvmChains.length > 1 ? 'are' : 'is'
+        } non-EVM and not compatible with warp checker tooling`,
       );
       throw Error(
-        `${
-          chain ?? fork
-        } is non evm and it not compatible with warp checker tooling`,
+        `${chainList} ${
+          nonEvmChains.length > 1 ? 'are' : 'is'
+        } non-EVM and not compatible with warp checker tooling`,
       );
     }
 

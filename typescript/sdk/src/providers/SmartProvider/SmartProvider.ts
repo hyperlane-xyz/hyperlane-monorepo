@@ -338,12 +338,14 @@ export class HyperlaneSmartProvider
         } else if (result.status === ProviderStatus.Timeout) {
           this.throwCombinedProviderErrors(
             [result, ...providerResultErrors],
-            `All providers timed out for method ${method}`,
+            `All providers timed out on chain ${this._network.name} for method ${method}`,
           );
         } else if (result.status === ProviderStatus.Error) {
           this.throwCombinedProviderErrors(
             [result.error, ...providerResultErrors],
-            `All providers failed for method ${method} and params ${JSON.stringify(
+            `All providers failed on chain ${
+              this._network.name
+            } for method ${method} and params ${JSON.stringify(
               params,
               null,
               2,
@@ -357,11 +359,9 @@ export class HyperlaneSmartProvider
       } else {
         this.throwCombinedProviderErrors(
           providerResultErrors,
-          `All providers failed for method ${method} and params ${JSON.stringify(
-            params,
-            null,
-            2,
-          )}`,
+          `All providers failed on chain ${
+            this._network.name
+          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
       }
     }

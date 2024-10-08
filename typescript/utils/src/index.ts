@@ -39,6 +39,7 @@ export {
   strip0x,
 } from './addresses.js';
 export {
+  addBufferToGasLimit,
   convertDecimals,
   eqAmountApproximate,
   fromWei,
@@ -89,7 +90,12 @@ export {
   setRootLogger,
 } from './logging.js';
 export { mean, median, randomInt, stdDev, sum } from './math.js';
-export { formatMessage, messageId, parseMessage } from './messages.js';
+export {
+  formatMessage,
+  messageId,
+  parseMessage,
+  parseWarpRouteMessage,
+} from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,
   parseLegacyMultisigIsmMetadata,
@@ -102,7 +108,6 @@ export {
   invertKeysAndValues,
   isObjEmpty,
   isObject,
-  normalizeConfig,
   objFilter,
   objKeys,
   objLength,
