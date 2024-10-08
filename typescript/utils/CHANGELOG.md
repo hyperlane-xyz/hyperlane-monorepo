@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
 ## 5.3.0
 
 ### Minor Changes

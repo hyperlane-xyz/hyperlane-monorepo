@@ -107,7 +107,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     solanamainnet: true,
     taiko: true,
-    tangle: true,
+    tangle: false,
     viction: true,
     worldchain: true,
     xai: true,
@@ -171,7 +171,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     solanamainnet: true,
     taiko: true,
-    tangle: true,
+    tangle: false,
     viction: true,
     worldchain: true,
     xai: true,
@@ -241,7 +241,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Cannot scrape non-EVM chains
     solanamainnet: false,
     taiko: true,
-    tangle: true,
+    tangle: false,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
     worldchain: true,

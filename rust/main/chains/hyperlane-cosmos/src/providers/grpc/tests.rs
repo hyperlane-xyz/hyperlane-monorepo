@@ -5,9 +5,8 @@ use url::Url;
 use hyperlane_core::config::OperationBatchConfig;
 use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain};
 
-use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::{ConnectionConf, CosmosAmount, NativeToken, RawCosmosAmount};
+use crate::{ConnectionConf, CosmosAddress, CosmosAmount, NativeToken, RawCosmosAmount};
 
 #[ignore]
 #[tokio::test]

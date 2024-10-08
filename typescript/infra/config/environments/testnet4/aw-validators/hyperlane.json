@@ -25,6 +25,9 @@
   "camptestnet": {
     "validators": ["0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"]
   },
+  "citreatestnet": {
+    "validators": ["0x60d7380a41eb95c49be18f141efd2fde5e3dba20"]
+  },
   "connextsepolia": {
     "validators": ["0xffbbec8c499585d80ef69eb613db624d27e089ab"]
   },
