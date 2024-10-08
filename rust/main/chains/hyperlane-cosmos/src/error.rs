@@ -56,6 +56,12 @@ pub enum HyperlaneCosmosError {
     /// Signer info error
     #[error("{0}")]
     SignerInfoError(String),
+    /// Serde error
+    #[error("{0}")]
+    SerdeError(#[from] serde_json::Error),
+    /// Empty error
+    #[error("{0}")]
+    EmptyError(String),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {
