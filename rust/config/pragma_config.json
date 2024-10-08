@@ -3,11 +3,11 @@
     "pragmadevnet": {
       "name": "pragmadevnet",
       "chainId": 6363709688837902390235593852244,
-      "domainId": 23448591,
-      "mailbox": "0x41c20175af14a0bfebfc9ae2f3bda29230a0bceb551844197d9f46faf76d6da",
-      "merkleTreeHook": "0xb9a75496355e223652c40fe50d45b5f39b86d3cc5c4f7aed44be6c7f6a8b4c",
-      "interchainGasPaymaster": "0x0",
-      "validatorAnnounce": "0x2305250e0adab1bafabe58bc905cf94440a55e0fc7664ff095250fe2f8684b8",
+      "domainId": 6363709,
+      "mailbox": "0x0684a2d64d270b47df2bb13de2303658854e98ace64e14f233b36789543035ea",
+      "interchainGasPaymaster": "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+      "validatorAnnounce": "0x000c452133ef35830db0609efe72de431797ef9ba783baf64f94f800c79f3044",
+      "merkleTreeHook": "0x02a155aac0327e9a2e84052615577c62f4059245008efa4a7b07fa0dedfa1cb5",
       "protocol": "starknet",
       "blocks": {
         "reorgPeriod": 0,
@@ -21,6 +21,11 @@
       "index": {
         "from": 150000,
         "mode": "sequence"
+      },
+      "signer": {
+        "key": "0x0219fb2d099a9458f7c10c2efbb8b101d9e0ec85610d5c74a887d1d4fb8d2898",
+        "address": "0x07ee358b1bed689e66605aae4e7ab873f818dc953b39f115929ec00c0e575c52",
+        "type": "starkKey"
       }
     }
   }
