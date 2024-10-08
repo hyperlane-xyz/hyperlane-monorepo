@@ -72,9 +72,9 @@ contract MockMailbox is Mailbox {
         inboundUnprocessedNonce++;
     }
 
-    function processNextInboundMessage() public {
+    function processNextInboundMessage() public payable {
         bytes memory _message = inboundMessages[inboundProcessedNonce];
-        Mailbox(address(this)).process("", _message);
+        Mailbox(address(this)).process{value: msg.value}("", _message);
         inboundProcessedNonce++;
     }
 }

@@ -307,7 +307,7 @@ contract InterchainAccountRouter is Router {
             _sender,
             _ism.bytes32ToAddress()
         );
-        _interchainAccount.multicall(_calls);
+        _interchainAccount.multicall{value: msg.value}(_calls);
     }
 
     /**
