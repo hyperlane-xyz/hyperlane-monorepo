@@ -8,6 +8,7 @@ import {
   IsmConfigSchema,
   IsmType,
   MultisigIsmConfig,
+  RpcValidatorIsmConfig,
   TrustedRelayerIsmConfig,
 } from '@hyperlane-xyz/sdk';
 
@@ -19,7 +20,10 @@ import {
   logBoldUnderlinedRed,
   logRed,
 } from '../logger.js';
-import { runMultiChainSelectionStep } from '../utils/chains.js';
+import {
+  runMultiChainSelectionStep,
+  runSingleChainSelectionStep,
+} from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 
@@ -78,6 +82,7 @@ const ISM_TYPE_DESCRIPTIONS: Record<string, string> = {
   [IsmType.TEST_ISM]:
     'ISM where you can deliver messages without any validation (WARNING: only for testing, do not use in production)',
   [IsmType.TRUSTED_RELAYER]: 'Deliver messages from an authorized address',
+  [IsmType.RPC_VALIDATOR]: 'Deliber messages with an RPC validator',
 };
 
 export async function createAdvancedIsmConfig(
@@ -115,7 +120,11 @@ export async function createAdvancedIsmConfig(
       return { type: IsmType.TEST_ISM };
     case IsmType.TRUSTED_RELAYER:
       return createTrustedRelayerConfig(context, true);
+    case IsmType.RPC_VALIDATOR:
+      console.log('creating the config');
+      return createRpcValidatorIsmConfig(context);
     default:
+      console.log('something something');
       throw new Error(`Invalid ISM type: ${moduleType}.`);
   }
 }
@@ -167,6 +176,66 @@ export const createMessageIdMultisigConfig = callWithConfigCreationLogs(
     };
   },
   IsmType.MESSAGE_ID_MULTISIG,
+);
+
+export const createRpcValidatorIsmConfig = callWithConfigCreationLogs(
+  async (context: CommandContext): Promise<RpcValidatorIsmConfig> => {
+    const chain = await runSingleChainSelectionStep(
+      context.chainMetadata,
+      'Select the chain for which to validate',
+    );
+
+    const thresholdInput = await input({
+      message:
+        'Enter threshold of validators (number) for rpc validator config',
+    });
+    const threshold = parseInt(thresholdInput, 10);
+
+    const validatorsInput = await input({
+      message:
+        'Enter validator addresses (comma separated list) for rpc validator config',
+    });
+    const validators = validatorsInput.split(',').map((v) => v.trim());
+
+    const availableRpcUrls = (await context.registry.getChainMetadata(chain))!
+      .rpcUrls;
+
+    const selectWithOverride = async (
+      options: string[],
+      message = 'Pick from the options',
+      overrideOptionName = 'Enter something custom ...',
+    ) => {
+      const selectedOption = await select({
+        message,
+        choices: options.concat(overrideOptionName).map((_) => ({
+          name: _,
+          value: _,
+        })),
+      });
+
+      if (selectedOption !== overrideOptionName) return selectedOption;
+
+      const override = await input({
+        message: 'Enter custom value',
+      });
+
+      return override;
+    };
+
+    const rpcUrl = await selectWithOverride(
+      availableRpcUrls.map((_) => _.http),
+    );
+
+    return {
+      type: IsmType.RPC_VALIDATOR,
+      threshold,
+      validators,
+      rpcUrl,
+      originMerkleTreeHook: (await context.registry.getChainAddresses(chain))!
+        .merkleTreeHook,
+    };
+  },
+  IsmType.RPC_VALIDATOR,
 );
 
 export const createTrustedRelayerConfig = callWithConfigCreationLogs(

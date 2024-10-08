@@ -15,6 +15,7 @@ import {
   IStaticWeightedMultisigIsm,
   OPStackIsm__factory,
   PausableIsm__factory,
+  RpcMultisigIsm__factory,
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   StaticWeightedValidatorSetFactory,
@@ -179,6 +180,23 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           new TrustedRelayerIsm__factory(),
           IsmType.TRUSTED_RELAYER,
           [mailbox, config.relayer],
+        );
+        break;
+      case IsmType.RPC_VALIDATOR:
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        contract = await this.deployer.deployContractFromFactory(
+          destination,
+          new RpcMultisigIsm__factory(),
+          IsmType.RPC_VALIDATOR,
+          [
+            config.rpcUrl,
+            config.originMerkleTreeHook,
+            config.validators,
+            config.threshold,
+          ],
         );
         break;
       case IsmType.TEST_ISM:

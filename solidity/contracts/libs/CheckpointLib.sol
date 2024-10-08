@@ -48,6 +48,27 @@ library CheckpointLib {
 
     /**
      * @notice Returns the digest validators are expected to sign when signing checkpoints.
+     * @param _origin The origin domain of the checkpoint.
+     * @param _merkleTreeHook The address of the origin merkle tree hook as bytes32.
+     * @param _messageId The message ID of the checkpoint.
+     * @dev Message ID must match leaf content of checkpoint root at index.
+     * @return The digest of the checkpoint.
+     */
+    function rpcDigest(
+        uint32 _origin,
+        bytes32 _merkleTreeHook,
+        bytes32 _messageId,
+        string memory _rpcUrl
+    ) internal pure returns (bytes32) {
+        bytes32 _domainHash = domainHash(_origin, _merkleTreeHook);
+        return
+            ECDSA.toEthSignedMessageHash(
+                keccak256(abi.encodePacked(_domainHash, _messageId, _rpcUrl))
+            );
+    }
+
+    /**
+     * @notice Returns the digest validators are expected to sign when signing checkpoints.
      * @param checkpoint The checkpoint (struct) to hash.
      * @return The digest of the checkpoint.
      */

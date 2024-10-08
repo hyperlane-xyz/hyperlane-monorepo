@@ -16,6 +16,7 @@ import {
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
+  RpcMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -188,7 +189,9 @@ export class EvmIsmModule extends HyperlaneModule<
       targetConfig.type !== IsmType.ROUTING &&
       targetConfig.type !== IsmType.FALLBACK_ROUTING
     ) {
-      throw new Error(`Unsupported ISM type ${targetConfig.type}`);
+      throw new Error(
+        `Unsupported ISM type ${targetConfig.type} while updating`,
+      );
     }
 
     const logger = this.logger.child({
@@ -424,9 +427,20 @@ export class EvmIsmModule extends HyperlaneModule<
           contractName: IsmType.TEST_ISM,
           constructorArgs: [],
         });
-
+      case IsmType.RPC_VALIDATOR:
+        return this.deployer.deployContractFromFactory({
+          chain: this.chain,
+          factory: new RpcMultisigIsm__factory(),
+          contractName: IsmType.RPC_VALIDATOR,
+          constructorArgs: [
+            config.rpcUrl,
+            config.originMerkleTreeHook,
+            config.validators,
+            config.threshold,
+          ],
+        });
       default:
-        throw new Error(`Unsupported ISM type ${ismType}`);
+        throw new Error(`Unsupported ISM type ${ismType} while deploying`);
     }
   }
 

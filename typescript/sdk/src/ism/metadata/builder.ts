@@ -27,13 +27,18 @@ import {
   DefaultFallbackRoutingMetadataBuilder,
   RoutingMetadata,
 } from './routing.js';
+import {
+  RpcMetadataBuilder,
+  RpcValidatorMultisigMetadata,
+} from './rpcValidator.js';
 
 export type StructuredMetadata =
   | NullMetadata
   | MultisigMetadata
   | ArbL2ToL1Metadata
   | AggregationMetadata<any>
-  | RoutingMetadata<any>;
+  | RoutingMetadata<any>
+  | RpcValidatorMultisigMetadata;
 
 export interface MetadataContext<
   IsmContext = DerivedIsmConfig,
@@ -55,6 +60,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public aggregationMetadataBuilder: AggregationMetadataBuilder;
   public routingMetadataBuilder: DefaultFallbackRoutingMetadataBuilder;
   public arbL2ToL1MetadataBuilder: ArbL2ToL1MetadataBuilder;
+  public rpcValidatorMetadataBuilder: RpcMetadataBuilder;
 
   public multiProvider: MultiProvider;
   protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
@@ -67,6 +73,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
     );
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
     this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(core);
+    this.rpcValidatorMetadataBuilder = new RpcMetadataBuilder();
     this.multiProvider = core.multiProvider;
   }
 
@@ -128,6 +135,10 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         });
       }
 
+      case IsmType.RPC_VALIDATOR: {
+        return this.rpcValidatorMetadataBuilder.build({ ...context, ism });
+      }
+
       default:
         throw new Error(`Unsupported ISM: ${ism}`);
     }
@@ -160,6 +171,8 @@ export class BaseMetadataBuilder implements MetadataBuilder {
           ...context,
           ism,
         });
+      case IsmType.RPC_VALIDATOR:
+        return RpcMetadataBuilder.decode(metadata);
 
       default:
         throw new Error(`Unsupported ISM type: ${ism.type}`);
