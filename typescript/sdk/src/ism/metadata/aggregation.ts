@@ -26,7 +26,7 @@ export interface AggregationMetadata<T = string> {
 
 const RANGE_SIZE = 4;
 
-// adapted from rust/main/agents/relayer/src/msg/metadata/aggregation.rs
+// adapted from rust/agents/relayer/src/msg/metadata/aggregation.rs
 export class AggregationMetadataBuilder implements MetadataBuilder {
   protected logger = rootLogger.child({
     module: 'AggregationIsmMetadataBuilder',
@@ -44,7 +44,7 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
       'Building aggregation metadata',
     );
     assert(maxDepth > 0, 'Max depth reached');
-    const results = await Promise.allSettled(
+    const promises = await Promise.allSettled(
       context.ism.modules.map((module) =>
         timeout(
           this.base.build(
@@ -58,20 +58,10 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
         ),
       ),
     );
-
-    const metadatas = results.map((result, index) => {
-      if (result.status === 'rejected') {
-        this.logger.warn(
-          `Failed to build for submodule ${index}: ${result.reason}`,
-        );
-        return null;
-      } else {
-        this.logger.debug(`Built metadata for submodule ${index}`);
-        return result.value;
-      }
-    });
-
-    const included = metadatas.filter((meta) => meta !== null).length;
+    const metadatas = promises.map((r) =>
+      r.status === 'fulfilled' ? r.value ?? null : null,
+    );
+    const included = metadatas.filter((m) => m !== null).length;
     assert(
       included >= context.ism.threshold,
       `Only built ${included} of ${context.ism.threshold} required modules`,

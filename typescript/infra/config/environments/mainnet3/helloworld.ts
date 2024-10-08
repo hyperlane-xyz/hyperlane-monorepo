@@ -4,7 +4,7 @@ import {
 } from '../../../src/config/helloworld/types.js';
 import { Contexts } from '../../contexts.js';
 
-import { environment } from './chains.js';
+import { environment, ethereumChainNames } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 

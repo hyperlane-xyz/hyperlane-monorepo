@@ -20,7 +20,6 @@ export const registryCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(addressesCommand)
-      .command(rpcCommand)
       .command(createAgentConfigCommand)
       .command(initCommand)
       .command(listCommand)
@@ -72,12 +71,8 @@ const listCommand: CommandModuleWithContext<{ type: ChainType }> = {
 /**
  * Addresses command
  */
-const addressesCommand: CommandModuleWithContext<{
-  name: string;
-  contract: string;
-}> = {
+const addressesCommand: CommandModuleWithContext<{ name: string }> = {
   command: 'addresses',
-  aliases: ['address', 'addy'],
   describe: 'Display the addresses of core Hyperlane contracts',
   builder: {
     name: {
@@ -85,21 +80,10 @@ const addressesCommand: CommandModuleWithContext<{
       description: 'Chain to display addresses for',
       alias: 'chain',
     },
-    contract: {
-      type: 'string',
-      description: 'Specific contract name to print addresses for',
-      implies: 'name',
-    },
   },
-  handler: async ({ name, context, contract }) => {
+  handler: async ({ name, context }) => {
     if (name) {
       const result = await context.registry.getChainAddresses(name);
-      if (contract && result?.[contract.toLowerCase()]) {
-        // log only contract address for machine readability
-        log(result[contract]);
-        return;
-      }
-
       logBlue('Hyperlane contract addresses for:', name);
       logGray('---------------------------------');
       log(JSON.stringify(result, null, 2));
@@ -109,38 +93,6 @@ const addressesCommand: CommandModuleWithContext<{
       logGray('----------------------------------');
       log(JSON.stringify(result, null, 2));
     }
-  },
-};
-
-const rpcCommand: CommandModuleWithContext<{
-  name: string;
-  index: number;
-}> = {
-  command: 'rpc',
-  describe: 'Display the public rpc of a Hyperlane chain',
-  builder: {
-    name: {
-      type: 'string',
-      description: 'Chain to display addresses for',
-      alias: 'chain',
-      demandOption: true,
-    },
-    index: {
-      type: 'number',
-      description: 'Index of the rpc to display',
-      default: 0,
-      demandOption: false,
-    },
-  },
-  handler: async ({ name, context, index }) => {
-    const result = await context.registry.getChainMetadata(name);
-    const rpcUrl = result?.rpcUrls[index]?.http;
-    if (!rpcUrl) {
-      errorRed(`❌ No rpc found for chain ${name}`);
-      process.exit(1);
-    }
-
-    log(rpcUrl);
   },
 };
 

@@ -51,14 +51,14 @@ export interface BaseRelayerConfig {
 // Full relayer-specific agent config for a single chain
 export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 
-// See rust/main/helm/values.yaml for the full list of options and their defaults.
+// See rust/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
   aws: boolean;
   config?: RelayerConfig;
 }
 
-// See rust/main/helm/values.yaml for the full list of options and their defaults.
+// See rust/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayerChains` in the values file.
 export interface HelmRelayerChainValues {
   name: string;

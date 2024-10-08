@@ -39,7 +39,7 @@ contract StaticMerkleRootWeightedMultisigIsm is
     AbstractMetaProxyWeightedMultisigIsm
 {
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.WEIGHTED_MERKLE_ROOT_MULTISIG);
+        uint8(IInterchainSecurityModule.Types.WEIGHT_MERKLE_ROOT_MULTISIG);
 }
 
 contract StaticMessageIdWeightedMultisigIsm is
@@ -47,7 +47,7 @@ contract StaticMessageIdWeightedMultisigIsm is
     AbstractMetaProxyWeightedMultisigIsm
 {
     uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.WEIGHTED_MESSAGE_ID_MULTISIG);
+        uint8(IInterchainSecurityModule.Types.WEIGHT_MESSAGE_ID_MULTISIG);
 }
 
 contract StaticMerkleRootWeightedMultisigIsmFactory is

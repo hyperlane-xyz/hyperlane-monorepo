@@ -166,7 +166,7 @@ describe('ICA governance', async () => {
 
     // arrange
     const newIsm = randomAddress();
-    await governor.checkChain(TestChainName.test2);
+    await governor.checker.checkChain(TestChainName.test2);
     const call = {
       to: recipient.address,
       data: recipient.interface.encodeFunctionData(

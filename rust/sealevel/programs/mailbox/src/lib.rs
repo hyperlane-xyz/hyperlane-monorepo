@@ -9,6 +9,5 @@ pub mod error;
 pub mod instruction;
 pub mod pda_seeds;
 pub mod processor;
-pub mod protocol_fee;
 
 pub use spl_noop;

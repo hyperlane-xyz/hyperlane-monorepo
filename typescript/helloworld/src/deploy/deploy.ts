@@ -22,12 +22,10 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
     multiProvider: MultiProvider,
     readonly ismFactory?: HyperlaneIsmFactory,
     readonly contractVerifier?: ContractVerifier,
-    concurrentDeploy = false,
   ) {
     super(multiProvider, helloWorldFactories, {
       ismFactory,
       contractVerifier,
-      concurrentDeploy,
     });
   }
 

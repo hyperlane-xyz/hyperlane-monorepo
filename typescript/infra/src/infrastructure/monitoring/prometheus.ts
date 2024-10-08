@@ -81,10 +81,6 @@ async function getPrometheusConfig(
                 '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|hyperlane.*|kube_pod_status_phase|kube_pod_container_status_restarts_total|kube_pod_container_resource_requests)',
               source_labels: ['__name__'],
             },
-            {
-              action: 'labeldrop',
-              regex: 'id|controller_revision_hash|name|uid|instance|node',
-            },
           ],
         },
       ],

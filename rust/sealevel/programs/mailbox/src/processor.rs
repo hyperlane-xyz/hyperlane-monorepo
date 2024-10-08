@@ -1,7 +1,7 @@
 //! Entrypoint, dispatch, and execution for the Hyperlane Sealevel mailbox instruction.
 
 use access_control::AccessControl;
-use account_utils::{verify_rent_exempt, SizedData};
+use account_utils::SizedData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
@@ -10,14 +10,14 @@ use hyperlane_core::{
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
 use solana_program::{
-    account_info::{next_account_info, AccountInfo},
+    account_info::next_account_info,
+    account_info::AccountInfo,
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
     program::{get_return_data, invoke, invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
-    system_instruction,
     sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
 
@@ -36,11 +36,13 @@ use crate::{
         ProcessedMessage, ProcessedMessageAccount,
     },
     error::Error,
-    instruction::{InboxProcess, Init, Instruction as MailboxIxn, OutboxDispatch, VERSION},
+    instruction::{
+        InboxProcess, Init, Instruction as MailboxIxn, OutboxDispatch, MAX_MESSAGE_BODY_BYTES,
+        VERSION,
+    },
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
-    protocol_fee::ProtocolFee,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -66,10 +68,6 @@ pub fn process_instruction(
         MailboxIxn::GetOwner => get_owner(program_id, accounts),
         MailboxIxn::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
-        }
-        MailboxIxn::ClaimProtocolFees => claim_protocol_fees(program_id, accounts),
-        MailboxIxn::SetProtocolFeeConfig(new_protocol_fee_config) => {
-            set_protocol_fee_config(program_id, accounts, new_protocol_fee_config)
         }
     }
     .map_err(|err| {
@@ -117,10 +115,6 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         default_ism: init.default_ism,
         processed_count: 0,
     });
-    if init.protocol_fee.fee > init.max_protocol_fee {
-        msg!("Invalid initialization config: Protocol fee is greater than max protocol fee",);
-        return Err(ProgramError::InvalidArgument);
-    }
 
     // Create the inbox PDA account.
     create_pda_account(
@@ -149,8 +143,6 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         outbox_bump_seed: outbox_bump,
         owner: Some(*payer_info.key),
         tree: MerkleTree::default(),
-        max_protocol_fee: init.max_protocol_fee,
-        protocol_fee: init.protocol_fee,
     });
 
     // Create the outbox PDA account.
@@ -645,24 +637,15 @@ fn outbox_dispatch(
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
 
+    if dispatch.message_body.len() > MAX_MESSAGE_BODY_BYTES {
+        return Err(ProgramError::from(Error::MaxMessageSizeExceeded));
+    }
+
     let count = outbox
         .tree
         .count()
         .try_into()
         .expect("Too many messages in outbox tree");
-
-    let protocol_fee = outbox.protocol_fee.fee;
-    invoke(
-        &system_instruction::transfer(payer_info.key, outbox_info.key, protocol_fee),
-        &[payer_info.clone(), outbox_info.clone()],
-    )?;
-    msg!(
-        "Protocol fee of {} paid from {} to {}",
-        protocol_fee,
-        payer_info.key,
-        outbox_info.key
-    );
-
     let message = HyperlaneMessage {
         version: VERSION,
         nonce: count,
@@ -863,69 +846,6 @@ fn transfer_ownership(
     let owner_info = next_account_info(accounts_iter)?;
     // Errors if the owner_account is not the actual owner or is not a signer.
     outbox.transfer_ownership(owner_info, new_owner)?;
-
-    // Store the updated outbox.
-    OutboxAccount::from(outbox).store(outbox_info, false)?;
-
-    Ok(())
-}
-
-/// Claims protocol fees
-///
-/// Accounts:
-/// 0. `[writeable]` The Outbox PDA account.
-/// 1. `[]` The beneficiary.
-fn claim_protocol_fees(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    // Account 0: Outbox PDA.
-    let outbox_info = next_account_info(accounts_iter)?;
-    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
-
-    // Account 1: Beneficiary
-    let beneficiary_info = next_account_info(accounts_iter)?;
-    if beneficiary_info.key != &outbox.protocol_fee.beneficiary {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    let rent = Rent::get()?;
-    let required_outbox_rent = rent.minimum_balance(outbox_info.data_len());
-    let claimable_protocol_fees = outbox_info.lamports().saturating_sub(required_outbox_rent);
-    **outbox_info.try_borrow_mut_lamports()? -= claimable_protocol_fees;
-    **beneficiary_info.try_borrow_mut_lamports()? += claimable_protocol_fees;
-
-    // For good measure...
-    verify_rent_exempt(outbox_info, &rent)?;
-
-    Ok(())
-}
-
-/// Sets the protocol fee configuration.
-///
-/// Accounts:
-/// 0. `[writeable]` The Outbox PDA account.
-/// 1. `[signer]` The current owner.
-fn set_protocol_fee_config(
-    program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    new_protocol_fee_config: ProtocolFee,
-) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    // Account 0: Outbox PDA.
-    let outbox_info = next_account_info(accounts_iter)?;
-    let mut outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
-
-    // Account 1: Owner
-    let owner_info = next_account_info(accounts_iter)?;
-    outbox.ensure_owner_signer(owner_info)?;
-
-    if new_protocol_fee_config.fee > outbox.max_protocol_fee {
-        msg!("Invalid protocol fee config: Fee is greater than max protocol fee",);
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    outbox.protocol_fee = new_protocol_fee_config;
 
     // Store the updated outbox.
     OutboxAccount::from(outbox).store(outbox_info, false)?;

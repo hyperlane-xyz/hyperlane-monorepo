@@ -249,7 +249,7 @@ fn verify(
                 merkle_tree_hook_address: metadata.origin_merkle_tree_hook,
                 mailbox_domain: message.origin,
                 root: metadata.merkle_root,
-                index: metadata.merkle_index,
+                index: message.nonce,
             },
             message_id: message.id(),
         },

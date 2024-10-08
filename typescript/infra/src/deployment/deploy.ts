@@ -1,239 +1,114 @@
-import chalk from 'chalk';
-
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
-  HyperlaneContractsMap,
+  HyperlaneCore,
   HyperlaneDeployer,
-  HyperlaneFactories,
+  HyperlaneDeploymentArtifacts,
   MultiProvider,
+  buildAgentConfig,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   objFilter,
+  objMap,
   objMerge,
-  runWithTimeout,
+  promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
 import {
   Modules,
   getAddresses,
+  getAgentConfig,
+  getAgentConfigJsonPath,
   writeAddresses,
 } from '../../scripts/agent-utils.js';
-import { DeployEnvironment } from '../config/environment.js';
-import { readJSONAtPath, writeJsonAtPath } from '../utils/utils.js';
-
-enum DeployStatus {
-  EMPTY = '🫥',
-  SUCCESS = '✅',
-  INFLIGHT = '⏳',
-  FAILURE = '❌',
-}
-
-const deployStatus: ChainMap<DeployStatus> = {};
-
-const standardDeployModules = [
-  Modules.PROXY_FACTORY,
-  Modules.CORE,
-  Modules.TEST_RECIPIENT,
-  Modules.INTERCHAIN_GAS_PAYMASTER,
-  Modules.HOOK,
-];
-
-export interface DeployCache {
-  verification: string;
-  read: boolean;
-  write: boolean;
-  environment: DeployEnvironment;
-  module: Modules;
-}
+import { getEnvironmentConfig } from '../../scripts/core-utils.js';
+import { DeployEnvironment, envNameToAgentEnv } from '../config/environment.js';
+import { getCosmosChainGasPrice } from '../config/gas-oracle.js';
+import {
+  chainIsProtocol,
+  filterRemoteDomainMetadata,
+  readJSONAtPath,
+  writeJsonAtPath,
+  writeMergedJSONAtPath,
+} from '../utils/utils.js';
 
 export async function deployWithArtifacts<Config extends object>({
   configMap,
   deployer,
   cache,
   targetNetworks,
-  module,
-  multiProvider,
-  concurrentDeploy,
+  agentConfig,
 }: {
   configMap: ChainMap<Config>;
   deployer: HyperlaneDeployer<Config, any>;
-  cache: DeployCache;
+  cache: {
+    verification: string;
+    read: boolean;
+    write: boolean;
+    environment: DeployEnvironment;
+    module: Modules;
+  };
   targetNetworks: ChainName[];
-  module: Modules;
-  multiProvider: MultiProvider;
-  concurrentDeploy: boolean;
+  agentConfig?: {
+    multiProvider: MultiProvider;
+    environment: DeployEnvironment;
+  };
 }) {
   if (cache.read) {
     const addressesMap = getAddresses(cache.environment, cache.module);
     deployer.cacheAddressesMap(addressesMap);
   }
 
+  process.on('SIGINT', async () => {
+    // Call the post deploy hook to write the addresses and verification
+    await postDeploy(deployer, cache, agentConfig);
+
+    console.log('\nCaught (Ctrl+C), gracefully exiting...');
+    process.exit(0); // Exit the process
+  });
+
   // Filter the config map to only deploy the target networks
-  const targetConfigMap =
-    targetNetworks.length > 0
-      ? objFilter(configMap, (chain, _): _ is Config =>
-          targetNetworks.includes(chain),
-        )
-      : configMap;
-
-  // Run post-deploy steps
-  const handleExit = async () => {
-    console.info(chalk.gray.italic('Running post-deploy steps'));
-    await runWithTimeout(5000, () => postDeploy(deployer, cache))
-      .then(() => console.info('Post-deploy completed'))
-      .catch((error) => {
-        console.error(
-          chalk.red('Post-deploy steps timed out or failed'),
-          error,
-        );
-      });
-
-    if (Object.keys(deployStatus).length > 0) {
-      const statusTable = Object.entries(deployStatus).map(
-        ([chain, status]) => ({ chain, status: status ?? DeployStatus.EMPTY }),
-      );
-      console.table(statusTable);
-
-      const failedChainNames = Object.entries(deployStatus)
-        .filter(([_, status]) => status === DeployStatus.FAILURE)
-        .map(([chain, _]) => chain);
-
-      // If there are failed chains, exit with a non-zero status
-      if (failedChainNames.length > 0) {
-        console.error(
-          chalk.red.bold(
-            `\nFailed to deploy on ${failedChainNames.length} chain${
-              failedChainNames.length === 1 ? '' : 's'
-            }:\n${failedChainNames.join(' ')}`,
-          ),
-        );
-        process.exit(1);
-      } else {
-        const numTotalChains = Object.keys(targetConfigMap).length;
-        console.info(
-          chalk.green.bold(
-            `Successfully deployed contracts on ${numTotalChains} chain${
-              numTotalChains === 1 ? '' : 's'
-            }`,
-          ),
-        );
-      }
-    }
-
-    process.exit(0);
-  };
-
-  // Handle Ctrl+C
-  process.on('SIGINT', handleExit);
-  // One final post-deploy before exit to ensure
-  // deployments exceeding the timeout are still written
-  process.on('beforeExit', handleExit);
-
-  // Standard deploy modules are the ones that can be deployed with the
-  // abstract HyperlaneDeployer's deploy function because they don't require any special logic
-  if (standardDeployModules.includes(module)) {
-    await baseDeploy(
-      targetConfigMap,
-      deployer,
-      multiProvider,
-      concurrentDeploy,
+  let targetConfigMap = configMap;
+  if (targetNetworks.length > 0) {
+    targetConfigMap = objFilter(configMap, (chain, _): _ is Config =>
+      targetNetworks.includes(chain),
     );
-  } else {
-    try {
-      await deployer.deploy(targetConfigMap);
-    } catch (error: any) {
-      if (error?.message.includes('Timed out')) {
-        console.warn(
-          chalk.yellow('Contract deployment exceeding configured timeout'),
-          error,
-        );
-      } else {
-        console.error(chalk.red('Contract deployment failed'), error);
-      }
-    }
   }
-}
 
-async function baseDeploy<
-  Config extends object,
-  Factories extends HyperlaneFactories,
->(
-  configMap: ChainMap<Config>,
-  deployer: HyperlaneDeployer<Config, Factories>,
-  multiProvider: MultiProvider,
-  concurrentDeploy: boolean,
-): Promise<HyperlaneContractsMap<Factories>> {
-  const configChains = Object.keys(configMap);
-  const ethereumConfigChains = configChains.filter(
-    (chain) =>
-      multiProvider.getChainMetadata(chain).protocol === ProtocolType.Ethereum,
-  );
-
-  const targetChains = multiProvider.intersect(
-    ethereumConfigChains,
-    true,
-  ).intersection;
-
-  console.info(`Start deploy to ${targetChains}`);
-
-  const deployChain = async (chain: ChainName) => {
-    const signerAddress = await multiProvider.getSignerAddress(chain);
-    console.info(
-      chalk.gray.italic(`Deploying to ${chain} from ${signerAddress}`),
-    );
-
-    return runWithTimeout(deployer.chainTimeoutMs, async () => {
-      deployStatus[chain] = DeployStatus.INFLIGHT;
-      const contracts = await deployer.deployContracts(chain, configMap[chain]);
-      deployer.deployedContracts[chain] = {
-        ...deployer.deployedContracts[chain],
-        ...contracts,
-      };
-    })
-      .then(() => {
-        deployStatus[chain] = DeployStatus.SUCCESS;
-        const inFlightChains = Object.entries(deployStatus)
-          .filter(([_, status]) => status === DeployStatus.INFLIGHT)
-          .map(([chain, _]) => chain);
-        const numInFlight = inFlightChains.length;
-        console.info(
-          chalk.green.bold(`Successfully deployed contracts on ${chain}`),
-          chalk.blue.italic(
-            numInFlight === 0
-              ? '\nAll chains deployed'
-              : `\n${numInFlight} chain${
-                  numInFlight === 1 ? '' : 's'
-                } still in-flight: ${inFlightChains.join(', ')}`,
-          ),
-        );
-      })
-      .catch((error) => {
-        deployStatus[chain] = DeployStatus.FAILURE;
-        console.error(
-          chalk.red.bold(`Deployment failed on ${chain}. ${error}`),
-        );
-      });
-  };
-
-  if (concurrentDeploy) {
-    await Promise.allSettled(targetChains.map(deployChain));
-  } else {
-    for (const chain of targetChains) {
-      await deployChain(chain);
+  // Deploy the contracts
+  try {
+    await deployer.deploy(targetConfigMap);
+  } catch (e: any) {
+    if (e?.message.includes('Timed out')) {
+      console.warn('Contract deployment exceeding configured timeout', e);
+    } else {
+      console.error('Contract deployment failed', e);
     }
   }
 
-  return deployer.deployedContracts;
+  await postDeploy(deployer, cache, agentConfig);
 }
 
-async function postDeploy<Config extends object>(
+export async function postDeploy<Config extends object>(
   deployer: HyperlaneDeployer<Config, any>,
-  cache: DeployCache,
+  cache: {
+    verification: string;
+    read: boolean;
+    write: boolean;
+    environment: DeployEnvironment;
+    module: Modules;
+  },
+  agentConfig?: {
+    multiProvider: MultiProvider;
+    environment: DeployEnvironment;
+  },
 ) {
   if (cache.write) {
+    // TODO: dedupe deployedContracts with cachedAddresses
     const deployedAddresses = serializeContractsMap(deployer.deployedContracts);
     const cachedAddresses = deployer.cachedAddresses;
     const addresses = objMerge(deployedAddresses, cachedAddresses);
@@ -245,29 +120,90 @@ async function postDeploy<Config extends object>(
     try {
       savedVerification = readJSONAtPath(cache.verification);
     } catch (e) {
-      console.error(
-        chalk.red('Failed to load cached verification inputs. Error: ', e),
-      );
+      console.error('Failed to load cached verification inputs');
     }
 
-    // merge with existing cache of verification inputs
-    const mergedVerificationInputs =
+    // cache verification inputs
+    const inputs =
       deployer.mergeWithExistingVerificationInputs(savedVerification);
-
-    // deduplicate verification inputs for each chain
-    const deduplicatedVerificationInputs = Object.fromEntries(
-      Object.entries(mergedVerificationInputs).map(([chain, contracts]) => [
-        chain,
-        contracts.reduce((acc: any[], contract: any) => {
-          if (!acc.some((c) => c.address === contract.address)) {
-            acc.push(contract);
-          }
-          return acc;
-        }, []),
-      ]),
-    );
-
-    // write back deduplicated verification inputs
-    writeJsonAtPath(cache.verification, deduplicatedVerificationInputs);
+    writeJsonAtPath(cache.verification, inputs);
   }
+  if (agentConfig) {
+    await writeAgentConfig(agentConfig.multiProvider, agentConfig.environment);
+  }
+}
+
+export async function writeAgentConfig(
+  multiProvider: MultiProvider,
+  environment: DeployEnvironment,
+) {
+  // Get the addresses for the environment
+  const addressesMap = getAddresses(
+    environment,
+    Modules.CORE,
+  ) as ChainMap<ChainAddresses>;
+
+  const addressesForEnv = filterRemoteDomainMetadata(addressesMap);
+  const core = HyperlaneCore.fromAddressesMap(addressesForEnv, multiProvider);
+
+  // Write agent config indexing from the deployed Mailbox which stores the block number at deployment
+  const startBlocks = await promiseObjAll(
+    objMap(addressesForEnv, async (chain: string, _) => {
+      // If the index.from is specified in the chain metadata, use that.
+      const indexFrom = multiProvider.getChainMetadata(chain).index?.from;
+      if (indexFrom !== undefined) {
+        return indexFrom;
+      }
+
+      const mailbox = core.getContracts(chain).mailbox;
+      try {
+        const deployedBlock = await mailbox.deployedBlock();
+        return deployedBlock.toNumber();
+      } catch (err) {
+        console.error(
+          'Failed to get deployed block, defaulting to 0. Chain:',
+          chain,
+          'Error:',
+          err,
+        );
+        return 0;
+      }
+    }),
+  );
+
+  // Get gas prices for Cosmos chains.
+  // Instead of iterating through `addresses`, which only includes EVM chains,
+  // iterate through the environment chain names.
+  const envAgentConfig = getAgentConfig(Contexts.Hyperlane, environment);
+  const environmentChains = envAgentConfig.environmentChainNames;
+  const additionalConfig = Object.fromEntries(
+    await Promise.all(
+      environmentChains
+        .filter((chain) => chainIsProtocol(chain, ProtocolType.Cosmos))
+        .map(async (chain) => [
+          chain,
+          {
+            gasPrice: await getCosmosChainGasPrice(chain),
+          },
+        ]),
+    ),
+  );
+
+  const agentConfig = buildAgentConfig(
+    environmentChains,
+    await getEnvironmentConfig(environment).getMultiProvider(
+      undefined,
+      undefined,
+      // Don't use secrets
+      false,
+    ),
+    addressesForEnv as ChainMap<HyperlaneDeploymentArtifacts>,
+    startBlocks,
+    additionalConfig,
+  );
+
+  writeMergedJSONAtPath(
+    getAgentConfigJsonPath(envNameToAgentEnv[environment]),
+    agentConfig,
+  );
 }

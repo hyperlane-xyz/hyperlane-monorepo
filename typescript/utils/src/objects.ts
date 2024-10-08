@@ -2,6 +2,7 @@ import { cloneDeep, isEqual } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer } from './logging.js';
+import { WithAddress } from './types.js';
 import { assert } from './validation.js';
 
 export function isObject(item: any) {
@@ -154,4 +155,23 @@ export function stringifyObject(
     return json;
   }
   return yamlStringify(JSON.parse(json), null, space);
+}
+
+// Function to recursively remove 'address' properties and lowercase string properties
+export function normalizeConfig(obj: WithAddress<any>): any {
+  if (Array.isArray(obj)) {
+    return obj.map(normalizeConfig);
+  } else if (obj !== null && typeof obj === 'object') {
+    const newObj: any = {};
+    for (const key in obj) {
+      if (key !== 'address') {
+        newObj[key] = key === 'type' ? obj[key] : normalizeConfig(obj[key]);
+      }
+    }
+    return newObj;
+  } else if (typeof obj === 'string') {
+    return obj.toLowerCase();
+  }
+
+  return obj;
 }

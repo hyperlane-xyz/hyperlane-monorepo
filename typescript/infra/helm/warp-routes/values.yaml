@@ -4,8 +4,5 @@ image:
 hyperlane:
   runEnv: mainnet3
   context: hyperlane
-  chains: []
 nameOverride: ''
 fullnameOverride: ''
-externalSecrets:
-  clusterSecretStore:

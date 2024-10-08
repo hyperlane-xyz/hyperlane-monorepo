@@ -1,11 +1,7 @@
 import { Logger } from 'pino';
 
 import { TokenRouter } from '@hyperlane-xyz/core';
-import {
-  ChainMap,
-  ProxiedFactories,
-  proxiedFactories,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 import { Address, objKeys } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
@@ -19,12 +15,9 @@ import { GasRouterApp } from '../router/RouterApps.js';
 
 import { HypERC20Factories, hypERC20factories } from './contracts.js';
 
-export class HypERC20App extends GasRouterApp<
-  HypERC20Factories & ProxiedFactories,
-  TokenRouter
-> {
+export class HypERC20App extends GasRouterApp<HypERC20Factories, TokenRouter> {
   constructor(
-    contractsMap: HyperlaneContractsMap<HypERC20Factories & ProxiedFactories>,
+    contractsMap: HyperlaneContractsMap<HypERC20Factories>,
     multiProvider: MultiProvider,
     logger?: Logger,
     foreignDeployments: ChainMap<Address> = {},
@@ -42,12 +35,12 @@ export class HypERC20App extends GasRouterApp<
   }
 
   static fromAddressesMap(
-    addressesMap: HyperlaneAddressesMap<HypERC20Factories & ProxiedFactories>,
+    addressesMap: HyperlaneAddressesMap<HypERC20Factories>,
     multiProvider: MultiProvider,
   ): HypERC20App {
     const helper = appFromAddressesMapHelper(
       addressesMap,
-      { ...hypERC20factories, ...proxiedFactories },
+      hypERC20factories,
       multiProvider,
     );
     return new HypERC20App(helper.contractsMap, helper.multiProvider);

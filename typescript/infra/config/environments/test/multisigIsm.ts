@@ -3,7 +3,6 @@ import {
   IsmType,
   MultisigIsmConfig,
   TestChainName,
-  WeightedMultisigIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -39,30 +38,4 @@ export const multisigIsm: ChainMap<MultisigIsmConfig> = {
   test2: merkleRootMultisig(chainToValidator['test2']),
   test3: messageIdMultisig(chainToValidator['test3']),
   test4: messageIdMultisig(chainToValidator['test4']),
-};
-
-export const uniformlyWeightedMultisigIsm = (
-  multisigIsm: MultisigIsmConfig,
-): WeightedMultisigIsmConfig => {
-  const totalWeight = 1e10;
-  const numValidators = multisigIsm.validators.length;
-  const baseWeight = Math.floor(totalWeight / numValidators);
-  const remainingWeight = totalWeight - baseWeight * (numValidators - 1);
-
-  const validators = multisigIsm.validators.map((validatorKey, index) => ({
-    signingAddress: validatorKey,
-    weight: index === numValidators - 1 ? remainingWeight : baseWeight,
-  }));
-
-  const thresholdWeight = multisigIsm.threshold * baseWeight;
-
-  const weightedType =
-    multisigIsm.type === IsmType.MESSAGE_ID_MULTISIG
-      ? IsmType.WEIGHTED_MESSAGE_ID_MULTISIG
-      : IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG;
-  return {
-    type: weightedType,
-    validators,
-    thresholdWeight,
-  };
 };

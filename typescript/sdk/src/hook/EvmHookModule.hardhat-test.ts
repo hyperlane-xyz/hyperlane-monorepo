@@ -3,7 +3,13 @@ import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';
 
-import { Address, assert, deepEquals, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  deepEquals,
+  eqAddress,
+  normalizeConfig,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
 import { HyperlaneAddresses, HyperlaneContracts } from '../contracts/types.js';
@@ -14,7 +20,6 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { randomAddress, randomInt } from '../test/testUtils.js';
-import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookModule } from './EvmHookModule.js';
 import {
@@ -175,7 +180,7 @@ describe('EvmHookModule', async () => {
   let factoryContracts: HyperlaneContracts<ProxyFactoryFactories>;
   let exampleRoutingConfig: DomainRoutingHookConfig | FallbackRoutingHookConfig;
 
-  before(async () => {
+  beforeEach(async () => {
     [signer, funder] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
 

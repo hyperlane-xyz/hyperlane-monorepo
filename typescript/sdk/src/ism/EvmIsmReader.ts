@@ -112,7 +112,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
       }
     } catch (e: any) {
-      const errorMessage = `Failed to derive ISM module type ${moduleType} on ${this.chain} (${address}) :\n\t${e}`;
+      const errorMessage = `Failed to derive ISM module type ${moduleType} (${address}):\n\t${e}`;
       this.logger.debug(errorMessage);
       throw new Error(errorMessage);
     } finally {

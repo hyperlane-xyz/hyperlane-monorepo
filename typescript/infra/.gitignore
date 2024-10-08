@@ -3,7 +3,6 @@ tmp.ts
 dist/
 .env*
 cache/
-deployment-plan.yaml
 test/outputs
 config/environments/test/core/
 config/environments/test/igp/

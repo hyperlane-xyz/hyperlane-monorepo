@@ -1,20 +1,13 @@
 import { BigNumber } from 'ethers';
 
-import {
-  ERC20,
-  ERC20__factory,
-  HypERC20Collateral,
-  IXERC20Lockbox__factory,
-} from '@hyperlane-xyz/core';
+import { ERC20, ERC20__factory, HypERC20Collateral } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { TokenMismatchViolation } from '../deploy/types.js';
-import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
-import { ProxiedFactories } from '../router/types.js';
+import { HyperlaneRouterChecker } from '../router/HyperlaneRouterChecker.js';
 import { ChainName } from '../types.js';
 
 import { HypERC20App } from './app.js';
-import { TokenType } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import {
   TokenRouterConfig,
@@ -24,14 +17,16 @@ import {
 } from './schemas.js';
 import { TokenMetadata } from './types.js';
 
-export class HypERC20Checker extends ProxiedRouterChecker<
-  HypERC20Factories & ProxiedFactories,
+export class HypERC20Checker extends HyperlaneRouterChecker<
+  HypERC20Factories,
   HypERC20App,
   TokenRouterConfig
 > {
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
     await this.checkToken(chain);
+    // We have adapted this method to accept a proxyAdmin contract address parameter
+    await this.checkProxiedContracts(chain, this.configMap[chain].proxyAdmin);
   }
 
   async checkToken(chain: ChainName): Promise<void> {
@@ -86,24 +81,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     } else if (isSyntheticConfig(expectedConfig)) {
       await checkERC20(hypToken as unknown as ERC20, expectedConfig);
     } else if (isCollateralConfig(expectedConfig)) {
-      const provider = this.multiProvider.getProvider(chain);
-      let collateralToken: ERC20;
-
-      if (expectedConfig.type === TokenType.XERC20Lockbox) {
-        const collateralTokenAddress = await IXERC20Lockbox__factory.connect(
-          expectedConfig.token,
-          provider,
-        ).callStatic.ERC20();
-        collateralToken = await ERC20__factory.connect(
-          collateralTokenAddress,
-          provider,
-        );
-      } else {
-        collateralToken = await ERC20__factory.connect(
-          expectedConfig.token,
-          provider,
-        );
-      }
+      const collateralToken = await ERC20__factory.connect(
+        expectedConfig.token,
+        this.multiProvider.getProvider(chain),
+      );
       const actualToken = await (
         hypToken as unknown as HypERC20Collateral
       ).wrappedToken();

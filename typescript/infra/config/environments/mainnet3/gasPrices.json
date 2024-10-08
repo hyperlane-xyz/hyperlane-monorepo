@@ -4,15 +4,7 @@
     "decimals": 9
   },
   "arbitrum": {
-    "amount": "0.1",
-    "decimals": 9
-  },
-  "astar": {
-    "amount": "779.371350051",
-    "decimals": 9
-  },
-  "astarzkevm": {
-    "amount": "0.0562",
+    "amount": "0.5",
     "decimals": 9
   },
   "avalanche": {
@@ -20,11 +12,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.013571998",
-    "decimals": 9
-  },
-  "bitlayer": {
-    "amount": "0.050000007",
+    "amount": "0.013311447",
     "decimals": 9
   },
   "blast": {
@@ -47,10 +35,6 @@
     "amount": "1.0",
     "decimals": 9
   },
-  "coredao": {
-    "amount": "30.0",
-    "decimals": 9
-  },
   "cyber": {
     "amount": "0.001000252",
     "decimals": 9
@@ -59,28 +43,16 @@
     "amount": "100.0",
     "decimals": 9
   },
-  "dogechain": {
-    "amount": "250.0",
+  "eclipse": {
+    "amount": "0.001",
     "decimals": 9
-  },
-  "eclipsemainnet": {
-    "amount": "0.0000001",
-    "decimals": 1
   },
   "endurance": {
     "amount": "1.500000007",
     "decimals": 9
   },
   "ethereum": {
-    "amount": "10",
-    "decimals": 9
-  },
-  "everclear": {
-    "amount": "0.1",
-    "decimals": 9
-  },
-  "flare": {
-    "amount": "25.0",
+    "amount": "20",
     "decimals": 9
   },
   "fraxtal": {
@@ -88,7 +60,7 @@
     "decimals": 9
   },
   "fusemainnet": {
-    "amount": "50.0",
+    "amount": "22.0",
     "decimals": 9
   },
   "gnosis": {
@@ -116,11 +88,11 @@
     "decimals": 9
   },
   "lukso": {
-    "amount": "2.113054947",
+    "amount": "1.846662485",
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.011",
+    "amount": "0.106134186",
     "decimals": 9
   },
   "mantle": {
@@ -140,11 +112,7 @@
     "decimals": 9
   },
   "mode": {
-    "amount": "0.01",
-    "decimals": 9
-  },
-  "molten": {
-    "amount": "1.0",
+    "amount": "0.1",
     "decimals": 9
   },
   "moonbeam": {
@@ -155,10 +123,6 @@
     "amount": "0.0053",
     "decimals": 1
   },
-  "oortmainnet": {
-    "amount": "100.0",
-    "decimals": 9
-  },
   "optimism": {
     "amount": "0.25",
     "decimals": 9
@@ -168,7 +132,7 @@
     "decimals": 1
   },
   "polygon": {
-    "amount": "219.572738168",
+    "amount": "101.76455238",
     "decimals": 9
   },
   "polygonzkevm": {
@@ -180,7 +144,7 @@
     "decimals": 9
   },
   "real": {
-    "amount": "0.24",
+    "amount": "0.2",
     "decimals": 9
   },
   "redstone": {
@@ -196,16 +160,12 @@
     "decimals": 9
   },
   "sei": {
-    "amount": "120.0",
+    "amount": "1.0",
     "decimals": 9
   },
-  "shibarium": {
-    "amount": "54.30595191",
+  "solana": {
+    "amount": "0.001",
     "decimals": 9
-  },
-  "solanamainnet": {
-    "amount": "0.5",
-    "decimals": 1
   },
   "taiko": {
     "amount": "0.050000001",

@@ -20,7 +20,7 @@ use solana_sdk::{
     signature::{Keypair, Signer as _},
 };
 
-use hyperlane_core::{KnownHyperlaneDomain, H256};
+use hyperlane_core::H256;
 
 use hyperlane_sealevel_igp::{
     accounts::{
@@ -68,14 +68,8 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             let ism_dir = create_new_directory(&environments_dir, "igp");
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let key_dir = create_new_directory(&chain_dir, "keys");
-            let local_domain = deploy
-                .chain
-                .parse::<KnownHyperlaneDomain>()
-                .map(|v| v as u32)
-                .expect("Invalid chain name");
 
-            let program_id =
-                deploy_igp_program(&mut ctx, &deploy.built_so_dir, true, &key_dir, local_domain);
+            let program_id = deploy_igp_program(&mut ctx, &deploy.built_so_dir, true, &key_dir);
 
             write_json::<SingularProgramIdArtifact>(
                 &chain_dir.join("program-ids.json"),
@@ -415,7 +409,6 @@ fn deploy_igp_program(
     built_so_dir: &Path,
     use_existing_keys: bool,
     key_dir: &Path,
-    local_domain: u32,
 ) -> Pubkey {
     let (keypair, keypair_path) = create_and_write_keypair(
         key_dir,
@@ -432,7 +425,6 @@ fn deploy_igp_program(
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-        local_domain,
     );
 
     println!("Deployed IGP at program ID {}", program_id);

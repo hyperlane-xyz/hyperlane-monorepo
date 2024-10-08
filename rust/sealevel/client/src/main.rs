@@ -31,9 +31,7 @@ use hyperlane_sealevel_mailbox::{
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-    mailbox_processed_message_pda_seeds,
-    protocol_fee::ProtocolFee,
-    spl_noop,
+    mailbox_processed_message_pda_seeds, spl_noop,
 };
 
 use hyperlane_sealevel_token::{
@@ -177,8 +175,6 @@ struct CoreDeploy {
     #[command(flatten)]
     env_args: EnvironmentArgs,
     #[arg(long)]
-    protocol_fee_config_file: Option<PathBuf>,
-    #[arg(long)]
     gas_oracle_config_file: Option<PathBuf>,
     #[arg(long)]
     overhead_config_file: Option<PathBuf>,
@@ -213,8 +209,6 @@ const HYPERLANE_TOKEN_PROG_ID: Pubkey = pubkey!("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMq
 const MULTISIG_ISM_MESSAGE_ID_PROG_ID: Pubkey =
     pubkey!("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw");
 const VALIDATOR_ANNOUNCE_PROG_ID: Pubkey = pubkey!("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn");
-pub const DEFAULT_PROTOCOL_FEE: u64 = 0;
-pub const ONE_SOL_IN_LAMPORTS: u64 = 1_000_000_000;
 
 #[derive(Args)]
 struct Init {
@@ -224,12 +218,6 @@ struct Init {
     local_domain: u32,
     #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
     default_ism: Pubkey,
-    #[arg(long, short, default_value_t = ONE_SOL_IN_LAMPORTS)]
-    max_protocol_fee: u64,
-    #[arg(long, short, default_value_t = DEFAULT_PROTOCOL_FEE)]
-    protocol_fee: u64,
-    #[arg(long, short, default_value = None)]
-    protocol_fee_beneficiary: Option<Pubkey>,
 }
 
 #[derive(Args)]
@@ -710,7 +698,7 @@ fn main() {
             payer_keypair.pubkey(),
             Some(PayerKeypair {
                 keypair: payer_keypair,
-                keypair_path: keypair_path.clone(),
+                keypair_path,
             }),
         )
     } else {
@@ -724,7 +712,6 @@ fn main() {
     let commitment = CommitmentConfig::confirmed();
 
     let mut instructions = vec![];
-
     if cli.compute_budget != DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT {
         assert!(cli.compute_budget <= MAX_COMPUTE_UNIT_LIMIT);
         instructions.push(
@@ -771,17 +758,10 @@ fn main() {
 fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
     match cmd.cmd {
         MailboxSubCmd::Init(init) => {
-            let protocol_fee_beneficiary =
-                init.protocol_fee_beneficiary.unwrap_or(ctx.payer_pubkey);
             let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
                 init.program_id,
                 init.local_domain,
                 init.default_ism,
-                init.max_protocol_fee,
-                ProtocolFee {
-                    fee: init.protocol_fee,
-                    beneficiary: protocol_fee_beneficiary,
-                },
                 ctx.payer_pubkey,
             )
             .unwrap();

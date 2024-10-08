@@ -9,7 +9,7 @@ import {
   MultiProvider,
   RouterApp,
 } from '@hyperlane-xyz/sdk';
-import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HelloWorld } from '../types/index.js';
 
@@ -52,11 +52,12 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       message,
       { ...transactionOverrides, value },
     );
+    const gasLimit = estimated.mul(12).div(10);
 
     const quote = await sender.quoteDispatch(toDomain, message);
     const tx = await sender.sendHelloWorld(toDomain, message, {
-      gasLimit: addBufferToGasLimit(estimated),
       ...transactionOverrides,
+      gasLimit,
       value: value.add(quote),
     });
     this.logger.info('Sending hello message', {

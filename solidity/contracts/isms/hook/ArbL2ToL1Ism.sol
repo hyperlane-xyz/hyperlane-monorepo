@@ -61,11 +61,11 @@ contract ArbL2ToL1Ism is
         bytes calldata metadata,
         bytes calldata message
     ) external override returns (bool) {
-        if (!isVerified(message)) {
-            _verifyWithOutboxCall(metadata, message);
+        bool verified = isVerified(message);
+        if (verified) {
+            releaseValueToRecipient(message);
         }
-        releaseValueToRecipient(message);
-        return true;
+        return verified || _verifyWithOutboxCall(metadata, message);
     }
 
     // ============ Internal function ============
@@ -78,7 +78,7 @@ contract ArbL2ToL1Ism is
     function _verifyWithOutboxCall(
         bytes calldata metadata,
         bytes calldata message
-    ) internal {
+    ) internal returns (bool) {
         (
             bytes32[] memory proof,
             uint256 index,
@@ -87,7 +87,6 @@ contract ArbL2ToL1Ism is
             uint256 l2Block,
             uint256 l1Block,
             uint256 l2Timestamp,
-            uint256 value,
             bytes memory data
         ) = abi.decode(
                 metadata,
@@ -96,7 +95,6 @@ contract ArbL2ToL1Ism is
                     uint256,
                     address,
                     address,
-                    uint256,
                     uint256,
                     uint256,
                     uint256,
@@ -122,6 +120,8 @@ contract ArbL2ToL1Ism is
             convertedBytes == messageId,
             "ArbL2ToL1Ism: invalid message id"
         );
+
+        // value send to 0
         arbOutbox.executeTransaction(
             proof,
             index,
@@ -130,9 +130,11 @@ contract ArbL2ToL1Ism is
             l2Block,
             l1Block,
             l2Timestamp,
-            value,
+            0,
             data
         );
+        // the above bridge call will revert if the verifyMessageId call fails
+        return true;
     }
 
     /// @inheritdoc AbstractMessageIdAuthorizedIsm

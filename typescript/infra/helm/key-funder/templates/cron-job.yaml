@@ -12,9 +12,6 @@ spec:
       backoffLimit: 0
       activeDeadlineSeconds: 14400 # 60 * 60 * 4 seconds = 4 hours
       template:
-        metadata:
-          labels:
-            {{- include "hyperlane.labels" . | nindent 12 }}
         spec:
           restartPolicy: Never
           containers:

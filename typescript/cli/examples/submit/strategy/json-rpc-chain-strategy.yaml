@@ -1,6 +1,0 @@
-anvil2:
-  submitter:
-    type: jsonRpc
-anvil3:
-  submitter:
-    type: jsonRpc

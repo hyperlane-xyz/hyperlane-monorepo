@@ -95,17 +95,17 @@ export async function getHelloWorldMultiProtocolApp(
 
   // if (
   //   coreConfig.environment === 'mainnet3' &&
-  //   !multiProtocolProvider.getKnownChainNames().includes('solanamainnet')
+  //   !multiProtocolProvider.getKnownChainNames().includes('solana')
   // ) {
   //   multiProvider.addChain(chainMetadata.solana);
   //   multiProtocolProvider.addChain(chainMetadata.solana);
-  //   keys['solanamainnet'] = getKeyForRole(
+  //   keys['solana'] = getKeyForRole(
   //     coreConfig.environment,
   //     context,
-  //     'solanamainnet',
+  //     'solana',
   //     keyRole,
   //   );
-  //   await keys['solanamainnet'].fetch();
+  //   await keys['solana'].fetch();
   // }
 
   const core = MultiProtocolCore.fromAddressesMap(

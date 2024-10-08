@@ -1,0 +1,40 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "migration"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[lib]
+name = "migration"
+path = "src/lib.rs"
+
+[dependencies]
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
+serde.workspace = true
+time.workspace = true
+tokio = { workspace = true, features = ["rt", "process", "macros", "parking_lot"] }
+
+# bin-only deps
+tracing-subscriber.workspace = true
+tracing.workspace = true
+
+[[bin]]
+name = "init-db"
+path = "bin/init_db.rs"
+
+[[bin]]
+name = "recreate-db"
+path = "bin/recreate_db.rs"
+
+[[bin]]
+name = "generate-entities"
+path = "bin/generate_entities.rs"
+
+[features]
+default = []

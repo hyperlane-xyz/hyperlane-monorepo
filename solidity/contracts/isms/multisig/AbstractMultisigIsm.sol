@@ -21,7 +21,6 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
-import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
  * @title AbstractMultisig
@@ -30,7 +29,7 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
  * for concrete implementations of `digest` and `signatureAt`.
  * @dev See ./StaticMultisigIsm.sol for concrete implementations.
  */
-abstract contract AbstractMultisig is PackageVersioned {
+abstract contract AbstractMultisig {
     /**
      * @notice Returns the digest to be used for signature verification.
      * @param _metadata ABI encoded module metadata

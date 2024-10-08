@@ -36,8 +36,6 @@ Common labels
 {{- define "hyperlane.labels" -}}
 helm.sh/chart: {{ include "hyperlane.chart" . }}
 hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
-hyperlane/context: {{ .Values.hyperlane.context | quote }}
-app.kubernetes.io/component: warp-routes
 {{ include "hyperlane.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
@@ -51,13 +49,6 @@ Selector labels
 {{- define "hyperlane.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "hyperlane.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-The name of the ClusterSecretStore
-*/}}
-{{- define "hyperlane.cluster-secret-store.name" -}}
-{{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.clusterSecretStore }}
 {{- end }}
 
 {{/*
@@ -77,9 +68,4 @@ The warp-routes container
   - "10000"
   - -f
   - {{ .Values.configFilePath }}
-  - -e
-  - {{ .Values.environment}}
-  envFrom:
-  - secretRef:
-      name: {{ include "hyperlane.fullname" . }}-secret
 {{- end }}

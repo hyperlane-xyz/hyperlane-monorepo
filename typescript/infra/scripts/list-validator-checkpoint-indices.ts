@@ -39,12 +39,11 @@ async function main() {
         chain,
         identifier,
         index,
-        validator,
       };
     },
   );
 
-  console.table(indices, ['chain', 'index', 'identifier', 'validator']);
+  console.table(indices, ['chain', 'index', 'identifier']);
 }
 
 main().catch(console.error);

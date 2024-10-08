@@ -54,13 +54,6 @@ export const keyCommandOption: Options = {
   defaultDescription: 'process.env.HYP_KEY',
 };
 
-export const disableProxyCommandOption: Options = {
-  type: 'boolean',
-  description:
-    'Disable routing of Github API requests through the Hyperlane registry proxy.',
-  default: false,
-};
-
 /* Command-specific options */
 
 export const coreTargetsCommandOption: Options = {

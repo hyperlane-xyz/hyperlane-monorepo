@@ -2,7 +2,6 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import {
-  DEFAULT_GITHUB_REGISTRY,
   GithubRegistry,
   IRegistry,
   MergedRegistry,
@@ -13,14 +12,17 @@ import {
   ChainMetadata,
   ChainName,
   MultiProvider,
+  SubmissionStrategy,
+  SubmissionStrategySchema,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
-import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
@@ -31,7 +33,7 @@ import {
 } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const isDryRun = !isNullish(argv.dryRun);
+  let isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
@@ -39,13 +41,21 @@ export async function contextMiddleware(argv: Record<string, any>) {
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
-    disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
       "'--from-address' or '-f' should only be used for dry-runs",
     );
+  if (argv.strategy) {
+    settings.submissionStrategy = getSubmissionStrategy(argv.strategy);
+    if (
+      settings.submissionStrategy.submitter.type ===
+      TxSubmitterType.IMPERSONATED_ACCOUNT
+    ) {
+      isDryRun = true;
+    }
+  }
   const context = isDryRun
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
@@ -62,9 +72,9 @@ export async function getContext({
   key,
   requiresKey,
   skipConfirmation,
-  disableProxy = false,
+  submissionStrategy,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry(registryUri, registryOverrideUri);
 
   let signer: ethers.Wallet | undefined = undefined;
   if (key || requiresKey) {
@@ -79,6 +89,7 @@ export async function getContext({
     key,
     signer,
     skipConfirmation: !!skipConfirmation,
+    submissionStrategy,
   } as CommandContext;
 }
 
@@ -93,19 +104,21 @@ export async function getDryRunContext(
     key,
     fromAddress,
     skipConfirmation,
-    disableProxy = false,
+    submissionStrategy,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry(registryUri, registryOverrideUri);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
     if (skipConfirmation) throw new Error('No chains provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to dry-run against:',
-    );
+    chain = submissionStrategy
+      ? submissionStrategy.chain
+      : await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select chain to dry-run against:',
+        );
   }
 
   logBlue(`Dry-running against chain: ${chain}`);
@@ -129,6 +142,7 @@ export async function getDryRunContext(
     skipConfirmation: !!skipConfirmation,
     isDryRun: true,
     dryRunChain: chain,
+    submissionStrategy,
   } as WriteCommandContext;
 }
 
@@ -142,7 +156,6 @@ export async function getDryRunContext(
 function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
-  enableProxy: boolean,
 ): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
   const registries = [primaryRegistryUri, overrideRegistryUri]
@@ -151,14 +164,7 @@ function getRegistry(
     .map((uri, index) => {
       const childLogger = logger.child({ uri, index });
       if (isHttpsUrl(uri)) {
-        return new GithubRegistry({
-          uri,
-          logger: childLogger,
-          proxyUrl:
-            enableProxy && isCanonicalRepoUrl(uri)
-              ? PROXY_DEPLOYED_URL
-              : undefined,
-        });
+        return new GithubRegistry({ uri, logger: childLogger });
       } else {
         return new FileSystemRegistry({
           uri,
@@ -170,10 +176,6 @@ function getRegistry(
     registries,
     logger,
   });
-}
-
-function isCanonicalRepoUrl(url: string) {
-  return url === DEFAULT_GITHUB_REGISTRY;
 }
 
 /**
@@ -188,6 +190,20 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   return multiProvider;
 }
 
+/**
+ * Retrieves a submission strategy from the provided filepath.
+ * @param submissionStrategyFilepath a filepath to the submission strategy file
+ * @returns a formatted submission strategy
+ */
+function getSubmissionStrategy(
+  submissionStrategyFilepath: string,
+): SubmissionStrategy {
+  const submissionStrategyFileContent = readYamlOrJson(
+    submissionStrategyFilepath.trim(),
+  );
+  return SubmissionStrategySchema.parse(submissionStrategyFileContent);
+}
+
 export async function getOrRequestApiKeys(
   chains: ChainName[],
   chainMetadata: ChainMap<ChainMetadata>,
@@ -195,10 +211,6 @@ export async function getOrRequestApiKeys(
   const apiKeys: ChainMap<string> = {};
 
   for (const chain of chains) {
-    if (chainMetadata[chain]?.blockExplorers?.[0]?.apiKey) {
-      apiKeys[chain] = chainMetadata[chain]!.blockExplorers![0]!.apiKey!;
-      continue;
-    }
     const wantApiKey = await confirm({
       default: false,
       message: `Do you want to use an API key to verify on this (${chain}) chain's block explorer`,
