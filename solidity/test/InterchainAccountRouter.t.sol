@@ -319,7 +319,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(target.data(address(this)), bytes32(0));
         assertEq(target.value(address(this)), 0);
 
-        vm.deal(address(destinationIcaRouter), value);
         vm.expectEmit(true, true, false, true, address(destinationIcaRouter));
         emit InterchainAccountCreated(
             origin,
@@ -327,7 +326,8 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             TypeCasts.bytes32ToAddress(ismOverride),
             address(ica)
         );
-        environment.processNextPendingMessage();
+        vm.deal(address(this), value);
+        environment.processNextPendingMessage{value: value}();
 
         assertEq(target.data(address(ica)), data);
         assertEq(target.value(address(ica)), value);

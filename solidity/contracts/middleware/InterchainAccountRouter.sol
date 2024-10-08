@@ -307,8 +307,7 @@ contract InterchainAccountRouter is Router {
             _sender,
             _ism.bytes32ToAddress()
         );
-        // forward all balance to the interchain account for msg.value and non-call value transfers
-        _interchainAccount.multicall{value: address(this).balance}(_calls);
+        _interchainAccount.multicall{value: msg.value}(_calls);
     }
 
     /**
