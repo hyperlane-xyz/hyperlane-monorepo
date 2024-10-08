@@ -185,7 +185,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     superposition: true,
     taiko: true,
-    tangle: false,
+    tangle: true,
     viction: true,
     worldchain: true,
     xai: true,
@@ -262,7 +262,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: false,
     superposition: true,
     taiko: true,
-    tangle: false,
+    tangle: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
     worldchain: true,
