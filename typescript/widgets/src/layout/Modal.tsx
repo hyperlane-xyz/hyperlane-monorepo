@@ -36,13 +36,13 @@ export function Modal({
       onClose={close}
       {...dialogProps}
     >
-      <DialogBackdrop className="htw-fixed htw-inset-0 htw-bg-black/5" />
+      <DialogBackdrop className="htw-fixed htw-inset-0 htw-bg-black/5 htw-transition-all htw-duration-200" />
       <div className="htw-fixed htw-inset-0 htw-z-20 htw-w-screen htw-overflow-y-auto">
         <div className="htw-flex htw-min-h-full htw-items-center htw-justify-center htw-p-4">
           <DialogPanel
             transition
             className={clsx(
-              'htw-w-full htw-max-w-sm htw-max-h-[90vh] htw-rounded-lg htw-shadow htw-overflow-auto no-scrollbar htw-bg-white htw-duration-300 htw-ease-out data-[closed]:htw-transform-[scale(95%)] data-[closed]:htw-opacity-0 data-[closed]:htw--translate-y-1',
+              'htw-w-full htw-max-w-sm htw-max-h-[90vh] htw-rounded-lg htw-shadow htw-overflow-auto no-scrollbar htw-bg-white htw-duration-200 htw-ease-out data-[closed]:htw-transform-[scale(95%)] data-[closed]:htw-opacity-0 data-[closed]:htw--translate-y-1',
               panelClassname,
             )}
             {...panelProps}

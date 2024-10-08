@@ -107,7 +107,7 @@ function Form({
       <div className="htw-relative">
         <textarea
           className={clsx(
-            'htw-text-xs htw-resize htw-border htw-border-gray-200 focus:htw-border-gray-400 htw-rounded-sm htw-p-2 htw-w-full htw-min-h-60 htw-outline-none',
+            'htw-text-xs htw-resize htw-border htw-border-gray-200 focus:htw-border-gray-400 htw-rounded-sm htw-p-2 htw-w-full htw-min-h-72 htw-outline-none',
             error && 'htw-border-red-500',
           )}
           placeholder={placeholderText}

@@ -5,8 +5,6 @@ import { deepEquals, isObject, toTitleCase } from '@hyperlane-xyz/utils';
 
 import { ColorPalette } from '../color.js';
 import { ArrowIcon } from '../icons/Arrow.js';
-import { ChevronIcon } from '../icons/Chevron.js';
-import { GearIcon } from '../icons/Gear.js';
 import { PencilIcon } from '../icons/Pencil.js';
 import { PlusIcon } from '../icons/Plus.js';
 import { SearchIcon } from '../icons/Search.js';
@@ -95,17 +93,11 @@ export function SearchMenu<
 
   return (
     <div className="htw-flex htw-flex-col htw-gap-2">
-      <div className="htw-relative">
-        <SearchBar
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder={placeholder}
-        />
-        <SearchBarButtons
-          isEditMode={isEditMode}
-          setIsEditMode={setIsEditMode}
-        />
-      </div>
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder={placeholder}
+      />
       <div className="htw-flex htw-items-center htw-justify-between">
         <div className="htw-flex htw-items-center htw-gap-5">
           <SortDropdown
@@ -120,15 +112,28 @@ export function SearchMenu<
             FilterComponent={FilterComponent}
           />
         </div>
-        {onClickAddItem && (
+        <div className="htw-flex htw-items-center htw-gap-3 htw-mr-0.5">
           <IconButton
-            onClick={onClickAddItem}
-            className="htw-p-0.5 htw-mr-0.5 htw-border htw-border-gray-200 htw-rounded-full"
-            title="Add item"
+            onClick={() => setIsEditMode(!isEditMode)}
+            className="htw-p-1.5 htw-border htw-border-gray-200 htw-rounded-full"
+            title="Edit items"
           >
-            <PlusIcon width={20} height={20} />
+            <PencilIcon
+              width={14}
+              height={14}
+              color={isEditMode ? ColorPalette.Blue : ColorPalette.Black}
+            />
           </IconButton>
-        )}
+          {onClickAddItem && (
+            <IconButton
+              onClick={onClickAddItem}
+              className="htw-p-0.5 htw-border htw-border-gray-200 htw-rounded-full"
+              title="Add item"
+            >
+              <PlusIcon width={22} height={22} />
+            </IconButton>
+          )}
+        </div>
       </div>
       <div className="htw-flex htw-flex-col htw-divide-y htw-divide-gray-100">
         {results.length ? (
@@ -164,30 +169,6 @@ function SearchBar(props: InputProps) {
         {...props}
         className="htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
       />
-    </div>
-  );
-}
-
-function SearchBarButtons({
-  isEditMode,
-  setIsEditMode: setEditMode,
-}: {
-  isEditMode: boolean;
-  setIsEditMode: (isEditMode: boolean) => void;
-}) {
-  return (
-    <div className="htw-flex htw-items-center htw-gap-4 htw-absolute htw-right-4 htw-top-1/2 -htw-translate-y-1/2">
-      <IconButton
-        onClick={() => setEditMode(!isEditMode)}
-        className="hover:htw-rotate-45"
-        title="Chain Settings"
-      >
-        <GearIcon
-          width={20}
-          height={20}
-          color={isEditMode ? ColorPalette.Blue : undefined}
-        />
-      </IconButton>
     </div>
   );
 }
@@ -338,18 +319,11 @@ function ListItem<ListItemData extends { disabled?: boolean }>({
       onClick={() => (isEditMode ? onClickEditItem(data) : onClickItem(data))}
     >
       <ListComponent data={data} />
-      <div className="htw-justify-self-end">
-        {isEditMode ? (
+      {isEditMode && (
+        <div className="htw-justify-self-end">
           <PencilIcon width={16} height={16} />
-        ) : (
-          <ChevronIcon
-            direction="e"
-            width={15}
-            height={20}
-            className="htw-opacity-60"
-          />
-        )}
-      </div>
+        </div>
+      )}
     </button>
   );
 }
