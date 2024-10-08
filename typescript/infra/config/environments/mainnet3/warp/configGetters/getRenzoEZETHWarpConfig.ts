@@ -20,8 +20,8 @@ const chainsToDeploy = [
   'ethereum',
   'fraxtal',
   'zircuit',
-  'sei',
   'taiko',
+  'sei',
 ];
 const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
