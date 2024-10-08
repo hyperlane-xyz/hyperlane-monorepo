@@ -20,6 +20,7 @@ const chainsToDeploy = [
   'ethereum',
   'fraxtal',
   'zircuit',
+  'sei',
 ];
 
 const lockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
@@ -34,6 +35,7 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   ethereum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   fraxtal: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   zircuit: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  sei: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // redEth
 };
 const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
@@ -110,6 +112,13 @@ export const ezEthValidators = {
       '0x7ac6584c068eb2a72d4db82a7b7cd5ab34044061', // luganodes
     ],
   },
+  sei: {
+    threshold: 1,
+    validators: [
+      '0x7a0f4a8672f603e0c12468551db03f3956d10910', // luganodes
+      '0x952df7f0cb8611573a53dd7cbf29768871d9f8b0', // Renzo
+    ],
+  },
 };
 
 export const ezEthSafes: Record<string, string> = {
@@ -123,6 +132,7 @@ export const ezEthSafes: Record<string, string> = {
   ethereum: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
   fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
 };
 
 export const getRenzoEZETHWarpConfig = async (): Promise<
