@@ -4157,10 +4157,10 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "https://rpc.chiliz.com"
+          "http": "https://rpc.ankr.com/chiliz"
         },
         {
-          "http": "https://rpc.ankr.com/chiliz"
+          "http": "https://chiliz.publicnode.com"
         }
       ],
       "aggregationHook": "0x66b3b9f399d415Bd6CcC94407deB2AB86750Cac2",
