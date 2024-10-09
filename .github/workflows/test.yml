@@ -157,6 +157,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          fetch-depth: 0
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
@@ -212,6 +213,16 @@ jobs:
         env:
           RUST_BACKTRACE: 'full'
 
+      - name: Check for Rust file changes
+        id: check-rust-changes
+        run: |
+          if [[ -n "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" ]]; then
+            echo "rust_changes=true" >> $GITHUB_OUTPUT
+            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" 
+          else
+            echo "rust_changes=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: agent tests (EVM and Sealevel)
         run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
@@ -221,6 +232,7 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
+          SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
 
   cli-advanced-e2e:
     runs-on: ubuntu-latest

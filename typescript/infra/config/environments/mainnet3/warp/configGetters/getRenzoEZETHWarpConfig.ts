@@ -9,12 +9,6 @@ import { symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
-const lockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
-const xERC20 = '0x2416092f143378750bb29b79eD961ab195CcEea5';
-const lockboxChain = 'ethereum';
-// over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
-const warpRouteOverheadGas = 200_000;
-
 const chainsToDeploy = [
   'arbitrum',
   'optimism',
@@ -27,7 +21,26 @@ const chainsToDeploy = [
   'fraxtal',
   'zircuit',
   'taiko',
+  'sei',
 ];
+const lockboxChain = 'ethereum';
+// over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
+const warpRouteOverheadGas = 200_000;
+const lockbox = '0xC8140dA31E6bCa19b287cC35531c2212763C2059';
+const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
+  arbitrum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  optimism: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  base: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  blast: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  bsc: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  mode: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  linea: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  ethereum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  fraxtal: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  zircuit: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  taiko: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  sei: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // redEth
+};
 
 export const ezEthValidators = {
   arbitrum: {
@@ -107,6 +120,13 @@ export const ezEthValidators = {
       '0xd4F6000d8e1108bd4998215d51d5dF559BdB43a1', // Renzo
     ],
   },
+  sei: {
+    threshold: 1,
+    validators: [
+      '0x7a0f4a8672f603e0c12468551db03f3956d10910', // luganodes
+      '0x952df7f0cb8611573a53dd7cbf29768871d9f8b0', // Renzo
+    ],
+  },
 };
 
 export const ezEthSafes: Record<string, string> = {
@@ -121,6 +141,7 @@ export const ezEthSafes: Record<string, string> = {
   fraxtal: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
 };
 
 export const getRenzoEZETHWarpConfig = async (): Promise<
@@ -136,6 +157,10 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
     new Set(chainsToDeploy),
     new Set(Object.keys(ezEthSafes)),
   );
+  const xERC20Diff = symmetricDifference(
+    new Set(chainsToDeploy),
+    new Set(Object.keys(xERC20)),
+  );
   if (validatorDiff.size > 0) {
     throw new Error(
       `chainsToDeploy !== validatorConfig, diff is ${Array.from(
@@ -146,6 +171,13 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
   if (safeDiff.size > 0) {
     throw new Error(
       `chainsToDeploy !== safeDiff, diff is ${Array.from(safeDiff).join(', ')}`,
+    );
+  }
+  if (xERC20Diff.size > 0) {
+    throw new Error(
+      `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
+        ', ',
+      )}`,
     );
   }
 
@@ -161,7 +193,7 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                 chain === lockboxChain
                   ? TokenType.XERC20Lockbox
                   : TokenType.XERC20,
-              token: chain === lockboxChain ? lockbox : xERC20,
+              token: chain === lockboxChain ? lockbox : xERC20[chain],
               owner: ezEthSafes[chain],
               gas: warpRouteOverheadGas,
               mailbox: (await registry.getChainAddresses(chain))!.mailbox,
