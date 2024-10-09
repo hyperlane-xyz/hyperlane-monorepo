@@ -5,7 +5,7 @@ use tendermint::public_key::PublicKey as TendermintPublicKey;
 
 use crypto::decompress_public_key;
 use hyperlane_core::Error::Overflow;
-use hyperlane_core::{ChainCommunicationError, ChainResult, H256};
+use hyperlane_core::{AccountAddressType, ChainCommunicationError, ChainResult, H256};
 
 use crate::HyperlaneCosmosError;
 
@@ -19,11 +19,14 @@ impl<'a> CosmosAccountId<'a> {
     }
 
     /// Calculate AccountId from public key depending on provided prefix
-    pub fn account_id_from_pubkey(pub_key: PublicKey, prefix: &str) -> ChainResult<AccountId> {
-        match prefix {
-            "neutron" | "osmo" => Self::bitcoin_style(pub_key, prefix),
-            "inj" => Self::ethereum_style(pub_key, prefix),
-            _ => Err(HyperlaneCosmosError::CosmosError(cosmrs::Error::Crypto))?,
+    pub fn account_id_from_pubkey(
+        pub_key: PublicKey,
+        prefix: &str,
+        account_address_type: &AccountAddressType,
+    ) -> ChainResult<AccountId> {
+        match account_address_type {
+            AccountAddressType::Bitcoin => Self::bitcoin_style(pub_key, prefix),
+            AccountAddressType::Ethereum => Self::ethereum_style(pub_key, prefix),
         }
     }
 

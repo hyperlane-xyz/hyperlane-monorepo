@@ -33,7 +33,11 @@ import {
   logTable,
 } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  removeEndingSlash,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/input.js';
 import { formatViolationOutput } from '../utils/output.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
@@ -76,6 +80,7 @@ export const apply: CommandModuleWithWriteContext<{
   symbol?: string;
   warp: string;
   strategy?: string;
+  receiptsDir: string;
 }> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
@@ -90,8 +95,21 @@ export const apply: CommandModuleWithWriteContext<{
       demandOption: false,
     },
     strategy: { ...strategyCommandOption, demandOption: false },
+    'receipts-dir': {
+      type: 'string',
+      description: 'The directory to output transaction receipts.',
+      default: './generated/transactions',
+      coerce: (dir) => removeEndingSlash(dir),
+    },
   },
-  handler: async ({ context, config, symbol, warp, strategy: strategyUrl }) => {
+  handler: async ({
+    context,
+    config,
+    symbol,
+    warp,
+    strategy: strategyUrl,
+    receiptsDir,
+  }) => {
     logCommandHeader('Hyperlane Warp Apply');
 
     const warpCoreConfig = await getWarpCoreConfigOrExit({
@@ -106,6 +124,7 @@ export const apply: CommandModuleWithWriteContext<{
       warpDeployConfig,
       warpCoreConfig,
       strategyUrl,
+      receiptsDir,
     });
     process.exit(0);
   },

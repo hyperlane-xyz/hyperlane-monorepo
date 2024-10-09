@@ -94,5 +94,13 @@
       "isProxy": false,
       "name": "TestRecipient"
     }
+  ],
+  "lumia": [
+    {
+      "name": "TestRecipient",
+      "address": "0xf7D882A816D4845BB221Ceb03CE531d1e7645F60",
+      "constructorArguments": "",
+      "isProxy": false
+    }
   ]
 }

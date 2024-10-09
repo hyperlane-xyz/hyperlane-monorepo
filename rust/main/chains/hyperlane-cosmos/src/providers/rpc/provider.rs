@@ -20,9 +20,8 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256,
 };
 
-use crate::address::CosmosAddress;
 use crate::rpc::CosmosRpcClient;
-use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError};
+use crate::{ConnectionConf, CosmosAddress, CosmosProvider, HyperlaneCosmosError};
 
 #[async_trait]
 /// Trait for wasm indexer. Use rpc provider

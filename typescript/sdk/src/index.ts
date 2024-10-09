@@ -312,15 +312,7 @@ export {
   excludeProviderMethods,
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
-export {
-  PopulatedTransactionSchema,
-  PopulatedTransactionsSchema,
-} from './providers/transactions/schemas.js';
-export {
-  CallData,
-  PopulatedTransaction,
-  PopulatedTransactions,
-} from './providers/transactions/types.js';
+export { CallData } from './providers/transactions/types.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -347,6 +339,7 @@ export {
 } from './providers/transactions/submitter/builder/types.js';
 
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
+export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
