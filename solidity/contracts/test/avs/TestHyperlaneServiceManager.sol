@@ -10,13 +10,13 @@ contract TestHyperlaneServiceManager is HyperlaneServiceManager {
     constructor(
         address _avsDirectory,
         address _stakeRegistry,
-        address _paymentCoordinator,
+        address _rewardsCoordinator,
         address _delegationManager
     )
         HyperlaneServiceManager(
             _avsDirectory,
             _stakeRegistry,
-            _paymentCoordinator,
+            _rewardsCoordinator,
             _delegationManager
         )
     {}
