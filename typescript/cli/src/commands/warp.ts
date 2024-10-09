@@ -383,10 +383,11 @@ export const check: CommandModuleWithContext<{
     });
 
     if (violations.length !== 0) {
-      formatViolationOutput(violations);
+      log(formatViolationOutput(violations));
       process.exit(1);
     }
 
+    logGreen(`No violations found`);
     process.exit(0);
   },
 };
