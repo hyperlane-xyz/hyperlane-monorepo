@@ -3,6 +3,11 @@ import { ChainMap } from '../types.js';
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
+  alephzeroevm: {
+    threshold: 1,
+    validators: ['0xcae8fab142adc4e434bb7409e40dd932cc3851aa'],
+  },
+
   alfajores: {
     threshold: 2,
     validators: [
@@ -164,6 +169,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  chiliz: {
+    threshold: 1,
+    validators: ['0x82d024f453b1a3f3f6606226f06b038da27596f3'],
+  },
+
   citreatestnet: {
     threshold: 1,
     validators: ['0x60d7380a41eb95c49be18f141efd2fde5e3dba20'],
@@ -322,6 +332,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xea673a92a23ca319b9d85cc16b248645cd5158da'],
   },
 
+  immutablezkevm: {
+    threshold: 1,
+    validators: ['0xa787c2952a4d22f776ee6e87e828e6f75de24330'],
+  },
+
   inevm: {
     threshold: 2,
     validators: [
@@ -374,6 +389,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
     ],
+  },
+
+  lumia: {
+    threshold: 1,
+    validators: ['0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f'],
   },
 
   mantapacific: {
@@ -535,6 +555,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  rari: {
+    threshold: 1,
+    validators: ['0x989d6862e09de21337078efbd86843a3eb1133e3'],
+  },
+
   real: {
     threshold: 2,
     validators: [
@@ -551,6 +576,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
+  },
+
+  rootstock: {
+    threshold: 1,
+    validators: ['0xcb8e3a72cf427feff27416d0e2ec375a052eaaee'],
   },
 
   sanko: {
@@ -658,6 +688,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   suavetoliman: {
     threshold: 1,
     validators: ['0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b'],
+  },
+
+  superposition: {
+    threshold: 1,
+    validators: ['0x5978d0e6afa9270ddb87cff43a8fa7a763a5dfc4'],
   },
 
   superpositiontestnet: {

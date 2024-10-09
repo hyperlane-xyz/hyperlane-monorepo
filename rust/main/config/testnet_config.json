@@ -276,10 +276,10 @@
       "aggregationHook": "0x331eb40963dc11F5BB271308c42d97ac6e41F124",
       "blockExplorers": [
         {
-          "apiUrl": "https://connext-sepolia.blockscout.com/api",
+          "apiUrl": "https://scan.testnet.everclear.org/api",
           "family": "blockscout",
-          "name": "Connext Explorer",
-          "url": "https://connext-sepolia.blockscout.com"
+          "name": "Everclear Testnet Explorer",
+          "url": "https://scan.testnet.everclear.org/"
         }
       ],
       "blocks": {
@@ -292,7 +292,7 @@
         "name": "Everclear",
         "url": "https://everclear.org"
       },
-      "displayName": "Connext Sepolia",
+      "displayName": "Everclear Sepolia",
       "domainId": 6398,
       "domainRoutingIsm": "0x4ac19e0bafc2aF6B98094F0a1B817dF196551219",
       "domainRoutingIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
@@ -956,7 +956,7 @@
         {
           "apiUrl": "https://testnet-explorer.superposition.so/api",
           "family": "blockscout",
-          "name": "CatScan",
+          "name": "Superposition Testnet Explorer",
           "url": "https://testnet-explorer.superposition.so"
         }
       ],
@@ -1006,7 +1006,11 @@
       "validatorAnnounce": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xE67CfA164cDa449Ae38a0a09391eF6bCDf8e4e2c",
       "staticMessageIdWeightedMultisigIsmFactory": "0x867f2089D09903f208AeCac84E599B90E5a4A821",
-      "gasCurrencyCoinGeckoId": "superposition"
+      "gasCurrencyCoinGeckoId": "superposition",
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      }
     },
     "berabartio": {
       "blockExplorers": [
@@ -1136,6 +1140,10 @@
       "validatorAnnounce": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
       "index": {
         "from": 4591544
+      },
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       }
     },
     "citreatestnet": {
@@ -1261,6 +1269,10 @@
       "validatorAnnounce": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
       "index": {
         "from": 12137144
+      },
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       }
     },
     "hyperliquidevmtestnet": {
@@ -1385,6 +1397,10 @@
       "validatorAnnounce": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
       "index": {
         "from": 2054457
+      },
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       }
     },
     "suavetoliman": {
@@ -1445,6 +1461,10 @@
       "validatorAnnounce": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
       "index": {
         "from": 1921514
+      },
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
       }
     },
     "test1": {
