@@ -3,7 +3,7 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use crate::accumulator::merkle::Proof;
-use crate::H256;
+use crate::{HyperlaneDomain, H256};
 
 /// Struct representing a single merkle test case
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -37,4 +37,16 @@ pub fn find_vector(final_component: &str) -> PathBuf {
         .expect("could not find .git somewhere! confused about workspace layout");
 
     git_dir.join("vectors").join(final_component)
+}
+
+/// Create a dummy domain for testing purposes
+pub fn dummy_domain(domain_id: u32, name: &str) -> HyperlaneDomain {
+    let test_domain = HyperlaneDomain::new_test_domain(name);
+    HyperlaneDomain::Unknown {
+        domain_id,
+        domain_name: name.to_owned(),
+        domain_type: test_domain.domain_type(),
+        domain_protocol: test_domain.domain_protocol(),
+        domain_technical_stack: test_domain.domain_technical_stack(),
+    }
 }

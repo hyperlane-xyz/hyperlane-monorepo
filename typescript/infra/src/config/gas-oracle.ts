@@ -236,6 +236,8 @@ export function getTokenExchangeRateFromValues(
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
+  // We set default token price to 1 to mitigate underflow/overflow errors that occurred
+  // on some pairings if the exchange rate itself was set to 1.
   const defaultValue = '1';
   const localValue = ethers.utils.parseUnits(
     tokenPrices[local] ?? defaultValue,

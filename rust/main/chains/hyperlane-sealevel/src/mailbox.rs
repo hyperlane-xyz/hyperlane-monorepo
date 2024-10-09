@@ -33,6 +33,7 @@ use solana_client::{
     rpc_client::SerializableTransaction,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
+    rpc_response::Response,
 };
 use solana_sdk::{
     account::Account,
@@ -48,7 +49,7 @@ use solana_sdk::{
     transaction::{Transaction, VersionedTransaction},
 };
 use solana_transaction_status::{
-    EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
+    EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta, TransactionStatus,
     UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiReturnDataEncoding,
     UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
 };
@@ -354,15 +355,15 @@ impl SealevelMailbox {
             };
 
             for status_retry in 0..GET_STATUS_RETRIES {
-                match self
+                let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
                     .provider
                     .rpc()
-                    .get_signature_status(&signature)
+                    .get_signature_statuses(&[*signature])
                     .await
-                    .map_err(ChainCommunicationError::from_other)?
-                {
-                    Some(Ok(_)) => return Ok(*signature),
-                    Some(Err(e)) => return Err(ChainCommunicationError::from_other(e)),
+                    .map_err(ChainCommunicationError::from_other)?;
+                let signature_status = signature_statuses.value.first().cloned().flatten();
+                match signature_status {
+                    Some(_) => return Ok(*signature),
                     None => {
                         if !self
                             .provider

@@ -400,7 +400,7 @@ impl BaseMetadataBuilder {
                     continue;
                 }
 
-                match config.build(None).await {
+                match config.build_and_validate(None).await {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());
