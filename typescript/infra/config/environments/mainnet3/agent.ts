@@ -213,7 +213,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     cyber: true,
     degenchain: true,
     dogechain: true,
-    // Cannot scrape non-EVM chains
+    // Cannot scrape Sealevel chains
     eclipsemainnet: false,
     endurance: true,
     ethereum: true,
@@ -253,7 +253,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     scroll: true,
     sei: true,
     shibarium: true,
-    // Cannot scrape non-EVM chains
+    // Cannot scrape Sealevel chains
     solanamainnet: false,
     superposition: true,
     taiko: true,
