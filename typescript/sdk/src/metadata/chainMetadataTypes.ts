@@ -17,6 +17,10 @@ export enum ExplorerFamily {
 
 export enum ChainTechnicalStack {
   ArbitrumNitro = 'arbitrumnitro',
+  OpStack = 'opstack',
+  PolygonCDK = 'polygoncdk',
+  PolkadotSubstrate = 'polkadotsubstrate',
+  ZkSync = 'zksync',
   Other = 'other',
 }
 
