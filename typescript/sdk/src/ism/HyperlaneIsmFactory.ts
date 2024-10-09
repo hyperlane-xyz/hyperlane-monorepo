@@ -48,6 +48,7 @@ import {
 } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
+import { ZkSyncArtifact } from '../utils/zksync.js';
 
 import {
   AggregationIsmConfig,
@@ -243,7 +244,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       factory:
         | StorageMerkleRootMultisigIsm__factory
         | StorageMessageIdMultisigIsm__factory,
-      artifact: any,
+      artifact: ZkSyncArtifact,
     ) => {
       const contract = await this.multiProvider.handleDeploy(
         destination,

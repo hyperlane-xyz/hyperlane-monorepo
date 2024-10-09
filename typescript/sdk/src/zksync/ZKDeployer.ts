@@ -66,7 +66,7 @@ export class ZKDeployer {
    * @returns Calculated fee in ETH wei
    */
   public async estimateDeployFee(
-    artifact: any,
+    artifact: ZkSyncArtifact,
     constructorArguments: any[],
   ): Promise<ethers.BigNumber> {
     const gas = await this.estimateDeployGas(artifact, constructorArguments);
@@ -83,7 +83,7 @@ export class ZKDeployer {
    * @returns Calculated amount of gas.
    */
   public async estimateDeployGas(
-    artifact: any,
+    artifact: ZkSyncArtifact,
     constructorArguments: any[],
   ): Promise<ethers.BigNumber> {
     const factoryDeps = await this.extractFactoryDeps(artifact);
@@ -119,7 +119,7 @@ export class ZKDeployer {
    * @returns A contract object.
    */
   public async deploy(
-    artifact: any,
+    artifact: ZkSyncArtifact,
     constructorArguments: any[] = [],
     overrides?: ethers.Overrides,
     additionalFactoryDeps?: ethers.BytesLike[],
@@ -160,7 +160,7 @@ export class ZKDeployer {
    *
    * @returns Factory dependencies in the format expected by SDK.
    */
-  async extractFactoryDeps(artifact: any): Promise<string[]> {
+  async extractFactoryDeps(artifact: ZkSyncArtifact): Promise<string[]> {
     const visited = new Set<string>();
 
     visited.add(`${artifact.sourceName}:${artifact.contractName}`);
@@ -168,7 +168,7 @@ export class ZKDeployer {
   }
 
   private async extractFactoryDepsRecursive(
-    artifact: any,
+    artifact: ZkSyncArtifact,
     visited: Set<string>,
   ): Promise<string[]> {
     // Load all the dependency bytecodes.

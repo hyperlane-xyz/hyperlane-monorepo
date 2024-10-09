@@ -16,6 +16,7 @@ import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
+import { ZkSyncArtifact } from '../utils/zksync.js';
 import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
@@ -25,12 +26,12 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider;
+type Provider = providers.Provider | zk.Provider;
 
 export interface MultiProviderOptions {
   logger?: Logger;
   providers?: ChainMap<Provider | zk.Provider>;
-  providerBuilder?: ProviderBuilderFn<Provider>;
+  providerBuilder?: ProviderBuilderFn<Provider | zk.Provider>;
   signers?: ChainMap<Signer | zk.Wallet>;
 }
 
@@ -211,7 +212,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets Ethers Signers for a set of chains
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
-  setSigners(signers: ChainMap<zk.Wallet>): void {
+  setSigners(signers: ChainMap<Signer | zk.Wallet>): void {
     if (this.useSharedSigner) {
       throw new Error('MultiProvider already set to use a shared signer');
     }
@@ -226,7 +227,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    */
   tryGetSignerOrProvider(
     chainNameOrId: ChainNameOrId,
-  ): zk.Wallet | Signer | Provider | zk.Provider | null {
+  ): Signer | Provider | zk.Wallet | zk.Provider | null {
     return (
       this.tryGetSigner(chainNameOrId) || this.tryGetProvider(chainNameOrId)
     );
@@ -327,8 +328,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   async handleDeploy<F extends zk.ContractFactory | ContractFactory>(
     chainNameOrId: ChainNameOrId,
     factory: F,
-    params: any,
-    artifact: any,
+    params: Parameters<F['deploy']>,
+    artifact: ZkSyncArtifact,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) {

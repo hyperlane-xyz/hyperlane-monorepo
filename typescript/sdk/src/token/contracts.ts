@@ -43,7 +43,6 @@ export const hypERC20factories = {
   [TokenType.native]: new HypNative__factory(),
   [TokenType.nativeScaled]: new HypNativeScaled__factory(),
 };
-
 export type HypERC20Factories = typeof hypERC20factories;
 
 export const hypERC721contracts = {
@@ -61,7 +60,6 @@ export const hypERC721factories = {
   [TokenType.syntheticUri]: new HypERC721URIStorage__factory(),
   [TokenType.synthetic]: new HypERC721__factory(),
 };
-
 export type HypERC721Factories = typeof hypERC721factories;
 
 export type TokenFactories = HypERC20Factories | HypERC721Factories;

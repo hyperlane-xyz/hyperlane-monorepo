@@ -46,10 +46,8 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
   ): Promise<TestRecipientContracts> {
     this.logger.debug(`Deploying TestRecipient on ${chain}`, config);
     const testRecipient = await this.deployContract(chain, 'testRecipient', []);
-
     if (config.interchainSecurityModule) {
       this.logger.debug(`Checking TestRecipient ISM on ${chain}`);
-
       await this.configureIsm(
         chain,
         testRecipient,

@@ -3,13 +3,9 @@ import { zksyncArtifacts } from '@hyperlane-xyz/core/artifacts';
 export interface ZkSyncArtifact {
   contractName: string;
   sourceName: string;
-  abi: any[];
+  abi: any;
   bytecode: string;
   deployedBytecode: string;
-  compiler: {
-    version: string;
-    settings: any;
-  };
   factoryDeps?: Record<string, string>;
 }
 

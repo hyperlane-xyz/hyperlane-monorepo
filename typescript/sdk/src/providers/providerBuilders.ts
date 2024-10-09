@@ -1,7 +1,7 @@
 import { CosmWasmClient } from '@cosmjs/cosmwasm-stargate';
 import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
-import { ethers } from 'ethers';
+import { providers } from 'ethers';
 import { createPublicClient, http } from 'viem';
 import * as zk from 'zksync-ethers';
 
@@ -113,7 +113,7 @@ export function defaultCosmJsWasmProviderBuilder(
 
 export function defaultZKSyncProviderBuilder(
   rpcUrls: RpcUrl[],
-  network: ethers.providers.Networkish,
+  network: providers.Networkish,
 ): ZKSyncProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   const url = rpcUrls[0].http;
@@ -125,7 +125,7 @@ export function defaultZKSyncProviderBuilder(
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): ethers.providers.Provider {
+): providers.Provider {
   return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
 }
 // Kept for backwards compatibility
