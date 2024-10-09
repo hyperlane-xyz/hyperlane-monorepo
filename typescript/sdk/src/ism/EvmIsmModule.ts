@@ -26,6 +26,7 @@ import {
   Address,
   Domain,
   ProtocolType,
+  addBufferToGasLimit,
   assert,
   deepEquals,
   eqAddress,
@@ -586,12 +587,12 @@ export class EvmIsmModule extends HyperlaneModule<
     );
 
     // estimate gas
-    // const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
-    //   owner,
-    //   domainIds,
-    //   submoduleAddresses,
-    //   overrides,
-    // );
+    const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
+      owner,
+      domainIds,
+      submoduleAddresses,
+      overrides,
+    );
 
     // deploying new domain routing ISM, add 10% buffer
     const tx = await domainRoutingIsmFactory.deploy(
@@ -600,6 +601,7 @@ export class EvmIsmModule extends HyperlaneModule<
       submoduleAddresses,
       {
         ...overrides,
+        gasLimit: addBufferToGasLimit(estimatedGas),
       },
     );
 

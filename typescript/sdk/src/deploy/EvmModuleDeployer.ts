@@ -7,7 +7,7 @@ import {
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -267,6 +267,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       values,
       threshold,
     );
+    const signer = multiProvider.getSigner(chain);
     const code = await multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -275,15 +276,14 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       const overrides = multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
-      // const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
-      //   values,
-      //   threshold,
-      //   overrides,
-      // );
+      const estimatedGas = await factory
+        .connect(signer)
+        .estimateGas['deploy(address[],uint8)'](values, threshold, overrides);
 
       // add 10% buffer
       const hash = await factory['deploy(address[],uint8)'](values, threshold, {
         ...overrides,
+        gasLimit: addBufferToGasLimit(estimatedGas),
       });
 
       await multiProvider.handleTx(chain, hash);

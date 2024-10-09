@@ -409,7 +409,7 @@ export abstract class HyperlaneDeployer<
     );
 
     const { protocol } = this.multiProvider.getChainMetadata(chain);
-
+    const signer = this.multiProvider.getSigner(chain);
     const artifact = getArtifactByContractName(contractName);
 
     const contract = await this.multiProvider.handleDeploy(
@@ -436,32 +436,15 @@ export abstract class HyperlaneDeployer<
 
         const overrides = this.multiProvider.getTransactionOverrides(chain);
 
-        let enhancedOverrides;
-        if (protocol === ProtocolType.ZKSync) {
-          this.logger.info('Skipping gas estimation on ZKSync...');
+        // Estimate gas for the initialize transaction
+        const estimatedGas = await contract
+          .connect(signer)
+          .estimateGas.initialize(...initializeArgs);
 
-          // deploy with 10% buffer on gas limit
-          enhancedOverrides = {
-            // TODO: zksync gas estimation
-            ...overrides,
-          };
-        } else {
-          // Estimate gas for the initialize transaction
-          const estimatedGas = await contract.estimateGas.initialize(
-            ...initializeArgs,
-          );
-
-          // deploy with 10% buffer on gas limit
-          enhancedOverrides = {
-            gasLimit: addBufferToGasLimit(estimatedGas),
-            ...overrides,
-          };
-        }
-
-        const initTx = await contract.initialize(
-          ...initializeArgs,
-          enhancedOverrides,
-        );
+        const initTx = await contract.initialize(...initializeArgs, {
+          ...overrides,
+          gasLimit: addBufferToGasLimit(estimatedGas),
+        });
         this.logger.info(`Contract ${contractName} initialized`);
         const receipt = await this.multiProvider.handleTx(chain, initTx);
 

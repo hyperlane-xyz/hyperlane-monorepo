@@ -10,7 +10,13 @@ import {
 import { Logger } from 'pino';
 import * as zk from 'zksync-ethers';
 
-import { Address, ProtocolType, pick, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  addBufferToGasLimit,
+  pick,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
@@ -343,9 +349,15 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const signer = this.getSigner(chainNameOrId);
 
     if (protocol === ProtocolType.ZKSync) {
+      // Handle deployment for ZKSync protocol
       const deployer = new ZKDeployer(signer as zk.Wallet);
 
-      contract = await deployer.deploy(artifact, params);
+      const estimatedGas = await deployer.estimateDeployGas(artifact, params);
+
+      contract = await deployer.deploy(artifact, params, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...overrides,
+      });
 
       this.logger.trace(
         `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
@@ -353,9 +365,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else {
       const contractFactory = factory.connect(signer);
       const deployTx = contractFactory.getDeployTransaction(...params);
-      const gasEstimated = await signer.estimateGas(deployTx);
+      const estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
-        gasLimit: gasEstimated.mul(2), // 10% buffer
+        gasLimit: addBufferToGasLimit(estimatedGas), // 10% buffer
         ...overrides,
       });
 

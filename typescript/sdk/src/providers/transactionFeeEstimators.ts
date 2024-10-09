@@ -235,7 +235,6 @@ export function estimateTransactionFee({
   sender: Address;
   senderPubKey?: HexString;
 }): Promise<TransactionFeeEstimate> {
-  console.log({ type: transaction.type });
   if (
     transaction.type === ProviderType.EthersV5 &&
     provider.type === ProviderType.EthersV5

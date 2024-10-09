@@ -1,1 +1,0 @@
-yarn hyperlane core deploy -y --chain zksynclocal2

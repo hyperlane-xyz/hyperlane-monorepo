@@ -1,1 +1,0 @@
-yarn hyperlane warp deploy
