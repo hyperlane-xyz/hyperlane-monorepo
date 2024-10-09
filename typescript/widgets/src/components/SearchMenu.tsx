@@ -251,12 +251,14 @@ function FilterDropdown<FilterState>({
     onChange: (s: FilterState) => void;
   }>;
 }) {
-  const filterKeys = useMemo(() => {
+  const filterValues = useMemo(() => {
     if (!value || !isObject(value)) return [];
-    return Object.keys(value).filter(
+    const modifiedKeys = Object.keys(value).filter(
       (k) => !deepEquals(value[k], defaultValue[k]),
     );
+    return modifiedKeys.map((k) => value[k]);
   }, [value]);
+  const hasFilters = filterValues.length > 0;
 
   const onClear = () => {
     onChange(defaultValue);
@@ -269,10 +271,13 @@ function FilterDropdown<FilterState>({
       </div>
       <Popover
         button={
-          <span className="htw-place-self-center htw-px-3">
-            {filterKeys.length
-              ? filterKeys.map(toTitleCase).join(', ')
-              : 'None'}
+          <span
+            className={clsx(
+              'htw-place-self-center htw-px-3',
+              !hasFilters && 'htw-text-gray-400',
+            )}
+          >
+            {hasFilters ? filterValues.map(toTitleCase).join(', ') : 'None'}
           </span>
         }
         buttonClassname="htw-h-full htw-flex htw-items-stretch hover:htw-bg-gray-100 active:htw-scale-95"
@@ -280,7 +285,7 @@ function FilterDropdown<FilterState>({
         <FilterComponent value={value} onChange={onChange} />
       </Popover>
       <IconButton
-        disabled={!filterKeys.length}
+        disabled={!filterValues.length}
         onClick={onClear}
         className="hover:htw-bg-gray-100 active:htw-scale-95 htw-px-1 htw-py-1.5"
         title="Clear filters"

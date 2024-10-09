@@ -52,10 +52,13 @@ export interface ChainSearchMenuProps {
     overrides?: ChainMap<Partial<ChainMetadata> | undefined>,
   ) => void;
   onClickChain: (chain: ChainMetadata) => void;
-  // To replace the default 2nd column (deployer) with custom data
+  // Replace the default 2nd column (deployer) with custom data
   customListItemField?: CustomListItemField;
-  // To auto-navigate to a chain details menu
-  defaultDrilldownChain?: ChainName;
+  // Auto-navigate to a chain details menu
+  showChainDetails?: ChainName;
+  // Auto-navigate to a chain add menu
+  showAddChainMenu?: boolean;
+  // Include add button above list
   showAddChainButton?: boolean;
 }
 
@@ -65,14 +68,15 @@ export function ChainSearchMenu({
   overrideChainMetadata,
   onClickChain,
   customListItemField,
-  defaultDrilldownChain,
+  showChainDetails,
   showAddChainButton,
+  showAddChainMenu,
 }: ChainSearchMenuProps) {
   const [drilldownChain, setDrilldownChain] = React.useState<
     ChainName | undefined
-  >(defaultDrilldownChain);
+  >(showChainDetails);
 
-  const [addChain, setAddChain] = React.useState(false);
+  const [addChain, setAddChain] = React.useState(showAddChainMenu || false);
 
   const { listData, mergedMetadata } = useMemo(() => {
     const mergedMetadata = mergeChainMetadataMap(

@@ -37,7 +37,7 @@ export { UpDownArrowsIcon } from './icons/UpDownArrows.js';
 export { WideChevron } from './icons/WideChevron.js';
 export { XIcon } from './icons/X.js';
 export { DropdownMenu, type DropdownMenuProps } from './layout/DropdownMenu.js';
-export { Modal, type ModalProps } from './layout/Modal.js';
+export { Modal, useModal, type ModalProps } from './layout/Modal.js';
 export { Popover, type PopoverProps } from './layout/Popover.js';
 export { HyperlaneLogo } from './logos/Hyperlane.js';
 export { MessageTimeline } from './messages/MessageTimeline.js';

@@ -21,6 +21,8 @@ export function useConnectionHealthTest(
     type === ChainConnectionType.RPC ? isRpcHealthy : isBlockExplorerHealthy;
 
   useEffect(() => {
+    // TODO run explorer test through CORS proxy, otherwise it's blocked by browser
+    if (type === ChainConnectionType.Explorer) return;
     timeout(tester(chainMetadata, index), HEALTH_TEST_TIMEOUT)
       .then((result) => setIsHealthy(result))
       .catch(() => setIsHealthy(false));

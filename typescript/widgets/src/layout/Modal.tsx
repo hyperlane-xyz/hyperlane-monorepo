@@ -1,9 +1,16 @@
 import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react';
 import clsx from 'clsx';
-import React, { ComponentProps, PropsWithChildren } from 'react';
+import React, { ComponentProps, PropsWithChildren, useState } from 'react';
 
 import { IconButton } from '../components/IconButton.js';
 import { XIcon } from '../icons/X.js';
+
+export function useModal() {
+  const [isOpen, setIsOpen] = useState(false);
+  const open = () => setIsOpen(true);
+  const close = () => setIsOpen(false);
+  return { isOpen, open, close };
+}
 
 export type ModalProps = PropsWithChildren<{
   isOpen: boolean;

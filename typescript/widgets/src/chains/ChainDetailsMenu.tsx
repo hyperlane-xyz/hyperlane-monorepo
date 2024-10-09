@@ -184,6 +184,7 @@ function ConnectionsSection({
       <SectionHeader tooltip={tooltip}>{header}</SectionHeader>
       {values.map((_, i) => (
         <ConnectionRow
+          key={i}
           chainMetadata={chainMetadata}
           overrideChainMetadata={overrideChainMetadata}
           onChangeOverrideMetadata={onChangeOverrideMetadata}
@@ -447,13 +448,14 @@ function ConnectionRow({
   };
 
   return (
-    <div
-      key={`${type}-${index}`}
-      className="htw-flex htw-items-center htw-gap-3"
-    >
-      {isNullish(isHealthy) ? (
+    <div className="htw-flex htw-items-center htw-gap-3">
+      {isNullish(isHealthy) && type == ChainConnectionType.RPC && (
         <Spinner width={14} height={14} />
-      ) : (
+      )}
+      {isNullish(isHealthy) && type == ChainConnectionType.Explorer && (
+        <Circle size={14} className="htw-bg-gray-400" />
+      )}
+      {!isNullish(isHealthy) && (
         <Circle
           size={14}
           className={isHealthy ? 'htw-bg-green-500' : 'htw-bg-red-500'}
