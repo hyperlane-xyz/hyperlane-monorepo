@@ -224,8 +224,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     gnosis: true,
     immutablezkevm: true,
     inevm: true,
-    // Cannot scrape non-EVM chains
-    injective: false,
+    injective: true,
     kroma: true,
     linea: true,
     lisk: true,
@@ -239,12 +238,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mode: true,
     molten: true,
     moonbeam: true,
-    // Cannot scrape non-EVM chains
-    neutron: false,
+    neutron: true,
     oortmainnet: true,
     optimism: true,
-    // Cannot scrape non-EVM chains
-    osmosis: false,
+    osmosis: true,
     polygon: true,
     polygonzkevm: true,
     proofofplay: true,
@@ -254,9 +251,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     rootstock: true,
     sanko: true,
     scroll: true,
-    // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
-    // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
-    sei: false,
+    sei: true,
     shibarium: true,
     // Cannot scrape non-EVM chains
     solanamainnet: false,
