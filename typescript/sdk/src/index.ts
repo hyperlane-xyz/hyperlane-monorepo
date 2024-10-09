@@ -512,9 +512,11 @@ export {
   NativeConfig,
   TokenRouterConfigSchema,
   WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigSchemaErrors,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
+  isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './token/schemas.js';
 export { isCompliant } from './utils/schemas.js';

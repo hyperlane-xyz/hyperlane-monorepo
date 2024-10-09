@@ -1,3 +1,4 @@
+import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   TokenRouterConfig,
@@ -10,7 +11,11 @@ import { getContext } from '../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 
 import { hyperlaneCoreDeploy } from './core.js';
-import { hyperlaneWarpApply, readWarpConfig } from './warp.js';
+import {
+  hyperlaneWarpApply,
+  hyperlaneWarpSendRelay,
+  readWarpConfig,
+} from './warp.js';
 
 export const TEST_CONFIGS_PATH = './test-configs';
 export const REGISTRY_PATH = `${TEST_CONFIGS_PATH}/anvil`;
@@ -122,4 +127,55 @@ export async function getChainId(chainName: string, key: string) {
   });
   const chainMetadata = await registry.getChainMetadata(chainName);
   return String(chainMetadata?.chainId);
+}
+
+export async function deployToken(privateKey: string, chain: string) {
+  const { multiProvider } = await getContext({
+    registryUri: REGISTRY_PATH,
+    registryOverrideUri: '',
+    key: privateKey,
+  });
+
+  const token = await new ERC20Test__factory(
+    multiProvider.getSigner(chain),
+  ).deploy('token', 'token', '100000000000000000000', 18);
+  await token.deployed();
+
+  return token;
+}
+
+export async function deploy4626Vault(
+  privateKey: string,
+  chain: string,
+  tokenAddress: string,
+) {
+  const { multiProvider } = await getContext({
+    registryUri: REGISTRY_PATH,
+    registryOverrideUri: '',
+    key: privateKey,
+  });
+
+  const vault = await new ERC4626Test__factory(
+    multiProvider.getSigner(chain),
+  ).deploy(tokenAddress, 'VAULT', 'VAULT');
+  await vault.deployed();
+
+  return vault;
+}
+
+/**
+ * Performs a round-trip warp relay between two chains using the specified warp core config.
+ *
+ * @param chain1 - The first chain to send the warp relay from.
+ * @param chain2 - The second chain to send the warp relay to and back from.
+ * @param warpCoreConfigPath - The path to the warp core config file.
+ * @returns A promise that resolves when the round-trip warp relay is complete.
+ */
+export async function sendWarpRouteMessageRoundTrip(
+  chain1: string,
+  chain2: string,
+  warpCoreConfigPath: string,
+) {
+  await hyperlaneWarpSendRelay(chain1, chain2, warpCoreConfigPath);
+  return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
 }

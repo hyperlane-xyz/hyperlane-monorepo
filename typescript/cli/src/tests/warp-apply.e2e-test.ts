@@ -32,7 +32,7 @@ const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/anvil2/warp-route-deployment-anvil2.yaml`;
 const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
 
-const TEST_TIMEOUT = 60_000; // Long timeout since these tests can take a while
+const TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 describe('WarpApply e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
   this.timeout(TEST_TIMEOUT);

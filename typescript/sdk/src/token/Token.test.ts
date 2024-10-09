@@ -48,6 +48,15 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.EvmHypRebaseCollateral]: {
+    chainName: TestChainName.test3,
+    standard: TokenStandard.EvmHypRebaseCollateral,
+    addressOrDenom: '0x31b5234A896FbC4b3e2F7237592D054716762131',
+    collateralAddressOrDenom: '0x64544969ed7ebf5f083679233325356ebe738930',
+    decimals: 18,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
   [TokenStandard.EvmHypOwnerCollateral]: {
     chainName: TestChainName.test3,
     standard: TokenStandard.EvmHypOwnerCollateral,
@@ -69,6 +78,14 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.EvmHypSynthetic]: {
     chainName: TestChainName.test2,
     standard: TokenStandard.EvmHypSynthetic,
+    addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.EvmHypSyntheticRebase]: {
+    chainName: TestChainName.test2,
+    standard: TokenStandard.EvmHypSyntheticRebase,
     addressOrDenom: '0x8358D8291e3bEDb04804975eEa0fe9fe0fAfB147',
     decimals: 6,
     symbol: 'USDC',

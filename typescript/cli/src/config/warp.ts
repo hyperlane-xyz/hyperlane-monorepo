@@ -34,12 +34,15 @@ import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
+  [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
     'Extends an existing ERC20 with remote transfer functionality',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
   [TokenType.collateralVault]:
-    'Extends an existing ERC4626 with remote transfer functionality',
+    'Extends an existing ERC4626 with remote transfer functionality. Yields are manually claimed by owner.',
+  [TokenType.collateralVaultRebase]:
+    'Extends an existing ERC4626 with remote transfer functionality. Rebases yields to token holders.',
   [TokenType.collateralFiat]:
     'Extends an existing FiatToken with remote transfer functionality',
   [TokenType.XERC20]:
@@ -129,6 +132,7 @@ export async function createWarpRouteDeployConfig({
   );
 
   const result: WarpRouteDeployConfig = {};
+  let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
 
@@ -144,7 +148,7 @@ export async function createWarpRouteDeployConfig({
 
     const type = await select({
       message: `Select ${chain}'s token type`,
-      choices: TYPE_CHOICES,
+      choices: typeChoices,
     });
 
     // TODO: restore NFT prompting
@@ -172,6 +176,34 @@ export async function createWarpRouteDeployConfig({
             message: `Enter the existing token address on chain ${chain}`,
           }),
         };
+        break;
+      case TokenType.syntheticRebase:
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          collateralChainName: '', // This will be derived correctly by zod.parse() below
+          interchainSecurityModule,
+        };
+        typeChoices = restrictChoices([
+          TokenType.syntheticRebase,
+          TokenType.collateralVaultRebase,
+        ]);
+        break;
+      case TokenType.collateralVaultRebase:
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the ERC-4626 vault address on chain ${chain}`,
+          }),
+        };
+
+        typeChoices = restrictChoices([TokenType.syntheticRebase]);
         break;
       case TokenType.collateralVault:
         result[chain] = {
@@ -208,6 +240,10 @@ export async function createWarpRouteDeployConfig({
     );
     throw e;
   }
+}
+
+function restrictChoices(typeChoices: TokenType[]) {
+  return TYPE_CHOICES.filter((choice) => typeChoices.includes(choice.name));
 }
 
 // Note, this is different than the function above which reads a config
