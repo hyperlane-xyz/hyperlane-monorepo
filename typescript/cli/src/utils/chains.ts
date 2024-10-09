@@ -32,9 +32,10 @@ export async function runMultiChainSelectionStep(
   chainMetadata: ChainMap<ChainMetadata>,
   message = 'Select chains',
   requireNumber = 0,
+  networkType?: 'mainnet' | 'testnet',
 ) {
-  const networkType = await selectNetworkType();
-  const choices = getChainChoices(chainMetadata, networkType);
+  const selectedNetworkType = networkType ?? (await selectNetworkType());
+  const choices = getChainChoices(chainMetadata, selectedNetworkType);
   while (true) {
     logTip(
       `Use SPACE key to select at least ${requireNumber} chains, then press ENTER`,

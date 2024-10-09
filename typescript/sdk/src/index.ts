@@ -531,3 +531,13 @@ export {
 } from './deploy/schemas.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { proxyAdmin } from './deploy/proxy.js';
+export {
+  GasPriceConfig,
+  NativeTokenPriceConfig,
+  ChainGasOracleParams,
+  getCoingeckoTokenPrices,
+  getCosmosChainGasPrice,
+  getGasPrice,
+  getLocalStorageGasOracleConfig,
+  getTokenExchangeRateFromValues,
+} from './gas/utils.js';

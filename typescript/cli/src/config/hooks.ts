@@ -4,22 +4,32 @@ import { ethers } from 'ethers';
 import { z } from 'zod';
 
 import {
+  ChainGasOracleParams,
   ChainMap,
-  ChainName,
+  ChainMetadata,
   HookConfig,
   HookConfigSchema,
   HookType,
+  IgpHookConfig,
+  MultiProtocolProvider,
+  getCoingeckoTokenPrices,
+  getGasPrice,
+  getLocalStorageGasOracleConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   normalizeAddressEvm,
+  objFilter,
   objMap,
   toWei,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
-import { runMultiChainSelectionStep } from '../utils/chains.js';
+import {
+  runMultiChainSelectionStep,
+  runSingleChainSelectionStep,
+} from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt, inputWithInfo } from '../utils/input.js';
 
@@ -96,6 +106,11 @@ export async function createHookConfig({
         name: HookType.PROTOCOL_FEE,
         description: 'Charge fees for each message dispatch from this chain',
       },
+      {
+        value: HookType.INTERCHAIN_GAS_PAYMASTER,
+        name: HookType.INTERCHAIN_GAS_PAYMASTER,
+        description: 'Pay for gas on remote chains',
+      },
     ],
     pageSize: 10,
   });
@@ -107,6 +122,8 @@ export async function createHookConfig({
       return createMerkleTreeConfig();
     case HookType.PROTOCOL_FEE:
       return createProtocolFeeConfig(context, advanced);
+    case HookType.INTERCHAIN_GAS_PAYMASTER:
+      return createIGPConfig(context, advanced);
     default:
       throw new Error(`Invalid hook type: ${hookType}`);
   }
@@ -182,46 +199,131 @@ export const createProtocolFeeConfig = callWithConfigCreationLogs(
   HookType.PROTOCOL_FEE,
 );
 
-// TODO: make this usable
 export const createIGPConfig = callWithConfigCreationLogs(
-  async (remotes: ChainName[]): Promise<HookConfig> => {
-    const unnormalizedOwner = await input({
-      message: 'Enter owner address for IGP hook',
-    });
+  async (
+    context: CommandContext,
+    advanced: boolean = false,
+  ): Promise<IgpHookConfig> => {
+    const unnormalizedOwner =
+      !advanced && context.signer
+        ? await context.signer.getAddress()
+        : await detectAndConfirmOrPrompt(
+            async () => context.signer?.getAddress(),
+            'For Interchain Gas Paymaster, enter',
+            'owner address',
+            'signer',
+          );
     const owner = normalizeAddressEvm(unnormalizedOwner);
+    const oracleKey = owner;
+
     let beneficiary = owner;
-    let oracleKey = owner;
-
     const beneficiarySameAsOwner = await confirm({
-      message: 'Use this same address for the beneficiary and gasOracleKey?',
+      message: 'Use this same address for the beneficiary?',
     });
-
     if (!beneficiarySameAsOwner) {
       const unnormalizedBeneficiary = await input({
         message: 'Enter beneficiary address for IGP hook',
       });
       beneficiary = normalizeAddressEvm(unnormalizedBeneficiary);
-      const unnormalizedOracleKey = await input({
-        message: 'Enter gasOracleKey address for IGP hook',
-      });
-      oracleKey = normalizeAddressEvm(unnormalizedOracleKey);
     }
-    const overheads: ChainMap<number> = {};
-    for (const chain of remotes) {
-      const overhead = parseInt(
+
+    const localChain = await runSingleChainSelectionStep(
+      context.chainMetadata,
+      'Select local chain for IGP hook',
+    );
+    const isTestnet = context.chainMetadata[localChain].isTestnet;
+    const remoteChains = await runMultiChainSelectionStep(
+      objFilter(
+        context.chainMetadata,
+        (_, metadata): metadata is ChainMetadata =>
+          metadata.name !== localChain,
+      ),
+      'Select remote destination chains for IGP hook',
+      1,
+      isTestnet ? 'testnet' : 'mainnet',
+    );
+
+    // Only need to set overhead for remote chains
+    const overhead: ChainMap<number> = {};
+    for (const chain of remoteChains) {
+      overhead[chain] = parseInt(
         await input({
-          message: `Enter overhead for ${chain} (eg 75000) for IGP hook`,
+          message: `Enter overhead for ${chain} (e.g., 75000) for IGP hook`,
+          default: '75000',
         }),
       );
-      overheads[chain] = overhead;
     }
+
+    // Restrict metadata to only the chains that are part of the IGP hook
+    const filteredMetadata = objFilter(
+      context.chainMetadata,
+      (_, metadata): metadata is ChainMetadata =>
+        remoteChains.includes(metadata.name) || metadata.name === localChain,
+    );
+
+    // Fetch prices for all chains in the IGP hook
+    // For testnet, hardcode prices to 10 USD
+    // For mainnet, fetch prices from Coingecko
+    // If mainnet prices are not found, user will be prompted to enter them
+    let fetchedPrices: ChainMap<string | undefined> = {};
+    if (isTestnet) {
+      // Get the prices of the remote chains' tokens from Coingecko
+      logBlue(`Hardcoding all gas token prices to 10 USD for testnet...`);
+      fetchedPrices = objMap(filteredMetadata, () => '10');
+    } else {
+      // Get the prices of the remote chains' tokens from Coingecko
+      logBlue(`Getting gas token prices for all chains from Coingecko...`);
+      fetchedPrices = await getCoingeckoTokenPrices(filteredMetadata);
+    }
+
+    const mpp = new MultiProtocolProvider(context.chainMetadata);
+    const prices: ChainMap<ChainGasOracleParams> = {};
+
+    for (const chain of Object.keys(filteredMetadata)) {
+      const gasPrice = await getGasPrice(mpp, chain);
+      logBlue(`Gas price for ${chain} is ${gasPrice.amount}`);
+
+      // if the price is not found on Coingecko, prompt user to enter it
+      let tokenPrice = fetchedPrices[chain];
+      if (!tokenPrice) {
+        tokenPrice = await input({
+          message: `Enter the price of ${chain}'s token in USD`,
+        });
+      } else {
+        logBlue(`Gas token price for ${chain} is $${tokenPrice}`);
+      }
+
+      const decimals = context.chainMetadata[chain].nativeToken?.decimals;
+      if (!decimals) {
+        throw new Error(`No decimals found in metadata for ${chain}`);
+      }
+      prices[chain] = {
+        gasPrice,
+        nativeToken: { price: tokenPrice, decimals },
+      };
+    }
+
+    // Allow user to enter a IGP exchange rate margin in %
+    const exchangeRateMarginPct = parseInt(
+      await input({
+        message: `Enter IGP margin percentage (e.g. 10 for 10%)`,
+        default: '10',
+      }),
+    );
+
+    const oracleConfig = getLocalStorageGasOracleConfig(
+      localChain,
+      prices,
+      exchangeRateMarginPct,
+    );
+
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
       beneficiary,
       owner,
       oracleKey,
-      overhead: overheads,
-      oracleConfig: {},
+      overhead,
+      oracleConfig,
     };
   },
   HookType.INTERCHAIN_GAS_PAYMASTER,
