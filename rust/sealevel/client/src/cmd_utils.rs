@@ -4,6 +4,8 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    thread::sleep,
+    time::Duration,
 };
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
@@ -77,6 +79,10 @@ pub(crate) fn deploy_program(
     }
 
     build_cmd(command.as_slice(), None, None);
+
+    // TODO: use commitment level instead of just sleeping here?
+    println!("Sleeping for 2 seconds to allow program to be deployed");
+    sleep(Duration::from_secs(2));
 }
 
 pub(crate) fn create_new_directory(parent_dir: &Path, name: &str) -> PathBuf {
