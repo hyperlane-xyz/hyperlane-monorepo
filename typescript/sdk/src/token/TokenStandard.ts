@@ -159,7 +159,6 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
   {
     [ProtocolType.Ethereum]: TokenStandard.EvmNative,
-    [ProtocolType.GnosisTxBuilder]: TokenStandard.EvmNative,
     [ProtocolType.Cosmos]: TokenStandard.CosmosNative,
     [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
   };

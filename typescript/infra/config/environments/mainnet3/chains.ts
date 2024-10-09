@@ -65,6 +65,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
+  rootstock: {
+    transactionOverrides: {
+      gasPrice: 7 * 10 ** 7, // 0.07 gwei
+    },
+  },
 };
 
 export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>

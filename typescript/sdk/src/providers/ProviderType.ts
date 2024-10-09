@@ -5,7 +5,6 @@ import type {
 } from '@cosmjs/cosmwasm-stargate';
 import type { EncodeObject as CmTransaction } from '@cosmjs/proto-signing';
 import type { DeliverTxResponse, StargateClient } from '@cosmjs/stargate';
-import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
 import type {
   Connection,
   Transaction as SolTransaction,
@@ -39,7 +38,6 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   ProviderType
 > = {
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
-  [ProtocolType.GnosisTxBuilder]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
 };
@@ -52,12 +50,6 @@ type ProtocolTypesMapping = {
     provider: EthersV5Provider;
     contract: EthersV5Contract;
     receipt: EthersV5TransactionReceipt;
-  };
-  [ProtocolType.GnosisTxBuilder]: {
-    transaction: EthersV5Transaction;
-    provider: EthersV5Provider;
-    contract: EthersV5Contract;
-    receipt: GnosisTransactionBuilderReceipt;
   };
   [ProtocolType.Sealevel]: {
     transaction: SolanaWeb3Transaction;
@@ -265,19 +257,6 @@ export interface CosmJsTransactionReceipt
   extends TypedTransactionReceiptBase<DeliverTxResponse> {
   type: ProviderType.CosmJs;
   receipt: DeliverTxResponse;
-}
-
-export interface GnosisTransactionBuilderReceipt
-  extends TypedTransactionReceiptBase<GnosisTransactionBuilderPayload> {
-  type: ProviderType.GnosisTxBuilder;
-  receipt: GnosisTransactionBuilderPayload;
-}
-
-export interface GnosisTransactionBuilderPayload {
-  version: string;
-  chainId: string;
-  meta: {};
-  transactions: SafeTransactionData[];
 }
 
 export interface CosmJsWasmTransactionReceipt
