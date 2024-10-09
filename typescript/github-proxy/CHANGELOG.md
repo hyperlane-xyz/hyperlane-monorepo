@@ -1,5 +1,7 @@
 # @hyperlane-xyz/github-proxy
 
+## 5.5.0
+
 ## 5.4.0
 
 ## 5.3.0
