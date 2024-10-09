@@ -27,6 +27,14 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
     // Domain of chain on which the contract is deployed
     uint32 public immutable localDomain;
 
+    // ============ Transient Storage ============
+
+    // set to the current message ID during dispatch, otherwise 0x0
+    bytes32 public transient currentlyDispatchingId;
+
+    // set to the current message ID during process, otherwise 0x0
+    bytes32 public transient currentlyProcessingId;
+
     // ============ Public Storage ============
 
     // A monotonically increasing nonce for outbound unique message IDs.
@@ -213,8 +221,8 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         IInterchainSecurityModule ism = recipientIsm(recipient);
 
         /// EFFECTS ///
+        currentlyProcessingId = _id;
 
-        setCurrentMessageId(_id);
         deliveries[_id] = Delivery({
             processor: msg.sender,
             blockNumber: uint48(block.number)
@@ -236,6 +244,8 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
             _message.sender(),
             _message.body()
         );
+
+        currentlyProcessingId = bytes32(0);
     }
 
     /**
@@ -289,8 +299,7 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         bytes32 id = message.id();
 
         /// EFFECTS ///
-
-        setCurrentMessageId(id);
+        currentlyDispatchingId = id;
         nonce += 1;
         emit Dispatch(msg.sender, destinationDomain, recipientAddress, message);
         emit DispatchId(id);
@@ -304,29 +313,8 @@ contract Mailbox is IMailbox, Indexed, Versioned, OwnableUpgradeable {
         requiredHook.postDispatch{value: requiredValue}(metadata, message);
         hook.postDispatch{value: msg.value - requiredValue}(metadata, message);
 
+        currentlyDispatchingId = bytes32(0);
         return id;
-    }
-
-    function getCurrentMessageId()
-        public
-        view
-        override
-        returns (bytes32 currentMessageId)
-    {
-        assembly {
-            currentMessageId := tload(0)
-        }
-    }
-
-    // for backwards compatibility
-    function latestDispatchedId() external view returns (bytes32) {
-        return getCurrentMessageId();
-    }
-
-    function setCurrentMessageId(bytes32 currentMessageId) internal {
-        assembly {
-            tstore(0, currentMessageId)
-        }
     }
 
     /**
