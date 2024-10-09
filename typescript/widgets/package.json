@@ -11,8 +11,7 @@
     "@hyperlane-xyz/sdk": "5.4.0",
     "@hyperlane-xyz/utils": "5.4.0",
     "clsx": "^2.1.1",
-    "react-tooltip": "^5.28.0",
-    "zustand": "^4.5.5"
+    "react-tooltip": "^5.28.0"
   },
   "devDependencies": {
     "@hyperlane-xyz/registry": "4.3.6",
