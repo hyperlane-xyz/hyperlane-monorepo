@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
+
 import {Test} from "forge-std/Test.sol";
 import {RateLimited} from "../../contracts/libs/RateLimited.sol";
 
@@ -13,8 +14,13 @@ contract RateLimitLibTest is Test {
         rateLimited = new RateLimited(MAX_CAPACITY);
     }
 
+    function testConstructor_revertsWhen_lowCapacity() public {
+        vm.expectRevert("Capacity must be greater than DURATION");
+        new RateLimited(1 days - 1);
+    }
+
     function testRateLimited_setsNewLimit() external {
-        rateLimited.setRefillRate(2 ether);
+        assert(rateLimited.setRefillRate(2 ether) > 0);
         assertApproxEqRel(rateLimited.maxCapacity(), 2 ether, ONE_PERCENT);
         assertEq(rateLimited.refillRate(), uint256(2 ether) / 1 days); // 2 ether / 1 day
     }
@@ -43,6 +49,25 @@ contract RateLimitLibTest is Test {
         vm.prank(address(0));
         vm.expectRevert();
         rateLimited.setRefillRate(1 ether);
+    }
+
+    function testConsumedFilledLevelEvent() public {
+        uint256 consumeAmount = 0.5 ether;
+
+        vm.expectEmit(true, true, false, true);
+        emit RateLimited.ConsumedFilledLevel(
+            499999999999993600,
+            block.timestamp
+        ); // precision loss
+        rateLimited.validateAndConsumeFilledLevel(consumeAmount);
+
+        assertApproxEqRelDecimal(
+            rateLimited.filledLevel(),
+            MAX_CAPACITY - consumeAmount,
+            1e14,
+            0
+        );
+        assertEq(rateLimited.lastUpdated(), block.timestamp);
     }
 
     function testRateLimited_neverReturnsGtMaxLimit(
@@ -103,5 +128,25 @@ contract RateLimitLibTest is Test {
         vm.warp(10 days);
         currentTargetLimit = rateLimited.calculateCurrentLevel();
         assertApproxEqRel(currentTargetLimit, MAX_CAPACITY, ONE_PERCENT);
+    }
+
+    function testCalculateCurrentLevel_revertsWhenCapacityIsZero() public {
+        rateLimited.setRefillRate(0);
+
+        vm.expectRevert("RateLimitNotSet");
+        rateLimited.calculateCurrentLevel();
+    }
+
+    function testValidateAndConsumeFilledLevel_revertsWhenExceedingLimit()
+        public
+    {
+        vm.warp(1 days);
+        uint256 initialLevel = rateLimited.calculateCurrentLevel();
+
+        uint256 excessAmount = initialLevel + 1 ether;
+
+        vm.expectRevert("RateLimitExceeded");
+        rateLimited.validateAndConsumeFilledLevel(excessAmount);
+        assertEq(rateLimited.calculateCurrentLevel(), initialLevel);
     }
 }
