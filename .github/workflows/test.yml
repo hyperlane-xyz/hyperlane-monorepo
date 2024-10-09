@@ -218,6 +218,7 @@ jobs:
         run: |
           if [[ -n "$(git diff ${{ github.event.pull_request.base.sha }} HEAD -- ./rust)" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
+            echo "$(git diff ${{ github.event.pull_request.base.sha }} HEAD -- ./rust)" 
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
