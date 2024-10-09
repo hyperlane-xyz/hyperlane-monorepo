@@ -28,7 +28,11 @@ import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
-import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import {
+  indentYamlOrJson,
+  removeEndingSlash,
+  writeYamlOrJson,
+} from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
@@ -68,6 +72,7 @@ export const apply: CommandModuleWithWriteContext<{
   symbol?: string;
   warp: string;
   strategy?: string;
+  receiptsDir: string;
 }> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
@@ -82,8 +87,21 @@ export const apply: CommandModuleWithWriteContext<{
       demandOption: false,
     },
     strategy: { ...strategyCommandOption, demandOption: false },
+    'receipts-dir': {
+      type: 'string',
+      description: 'The directory to output transaction receipts.',
+      default: './generated/transactions',
+      coerce: (dir) => removeEndingSlash(dir),
+    },
   },
-  handler: async ({ context, config, symbol, warp, strategy: strategyUrl }) => {
+  handler: async ({
+    context,
+    config,
+    symbol,
+    warp,
+    strategy: strategyUrl,
+    receiptsDir,
+  }) => {
     logGray(`Hyperlane Warp Apply`);
     logGray('--------------------'); // @TODO consider creating a helper function for these dashes
     let warpCoreConfig: WarpCoreConfig;
@@ -102,6 +120,7 @@ export const apply: CommandModuleWithWriteContext<{
       warpDeployConfig,
       warpCoreConfig,
       strategyUrl,
+      receiptsDir,
     });
     process.exit(0);
   },

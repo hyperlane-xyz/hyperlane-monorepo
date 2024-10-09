@@ -3,6 +3,11 @@ import { ChainMap } from '../types.js';
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
+  alephzeroevm: {
+    threshold: 1,
+    validators: ['0xcae8fab142adc4e434bb7409e40dd932cc3851aa'],
+  },
+
   alfajores: {
     threshold: 2,
     validators: [
@@ -80,6 +85,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921'],
   },
 
+  berabartio: {
+    threshold: 1,
+    validators: ['0x541dd3cb282cf869d72883557badae245b63e1fd'],
+  },
+
   bitlayer: {
     threshold: 2,
     validators: [
@@ -126,6 +136,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  camptestnet: {
+    threshold: 1,
+    validators: ['0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e'],
+  },
+
   celo: {
     threshold: 3,
     validators: [
@@ -152,6 +167,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x0874967a145d70b799ebe9ed861ab7c93faef95a',
       '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
     ],
+  },
+
+  chiliz: {
+    threshold: 1,
+    validators: ['0x82d024f453b1a3f3f6606226f06b038da27596f3'],
+  },
+
+  citreatestnet: {
+    threshold: 1,
+    validators: ['0x60d7380a41eb95c49be18f141efd2fde5e3dba20'],
   },
 
   connextsepolia: {
@@ -255,6 +280,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  formtestnet: {
+    threshold: 1,
+    validators: ['0x72ad7fddf16d17ff902d788441151982fa31a7bc'],
+  },
+
   fraxtal: {
     threshold: 2,
     validators: [
@@ -295,6 +325,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   holesky: {
     threshold: 1,
     validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
+  },
+
+  hyperliquidevmtestnet: {
+    threshold: 1,
+    validators: ['0xea673a92a23ca319b9d85cc16b248645cd5158da'],
+  },
+
+  immutablezkevm: {
+    threshold: 1,
+    validators: ['0xa787c2952a4d22f776ee6e87e828e6f75de24330'],
   },
 
   inevm: {
@@ -349,6 +389,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
     ],
+  },
+
+  lumia: {
+    threshold: 1,
+    validators: ['0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f'],
   },
 
   mantapacific: {
@@ -510,6 +555,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  rari: {
+    threshold: 1,
+    validators: ['0x989d6862e09de21337078efbd86843a3eb1133e3'],
+  },
+
   real: {
     threshold: 2,
     validators: [
@@ -526,6 +576,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
+  },
+
+  rootstock: {
+    threshold: 1,
+    validators: ['0xcb8e3a72cf427feff27416d0e2ec375a052eaaee'],
   },
 
   sanko: {
@@ -609,6 +664,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
   },
 
+  soneiumtestnet: {
+    threshold: 1,
+    validators: ['0x2e2101020ccdbe76aeda1c27823b0150f43d0c63'],
+  },
+
   stride: {
     threshold: 6,
     validators: [
@@ -623,6 +683,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x5937b7cE1029C3Ec4bD8e1AaCc0C0f9422654D7d', // stakecito
       '0x3a446ed2923c08445af06e53f0acb558c0e0413c', // staked
     ],
+  },
+
+  suavetoliman: {
+    threshold: 1,
+    validators: ['0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b'],
+  },
+
+  superposition: {
+    threshold: 1,
+    validators: ['0x5978d0e6afa9270ddb87cff43a8fa7a763a5dfc4'],
   },
 
   superpositiontestnet: {

@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
@@ -54,7 +55,9 @@ function getLocalStorageGasOracleConfig(
   return remotes.reduce((agg, remote) => {
     let exchangeRate = getTokenExchangeRate(local, remote);
     if (!gasPrices[remote]) {
-      throw new Error(`No gas price found for chain ${remote}`);
+      // Will run into this case when adding new chains
+      console.warn(chalk.yellow(`No gas price set for ${remote}`));
+      return agg;
     }
 
     // First parse as a number, so we have floating point precision.
@@ -230,12 +233,18 @@ export function getTokenExchangeRateFromValues(
   remote: ChainName,
   tokenPrices: ChainMap<string>,
 ): BigNumber {
+  // Workaround for chicken-egg dependency problem.
+  // We need to provide some default value here to satisfy the config on initial load,
+  // whilst knowing that it will get overwritten when a script actually gets run.
+  // We set default token price to 1 to mitigate underflow/overflow errors that occurred
+  // on some pairings if the exchange rate itself was set to 1.
+  const defaultValue = '1';
   const localValue = ethers.utils.parseUnits(
-    tokenPrices[local],
+    tokenPrices[local] ?? defaultValue,
     TOKEN_EXCHANGE_RATE_DECIMALS,
   );
   const remoteValue = ethers.utils.parseUnits(
-    tokenPrices[remote],
+    tokenPrices[remote] ?? defaultValue,
     TOKEN_EXCHANGE_RATE_DECIMALS,
   );
 

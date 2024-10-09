@@ -2,7 +2,7 @@ use crate::{AgentMetadata, CheckpointSyncer};
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{bail, Result};
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 use std::fmt;
 use ya_gcp::{
     storage::{
@@ -15,6 +15,7 @@ use ya_gcp::{
 const LATEST_INDEX_KEY: &str = "gcsLatestIndexKey";
 const METADATA_KEY: &str = "gcsMetadataKey";
 const ANNOUNCEMENT_KEY: &str = "gcsAnnouncementKey";
+const REORG_FLAG_KEY: &str = "gcsReorgFlagKey";
 /// Path to GCS users_secret file
 pub const GCS_USER_SECRET: &str = "GCS_USER_SECRET";
 /// Path to GCS Service account key
@@ -216,6 +217,18 @@ impl CheckpointSyncer for GcsStorageClient {
     /// Return the announcement storage location for this syncer
     fn announcement_location(&self) -> String {
         format!("gs://{}/{}", &self.bucket, ANNOUNCEMENT_KEY)
+    }
+
+    async fn write_reorg_status(&self, reorged_event: &ReorgEvent) -> Result<()> {
+        let serialized_metadata = serde_json::to_string_pretty(reorged_event)?;
+        self.inner
+            .insert_object(&self.bucket, REORG_FLAG_KEY, serialized_metadata)
+            .await?;
+        Ok(())
+    }
+
+    async fn reorg_status(&self) -> Result<Option<ReorgEvent>> {
+        Ok(None)
     }
 }
 

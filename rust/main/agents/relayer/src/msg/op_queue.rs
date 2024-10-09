@@ -145,6 +145,10 @@ pub mod test {
                 destination_domain,
             }
         }
+
+        pub fn with_id(self, id: H256) -> Self {
+            Self { id, ..self }
+        }
     }
 
     impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
@@ -196,7 +200,7 @@ pub mod test {
 
         /// Submit this operation to the blockchain and report if it was successful
         /// or not.
-        async fn submit(&mut self) {
+        async fn submit(&mut self) -> PendingOperationResult {
             todo!()
         }
 

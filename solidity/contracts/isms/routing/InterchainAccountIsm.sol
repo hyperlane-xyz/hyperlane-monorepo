@@ -6,11 +6,12 @@ import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
 import {InterchainAccountMessage} from "../../middleware/libs/InterchainAccountMessage.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
  * @title InterchainAccountIsm
  */
-contract InterchainAccountIsm is AbstractRoutingIsm {
+contract InterchainAccountIsm is AbstractRoutingIsm, PackageVersioned {
     IMailbox private immutable mailbox;
 
     // ============ Constructor ============

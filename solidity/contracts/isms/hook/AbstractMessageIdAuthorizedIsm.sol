@@ -18,9 +18,9 @@ pragma solidity >=0.8.0;
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {LibBit} from "../../libs/LibBit.sol";
 import {Message} from "../../libs/Message.sol";
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
 // ============ External Imports ============
-
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -31,7 +31,8 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
  */
 abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,
-    Initializable
+    Initializable,
+    PackageVersioned
 {
     using Address for address payable;
     using LibBit for uint256;

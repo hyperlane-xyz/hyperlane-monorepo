@@ -22,7 +22,7 @@ use crate::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::HyperlaneRocksDB;
+use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -400,7 +400,7 @@ impl BaseMetadataBuilder {
                     continue;
                 }
 
-                match config.build(None).await {
+                match config.build_and_validate(None).await {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());

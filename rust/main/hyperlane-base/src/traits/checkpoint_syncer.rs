@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use eyre::Result;
 
 use crate::AgentMetadata;
-use hyperlane_core::{SignedAnnouncement, SignedCheckpointWithMessageId};
+use hyperlane_core::{ReorgEvent, SignedAnnouncement, SignedCheckpointWithMessageId};
 
 /// A generic trait to read/write Checkpoints offchain
 #[async_trait]
@@ -34,4 +34,10 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()>;
     /// Return the announcement storage location for this syncer
     fn announcement_location(&self) -> String;
+    /// If a bigger than expected reorg was detected on the validated chain, this flag can be set to inform
+    /// the validator agent to stop publishing checkpoints. Once any remediation is done, this flag can be reset
+    /// to resume operation.
+    async fn write_reorg_status(&self, reorg_event: &ReorgEvent) -> Result<()>;
+    /// Read the reorg status of the chain being validated
+    async fn reorg_status(&self) -> Result<Option<ReorgEvent>>;
 }

@@ -31,7 +31,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
     (local, remote) =>
       getTokenExchangeRateFromValues(local, remote, tokenPrices),
     (local) => parseFloat(tokenPrices[local]),
-    getOverheadWithOverrides,
+    (local, remote) => getOverheadWithOverrides(local, remote),
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(

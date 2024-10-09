@@ -11,7 +11,6 @@ use hyperlane_core::{
     ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::address::CosmosAddress;
 use crate::grpc::WasmProvider;
 use crate::payloads::general;
 use crate::payloads::mailbox::{
@@ -19,7 +18,7 @@ use crate::payloads::mailbox::{
 };
 use crate::types::tx_response_to_outcome;
 use crate::utils::get_block_height_for_lag;
-use crate::{payloads, ConnectionConf, CosmosProvider, Signer};
+use crate::{payloads, ConnectionConf, CosmosAddress, CosmosProvider, Signer};
 
 #[derive(Clone, Debug)]
 /// A reference to a Mailbox contract on some Cosmos chain

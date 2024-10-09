@@ -896,5 +896,76 @@ export const validatorChainConfig = (
         'oortmainnet',
       ),
     },
+
+    immutablezkevm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('immutablezkevm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa787c2952a4d22f776ee6e87e828e6f75de24330'],
+        },
+        'immutablezkevm',
+      ),
+    },
+    rari: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('rari'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x989d6862e09de21337078efbd86843a3eb1133e3'],
+        },
+        'rari',
+      ),
+    },
+    rootstock: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('rootstock'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcb8e3a72cf427feff27416d0e2ec375a052eaaee'],
+        },
+        'rootstock',
+      ),
+    },
+    alephzeroevm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('alephzeroevm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcae8fab142adc4e434bb7409e40dd932cc3851aa'],
+        },
+        'alephzeroevm',
+      ),
+    },
+    chiliz: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('chiliz'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x82d024f453b1a3f3f6606226f06b038da27596f3'],
+        },
+        'chiliz',
+      ),
+    },
+    lumia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('lumia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f'],
+        },
+        'lumia',
+      ),
+    },
+    superposition: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('superposition'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x5978d0e6afa9270ddb87cff43a8fa7a763a5dfc4'],
+        },
+        'superposition',
+      ),
+    },
   };
 };
