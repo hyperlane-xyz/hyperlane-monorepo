@@ -115,7 +115,7 @@ const checkboxTheme: SearchableCheckboxTheme = {
     description: (text: string) => chalk.cyan(text),
     helpTip: (text) => ` ${text}`,
   },
-  helpMode: 'auto',
+  helpMode: 'always',
 };
 
 export type SearchableCheckboxChoice<Value> = {
@@ -137,7 +137,7 @@ type SearchableCheckboxConfig<Value> = {
   message: string;
   prefix?: string;
   pageSize?: number;
-  instructions?: string | boolean;
+  instructions?: string;
   choices: ReadonlyArray<SearchableCheckboxChoice<Value>>;
   loop?: boolean;
   required?: boolean;
@@ -293,7 +293,6 @@ export const searchableCheckBox = createPrompt(
     }, [optionState.options]);
 
     const [active, setActive] = useState(bounds.first);
-    const [showHelpTip, setShowHelpTip] = useState(true);
     const [errorMsg, setError] = useState<string>();
 
     useEffect(() => {
@@ -366,7 +365,7 @@ export const searchableCheckBox = createPrompt(
           };
 
           setError(undefined);
-          setShowHelpTip(false);
+
           setOptionState({
             options: organizeItems(
               Object.values(updatedDataMap),
@@ -424,32 +423,24 @@ export const searchableCheckBox = createPrompt(
 
     let helpTipTop = '';
     let helpTipBottom = '';
-    if (
-      theme.helpMode === 'always' ||
-      (theme.helpMode === 'auto' &&
-        showHelpTip &&
-        (instructions === undefined || instructions))
-    ) {
-      if (typeof instructions === 'string') {
-        helpTipTop = theme.style.helpTip(instructions);
-      } else {
-        const keys = [
-          `${theme.style.key('tab')} to select`,
-          `and ${theme.style.key('enter')} to proceed`,
-        ];
-        helpTipTop = theme.style.helpTip(`(Press ${keys.join(', ')})`);
-      }
-
-      if (
-        optionState.options.length > pageSize &&
-        (theme.helpMode === 'always' ||
-          (theme.helpMode === 'auto' && firstRender.current))
-      ) {
-        helpTipBottom = `\n${theme.style.help(
-          '(Use arrow keys to reveal more choices)',
-        )}`;
-        firstRender.current = false;
-      }
+    const defaultTopHelpTip =
+      instructions ??
+      `(Press ${theme.style.key('tab')} to select, and ${theme.style.key(
+        'enter',
+      )} to proceed`;
+    const defaultBottomHelpTip = `\n${theme.style.help(
+      '(Use arrow keys to reveal more choices)',
+    )}`;
+    if (theme.helpMode === 'always') {
+      helpTipTop = theme.style.helpTip(defaultTopHelpTip);
+      helpTipBottom =
+        optionState.options.length > pageSize ? defaultBottomHelpTip : '';
+      firstRender.current = false;
+    } else if (theme.helpMode === 'auto' && firstRender.current) {
+      helpTipTop = theme.style.helpTip(defaultTopHelpTip);
+      helpTipBottom =
+        optionState.options.length > pageSize ? defaultBottomHelpTip : '';
+      firstRender.current = false;
     }
 
     const choiceDescription = description

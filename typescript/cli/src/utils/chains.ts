@@ -74,7 +74,7 @@ export async function runMultiChainSelectionStep({
 
   let currentChoiceSelection = new Set();
   while (true) {
-    const chains = (await searchableCheckBox({
+    const chains = await searchableCheckBox({
       message,
       selectableOptionsSeparator: networkTypeSeparator,
       choices: choices.map((choice) =>
@@ -82,7 +82,7 @@ export async function runMultiChainSelectionStep({
           ? { ...choice, checked: true }
           : choice,
       ),
-      instructions: `Use TAB key to select at least ${requireNumber} chains, then press ENTER to proceed`,
+      instructions: `Use TAB key to select at least ${requireNumber} chains, then press ENTER to proceed. Type to search for a specific chain.`,
       theme: {
         style: {
           // The leading space is needed because the help tip will be tightly close to the message header
@@ -98,17 +98,17 @@ export async function runMultiChainSelectionStep({
 
         return true;
       },
-    })) as string[];
+    });
 
     handleNewChain(chains);
 
-    const confirmed = !requiresConfirmation
-      ? true
-      : await confirm({
+    const confirmed = requiresConfirmation
+      ? await confirm({
           message: `Is this chain selection correct?: ${chalk.cyan(
             chains.join(', '),
           )}`,
-        });
+        })
+      : true;
     if (!confirmed) {
       currentChoiceSelection = new Set(chains);
       continue;
