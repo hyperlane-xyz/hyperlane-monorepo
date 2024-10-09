@@ -48,8 +48,7 @@ export async function runPreflightChecksForChains({
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
     if (
-      metadata.protocol !== ProtocolType.Ethereum &&
-      metadata.protocol !== ProtocolType.ZKSync
+      ![ProtocolType.ZKSync, ProtocolType.Ethereum].includes(metadata.protocol)
     )
       throw new Error('Only Ethereum/ZKSync chains are supported for now');
   }

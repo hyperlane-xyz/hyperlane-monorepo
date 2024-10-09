@@ -206,7 +206,7 @@ export function isValidTransactionHashCosmos(input: string) {
 }
 
 export function isValidTransactionHash(input: string, protocol: ProtocolType) {
-  if (protocol === ProtocolType.Ethereum || protocol === ProtocolType.ZKSync) {
+  if ([ProtocolType.Ethereum, ProtocolType.ZKSync].includes(protocol)) {
     return isValidTransactionHashEvm(input);
   } else if (protocol === ProtocolType.Sealevel) {
     return isValidTransactionHashSealevel(input);

@@ -21,8 +21,9 @@ export async function readHookConfig({
 }): Promise<void> {
   // TODO: refactor to supported chains function
   if (
-    context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum ||
-    context.multiProvider.getProtocol(chain) === ProtocolType.ZKSync
+    [ProtocolType.ZKSync, ProtocolType.Ethereum].includes(
+      context.multiProvider.getProtocol(chain),
+    )
   ) {
     const hookReader = new EvmHookReader(context.multiProvider, chain);
     const config = await hookReader.deriveHookConfig(address);
