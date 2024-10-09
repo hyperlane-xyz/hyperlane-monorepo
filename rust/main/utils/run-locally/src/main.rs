@@ -314,7 +314,7 @@ fn main() -> ExitCode {
 
     let solana_paths = if config.sealevel_enabled {
         let (solana_path, solana_path_tempdir) = install_solana_cli_tools(
-            SOLANA_CONTRACT_CLI_RELEASE_URL.to_owned(),
+            SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
             SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
         )
         .join();
