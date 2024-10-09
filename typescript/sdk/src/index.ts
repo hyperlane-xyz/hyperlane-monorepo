@@ -101,6 +101,7 @@ export {
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
+export { ZKVerifier } from './deploy/verify/ZKVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
   BuildArtifact,
