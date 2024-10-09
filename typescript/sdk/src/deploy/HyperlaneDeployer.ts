@@ -16,6 +16,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   Address,
   ProtocolType,
+  addBufferToGasLimit,
   eqAddress,
   isZeroishAddress,
   rootLogger,
@@ -54,6 +55,7 @@ import {
 } from './verify/types.js';
 import {
   buildVerificationInput,
+  getContractVerificationInput,
   shouldAddVerificationInput,
 } from './verify/utils.js';
 
@@ -81,7 +83,6 @@ export abstract class HyperlaneDeployer<
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly factories: Factories,
-    protected readonly artifacts: any,
     protected readonly options: DeployerOptions = {},
     protected readonly recoverVerificationInputs = false,
     protected readonly icaAddresses = {},
@@ -299,14 +300,12 @@ export abstract class HyperlaneDeployer<
     }
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
-        this.logger.info(`Set ISM on ${chain} with address ${targetIsm}`);
+        this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
 
         await this.multiProvider.sendTransaction(
           chain,
           setIsm(contract, targetIsm),
         );
-
-        await new Promise((resolve) => setTimeout(resolve, 3000));
 
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
@@ -351,7 +350,7 @@ export abstract class HyperlaneDeployer<
     client: MailboxClient,
     config: MailboxClientConfig,
   ): Promise<void> {
-    this.logger.info(
+    this.logger.debug(
       `Initializing mailbox client (if not already) on ${local}...`,
     );
     if (config.hook) {
@@ -385,7 +384,7 @@ export abstract class HyperlaneDeployer<
     constructorArgs: Parameters<F['deploy']>,
     initializeArgs?: Parameters<Awaited<ReturnType<F['deploy']>>['initialize']>,
     shouldRecover = true,
-    implementationAddress?: Address | null,
+    implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
     if (shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
@@ -409,6 +408,8 @@ export abstract class HyperlaneDeployer<
       )})...`,
     );
 
+    const { protocol } = this.multiProvider.getChainMetadata(chain);
+
     const artifact = getArtifactByContractName(contractName);
 
     const contract = await this.multiProvider.handleDeploy(
@@ -429,22 +430,38 @@ export abstract class HyperlaneDeployer<
           `Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized`,
         );
       } else {
-        this.logger.info(
+        this.logger.debug(
           `Initializing ${contractName} (${contract.address}) on ${chain}...`,
         );
 
-        // Estimate gas for the initialize transaction
-        // const estimatedGas = await contract.estimateGas.initialize(
-        //   ...initializeArgs,
-        // );
-
-        // deploy with 10% buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
 
-        const initTx = await contract.initialize(...initializeArgs, {
-          // gasLimit: estimatedGas.add(estimatedGas.div(10)),
-          ...overrides,
-        });
+        let enhancedOverrides;
+        if (protocol === ProtocolType.ZKSync) {
+          this.logger.info('Skipping gas estimation on ZKSync...');
+
+          // deploy with 10% buffer on gas limit
+          enhancedOverrides = {
+            // TODO: zksync gas estimation
+            ...overrides,
+          };
+        } else {
+          // Estimate gas for the initialize transaction
+          const estimatedGas = await contract.estimateGas.initialize(
+            ...initializeArgs,
+          );
+
+          // deploy with 10% buffer on gas limit
+          enhancedOverrides = {
+            gasLimit: addBufferToGasLimit(estimatedGas),
+            ...overrides,
+          };
+        }
+
+        const initTx = await contract.initialize(
+          ...initializeArgs,
+          enhancedOverrides,
+        );
         this.logger.info(`Contract ${contractName} initialized`);
         const receipt = await this.multiProvider.handleTx(chain, initTx);
 
@@ -454,25 +471,30 @@ export abstract class HyperlaneDeployer<
       }
     }
 
-    // const verificationInput = getContractVerificationInput({
-    //   name: contractName,
-    //   contract,
-    //   bytecode: factory.bytecode,
-    //   expectedimplementation: implementationAddress,
-    // });
+    // TODO: ZKSync contract verification
+    if (protocol === ProtocolType.ZKSync) {
+      this.logger.info('Skipping contract verification on ZKSync...');
+    } else {
+      const verificationInput = getContractVerificationInput({
+        name: contractName,
+        contract,
+        bytecode: factory.bytecode,
+        expectedimplementation: implementationAddress,
+      });
 
-    // this.addVerificationArtifacts(chain, [verificationInput]);
+      this.addVerificationArtifacts(chain, [verificationInput]);
 
-    // // try verifying contract
-    // try {
-    //   await this.options.contractVerifier?.verifyContract(
-    //     chain,
-    //     verificationInput,
-    //   );
-    // } catch (error) {
-    //   // log error but keep deploying, can also verify post-deployment if needed
-    //   this.logger.debug(`Error verifying contract: ${error}`);
-    // }
+      // try verifying contract
+      try {
+        await this.options.contractVerifier?.verifyContract(
+          chain,
+          verificationInput,
+        );
+      } catch (error) {
+        // log error but keep deploying, can also verify post-deployment if needed
+        this.logger.debug(`Error verifying contract: ${error}`);
+      }
+    }
 
     return contract;
   }
@@ -507,7 +529,6 @@ export abstract class HyperlaneDeployer<
       constructorArgs,
       initializeArgs,
       shouldRecover,
-      null,
     );
     this.writeCache(chain, contractName, contract.address);
     return contract;

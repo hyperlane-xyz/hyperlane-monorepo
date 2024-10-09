@@ -28,16 +28,16 @@ export const test1: ChainMetadata = {
   blocks: {
     confirmations: 1,
     estimateBlockTime: 3,
-    reorgPeriod: 1,
+    reorgPeriod: 0,
   },
-  chainId: 260,
+  chainId: 9913371,
   displayName: 'Test 1',
-  domainId: 260,
+  domainId: 9913371,
   isTestnet: true,
   name: 'test1',
   nativeToken: { decimals: 18, name: 'Ether', symbol: 'ETH' },
   protocol: ProtocolType.Ethereum,
-  rpcUrls: [{ http: 'http://127.0.0.1:8011' }],
+  rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
 };
 
 export const test2: ChainMetadata = {
@@ -47,9 +47,9 @@ export const test2: ChainMetadata = {
     estimateBlockTime: 3,
     reorgPeriod: 1,
   },
-  chainId: 260,
+  chainId: 9913372,
   displayName: 'Test 2',
-  domainId: 260,
+  domainId: 9913372,
   name: 'test2',
 };
 
@@ -60,22 +60,17 @@ export const test3: ChainMetadata = {
     estimateBlockTime: 3,
     reorgPeriod: 2,
   },
-  chainId: 260,
+  chainId: 9913373,
   displayName: 'Test 3',
-  domainId: 260,
+  domainId: 9913373,
   name: 'test3',
 };
 
 export const test4: ChainMetadata = {
   ...test1,
-  blocks: {
-    confirmations: 1,
-    estimateBlockTime: 3,
-    reorgPeriod: 2,
-  },
-  chainId: 260,
+  chainId: 31337,
   displayName: 'Test 4',
-  domainId: 260,
+  domainId: 31337,
   name: 'test4',
 };
 

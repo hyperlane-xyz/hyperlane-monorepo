@@ -69,7 +69,7 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "yarn hardhat-esm compile && yarn hardhat-zk compile && tsc && ts-node generate-artifact-exports.mjs && ./exportBuildArtifact.sh",
+    "build": "yarn hardhat-esm compile && yarn hardhat-zk compile && ts-node generate-artifact-exports.mjs && tsc && ./exportBuildArtifact.sh",
     "lint": "solhint contracts/**/*.sol",
     "clean": "yarn hardhat-esm clean && yarn hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./types ./coverage ./out ./forge-cache ./fixtures",
     "coverage": "yarn fixtures && ./coverage.sh",

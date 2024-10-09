@@ -1,6 +1,7 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
-import { Provider, Wallet } from 'zksync-ethers';
+import hre from 'hardhat';
 
 import {
   InterchainAccountRouter,
@@ -27,7 +28,7 @@ describe('InterchainAccounts', async () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;
 
-  let signer: Wallet;
+  let signer: SignerWithAddress;
   let contracts: HyperlaneContractsMap<InterchainAccountFactories>;
   let local: InterchainAccountRouter;
   let remote: InterchainAccountRouter;
@@ -37,12 +38,7 @@ describe('InterchainAccounts', async () => {
   let config: ChainMap<RouterConfig>;
 
   before(async () => {
-    const prov = new Provider('http://127.0.0.1:8011', 260);
-
-    signer = new Wallet(
-      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
-      prov,
-    );
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

@@ -9,17 +9,6 @@ import {
   ProtocolFee__factory,
   StaticAggregationHook__factory,
 } from '@hyperlane-xyz/core';
-import {
-  ArbL2ToL1Hook__artifact,
-  DomainRoutingHook__artifact,
-  FallbackDomainRoutingHook__artifact,
-  InterchainGasPaymaster__artifact,
-  MerkleTreeHook__artifact,
-  OPStackHook__artifact,
-  PausableHook__artifact,
-  ProtocolFee__artifact,
-  StaticAggregationHook__artifact,
-} from '@hyperlane-xyz/core/artifacts';
 import { ValueOf } from '@hyperlane-xyz/utils';
 
 import { HookType } from './types.js';
@@ -34,17 +23,6 @@ export const hookFactories = {
   [HookType.FALLBACK_ROUTING]: new FallbackDomainRoutingHook__factory(),
   [HookType.PAUSABLE]: new PausableHook__factory(),
   [HookType.ARB_L2_TO_L1]: new ArbL2ToL1Hook__factory(),
-};
-export const hookFactoriesArtifacts = {
-  [HookType.MERKLE_TREE]: MerkleTreeHook__artifact,
-  [HookType.PROTOCOL_FEE]: ProtocolFee__artifact,
-  [HookType.INTERCHAIN_GAS_PAYMASTER]: InterchainGasPaymaster__artifact, // unused
-  [HookType.AGGREGATION]: StaticAggregationHook__artifact, // unused
-  [HookType.OP_STACK]: OPStackHook__artifact,
-  [HookType.ROUTING]: DomainRoutingHook__artifact,
-  [HookType.FALLBACK_ROUTING]: FallbackDomainRoutingHook__artifact,
-  [HookType.PAUSABLE]: PausableHook__artifact,
-  [HookType.ARB_L2_TO_L1]: ArbL2ToL1Hook__artifact,
 };
 
 export type HookFactories = typeof hookFactories;

@@ -1,7 +1,8 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { Wallet } from 'zksync-ethers';
+import hre from 'hardhat';
 
-import { ERC20Test__artifact } from '@hyperlane-xyz/core/artifacts';
+import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -10,7 +11,6 @@ import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
@@ -21,7 +21,7 @@ import { WarpRouteDeployConfig } from './types.js';
 const chain = TestChainName.test1;
 
 describe('TokenDeployer', async () => {
-  let signer: Wallet;
+  let signer: SignerWithAddress;
   let deployer: HypERC20Deployer;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
@@ -29,9 +29,7 @@ describe('TokenDeployer', async () => {
   let token: Address;
 
   before(async () => {
-    signer = new Wallet(
-      '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
-    );
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const factories = await ismFactoryDeployer.deploy(
@@ -53,16 +51,12 @@ describe('TokenDeployer', async () => {
     );
 
     const { name, decimals, symbol, totalSupply } = config[chain];
-
-    const deployer = new ZKDeployer(signer);
-
-    const contract = await deployer.deploy(ERC20Test__artifact, [
+    const contract = await new ERC20Test__factory(signer).deploy(
       name!,
       symbol!,
       totalSupply!,
       decimals!,
-    ]);
-
+    );
     token = contract.address;
   });
 

@@ -17,10 +17,7 @@ import {
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
-import {
-  // forkNetworkToMultiProvider,
-  verifyAnvil,
-} from '../deploy/dry-run.js';
+import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
@@ -110,13 +107,13 @@ export async function getDryRunContext(
   await verifyAnvil();
 
   let multiProvider = await getMultiProvider(registry);
-  // multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
+  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
   const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
     fromAddress,
     key,
     skipConfirmation,
   });
-  // multiProvider.setSharedSigner(impersonatedSigner);
+  multiProvider.setSharedSigner(impersonatedSigner);
 
   return {
     registry,

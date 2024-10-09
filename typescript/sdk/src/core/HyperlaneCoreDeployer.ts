@@ -19,12 +19,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TestRecipientDeployer } from './TestRecipientDeployer.js';
-import {
-  CoreAddresses,
-  CoreFactories,
-  coreFactories,
-  coreFactoriesArtifacts,
-} from './contracts.js';
+import { CoreAddresses, CoreFactories, coreFactories } from './contracts.js';
 import { CoreConfig } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
@@ -41,7 +36,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     concurrentDeploy: boolean = false,
     chainTimeoutMs: number = 1000 * 60 * 10, // 10 minutes
   ) {
-    super(multiProvider, coreFactories, coreFactoriesArtifacts, {
+    super(multiProvider, coreFactories, {
       logger: rootLogger.child({ module: 'CoreDeployer' }),
       chainTimeoutMs,
       ismFactory,

@@ -22,7 +22,6 @@ import {
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import { DefaultFallbackRoutingIsm__artifact } from '@hyperlane-xyz/core/artifacts';
-// import { TrustedRelayerIsm__artifact } from '@hyperlane-xyz/core/artifacts';
 import {
   Address,
   Domain,
@@ -101,7 +100,6 @@ export class EvmIsmModule extends HyperlaneModule<
 
     this.deployer = new EvmModuleDeployer(
       this.multiProvider,
-      {},
       {},
       this.logger,
       contractVerifier,
@@ -656,7 +654,6 @@ export class EvmIsmModule extends HyperlaneModule<
       (domain, _): _ is IsmConfig => {
         const domainId = this.multiProvider.tryGetDomainId(domain);
         if (domainId === null) {
-          console.log('inside filterRoutingIsmDomains');
           this.logger.warn(
             `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
           );

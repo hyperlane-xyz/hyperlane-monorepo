@@ -57,7 +57,7 @@ export const setFork = async (
     },
   ]);
 
-  // multiProvider.setProvider(chain, provider);
+  multiProvider.setProvider(chain, provider);
 
   rootLogger.info(`✅ Successfully forked ${chain} for dry-run`);
 };

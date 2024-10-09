@@ -1,8 +1,12 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
 import { constants } from 'ethers';
-import { Provider, Wallet } from 'zksync-ethers';
+import hre from 'hardhat';
 
 import {
+  ERC20Test,
+  ERC20Test__factory,
+  ERC4626Test__factory,
   GasRouter,
   HypERC20__factory,
   HypERC4626Collateral__factory,
@@ -10,10 +14,6 @@ import {
   Mailbox,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import {
-  ERC20Test__artifact,
-  ERC4626Test__artifact,
-} from '@hyperlane-xyz/core/artifacts';
 import {
   EvmIsmModule,
   HyperlaneAddresses,
@@ -36,7 +36,6 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
-import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { TokenType } from './config.js';
@@ -54,25 +53,20 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
-  const chain = TestChainName.test1;
+  const chain = TestChainName.test4;
   let mailbox: Mailbox;
   let hookAddress: string;
   let ismAddress: string;
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
   let ismFactoryAddresses: HyperlaneAddresses<ProxyFactoryFactories>;
-  let token: any;
-  let signer: Wallet;
+  let erc20Factory: ERC20Test__factory;
+  let token: ERC20Test;
+  let signer: SignerWithAddress;
   let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let routerConfigMap: ChainMap<RouterConfig>;
   let baseConfig: RouterConfig;
-  const prov = new Provider('http://127.0.0.1:8011', 260);
-
-  signer = new Wallet(
-    '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e',
-    prov,
-  );
 
   async function validateCoreValues(deployedToken: GasRouter) {
     expect(await deployedToken.mailbox()).to.equal(mailbox.address);
@@ -90,30 +84,24 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   }
 
   before(async () => {
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-
     factories = await ismFactoryDeployer.deploy(
       multiProvider.mapKnownChains(() => ({})),
     );
-
     ismFactoryAddresses = serializeContracts(factories[chain]);
-
     ismFactory = new HyperlaneIsmFactory(factories, multiProvider);
-
     coreApp = await new TestCoreDeployer(multiProvider, ismFactory).deployApp();
-
     routerConfigMap = coreApp.getRouterConfig(signer.address);
 
-    const deployer = new ZKDeployer(signer);
-
-    token = await deployer.deploy(ERC20Test__artifact, [
+    erc20Factory = new ERC20Test__factory(signer);
+    token = await erc20Factory.deploy(
       TOKEN_NAME,
       TOKEN_NAME,
       TOKEN_SUPPLY,
       TOKEN_DECIMALS,
-    ]);
+    );
 
     baseConfig = routerConfigMap[chain];
 
@@ -129,6 +117,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       token: token.address,
       hook: hookAddress,
     };
+
     // Deploy using WarpModule
     const evmERC20WarpModule = await EvmERC20WarpModule.create({
       chain,
@@ -144,14 +133,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a collateral vault config', async () => {
-    const deployer = new ZKDeployer(signer);
-
-    const vault = await deployer.deploy(ERC4626Test__artifact, [
+    const vaultFactory = new ERC4626Test__factory(signer);
+    const vault = await vaultFactory.deploy(
       token.address,
       TOKEN_NAME,
       TOKEN_NAME,
-    ]);
-
+    );
     const config = {
       type: TokenType.collateralVault,
       token: vault.address,
@@ -358,7 +345,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(txs.length).to.equal(0);
     });
 
-    it.skip('should update a mutable Ism', async () => {
+    it('should update a mutable Ism', async () => {
       const ismConfig: IsmConfig = {
         type: IsmType.ROUTING,
         owner: signer.address,
@@ -366,8 +353,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           '1': ismAddress,
         },
       };
-      console.log('before EvmIsmModule');
-
       const ism = await EvmIsmModule.create({
         chain,
         multiProvider,
@@ -376,10 +361,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         mailbox: mailbox.address,
       });
 
-      console.log({ ism });
       const { deployedIsm } = ism.serialize();
-      console.log('deployedIsm');
-
       // Deploy using WarpModule
       const config = {
         ...baseConfig,

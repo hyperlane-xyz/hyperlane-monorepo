@@ -8,7 +8,6 @@ import { HyperlaneDeployer } from './HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
-  proxyFactoryFactoriesArtifacts,
   proxyFactoryImplementations,
 } from './contracts.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
@@ -22,16 +21,11 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
     concurrentDeploy: boolean = false,
   ) {
-    super(
-      multiProvider,
-      proxyFactoryFactories,
-      proxyFactoryFactoriesArtifacts,
-      {
-        logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
-        contractVerifier,
-        concurrentDeploy,
-      },
-    );
+    super(multiProvider, proxyFactoryFactories, {
+      logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
+      contractVerifier,
+      concurrentDeploy,
+    });
   }
 
   async deployContracts(

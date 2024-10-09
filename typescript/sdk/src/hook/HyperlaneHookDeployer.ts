@@ -27,12 +27,7 @@ import { IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
-import {
-  DeployedHook,
-  HookFactories,
-  hookFactories,
-  hookFactoriesArtifacts,
-} from './contracts.js';
+import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
   DomainRoutingHookConfig,
@@ -60,7 +55,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       concurrentDeploy,
     ),
   ) {
-    super(multiProvider, hookFactories, hookFactoriesArtifacts, {
+    super(multiProvider, hookFactories, {
       logger: rootLogger.child({ module: 'HookDeployer' }),
       contractVerifier,
       concurrentDeploy,

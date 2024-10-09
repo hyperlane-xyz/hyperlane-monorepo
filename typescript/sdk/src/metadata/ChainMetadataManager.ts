@@ -61,21 +61,21 @@ export class ChainMetadataManager<MetaExt = {}> {
   addChain(metadata: ChainMetadata<MetaExt>): void {
     ChainMetadataSchema.parse(metadata);
     // Ensure no two chains have overlapping names/domainIds/chainIds
-    // for (const chainMetadata of Object.values(this.metadata)) {
-    //   const { name, chainId, domainId } = chainMetadata;
-    //   if (name == metadata.name)
-    //     throw new Error(`Duplicate chain name: ${name}`);
-    // Chain and Domain Ids should be globally unique
-    // const idCollision =
-    //   chainId == metadata.chainId ||
-    //   domainId == metadata.chainId ||
-    //   (metadata.domainId &&
-    //     (chainId == metadata.domainId || domainId == metadata.domainId));
-    // if (idCollision)
-    //   throw new Error(
-    //     `Chain/Domain id collision: ${name} and ${metadata.name}`,
-    //   );
-    // }
+    for (const chainMetadata of Object.values(this.metadata)) {
+      const { name, chainId, domainId } = chainMetadata;
+      if (name == metadata.name)
+        throw new Error(`Duplicate chain name: ${name}`);
+      // Chain and Domain Ids should be globally unique
+      const idCollision =
+        chainId == metadata.chainId ||
+        domainId == metadata.chainId ||
+        (metadata.domainId &&
+          (chainId == metadata.domainId || domainId == metadata.domainId));
+      if (idCollision)
+        throw new Error(
+          `Chain/Domain id collision: ${name} and ${metadata.name}`,
+        );
+    }
     this.metadata[metadata.name] = metadata;
   }
 
@@ -439,9 +439,9 @@ export class ChainMetadataManager<MetaExt = {}> {
     }
 
     if (!intersection.length) {
-      // throw new Error(
-      //   `No chains shared between known chains and list (${knownChains} and ${chains})`,
-      // );
+      throw new Error(
+        `No chains shared between known chains and list (${knownChains} and ${chains})`,
+      );
     }
 
     const intersectionMetadata = pick(this.metadata, intersection);

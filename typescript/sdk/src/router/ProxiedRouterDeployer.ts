@@ -26,7 +26,6 @@ export abstract class ProxiedRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     factories: Factories,
-    artifacts: any,
     options?: DeployerOptions,
   ) {
     super(
@@ -35,7 +34,6 @@ export abstract class ProxiedRouterDeployer<
         ...factories,
         ...proxiedFactories,
       },
-      artifacts,
       options,
     );
   }
