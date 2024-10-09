@@ -157,6 +157,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
+          # assume a PR won't have more than 100 commits to avoid fetching all history
+          fetch-depth: 100
 
       - name: foundry-install
         uses: foundry-rs/foundry-toolchain@v1
