@@ -13,6 +13,7 @@ use crate::date_time;
 use crate::db::ScraperDb;
 
 use super::generated::{delivered_message, message};
+
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
     pub message_id: H256,
@@ -178,20 +179,20 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        debug_assert!(!models.is_empty());
-        trace!(?models, "Writing delivered messages to database");
-
-        Insert::many(models)
-            .on_conflict(
-                OnConflict::columns([delivered_message::Column::MsgId])
-                    .update_columns([
-                        delivered_message::Column::TimeCreated,
-                        delivered_message::Column::DestinationTxId,
-                    ])
-                    .to_owned(),
-            )
-            .exec(&self.0)
-            .await?;
+        if !models.is_empty() {
+            trace!(?models, "Writing delivered messages to database");
+            Insert::many(models)
+                .on_conflict(
+                    OnConflict::columns([delivered_message::Column::MsgId])
+                        .update_columns([
+                            delivered_message::Column::TimeCreated,
+                            delivered_message::Column::DestinationTxId,
+                        ])
+                        .to_owned(),
+                )
+                .exec(&self.0)
+                .await?;
+        }
 
         let new_deliveries_count = self
             .deliveries_count_since_id(domain, destination_mailbox, latest_id_before)
@@ -272,28 +273,28 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        debug_assert!(!models.is_empty());
-        trace!(?models, "Writing messages to database");
-
-        Insert::many(models)
-            .on_conflict(
-                OnConflict::columns([
-                    message::Column::OriginMailbox,
-                    message::Column::Origin,
-                    message::Column::Nonce,
-                ])
-                .update_columns([
-                    message::Column::TimeCreated,
-                    message::Column::Destination,
-                    message::Column::Sender,
-                    message::Column::Recipient,
-                    message::Column::MsgBody,
-                    message::Column::OriginTxId,
-                ])
-                .to_owned(),
-            )
-            .exec(&self.0)
-            .await?;
+        if !models.is_empty() {
+            trace!(?models, "Writing messages to database");
+            Insert::many(models)
+                .on_conflict(
+                    OnConflict::columns([
+                        message::Column::OriginMailbox,
+                        message::Column::Origin,
+                        message::Column::Nonce,
+                    ])
+                    .update_columns([
+                        message::Column::TimeCreated,
+                        message::Column::Destination,
+                        message::Column::Sender,
+                        message::Column::Recipient,
+                        message::Column::MsgBody,
+                        message::Column::OriginTxId,
+                    ])
+                    .to_owned(),
+                )
+                .exec(&self.0)
+                .await?;
+        }
 
         let new_dispatch_count = self
             .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
