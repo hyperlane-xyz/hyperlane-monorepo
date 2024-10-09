@@ -216,9 +216,9 @@ jobs:
       - name: Check for Rust file changes
         id: check-rust-changes
         run: |
-          if [[ -n "$(git diff HEAD ${{ github.event.pull_request.base.sha }} -- ./rust)" ]]; then
+          if [[ -n "$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust)" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "$(git diff HEAD ${{ github.event.pull_request.base.sha }} -- ./rust)" 
+            echo "$(git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha || github.sha }} -- ./rust)" 
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
