@@ -35,6 +35,7 @@ import {
 import { sendTestTransfer } from '../send/transfer.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/input.js';
+import { formatViolationOutput } from '../utils/output.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
@@ -381,7 +382,10 @@ export const check: CommandModuleWithContext<{
       warpRouteConfig,
     });
 
-    console.log(violations);
+    if (violations.length !== 0) {
+      formatViolationOutput(violations);
+      process.exit(1);
+    }
 
     process.exit(0);
   },
