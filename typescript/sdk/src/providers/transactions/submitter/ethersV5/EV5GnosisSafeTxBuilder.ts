@@ -6,7 +6,7 @@ import { assert } from '@hyperlane-xyz/utils';
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
+import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5GnosisSafeTxSubmitter } from './EV5GnosisSafeTxSubmitter.js';
@@ -58,10 +58,10 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
    *
    * @param txs - An array of populated transactions
    */
-  public async submit(...txs: PopulatedTransactions): Promise<any> {
+  public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
     const transactions: SafeTransactionData[] = await Promise.all(
       txs.map(
-        async (tx: PopulatedTransaction) =>
+        async (tx: AnnotatedEV5Transaction) =>
           (
             await this.createSafeTransaction(tx)
           ).data,
