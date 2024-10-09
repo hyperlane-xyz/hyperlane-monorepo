@@ -63,6 +63,7 @@ contract ArbL2ToL1Ism is
     ) external override returns (bool) {
         if (!isVerified(message)) {
             _verifyWithOutboxCall(metadata, message);
+            require(isVerified(message), "ArbL2ToL1Ism: message not verified");
         }
         releaseValueToRecipient(message);
         return true;
