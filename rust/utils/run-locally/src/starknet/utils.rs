@@ -83,28 +83,26 @@ pub(crate) fn declare_all(
 ) -> DeclaredClasses {
     let mut declared_classes = DeclaredClasses::default();
     for (class, path) in sierra_classes {
+        if !class.starts_with("contracts_") {
+            continue;
+        }
+
         println!("Declaring class: {}", class);
         let declare_result = cli.declare(path);
         let class_hash = declare_result.class_hash;
         match class.as_str() {
-            "hyperlane_starknet_merkle_tree_hook" => declared_classes.hpl_hook_merkle = class_hash,
-            "hyperlane_starknet_mailbox" => declared_classes.hpl_mailbox = class_hash,
-            "hyperlane_starknet_ism" => declared_classes.hpl_test_mock_ism = class_hash,
-            "hyperlane_starknet_pausable_ism" => declared_classes.hpl_ism_pausable = class_hash,
-            "hyperlane_starknet_hook" => declared_classes.hpl_test_mock_hook = class_hash,
-            "hyperlane_starknet_aggregation" => declared_classes.hpl_ism_aggregate = class_hash,
-            "hyperlane_starknet_message_recipient" => {
+            "contracts_merkle_tree_hook" => declared_classes.hpl_hook_merkle = class_hash,
+            "contracts_mailbox" => declared_classes.hpl_mailbox = class_hash,
+            "contracts_ism" => declared_classes.hpl_test_mock_ism = class_hash,
+            "contracts_pausable_ism" => declared_classes.hpl_ism_pausable = class_hash,
+            "contracts_hook" => declared_classes.hpl_test_mock_hook = class_hash,
+            "contracts_aggregation" => declared_classes.hpl_ism_aggregate = class_hash,
+            "contracts_message_recipient" => {
                 declared_classes.hpl_test_mock_msg_receiver = class_hash
             }
-            "hyperlane_starknet_messageid_multisig_ism" => {
-                declared_classes.hpl_ism_multisig = class_hash
-            }
-            "hyperlane_starknet_validator_announce" => {
-                declared_classes.hpl_validator_announce = class_hash
-            }
-            "hyperlane_starknet_domain_routing_ism" => {
-                declared_classes.hpl_ism_routing = class_hash
-            }
+            "contracts_messageid_multisig_ism" => declared_classes.hpl_ism_multisig = class_hash,
+            "contracts_validator_announce" => declared_classes.hpl_validator_announce = class_hash,
+            "contracts_domain_routing_ism" => declared_classes.hpl_ism_routing = class_hash,
             _ => println!("Unknown class: {}", class),
         }
     }
