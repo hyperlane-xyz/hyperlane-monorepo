@@ -1,6 +1,6 @@
 import { warpConfigToWarpAddresses } from '@hyperlane-xyz/registry';
 import {
-  EvmERC20WarpModule,
+  EvmERC20WarpRouteReader,
   WarpCoreConfig,
   WarpRouteDeployConfig,
   attachContractsMapAndGetForeignDeployments,
@@ -49,14 +49,11 @@ export async function runWarpRouteCheck({
   );
 
   const onChainWarpConfig = await promiseObjAll(
-    objMap(warpRouteConfig, async (chain, config) => {
-      return new EvmERC20WarpModule(context.multiProvider, {
-        config,
+    objMap(warpRouteConfig, async (chain) => {
+      return new EvmERC20WarpRouteReader(
+        context.multiProvider,
         chain,
-        addresses: {
-          deployedTokenRoute: warpCoreConfigByChain[chain].addressOrDenom!,
-        },
-      }).read();
+      ).deriveWarpRouteConfig(warpCoreConfigByChain[chain].addressOrDenom!);
     }),
   );
 
