@@ -189,11 +189,7 @@ function sortNormalizedItems<Value>(
   a: NormalizedChoice<Value>,
   b: NormalizedChoice<Value>,
 ): number {
-  if (a.name > b.name) {
-    return 1;
-  } else {
-    return -1;
-  }
+  return a.name.localeCompare(b.name);
 }
 
 function organizeItems<Value>(
@@ -227,6 +223,170 @@ function organizeItems<Value>(
   }
 
   return orderedItems;
+}
+
+interface BuildViewOptions<Value> {
+  theme: Readonly<Theme<SearchableCheckboxTheme>>;
+  pageSize: number;
+  firstRender: { current: boolean };
+  page: string;
+  currentOptions: ReadonlyArray<Item<Value>>;
+  prefix: string;
+  message: string;
+  errorMsg?: string;
+  status: Status;
+  searchTerm: string;
+  description?: string;
+  instructions?: string;
+}
+
+interface GetErrorMessageOptions
+  extends Pick<
+    BuildViewOptions<any>,
+    'theme' | 'errorMsg' | 'status' | 'searchTerm'
+  > {
+  currentItemCount: number;
+}
+
+function getErrorMessage({
+  theme,
+  errorMsg,
+  currentItemCount,
+  status,
+  searchTerm,
+}: GetErrorMessageOptions): string {
+  if (errorMsg) {
+    return `${theme.style.error(errorMsg)}`;
+  } else if (currentItemCount === 0 && searchTerm !== '' && status === 'idle') {
+    return theme.style.error('No results found');
+  }
+
+  return '';
+}
+
+interface GetHelpTipsOptions
+  extends Pick<
+    BuildViewOptions<any>,
+    'theme' | 'pageSize' | 'firstRender' | 'instructions'
+  > {
+  currentItemCount: number;
+}
+
+function getHelpTips({
+  theme,
+  instructions,
+  currentItemCount,
+  pageSize,
+  firstRender,
+}: GetHelpTipsOptions): { helpTipTop: string; helpTipBottom: string } {
+  let helpTipTop = '';
+  let helpTipBottom = '';
+  const defaultTopHelpTip =
+    instructions ??
+    `(Press ${theme.style.key('tab')} to select, and ${theme.style.key(
+      'enter',
+    )} to proceed`;
+  const defaultBottomHelpTip = `\n${theme.style.help(
+    '(Use arrow keys to reveal more choices)',
+  )}`;
+
+  if (theme.helpMode === 'always') {
+    helpTipTop = theme.style.helpTip(defaultTopHelpTip);
+    helpTipBottom = currentItemCount > pageSize ? defaultBottomHelpTip : '';
+    firstRender.current = false;
+  } else if (theme.helpMode === 'auto' && firstRender.current) {
+    helpTipTop = theme.style.helpTip(defaultTopHelpTip);
+    helpTipBottom = currentItemCount > pageSize ? defaultBottomHelpTip : '';
+    firstRender.current = false;
+  }
+
+  return { helpTipBottom, helpTipTop };
+}
+
+function formatRenderedItem<Value>(
+  item: Readonly<Item<Value>>,
+  isActive: boolean,
+  theme: Readonly<Theme<SearchableCheckboxTheme>>,
+): string {
+  if (Separator.isSeparator(item)) {
+    return ` ${item.separator}`;
+  }
+
+  if (item.disabled) {
+    const disabledLabel =
+      typeof item.disabled === 'string' ? item.disabled : '(disabled)';
+    return theme.style.disabledChoice(`${item.name} ${disabledLabel}`);
+  }
+
+  const checkbox = item.checked ? theme.icon.checked : theme.icon.unchecked;
+  const color = isActive ? theme.style.highlight : (x: string) => x;
+  const cursor = isActive ? theme.icon.cursor : ' ';
+  return color(`${cursor}${checkbox} ${item.name}`);
+}
+
+function getListBounds<Value>(items: ReadonlyArray<Item<Value>>): {
+  first: number;
+  last: number;
+} {
+  const first = items.findIndex(isSelectable);
+  // findLastIndex replacement as the project must support older ES versions
+  let last = -1;
+  for (let i = items.length; i >= 0; --i) {
+    if (items[i] && isSelectable(items[i])) {
+      last = i;
+      break;
+    }
+  }
+
+  return { first, last };
+}
+
+function buildView<Value>({
+  page,
+  prefix,
+  theme,
+  status,
+  message,
+  errorMsg,
+  pageSize,
+  firstRender,
+  searchTerm,
+  description,
+  instructions,
+  currentOptions,
+}: BuildViewOptions<Value>): string {
+  message = theme.style.message(message);
+  if (status === 'done') {
+    const selection = currentOptions.filter(isChecked);
+    const answer = theme.style.answer(
+      theme.style.renderSelectedChoices(selection, currentOptions),
+    );
+
+    return `${prefix} ${message} ${answer}`;
+  }
+
+  const currentItemCount = currentOptions.length;
+  const { helpTipBottom, helpTipTop } = getHelpTips({
+    theme,
+    instructions,
+    currentItemCount,
+    pageSize,
+    firstRender,
+  });
+
+  const choiceDescription = description
+    ? `\n${theme.style.description(description)}`
+    : ``;
+
+  const error = getErrorMessage({
+    theme,
+    errorMsg,
+    currentItemCount,
+    status,
+    searchTerm,
+  });
+
+  return `${prefix} ${message}${helpTipTop} ${searchTerm}\n${page}${helpTipBottom}${choiceDescription}${error}${ansiEscapes.cursorHide}`;
 }
 
 // the isUpKey function from the inquirer package is not used
@@ -265,6 +425,8 @@ export const searchableCheckBox = createPrompt(
     const firstRender = useRef(true);
     const [status, setStatus] = useState<Status>('idle');
     const prefix = usePrefix({ theme });
+    const [searchTerm, setSearchTerm] = useState<string>('');
+    const [errorMsg, setError] = useState<string>();
 
     const normalizedChoices = normalizeChoices(config.choices);
     const [optionState, setOptionState] = useState<
@@ -276,24 +438,12 @@ export const searchableCheckBox = createPrompt(
       ),
     });
 
-    const [searchTerm, setSearchTerm] = useState<string>('');
-
-    const bounds = useMemo(() => {
-      const first = optionState.options.findIndex(isSelectable);
-      // findLastIndex replacement as the project must support older ES versions
-      let last = -1;
-      for (let i = optionState.options.length; i >= 0; --i) {
-        if (optionState.options[i] && isSelectable(optionState.options[i])) {
-          last = i;
-          break;
-        }
-      }
-
-      return { first, last };
-    }, [optionState.options]);
+    const bounds = useMemo(
+      () => getListBounds(optionState.options),
+      [optionState.options],
+    );
 
     const [active, setActive] = useState(bounds.first);
-    const [errorMsg, setError] = useState<string>();
 
     useEffect(() => {
       let filteredItems;
@@ -319,7 +469,7 @@ export const searchableCheckBox = createPrompt(
     useKeypress(async (key, rl) => {
       if (isEnterKey(key)) {
         const selection = optionState.options.filter(isChecked);
-        const isValid = await validate([...selection]);
+        const isValid = await validate(selection);
         if (required && !optionState.options.some(isChecked)) {
           setError('At least one choice must be selected');
         } else if (isValid === true) {
@@ -365,7 +515,6 @@ export const searchableCheckBox = createPrompt(
           };
 
           setError(undefined);
-
           setOptionState({
             options: organizeItems(
               Object.values(updatedDataMap),
@@ -380,84 +529,34 @@ export const searchableCheckBox = createPrompt(
       }
     });
 
-    const message = theme.style.message(config.message);
-
     let description;
     const page = usePagination({
       items: optionState.options,
       active,
       renderItem({ item, isActive }) {
-        if (Separator.isSeparator(item)) {
-          return ` ${item.separator}`;
-        }
-
-        if (item.disabled) {
-          const disabledLabel =
-            typeof item.disabled === 'string' ? item.disabled : '(disabled)';
-          return theme.style.disabledChoice(`${item.name} ${disabledLabel}`);
-        }
-
-        if (isActive) {
+        if (isActive && !Separator.isSeparator(item)) {
           description = item.description;
         }
 
-        const checkbox = item.checked
-          ? theme.icon.checked
-          : theme.icon.unchecked;
-        const color = isActive ? theme.style.highlight : (x: string) => x;
-        const cursor = isActive ? theme.icon.cursor : ' ';
-        return color(`${cursor}${checkbox} ${item.name}`);
+        return formatRenderedItem(item, isActive, theme);
       },
       pageSize,
       loop,
     });
 
-    if (status === 'done') {
-      const selection = optionState.options.filter(isChecked);
-      const answer = theme.style.answer(
-        theme.style.renderSelectedChoices(selection, optionState.options),
-      );
-
-      return `${prefix} ${message} ${answer}`;
-    }
-
-    let helpTipTop = '';
-    let helpTipBottom = '';
-    const defaultTopHelpTip =
-      instructions ??
-      `(Press ${theme.style.key('tab')} to select, and ${theme.style.key(
-        'enter',
-      )} to proceed`;
-    const defaultBottomHelpTip = `\n${theme.style.help(
-      '(Use arrow keys to reveal more choices)',
-    )}`;
-    if (theme.helpMode === 'always') {
-      helpTipTop = theme.style.helpTip(defaultTopHelpTip);
-      helpTipBottom =
-        optionState.options.length > pageSize ? defaultBottomHelpTip : '';
-      firstRender.current = false;
-    } else if (theme.helpMode === 'auto' && firstRender.current) {
-      helpTipTop = theme.style.helpTip(defaultTopHelpTip);
-      helpTipBottom =
-        optionState.options.length > pageSize ? defaultBottomHelpTip : '';
-      firstRender.current = false;
-    }
-
-    const choiceDescription = description
-      ? `\n${theme.style.description(description)}`
-      : ``;
-
-    let error = '';
-    if (errorMsg) {
-      error = `${theme.style.error(errorMsg)}`;
-    } else if (
-      optionState.options.length === 0 &&
-      searchTerm !== '' &&
-      status === 'idle'
-    ) {
-      error = theme.style.error('No results found');
-    }
-
-    return `${prefix} ${message}${helpTipTop} ${searchTerm}\n${page}${helpTipBottom}${choiceDescription}${error}${ansiEscapes.cursorHide}`;
+    return buildView({
+      page,
+      theme,
+      prefix,
+      status,
+      pageSize,
+      errorMsg,
+      firstRender,
+      searchTerm,
+      description,
+      instructions,
+      currentOptions: optionState.options,
+      message: theme.style.message(config.message),
+    });
   },
 );
