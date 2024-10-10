@@ -103,6 +103,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x09B61c756B3b85BfE871157734e6460d66C8285b",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x5681fbf346EED083FD86b299c150c9701A65FE74",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "arbitrumsepolia": [
@@ -147,6 +159,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0xF7FF9b4918484720439928399eeF3584a5f4eEF4",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0xb64A0B363326BA2b2cD474987A739A0e3A04Fd8d",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "basesepolia": [
@@ -221,6 +245,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x2ACC0D75aA6cC2829C0ABdA5e2C782E2b4792eB0",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x5E9922718b01AD4C82dCFD699ceAC0cF5F89fBBc",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "bsctestnet": [
@@ -327,6 +363,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x9BDeB5c75D786040eB91B29D0cF3aa3E911e47C0",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0xcf6C887DaE2b04CC8414D8eb5363EaE8eD964158",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "connextsepolia": [
@@ -401,6 +449,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x385aE4e729d86Ac4983d01597c33dFAa8C35686A",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0xE14B55637Cc5aF2A55024D2f281446b388D64874",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "ecotestnet": [
@@ -475,6 +535,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x76743F08b266371dCC7840bD7A445D5A52b3a752",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x1A70D3cbC72eF4941Ee047FA1F1E0469B940EDda",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "fuji": [
@@ -591,6 +663,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0xE55d19c15a8EFD8420f6E1b922cbd8C126Bc8582",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x470e03D0E844DC7D3f11cc3f299D2C48cd14Cf3E",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "holesky": [
@@ -665,6 +749,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x6E2B21A88b70cd3Bc455174941753512fB8a981e",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0xEFfa6907D9caB3680b1Be2AA2207B0Fb8900E27a",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "moonbasealpha": [
@@ -833,6 +929,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x5E9922718b01AD4C82dCFD699ceAC0cF5F89fBBc",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x9e762493C57b1aa7acCd22f67aaD072ADC88CB1e",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "plumetestnet": [
@@ -981,6 +1089,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x5E9922718b01AD4C82dCFD699ceAC0cF5F89fBBc",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x9e762493C57b1aa7acCd22f67aaD072ADC88CB1e",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "scrollsepolia": [
@@ -1067,6 +1187,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x921B24e07f1Ba25f6f7B280DC025De6a135951A4",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0xab731b6237B4C4E864dd713949011E32DD19A3a2",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "sepolia": [
@@ -1173,6 +1305,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x1c6bD6893a3484D603035E1060ed37eaeC53873f",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0x0540D3c8C7Ae44f3Eb70C4cb8eA38eF27248347C",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "superpositiontestnet": [
@@ -1247,6 +1391,18 @@
       "constructorArguments": "",
       "isProxy": false,
       "name": "StaticMessageIdWeightedMultisigIsmFactory"
+    },
+    {
+      "name": "StaticMerkleRootWeightedMultisigIsm",
+      "address": "0x689C320286d74406AA9A08170DAbB87aC67FF711",
+      "constructorArguments": "",
+      "isProxy": true
+    },
+    {
+      "name": "StaticMessageIdWeightedMultisigIsm",
+      "address": "0xA2425897Fe6325162313CA7F0803078b3A20759F",
+      "constructorArguments": "",
+      "isProxy": true
     }
   ],
   "mevmdevnet": [
