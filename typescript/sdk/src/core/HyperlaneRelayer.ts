@@ -148,6 +148,7 @@ export class HyperlaneRelayer {
       return this.core.getProcessedReceipt(message);
     }
 
+    this.logger.debug({ message }, `Simulating recipient message handling`);
     await this.core.estimateHandle(message);
 
     // parallelizable because configs are on different chains
