@@ -1,6 +1,7 @@
 import { Ownable, Router } from '@hyperlane-xyz/core';
 import {
   Address,
+  addBufferToGasLimit,
   addressToBytes32,
   objFilter,
   objMap,
@@ -79,13 +80,17 @@ export abstract class HyperlaneRouterDeployer<
 
       await super.runIfOwner(chain, this.router(contracts), async () => {
         const chains = domains.map((id) => this.multiProvider.getChainName(id));
-        this.logger.info(
+        this.logger.debug(
           `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
         );
         const router = this.router(contracts);
-
+        const estimatedGas = await router.estimateGas.enrollRemoteRouters(
+          domains,
+          addresses,
+        );
         // deploy with 10% buffer on gas limit
         const enrollTx = await router.enrollRemoteRouters(domains, addresses, {
+          gasLimit: addBufferToGasLimit(estimatedGas),
           ...this.multiProvider.getTransactionOverrides(chain),
         });
         await this.multiProvider.handleTx(chain, enrollTx);

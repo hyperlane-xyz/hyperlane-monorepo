@@ -5067,7 +5067,7 @@ __metadata:
 
 "@hyperlane-xyz/core@file:../../solidity::locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk":
   version: 5.1.0
-  resolution: "@hyperlane-xyz/core@file:../../solidity#../../solidity::hash=8ad3e4&locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk"
+  resolution: "@hyperlane-xyz/core@file:../../solidity#../../solidity::hash=5ee6b3&locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@eth-optimism/contracts": "npm:^0.6.0"
@@ -5081,7 +5081,7 @@ __metadata:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
     "@types/sinon-chai": "*"
-  checksum: 8491835dddc8eca474666ce60edd70985c3c94f7689a32f2d7afabfcaf1cce327faa909a63c413192f24cfc291792ce4c23ac4717f9d01059784748150e56a60
+  checksum: 69961282417a37bb5eca3222ac489e62624ead403686a2dad580b35583b879841b4f0111addeff3d8c685833c6d81ca8ef16aefb4dc96e52c16132466d3212dc
   languageName: node
   linkType: hard
 
