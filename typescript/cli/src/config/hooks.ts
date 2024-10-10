@@ -265,11 +265,11 @@ export const createRoutingConfig = callWithConfigCreationLogs(
       message: 'Enter owner address for routing Hook',
     });
     const ownerAddress = owner;
-    const chains = await runMultiChainSelectionStep(
-      context.chainMetadata,
-      'Select chains for routing Hook',
-      1,
-    );
+    const chains = await runMultiChainSelectionStep({
+      chainMetadata: context.chainMetadata,
+      message: 'Select chains for routing Hook',
+      requireNumber: 1,
+    });
 
     const domainsMap: ChainMap<HookConfig> = {};
     for (const chain of chains) {
