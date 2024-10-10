@@ -43,10 +43,12 @@ import { formatViolationOutput } from '../utils/output.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
+  DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   addressCommandOption,
   chainCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
   symbolCommandOption,
@@ -172,7 +174,7 @@ export const init: CommandModuleWithContext<{
       describe: 'Create an advanced ISM',
       default: false,
     },
-    out: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
+    out: outputFileCommandOption(DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH),
   },
   handler: async ({ context, advanced, out }) => {
     logCommandHeader('Hyperlane Warp Configure');
@@ -208,7 +210,7 @@ export const read: CommandModuleWithContext<{
       false,
     ),
     config: outputFileCommandOption(
-      './configs/warp-route-deployment.yaml',
+      DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
       false,
       'The path to output a Warp Config JSON or YAML file.',
     ),
@@ -375,7 +377,10 @@ export const check: CommandModuleWithContext<{
   describe:
     'Verifies that a warp route configuration matches the on chain configuration.',
   builder: {
-    config: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
+    config: inputFileCommandOption({
+      defaultPath: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+      description: 'The path to a warp route deployment configuration file',
+    }),
     symbol: {
       ...symbolCommandOption,
       demandOption: false,
