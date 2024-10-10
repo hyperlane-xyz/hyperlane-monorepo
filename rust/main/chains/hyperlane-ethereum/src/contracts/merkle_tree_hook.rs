@@ -250,9 +250,8 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<Checkpoint> {
-        let call =
-            call_with_lag(self.contract.latest_checkpoint(), &self.provider, maybe_lag).await?;
+    async fn latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint> {
+        let call = call_with_lag(self.contract.latest_checkpoint(), &self.provider, lag).await?;
 
         let (root, index) = call.call().await?;
         Ok(Checkpoint {
@@ -265,15 +264,15 @@ where
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<IncrementalMerkle> {
-        let call = call_with_lag(self.contract.tree(), &self.provider, maybe_lag).await?;
+    async fn tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+        let call = call_with_lag(self.contract.tree(), &self.provider, lag).await?;
 
         Ok(call.call().await?.into())
     }
 
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
-        let call = call_with_lag(self.contract.count(), &self.provider, maybe_lag).await?;
+    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32> {
+        let call = call_with_lag(self.contract.count(), &self.provider, lag).await?;
         let count = call.call().await?;
         Ok(count)
     }

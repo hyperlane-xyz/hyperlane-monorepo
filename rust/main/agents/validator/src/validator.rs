@@ -184,12 +184,10 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        let reorg_period = Some(&self.reorg_period);
-
         // Ensure that the merkle tree hook has count > 0 before we begin indexing
         // messages or submitting checkpoints.
         loop {
-            match self.merkle_tree_hook.count(reorg_period).await {
+            match self.merkle_tree_hook.count(&self.reorg_period).await {
                 Ok(0) => {
                     info!("Waiting for first message in merkle tree hook");
                     sleep(self.interval).await;
@@ -249,10 +247,9 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        let reorg_period = Some(&self.reorg_period);
         let tip_tree = self
             .merkle_tree_hook
-            .tree(reorg_period)
+            .tree(&self.reorg_period)
             .await
             .expect("failed to get merkle tree");
         // This function is only called after we have already checked that the

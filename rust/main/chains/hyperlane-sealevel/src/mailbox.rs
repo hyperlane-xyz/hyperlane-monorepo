@@ -425,7 +425,7 @@ impl std::fmt::Debug for SealevelMailbox {
 #[async_trait]
 impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
-    async fn count(&self, _maybe_lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
+    async fn count(&self, _maybe_lag: &ReorgPeriod) -> ChainResult<u32> {
         <Self as MerkleTreeHook>::count(self, _maybe_lag).await
     }
 
@@ -791,7 +791,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, None).await?;
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
         Ok((Some(count), tip))
     }
 }

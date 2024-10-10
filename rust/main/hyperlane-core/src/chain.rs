@@ -3,13 +3,15 @@
 use std::{
     fmt::{Debug, Formatter},
     hash::{Hash, Hasher},
+    num::NonZeroU32,
 };
 
 use derive_new::new;
 use eyre::{eyre, Report};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
@@ -40,25 +42,44 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum ReorgPeriod {
-    Blocks(u32),
+    #[default]
+    None,
+    Blocks(NonZeroU32),
     Tag(String),
 }
 
 impl ReorgPeriod {
+    pub fn from_number(number: u32) -> Self {
+        NonZeroU32::try_from(number)
+            .map(ReorgPeriod::Blocks)
+            .unwrap_or(ReorgPeriod::None)
+    }
+
     pub fn as_number(&self) -> Result<u32, Report> {
-        if let ReorgPeriod::Blocks(blocks) = self {
-            Ok(*blocks)
-        } else {
-            Err(eyre!("Invalid reorg period"))
+        match self {
+            ReorgPeriod::None => Ok(0),
+            ReorgPeriod::Blocks(blocks) => Ok(blocks.get()),
+            ReorgPeriod::Tag(_) => Err(eyre!("Invalid reorg period")),
         }
+    }
+
+    pub fn is_none(&self) -> bool {
+        matches!(self, ReorgPeriod::None)
     }
 }
 
-impl Default for ReorgPeriod {
-    fn default() -> Self {
-        ReorgPeriod::Blocks(0)
+impl Serialize for ReorgPeriod {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            ReorgPeriod::None => serializer.serialize_u32(0),
+            ReorgPeriod::Blocks(blocks) => serializer.serialize_u32(blocks.get()),
+            ReorgPeriod::Tag(tag) => serializer.serialize_str(tag),
+        }
     }
 }
 
@@ -78,20 +99,14 @@ impl<'de> Deserialize<'de> for ReorgPeriod {
                 f.write_str("reorgPeriod as a number or string")
             }
 
-            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
-            where
-                E: de::Error,
-            {
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
                 let v = v.try_into().map_err(de::Error::custom)?;
-                Ok(ReorgPeriod::Blocks(v))
+                Ok(ReorgPeriod::from_number(v))
             }
 
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-            where
-                E: de::Error,
-            {
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
                 match v.parse::<u32>() {
-                    Ok(v) => Ok(ReorgPeriod::Blocks(v)),
+                    Ok(v) => self.visit_u32(v),
                     Err(_) => Ok(ReorgPeriod::Tag(v.to_string())),
                 }
             }
@@ -556,7 +571,7 @@ impl HyperlaneDomain {
 #[cfg(test)]
 #[cfg(feature = "strum")]
 mod tests {
-    use std::str::FromStr;
+    use std::{num::NonZeroU32, str::FromStr};
 
     use crate::{KnownHyperlaneDomain, ReorgPeriod};
 
@@ -615,13 +630,23 @@ mod tests {
     #[test]
     fn parse_reorg_period() {
         assert_eq!(
+            serde_json::from_value::<ReorgPeriod>(0.into()).unwrap(),
+            ReorgPeriod::None
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("0".into()).unwrap(),
+            ReorgPeriod::None
+        );
+
+        assert_eq!(
             serde_json::from_value::<ReorgPeriod>(12.into()).unwrap(),
-            ReorgPeriod::Blocks(12)
+            ReorgPeriod::Blocks(NonZeroU32::new(12).unwrap())
         );
 
         assert_eq!(
             serde_json::from_value::<ReorgPeriod>("12".into()).unwrap(),
-            ReorgPeriod::Blocks(12)
+            ReorgPeriod::Blocks(NonZeroU32::new(12).unwrap())
         );
 
         assert_eq!(

@@ -220,14 +220,14 @@ where
 pub(crate) async fn call_with_lag<M, T>(
     call: ethers::contract::builders::ContractCall<M, T>,
     provider: &M,
-    maybe_lag: Option<&ReorgPeriod>,
+    lag: &ReorgPeriod,
 ) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
 where
     M: Middleware + 'static,
     T: Detokenize,
 {
-    if let Some(reorg_period) = maybe_lag {
-        let reorg_period = EthereumReorgPeriod::try_from(reorg_period)?;
+    if !lag.is_none() {
+        let reorg_period = EthereumReorgPeriod::try_from(lag)?;
         let block = match reorg_period {
             EthereumReorgPeriod::Blocks(lag) => provider
                 .get_block_number()

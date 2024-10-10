@@ -19,7 +19,7 @@ use hyperlane_ethereum::SingletonSignerHandle;
 #[derive(Clone)]
 pub(crate) struct ValidatorSubmitter {
     interval: Duration,
-    reorg_period: Option<ReorgPeriod>,
+    reorg_period: ReorgPeriod,
     signer: SingletonSignerHandle,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
@@ -38,7 +38,7 @@ impl ValidatorSubmitter {
         metrics: ValidatorSubmitterMetrics,
     ) -> Self {
         Self {
-            reorg_period: Some(reorg_period),
+            reorg_period,
             interval,
             merkle_tree_hook,
             signer,
@@ -94,11 +94,7 @@ impl ValidatorSubmitter {
             let latest_checkpoint = call_and_retry_indefinitely(|| {
                 let merkle_tree_hook = self.merkle_tree_hook.clone();
                 let reorg_period = self.reorg_period.clone();
-                Box::pin(async move {
-                    merkle_tree_hook
-                        .latest_checkpoint(reorg_period.as_ref())
-                        .await
-                })
+                Box::pin(async move { merkle_tree_hook.latest_checkpoint(&reorg_period).await })
             })
             .await;
 
@@ -215,7 +211,7 @@ impl ValidatorSubmitter {
                 correctness_checkpoint.root,
                 checkpoint.index,
                 chrono::Utc::now().timestamp() as u64,
-                self.reorg_period.map(|x| x.get()).unwrap_or(0),
+                self.reorg_period.clone(),
             );
             error!(
                 ?checkpoint,
@@ -490,9 +486,9 @@ mod test {
 
         #[async_trait]
         impl MerkleTreeHook for MerkleTreeHook {
-            async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle>;
-            async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32>;
-            async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint>;
+            async fn tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle>;
+            async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32>;
+            async fn latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint>;
         }
     }
 
@@ -536,7 +532,7 @@ mod test {
         expected_local_merkle_tree: &IncrementalMerkle,
         mock_onchain_merkle_tree: &IncrementalMerkle,
         unix_timestamp: u64,
-        expected_reorg_period: u64,
+        expected_reorg_period: ReorgPeriod,
     ) {
         assert_eq!(
             reorg_event.canonical_merkle_root,
@@ -621,7 +617,7 @@ mod test {
                     &expected_local_merkle_tree,
                     &mock_onchain_merkle_tree_clone,
                     unix_timestamp,
-                    expected_reorg_period,
+                    ReorgPeriod::from_number(expected_reorg_period),
                 );
                 Ok(())
             });
@@ -629,7 +625,7 @@ mod test {
         // instantiate the validator submitter
         let validator_submitter = ValidatorSubmitter::new(
             Duration::from_secs(1),
-            expected_reorg_period,
+            ReorgPeriod::from_number(expected_reorg_period),
             Arc::new(mock_merkle_tree_hook),
             dummy_singleton_handle(),
             Arc::new(mock_checkpoint_syncer),

@@ -73,7 +73,7 @@ impl Debug for FuelMailbox {
 impl Mailbox for FuelMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
+    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32> {
         assert!(
             lag.is_none(),
             "Fuel does not support querying point-in-time"

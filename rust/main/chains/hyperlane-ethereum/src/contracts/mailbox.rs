@@ -460,8 +460,8 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<&ReorgPeriod>) -> ChainResult<u32> {
-        let call = call_with_lag(self.contract.nonce(), &self.provider, maybe_lag).await?;
+    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32> {
+        let call = call_with_lag(self.contract.nonce(), &self.provider, lag).await?;
         let nonce = call.call().await?;
         Ok(nonce)
     }

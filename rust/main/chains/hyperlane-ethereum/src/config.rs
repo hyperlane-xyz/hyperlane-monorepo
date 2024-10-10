@@ -69,7 +69,8 @@ impl TryFrom<&ReorgPeriod> for EthereumReorgPeriod {
 
     fn try_from(value: &ReorgPeriod) -> Result<Self, Self::Error> {
         match value {
-            ReorgPeriod::Blocks(blocks) => Ok(EthereumReorgPeriod::Blocks(*blocks)),
+            ReorgPeriod::None => Ok(EthereumReorgPeriod::Blocks(0)),
+            ReorgPeriod::Blocks(blocks) => Ok(EthereumReorgPeriod::Blocks(blocks.get())),
             ReorgPeriod::Tag(tag) => {
                 let tag = match tag.as_str() {
                     "latest" => BlockNumber::Latest,

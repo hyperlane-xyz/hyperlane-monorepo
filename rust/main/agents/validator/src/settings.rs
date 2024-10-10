@@ -125,7 +125,7 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_opt_key("blocks")
             .get_opt_key("reorgPeriod")
             .parse_value("Invalid reorgPeriod")
-            .unwrap_or(ReorgPeriod::Blocks(1));
+            .unwrap_or(ReorgPeriod::from_number(1));
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 

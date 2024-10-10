@@ -17,17 +17,17 @@ pub trait MerkleTreeHook: HyperlaneContract + Send + Sync + Debug {
     ///
     /// - `lag` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn tree(&self, lag: Option<&ReorgPeriod>) -> ChainResult<IncrementalMerkle>;
+    async fn tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle>;
 
     /// Gets the current leaf count of the merkle tree
     ///
     /// - `lag` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn count(&self, lag: Option<&ReorgPeriod>) -> ChainResult<u32>;
+    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32>;
 
     /// Get the latest checkpoint.
     ///
     /// - `lag` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn latest_checkpoint(&self, lag: Option<&ReorgPeriod>) -> ChainResult<Checkpoint>;
+    async fn latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint>;
 }
