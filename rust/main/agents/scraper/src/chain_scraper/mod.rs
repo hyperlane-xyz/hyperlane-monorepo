@@ -173,7 +173,7 @@ impl HyperlaneSqlDb {
             let ids = self.db.get_txn_ids(hashes_to_insert.drain(..)).await?;
 
             for (hash, (txn_id, _block_id)) in chunk.iter_mut() {
-                ids.get(hash).map(|id| *txn_id = Some(*id));
+                *txn_id = ids.get(hash).copied();
             }
         }
 
@@ -269,13 +269,15 @@ impl HyperlaneSqlDb {
                 .collect::<HashMap<_, _>>();
 
             for (block_ref, _) in blocks_to_insert.drain(..) {
-                hashes.get(&block_ref.hash).map(|id| block_ref.id = *id);
+                if let Some(id) = hashes.get(&block_ref.hash) {
+                    block_ref.id = *id;
+                }
             }
         }
 
         let ensured_blocks = blocks
             .into_iter()
-            .filter_map(|(hash, block_info)| block_info.map(|info| info))
+            .filter_map(|(hash, block_info)| block_info)
             .filter(|info| info.id != -1);
 
         Ok(ensured_blocks)
