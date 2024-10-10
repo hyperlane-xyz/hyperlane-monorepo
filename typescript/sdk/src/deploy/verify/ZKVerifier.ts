@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
-import { rootLogger, strip0x } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -24,7 +24,7 @@ export class ZKVerifier {
   protected readonly standardInputJson: SolidityStandardJsonInput;
   // ZK  CompilerOptions
   protected readonly compilerOptions: {
-    codeformat: 'solidity-standard-json-input';
+    codeFormat: 'solidity-standard-json-input';
     compilerSolcVersion: string;
     compilerZksolcVersion: string;
     optimizationUsed: boolean;
@@ -42,7 +42,7 @@ export class ZKVerifier {
     // set compiler options
     // only license type is configurable, empty if not provided
     this.compilerOptions = {
-      codeformat: 'solidity-standard-json-input',
+      codeFormat: 'solidity-standard-json-input',
       compilerSolcVersion,
       compilerZksolcVersion,
       optimizationUsed: true,
@@ -226,7 +226,7 @@ export class ZKVerifier {
       contractName: `${sourceName}:${input.name}`,
       contractAddress: input.address,
       /* TYPO IS ENFORCED BY API */
-      constructorArguements: strip0x(input.constructorArguments ?? ''),
+      constructorArguements: input.constructorArguments ?? '0x',
       ...this.compilerOptions,
     };
   }
