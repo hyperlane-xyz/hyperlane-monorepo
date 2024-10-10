@@ -17,19 +17,18 @@ import {IDefaultStakerRewards} from "rewards/src/interfaces/defaultStakerRewards
 import {IDefaultOperatorRewards} from "rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
 
 contract Network {
-    function register(
+    constructor(
         INetworkRegistry networkRegistry,
         INetworkMiddlewareService middlewareService
-    ) public {
-        // prevents replays
+    ) {
         networkRegistry.registerNetwork();
         middlewareService.setMiddleware(msg.sender);
     }
 }
 
 contract NetworkMiddleware is Ownable {
-    INetworkRegistry public networkRegistry;
-    INetworkMiddlewareService public middlewareService;
+    INetworkRegistry public immutable networkRegistry;
+    INetworkMiddlewareService public immutable middlewareService;
 
     IVault public vault;
     IDefaultStakerRewards public stakerRewards;
@@ -45,16 +44,22 @@ contract NetworkMiddleware is Ownable {
         operatorRewards = _operatorRewards;
     }
 
+    function _bytecode() internal view returns (bytes memory) {
+        return
+            abi.encodePacked(
+                type(Network).creationCode,
+                abi.encode(networkRegistry, middlewareService)
+            );
+    }
+
     function deployNetwork(uint32 domain) external returns (address network) {
         bytes32 salt = bytes32(uint256(domain));
-        network = Create2.deploy(0, salt, type(Network).creationCode);
-        Network(network).register(networkRegistry, middlewareService);
+        network = Create2.deploy(0, salt, _bytecode());
     }
 
     function getNetwork(uint32 domain) public view returns (address) {
         bytes32 salt = bytes32(uint256(domain));
-        bytes32 bytecodeHash = keccak256(type(Network).creationCode);
-        return Create2.computeAddress(salt, bytecodeHash);
+        return Create2.computeAddress(salt, keccak256(_bytecode()));
     }
 
     // staking
@@ -64,10 +69,8 @@ contract NetworkMiddleware is Ownable {
         address validator,
         uint256 amount
     ) external onlyOwner {
-        address network = getNetwork(domain);
-        bytes32 subnetwork = bytes32(bytes20(network)); // why is this needed?
         INetworkRestakeDelegator(vault.delegator()).setOperatorNetworkShares(
-            subnetwork,
+            bytes32(bytes20(getNetwork(domain))),
             validator,
             amount
         );
@@ -81,10 +84,8 @@ contract NetworkMiddleware is Ownable {
         uint256 amount,
         uint48 timestamp
     ) external onlyOwner {
-        address network = getNetwork(domain);
-        bytes32 subnetwork = bytes32(bytes20(network)); // why is this needed?
         ISlasher(vault.slasher()).slash(
-            subnetwork,
+            bytes32(bytes20(getNetwork(domain))),
             validator,
             amount,
             timestamp,
