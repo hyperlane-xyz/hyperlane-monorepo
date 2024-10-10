@@ -1,13 +1,12 @@
 import chalk from 'chalk';
-import { stringify as yamlStringify } from 'yaml';
 
-import { ChainName, CheckerViolation } from '@hyperlane-xyz/sdk';
-import { deepEquals, isObject } from '@hyperlane-xyz/utils';
+import { CheckerViolation } from '@hyperlane-xyz/sdk';
+import { deepEquals, isNullish, isObject } from '@hyperlane-xyz/utils';
 
 interface ViolationOutput
   extends Pick<CheckerViolation, 'actual' | 'expected'> {}
 
-type ViolationDiff =
+export type ViolationDiff =
   | {
       [key: string]: ViolationOutput | ViolationDiff;
     }
@@ -36,13 +35,14 @@ export function diffObjMerge(
   actual: Record<string, any>,
   expected: Record<string, any>,
   max_depth = 10,
-): ViolationDiff {
+): [ViolationDiff, boolean] {
   if (max_depth === 0) {
     throw new Error('diffObjMerge tried to go too deep');
   }
 
+  let isDiff = false;
   if (deepEquals(actual, expected)) {
-    return actual;
+    return [actual, isDiff];
   }
 
   if (isObject(actual) && isObject(expected)) {
@@ -53,20 +53,26 @@ export function diffObjMerge(
     const allKeys = new Set([...actualKeys, ...expectedKeys]);
     for (const key of allKeys.values()) {
       if (actualKeys.has(key) && expectedKeys.has(key)) {
-        ret[key] = diffObjMerge(actual[key], expected[key], max_depth - 1);
-      } else if (actualKeys.has(key)) {
+        const [obj, diff] = diffObjMerge(
+          actual[key],
+          expected[key],
+          max_depth - 1,
+        );
+        ret[key] = obj;
+        isDiff ||= diff;
+      } else if (actualKeys.has(key) && !isNullish(actual[key])) {
         ret[key] = {
           actual: actual[key],
           expected: '' as any,
         };
-      } else {
+      } else if (!isNullish(expected[key])) {
         ret[key] = {
           actual: '' as any,
           expected: expected[key],
         };
       }
     }
-    return ret;
+    return [ret, isDiff];
   }
 
   // Merge the elements of the array to see if there are any differences
@@ -80,47 +86,21 @@ export function diffObjMerge(
     actual.sort(sortByType);
     expected.sort(sortByType);
 
-    const merged = actual.map((curr, idx) => diffObjMerge(curr, expected[idx]));
+    const merged = actual.reduce(
+      (acc: [ViolationDiff[], boolean], curr, idx) => {
+        const [obj, diff] = diffObjMerge(curr, expected[idx]);
+
+        acc[0].push(obj);
+        acc[1] ||= diff;
+
+        return acc;
+      },
+      [[], isDiff],
+    );
     return merged;
   }
 
-  return { expected: expected ?? '', actual: actual ?? '' };
-}
-
-/**
- * Distributes the violations by chain and type and formats them to show the expected value and the current one.
- */
-export function formatViolationOutput(violations: CheckerViolation[]): string {
-  const violationsPerChain = violations.reduce((acc, violation) => {
-    let currentChainViolations: (ViolationOutput | any)[];
-    if (!acc[violation.chain]) {
-      currentChainViolations = [];
-      acc[violation.chain] = {
-        [violation.type]: currentChainViolations,
-      };
-    } else if (!acc[violation.chain][violation.type]) {
-      currentChainViolations = [];
-    } else {
-      currentChainViolations = acc[violation.chain][violation.type];
-    }
-
-    if (isObject(violation.actual) && isObject(violation.expected)) {
-      currentChainViolations.push(
-        diffObjMerge(violation.actual, violation.expected),
-      );
-    } else {
-      currentChainViolations.push({
-        actual: violation.actual,
-        expected: violation.expected,
-      });
-    }
-
-    acc[violation.chain][violation.type] = currentChainViolations;
-
-    return acc;
-  }, {} as Record<ChainName, Record<string, ViolationOutput[]>>);
-
-  return formatYamlViolationsOutput(yamlStringify(violationsPerChain, null, 2));
+  return [{ expected: expected ?? '', actual: actual ?? '' }, true];
 }
 
 export enum ViolationDiffType {

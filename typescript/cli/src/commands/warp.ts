@@ -39,7 +39,7 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/input.js';
-import { formatViolationOutput } from '../utils/output.js';
+import { formatYamlViolationsOutput } from '../utils/output.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
@@ -400,14 +400,14 @@ export const check: CommandModuleWithContext<{
       context,
     });
 
-    const violations = await runWarpRouteCheck({
+    const [violations, isInvalid] = await runWarpRouteCheck({
       context,
       warpCoreConfig,
       warpRouteConfig,
     });
 
-    if (violations.length !== 0) {
-      log(formatViolationOutput(violations));
+    if (isInvalid) {
+      log(formatYamlViolationsOutput(yamlStringify(violations, null, 2)));
       process.exit(1);
     }
 
