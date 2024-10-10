@@ -11,7 +11,7 @@ use tendermint::Hash;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta, H256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta, ReorgPeriod, H256};
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
@@ -29,15 +29,15 @@ pub(crate) static CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64: Lazy<String> =
 /// tip directly can be used.
 pub(crate) async fn get_block_height_for_lag(
     provider: &WasmGrpcProvider,
-    lag: Option<NonZeroU64>,
+    lag: &ReorgPeriod,
 ) -> ChainResult<Option<u64>> {
-    let block_height = match lag {
-        Some(lag) => {
-            let tip = provider.latest_block_height().await?;
-            let block_height = tip - lag.get();
-            Some(block_height)
-        }
-        None => None,
+    let block_height = if !lag.is_none() {
+        let lag = lag.as_number()?;
+        let tip = provider.latest_block_height().await?;
+        let block_height = tip - lag as u64;
+        Some(block_height)
+    } else {
+        None
     };
 
     Ok(block_height)
