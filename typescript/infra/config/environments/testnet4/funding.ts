@@ -41,6 +41,7 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '5',
     holesky: '5',
     // hyperliquidevmtestnet: '0.1',
+    arcadiatestnet: '0.1',
     optimismsepolia: '0.1',
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: '0.2',
@@ -50,8 +51,10 @@ export const keyFunderConfig: KeyFunderConfig<
     // no funding for solana
     solanatestnet: '0',
     soneiumtestnet: '0.1',
+    sonictestnet: '1',
     suavetoliman: '0.1',
     superpositiontestnet: '1',
+    unichaintestnet: '0.1',
   },
   desiredKathyBalancePerChain: {
     alfajores: '1',

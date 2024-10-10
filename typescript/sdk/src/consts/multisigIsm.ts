@@ -42,6 +42,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x09fabfbca0b8bf042e2a1161ee5010d147b0f603'],
   },
 
+  arcadiatestnet: {
+    threshold: 1,
+    validators: ['0x7ce5973d3f22971546efb86f5a0417c1248e92f5'],
+  },
+
   astar: {
     threshold: 2,
     validators: [
@@ -669,6 +674,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x2e2101020ccdbe76aeda1c27823b0150f43d0c63'],
   },
 
+  sonictestnet: {
+    threshold: 1,
+    validators: ['0x62e6591d00daec3fb658c3d19403828b4e9ddbb3'],
+  },
+
   stride: {
     threshold: 6,
     validators: [
@@ -717,6 +727,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0xe271ef9a6e312540f099a378865432fa73f26689', // tangle
     ],
+  },
+
+  unichaintestnet: {
+    threshold: 1,
+    validators: ['0x5e99961cf71918308c3b17ef21b5f515a4f86fe5'],
   },
 
   viction: {

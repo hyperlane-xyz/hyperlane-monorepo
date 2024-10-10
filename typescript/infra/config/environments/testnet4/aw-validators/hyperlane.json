@@ -47,6 +47,9 @@
   "holesky": {
     "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
   },
+  "arcadiatestnet": {
+    "validators": ["0x7ce5973d3f22971546efb86f5a0417c1248e92f5"]
+  },
   "optimismsepolia": {
     "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
   },
@@ -70,10 +73,16 @@
   "soneiumtestnet": {
     "validators": ["0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"]
   },
+  "sonictestnet": {
+    "validators": ["0x62e6591d00daec3fb658c3d19403828b4e9ddbb3"]
+  },
   "suavetoliman": {
     "validators": ["0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"]
   },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
+  },
+  "unichaintestnet": {
+    "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
   }
 }

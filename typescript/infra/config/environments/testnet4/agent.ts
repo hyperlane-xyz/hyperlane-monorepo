@@ -55,6 +55,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    arcadiatestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -63,8 +64,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sepolia: true,
     solanatestnet: false,
     soneiumtestnet: true,
+    sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    unichaintestnet: true,
   },
   [Role.Relayer]: {
     alfajores: true,
@@ -81,6 +84,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    arcadiatestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -89,8 +93,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sepolia: true,
     solanatestnet: false,
     soneiumtestnet: true,
+    sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    unichaintestnet: true,
   },
   [Role.Scraper]: {
     alfajores: true,
@@ -108,6 +114,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    arcadiatestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -117,8 +124,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // Cannot scrape non-EVM chains
     solanatestnet: false,
     soneiumtestnet: true,
+    sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: false,
+    unichaintestnet: true,
   },
 };
 
