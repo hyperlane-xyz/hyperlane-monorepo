@@ -12,7 +12,6 @@ import { ChainName } from '../../types.js';
 import {
   BuildArtifact,
   ContractVerificationInput,
-  ExplorerApiActions,
   SolidityStandardJsonInput,
 } from './types.js';
 
@@ -76,18 +75,15 @@ export class ZKVerifier {
     const data = this.getImplementationData(chain, input, verificationLogger);
 
     try {
-      const guid: string = await this.submitForm(
+      const verificationId: string = await this.submitForm(
         chain,
-        input.isProxy
-          ? ExplorerApiActions.VERIFY_PROXY
-          : ExplorerApiActions.VERIFY_IMPLEMENTATION,
         verificationLogger,
         data,
       );
 
       verificationLogger.trace(
-        { guid },
-        `Retrieved guid from verified ${contractType}.`,
+        { verificationId },
+        `Retrieved verificationId from verified ${contractType}.`,
       );
     } catch (error) {
       verificationLogger.debug(
@@ -145,7 +141,6 @@ export class ZKVerifier {
 
   private async submitForm(
     chain: ChainName,
-    action: ExplorerApiActions,
     verificationLogger: Logger,
     options?: Record<string, any>,
   ): Promise<any> {
@@ -166,13 +161,11 @@ export class ZKVerifier {
     });
     let responseJson;
     try {
-      const responseTextString = await response.text();
+      responseJson = await response.json();
       verificationLogger.trace(
         { apiUrl, chain },
         'Parsing response from explorer...',
       );
-      responseJson = JSON.parse(responseTextString);
-      verificationLogger.trace(`Response: ${responseJson}`);
     } catch (error) {
       verificationLogger.trace(
         {
@@ -191,7 +184,7 @@ export class ZKVerifier {
       );
     }
 
-    return responseJson?.result;
+    return responseJson;
   }
 
   private getImplementationData(
