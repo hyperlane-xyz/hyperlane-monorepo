@@ -12,6 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { CommandContext } from '../context/types.js';
+import { logRed } from '../logger.js';
 
 export async function runWarpRouteCheck({
   context,
@@ -24,21 +25,16 @@ export async function runWarpRouteCheck({
 }): Promise<Array<CheckerViolation>> {
   const chainAddresses = await context.registry.getAddresses();
 
-  const warpAddresses = warpConfigToWarpAddresses(warpCoreConfig);
-  const filteredAddresses = Object.keys(warpAddresses) // filter out changes not in config
+  const warpAddressesByChain = warpConfigToWarpAddresses(warpCoreConfig);
+  const filteredAddresses = Object.keys(warpAddressesByChain)
     .filter((key) => key in warpRouteConfig)
     .reduce((obj, key) => {
       obj[key] = {
-        ...warpAddresses[key],
+        ...warpAddressesByChain[key],
       };
 
       return obj;
-    }, {} as typeof warpAddresses);
-
-  const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-    chainAddresses,
-    context.multiProvider,
-  );
+    }, {} as typeof warpAddressesByChain);
 
   const { contractsMap, foreignDeployments } =
     attachContractsMapAndGetForeignDeployments(
@@ -46,6 +42,26 @@ export async function runWarpRouteCheck({
       { ...hypERC20factories, ...proxiedFactories },
       context.multiProvider,
     );
+
+  // Check if there any non-EVM chains in the config and exit
+  const nonEvmChains = Object.keys(warpAddressesByChain).filter(
+    (c) => foreignDeployments[c],
+  );
+
+  if (nonEvmChains.length > 0) {
+    const chainList = nonEvmChains.join(', ');
+    logRed(
+      `${chainList} ${
+        nonEvmChains.length > 1 ? 'are' : 'is'
+      } non-EVM and not compatible with warp checker tooling`,
+    );
+    process.exit(1);
+  }
+
+  const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
+    chainAddresses,
+    context.multiProvider,
+  );
 
   const app = new HypERC20App(
     contractsMap,
