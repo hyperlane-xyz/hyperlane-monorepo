@@ -467,16 +467,17 @@ export abstract class HyperlaneDeployer<
 
       this.addVerificationArtifacts(chain, [verificationInput]);
 
-      // try verifying contract
-      try {
-        await this.options.contractVerifier?.verifyContract(
-          chain,
-          verificationInput,
-        );
-      } catch (error) {
-        // log error but keep deploying, can also verify post-deployment if needed
-        this.logger.debug(`Error verifying contract: ${error}`);
-      }
+    const constructorArg = await encodeArguments(artifact.abi, constructorArgs);
+    console.log({ constructorArg });
+    // try verifying contract
+    try {
+      await this.options.contractVerifier?.verifyContract(chain, {
+        ...verificationInput,
+        constructorArguments: constructorArg,
+      });
+    } catch (error) {
+      // log error but keep deploying, can also verify post-deployment if needed
+      this.logger.debug(`Error verifying contract: ${error}`);
     }
 
     return contract;
@@ -819,4 +820,20 @@ export abstract class HyperlaneDeployer<
 
     return receipts.filter((x) => !!x) as ethers.ContractReceipt[];
   }
+}
+
+export async function encodeArguments(abi: any, constructorArgs: any[]) {
+  const { Interface } = await import('@ethersproject/abi');
+
+  const contractInterface = new Interface(abi);
+  let deployArgumentsEncoded;
+  try {
+    deployArgumentsEncoded = contractInterface
+      .encodeDeploy(constructorArgs)
+      .replace('0x', '');
+  } catch (error: any) {
+    throw new Error('Cant encode constructor args');
+  }
+
+  return deployArgumentsEncoded;
 }

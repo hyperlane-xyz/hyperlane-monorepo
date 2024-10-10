@@ -73,9 +73,7 @@ export class ZKVerifier {
 
     verificationLogger.debug(`📝 Verifying ${contractType}...`);
 
-    const data = input.isProxy
-      ? this.getProxyData(input)
-      : this.getImplementationData(chain, input, verificationLogger);
+    const data = this.getImplementationData(chain, input, verificationLogger);
 
     try {
       const guid: string = await this.submitForm(
@@ -174,6 +172,7 @@ export class ZKVerifier {
         'Parsing response from explorer...',
       );
       responseJson = JSON.parse(responseTextString);
+      verificationLogger.trace(`Response: ${responseJson}`);
     } catch (error) {
       verificationLogger.trace(
         {
@@ -193,13 +192,6 @@ export class ZKVerifier {
     }
 
     return responseJson?.result;
-  }
-
-  private getProxyData(input: ContractVerificationInput) {
-    return {
-      address: input.address,
-      expectedimplementation: input.expectedimplementation,
-    };
   }
 
   private getImplementationData(
@@ -226,7 +218,7 @@ export class ZKVerifier {
       contractName: `${sourceName}:${input.name}`,
       contractAddress: input.address,
       /* TYPO IS ENFORCED BY API */
-      constructorArguements: input.constructorArguments ?? '0x',
+      constructorArguments: `0x${input.constructorArguments || ''}`,
       ...this.compilerOptions,
     };
   }
