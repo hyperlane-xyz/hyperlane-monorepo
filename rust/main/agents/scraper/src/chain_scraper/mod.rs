@@ -277,8 +277,7 @@ impl HyperlaneSqlDb {
 
         let ensured_blocks = blocks
             .into_iter()
-            .filter_map(|(hash, block_info)| block_info)
-            .filter(|info| info.id != -1);
+            .filter_map(|(hash, block_info)| block_info.filter(|b| b.id != -1));
 
         Ok(ensured_blocks)
     }

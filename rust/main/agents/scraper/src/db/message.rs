@@ -179,31 +179,33 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        if !models.is_empty() {
-            trace!(?models, "Writing delivered messages to database");
-            Insert::many(models)
-                .on_conflict(
-                    OnConflict::columns([delivered_message::Column::MsgId])
-                        .update_columns([
-                            delivered_message::Column::TimeCreated,
-                            delivered_message::Column::DestinationTxId,
-                        ])
-                        .to_owned(),
-                )
-                .exec(&self.0)
-                .await?;
+        trace!(?models, "Writing delivered messages to database");
+
+        if models.is_empty() {
+            debug!("Wrote zero new delivered messages to database");
+            return Ok(0);
         }
+
+        Insert::many(models)
+            .on_conflict(
+                OnConflict::columns([delivered_message::Column::MsgId])
+                    .update_columns([
+                        delivered_message::Column::TimeCreated,
+                        delivered_message::Column::DestinationTxId,
+                    ])
+                    .to_owned(),
+            )
+            .exec(&self.0)
+            .await?;
 
         let new_deliveries_count = self
             .deliveries_count_since_id(domain, destination_mailbox, latest_id_before)
             .await?;
 
-        if new_deliveries_count > 0 {
-            debug!(
-                messages = new_deliveries_count,
-                "Wrote new delivered messages to database"
-            );
-        }
+        debug!(
+            messages = new_deliveries_count,
+            "Wrote new delivered messages to database"
+        );
         Ok(new_deliveries_count)
     }
 
@@ -273,39 +275,41 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        if !models.is_empty() {
-            trace!(?models, "Writing messages to database");
-            Insert::many(models)
-                .on_conflict(
-                    OnConflict::columns([
-                        message::Column::OriginMailbox,
-                        message::Column::Origin,
-                        message::Column::Nonce,
-                    ])
-                    .update_columns([
-                        message::Column::TimeCreated,
-                        message::Column::Destination,
-                        message::Column::Sender,
-                        message::Column::Recipient,
-                        message::Column::MsgBody,
-                        message::Column::OriginTxId,
-                    ])
-                    .to_owned(),
-                )
-                .exec(&self.0)
-                .await?;
+        trace!(?models, "Writing messages to database");
+
+        if models.is_empty() {
+            debug!("Wrote zero new messages to database");
+            return Ok(0);
         }
+
+        Insert::many(models)
+            .on_conflict(
+                OnConflict::columns([
+                    message::Column::OriginMailbox,
+                    message::Column::Origin,
+                    message::Column::Nonce,
+                ])
+                .update_columns([
+                    message::Column::TimeCreated,
+                    message::Column::Destination,
+                    message::Column::Sender,
+                    message::Column::Recipient,
+                    message::Column::MsgBody,
+                    message::Column::OriginTxId,
+                ])
+                .to_owned(),
+            )
+            .exec(&self.0)
+            .await?;
 
         let new_dispatch_count = self
             .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
             .await?;
 
-        if new_dispatch_count > 0 {
-            debug!(
-                messages = new_dispatch_count,
-                "Wrote new messages to database"
-            );
-        }
+        debug!(
+            messages = new_dispatch_count,
+            "Wrote new messages to database"
+        );
         Ok(new_dispatch_count)
     }
 }

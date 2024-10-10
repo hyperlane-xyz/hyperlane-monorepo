@@ -42,37 +42,39 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        if !models.is_empty() {
-            trace!(?models, "Writing gas payments to database");
-            Insert::many(models)
-                .on_conflict(
-                    OnConflict::columns([
-                        // don't need domain because TxId includes it
-                        gas_payment::Column::MsgId,
-                        gas_payment::Column::TxId,
-                        gas_payment::Column::LogIndex,
-                    ])
-                    .update_columns([
-                        gas_payment::Column::TimeCreated,
-                        gas_payment::Column::Payment,
-                        gas_payment::Column::GasAmount,
-                    ])
-                    .to_owned(),
-                )
-                .exec(&self.0)
-                .await?;
+        trace!(?models, "Writing gas payments to database");
+
+        if models.is_empty() {
+            debug!("Wrote zero new gas payments to database");
+            return Ok(0);
         }
+
+        Insert::many(models)
+            .on_conflict(
+                OnConflict::columns([
+                    // don't need domain because TxId includes it
+                    gas_payment::Column::MsgId,
+                    gas_payment::Column::TxId,
+                    gas_payment::Column::LogIndex,
+                ])
+                .update_columns([
+                    gas_payment::Column::TimeCreated,
+                    gas_payment::Column::Payment,
+                    gas_payment::Column::GasAmount,
+                ])
+                .to_owned(),
+            )
+            .exec(&self.0)
+            .await?;
 
         let new_payments_count = self
             .payments_count_since_id(domain, latest_id_before)
             .await?;
 
-        if new_payments_count > 0 {
-            debug!(
-                payments = new_payments_count,
-                "Wrote new gas payments to database"
-            );
-        }
+        debug!(
+            payments = new_payments_count,
+            "Wrote new gas payments to database"
+        );
         Ok(new_payments_count)
     }
 
