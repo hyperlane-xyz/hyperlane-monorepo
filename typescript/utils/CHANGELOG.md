@@ -1,5 +1,7 @@
 # @hyperlane-xyz/utils
 
+## 5.6.0
+
 ## 5.5.0
 
 ### Minor Changes
