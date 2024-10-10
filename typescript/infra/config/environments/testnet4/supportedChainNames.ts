@@ -14,6 +14,7 @@ export const testnet4SupportedChainNames = [
   'fuji',
   'holesky',
   // 'hyperliquidevmtestnet',
+  'arcadiatestnet',
   'optimismsepolia',
   // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
   // 'plumetestnet',
@@ -22,8 +23,10 @@ export const testnet4SupportedChainNames = [
   'sepolia',
   'solanatestnet',
   'soneiumtestnet',
+  'sonictestnet',
   'suavetoliman',
   'superpositiontestnet',
+  'unichaintestnet',
 ] as const;
 
 export const supportedChainNames = [...testnet4SupportedChainNames];
