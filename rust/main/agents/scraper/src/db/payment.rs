@@ -42,8 +42,12 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        debug_assert!(!models.is_empty());
         trace!(?models, "Writing gas payments to database");
+
+        if models.is_empty() {
+            debug!("Wrote zero new gas payments to database");
+            return Ok(0);
+        }
 
         Insert::many(models)
             .on_conflict(
@@ -67,12 +71,10 @@ impl ScraperDb {
             .payments_count_since_id(domain, latest_id_before)
             .await?;
 
-        if new_payments_count > 0 {
-            debug!(
-                payments = new_payments_count,
-                "Wrote new gas payments to database"
-            );
-        }
+        debug!(
+            payments = new_payments_count,
+            "Wrote new gas payments to database"
+        );
         Ok(new_payments_count)
     }
 
