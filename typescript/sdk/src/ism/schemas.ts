@@ -10,6 +10,15 @@ const ValidatorInfoSchema = z.object({
   weight: z.number(),
 });
 
+const BaseIsmConfigSchema = z.object({
+  // All the Ism types have an address but in some parts of the code
+  // this value is not set because of the context (ex. warp route config before deployment).
+  // When parsing an object zod's default behavior is to strip unknown fields meaning that
+  // in some cases this field even if it was in the raw object was not included in the parsed value.
+  // (ex. reading a warp route config after using warp read)
+  address: z.string().optional(),
+});
+
 export const TestIsmConfigSchema = z.object({
   type: z.literal(IsmType.TEST_ISM),
 });
@@ -89,13 +98,13 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
 
 export const IsmConfigSchema = z.union([
   ZHash,
-  TestIsmConfigSchema,
-  OpStackIsmConfigSchema,
-  PausableIsmConfigSchema,
-  TrustedRelayerIsmConfigSchema,
-  MultisigIsmConfigSchema,
-  WeightedMultisigIsmConfigSchema,
-  RoutingIsmConfigSchema,
-  AggregationIsmConfigSchema,
-  ArbL2ToL1IsmConfigSchema,
+  BaseIsmConfigSchema.and(TestIsmConfigSchema),
+  BaseIsmConfigSchema.and(OpStackIsmConfigSchema),
+  BaseIsmConfigSchema.and(PausableIsmConfigSchema),
+  BaseIsmConfigSchema.and(TrustedRelayerIsmConfigSchema),
+  BaseIsmConfigSchema.and(MultisigIsmConfigSchema),
+  BaseIsmConfigSchema.and(WeightedMultisigIsmConfigSchema),
+  BaseIsmConfigSchema.and(RoutingIsmConfigSchema),
+  BaseIsmConfigSchema.and(AggregationIsmConfigSchema),
+  BaseIsmConfigSchema.and(ArbL2ToL1IsmConfigSchema),
 ]);

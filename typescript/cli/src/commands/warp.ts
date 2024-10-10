@@ -11,13 +11,12 @@ import {
   ChainMap,
   EvmERC20WarpRouteReader,
   TokenStandard,
-  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
+import { runWarpRouteCheck } from '../check/warp.js';
 import {
   createWarpRouteDeployConfig,
-  readWarpCoreConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
 import {
@@ -26,20 +25,30 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logGray, logGreen, logRed, logTable } from '../logger.js';
+import {
+  log,
+  logCommandHeader,
+  logGray,
+  logGreen,
+  logTable,
+} from '../logger.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import {
   indentYamlOrJson,
   removeEndingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { getWarpCoreConfigOrExit } from '../utils/input.js';
+import { formatYamlViolationsOutput } from '../utils/output.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
+  DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   addressCommandOption,
   chainCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
   symbolCommandOption,
@@ -57,6 +66,7 @@ export const warpCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(apply)
+      .command(check)
       .command(deploy)
       .command(init)
       .command(read)
@@ -102,17 +112,13 @@ export const apply: CommandModuleWithWriteContext<{
     strategy: strategyUrl,
     receiptsDir,
   }) => {
-    logGray(`Hyperlane Warp Apply`);
-    logGray('--------------------'); // @TODO consider creating a helper function for these dashes
-    let warpCoreConfig: WarpCoreConfig;
-    if (symbol) {
-      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
-    } else if (warp) {
-      warpCoreConfig = readWarpCoreConfig(warp);
-    } else {
-      logRed(`Please specify either a symbol or warp config`);
-      process.exit(0);
-    }
+    logCommandHeader('Hyperlane Warp Apply');
+
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      symbol,
+      warp,
+      context,
+    });
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
 
     await runWarpRouteApply({
@@ -139,8 +145,9 @@ export const deploy: CommandModuleWithWriteContext<{
     'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config, dryRun }) => {
-    logGray(`Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`);
-    logGray('------------------------------------------------');
+    logCommandHeader(
+      `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
+    );
 
     try {
       await runWarpRouteDeploy({
@@ -167,11 +174,10 @@ export const init: CommandModuleWithContext<{
       describe: 'Create an advanced ISM',
       default: false,
     },
-    out: outputFileCommandOption('./configs/warp-route-deployment.yaml'),
+    out: outputFileCommandOption(DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH),
   },
   handler: async ({ context, advanced, out }) => {
-    logGray('Hyperlane Warp Configure');
-    logGray('------------------------');
+    logCommandHeader('Hyperlane Warp Configure');
 
     await createWarpRouteDeployConfig({
       context,
@@ -204,7 +210,7 @@ export const read: CommandModuleWithContext<{
       false,
     ),
     config: outputFileCommandOption(
-      './configs/warp-route-deployment.yaml',
+      DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
       false,
       'The path to output a Warp Config JSON or YAML file.',
     ),
@@ -216,8 +222,7 @@ export const read: CommandModuleWithContext<{
     config: configFilePath,
     symbol,
   }) => {
-    logGray('Hyperlane Warp Reader');
-    logGray('---------------------');
+    logCommandHeader('Hyperlane Warp Reader');
 
     const { multiProvider } = context;
 
@@ -342,15 +347,11 @@ const send: CommandModuleWithWriteContext<
     amount,
     recipient,
   }) => {
-    let warpCoreConfig: WarpCoreConfig;
-    if (symbol) {
-      warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
-    } else if (warp) {
-      warpCoreConfig = readWarpCoreConfig(warp);
-    } else {
-      logRed(`Please specify either a symbol or warp config`);
-      process.exit(0);
-    }
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      symbol,
+      warp,
+      context,
+    });
 
     await sendTestTransfer({
       context,
@@ -363,6 +364,54 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
     });
+    process.exit(0);
+  },
+};
+
+export const check: CommandModuleWithContext<{
+  config: string;
+  symbol?: string;
+  warp?: string;
+}> = {
+  command: 'check',
+  describe:
+    'Verifies that a warp route configuration matches the on chain configuration.',
+  builder: {
+    config: inputFileCommandOption({
+      defaultPath: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+      description: 'The path to a warp route deployment configuration file',
+    }),
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+    warp: {
+      ...warpCoreConfigCommandOption,
+      demandOption: false,
+    },
+  },
+  handler: async ({ context, config, symbol, warp }) => {
+    logCommandHeader('Hyperlane Warp Check');
+
+    const warpRouteConfig = await readWarpRouteDeployConfig(config, context);
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      symbol,
+      warp,
+      context,
+    });
+
+    const [violations, isInvalid] = await runWarpRouteCheck({
+      context,
+      warpCoreConfig,
+      warpRouteConfig,
+    });
+
+    if (isInvalid) {
+      log(formatYamlViolationsOutput(yamlStringify(violations, null, 2)));
+      process.exit(1);
+    }
+
+    logGreen(`No violations found`);
     process.exit(0);
   },
 };
