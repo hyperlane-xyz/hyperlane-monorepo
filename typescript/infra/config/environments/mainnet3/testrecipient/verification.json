@@ -102,5 +102,13 @@
       "constructorArguments": "",
       "isProxy": false
     }
+  ],
+  "flowevm": [
+    {
+      "name": "TestRecipient",
+      "address": "0xB315e864Cba1513E2A6f5037E6C1F96E864b0389",
+      "constructorArguments": "",
+      "isProxy": false
+    }
   ]
 }

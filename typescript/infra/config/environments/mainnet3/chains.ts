@@ -70,6 +70,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 7 * 10 ** 7, // 0.07 gwei
     },
   },
+  flowevm: {
+    transactionOverrides: {
+      gasPrice: 1 * 10 ** 8, // 0.1 gwei
+    },
+  },
 };
 
 export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
