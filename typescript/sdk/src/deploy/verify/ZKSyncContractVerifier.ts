@@ -13,21 +13,17 @@ import {
   BuildArtifact,
   ContractVerificationInput,
   SolidityStandardJsonInput,
+  ZKSyncCompilerOptions,
 } from './types.js';
 
-export class ZKVerifier {
-  protected logger = rootLogger.child({ module: 'ContractVerifier' });
+export class ZKSyncContractVerifier {
+  protected logger = rootLogger.child({ module: 'ZKSyncContractVerifier' });
 
   protected contractSourceMap: { [contractName: string]: string } = {};
 
   protected readonly standardInputJson: SolidityStandardJsonInput;
   // ZK  CompilerOptions
-  protected readonly compilerOptions: {
-    codeFormat: 'solidity-standard-json-input';
-    compilerSolcVersion: string;
-    compilerZksolcVersion: string;
-    optimizationUsed: boolean;
-  };
+  protected readonly compilerOptions: ZKSyncCompilerOptions;
 
   constructor(protected readonly multiProvider: MultiProvider) {
     this.standardInputJson = (buildArtifact as BuildArtifact).input;
@@ -46,9 +42,11 @@ export class ZKVerifier {
       compilerZksolcVersion,
       optimizationUsed: true,
     };
-
-    // process input to create mapping of contract names to source names
-    // this is required to construct the fully qualified contract name
+    this.createContractSourceMapFromBuildArtifacts();
+  }
+  // process input to create mapping of contract names to source names
+  // this is required to construct the fully qualified contract name
+  private async createContractSourceMapFromBuildArtifacts() {
     const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
     Object.entries((buildArtifact as BuildArtifact).input.sources).forEach(
       ([sourceName, { content }]) => {

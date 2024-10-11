@@ -49,7 +49,7 @@ import {
 } from './proxy.js';
 import { OwnableConfig } from './types.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
-import { ZKVerifier } from './verify/ZKVerifier.js';
+import { ZKSyncContractVerifier } from './verify/ZKSyncContractVerifier.js';
 import {
   ContractVerificationInput,
   ExplorerLicenseType,
@@ -125,7 +125,7 @@ export abstract class HyperlaneDeployer<
     input: ContractVerificationInput,
     logger = this.logger,
   ): Promise<void> {
-    const verifier = new ZKVerifier(this.multiProvider);
+    const verifier = new ZKSyncContractVerifier(this.multiProvider);
     return verifier?.verifyContract(chain, input, logger);
   }
 
