@@ -53,6 +53,9 @@ pub enum HyperlaneCosmosError {
     /// Public key error
     #[error("{0}")]
     PublicKeyError(String),
+    /// Address error
+    #[error("{0}")]
+    AddressError(String),
     /// Signer info error
     #[error("{0}")]
     SignerInfoError(String),
@@ -62,6 +65,12 @@ pub enum HyperlaneCosmosError {
     /// Empty error
     #[error("{0}")]
     UnparsableEmptyField(String),
+    /// Parsing error
+    #[error("{0}")]
+    ParsingFailed(String),
+    /// Parsing attempt failed
+    #[error("Parsing attempt failed. (Errors: {0:?})")]
+    ParsingAttemptsFailed(Vec<HyperlaneCosmosError>),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {

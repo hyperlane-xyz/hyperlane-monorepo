@@ -210,11 +210,10 @@ impl CosmosProvider {
                 match Self::contract_address_from_msg_recv_packet(tx, tx_hash) {
                     Ok(contract) => Ok(contract),
                     Err(msg_recv_packet_error) => {
-                        let msg = msg_execute_contract_error.to_string()
-                            + " and "
-                            + &msg_recv_packet_error.to_string();
-                        warn!(?tx_hash, msg);
-                        Err(ChainCommunicationError::CustomError(msg.to_owned()))?
+                        let errors = vec![msg_execute_contract_error, msg_recv_packet_error];
+                        let error = HyperlaneCosmosError::ParsingAttemptsFailed(errors);
+                        warn!(?tx_hash, ?error);
+                        Err(ChainCommunicationError::from_other(error))?
                     }
                 }
             }
@@ -222,7 +221,10 @@ impl CosmosProvider {
     }
 
     /// Assumes that there is only one `MsgExecuteContract` message in the transaction
-    fn contract_address_from_msg_execute_contract(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
+    fn contract_address_from_msg_execute_contract(
+        tx: &Tx,
+        tx_hash: &H256,
+    ) -> Result<H256, HyperlaneCosmosError> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
         let contract_execution_messages = tx
@@ -236,12 +238,12 @@ impl CosmosProvider {
         let contract_execution_messages_len = contract_execution_messages.len();
         if contract_execution_messages_len > 1 {
             let msg = "transaction contains multiple contract execution messages";
-            Err(ChainCommunicationError::CustomError(msg.to_owned()))?
+            Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
         }
 
         let any = contract_execution_messages.first().ok_or_else(|| {
             let msg = "could not find contract execution message";
-            ChainCommunicationError::from_other_str(msg)
+            HyperlaneCosmosError::ParsingFailed(msg.to_owned())
         })?;
         let proto =
             ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
@@ -251,7 +253,10 @@ impl CosmosProvider {
         Ok(contract)
     }
 
-    fn contract_address_from_msg_recv_packet(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
+    fn contract_address_from_msg_recv_packet(
+        tx: &Tx,
+        tx_hash: &H256,
+    ) -> Result<H256, HyperlaneCosmosError> {
         let packet_data = tx
             .body
             .messages
@@ -262,7 +267,7 @@ impl CosmosProvider {
             .next()
             .ok_or_else(|| {
                 let msg = "could not find IBC receive packets message containing receiver address";
-                ChainCommunicationError::from_other_str(msg)
+                HyperlaneCosmosError::ParsingFailed(msg.to_owned())
             })?;
 
         let account_id = AccountId::from_str(&packet_data.receiver)?;
