@@ -3,6 +3,7 @@ import { ethers, utils } from 'ethers';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { ChainMap, ChainName } from '../../types.js';
+import { ZkSyncArtifact } from '../../utils/zksync.js';
 
 import { ContractVerificationInput } from './types.js';
 
@@ -62,6 +63,47 @@ export function getContractVerificationInput({
     isProxy,
     expectedimplementation,
   );
+}
+
+export async function getContractVerificationInputForZKSync({
+  name,
+  contract,
+  constructorArgs,
+  artifact,
+  isProxy,
+  expectedimplementation,
+}: {
+  name: string;
+  contract: ethers.Contract;
+  constructorArgs: any[];
+  artifact: ZkSyncArtifact;
+  isProxy?: boolean;
+  expectedimplementation?: Address;
+}): Promise<ContractVerificationInput> {
+  const args = await encodeArguments(artifact.abi, constructorArgs);
+  return buildVerificationInput(
+    name,
+    contract.address,
+    args,
+    isProxy,
+    expectedimplementation,
+  );
+}
+
+export async function encodeArguments(abi: any, constructorArgs: any[]) {
+  const { Interface } = await import('@ethersproject/abi');
+
+  const contractInterface = new Interface(abi);
+  let deployArgumentsEncoded;
+  try {
+    deployArgumentsEncoded = contractInterface
+      .encodeDeploy(constructorArgs)
+      .replace('0x', '');
+  } catch (error: any) {
+    throw new Error('Cant encode constructor args');
+  }
+
+  return deployArgumentsEncoded;
 }
 
 /**

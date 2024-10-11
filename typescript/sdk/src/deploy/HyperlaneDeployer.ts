@@ -12,7 +12,7 @@ import {
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { TimelockController__artifact } from '@hyperlane-xyz/core/artifacts';
-import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   ProtocolType,
@@ -49,6 +49,7 @@ import {
 } from './proxy.js';
 import { OwnableConfig } from './types.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
+import { ZKVerifier } from './verify/ZKVerifier.js';
 import {
   ContractVerificationInput,
   ExplorerLicenseType,
@@ -56,6 +57,7 @@ import {
 import {
   buildVerificationInput,
   getContractVerificationInput,
+  getContractVerificationInputForZKSync,
   shouldAddVerificationInput,
 } from './verify/utils.js';
 
@@ -96,7 +98,7 @@ export abstract class HyperlaneDeployer<
         multiProvider,
       );
     }
-    console.log({ coreBuildArtifact });
+
     // if none provided, instantiate a default verifier with the default core contract build artifact
     this.options.contractVerifier ??= new ContractVerifier(
       multiProvider,
@@ -116,6 +118,15 @@ export abstract class HyperlaneDeployer<
     logger = this.logger,
   ): Promise<void> {
     return this.options.contractVerifier?.verifyContract(chain, input, logger);
+  }
+
+  async verifyContractForZKSync(
+    chain: ChainName,
+    input: ContractVerificationInput,
+    logger = this.logger,
+  ): Promise<void> {
+    const verifier = new ZKVerifier(this.multiProvider);
+    return verifier?.verifyContract(chain, input, logger);
   }
 
   abstract deployContracts(
@@ -409,6 +420,7 @@ export abstract class HyperlaneDeployer<
     );
 
     const { protocol } = this.multiProvider.getChainMetadata(chain);
+    const isZKSyncChain = protocol === ProtocolType.ZKSync;
     const signer = this.multiProvider.getSigner(chain);
     const artifact = getArtifactByContractName(contractName);
 
@@ -454,27 +466,32 @@ export abstract class HyperlaneDeployer<
       }
     }
 
-    // TODO: ZKSync contract verification
-    if (protocol === ProtocolType.ZKSync) {
-      this.logger.info('Skipping contract verification on ZKSync...');
+    let verificationInput: ContractVerificationInput;
+    if (isZKSyncChain) {
+      verificationInput = await getContractVerificationInputForZKSync({
+        name: contractName,
+        contract,
+        constructorArgs: constructorArgs,
+        artifact: artifact,
+        expectedimplementation: implementationAddress,
+      });
     } else {
-      const verificationInput = getContractVerificationInput({
+      verificationInput = getContractVerificationInput({
         name: contractName,
         contract,
         bytecode: factory.bytecode,
         expectedimplementation: implementationAddress,
       });
+    }
 
-      this.addVerificationArtifacts(chain, [verificationInput]);
+    this.addVerificationArtifacts(chain, [verificationInput]);
 
-    const constructorArg = await encodeArguments(artifact.abi, constructorArgs);
-    console.log({ constructorArg });
     // try verifying contract
     try {
-      await this.options.contractVerifier?.verifyContract(chain, {
-        ...verificationInput,
-        constructorArguments: constructorArg,
-      });
+      await this[isZKSyncChain ? 'verifyContractForZKSync' : 'verifyContract'](
+        chain,
+        verificationInput,
+      );
     } catch (error) {
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);
@@ -820,20 +837,4 @@ export abstract class HyperlaneDeployer<
 
     return receipts.filter((x) => !!x) as ethers.ContractReceipt[];
   }
-}
-
-export async function encodeArguments(abi: any, constructorArgs: any[]) {
-  const { Interface } = await import('@ethersproject/abi');
-
-  const contractInterface = new Interface(abi);
-  let deployArgumentsEncoded;
-  try {
-    deployArgumentsEncoded = contractInterface
-      .encodeDeploy(constructorArgs)
-      .replace('0x', '');
-  } catch (error: any) {
-    throw new Error('Cant encode constructor args');
-  }
-
-  return deployArgumentsEncoded;
 }
