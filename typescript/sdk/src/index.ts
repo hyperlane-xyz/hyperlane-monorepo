@@ -475,7 +475,7 @@ export {
 } from './utils/fork.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
-export { multisigIsmVerificationCost } from './utils/ism.js';
+export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
 export {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,

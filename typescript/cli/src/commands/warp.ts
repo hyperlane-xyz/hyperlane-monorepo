@@ -1,18 +1,5 @@
-import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
-
-import {
-  HypXERC20Lockbox__factory,
-  HypXERC20__factory,
-  IXERC20__factory,
-} from '@hyperlane-xyz/core';
-import {
-  ChainMap,
-  EvmERC20WarpRouteReader,
-  TokenStandard,
-} from '@hyperlane-xyz/sdk';
-import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -25,13 +12,8 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import {
-  log,
-  logCommandHeader,
-  logGray,
-  logGreen,
-  logTable,
-} from '../logger.js';
+import { log, logCommandHeader, logGreen } from '../logger.js';
+import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import {
   indentYamlOrJson,
@@ -39,8 +21,6 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/input.js';
-import { formatYamlViolationsOutput } from '../utils/output.js';
-import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import {
   DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
@@ -224,72 +204,12 @@ export const read: CommandModuleWithContext<{
   }) => {
     logCommandHeader('Hyperlane Warp Reader');
 
-    const { multiProvider } = context;
-
-    let addresses: ChainMap<string>;
-    if (symbol) {
-      const warpCoreConfig = await selectRegistryWarpRoute(
-        context.registry,
-        symbol,
-      );
-
-      // TODO: merge with XERC20TokenAdapter and WarpRouteReader
-      const xerc20Limits = await Promise.all(
-        warpCoreConfig.tokens
-          .filter(
-            (t) =>
-              t.standard === TokenStandard.EvmHypXERC20 ||
-              t.standard === TokenStandard.EvmHypXERC20Lockbox,
-          )
-          .map(async (t) => {
-            const provider = multiProvider.getProvider(t.chainName);
-            const router = t.addressOrDenom!;
-            const xerc20Address =
-              t.standard === TokenStandard.EvmHypXERC20Lockbox
-                ? await HypXERC20Lockbox__factory.connect(
-                    router,
-                    provider,
-                  ).xERC20()
-                : await HypXERC20__factory.connect(
-                    router,
-                    provider,
-                  ).wrappedToken();
-
-            const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
-            const mint = await xerc20.mintingCurrentLimitOf(router);
-            const burn = await xerc20.burningCurrentLimitOf(router);
-
-            const formattedLimits = objMap({ mint, burn }, (_, v) =>
-              ethers.utils.formatUnits(v, t.decimals),
-            );
-
-            return [t.chainName, formattedLimits];
-          }),
-      );
-      if (xerc20Limits.length > 0) {
-        logGray('xERC20 Limits:');
-        logTable(Object.fromEntries(xerc20Limits));
-      }
-
-      addresses = Object.fromEntries(
-        warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
-      );
-    } else if (chain && address) {
-      addresses = {
-        [chain]: address,
-      };
-    } else {
-      logGreen(`Please specify either a symbol or chain and address`);
-      process.exit(0);
-    }
-
-    const config = await promiseObjAll(
-      objMap(addresses, async (chain, address) =>
-        new EvmERC20WarpRouteReader(multiProvider, chain).deriveWarpRouteConfig(
-          address,
-        ),
-      ),
-    );
+    const config = await runWarpRouteRead({
+      context,
+      chain,
+      address,
+      symbol,
+    });
 
     if (configFilePath) {
       writeYamlOrJson(configFilePath, config, 'yaml');
@@ -377,10 +297,6 @@ export const check: CommandModuleWithContext<{
   describe:
     'Verifies that a warp route configuration matches the on chain configuration.',
   builder: {
-    config: inputFileCommandOption({
-      defaultPath: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
-      description: 'The path to a warp route deployment configuration file',
-    }),
     symbol: {
       ...symbolCommandOption,
       demandOption: false,
@@ -389,29 +305,26 @@ export const check: CommandModuleWithContext<{
       ...warpCoreConfigCommandOption,
       demandOption: false,
     },
+    config: inputFileCommandOption({
+      defaultPath: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+      description: 'The path to a warp route deployment configuration file',
+    }),
   },
   handler: async ({ context, config, symbol, warp }) => {
     logCommandHeader('Hyperlane Warp Check');
 
     const warpRouteConfig = await readWarpRouteDeployConfig(config, context);
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      symbol,
-      warp,
+    const onChainWarpConfig = await runWarpRouteRead({
       context,
+      warp,
+      symbol,
     });
 
-    const [violations, isInvalid] = await runWarpRouteCheck({
-      context,
-      warpCoreConfig,
+    await runWarpRouteCheck({
+      onChainWarpConfig,
       warpRouteConfig,
     });
 
-    if (isInvalid) {
-      log(formatYamlViolationsOutput(yamlStringify(violations, null, 2)));
-      process.exit(1);
-    }
-
-    logGreen(`No violations found`);
     process.exit(0);
   },
 };

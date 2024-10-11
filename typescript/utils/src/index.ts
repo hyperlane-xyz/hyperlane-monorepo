@@ -117,6 +117,8 @@ export {
   pick,
   promiseObjAll,
   stringifyObject,
+  diffObjMerge,
+  ObjectDiff,
 } from './objects.js';
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {

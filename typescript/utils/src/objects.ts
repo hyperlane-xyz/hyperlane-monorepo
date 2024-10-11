@@ -2,6 +2,7 @@ import { cloneDeep, isEqual } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ethersBigNumberSerializer } from './logging.js';
+import { isNullish } from './typeof.js';
 import { assert } from './validation.js';
 
 export function isObject(item: any) {
@@ -154,4 +155,100 @@ export function stringifyObject(
     return json;
   }
   return yamlStringify(JSON.parse(json), null, space);
+}
+
+interface ObjectDiffOutput {
+  actual: any;
+  expected: any;
+}
+
+export type ObjectDiff =
+  | {
+      [key: string]: ObjectDiffOutput | ObjectDiff;
+    }
+  | ObjectDiff[];
+
+/**
+ * Merges 2 objects showing any difference in value for common fields.
+ */
+export function diffObjMerge(
+  actual: Record<string, any>,
+  expected: Record<string, any>,
+  max_depth = 10,
+): {
+  mergedObject: ObjectDiff;
+  isInvalid: boolean;
+} {
+  if (max_depth === 0) {
+    throw new Error('diffObjMerge tried to go too deep');
+  }
+
+  let isDiff = false;
+  if (!isObject(actual) && !isObject(expected) && actual === expected) {
+    return {
+      isInvalid: isDiff,
+      mergedObject: actual,
+    };
+  }
+
+  if (isObject(actual) && isObject(expected)) {
+    const ret: Record<string, ObjectDiff> = {};
+
+    const actualKeys = new Set(Object.keys(actual));
+    const expectedKeys = new Set(Object.keys(expected));
+    const allKeys = new Set([...actualKeys, ...expectedKeys]);
+    for (const key of allKeys.values()) {
+      if (actualKeys.has(key) && expectedKeys.has(key)) {
+        const { mergedObject, isInvalid } = diffObjMerge(
+          actual[key],
+          expected[key],
+          max_depth - 1,
+        );
+        ret[key] = mergedObject;
+        isDiff ||= isInvalid;
+      } else if (actualKeys.has(key) && !isNullish(actual[key])) {
+        ret[key] = {
+          actual: actual[key],
+          expected: '' as any,
+        };
+      } else if (!isNullish(expected[key])) {
+        ret[key] = {
+          actual: '' as any,
+          expected: expected[key],
+        };
+      }
+    }
+    return {
+      isInvalid: isDiff,
+      mergedObject: ret,
+    };
+  }
+
+  // Merge the elements of the array to see if there are any differences
+  if (
+    Array.isArray(actual) &&
+    Array.isArray(expected) &&
+    actual.length === expected.length
+  ) {
+    const merged = actual.reduce(
+      (acc: [ObjectDiff[], boolean], curr, idx) => {
+        const { isInvalid, mergedObject } = diffObjMerge(curr, expected[idx]);
+
+        acc[0].push(mergedObject);
+        acc[1] ||= isInvalid;
+
+        return acc;
+      },
+      [[], isDiff],
+    );
+    return {
+      isInvalid: merged[1],
+      mergedObject: merged[0],
+    };
+  }
+
+  return {
+    mergedObject: { expected: expected ?? '', actual: actual ?? '' },
+    isInvalid: true,
+  };
 }
