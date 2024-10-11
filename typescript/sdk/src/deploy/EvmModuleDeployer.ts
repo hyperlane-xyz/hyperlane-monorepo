@@ -7,7 +7,12 @@ import {
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  addBufferToGasLimit,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -16,11 +21,15 @@ import { getArtifactByContractName } from '../utils/zksync.js';
 
 import { isProxy, proxyConstructorArgs } from './proxy.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
+import { ZKSyncContractVerifier } from './verify/ZKSyncContractVerifier.js';
 import {
   ContractVerificationInput,
   ExplorerLicenseType,
 } from './verify/types.js';
-import { getContractVerificationInput } from './verify/utils.js';
+import {
+  getContractVerificationInput,
+  getContractVerificationInputForZKSync,
+} from './verify/utils.js';
 
 export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
   public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
@@ -83,17 +92,37 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       await this.multiProvider.handleTx(chain, initTx);
     }
 
-    const verificationInput = getContractVerificationInput({
-      name: contractName,
-      contract,
-      bytecode: factory.bytecode,
-      expectedimplementation: implementationAddress,
-    });
+    const { protocol } = this.multiProvider.getChainMetadata(chain);
+    const isZKSyncChain = protocol === ProtocolType.ZKSync;
+
+    let verificationInput: ContractVerificationInput;
+    if (isZKSyncChain) {
+      verificationInput = await getContractVerificationInputForZKSync({
+        name: contractName,
+        contract,
+        constructorArgs: constructorArgs,
+        artifact: artifact,
+        expectedimplementation: implementationAddress,
+      });
+    } else {
+      verificationInput = getContractVerificationInput({
+        name: contractName,
+        contract,
+        bytecode: factory.bytecode,
+        expectedimplementation: implementationAddress,
+      });
+    }
+
     this.addVerificationArtifacts({ chain, artifacts: [verificationInput] });
 
     // try verifying contract
     try {
-      await this.contractVerifier?.verifyContract(chain, verificationInput);
+      if (isZKSyncChain) {
+        const verifier = new ZKSyncContractVerifier(this.multiProvider);
+        await verifier?.verifyContract(chain, verificationInput);
+      } else {
+        await this.contractVerifier?.verifyContract(chain, verificationInput);
+      }
     } catch (error) {
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);
