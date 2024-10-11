@@ -43,7 +43,7 @@ export async function updateWarpOwnerConfig(
     warpDeployPath,
   );
   warpDeployConfig[chain].owner = owner;
-  writeYamlOrJson(warpDeployPath, warpDeployConfig);
+  await writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
   return warpDeployPath;
 }
