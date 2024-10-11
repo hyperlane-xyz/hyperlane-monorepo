@@ -2,6 +2,7 @@
 export const testnet4SupportedChainNames = [
   'alfajores',
   'arbitrumsepolia',
+  'arcadiatestnet',
   'basesepolia',
   'berabartio',
   'bsctestnet',
@@ -22,8 +23,10 @@ export const testnet4SupportedChainNames = [
   'sepolia',
   'solanatestnet',
   'soneiumtestnet',
+  'sonictestnet',
   'suavetoliman',
   'superpositiontestnet',
+  'unichaintestnet',
 ] as const;
 
 export const supportedChainNames = [...testnet4SupportedChainNames];

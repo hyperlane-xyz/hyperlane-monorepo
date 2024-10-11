@@ -1,6 +1,7 @@
 {
   "alfajores": "10",
   "arbitrumsepolia": "10",
+  "arcadiatestnet": "10",
   "basesepolia": "10",
   "berabartio": "10",
   "bsctestnet": "10",
@@ -19,6 +20,8 @@
   "sepolia": "10",
   "solanatestnet": "10",
   "soneiumtestnet": "10",
+  "sonictestnet": "10",
   "suavetoliman": "10",
-  "superpositiontestnet": "10"
+  "superpositiontestnet": "10",
+  "unichaintestnet": "10"
 }

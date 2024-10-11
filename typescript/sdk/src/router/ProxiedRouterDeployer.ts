@@ -111,7 +111,10 @@ export abstract class ProxiedRouterDeployer<
         );
         return this.multiProvider.handleTx(
           chain,
-          proxyAdmin.transferOwnership(adminOwner),
+          proxyAdmin.transferOwnership(
+            adminOwner,
+            this.multiProvider.getTransactionOverrides(chain),
+          ),
         );
       }
       return;

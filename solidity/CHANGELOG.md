@@ -1,5 +1,13 @@
 # @hyperlane-xyz/core
 
+## 5.4.1
+
+### Patch Changes
+
+- 92c86cca6: Forward value from ICA router to proxy for multicall
+- Updated dependencies [2afc484a2]
+  - @hyperlane-xyz/utils@5.5.0
+
 ## 5.4.0
 
 ### Minor Changes

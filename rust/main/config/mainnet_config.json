@@ -4190,6 +4190,9 @@
       "validatorAnnounce": "0xE56Da9D48E698eB70F56aeCC0BC25Ff1710EEA76",
       "index": {
         "from": 17051552
+      },
+      "transactionOverrides": {
+        "maxPriorityFeePerGas": 1000000000
       }
     },
     "immutablezkevm": {
