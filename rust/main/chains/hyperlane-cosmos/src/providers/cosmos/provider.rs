@@ -257,7 +257,7 @@ impl CosmosProvider {
             .messages
             .iter()
             .filter(|a| a.type_url == "/ibc.core.channel.v1.MsgRecvPacket")
-            .map(PacketData::from_any)
+            .map(PacketData::try_from)
             .flat_map(|r| r.ok())
             .next()
             .ok_or_else(|| {

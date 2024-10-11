@@ -14,8 +14,10 @@ pub struct PacketData {
     pub sender: String,
 }
 
-impl PacketData {
-    pub fn from_any(any: &Any) -> Result<PacketData, HyperlaneCosmosError> {
+impl TryFrom<&Any> for PacketData {
+    type Error = HyperlaneCosmosError;
+
+    fn try_from(any: &Any) -> Result<Self, Self::Error> {
         let vec = any.value.as_slice();
         let msg = MsgRecvPacket::decode(vec).map_err(Into::<HyperlaneCosmosError>::into)?;
         let packet = msg
@@ -25,6 +27,14 @@ impl PacketData {
             ))?;
         let data = serde_json::from_slice::<PacketData>(&packet.data)?;
         Ok(data)
+    }
+}
+
+impl TryFrom<Any> for PacketData {
+    type Error = HyperlaneCosmosError;
+
+    fn try_from(any: Any) -> Result<Self, Self::Error> {
+        Self::try_from(&any)
     }
 }
 
@@ -45,7 +55,7 @@ mod tests {
         let any = any(json);
 
         // when
-        let data = PacketData::from_any(&any);
+        let data = PacketData::try_from(&any);
 
         // then
         assert!(data.is_ok());
@@ -58,7 +68,7 @@ mod tests {
         let any = any(json);
 
         // when
-        let data = PacketData::from_any(&any);
+        let data = PacketData::try_from(&any);
 
         // then
         assert!(data.is_err());
@@ -74,7 +84,7 @@ mod tests {
         let any = empty();
 
         // when
-        let data = PacketData::from_any(&any);
+        let data = PacketData::try_from(&any);
 
         // then
         assert!(data.is_err());
@@ -90,7 +100,7 @@ mod tests {
         let any = wrong_encoding();
 
         // when
-        let data = PacketData::from_any(&any);
+        let data = PacketData::try_from(&any);
 
         // then
         assert!(data.is_err());
