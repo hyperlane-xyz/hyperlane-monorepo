@@ -18,9 +18,11 @@ impl PacketData {
     pub fn from_any(any: &Any) -> Result<PacketData, HyperlaneCosmosError> {
         let vec = any.value.as_slice();
         let msg = MsgRecvPacket::decode(vec).map_err(Into::<HyperlaneCosmosError>::into)?;
-        let packet = msg.packet.ok_or(HyperlaneCosmosError::EmptyError(
-            "MsgRecvPacket packet is empty".to_owned(),
-        ))?;
+        let packet = msg
+            .packet
+            .ok_or(HyperlaneCosmosError::UnparsableEmptyField(
+                "MsgRecvPacket packet is empty".to_owned(),
+            ))?;
         let data = serde_json::from_slice::<PacketData>(&packet.data)?;
         Ok(data)
     }
@@ -78,7 +80,7 @@ mod tests {
         assert!(data.is_err());
         assert!(matches!(
             data.err().unwrap(),
-            HyperlaneCosmosError::EmptyError(_),
+            HyperlaneCosmosError::UnparsableEmptyField(_),
         ));
     }
 

@@ -61,7 +61,7 @@ pub enum HyperlaneCosmosError {
     SerdeError(#[from] serde_json::Error),
     /// Empty error
     #[error("{0}")]
-    EmptyError(String),
+    UnparsableEmptyField(String),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {
