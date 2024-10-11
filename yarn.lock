@@ -7371,11 +7371,7 @@ __metadata:
 
 "@hyperlane-xyz/core@file:../../solidity::locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk":
   version: 5.1.0
-<<<<<<< HEAD
-  resolution: "@hyperlane-xyz/core@file:../../solidity#../../solidity::hash=eeccd2&locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk"
-=======
-  resolution: "@hyperlane-xyz/core@file:../../solidity#../../solidity::hash=79a1ec&locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk"
->>>>>>> f7946cb6c (feat: manage contract verification for both zksync and evm based chains)
+  resolution: "@hyperlane-xyz/core@file:../../solidity#../../solidity::hash=1a02bc&locator=%40hyperlane-xyz%2Fsdk%40workspace%3Atypescript%2Fsdk"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@eth-optimism/contracts": "npm:^0.6.0"
@@ -7389,11 +7385,7 @@ __metadata:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
     "@types/sinon-chai": "*"
-<<<<<<< HEAD
-  checksum: bb1f5523d1ef641c48534871531bd64f770ddb7aba7e035d30ab6da1d34fad4671766b880beb7aa1c27ec9b985ce325a35b48240a571b2d05dd5cc159278bae9
-=======
-  checksum: 5e9a631da334b84afb493caaaf8d3aeba9bc381fde1b30f113ee16dd591b6ee11aeec97d5cf70492e9cf7e5016fef13abcb9e7894a166304e823b6ca601be650
->>>>>>> f7946cb6c (feat: manage contract verification for both zksync and evm based chains)
+  checksum: 549d4bf2804aceff3096e794f27c15242dbd44e691368b9b4fc786afa1e9b54c58b5e5d683df6faa3be3d88b75f8d201cc786f55452b4e49f1a5970b3a59e7f8
   languageName: node
   linkType: hard
 
