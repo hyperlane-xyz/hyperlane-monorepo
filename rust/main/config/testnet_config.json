@@ -843,22 +843,22 @@
         }
       ],
       "blocks": {
-        "confirmations": 1,
+        "confirmations": 0,
         "estimateBlockTime": 13,
-        "reorgPeriod": 2
+        "reorgPeriod": 0
       },
       "chainId": 300,
       "deployer": {
         "name": "Abacus Works",
         "url": "https://www.hyperlane.xyz"
       },
-      "displayName": "Sepolia",
+      "displayName": "ZkSync Sepolia",
       "domainId": 300,
       "index": {
         "from": 3861500
       },
       "isTestnet": true,
-      "name": "sepolia",
+      "name": "zksyncsepolia",
       "nativeToken": {
         "decimals": 18,
         "name": "Ether",
@@ -889,6 +889,60 @@
         },
         {
           "http": "https://zksync-era-sepolia.blockpi.network/v1/rpc/public"
+        }
+      ],
+      "gasCurrencyCoinGeckoId": "ethereum"
+    },
+    "zeriontestnet": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://zerion-testnet-proofs.explorer.caldera.xyz/api",
+          "family": "blockscout",
+          "name": "Blockscout",
+          "url": "https://zerion-testnet-proofs.explorer.caldera.xyz/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 0,
+        "estimateBlockTime": 13,
+        "reorgPeriod": 0
+      },
+      "chainId": 43210,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "ZkSync Sepolia",
+      "domainId": 43210,
+      "index": {
+        "from": 4335
+      },
+      "isTestnet": true,
+      "name": "zeriontestnet",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "domainRoutingIsmFactory": "0x03a3bF260b049e0797332a73b68767840e49D8eB",
+      "interchainAccountIsm": "0x5165400148870e851Ef32400dBCE5115310eC16d",
+      "interchainAccountRouter": "0x91520146681A95078Ed7A425D81a8d2BDd581E8f",
+      "mailbox": "0x3f5592aF6684B73be8Df60E91185BF3edFa3f711",
+      "proxyAdmin": "0x369ff102Aa209CFF4C137D592a6aD48342c62ae9",
+      "staticAggregationHookFactory": "0x84cdAF15Cb796c922ca6E59155839C55C7A90800",
+      "staticAggregationIsmFactory": "0x618a27352c07a66dDBBfb5a2A1953f13691CE650",
+      "staticMerkleRootMultisigIsmFactory": "0x8f6B50059D9640Bcc6F94385aC54e0c786C46E63",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x318f903D8BbAaC77afFEC839b16193Dc72951649",
+      "staticMessageIdMultisigIsmFactory": "0x023c74A01C73C53a449c92806f5AFcE4dc9150C4",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x4E2f2eE831c028AAFEc6637c9cf7169f5b017499",
+      "testRecipient": "0x7D21Bc32D5003B93c8286707d467fEFFa077B815",
+      "validatorAnnounce": "0x44cf2678B18883bAA28B1Dbf14CBBeEeE1C95320",
+      "merkleTreeHook": "0x6B8d2B470633b1e0Fe0215F44b409E1457c5a096",
+      "rpcUrls": [
+        {
+          "http": "https://zerion-testnet-proofs.rpc.caldera.xyz/http"
         }
       ],
       "gasCurrencyCoinGeckoId": "ethereum"
