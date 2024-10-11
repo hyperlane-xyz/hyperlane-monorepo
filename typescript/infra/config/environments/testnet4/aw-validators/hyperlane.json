@@ -84,5 +84,8 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
+  },
+  "odysseytestnet": {
+    "validators": ["0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3"]
   }
 }

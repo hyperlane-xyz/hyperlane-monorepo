@@ -492,6 +492,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  odysseytestnet: {
+    threshold: 1,
+    validators: ['0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3'],
+  },
+
   oortmainnet: {
     threshold: 2,
     validators: [

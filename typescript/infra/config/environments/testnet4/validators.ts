@@ -330,5 +330,18 @@ export const validatorChainConfig = (
         'arcadiatestnet',
       ),
     },
+
+    odysseytestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('odysseytestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'odysseytestnet',
+      ),
+    },
   };
 };

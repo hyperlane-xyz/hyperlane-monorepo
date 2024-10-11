@@ -28,6 +28,7 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredBalancePerChain: {
     alfajores: '5',
     arbitrumsepolia: '0.1',
+    arcadiatestnet: '0.1',
     basesepolia: '0.1',
     berabartio: '0.1',
     bsctestnet: '5',
@@ -41,7 +42,7 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '5',
     holesky: '5',
     // hyperliquidevmtestnet: '0.1',
-    arcadiatestnet: '0.1',
+    odysseytestnet: '0.1',
     optimismsepolia: '0.1',
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: '0.2',
