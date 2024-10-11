@@ -432,6 +432,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  metall2: {
+    threshold: 1,
+    validators: ['0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09'],
+  },
+
   metis: {
     threshold: 2,
     validators: [
@@ -554,6 +559,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x865818fe1db986036d5fd0466dcd462562436d1a', // dsrv
       '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
     ],
+  },
+
+  polynomial: {
+    threshold: 1,
+    validators: ['0xa63ad0891e921ad5947d57e05831fabb9816eca7'],
   },
 
   proofofplay: {

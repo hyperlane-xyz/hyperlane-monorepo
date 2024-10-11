@@ -967,5 +967,26 @@ export const validatorChainConfig = (
         'superposition',
       ),
     },
+
+    metall2: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('metall2'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09'],
+        },
+        'metall2',
+      ),
+    },
+    polynomial: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('polynomial'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa63ad0891e921ad5947d57e05831fabb9816eca7'],
+        },
+        'polynomial',
+      ),
+    },
   };
 };

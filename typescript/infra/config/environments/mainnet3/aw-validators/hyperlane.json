@@ -262,5 +262,11 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "metall2": {
+    "validators": ["0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09"]
+  },
+  "polynomial": {
+    "validators": ["0xa63ad0891e921ad5947d57e05831fabb9816eca7"]
   }
 }

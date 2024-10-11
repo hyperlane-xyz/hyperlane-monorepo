@@ -16,7 +16,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.0357",
+    "amount": "0.399",
     "decimals": 9
   },
   "avalanche": {
@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.003185677",
+    "amount": "0.004008322",
     "decimals": 9
   },
   "bitlayer": {
@@ -32,7 +32,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.003481616",
+    "amount": "0.004707204",
     "decimals": 9
   },
   "bob": {
@@ -52,7 +52,7 @@
     "decimals": 9
   },
   "chiliz": {
-    "amount": "2600.0",
+    "amount": "5000.0",
     "decimals": 9
   },
   "coredao": {
@@ -80,7 +80,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "12.537447318",
+    "amount": "47.799769052",
     "decimals": 9
   },
   "everclear": {
@@ -120,7 +120,7 @@
     "decimals": 9
   },
   "linea": {
-    "amount": "0.148525014",
+    "amount": "0.240000007",
     "decimals": 9
   },
   "lisk": {
@@ -145,6 +145,10 @@
   },
   "merlin": {
     "amount": "0.095",
+    "decimals": 9
+  },
+  "metall2": {
+    "amount": "0.001000252",
     "decimals": 9
   },
   "metis": {
@@ -184,11 +188,15 @@
     "decimals": 1
   },
   "polygon": {
-    "amount": "30.004451589",
+    "amount": "61.134765243",
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "0.183",
+    "amount": "0.726",
+    "decimals": 9
+  },
+  "polynomial": {
+    "amount": "0.001000252",
     "decimals": 9
   },
   "proofofplay": {
@@ -216,7 +224,7 @@
     "decimals": 9
   },
   "scroll": {
-    "amount": "0.042025013",
+    "amount": "0.048755492",
     "decimals": 9
   },
   "sei": {
@@ -224,7 +232,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "8.558763474",
+    "amount": "19.540745224",
     "decimals": 9
   },
   "solanamainnet": {
@@ -256,7 +264,7 @@
     "decimals": 9
   },
   "xlayer": {
-    "amount": "7.52",
+    "amount": "34.225",
     "decimals": 9
   },
   "zetachain": {
@@ -268,7 +276,7 @@
     "decimals": 9
   },
   "zoramainnet": {
-    "amount": "0.001000259",
+    "amount": "0.001000274",
     "decimals": 9
   }
 }
