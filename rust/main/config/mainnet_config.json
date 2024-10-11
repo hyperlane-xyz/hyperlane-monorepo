@@ -564,10 +564,10 @@
       "aggregationHook": "0x8007d1e60991fB9BE1be26f70A7cE284fdE7da97",
       "blockExplorers": [
         {
-          "apiUrl": "https://fetascan.io/api",
+          "apiUrl": "https://fetascan.xyz/api",
           "family": "blockscout",
           "name": "Fetascan",
-          "url": "https://fetascan.io"
+          "url": "https://fetascan.xyz"
         }
       ],
       "blocks": {
