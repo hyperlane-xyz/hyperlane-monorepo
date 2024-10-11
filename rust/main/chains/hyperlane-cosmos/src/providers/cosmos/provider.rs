@@ -257,7 +257,7 @@ impl CosmosProvider {
             .flat_map(|r| r.ok())
             .next()
             .ok_or_else(|| {
-                let msg = "could not find receive packets message containing required data";
+                let msg = "could not find IBC receive packets message containing receiver address";
                 ChainCommunicationError::from_other_str(msg)
             })?;
 
