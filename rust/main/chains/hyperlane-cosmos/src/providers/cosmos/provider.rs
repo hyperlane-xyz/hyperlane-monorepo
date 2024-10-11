@@ -206,14 +206,18 @@ impl CosmosProvider {
         // We merge two error messages together so that both of them are reported
         match Self::contract_address_from_msg_execute_contract(tx, tx_hash) {
             Ok(contract) => Ok(contract),
-            Err(mece) => match Self::contract_address_from_msg_recv_packet(tx, tx_hash) {
-                Ok(contract) => Ok(contract),
-                Err(mrpe) => {
-                    let msg = mece.to_string() + " and " + &mrpe.to_string();
-                    warn!(?tx_hash, msg);
-                    Err(ChainCommunicationError::CustomError(msg.to_owned()))?
+            Err(msg_execute_contract_error) => {
+                match Self::contract_address_from_msg_recv_packet(tx, tx_hash) {
+                    Ok(contract) => Ok(contract),
+                    Err(msg_recv_packet_error) => {
+                        let msg = msg_execute_contract_error.to_string()
+                            + " and "
+                            + &msg_recv_packet_error.to_string();
+                        warn!(?tx_hash, msg);
+                        Err(ChainCommunicationError::CustomError(msg.to_owned()))?
+                    }
                 }
-            },
+            }
         }
     }
 
