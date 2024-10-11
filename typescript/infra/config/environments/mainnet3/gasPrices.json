@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.004008322",
+    "amount": "0.008669818",
     "decimals": 9
   },
   "bitlayer": {
@@ -80,7 +80,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "47.799769052",
+    "amount": "21.610477208",
     "decimals": 9
   },
   "everclear": {
@@ -88,7 +88,11 @@
     "decimals": 9
   },
   "flare": {
-    "amount": "25.0",
+    "amount": "29.55878872",
+    "decimals": 9
+  },
+  "flowevm": {
+    "amount": "0.0000001",
     "decimals": 9
   },
   "fraxtal": {
@@ -180,7 +184,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.051272957",
+    "amount": "0.02163419",
     "decimals": 9
   },
   "osmosis": {
@@ -232,7 +236,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "19.540745224",
+    "amount": "28.138673121",
     "decimals": 9
   },
   "solanamainnet": {
@@ -264,7 +268,7 @@
     "decimals": 9
   },
   "xlayer": {
-    "amount": "34.225",
+    "amount": "14.54921875",
     "decimals": 9
   },
   "zetachain": {

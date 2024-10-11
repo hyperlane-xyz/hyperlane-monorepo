@@ -285,6 +285,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  flowevm: {
+    threshold: 1,
+    validators: ['0xbf9308ea4b38c0ece24c983cea14b4f26a23e83a'],
+  },
+
   formtestnet: {
     threshold: 1,
     validators: ['0x72ad7fddf16d17ff902d788441151982fa31a7bc'],

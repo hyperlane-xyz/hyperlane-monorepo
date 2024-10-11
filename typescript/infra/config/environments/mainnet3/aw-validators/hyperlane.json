@@ -146,6 +146,9 @@
   "merlin": {
     "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
   },
+  "metall2": {
+    "validators": ["0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09"]
+  },
   "metis": {
     "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
   },
@@ -198,6 +201,9 @@
       "0xc84076030bdabaabb9e61161d833dd84b700afda",
       "0x6a1da2e0b7ae26aaece1377c0a4dbe25b85fa3ca"
     ]
+  },
+  "polynomial": {
+    "validators": ["0xa63ad0891e921ad5947d57e05831fabb9816eca7"]
   },
   "proofofplay": {
     "validators": ["0xcda40baa71970a06e5f55e306474de5ca4e21c3b"]
@@ -263,10 +269,7 @@
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   },
-  "metall2": {
-    "validators": ["0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09"]
-  },
-  "polynomial": {
-    "validators": ["0xa63ad0891e921ad5947d57e05831fabb9816eca7"]
+  "flowevm": {
+    "validators": ["0xbf9308ea4b38c0ece24c983cea14b4f26a23e83a"]
   }
 }

@@ -48,6 +48,7 @@ export const keyFunderConfig: KeyFunderConfig<
     ethereum: '0.5',
     everclear: '0.05',
     flare: '500',
+    flowevm: '5',
     fraxtal: '0.2',
     fusemainnet: '20',
     gnosis: '5',
