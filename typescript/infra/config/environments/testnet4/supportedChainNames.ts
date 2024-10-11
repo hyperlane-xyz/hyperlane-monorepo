@@ -2,6 +2,7 @@
 export const testnet4SupportedChainNames = [
   'alfajores',
   'arbitrumsepolia',
+  'arcadiatestnet',
   'basesepolia',
   'berabartio',
   'bsctestnet',
@@ -13,8 +14,7 @@ export const testnet4SupportedChainNames = [
   'formtestnet',
   'fuji',
   'holesky',
-  // 'hyperliquidevmtestnet',
-  'arcadiatestnet',
+  'hyperliquidevmtestnet',
   'optimismsepolia',
   // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
   // 'plumetestnet',

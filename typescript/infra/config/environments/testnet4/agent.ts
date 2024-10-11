@@ -43,6 +43,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -54,8 +55,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     formtestnet: true,
     fuji: true,
     holesky: true,
-    // hyperliquidevmtestnet: false,
-    arcadiatestnet: true,
+    hyperliquidevmtestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -72,6 +72,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -83,8 +84,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     formtestnet: true,
     fuji: true,
     holesky: true,
-    // hyperliquidevmtestnet: false,
-    arcadiatestnet: true,
+    hyperliquidevmtestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -101,6 +101,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -113,8 +114,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     formtestnet: true,
     fuji: true,
     holesky: true,
-    // hyperliquidevmtestnet: false,
-    arcadiatestnet: true,
+    hyperliquidevmtestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
