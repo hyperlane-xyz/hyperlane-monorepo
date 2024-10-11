@@ -43,6 +43,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -55,7 +56,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
-    arcadiatestnet: true,
+    odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -72,6 +73,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Relayer]: {
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -84,7 +86,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
-    arcadiatestnet: true,
+    odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -101,6 +103,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Scraper]: {
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -114,7 +117,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
-    arcadiatestnet: true,
+    odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -206,7 +209,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1f80087-20241010-170348',
+      tag: '463b35b-20241011-161150',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -228,7 +231,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1f80087-20241010-170348',
+      tag: '463b35b-20241011-161150',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -237,7 +240,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '1f80087-20241010-170348',
+      tag: '463b35b-20241011-161150',
     },
     resources: scraperResources,
   },
