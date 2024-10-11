@@ -50,6 +50,7 @@ export {
 export { chunk, exclude, randomElement } from './arrays.js';
 export {
   concurrentMap,
+  fetchWithTimeout,
   pollAsync,
   raceWithContext,
   retryAsync,
@@ -114,12 +115,14 @@ export {
   objMap,
   objMapEntries,
   objMerge,
+  objOmit,
   pick,
   promiseObjAll,
   stringifyObject,
   diffObjMerge,
   ObjectDiff,
 } from './objects.js';
+export { Result, failure, success } from './result.js';
 export { difference, setEquality, symmetricDifference } from './sets.js';
 export {
   errorToString,
@@ -158,6 +161,7 @@ export {
   TokenCaip19Id,
   WithAddress,
 } from './types.js';
-export { isHttpsUrl } from './url.js';
+export { isHttpsUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
+export { tryParseJsonOrYaml } from './yaml.js';

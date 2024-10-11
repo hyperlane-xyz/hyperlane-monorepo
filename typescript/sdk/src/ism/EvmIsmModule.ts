@@ -496,6 +496,7 @@ export class EvmIsmModule extends HyperlaneModule<
         config.owner,
         availableDomainIds,
         submoduleAddresses,
+        this.multiProvider.getTransactionOverrides(this.args.chain),
       );
 
       await this.multiProvider.handleTx(this.chain, tx);

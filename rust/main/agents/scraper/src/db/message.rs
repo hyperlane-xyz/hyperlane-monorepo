@@ -13,6 +13,7 @@ use crate::date_time;
 use crate::db::ScraperDb;
 
 use super::generated::{delivered_message, message};
+
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
     pub message_id: H256,
@@ -178,8 +179,12 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        debug_assert!(!models.is_empty());
         trace!(?models, "Writing delivered messages to database");
+
+        if models.is_empty() {
+            debug!("Wrote zero new delivered messages to database");
+            return Ok(0);
+        }
 
         Insert::many(models)
             .on_conflict(
@@ -197,12 +202,10 @@ impl ScraperDb {
             .deliveries_count_since_id(domain, destination_mailbox, latest_id_before)
             .await?;
 
-        if new_deliveries_count > 0 {
-            debug!(
-                messages = new_deliveries_count,
-                "Wrote new delivered messages to database"
-            );
-        }
+        debug!(
+            messages = new_deliveries_count,
+            "Wrote new delivered messages to database"
+        );
         Ok(new_deliveries_count)
     }
 
@@ -272,8 +275,12 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        debug_assert!(!models.is_empty());
         trace!(?models, "Writing messages to database");
+
+        if models.is_empty() {
+            debug!("Wrote zero new messages to database");
+            return Ok(0);
+        }
 
         Insert::many(models)
             .on_conflict(
@@ -299,12 +306,10 @@ impl ScraperDb {
             .dispatch_count_since_id(domain, origin_mailbox, latest_id_before)
             .await?;
 
-        if new_dispatch_count > 0 {
-            debug!(
-                messages = new_dispatch_count,
-                "Wrote new messages to database"
-            );
-        }
+        debug!(
+            messages = new_dispatch_count,
+            "Wrote new messages to database"
+        );
         Ok(new_dispatch_count)
     }
 }
