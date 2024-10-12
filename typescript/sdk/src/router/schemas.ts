@@ -32,6 +32,8 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   }),
 );
 
+export const DestinationGasSchema = z.record(z.string(), z.string());
 export const GasRouterConfigSchema = RouterConfigSchema.extend({
   gas: z.number().optional(),
+  destinationGas: DestinationGasSchema.optional(),
 });
