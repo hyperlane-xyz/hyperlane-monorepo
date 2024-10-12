@@ -29,8 +29,8 @@ export type AllStorageGasOracleConfigs = ChainMap<StorageGasOracleConfig>;
 
 // A configuration for a gas price.
 // Some chains, e.g. Neutron, have gas prices that are
-// not integers and and are still quoted in the "wei" version
-// of the token. Therefore it's possible for the amount to be a
+// not integers and are still quoted in the "wei" version
+// of the token. Therefore, it's possible for the amount to be a
 // float (e.g. "0.0053") and for decimals to be 1. This is why
 // we intentionally don't deal with BigNumber here.
 export interface GasPriceConfig {
