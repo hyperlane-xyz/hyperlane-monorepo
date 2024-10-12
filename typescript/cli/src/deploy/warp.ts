@@ -639,7 +639,7 @@ async function enrollRemoteRouters(
     deployedContractsMap,
     (_, contracts) => getRouter(contracts).address,
   );
-  const allChains = Object.keys(deployedRouters);
+  const deployedChains = Object.keys(deployedRouters);
   const transactions: AnnotatedEV5Transaction[] = [];
   await promiseObjAll(
     objMap(deployedContractsMap, async (chain, contracts) => {
@@ -661,7 +661,7 @@ async function enrollRemoteRouters(
 
         const otherChains = multiProvider
           .getRemoteChains(chain)
-          .filter((c) => allChains.includes(c));
+          .filter((c) => deployedChains.includes(c));
 
         mutatedWarpRouteConfig.remoteRouters =
           otherChains.reduce<RemoteRouters>((remoteRouters, chain) => {
