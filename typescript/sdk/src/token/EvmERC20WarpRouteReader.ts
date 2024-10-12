@@ -242,6 +242,12 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       warpRouteAddress,
       this.provider,
     );
+
+    /**
+     * @remark
+     * Router.domains() is used to enumerate the destination gas because GasRouter.destinationGas is not EnumerableMapExtended type
+     * This means that if a domain is removed, then we cannot read the destinationGas for it. This may impact updates.
+     */
     const domains = await warpRoute.domains();
 
     return Object.fromEntries(

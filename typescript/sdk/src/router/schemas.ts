@@ -32,7 +32,12 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
   }),
 );
 
-export const DestinationGasSchema = z.record(z.string(), z.string());
+const DestinationGasDomain = z.string();
+const DestinationGasAmount = z.string(); // This must be a string type to match Ether's type
+export const DestinationGasSchema = z.record(
+  DestinationGasDomain,
+  DestinationGasAmount,
+);
 export const GasRouterConfigSchema = RouterConfigSchema.extend({
   gas: z.number().optional(),
   destinationGas: DestinationGasSchema.optional(),
