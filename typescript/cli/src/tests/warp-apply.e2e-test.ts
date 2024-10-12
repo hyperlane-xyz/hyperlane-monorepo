@@ -52,7 +52,7 @@ describe('WarpApply e2e tests', async function () {
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
       WARP_CONFIG_PATH_EXAMPLE,
     );
-    const anvil2Config = { anvil2: { ...warpConfig.anvil1, gas: 777 } };
+    const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
     writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
   });
 
