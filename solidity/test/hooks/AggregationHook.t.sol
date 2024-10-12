@@ -72,6 +72,20 @@ contract AggregationHookTest is Test {
         hook.postDispatch{value: _msgValue}("", message);
     }
 
+    function testPostDispatch_preventsUsingContractFunds(uint8 _hooks) public {
+        vm.assume(_hooks > 0);
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
+        address[] memory hooksDeployed = deployHooks(_hooks, fee);
+
+        // aggregation hook has left over funds
+        uint256 additionalFunds = 1 ether;
+        vm.deal(address(hook), additionalFunds);
+
+        bytes memory message = abi.encodePacked("hello world");
+        vm.expectRevert(); // underflow
+        hook.postDispatch{value: 0}("", message);
+    }
+
     function testQuoteDispatch(uint8 _hooks) public {
         uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory hooksDeployed = deployHooks(_hooks, fee);

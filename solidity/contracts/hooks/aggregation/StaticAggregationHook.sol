@@ -32,12 +32,14 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
     ) internal override {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
+        uint256 gasRemaining = msg.value;
         for (uint256 i = 0; i < count; i++) {
             uint256 quote = IPostDispatchHook(_hooks[i]).quoteDispatch(
                 metadata,
                 message
             );
 
+            gasRemaining -= quote;
             IPostDispatchHook(_hooks[i]).postDispatch{value: quote}(
                 metadata,
                 message
