@@ -54,7 +54,6 @@ import {
   Address,
   ProtocolType,
   assert,
-  isObjEmpty,
   objFilter,
   objKeys,
   objMap,
@@ -474,7 +473,6 @@ async function extendWarpRoute(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
 ) {
-  logBlue('Extending Warp Route');
   const { multiProvider } = params.context;
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
@@ -489,7 +487,10 @@ async function extendWarpRoute(
     (chain, _config): _config is any => !warpCoreChains.includes(chain),
   );
 
-  if (isObjEmpty(extendedConfigs)) return [];
+  const extendedChains = Object.keys(extendedConfigs);
+  if (extendedChains.length === 0) return [];
+
+  logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
 
   extendedConfigs = await deriveMetadataFromExisting(
     multiProvider,
@@ -528,7 +529,6 @@ async function updateExistingWarpRoute(
 ) {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, registry } = params.context;
-  const addresses = await registry.getAddresses();
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
@@ -543,9 +543,8 @@ async function updateExistingWarpRoute(
         return logGray(
           `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
         );
-      config.ismFactoryAddresses = addresses[
-        chain
-      ] as ProxyFactoryFactoriesAddresses;
+      const addresses = await registry.getChainAddresses(chain);
+      config.ismFactoryAddresses = addresses as ProxyFactoryFactoriesAddresses;
       const evmERC20WarpModule = new EvmERC20WarpModule(
         multiProvider,
         {
