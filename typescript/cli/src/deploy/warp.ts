@@ -12,6 +12,7 @@ import {
   ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   ContractVerifier,
+  DestinationGas,
   EvmERC20WarpModule,
   EvmERC20WarpRouteReader,
   EvmIsmModule,
@@ -635,11 +636,17 @@ async function enrollRemoteRouters(
 ): Promise<AnnotatedEV5Transaction[]> {
   logBlue(`Enrolling deployed routers with each other...`);
   const { multiProvider } = params.context;
-  const deployedRouters: ChainMap<Address> = objMap(
+  const deployedRoutersAddresses: ChainMap<Address> = objMap(
     deployedContractsMap,
     (_, contracts) => getRouter(contracts).address,
   );
-  const deployedChains = Object.keys(deployedRouters);
+  const deployedDestinationGas: DestinationGas = await populateDestinationGas(
+    multiProvider,
+    params.warpDeployConfig,
+    deployedContractsMap,
+  );
+
+  const deployedChains = Object.keys(deployedRoutersAddresses);
   const transactions: AnnotatedEV5Transaction[] = [];
   await promiseObjAll(
     objMap(deployedContractsMap, async (chain, contracts) => {
@@ -664,11 +671,20 @@ async function enrollRemoteRouters(
           .filter((c) => deployedChains.includes(c));
 
         mutatedWarpRouteConfig.remoteRouters =
-          otherChains.reduce<RemoteRouters>((remoteRouters, chain) => {
-            remoteRouters[multiProvider.getDomainId(chain)] =
-              deployedRouters[chain];
+          otherChains.reduce<RemoteRouters>((remoteRouters, otherChain) => {
+            remoteRouters[multiProvider.getDomainId(otherChain)] =
+              deployedRoutersAddresses[otherChain];
             return remoteRouters;
           }, {});
+
+        mutatedWarpRouteConfig.destinationGas =
+          otherChains.reduce<DestinationGas>((destinationGas, otherChain) => {
+            const otherChainDomain = multiProvider.getDomainId(otherChain);
+            destinationGas[otherChainDomain] =
+              deployedDestinationGas[otherChainDomain];
+            return destinationGas;
+          }, {});
+
         const mutatedConfigTxs: AnnotatedEV5Transaction[] =
           await evmERC20WarpModule.update(mutatedWarpRouteConfig);
 
@@ -682,6 +698,38 @@ async function enrollRemoteRouters(
   );
 
   return transactions;
+}
+
+/**
+ * Populates the destination gas amounts for each chain using warpConfig.gas OR querying other router's destinationGas
+ */
+async function populateDestinationGas(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfig,
+  deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
+): Promise<DestinationGas> {
+  const destinationGas: DestinationGas = {};
+  const deployedChains = Object.keys(deployedContractsMap);
+  await promiseObjAll(
+    objMap(deployedContractsMap, async (chain, contracts) => {
+      await retryAsync(async () => {
+        const router = getRouter(contracts);
+
+        const otherChains = multiProvider
+          .getRemoteChains(chain)
+          .filter((c) => deployedChains.includes(c));
+
+        for (const otherChain of otherChains) {
+          const otherDomain = multiProvider.getDomainId(otherChain);
+          if (!destinationGas[otherDomain])
+            destinationGas[otherDomain] =
+              warpDeployConfig[otherChain].gas?.toString() ||
+              (await router.destinationGas(otherDomain)).toString();
+        }
+      });
+    }),
+  );
+  return destinationGas;
 }
 
 function getRouter(contracts: HyperlaneContracts<HypERC20Factories>) {
