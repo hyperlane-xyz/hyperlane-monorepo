@@ -14,6 +14,7 @@ const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 pub enum MessageRetryRequest {
     MessageId(H256),
     DestinationDomain(u32),
+    OriginDomain(u32),
 }
 
 impl PartialEq<QueueOperation> for &MessageRetryRequest {
@@ -22,6 +23,9 @@ impl PartialEq<QueueOperation> for &MessageRetryRequest {
             MessageRetryRequest::MessageId(message_id) => message_id == &other.id(),
             MessageRetryRequest::DestinationDomain(destination_domain) => {
                 destination_domain == &other.destination_domain().id()
+            }
+            MessageRetryRequest::OriginDomain(origin_domain) => {
+                origin_domain == &other.origin_domain_id()
             }
         }
     }
@@ -36,19 +40,27 @@ pub struct MessageRetryApi {
 struct RawMessageRetryRequest {
     message_id: Option<String>,
     destination_domain: Option<u32>,
+    origin_domain: Option<u32>,
 }
 
 impl TryFrom<RawMessageRetryRequest> for Vec<MessageRetryRequest> {
     type Error = ChainCommunicationError;
 
     fn try_from(request: RawMessageRetryRequest) -> Result<Self, Self::Error> {
-        let mut retry_requests = Vec::new();
-        if let Some(message_id) = request.message_id {
-            retry_requests.push(MessageRetryRequest::MessageId(H256::from_str(&message_id)?));
-        }
-        if let Some(destination_domain) = request.destination_domain {
-            retry_requests.push(MessageRetryRequest::DestinationDomain(destination_domain));
-        }
+        let retry_requests: Vec<MessageRetryRequest> = [
+            request.origin_domain.map(MessageRetryRequest::OriginDomain),
+            request
+                .message_id
+                .map(|id| H256::from_str(&id).map(MessageRetryRequest::MessageId))
+                .transpose()?,
+            request
+                .destination_domain
+                .map(MessageRetryRequest::DestinationDomain),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
         Ok(retry_requests)
     }
 }
@@ -67,7 +79,7 @@ async fn retry_message(
     };
 
     if retry_requests.is_empty() {
-        return "No retry requests found. Please provide either a message_id or destination_domain.".to_string();
+        return "No retry requests found. Please provide either a message_id, destination_domain or origin_domain".to_string();
     }
 
     if let Err(err) = retry_requests
@@ -165,6 +177,30 @@ mod tests {
         assert_eq!(
             rx.try_recv().unwrap(),
             MessageRetryRequest::DestinationDomain(destination_domain)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_origin_domain_retry() {
+        let (addr, mut rx) = setup_test_server();
+
+        // Create a random origin domain
+        let origin_domain = 42;
+
+        // Send a GET request to the server
+        let response = reqwest::get(format!(
+            "http://{}{}?origin_domain={}",
+            addr, MESSAGE_RETRY_API_BASE, origin_domain
+        ))
+        .await
+        .unwrap();
+
+        // Check that the response status code is OK
+        assert_eq!(response.status(), StatusCode::OK);
+
+        assert_eq!(
+            rx.try_recv().unwrap(),
+            MessageRetryRequest::OriginDomain(origin_domain)
         );
     }
 }
