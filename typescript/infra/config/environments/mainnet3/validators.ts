@@ -988,14 +988,14 @@ export const validatorChainConfig = (
         'polynomial',
       ),
     },
-    flowevm: {
+    flow: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('flowevm'),
+      reorgPeriod: getReorgPeriod('flow'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0xbf9308ea4b38c0ece24c983cea14b4f26a23e83a'],
+          [Contexts.Hyperlane]: ['0x3aee1090318e9c54d1d23194dcd0f2bee00ddc97'],
         },
-        'flowevm',
+        'flow',
       ),
     },
   };

@@ -24,7 +24,7 @@ export const mainnet3SupportedChainNames = [
   'ethereum',
   'everclear',
   'flare',
-  'flowevm',
+  'flow',
   'fraxtal',
   'fusemainnet',
   'gnosis',
