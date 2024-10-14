@@ -16,7 +16,7 @@ import {
 } from '../context/types.js';
 import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
-import { errorRed, log, logGray, logGreen } from '../logger.js';
+import { errorRed, log, logCommandHeader, logGreen } from '../logger.js';
 import {
   logYamlIfUnderMaxLines,
   readYamlOrJson,
@@ -47,6 +47,7 @@ export const coreCommand: CommandModule = {
       .demandCommand(),
   handler: () => log('Command required'),
 };
+
 export const apply: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
@@ -66,8 +67,7 @@ export const apply: CommandModuleWithWriteContext<{
     ),
   },
   handler: async ({ context, chain, config: configFilePath }) => {
-    logGray(`Hyperlane Core Apply`);
-    logGray('--------------------');
+    logCommandHeader(`Hyperlane Core Apply`);
 
     const addresses = (await context.registry.getChainAddresses(
       chain,
@@ -112,8 +112,7 @@ export const deploy: CommandModuleWithWriteContext<{
     'skip-confirmation': skipConfirmationOption,
   },
   handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-    logGray(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
-    logGray(`------------------------------------------------`);
+    logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
 
     try {
       await runCoreDeploy({
@@ -148,8 +147,7 @@ export const init: CommandModuleWithContext<{
     ),
   },
   handler: async ({ context, advanced, config: configFilePath }) => {
-    logGray('Hyperlane Core Configure');
-    logGray('------------------------');
+    logCommandHeader('Hyperlane Core Configure');
 
     await createCoreDeployConfig({
       context,
@@ -184,6 +182,8 @@ export const read: CommandModuleWithContext<{
     ),
   },
   handler: async ({ context, chain, mailbox, config: configFilePath }) => {
+    logCommandHeader('Hyperlane Core Read');
+
     if (!mailbox) {
       const addresses = await context.registry.getChainAddresses(chain);
       mailbox = addresses?.mailbox;
@@ -193,9 +193,6 @@ export const read: CommandModuleWithContext<{
         );
       }
     }
-
-    logGray('Hyperlane Core Read');
-    logGray('-------------------');
 
     const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
     try {
