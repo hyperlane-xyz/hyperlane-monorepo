@@ -128,7 +128,7 @@ export function objMerge<T = any>(
         Array.isArray(a[key]) &&
         Array.isArray(b[key])
       ) {
-        ret[key] = [...a[key], ...b[key]];
+        ret[key] = [...b[key], ...a[key]];
       } else if (b[key] !== undefined) {
         ret[key] = b[key];
       }
