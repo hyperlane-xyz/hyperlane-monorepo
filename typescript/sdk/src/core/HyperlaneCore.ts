@@ -153,6 +153,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       metadata,
       hook,
     );
+    const overrides = this.multiProvider.getTransactionOverrides(origin);
     const dispatchTx = await this.multiProvider.handleTx(
       origin,
       mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
@@ -161,7 +162,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         body,
         metadata || '0x',
         hook || ethers.constants.AddressZero,
-        { value: quote },
+        { ...overrides, value: quote },
       ),
     );
     return {
@@ -241,11 +242,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     ismMetadata: string,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
+    const txOverrides =
+      this.multiProvider.getTransactionOverrides(destinationChain);
     return this.multiProvider.handleTx(
       destinationChain,
       this.getContracts(destinationChain).mailbox.process(
         ismMetadata,
         message.message,
+        { ...txOverrides },
       ),
     );
   }
