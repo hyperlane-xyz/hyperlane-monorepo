@@ -63,7 +63,7 @@ impl<'a> CosmosAccountId<'a> {
 }
 
 impl TryFrom<&CosmosAccountId<'_>> for H256 {
-    type Error = ChainCommunicationError;
+    type Error = HyperlaneCosmosError;
 
     /// Builds a H256 digest from a cosmos AccountId (Bech32 encoding)
     fn try_from(account_id: &CosmosAccountId) -> Result<Self, Self::Error> {
@@ -71,7 +71,8 @@ impl TryFrom<&CosmosAccountId<'_>> for H256 {
         let h256_len = H256::len_bytes();
         let Some(start_point) = h256_len.checked_sub(bytes.len()) else {
             // input is too large to fit in a H256
-            return Err(Overflow.into());
+            let msg = "account address is too large to fit it a H256";
+            return Err(HyperlaneCosmosError::AddressError(msg.to_owned()));
         };
         let mut empty_hash = H256::default();
         let result = empty_hash.as_bytes_mut();
@@ -81,7 +82,7 @@ impl TryFrom<&CosmosAccountId<'_>> for H256 {
 }
 
 impl TryFrom<CosmosAccountId<'_>> for H256 {
-    type Error = ChainCommunicationError;
+    type Error = HyperlaneCosmosError;
 
     /// Builds a H256 digest from a cosmos AccountId (Bech32 encoding)
     fn try_from(account_id: CosmosAccountId) -> Result<Self, Self::Error> {
