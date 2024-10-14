@@ -116,23 +116,22 @@ export function objMerge<T = any>(
     throw new Error('objMerge tried to go too deep');
   }
   if (!isObject(a) || !isObject(b)) {
-    return (b ? b : a) as T;
+    return (b ?? a) as T;
   }
-  const ret: Record<string, any> = {};
-  const aKeys = new Set(Object.keys(a));
-  const bKeys = new Set(Object.keys(b));
-  const allKeys = new Set([...aKeys, ...bKeys]);
-  for (const key of allKeys.values()) {
-    if (aKeys.has(key) && bKeys.has(key)) {
-      if (mergeArrays && Array.isArray(a[key]) && Array.isArray(b[key])) {
-        ret[key] = [...b[key], ...a[key]];
-      } else {
+  const ret: Record<string, any> = { ...a };
+  for (const key in b) {
+    if (Object.prototype.hasOwnProperty.call(b, key)) {
+      if (isObject(a[key]) && isObject(b[key])) {
         ret[key] = objMerge(a[key], b[key], max_depth - 1, mergeArrays);
+      } else if (
+        mergeArrays &&
+        Array.isArray(a[key]) &&
+        Array.isArray(b[key])
+      ) {
+        ret[key] = [...a[key], ...b[key]];
+      } else if (b[key] !== undefined) {
+        ret[key] = b[key];
       }
-    } else if (aKeys.has(key)) {
-      ret[key] = a[key];
-    } else {
-      ret[key] = b[key];
     }
   }
   return ret as T;
