@@ -92,6 +92,9 @@
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
+  "flow": {
+    "validators": ["0x3aee1090318e9c54d1d23194dcd0f2bee00ddc97"]
+  },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
   },
@@ -146,6 +149,9 @@
   "merlin": {
     "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
   },
+  "metall2": {
+    "validators": ["0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09"]
+  },
   "metis": {
     "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
   },
@@ -198,6 +204,9 @@
       "0xc84076030bdabaabb9e61161d833dd84b700afda",
       "0x6a1da2e0b7ae26aaece1377c0a4dbe25b85fa3ca"
     ]
+  },
+  "polynomial": {
+    "validators": ["0xa63ad0891e921ad5947d57e05831fabb9816eca7"]
   },
   "proofofplay": {
     "validators": ["0xcda40baa71970a06e5f55e306474de5ca4e21c3b"]
