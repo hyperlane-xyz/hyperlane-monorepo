@@ -37,7 +37,7 @@ module.exports = {
     currency: 'USD',
   },
   typechain: {
-    outDir: './src/zksync/types',
+    outDir: './core-utils/zksync/types',
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
     node16Modules: true,
