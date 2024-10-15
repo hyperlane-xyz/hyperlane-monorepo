@@ -23,11 +23,7 @@ import {
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import {
-  DefaultFallbackRoutingIsm__artifact,
-  StorageMerkleRootMultisigIsm__artifact,
-  StorageMessageIdMultisigIsm__artifact,
-} from '@hyperlane-xyz/core/artifacts';
+import { ZkSyncArtifact } from '@hyperlane-xyz/core/artifacts';
 import {
   Address,
   Domain,
@@ -48,7 +44,7 @@ import {
 } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
-import { ZkSyncArtifact } from '../utils/zksync.js';
+import { getZKArtifactByContractName } from '../utils/zksync.js';
 
 import {
   AggregationIsmConfig,
@@ -244,7 +240,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       factory:
         | StorageMerkleRootMultisigIsm__factory
         | StorageMessageIdMultisigIsm__factory,
-      artifact: ZkSyncArtifact,
+      artifact: ZkSyncArtifact | undefined,
     ) => {
       const contract = await this.multiProvider.handleDeploy(
         destination,
@@ -271,13 +267,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         address = await deployStorage(
           new StorageMerkleRootMultisigIsm__factory(),
-          StorageMerkleRootMultisigIsm__artifact,
+          await getZKArtifactByContractName('StorageMerkleRootMultisigIsm'),
         );
         break;
       case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
         address = await deployStorage(
           new StorageMessageIdMultisigIsm__factory(),
-          StorageMessageIdMultisigIsm__artifact,
+          await getZKArtifactByContractName('StorageMessageIdMultisigIsm'),
         );
         break;
       default:
@@ -430,7 +426,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           new DefaultFallbackRoutingIsm__factory(),
           [mailbox],
-          DefaultFallbackRoutingIsm__artifact,
+          await getZKArtifactByContractName('DefaultFallbackRoutingIsm'),
         );
         // TODO: Should verify contract here
         logger.debug('Initialising fallback routing ISM ...');

@@ -1,9 +1,9 @@
 import { ethers, utils } from 'ethers';
 
+import { ZkSyncArtifact } from '@hyperlane-xyz/core/artifacts';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { ChainMap, ChainName } from '../../types.js';
-import { ZkSyncArtifact } from '../../utils/zksync.js';
 
 import { ContractVerificationInput } from './types.js';
 

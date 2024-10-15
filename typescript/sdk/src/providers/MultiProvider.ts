@@ -10,6 +10,7 @@ import {
 import { Logger } from 'pino';
 import * as zk from 'zksync-ethers';
 
+import { ZkSyncArtifact } from '@hyperlane-xyz/core/artifacts';
 import {
   Address,
   ProtocolType,
@@ -22,7 +23,6 @@ import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
-import { ZkSyncArtifact } from '../utils/zksync.js';
 import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';

@@ -21,7 +21,6 @@ import {
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { DefaultFallbackRoutingIsm__artifact } from '@hyperlane-xyz/core/artifacts';
 import {
   Address,
   Domain,
@@ -51,6 +50,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
+import { getZKArtifactByContractName } from '../utils/zksync.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { IsmConfigSchema } from './schemas.js';
@@ -542,7 +542,7 @@ export class EvmIsmModule extends HyperlaneModule<
         this.chain,
         new DefaultFallbackRoutingIsm__factory(),
         [this.args.addresses.mailbox],
-        DefaultFallbackRoutingIsm__artifact,
+        await getZKArtifactByContractName('DefaultFallbackRoutingIsm'),
       );
 
       // initialize the fallback routing ISM

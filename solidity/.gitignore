@@ -1,6 +1,6 @@
 node_modules/
 cache/
-artifacts/
+.artifacts/
 types/
 dist/
 coverage/
@@ -20,6 +20,8 @@ fixtures/
 # zksync artifacts
 artifacts-zk
 cache-zk
+
+core-utils/zksync/artifacts/output
 
 .zksolc-libraries-cache/
 typechain-types/

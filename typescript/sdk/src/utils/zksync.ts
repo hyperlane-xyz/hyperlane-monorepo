@@ -1,16 +1,14 @@
-import { zksyncArtifacts } from '@hyperlane-xyz/core/artifacts';
+import {
+  ZkSyncArtifact,
+  loadAllZkArtifacts,
+} from '@hyperlane-xyz/core/artifacts';
 
-export interface ZkSyncArtifact {
-  contractName: string;
-  sourceName: string;
-  abi: any;
-  bytecode: string;
-  deployedBytecode: string;
-  factoryDeps?: Record<string, string>;
-}
+export const getZKArtifactByContractName = async (
+  name: string,
+): Promise<ZkSyncArtifact | undefined> => {
+  const allArtifacts = await loadAllZkArtifacts();
 
-export const getArtifactByContractName = (name: string): ZkSyncArtifact => {
-  const artifact = (zksyncArtifacts as ZkSyncArtifact[]).find(
+  const artifact = (Object.values(allArtifacts) as ZkSyncArtifact[]).find(
     ({ contractName, sourceName }) => {
       if (contractName.toLowerCase() === name.toLowerCase()) {
         return true;

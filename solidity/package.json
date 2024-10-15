@@ -44,16 +44,16 @@
   },
   "type": "module",
   "exports": {
-    ".": "./dist/index.js",
-    "./mailbox": "./dist/contracts/Mailbox.js",
-    "./buildArtifact.js": "./dist/buildArtifact.js",
+    ".": "./dist/evm/types/index.js",
+    "./mailbox": "./dist/evm/types/contracts/Mailbox.js",
+    "./buildArtifact.js": "./dist/evm/buildArtifact.js",
     "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
-    "./buildArtifact.json": "./dist/buildArtifact.json",
+    "./buildArtifact.json": "./dist/evm/buildArtifact.json",
     "./contracts": "./contracts",
     "./artifacts": "./dist/zksync/artifacts/index.js",
     "./artifacts/*": "./dist/zksync/artifacts/*.js"
   },
-  "types": "./dist/index.d.ts",
+  "types": "./dist/evm/types/index.d.ts",
   "files": [
     "/dist",
     "/contracts",

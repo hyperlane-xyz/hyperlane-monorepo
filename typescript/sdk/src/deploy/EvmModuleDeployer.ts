@@ -17,7 +17,7 @@ import {
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
-import { getArtifactByContractName } from '../utils/zksync.js';
+import { getZKArtifactByContractName } from '../utils/zksync.js';
 
 import { isProxy, proxyConstructorArgs } from './proxy.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
@@ -72,7 +72,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       )})...`,
     );
 
-    const artifact = getArtifactByContractName(contractName);
+    const artifact = await getZKArtifactByContractName(contractName);
 
     if (!artifact) {
       throw new Error(`No ZKSync artifact found for contract: ${contractName}`);

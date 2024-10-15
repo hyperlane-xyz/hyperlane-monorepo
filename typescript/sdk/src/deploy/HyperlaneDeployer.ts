@@ -11,7 +11,6 @@ import {
   TimelockController__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { TimelockController__artifact } from '@hyperlane-xyz/core/artifacts';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
@@ -37,7 +36,7 @@ import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
-import { getArtifactByContractName } from '../utils/zksync.js';
+import { getZKArtifactByContractName } from '../utils/zksync.js';
 
 import {
   UpgradeConfig,
@@ -422,7 +421,7 @@ export abstract class HyperlaneDeployer<
     const { protocol } = this.multiProvider.getChainMetadata(chain);
     const isZKSyncChain = protocol === ProtocolType.ZKSync;
     const signer = this.multiProvider.getSigner(chain);
-    const artifact = getArtifactByContractName(contractName);
+    const artifact = await getZKArtifactByContractName(contractName);
 
     const contract = await this.multiProvider.handleDeploy(
       chain,
@@ -468,6 +467,10 @@ export abstract class HyperlaneDeployer<
 
     let verificationInput: ContractVerificationInput;
     if (isZKSyncChain) {
+      if (!artifact) {
+        // TODO: ARTIFACT NOT FOUND ERROR
+        throw Error('Artifact not found');
+      }
       verificationInput = await getContractVerificationInputForZKSync({
         name: contractName,
         contract,
@@ -662,6 +665,10 @@ export abstract class HyperlaneDeployer<
     chain: ChainName,
     timelockConfig: UpgradeConfig['timelock'],
   ): Promise<TimelockController> {
+    const TimelockZkArtifact = await getZKArtifactByContractName(
+      'TimelockController',
+    );
+
     return this.multiProvider.handleDeploy(
       chain,
       new TimelockController__factory(),
@@ -672,7 +679,7 @@ export abstract class HyperlaneDeployer<
         [timelockConfig.roles.executor],
         ethers.constants.AddressZero,
       ],
-      TimelockController__artifact,
+      TimelockZkArtifact,
     );
   }
 

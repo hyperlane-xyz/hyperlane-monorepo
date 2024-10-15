@@ -1,9 +1,10 @@
 import * as ethers from 'ethers';
 import * as zk from 'zksync-ethers';
 
-import { zksyncArtifacts } from '@hyperlane-xyz/core/artifacts';
-
-import { ZkSyncArtifact } from '../utils/zksync.js';
+import {
+  ZkSyncArtifact,
+  loadAllZkArtifacts,
+} from '@hyperlane-xyz/core/artifacts';
 
 /**
  * An entity capable of deploying contracts to the zkSync network.
@@ -24,8 +25,9 @@ export class ZKDeployer {
     this.zkWallet = zkWallet.connect(l2Provider);
   }
 
-  public loadArtifact(contractTitle: string): Promise<any> {
-    const artifact = (zksyncArtifacts as ZkSyncArtifact[]).find(
+  public async loadArtifact(contractTitle: string): Promise<any> {
+    const zksyncArtifacts = await loadAllZkArtifacts();
+    const artifact = (Object.values(zksyncArtifacts) as ZkSyncArtifact[]).find(
       ({ contractName, sourceName }) => {
         if (contractName === contractTitle) {
           return true;
@@ -45,14 +47,6 @@ export class ZKDeployer {
         `No ZKSync artifact for contract ${contractTitle} found!`,
       );
     }
-
-    return artifact as any;
-  }
-
-  public static loadArtifactByBytecode(bytecodeExt: string): Promise<any> {
-    const artifact = (zksyncArtifacts as ZkSyncArtifact[]).find(
-      ({ bytecode }) => bytecode === bytecodeExt,
-    );
 
     return artifact as any;
   }
