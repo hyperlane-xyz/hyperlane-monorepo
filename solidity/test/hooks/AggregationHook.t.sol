@@ -72,10 +72,25 @@ contract AggregationHookTest is Test {
         hook.postDispatch{value: _msgValue}("", message);
     }
 
-    function testPostDispatch_preventsUsingContractFunds(uint8 _hooks) public {
-        vm.assume(_hooks > 0);
+    function test_postDispatch_refundsExcess(uint8 _hooks) public {
         uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory hooksDeployed = deployHooks(_hooks, fee);
+        uint256 requiredValue = hooksDeployed.length * fee;
+        uint256 overpaidValue = requiredValue + 1000;
+
+        vm.prank(address(this));
+
+        uint256 initialBalance = address(this).balance;
+
+        bytes memory message = abi.encodePacked("hello world");
+        hook.postDispatch{value: overpaidValue}("", message);
+
+        assertEq(address(hook).balance, 0);
+        assertEq(address(this).balance, initialBalance - requiredValue);
+    }
+
+    function testPostDispatch_preventsUsingContractFunds(uint8 _hooks) public {
+        vm.assume(_hooks > 0);
 
         // aggregation hook has left over funds
         uint256 additionalFunds = 1 ether;
@@ -108,4 +123,6 @@ contract AggregationHookTest is Test {
         deployHooks(1, 0);
         assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.AGGREGATION));
     }
+
+    receive() external payable {}
 }
