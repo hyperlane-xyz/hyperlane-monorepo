@@ -12,6 +12,7 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
+  addBufferToGasLimit,
   addressToBytes32,
   bytes32ToAddress,
   isZeroishAddress,
@@ -153,18 +154,31 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       metadata,
       hook,
     );
-    const overrides = this.multiProvider.getTransactionOverrides(origin);
+
+    const dispatchParams = [
+      destinationDomain,
+      recipientBytes32,
+      body,
+      metadata || '0x',
+      hook || ethers.constants.AddressZero,
+    ] as const;
+
+    const estimateGas = await mailbox.estimateGas[
+      'dispatch(uint32,bytes32,bytes,bytes,address)'
+    ](...dispatchParams, { value: quote });
+
     const dispatchTx = await this.multiProvider.handleTx(
       origin,
       mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
-        destinationDomain,
-        recipientBytes32,
-        body,
-        metadata || '0x',
-        hook || ethers.constants.AddressZero,
-        { ...overrides, value: quote },
+        ...dispatchParams,
+        {
+          ...this.multiProvider.getTransactionOverrides(origin),
+          value: quote,
+          gasLimit: addBufferToGasLimit(estimateGas),
+        },
       ),
     );
+
     return {
       dispatchTx,
       message: this.getDispatchedMessages(dispatchTx)[0],
