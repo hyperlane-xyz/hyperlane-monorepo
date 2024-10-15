@@ -484,13 +484,13 @@
       "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
       "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": 3000000000
-      },
       "validatorAnnounce": "0x7024078130D9c2100fEA474DAD009C2d1703aCcd",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x6f72BF0018a93689D9CD6BF59C7AAeA66F578Fc1",
       "staticMessageIdWeightedMultisigIsmFactory": "0x058C7458193f1b28e2bF7547E3f7a6A719Fc0f59",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "transactionOverrides": {
+        "gasPrice": 3000000000
+      }
     },
     "celo": {
       "aggregationHook": "0xc65890329066FB20c339Bc5C22f1756e9D3a4fF5",
@@ -887,7 +887,7 @@
         }
       ],
       "blocks": {
-        "confirmations": 3,
+        "confirmations": 2,
         "estimateBlockTime": 13,
         "reorgPeriod": 15
       },
@@ -940,10 +940,6 @@
       "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
       "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "maxFeePerGas": 150000000000,
-        "maxPriorityFeePerGas": 5000000000
-      },
       "validatorAnnounce": "0xCe74905e51497b4adD3639366708b821dcBcff96",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xA2502bF73e5313c1bf48E47C887cdcbf2640FA41",
       "staticMessageIdWeightedMultisigIsmFactory": "0x4272124Fba59CbA076D85375895f94B6a3485c3E",
@@ -2025,14 +2021,14 @@
       "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
       "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "maxFeePerGas": 350000000000,
-        "maxPriorityFeePerGas": 50000000000
-      },
       "validatorAnnounce": "0x8c1001eBee6F25b31863A55EadfF149aF88B356F",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x13B09a1d80e93E03221e1F393B588C28a5dE9B69",
       "staticMessageIdWeightedMultisigIsmFactory": "0x1E14479A04786900F32c916c11eE1EEf81B5a6bA",
-      "technicalStack": "polkadotsubstrate"
+      "technicalStack": "polkadotsubstrate",
+      "transactionOverrides": {
+        "maxFeePerGas": 350000000000,
+        "maxPriorityFeePerGas": 50000000000
+      }
     },
     "neutron": {
       "bech32Prefix": "neutron",
@@ -2308,14 +2304,14 @@
       "testRecipient": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
       "testTokenRecipient": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "maxFeePerGas": 550000000000,
-        "maxPriorityFeePerGas": 50000000000
-      },
       "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x07CE1B0cFfa436AE2fb7Fbd7318648774FdA53f9",
       "staticMessageIdWeightedMultisigIsmFactory": "0x9e22945bE593946618383B108CC5bce09eBA4C26",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "transactionOverrides": {
+        "maxFeePerGas": 800000000000,
+        "maxPriorityFeePerGas": 50000000000
+      }
     },
     "polygonzkevm": {
       "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
@@ -2381,13 +2377,13 @@
       "storageGasOracle": "0x19dc38aeae620380430C200a6E990D5Af5480117",
       "testRecipient": "0xD127D4549cb4A5B2781303a4fE99a10EAd13263A",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": 1000000000
-      },
       "validatorAnnounce": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xc24f3ba8619Fe9db9b95fB616D6945779669e591",
       "staticMessageIdWeightedMultisigIsmFactory": "0x882Ad0CcB25CDf928e2a9C899F23eC033C4113f7",
-      "technicalStack": "polygoncdk"
+      "technicalStack": "polygoncdk",
+      "transactionOverrides": {
+        "gasPrice": 1000000000
+      }
     },
     "proofofplay": {
       "aggregationHook": "0xF6C1769d5390Be0f77080eF7791fBbA7eF4D5659",
@@ -2707,9 +2703,6 @@
       "storageGasOracle": "0x481171eb1aad17eDE6a56005B7F1aB00C581ef13",
       "testRecipient": "0x674f4698d063cE4C0d604c88dD7D542De72f327f",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": 2000000000
-      },
       "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xcb0D04010584AA5244b5826c990eeA4c16BeAC8C",
       "staticMessageIdWeightedMultisigIsmFactory": "0x609707355a53d2aAb6366f48E2b607C599D26B29",
@@ -2775,13 +2768,13 @@
       "storageGasOracle": "0x26f32245fCF5Ad53159E875d5Cae62aEcf19c2d4",
       "testRecipient": "0xdB670e1a1e312BF17425b08cE55Bdf2cD8F8eD54",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": 101000000000
-      },
       "validatorAnnounce": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xDf347f7602fFF536337c0B90cEC19CD6998427C4",
       "staticMessageIdWeightedMultisigIsmFactory": "0x816CF11aDFF6De498823F739eAfe350E82ee845D",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "transactionOverrides": {
+        "gasPrice": 101000000000
+      }
     },
     "solanamainnet": {
       "blockExplorers": [
@@ -4235,11 +4228,10 @@
       "index": {
         "from": 17051552
       },
+      "technicalStack": "other",
       "transactionOverrides": {
-        "maxPriorityFeePerGas": 1000000000,
-        "maxFeePerGas": 100000000000000
-      },
-      "technicalStack": "other"
+        "maxPriorityFeePerGas": 1000000000
+      }
     },
     "immutablezkevm": {
       "blockExplorers": [
@@ -4306,11 +4298,11 @@
       "index": {
         "from": 12797545
       },
+      "technicalStack": "other",
       "transactionOverrides": {
-        "maxPriorityFeePerGas": 100000000000,
-        "maxFeePerGas": 100000000000
-      },
-      "technicalStack": "other"
+        "maxFeePerGas": 100000000000,
+        "maxPriorityFeePerGas": 100000000000
+      }
     },
     "lumia": {
       "blockExplorers": [
@@ -4483,10 +4475,6 @@
           "http": "https://mycrypto.rsk.co"
         }
       ],
-      "transactionOverrides": {
-        "gasPrice": 70000000,
-        "gasLimit": 6800000
-      },
       "aggregationHook": "0xA530b21B2c1517ceFcAAE890c7f8A167e4C0f51E",
       "domainRoutingIsm": "0xBD70Ea9D599a0FC8158B026797177773C3445730",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -4515,7 +4503,10 @@
       "index": {
         "from": 6749741
       },
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "transactionOverrides": {
+        "gasPrice": 70000000
+      }
     },
     "superposition": {
       "blockExplorers": [
@@ -4745,9 +4736,6 @@
           "http": "https://mainnet.evm.nodes.onflow.org"
         }
       ],
-      "transactionOverrides": {
-        "gasPrice": 100000000
-      },
       "aggregationHook": "0x24A681D6B1B7Fb6208938be982Efd512E842867a",
       "domainRoutingIsm": "0x85804e2ae21273F6539CFa1A688FE6154004D4dF",
       "domainRoutingIsmFactory": "0x8C3e1794018a589c9E9226b8543105fCb6cC88C4",
@@ -4776,7 +4764,10 @@
       "index": {
         "from": 4240431
       },
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "transactionOverrides": {
+        "gasPrice": 100000000
+      }
     }
   },
   "defaultRpcConsensusType": "fallback"
