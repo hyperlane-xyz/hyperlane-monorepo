@@ -37,13 +37,12 @@ export class ContractVerifier {
 
     const compilerversion = `v${buildArtifact.solcLongVersion}`;
 
-    // TODO: make it compatible with ZKSync compiler
     // double check compiler version matches expected format
-    // const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
-    // const matches = versionRegex.exec(compilerversion);
-    // if (!matches) {
-    //   throw new Error(`Invalid compiler version ${compilerversion}`);
-    // }
+    const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
+    const matches = versionRegex.exec(compilerversion);
+    if (!matches) {
+      throw new Error(`Invalid compiler version ${compilerversion}`);
+    }
 
     // set compiler options
     // only license type is configurable, empty if not provided
