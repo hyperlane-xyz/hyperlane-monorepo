@@ -1,9 +1,13 @@
+import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
+  CoreConfig,
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
+  normalizeConfig,
 } from '@hyperlane-xyz/sdk';
+import { diffObjMerge } from '@hyperlane-xyz/utils';
 
 import {
   createCoreDeployConfig,
@@ -22,12 +26,14 @@ import {
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { formatYamlViolationsOutput } from '../utils/output.js';
 
 import {
   DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
   chainCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
   skipConfirmationOption,
 } from './options.js';
@@ -41,6 +47,7 @@ export const coreCommand: CommandModule = {
   builder: (yargs) =>
     yargs
       .command(apply)
+      .command(check)
       .command(deploy)
       .command(init)
       .command(read)
@@ -185,11 +192,61 @@ export const read: CommandModuleWithContext<{
   handler: async ({ context, chain, mailbox, config: configFilePath }) => {
     logCommandHeader('Hyperlane Core Read');
 
-    const coreConfig = executeCoreRead({ context, chain, mailbox });
+    const coreConfig = await executeCoreRead({ context, chain, mailbox });
 
     writeYamlOrJson(configFilePath, coreConfig, 'yaml');
     logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);
     logYamlIfUnderMaxLines(coreConfig);
+
+    process.exit(0);
+  },
+};
+
+export const check: CommandModuleWithContext<{
+  chain: string;
+  config: string;
+  mailbox?: string;
+}> = {
+  command: 'check',
+  describe:
+    'Reads onchain Core configuration for a given mailbox address and compares it with a provided file',
+  builder: {
+    chain: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    mailbox: {
+      type: 'string',
+      description:
+        'Mailbox address used to derive the core config. If not provided it will be inferred from the registry',
+    },
+    config: inputFileCommandOption({
+      defaultPath: DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
+      description: 'The path to a a Core Config JSON or YAML file.',
+      demandOption: false,
+    }),
+  },
+  handler: async ({ context, chain, mailbox, config: configFilePath }) => {
+    logCommandHeader('Hyperlane Core Check');
+
+    const expectedCoreConfig: CoreConfig = await readYamlOrJson(configFilePath);
+    const onChainCoreConfig = await executeCoreRead({
+      context,
+      chain,
+      mailbox,
+    });
+
+    const { mergedObject, isInvalid } = diffObjMerge(
+      normalizeConfig(onChainCoreConfig),
+      normalizeConfig(expectedCoreConfig),
+    );
+
+    if (isInvalid) {
+      log(formatYamlViolationsOutput(yamlStringify(mergedObject, null, 2)));
+      process.exit(1);
+    }
+
+    logGreen(`No violations found`);
 
     process.exit(0);
   },
