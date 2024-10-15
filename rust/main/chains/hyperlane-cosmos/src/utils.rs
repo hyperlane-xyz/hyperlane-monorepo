@@ -31,13 +31,18 @@ pub(crate) async fn get_block_height_for_lag(
     provider: &WasmGrpcProvider,
     lag: &ReorgPeriod,
 ) -> ChainResult<Option<u64>> {
-    let block_height = if !lag.is_none() {
-        let lag = lag.as_blocks()?;
-        let tip = provider.latest_block_height().await?;
-        let block_height = tip - lag as u64;
-        Some(block_height)
-    } else {
-        None
+    let block_height = match lag {
+        ReorgPeriod::Blocks(blocks) => {
+            let tip = provider.latest_block_height().await?;
+            let block_height = tip - blocks.get() as u64;
+            Some(block_height)
+        }
+        ReorgPeriod::None => None,
+        ReorgPeriod::Tag(_) => {
+            return Err(ChainCommunicationError::CustomError(
+                "Cosmos does not support reorg period as a tag".into(),
+            ))
+        }
     };
 
     Ok(block_height)
