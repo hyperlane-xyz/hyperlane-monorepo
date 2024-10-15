@@ -180,7 +180,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    // We normalize the addresses for comparison
     assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
     assert(expectedConfig.destinationGas, 'actualDestinationGas is undefined');
 

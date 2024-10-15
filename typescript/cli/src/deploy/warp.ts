@@ -893,7 +893,6 @@ async function submitWarpApplyTransactions(
               context: params.context,
               strategyUrl: params.strategyUrl,
             });
-          console.log(`trying to submit for ${chainId}`);
           const transactionReceipts = await submitter.submit(...transactions);
           if (transactionReceipts) {
             const receiptPath = `${params.receiptsDir}/${chain}-${
@@ -910,8 +909,8 @@ async function submitWarpApplyTransactions(
             indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 0),
           );
         },
-        5,
-        100,
+        5, // attempts
+        100, // baseRetryMs
       );
     }),
   );
