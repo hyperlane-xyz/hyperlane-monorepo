@@ -289,7 +289,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let reorg_period = self.reorg_period.as_number().context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMailboxDispatchIndexer::new(
                     conf.clone(),
                     locator,
@@ -329,7 +329,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let reorg_period = self.reorg_period.as_number().context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMailboxDeliveryIndexer::new(
                     conf.clone(),
                     locator,
@@ -412,7 +412,7 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
-                let reorg_period = self.reorg_period.as_number().context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
                     conf.clone(),
                     locator,
@@ -455,7 +455,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
-                let reorg_period = self.reorg_period.as_number().context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
                     conf.clone(),
                     locator,

@@ -209,7 +209,7 @@ mod test {
             .unwrap();
             let dummy_checkpoint_index = 56;
             let unix_timestamp = 1620000000;
-            let reorg_period = ReorgPeriod::from_number(5);
+            let reorg_period = ReorgPeriod::from_blocks(5);
             let dummy_reorg_event = ReorgEvent {
                 local_merkle_root: dummy_local_merkle_root,
                 canonical_merkle_root: dummy_canonical_merkle_root,

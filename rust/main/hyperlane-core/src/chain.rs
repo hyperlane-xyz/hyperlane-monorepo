@@ -51,13 +51,13 @@ pub enum ReorgPeriod {
 }
 
 impl ReorgPeriod {
-    pub fn from_number(number: u32) -> Self {
-        NonZeroU32::try_from(number)
+    pub fn from_blocks(blocks: u32) -> Self {
+        NonZeroU32::try_from(blocks)
             .map(ReorgPeriod::Blocks)
             .unwrap_or(ReorgPeriod::None)
     }
 
-    pub fn as_number(&self) -> Result<u32, Report> {
+    pub fn as_blocks(&self) -> Result<u32, Report> {
         match self {
             ReorgPeriod::None => Ok(0),
             ReorgPeriod::Blocks(blocks) => Ok(blocks.get()),
@@ -101,7 +101,7 @@ impl<'de> Deserialize<'de> for ReorgPeriod {
 
             fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
                 let v = v.try_into().map_err(de::Error::custom)?;
-                Ok(ReorgPeriod::from_number(v))
+                Ok(ReorgPeriod::from_blocks(v))
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {

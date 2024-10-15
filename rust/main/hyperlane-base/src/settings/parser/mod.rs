@@ -137,7 +137,7 @@ fn parse_chain(
         .get_opt_key("blocks")
         .get_key("reorgPeriod")
         .parse_value("Invalid reorgPeriod")
-        .unwrap_or(ReorgPeriod::from_number(1));
+        .unwrap_or(ReorgPeriod::from_blocks(1));
 
     let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err);
 

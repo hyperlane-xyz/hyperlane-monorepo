@@ -32,7 +32,7 @@ pub(crate) async fn get_block_height_for_lag(
     lag: &ReorgPeriod,
 ) -> ChainResult<Option<u64>> {
     let block_height = if !lag.is_none() {
-        let lag = lag.as_number()?;
+        let lag = lag.as_blocks()?;
         let tip = provider.latest_block_height().await?;
         let block_height = tip - lag as u64;
         Some(block_height)

@@ -617,7 +617,7 @@ mod test {
                     &expected_local_merkle_tree,
                     &mock_onchain_merkle_tree_clone,
                     unix_timestamp,
-                    ReorgPeriod::from_number(expected_reorg_period),
+                    ReorgPeriod::from_blocks(expected_reorg_period),
                 );
                 Ok(())
             });
@@ -625,7 +625,7 @@ mod test {
         // instantiate the validator submitter
         let validator_submitter = ValidatorSubmitter::new(
             Duration::from_secs(1),
-            ReorgPeriod::from_number(expected_reorg_period),
+            ReorgPeriod::from_blocks(expected_reorg_period),
             Arc::new(mock_merkle_tree_hook),
             dummy_singleton_handle(),
             Arc::new(mock_checkpoint_syncer),
