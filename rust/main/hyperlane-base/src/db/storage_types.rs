@@ -8,15 +8,18 @@ use hyperlane_core::{
 /// Subset of `InterchainGasPayment` excluding the message id which is stored in
 /// the key.
 #[derive(Debug, Copy, Clone)]
-pub(super) struct InterchainGasPaymentData {
+pub struct InterchainGasPaymentData {
+    /// The amount of tokens paid for the gas.
     pub payment: U256,
+    /// The amount of gas paid for.
     pub gas_amount: U256,
 }
 
 /// Subset of `InterchainGasExpenditure` excluding the message id which is
 /// stored in the key.
+#[allow(missing_docs)]
 #[derive(Debug, Copy, Clone)]
-pub(super) struct InterchainGasExpenditureData {
+pub struct InterchainGasExpenditureData {
     pub tokens_used: U256,
     pub gas_used: U256,
 }
@@ -31,6 +34,7 @@ impl Default for InterchainGasPaymentData {
 }
 
 impl InterchainGasPaymentData {
+    /// Complete the data with the message id and destination.
     pub fn complete(self, message_id: H256, destination: u32) -> InterchainGasPayment {
         InterchainGasPayment {
             message_id,
@@ -82,6 +86,7 @@ impl Default for InterchainGasExpenditureData {
 }
 
 impl InterchainGasExpenditureData {
+    /// Complete the data with the message id.
     pub fn complete(self, message_id: H256) -> InterchainGasExpenditure {
         InterchainGasExpenditure {
             message_id,

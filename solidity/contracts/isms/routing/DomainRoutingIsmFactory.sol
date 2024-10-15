@@ -6,8 +6,9 @@ import {DomainRoutingIsm} from "./DomainRoutingIsm.sol";
 import {DefaultFallbackRoutingIsm} from "./DefaultFallbackRoutingIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {MinimalProxy} from "../../libs/MinimalProxy.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
-abstract contract AbstractDomainRoutingIsmFactory {
+abstract contract AbstractDomainRoutingIsmFactory is PackageVersioned {
     /**
      * @notice Emitted when a routing module is deployed
      * @param module The deployed ISM
