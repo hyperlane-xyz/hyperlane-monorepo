@@ -16,15 +16,24 @@ import {
   ZKSyncCompilerOptions,
 } from './types.js';
 
+/**
+ * @title ZKSyncContractVerifier
+ * @notice Handles the verification of ZKSync contracts on block explorers
+ * @dev This class manages the process of verifying ZKSync contracts, including
+ * preparing verification data and submitting it to the appropriate explorer API
+ */
 export class ZKSyncContractVerifier {
   protected logger = rootLogger.child({ module: 'ZKSyncContractVerifier' });
 
   protected contractSourceMap: { [contractName: string]: string } = {};
 
   protected readonly standardInputJson: SolidityStandardJsonInput;
-  // ZK  CompilerOptions
   protected readonly compilerOptions: ZKSyncCompilerOptions;
 
+  /**
+   * @notice Creates a new ZKSyncContractVerifier instance
+   * @param multiProvider An instance of MultiProvider for interacting with multiple chains
+   */
   constructor(protected readonly multiProvider: MultiProvider) {
     this.standardInputJson = (buildArtifact as BuildArtifact).input;
 
@@ -34,8 +43,6 @@ export class ZKSyncContractVerifier {
     const compilerSolcVersion = (buildArtifact as BuildArtifact)
       .solcLongVersion;
 
-    // set compiler options
-    // only license type is configurable, empty if not provided
     this.compilerOptions = {
       codeFormat: 'solidity-standard-json-input',
       compilerSolcVersion,
@@ -44,8 +51,11 @@ export class ZKSyncContractVerifier {
     };
     this.createContractSourceMapFromBuildArtifacts();
   }
-  // process input to create mapping of contract names to source names
-  // this is required to construct the fully qualified contract name
+
+  /**
+   * @notice Creates a mapping of contract names to source names from build artifacts
+   * @dev This method processes the input to create a mapping required for constructing fully qualified contract names
+   */
   private async createContractSourceMapFromBuildArtifacts() {
     const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
     Object.entries((buildArtifact as BuildArtifact).input.sources).forEach(
@@ -61,6 +71,12 @@ export class ZKSyncContractVerifier {
     );
   }
 
+  /**
+   * @notice Verifies a contract on the specified chain
+   * @param chain The name of the chain where the contract is deployed
+   * @param input The contract verification input data
+   * @param verificationLogger A logger instance for verification-specific logging
+   */
   private async verify(
     chain: ChainName,
     input: ContractVerificationInput,
@@ -92,6 +108,12 @@ export class ZKSyncContractVerifier {
     }
   }
 
+  /**
+   * @notice Verifies a contract on the specified chain
+   * @param chain The name of the chain where the contract is deployed
+   * @param input The contract verification input data
+   * @param logger An optional logger instance (defaults to the class logger)
+   */
   public async verifyContract(
     chain: ChainName,
     input: ContractVerificationInput,
@@ -137,6 +159,13 @@ export class ZKSyncContractVerifier {
     await this.verify(chain, input, verificationLogger);
   }
 
+  /**
+   * @notice Submits the verification form to the explorer API
+   * @param chain The name of the chain where the contract is deployed
+   * @param verificationLogger A logger instance for verification-specific logging
+   * @param options Additional options for the API request
+   * @returns The response from the explorer API
+   */
   private async submitForm(
     chain: ChainName,
     verificationLogger: Logger,
@@ -185,6 +214,13 @@ export class ZKSyncContractVerifier {
     return responseJson;
   }
 
+  /**
+   * @notice Prepares the implementation data for contract verification
+   * @param chain The name of the chain where the contract is deployed
+   * @param input The contract verification input data
+   * @param verificationLogger A logger instance for verification-specific logging
+   * @returns The prepared implementation data
+   */
   private getImplementationData(
     chain: ChainName,
     input: ContractVerificationInput,
@@ -208,20 +244,18 @@ export class ZKSyncContractVerifier {
       sourceCode: filteredStandardInputJson,
       contractName: `${sourceName}:${input.name}`,
       contractAddress: input.address,
-      /* TYPO IS ENFORCED BY API */
       constructorArguments: `0x${input.constructorArguments || ''}`,
       ...this.compilerOptions,
     };
   }
 
   /**
-   * Filters the solidity standard input for a specific contract name.
-   *
-   * This is a BFS impl to traverse the source input dependency graph.
-   * 1. Named contract file is set as root node.
-   * 2. The next level is formed by the direct imports of the contract file.
-   * 3. Each subsequent level's dependencies form the next level, etc.
-   * 4. The queue tracks the next files to process, and ensures the dependency graph explorered level by level.
+   * @notice Filters the solidity standard input for a specific contract name
+   * @dev This is a BFS implementation to traverse the source input dependency graph
+   * @param contractName The name of the contract to filter for
+   * @param input The full solidity standard input
+   * @param verificationLogger A logger instance for verification-specific logging
+   * @returns The filtered solidity standard input
    */
   private filterStandardInputJsonByContractName(
     contractName: string,
@@ -263,12 +297,23 @@ export class ZKSyncContractVerifier {
     };
   }
 
+  /**
+   * @notice Extracts all import statements from a given content string
+   * @param content The content string to search for import statements
+   * @returns An array of import statements found in the content
+   */
   private getAllImportStatements(content: string) {
     const importRegex =
       /import\s+(?:(?:(?:"[^"]+"|'[^']+')\s*;)|(?:{[^}]+}\s+from\s+(?:"[^"]+"|'[^']+')\s*;)|(?:\s*(?:"[^"]+"|'[^']+')\s*;))/g;
     return content.match(importRegex) || [];
   }
 
+  /**
+   * @notice Resolves an import path relative to the current file
+   * @param currentFile The path of the current file
+   * @param importPath The import path to resolve
+   * @returns The resolved import path
+   */
   private resolveImportPath(currentFile: string, importPath: string): string {
     /* Use as-is for external dependencies and absolute imports */
     if (importPath.startsWith('@') || importPath.startsWith('http')) {
