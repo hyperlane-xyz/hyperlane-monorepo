@@ -330,6 +330,29 @@ impl CosmosProvider {
 
         amount_in_native_denom * coefficient
     }
+
+    fn calculate_gas_price(&self, hash: &H256, tx: &Tx) -> U256 {
+        // TODO support multiple denominations for amount
+        let supported = self.report_unsupported_denominations(tx, hash);
+        if supported.is_err() {
+            return U256::max_value();
+        }
+
+        let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
+        let fee = tx
+            .auth_info
+            .fee
+            .amount
+            .iter()
+            .map(|c| self.convert_fee(c))
+            .fold(U256::zero(), |acc, v| acc + v);
+
+        if fee < gas_limit {
+            warn!(tx_hash = ?hash, ?fee, ?gas_limit, "calculated fee is less than gas limit. it will result in zero gas price");
+        }
+
+        fee / gas_limit
+    }
 }
 
 impl HyperlaneChain for CosmosProvider {
@@ -395,26 +418,7 @@ impl HyperlaneProvider for CosmosProvider {
 
         let contract = Self::contract(&tx, hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
-
-        // TODO support multiple denominations for amount
-        self.report_unsupported_denominations(&tx, hash)?;
-
-        let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
-        let fee = tx
-            .auth_info
-            .fee
-            .amount
-            .iter()
-            .map(|c| self.convert_fee(c))
-            .fold(U256::zero(), |acc, v| acc + v);
-
-        let gas_price = fee / gas_limit;
-        let gas_price = if gas_price == U256::zero() {
-            warn!(?fee, ?gas_limit, "calculated zero gas price");
-            U256::one()
-        } else {
-            gas_price
-        };
+        let gas_price = self.calculate_gas_price(hash, &tx);
 
         let tx_info = TxnInfo {
             hash: hash.to_owned(),
