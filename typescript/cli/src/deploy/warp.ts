@@ -530,6 +530,7 @@ async function updateExistingWarpRoute(
 ) {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, registry } = params.context;
+  const addresses = await registry.getAddresses();
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
@@ -537,27 +538,33 @@ async function updateExistingWarpRoute(
     ExplorerLicenseType.MIT,
   );
   const transactions: AnnotatedEV5Transaction[] = [];
+
   await promiseObjAll(
     objMap(warpDeployConfig, async (chain, config) => {
-      const deployedConfig = warpCoreConfigByChain[chain];
-      if (!deployedConfig)
-        return logGray(
-          `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
-        );
-      const addresses = await registry.getChainAddresses(chain);
-      config.ismFactoryAddresses = addresses as ProxyFactoryFactoriesAddresses;
-      const evmERC20WarpModule = new EvmERC20WarpModule(
-        multiProvider,
-        {
-          config,
-          chain,
-          addresses: {
-            deployedTokenRoute: deployedConfig.addressOrDenom!,
+      await retryAsync(async () => {
+        logGray(`Update existing warp route for chain ${chain}`);
+        const deployedConfig = warpCoreConfigByChain[chain];
+        if (!deployedConfig)
+          return logGray(
+            `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
+          );
+
+        config.ismFactoryAddresses = addresses[
+          chain
+        ] as ProxyFactoryFactoriesAddresses;
+        const evmERC20WarpModule = new EvmERC20WarpModule(
+          multiProvider,
+          {
+            config,
+            chain,
+            addresses: {
+              deployedTokenRoute: deployedConfig.addressOrDenom!,
+            },
           },
-        },
-        contractVerifier,
-      );
-      transactions.push(...(await evmERC20WarpModule.update(config)));
+          contractVerifier,
+        );
+        transactions.push(...(await evmERC20WarpModule.update(config)));
+      });
     }),
   );
   return transactions;
@@ -877,28 +884,34 @@ async function submitWarpApplyTransactions(
   const { multiProvider } = params.context;
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
-      const chain = multiProvider.getChainName(chainId);
-      const submitter: TxSubmitterBuilder<ProtocolType> =
-        await getWarpApplySubmitter({
-          chain,
-          context: params.context,
-          strategyUrl: params.strategyUrl,
-        });
+      await retryAsync(
+        async () => {
+          const chain = multiProvider.getChainName(chainId);
+          const submitter: TxSubmitterBuilder<ProtocolType> =
+            await getWarpApplySubmitter({
+              chain,
+              context: params.context,
+              strategyUrl: params.strategyUrl,
+            });
+          console.log(`trying to submit for ${chainId}`);
+          const transactionReceipts = await submitter.submit(...transactions);
+          if (transactionReceipts) {
+            const receiptPath = `${params.receiptsDir}/${chain}-${
+              submitter.txSubmitterType
+            }-${Date.now()}-receipts.json`;
+            writeYamlOrJson(receiptPath, transactionReceipts);
+            logGreen(
+              `Transactions receipts successfully written to ${receiptPath}`,
+            );
+          }
 
-      const transactionReceipts = await submitter.submit(...transactions);
-      if (transactionReceipts) {
-        const receiptPath = `${params.receiptsDir}/${chain}-${
-          submitter.txSubmitterType
-        }-${Date.now()}-receipts.json`;
-        writeYamlOrJson(receiptPath, transactionReceipts);
-        logGreen(
-          `Transactions receipts successfully written to ${receiptPath}`,
-        );
-      }
-
-      logGreen(
-        `✅ Warp route update success with ${submitter.txSubmitterType} on ${chain}:\n\n`,
-        indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 0),
+          logGreen(
+            `✅ Warp route update success with ${submitter.txSubmitterType} on ${chain}:\n\n`,
+            indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 0),
+          );
+        },
+        5,
+        100,
       );
     }),
   );
