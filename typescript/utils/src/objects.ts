@@ -99,8 +99,11 @@ export function pick<K extends string, V = any>(obj: Record<K, V>, keys: K[]) {
 }
 
 /**
- *  Returns a new object that recursively merges b into a
- *  Where there are conflicts, b takes priority over a
+ *  Returns a new object that recursively merges B into A
+ *  Where there are conflicts, B takes priority over A
+ *  If B has a value for a key that A does not have, B's value is used
+ *  If B has a value for a key that A has, and both are objects, the merge recurses into those objects
+ *  If B has a value for a key that A has, and both are arrays, the merge concatenates them with B's values taking priority
  * @param a - The first object
  * @param b - The second object
  * @param max_depth - The maximum depth to recurse
@@ -112,28 +115,34 @@ export function objMerge<T = any>(
   max_depth = 10,
   mergeArrays = false,
 ): T {
+  // If we've reached the max depth, throw an error
   if (max_depth === 0) {
     throw new Error('objMerge tried to go too deep');
   }
+  // If either A or B is not an object, return the other value
   if (!isObject(a) || !isObject(b)) {
     return (b ?? a) as T;
   }
+  // Initialize returned object with values from A
   const ret: Record<string, any> = { ...a };
+  // Iterate over keys in B
   for (const key in b) {
-    if (Object.prototype.hasOwnProperty.call(b, key)) {
-      if (isObject(a[key]) && isObject(b[key])) {
-        ret[key] = objMerge(a[key], b[key], max_depth - 1, mergeArrays);
-      } else if (
-        mergeArrays &&
-        Array.isArray(a[key]) &&
-        Array.isArray(b[key])
-      ) {
-        ret[key] = [...b[key], ...a[key]];
-      } else if (b[key] !== undefined) {
-        ret[key] = b[key];
-      }
+    // If both A and B have the same key, recursively merge the values from B into A
+    if (isObject(a[key]) && isObject(b[key])) {
+      ret[key] = objMerge(a[key], b[key], max_depth - 1, mergeArrays);
+    }
+    // If A & B are both arrays, and we're merging them, concatenate them with B's values taking priority before A
+    else if (mergeArrays && Array.isArray(a[key]) && Array.isArray(b[key])) {
+      ret[key] = [...b[key], ...a[key]];
+    }
+    // If B has a value for the key, set the value to B's value
+    // This better handles the case where A has a value for the key, but B does not
+    // In which case we want to keep A's value
+    else if (b[key] !== undefined) {
+      ret[key] = b[key];
     }
   }
+  // Return the merged object
   return ret as T;
 }
 
