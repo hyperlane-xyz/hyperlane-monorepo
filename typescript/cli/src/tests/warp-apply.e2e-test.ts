@@ -294,7 +294,7 @@ describe('WarpApply e2e tests', async function () {
       COMBINED_WARP_CORE_CONFIG_PATH,
       warpConfigPath,
     );
-    console.log('updatedWarpDeployConfig_2', updatedWarpDeployConfig_2);
+
     const chain2Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
     const chain3Id = await getChainId(CHAIN_NAME_3, ANVIL_KEY);
 
@@ -310,7 +310,6 @@ describe('WarpApply e2e tests', async function () {
       COMBINED_WARP_CORE_CONFIG_PATH,
       warpConfigPath,
     );
-    console.log('updatedWarpDeployConfig_3', updatedWarpDeployConfig_3);
     const destinationGas_3 =
       updatedWarpDeployConfig_3[CHAIN_NAME_3].destinationGas!;
     expect(Object.keys(destinationGas_3)).to.include(chain2Id);
