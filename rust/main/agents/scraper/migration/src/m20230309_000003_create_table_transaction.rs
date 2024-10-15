@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut as _;
 
 use sea_orm_migration::prelude::*;
+use ColumnType::Uuid;
 
 use crate::l20230309_types::*;
 use crate::m20230309_000002_create_table_block::Block;
@@ -52,6 +53,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Transaction::Recipient, Address).borrow_mut())
                     .col(ColumnDef::new_with_type(Transaction::GasUsed, Wei).not_null())
                     .col(ColumnDef::new_with_type(Transaction::CumulativeGasUsed, Wei).not_null())
+                    .col(ColumnDef::new_with_type(Transaction::GasPriceUnit, Uuid).borrow_mut())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Transaction::BlockId)
@@ -128,4 +130,6 @@ pub enum Transaction {
     GasUsed,
     /// Cumulative gas used within the block after this was executed
     CumulativeGasUsed,
+    /// Cryptocurrency used to express gas price (unit of cryptocurrency)
+    GasPriceUnit,
 }
