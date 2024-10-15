@@ -30,10 +30,11 @@ impl OpQueue {
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
         if let Some(new_status) = new_status {
-            op.set_status(new_status);
+            op.set_status_and_update_metrics(
+                new_status,
+                Arc::new(self.get_operation_metric(op.as_ref())),
+            );
         }
-        // increment the metric before pushing onto the queue, because we lose ownership afterwards
-        self.get_operation_metric(op.as_ref()).inc();
 
         self.queue.lock().await.push(Reverse(op));
     }
@@ -52,9 +53,6 @@ impl OpQueue {
         let mut queue = self.queue.lock().await;
         let mut popped = vec![];
         while let Some(Reverse(op)) = queue.pop() {
-            // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
-            // in those cases, the queue length will look like it has spikes whose sizes are at most `limit`
-            self.get_operation_metric(op.as_ref()).dec();
             popped.push(op);
             if popped.len() >= limit {
                 break;
@@ -242,6 +240,12 @@ pub mod test {
         fn set_retries(&mut self, _retries: u32) {
             todo!()
         }
+
+        fn get_metric(&self) -> Option<Arc<IntGauge>> {
+            None
+        }
+
+        fn set_metric(&mut self, _metric: Arc<IntGauge>) {}
     }
 
     pub fn dummy_metrics_and_label() -> (IntGaugeVec, String) {

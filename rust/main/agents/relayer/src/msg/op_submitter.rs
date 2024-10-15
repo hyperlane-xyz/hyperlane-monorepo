@@ -341,7 +341,7 @@ async fn submit_task(
     }
 }
 
-#[instrument(skip(confirm_queue, metrics), ret, level = "debug")]
+#[instrument(skip(prepare_queue, confirm_queue, metrics), ret, level = "debug")]
 async fn submit_single_operation(
     mut op: QueueOperation,
     prepare_queue: &mut OpQueue,
@@ -457,6 +457,9 @@ async fn confirm_operation(
         PendingOperationResult::Success => {
             debug!(?op, "Operation confirmed");
             metrics.ops_confirmed.inc();
+            if let Some(metric) = op.get_metric() {
+                metric.dec()
+            }
         }
         PendingOperationResult::NotReady => {
             confirm_queue.push(op, None).await;
