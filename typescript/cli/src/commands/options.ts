@@ -94,6 +94,8 @@ export const hookCommandOption: Options = {
 export const DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH =
   './configs/warp-route-deployment.yaml';
 
+export const DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH = './configs/core-config.yaml';
+
 export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
