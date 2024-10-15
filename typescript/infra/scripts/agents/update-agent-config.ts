@@ -101,7 +101,7 @@ export async function writeAgentConfig(
             'Error:',
             err,
           );
-          return 0;
+          return undefined;
         }
       },
     ),
