@@ -15,8 +15,11 @@ use crate::error::HyperlaneSealevelError;
 pub struct SealevelRpcClient(RpcClient);
 
 impl SealevelRpcClient {
-    pub fn new(rpc_endpoint: String, commitment: CommitmentConfig) -> Self {
-        Self(RpcClient::new_with_commitment(rpc_endpoint, commitment))
+    pub fn new(rpc_endpoint: String) -> Self {
+        Self(RpcClient::new_with_commitment(
+            rpc_endpoint,
+            CommitmentConfig::processed(),
+        ))
     }
 
     pub async fn confirm_transaction_with_commitment(
