@@ -12,7 +12,7 @@ import {
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
-import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json';
+import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
 import {
   createSafeTransaction,
   createSafeTransactionData,
