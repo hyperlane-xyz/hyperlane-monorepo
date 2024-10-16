@@ -6,7 +6,7 @@ use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo,
     H256, U256,
 };
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
+use solana_sdk::pubkey::Pubkey;
 
 use crate::{error::HyperlaneSealevelError, ConnectionConf, SealevelRpcClient};
 
@@ -21,10 +21,7 @@ impl SealevelProvider {
     /// Create a new Sealevel provider.
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         // Set the `processed` commitment at rpc level
-        let rpc_client = Arc::new(SealevelRpcClient::new(
-            conf.url.to_string(),
-            CommitmentConfig::processed(),
-        ));
+        let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
 
         SealevelProvider { domain, rpc_client }
     }
