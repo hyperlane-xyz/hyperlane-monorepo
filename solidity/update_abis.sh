@@ -15,4 +15,5 @@ copy interfaces/IValidatorAnnounce && \
 copy interfaces/IInterchainSecurityModule && \
 copy interfaces/isms/IMultisigIsm && \
 copy interfaces/isms/IRoutingIsm && \
-copy interfaces/isms/IAggregationIsm
+copy interfaces/isms/IAggregationIsm && \
+copy interfaces/ICheckpointSubmission
