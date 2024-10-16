@@ -5,12 +5,12 @@
 #![deny(warnings)]
 
 pub use crate::multisig_ism::*;
-pub(crate) use client::RpcClientWithDebug;
 pub use interchain_gas::*;
 pub use interchain_security_module::*;
 pub use mailbox::*;
 pub use merkle_tree_hook::*;
 pub use provider::*;
+pub(crate) use rpc::SealevelRpcClient;
 pub use solana_sdk::signer::keypair::Keypair;
 pub use trait_builder::*;
 pub use validator_announce::*;
@@ -25,5 +25,5 @@ mod provider;
 mod trait_builder;
 mod utils;
 
-mod client;
+mod rpc;
 mod validator_announce;

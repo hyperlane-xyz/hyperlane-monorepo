@@ -8,20 +8,20 @@ use hyperlane_core::{
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
-use crate::{client::RpcClientWithDebug, error::HyperlaneSealevelError, ConnectionConf};
+use crate::{error::HyperlaneSealevelError, ConnectionConf, SealevelRpcClient};
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct SealevelProvider {
     domain: HyperlaneDomain,
-    rpc_client: Arc<RpcClientWithDebug>,
+    rpc_client: Arc<SealevelRpcClient>,
 }
 
 impl SealevelProvider {
     /// Create a new Sealevel provider.
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         // Set the `processed` commitment at rpc level
-        let rpc_client = Arc::new(RpcClientWithDebug::new(
+        let rpc_client = Arc::new(SealevelRpcClient::new(
             conf.url.to_string(),
             CommitmentConfig::processed(),
         ));
@@ -30,7 +30,7 @@ impl SealevelProvider {
     }
 
     /// Get an rpc client
-    pub fn rpc(&self) -> &RpcClientWithDebug {
+    pub fn rpc(&self) -> &SealevelRpcClient {
         &self.rpc_client
     }
 

@@ -13,7 +13,7 @@ use solana_sdk::{
 };
 use solana_transaction_status::UiReturnDataEncoding;
 
-use crate::client::RpcClientWithDebug;
+use crate::SealevelRpcClient;
 
 /// Simulates an instruction, and attempts to deserialize it into a T.
 /// If no return data at all was returned, returns Ok(None).
@@ -81,7 +81,7 @@ pub async fn get_account_metas(
     Ok(account_metas)
 }
 
-pub async fn get_finalized_block_number(rpc_client: &RpcClientWithDebug) -> ChainResult<u32> {
+pub async fn get_finalized_block_number(rpc_client: &SealevelRpcClient) -> ChainResult<u32> {
     let height = rpc_client
         .get_block_height()
         .await

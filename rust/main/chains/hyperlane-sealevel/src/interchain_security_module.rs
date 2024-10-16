@@ -10,7 +10,7 @@ use hyperlane_core::{
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::SimulationReturnData;
 
-use crate::{utils::simulate_instruction, ConnectionConf, RpcClientWithDebug, SealevelProvider};
+use crate::{utils::simulate_instruction, ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
@@ -32,7 +32,7 @@ impl SealevelInterchainSecurityModule {
         }
     }
 
-    fn rpc(&self) -> &RpcClientWithDebug {
+    fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
 }

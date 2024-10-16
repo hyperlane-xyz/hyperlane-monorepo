@@ -8,7 +8,7 @@ use hyperlane_core::{
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
-use crate::{ConnectionConf, RpcClientWithDebug, SealevelProvider};
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount, validator_storage_locations_pda_seeds,
 };
@@ -33,7 +33,7 @@ impl SealevelValidatorAnnounce {
         }
     }
 
-    fn rpc(&self) -> &RpcClientWithDebug {
+    fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
 }
