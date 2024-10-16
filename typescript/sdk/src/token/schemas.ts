@@ -103,26 +103,26 @@ export const WarpRouteDeployConfigSchema = z
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
   .transform((warpRouteDeployConfig, ctx) => {
-    const hasCollateralRebase = Object.entries(warpRouteDeployConfig).find(
+    const collateralRebaseEntry = Object.entries(warpRouteDeployConfig).find(
       ([_, config]) => isCollateralRebaseConfig(config),
     );
-    if (!hasCollateralRebase) return warpRouteDeployConfig;
+    if (!collateralRebaseEntry) return warpRouteDeployConfig; // Pass through for other token types
 
-    if (!isCollateralRebasePairedCorrectly(warpRouteDeployConfig)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE,
-      });
-
-      // This is a special symbol you can use to
-      // return early from the transform function.
-      // It has type `never` so it does not affect the
-      // inferred return type.
-      return z.NEVER;
+    if (isCollateralRebasePairedCorrectly(warpRouteDeployConfig)) {
+      const collateralChainName = collateralRebaseEntry[0];
+      return objMap(warpRouteDeployConfig, (_, config) => {
+        if (config.type === TokenType.syntheticRebase)
+          config.collateralChainName = collateralChainName;
+        return config;
+      }) as Record<string, TokenRouterConfig>;
     }
 
-    const modifiedConfigMap = resolveCollateralChainName(warpRouteDeployConfig);
-    return modifiedConfigMap;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: WarpRouteDeployConfigSchemaErrors.ONLY_SYNTHETIC_REBASE,
+    });
+
+    return z.NEVER; // Causes schema validation to throw with above issue
   });
 
 function isCollateralRebasePairedCorrectly(
@@ -136,31 +136,8 @@ function isCollateralRebasePairedCorrectly(
   if (otherConfigs.length === 0) return false;
 
   // The other configs MUST be synthetic rebase
-  const allOthersSynthetic = otherConfigs.every(([_, config], _index) =>
-    isSyntheticRebaseConfig(config),
+  const allOthersSynthetic: boolean = otherConfigs.every(
+    ([_, config], _index) => isSyntheticRebaseConfig(config),
   );
   return allOthersSynthetic;
-}
-
-/**
- * Resolves the collateral domain name, and update each synthetic rebase tokens
- *
- * @param warpRouteDeployConfig - The `WarpRouteDeployConfig` object to be modified.
- * @returns The modified WarpRouteDeployConfig with the `collateralChainName` property set for `syntheticRebase` tokens, or an unmodified WarpRouteDeployConfig
- */
-function resolveCollateralChainName(
-  warpRouteDeployConfig: Record<string, TokenRouterConfig>,
-): Record<string, TokenRouterConfig> {
-  const collateralRebaseEntries = Object.entries(warpRouteDeployConfig).find(
-    ([_, config]) => config.type === TokenType.collateralVaultRebase,
-  );
-
-  if (!collateralRebaseEntries) return warpRouteDeployConfig;
-
-  const collateralChainName = collateralRebaseEntries[0];
-  return objMap(warpRouteDeployConfig, (_, config) => {
-    if (config.type === TokenType.syntheticRebase)
-      config.collateralChainName = collateralChainName;
-    return config;
-  });
 }
