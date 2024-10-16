@@ -1,5 +1,14 @@
 # @hyperlane-xyz/cli
 
+## 5.6.0-superchain.1
+
+### Patch Changes
+
+- aa94b2575: Fix hook in reader
+- Updated dependencies [aa94b2575]
+  - @hyperlane-xyz/sdk@5.6.0-superchain.1
+  - @hyperlane-xyz/utils@5.6.0-superchain.1
+
 ## 5.6.0-superchain.0
 
 ### Patch Changes
