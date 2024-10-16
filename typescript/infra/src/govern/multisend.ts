@@ -2,7 +2,6 @@ import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 import {
@@ -12,7 +11,6 @@ import {
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
-import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
 import {
   createSafeTransaction,
   createSafeTransactionData,
@@ -74,9 +72,6 @@ export class SafeMultiSend extends MultiSend {
       this.safeAddress,
     );
 
-    const updateOwnerCalls = await this.updateSafeOwner(safeSdk);
-    const multisendCalls = [...updateOwnerCalls, ...calls];
-
     // If the multiSend address is the same as the safe address, we need to
     // propose the transactions individually. See: gnosisSafe.js in the SDK.
     if (eqAddress(safeSdk.getMultiSendAddress(), this.safeAddress)) {
@@ -85,61 +80,10 @@ export class SafeMultiSend extends MultiSend {
           `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
         ),
       );
-      await this.proposeIndividualTransactions(
-        multisendCalls,
-        safeSdk,
-        safeService,
-      );
+      await this.proposeIndividualTransactions(calls, safeSdk, safeService);
     } else {
-      await this.proposeMultiSendTransaction(
-        multisendCalls,
-        safeSdk,
-        safeService,
-      );
+      await this.proposeMultiSendTransaction(calls, safeSdk, safeService);
     }
-  }
-
-  private async updateSafeOwner(safeSdk: Safe.default): Promise<CallData[]> {
-    const threshold = await safeSdk.getThreshold();
-    const owners = await safeSdk.getOwners();
-    const newOwners = safeSigners.signers;
-    const ownersToRemove = owners.filter(
-      (owner) => !newOwners.some((newOwner) => eqAddress(owner, newOwner)),
-    );
-    const ownersToAdd = newOwners.filter(
-      (newOwner) => !owners.some((owner) => eqAddress(newOwner, owner)),
-    );
-
-    console.log(chalk.magentaBright('Owners to remove:', ownersToRemove));
-    console.log(chalk.magentaBright('Owners to add:', ownersToAdd));
-
-    const transactions = [];
-
-    for (const ownerToRemove of ownersToRemove) {
-      const { data: removeTxData } = await safeSdk.createRemoveOwnerTx({
-        ownerAddress: ownerToRemove,
-        threshold,
-      });
-      transactions.push({
-        to: removeTxData.to,
-        data: removeTxData.data,
-        value: BigNumber.from(removeTxData.value),
-      });
-    }
-
-    for (const ownerToAdd of ownersToAdd) {
-      const { data: addTxData } = await safeSdk.createAddOwnerTx({
-        ownerAddress: ownerToAdd,
-        threshold,
-      });
-      transactions.push({
-        to: addTxData.to,
-        data: addTxData.data,
-        value: BigNumber.from(addTxData.value),
-      });
-    }
-
-    return transactions;
   }
 
   // Helper function to propose individual transactions
