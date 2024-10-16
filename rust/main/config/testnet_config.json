@@ -264,13 +264,13 @@
       "testRecipient": "0xfbcD1c00a3d809f36cC1A15918694B17B32c0b6c",
       "testTokenRecipient": "0x260f6024119549a40595d0937471e607411E8ea5",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "transactionOverrides": {
-        "gasPrice": 8000000000
-      },
       "validatorAnnounce": "0xf09701B0a93210113D175461b6135a96773B5465",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xCa152b249791Adf7A09C6c1bdbAb05e4A594966e",
       "staticMessageIdWeightedMultisigIsmFactory": "0xaa80d23299861b7D7ab1bE665579029Ed9137BD1",
-      "gasCurrencyCoinGeckoId": "binancecoin"
+      "gasCurrencyCoinGeckoId": "binancecoin",
+      "transactionOverrides": {
+        "gasPrice": 8000000000
+      }
     },
     "connextsepolia": {
       "aggregationHook": "0x331eb40963dc11F5BB271308c42d97ac6e41F124",
