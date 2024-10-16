@@ -2,6 +2,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   ChainMetadata,
+  ChainTechnicalStack,
   ExplorerFamily,
 } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -38,6 +39,7 @@ export const test1: ChainMetadata = {
   nativeToken: { decimals: 18, name: 'Ether', symbol: 'ETH' },
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'http://127.0.0.1:8545' }],
+  technicalStack: ChainTechnicalStack.OpStack,
 };
 
 export const test2: ChainMetadata = {
@@ -51,6 +53,7 @@ export const test2: ChainMetadata = {
   displayName: 'Test 2',
   domainId: 9913372,
   name: 'test2',
+  technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
 
 export const test3: ChainMetadata = {
@@ -64,6 +67,7 @@ export const test3: ChainMetadata = {
   displayName: 'Test 3',
   domainId: 9913373,
   name: 'test3',
+  technicalStack: ChainTechnicalStack.PolygonCDK,
 };
 
 export const test4: ChainMetadata = {
@@ -72,6 +76,7 @@ export const test4: ChainMetadata = {
   displayName: 'Test 4',
   domainId: 31337,
   name: 'test4',
+  technicalStack: ChainTechnicalStack.PolkadotSubstrate,
 };
 
 export const testChainMetadata: ChainMap<ChainMetadata> = {
