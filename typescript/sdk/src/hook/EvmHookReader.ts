@@ -14,6 +14,7 @@ import {
   ProtocolFee__factory,
   StaticAggregationHook__factory,
   StorageGasOracle__factory,
+  SuperchainHook__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -44,6 +45,7 @@ import {
   PausableHookConfig,
   ProtocolFeeHookConfig,
   RoutingHookConfig,
+  SuperchainHookConfig,
 } from './types.js';
 
 export type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
@@ -136,6 +138,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         case OnchainHookType.ARB_L2_TO_L1:
           derivedHookConfig = await this.deriveArbL2ToL1Config(address);
           break;
+        case OnchainHookType.SUPERCHAIN:
+          derivedHookConfig = await this.deriveSuperchainHookConfig(address);
+          break;
         default:
           throw new Error(
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
@@ -160,6 +165,21 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  async deriveSuperchainHookConfig(
+    address: Address,
+  ): Promise<WithAddress<SuperchainHookConfig>> {
+    const superchainHook = SuperchainHook__factory.connect(
+      address,
+      this.provider,
+    );
+    const owner = await superchainHook.owner();
+    return {
+      type: HookType.SUPERCHAIN,
+      owner,
+      address,
+    };
   }
 
   async deriveMerkleTreeConfig(

@@ -9,6 +9,7 @@ import {
   IStaticWeightedMultisigIsm,
   OPStackIsm,
   PausableIsm,
+  SuperchainISM,
   TestIsm,
   TrustedRelayerIsm,
 } from '@hyperlane-xyz/core';
@@ -23,6 +24,7 @@ import {
   MultisigIsmConfigSchema,
   OpStackIsmConfigSchema,
   PausableIsmConfigSchema,
+  SuperchainIsmConfigSchema,
   TestIsmConfigSchema,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfigSchema,
@@ -42,6 +44,8 @@ export enum ModuleType {
   ARB_L2_TO_L1,
   WEIGHTED_MERKLE_ROOT_MULTISIG,
   WEIGHTED_MESSAGE_ID_MULTISIG,
+  OP_L2_TO_L1,
+  SUPERCHAIN,
 }
 
 // this enum can be adjusted as per deployments necessary
@@ -60,6 +64,8 @@ export enum IsmType {
   ARB_L2_TO_L1 = 'arbL2ToL1Ism',
   WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
+  OP_L2_TO_L1 = 'opL2ToL1Ism',
+  SUPERCHAIN = 'superchain',
 }
 
 // ISM types that can be updated in-place
@@ -94,6 +100,10 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MERKLE_ROOT_MULTISIG;
     case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
+    case IsmType.OP_L2_TO_L1:
+      return ModuleType.OP_L2_TO_L1;
+    case IsmType.SUPERCHAIN:
+      return ModuleType.SUPERCHAIN;
   }
 }
 
@@ -113,6 +123,7 @@ export type TrustedRelayerIsmConfig = z.infer<
   typeof TrustedRelayerIsmConfigSchema
 >;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
+export type SuperchainIsmConfig = z.infer<typeof SuperchainIsmConfigSchema>;
 
 export type NullIsmConfig =
   | TestIsmConfig
@@ -147,6 +158,7 @@ export type DeployedIsmType = {
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
+  [IsmType.SUPERCHAIN]: SuperchainISM;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;

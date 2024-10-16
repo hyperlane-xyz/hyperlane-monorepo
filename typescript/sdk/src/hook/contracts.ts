@@ -8,6 +8,7 @@ import {
   PausableHook__factory,
   ProtocolFee__factory,
   StaticAggregationHook__factory,
+  SuperchainHook__factory,
 } from '@hyperlane-xyz/core';
 import { ValueOf } from '@hyperlane-xyz/utils';
 
@@ -23,6 +24,7 @@ export const hookFactories = {
   [HookType.FALLBACK_ROUTING]: new FallbackDomainRoutingHook__factory(),
   [HookType.PAUSABLE]: new PausableHook__factory(),
   [HookType.ARB_L2_TO_L1]: new ArbL2ToL1Hook__factory(),
+  [HookType.SUPERCHAIN]: new SuperchainHook__factory(),
 };
 
 export type HookFactories = typeof hookFactories;

@@ -108,6 +108,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           throw new Error('CCIP_READ does not have a corresponding IsmType');
         case ModuleType.ARB_L2_TO_L1:
           return this.deriveArbL2ToL1Config(address);
+        case ModuleType.SUPERCHAIN:
+          return { type: IsmType.SUPERCHAIN, address };
         default:
           throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
       }

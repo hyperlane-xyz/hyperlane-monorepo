@@ -27,6 +27,7 @@ import {
   DefaultFallbackRoutingMetadataBuilder,
   RoutingMetadata,
 } from './routing.js';
+import { SuperchainMetadataBuilder } from './superchain.js';
 
 export type StructuredMetadata =
   | NullMetadata
@@ -55,6 +56,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   public aggregationMetadataBuilder: AggregationMetadataBuilder;
   public routingMetadataBuilder: DefaultFallbackRoutingMetadataBuilder;
   public arbL2ToL1MetadataBuilder: ArbL2ToL1MetadataBuilder;
+  public superchainMetadataBuilder: SuperchainMetadataBuilder;
 
   public multiProvider: MultiProvider;
   protected logger = rootLogger.child({ module: 'BaseMetadataBuilder' });
@@ -67,6 +69,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
     );
     this.nullMetadataBuilder = new NullMetadataBuilder(core.multiProvider);
     this.arbL2ToL1MetadataBuilder = new ArbL2ToL1MetadataBuilder(core);
+    this.superchainMetadataBuilder = new SuperchainMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
   }
 
@@ -127,9 +130,11 @@ export class BaseMetadataBuilder implements MetadataBuilder {
           hook: hookConfig,
         });
       }
-
+      case IsmType.SUPERCHAIN: {
+        return this.superchainMetadataBuilder.build(context);
+      }
       default:
-        throw new Error(`Unsupported ISM: ${ism}`);
+        throw new Error(`Unsupported ISM: ${JSON.stringify(ism)}`);
     }
   }
 

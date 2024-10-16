@@ -32,6 +32,10 @@ export const OpStackHookSchema = OwnableSchema.extend({
   destinationChain: z.string(),
 });
 
+export const SuperchainHookSchema = OwnableSchema.extend({
+  type: z.literal(HookType.SUPERCHAIN),
+});
+
 export const ArbL2ToL1HookSchema = z.object({
   type: z.literal(HookType.ARB_L2_TO_L1),
   arbSys: z
@@ -92,4 +96,5 @@ export const HookConfigSchema = z.union([
   FallbackRoutingHookConfigSchema,
   AggregationHookConfigSchema,
   ArbL2ToL1HookSchema,
+  SuperchainHookSchema,
 ]);

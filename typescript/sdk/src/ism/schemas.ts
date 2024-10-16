@@ -35,6 +35,10 @@ export const OpStackIsmConfigSchema = z.object({
   nativeBridge: z.string(),
 });
 
+export const SuperchainIsmConfigSchema = z.object({
+  type: z.literal(IsmType.SUPERCHAIN),
+});
+
 export const ArbL2ToL1IsmConfigSchema = z.object({
   type: z.literal(IsmType.ARB_L2_TO_L1),
   bridge: z.string(),
@@ -98,4 +102,5 @@ export const IsmConfigSchema = z.union([
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
+  SuperchainIsmConfigSchema,
 ]);
