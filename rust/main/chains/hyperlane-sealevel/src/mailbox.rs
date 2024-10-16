@@ -54,10 +54,9 @@ use solana_transaction_status::{
     UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
 };
 
-use crate::RpcClientWithDebug;
 use crate::{
     utils::{get_account_metas, get_finalized_block_number, simulate_instruction},
-    ConnectionConf, SealevelProvider,
+    ConnectionConf, SealevelProvider, SealevelRpcClient,
 };
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -128,7 +127,7 @@ impl SealevelMailbox {
         self.outbox
     }
 
-    pub fn rpc(&self) -> &RpcClientWithDebug {
+    pub fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
 
@@ -664,7 +663,7 @@ impl SealevelMailboxIndexer {
         })
     }
 
-    fn rpc(&self) -> &RpcClientWithDebug {
+    fn rpc(&self) -> &SealevelRpcClient {
         &self.mailbox.rpc()
     }
 

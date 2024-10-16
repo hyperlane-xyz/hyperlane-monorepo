@@ -13,7 +13,7 @@ use solana_sdk::{
 
 use crate::{
     utils::{get_account_metas, simulate_instruction},
-    ConnectionConf, RpcClientWithDebug, SealevelProvider,
+    ConnectionConf, SealevelProvider, SealevelRpcClient,
 };
 
 use hyperlane_sealevel_multisig_ism_message_id::instruction::ValidatorsAndThreshold;
@@ -44,7 +44,7 @@ impl SealevelMultisigIsm {
         }
     }
 
-    fn rpc(&self) -> &RpcClientWithDebug {
+    fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
 }

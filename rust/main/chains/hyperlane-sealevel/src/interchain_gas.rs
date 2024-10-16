@@ -17,7 +17,7 @@ use std::ops::RangeInclusive;
 use tracing::{info, instrument};
 
 use crate::{
-    client::RpcClientWithDebug, utils::get_finalized_block_number, ConnectionConf, SealevelProvider,
+    utils::get_finalized_block_number, ConnectionConf, SealevelProvider, SealevelRpcClient,
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
@@ -60,7 +60,7 @@ impl SealevelInterchainGasPaymaster {
     }
 
     async fn determine_igp_program_id(
-        rpc_client: &RpcClientWithDebug,
+        rpc_client: &SealevelRpcClient,
         igp_account_pubkey: &H256,
     ) -> ChainResult<Pubkey> {
         let account = rpc_client
@@ -99,7 +99,7 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 /// Struct that retrieves event data for a Sealevel IGP contract
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymasterIndexer {
-    rpc_client: RpcClientWithDebug,
+    rpc_client: SealevelRpcClient,
     igp: SealevelInterchainGasPaymaster,
 }
 
@@ -119,7 +119,7 @@ impl SealevelInterchainGasPaymasterIndexer {
     ) -> ChainResult<Self> {
         // Set the `processed` commitment at rpc level
         let rpc_client =
-            RpcClientWithDebug::new(conf.url.to_string(), CommitmentConfig::processed());
+            SealevelRpcClient::new(conf.url.to_string(), CommitmentConfig::processed());
 
         let igp = SealevelInterchainGasPaymaster::new(conf, &igp_account_locator).await?;
         Ok(Self { rpc_client, igp })
