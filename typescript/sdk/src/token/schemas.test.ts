@@ -40,7 +40,6 @@ describe('WarpRouteDeployConfigSchema refine', () => {
 
   it('should require token type', () => {
     expect(WarpRouteDeployConfigSchema.safeParse(config).success).to.be.true;
-    config;
 
     //@ts-ignore
     delete config.arbitrum.type;

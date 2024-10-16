@@ -18,8 +18,8 @@ import {
 import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
 
 chai.use(chaiAsPromised);
-chai.should();
 const expect = chai.expect;
+chai.should();
 
 const CHAIN_NAME_2 = 'anvil2';
 const CHAIN_NAME_3 = 'anvil3';
@@ -36,14 +36,18 @@ describe('WarpDeploy e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
   let token: any;
   let vault: any;
+
   this.timeout(TEST_TIMEOUT);
+
   before(async function () {
     chain2Addresses = await deployOrUseExistingCore(
       CHAIN_NAME_2,
       CORE_CONFIG_PATH,
       ANVIL_KEY,
     );
+
     await deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY);
+
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     vault = await deploy4626Vault(ANVIL_KEY, CHAIN_NAME_2, token.address);
   });
