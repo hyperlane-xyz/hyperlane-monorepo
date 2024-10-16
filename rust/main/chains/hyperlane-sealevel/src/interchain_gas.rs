@@ -118,10 +118,8 @@ impl SealevelInterchainGasPaymasterIndexer {
         igp_account_locator: ContractLocator<'_>,
     ) -> ChainResult<Self> {
         // Set the `processed` commitment at rpc level
-        let rpc_client = RpcClientWithDebug::new_with_commitment(
-            conf.url.to_string(),
-            CommitmentConfig::processed(),
-        );
+        let rpc_client =
+            RpcClientWithDebug::new(conf.url.to_string(), CommitmentConfig::processed());
 
         let igp = SealevelInterchainGasPaymaster::new(conf, &igp_account_locator).await?;
         Ok(Self { rpc_client, igp })
