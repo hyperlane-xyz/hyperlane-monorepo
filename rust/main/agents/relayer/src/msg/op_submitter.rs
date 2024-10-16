@@ -293,6 +293,7 @@ async fn prepare_task(
                 }
                 PendingOperationResult::Drop => {
                     metrics.ops_dropped.inc();
+                    op.decrement_metric_if_exists();
                 }
                 PendingOperationResult::Confirm(reason) => {
                     debug!(?op, "Pushing operation to confirm queue");
@@ -369,6 +370,7 @@ async fn submit_single_operation(
         }
         PendingOperationResult::Drop => {
             // Not expected to hit this case in `submit`, but it's here for completeness
+            op.decrement_metric_if_exists();
         }
         PendingOperationResult::Success | PendingOperationResult::Confirm(_) => {
             confirm_op(op, confirm_queue, metrics).await
@@ -457,9 +459,7 @@ async fn confirm_operation(
         PendingOperationResult::Success => {
             debug!(?op, "Operation confirmed");
             metrics.ops_confirmed.inc();
-            if let Some(metric) = op.get_metric() {
-                metric.dec()
-            }
+            op.decrement_metric_if_exists();
         }
         PendingOperationResult::NotReady => {
             confirm_queue.push(op, None).await;
@@ -478,6 +478,7 @@ async fn confirm_operation(
         }
         PendingOperationResult::Drop => {
             metrics.ops_dropped.inc();
+            op.decrement_metric_if_exists();
         }
     }
     operation_result
