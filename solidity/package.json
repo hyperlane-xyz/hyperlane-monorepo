@@ -51,8 +51,8 @@
     "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
     "./buildArtifact.json": "./dist/evm/buildArtifact.json",
     "./contracts": "./contracts",
-    "./artifacts": "./dist/zksync/artifacts/index.js",
-    "./artifacts/*": "./dist/zksync/artifacts/*.js"
+    "./zksync-artifacts": "./dist/zksync/artifacts/index.js",
+    "./zksync-artifacts/*": "./dist/zksync/artifacts/*.js"
   },
   "types": "./dist/evm/types/index.d.ts",
   "files": [

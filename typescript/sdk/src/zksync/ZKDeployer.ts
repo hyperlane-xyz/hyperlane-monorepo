@@ -4,7 +4,7 @@ import * as zk from 'zksync-ethers';
 import {
   ZkSyncArtifact,
   loadAllZkArtifacts,
-} from '@hyperlane-xyz/core/artifacts';
+} from '@hyperlane-xyz/core/zksync-artifacts';
 
 /**
  * An entity capable of deploying contracts to the zkSync network.

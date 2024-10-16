@@ -1,7 +1,7 @@
 import {
   ZkSyncArtifact,
   loadAllZkArtifacts,
-} from '@hyperlane-xyz/core/artifacts';
+} from '@hyperlane-xyz/core/zksync-artifacts';
 
 /**
  * @dev Retrieves a ZkSync artifact by its contract name or qualified name.

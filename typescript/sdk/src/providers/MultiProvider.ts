@@ -10,7 +10,7 @@ import {
 import { Logger } from 'pino';
 import * as zk from 'zksync-ethers';
 
-import { ZkSyncArtifact } from '@hyperlane-xyz/core/artifacts';
+import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
 import {
   Address,
   ProtocolType,

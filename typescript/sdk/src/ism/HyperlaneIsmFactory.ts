@@ -23,7 +23,7 @@ import {
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { ZkSyncArtifact } from '@hyperlane-xyz/core/artifacts';
+import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
 import {
   Address,
   Domain,

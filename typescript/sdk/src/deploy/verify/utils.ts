@@ -1,6 +1,6 @@
 import { ethers, utils } from 'ethers';
 
-import { ZkSyncArtifact } from '@hyperlane-xyz/core/artifacts';
+import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { ChainMap, ChainName } from '../../types.js';
