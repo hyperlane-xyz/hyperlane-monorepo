@@ -208,7 +208,7 @@ export abstract class HyperlaneAppChecker<
     return bytecode.substring(0, bytecode.length - 90);
   }
 
-  private getOwner(
+  protected getOwner(
     owner: Address,
     contractName: string,
     ownableOverrides?: Record<string, Address>,
