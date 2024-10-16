@@ -29,12 +29,10 @@ impl OpQueue {
     /// it's very likely that its status has just changed, so this forces the caller to consider the new status
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
-        if let Some(new_status) = new_status {
-            op.set_status_and_update_metrics(
-                new_status,
-                Arc::new(self.get_operation_metric(op.as_ref())),
-            );
-        }
+        op.set_status_and_update_metrics(
+            new_status,
+            Arc::new(self.get_operation_metric(op.as_ref())),
+        );
 
         self.queue.lock().await.push(Reverse(op));
     }

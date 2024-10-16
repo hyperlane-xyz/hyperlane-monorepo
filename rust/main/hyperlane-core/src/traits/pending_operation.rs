@@ -67,6 +67,13 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Get the metric associated with this operation.
     fn get_metric(&self) -> Option<Arc<IntGauge>>;
 
+    /// Decrement the metric associated with this operation if it exists.
+    fn decrement_metric_if_exists(&self) {
+        if let Some(metric) = self.get_metric() {
+            metric.dec();
+        }
+    }
+
     /// Set the metric associated with this operation.
     fn set_metric(&mut self, metric: Arc<IntGauge>);
 
@@ -80,10 +87,12 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Set the status of the operation and update the metrics.
     fn set_status_and_update_metrics(
         &mut self,
-        status: PendingOperationStatus,
+        status: Option<PendingOperationStatus>,
         new_metric: Arc<IntGauge>,
     ) {
-        self.set_status(status);
+        if let Some(status) = status {
+            self.set_status(status);
+        }
         if let Some(old_metric) = self.get_metric() {
             old_metric.dec();
         }
