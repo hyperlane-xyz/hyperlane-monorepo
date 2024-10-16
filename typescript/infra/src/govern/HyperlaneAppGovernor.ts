@@ -26,6 +26,8 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
+import { getSafeAndService, updateSafeOwner } from '../utils/safe.js';
+
 import {
   ManualMultiSend,
   MultiSend,
@@ -159,7 +161,22 @@ export abstract class HyperlaneAppGovernor<
       submissionType: SubmissionType,
       multiSend: MultiSend,
     ) => {
-      const callsForSubmissionType = filterCalls(submissionType) || [];
+      const callsForSubmissionType = [];
+      const filteredCalls = filterCalls(submissionType);
+
+      // If calls are being submitted via a safe, we need to check for any safe owner changes first
+      if (submissionType === SubmissionType.SAFE) {
+        const { safeSdk } = await getSafeAndService(
+          chain,
+          this.checker.multiProvider,
+          (multiSend as SafeMultiSend).safeAddress,
+        );
+        const updateOwnerCalls = await updateSafeOwner(safeSdk);
+        callsForSubmissionType.push(...updateOwnerCalls, ...filteredCalls);
+      } else {
+        callsForSubmissionType.push(...filteredCalls);
+      }
+
       if (callsForSubmissionType.length > 0) {
         this.printSeparator();
         const confirmed = await summarizeCalls(

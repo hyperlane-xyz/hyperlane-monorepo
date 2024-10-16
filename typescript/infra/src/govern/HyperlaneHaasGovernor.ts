@@ -1,7 +1,4 @@
-import chalk from 'chalk';
-
 import {
-  ChainMap,
   ChainName,
   CheckerViolation,
   CoreConfig,
@@ -14,7 +11,6 @@ import {
 import {
   AnnotatedCallData,
   HyperlaneAppGovernor,
-  InferredCall,
 } from './HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
