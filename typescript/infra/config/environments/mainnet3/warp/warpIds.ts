@@ -21,7 +21,7 @@ export enum WarpRouteIds {
 // add new warp route ids here if they are supported by the checker tooling, add an entry to warpConfigGetterMap also
 export enum CheckerWarpRouteIds {
   Ancient8EthereumUSDC = WarpRouteIds.Ancient8EthereumUSDC,
-  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismZircuitEZETH = WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismZircuitEZETH,
+  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH = WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH,
   ArbitrumNeutronEclip = WarpRouteIds.ArbitrumNeutronEclip,
   ArbitrumNeutronTIA = WarpRouteIds.ArbitrumNeutronTIA,
   EthereumInevmUSDC = WarpRouteIds.EthereumInevmUSDC,
