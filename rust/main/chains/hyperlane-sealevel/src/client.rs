@@ -5,11 +5,7 @@ use solana_sdk::commitment_config::CommitmentConfig;
 pub struct RpcClientWithDebug(RpcClient);
 
 impl RpcClientWithDebug {
-    pub fn new(rpc_endpoint: String) -> Self {
-        Self(RpcClient::new(rpc_endpoint))
-    }
-
-    pub fn new_with_commitment(rpc_endpoint: String, commitment: CommitmentConfig) -> Self {
+    pub fn new(rpc_endpoint: String, commitment: CommitmentConfig) -> Self {
         Self(RpcClient::new_with_commitment(rpc_endpoint, commitment))
     }
 }

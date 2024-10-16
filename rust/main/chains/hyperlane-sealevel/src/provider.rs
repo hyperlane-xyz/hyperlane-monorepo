@@ -21,7 +21,7 @@ impl SealevelProvider {
     /// Create a new Sealevel provider.
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         // Set the `processed` commitment at rpc level
-        let rpc_client = Arc::new(RpcClientWithDebug::new_with_commitment(
+        let rpc_client = Arc::new(RpcClientWithDebug::new(
             conf.url.to_string(),
             CommitmentConfig::processed(),
         ));
