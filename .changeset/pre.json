@@ -13,6 +13,7 @@
     "@hyperlane-xyz/widgets": "5.5.0"
   },
   "changesets": [
+    "curvy-eagles-flash",
     "fluffy-ducks-buy",
     "poor-coins-accept"
   ]
