@@ -52,6 +52,9 @@ export const test2: ChainMetadata = {
   chainId: 9913372,
   displayName: 'Test 2',
   domainId: 9913372,
+  index: {
+    from: 0,
+  },
   name: 'test2',
   technicalStack: ChainTechnicalStack.ArbitrumNitro,
 };
