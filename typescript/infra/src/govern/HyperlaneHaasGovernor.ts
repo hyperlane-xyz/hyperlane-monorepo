@@ -1,4 +1,7 @@
+import chalk from 'chalk';
+
 import {
+  ChainMap,
   ChainName,
   CheckerViolation,
   CoreConfig,
@@ -11,6 +14,7 @@ import {
 import {
   AnnotatedCallData,
   HyperlaneAppGovernor,
+  InferredCall,
 } from './HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
@@ -68,6 +72,44 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         this.pushCall(callObj.chain, callObj.call);
       }
     }
+  }
+
+  protected async inferCallSubmissionTypes() {
+    const newCalls: ChainMap<AnnotatedCallData[]> = {};
+    const pushNewCall = (inferredCall: InferredCall) => {
+      newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
+      newCalls[inferredCall.chain].push({
+        submissionType: inferredCall.type,
+        icaTargetChain: inferredCall.icaTargetChain,
+        ...inferredCall.call,
+      });
+    };
+
+    const results: ChainMap<InferredCall[]> = {};
+    await Promise.all(
+      Object.keys(this.calls).map(async (chain) => {
+        try {
+          results[chain] = await Promise.all(
+            this.calls[chain].map((call) =>
+              this.inferCallSubmissionType(chain, call),
+            ),
+          );
+        } catch (error) {
+          console.error(
+            chalk.red(
+              `Error inferring call submission types for chain ${chain}: ${error}`,
+            ),
+          );
+          results[chain] = [];
+        }
+      }),
+    );
+
+    Object.entries(results).forEach(([_, inferredCalls]) => {
+      inferredCalls.forEach(pushNewCall);
+    });
+
+    this.calls = newCalls;
   }
 
   async check(chainsToCheck?: ChainName[]) {
