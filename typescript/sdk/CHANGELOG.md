@@ -1,5 +1,16 @@
 # @hyperlane-xyz/sdk
 
+## 5.6.0-superchain.0
+
+### Minor Changes
+
+- 8001bbbd6: Add override to some transactions to fix warp apply
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@5.6.0-superchain.0
+- @hyperlane-xyz/core@5.4.2-superchain.0
+
 ## 5.5.0
 
 ### Minor Changes

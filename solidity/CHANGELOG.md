@@ -1,5 +1,11 @@
 # @hyperlane-xyz/core
 
+## 5.4.2-superchain.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@5.6.0-superchain.0
+
 ## 5.4.1
 
 ### Patch Changes

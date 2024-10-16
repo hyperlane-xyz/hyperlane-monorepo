@@ -1,5 +1,15 @@
 # @hyperlane-xyz/infra
 
+## 5.6.0-superchain.0
+
+### Patch Changes
+
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [e89f9e35d]
+  - @hyperlane-xyz/sdk@5.6.0-superchain.0
+  - @hyperlane-xyz/helloworld@5.6.0-superchain.0
+  - @hyperlane-xyz/utils@5.6.0-superchain.0
+
 ## 5.5.0
 
 ### Patch Changes

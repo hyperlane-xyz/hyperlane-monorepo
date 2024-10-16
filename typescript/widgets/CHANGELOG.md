@@ -1,5 +1,14 @@
 # @hyperlane-xyz/widgets
 
+## 5.6.0-superchain.0
+
+### Patch Changes
+
+- e89f9e35d: Update registry to v4.7.0
+- Updated dependencies [8001bbbd6]
+  - @hyperlane-xyz/sdk@5.6.0-superchain.0
+  - @hyperlane-xyz/utils@5.6.0-superchain.0
+
 ## 5.5.0
 
 ### Minor Changes
