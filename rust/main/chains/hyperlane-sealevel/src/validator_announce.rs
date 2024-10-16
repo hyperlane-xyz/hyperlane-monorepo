@@ -1,17 +1,15 @@
 use async_trait::async_trait;
-use tracing::{info, instrument, warn};
-
 use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, H512,
-    U256,
+    Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    SignedType, TxOutcome, ValidatorAnnounce, H160, H256, H512, U256,
 };
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
-
-use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 use hyperlane_sealevel_validator_announce::{
     accounts::ValidatorStorageLocationsAccount, validator_storage_locations_pda_seeds,
 };
+use solana_sdk::pubkey::Pubkey;
+use tracing::{info, instrument, warn};
+
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 /// A reference to a ValidatorAnnounce contract on some Sealevel chain
 #[derive(Debug)]
@@ -79,10 +77,8 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
         // If an account doesn't exist, it will be returned as None.
         let accounts = self
             .rpc()
-            .get_multiple_accounts_with_commitment(&account_pubkeys, CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value;
+            .get_multiple_accounts_with_finalized_commitment(&account_pubkeys)
+            .await?;
 
         // Parse the storage locations from each account.
         // If a validator's account doesn't exist, its storage locations will

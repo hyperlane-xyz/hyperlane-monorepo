@@ -3,7 +3,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
-use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::{AccountMeta, Instruction},
@@ -20,25 +19,20 @@ use crate::SealevelRpcClient;
 /// If some return data was returned but deserialization was unsuccessful,
 /// an Err is returned.
 pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
-    rpc_client: &RpcClient,
+    rpc_client: &SealevelRpcClient,
     payer: &Keypair,
     instruction: Instruction,
 ) -> ChainResult<Option<T>> {
     let commitment = CommitmentConfig::finalized();
-    let (recent_blockhash, _) = rpc_client
+    let recent_blockhash = rpc_client
         .get_latest_blockhash_with_commitment(commitment)
-        .await
-        .map_err(ChainCommunicationError::from_other)?;
-    let return_data = rpc_client
-        .simulate_transaction(&Transaction::new_unsigned(Message::new_with_blockhash(
-            &[instruction],
-            Some(&payer.pubkey()),
-            &recent_blockhash,
-        )))
-        .await
-        .map_err(ChainCommunicationError::from_other)?
-        .value
-        .return_data;
+        .await?;
+    let transaction = Transaction::new_unsigned(Message::new_with_blockhash(
+        &[instruction],
+        Some(&payer.pubkey()),
+        &recent_blockhash,
+    ));
+    let return_data = rpc_client.simulate_transaction(&transaction).await?;
 
     if let Some(return_data) = return_data {
         let bytes = match return_data.data.1 {
@@ -58,7 +52,7 @@ pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
 
 /// Simulates an Instruction that will return a list of AccountMetas.
 pub async fn get_account_metas(
-    rpc_client: &RpcClient,
+    rpc_client: &SealevelRpcClient,
     payer: &Keypair,
     instruction: Instruction,
 ) -> ChainResult<Vec<AccountMeta>> {
@@ -82,12 +76,5 @@ pub async fn get_account_metas(
 }
 
 pub async fn get_finalized_block_number(rpc_client: &SealevelRpcClient) -> ChainResult<u32> {
-    let height = rpc_client
-        .get_block_height()
-        .await
-        .map_err(ChainCommunicationError::from_other)?
-        .try_into()
-        // FIXME solana block height is u64...
-        .expect("sealevel block height exceeds u32::MAX");
-    Ok(height)
+    rpc_client.get_block_height().await
 }

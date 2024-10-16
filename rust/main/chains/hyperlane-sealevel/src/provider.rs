@@ -37,12 +37,7 @@ impl SealevelProvider {
     /// Get the balance of an address
     pub async fn get_balance(&self, address: String) -> ChainResult<U256> {
         let pubkey = Pubkey::from_str(&address).map_err(Into::<HyperlaneSealevelError>::into)?;
-        let balance = self
-            .rpc_client
-            .get_balance(&pubkey)
-            .await
-            .map_err(Into::<HyperlaneSealevelError>::into)?;
-        Ok(balance.into())
+        self.rpc_client.get_balance(&pubkey).await
     }
 }
 
