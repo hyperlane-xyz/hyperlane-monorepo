@@ -8,8 +8,9 @@ import {IStaticWeightedMultisigIsm} from "../interfaces/isms/IWeightedMultisigIs
 
 // ============ Internal Imports ============
 import {MetaProxy} from "./MetaProxy.sol";
+import {PackageVersioned} from "../PackageVersioned.sol";
 
-abstract contract StaticWeightedValidatorSetFactory {
+abstract contract StaticWeightedValidatorSetFactory is PackageVersioned {
     // ============ Immutables ============
     address public immutable implementation;
 

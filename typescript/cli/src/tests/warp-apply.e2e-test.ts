@@ -18,7 +18,11 @@ import {
   getChainId,
   updateOwner,
 } from './commands/helpers.js';
-import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
+import {
+  hyperlaneWarpApply,
+  hyperlaneWarpDeploy,
+  readWarpConfig,
+} from './commands/warp.js';
 
 const CHAIN_NAME_2 = 'anvil2';
 const CHAIN_NAME_3 = 'anvil3';
@@ -86,9 +90,8 @@ describe('WarpApply e2e tests', async function () {
       warpConfigPath,
       WARP_CORE_CONFIG_PATH_2,
     );
-
     expect(stdout).to.include(
-      'Warp config on anvil2 is the same as target. No updates needed.',
+      'Warp config is the same as target. No updates needed.',
     );
   });
 
@@ -108,13 +111,13 @@ describe('WarpApply e2e tests', async function () {
       type: TokenType.native,
     };
 
-    await extendWarpConfig(
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      config,
-      WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
-    );
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig: config,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: warpConfigPath,
+    });
 
     const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
 
@@ -143,5 +146,117 @@ describe('WarpApply e2e tests', async function () {
       updatedWarpDeployConfig2[CHAIN_NAME_3].remoteRouters!,
     );
     expect(remoteRouterKeys2).to.include(chain1Id);
+  });
+
+  it('should extend an existing warp route with json strategy', async () => {
+    // Read existing config into a file
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
+
+    // Extend with new config
+    const config: TokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain2Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(ANVIL_KEY).address,
+      symbol: 'ETH',
+      totalSupply: 0,
+      type: TokenType.native,
+    };
+
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig: config,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: warpConfigPath,
+      strategyUrl: `${EXAMPLES_PATH}/submit/strategy/json-rpc-chain-strategy.yaml`,
+    });
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
+
+    // Check that chain2 is enrolled in chain1
+    const updatedWarpDeployConfig1 = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+
+    const chain2Id = await getChainId(CHAIN_NAME_3, ANVIL_KEY);
+    const remoteRouterKeys1 = Object.keys(
+      updatedWarpDeployConfig1[CHAIN_NAME_2].remoteRouters!,
+    );
+    expect(remoteRouterKeys1).to.include(chain2Id);
+
+    // Check that chain1 is enrolled in chain2
+    const updatedWarpDeployConfig2 = await readWarpConfig(
+      CHAIN_NAME_3,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+
+    const chain1Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
+    const remoteRouterKeys2 = Object.keys(
+      updatedWarpDeployConfig2[CHAIN_NAME_3].remoteRouters!,
+    );
+    expect(remoteRouterKeys2).to.include(chain1Id);
+  });
+
+  it('should extend an existing warp route and update the owner', async () => {
+    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    // Burn anvil2 owner in config
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+    warpDeployConfig[CHAIN_NAME_2].owner = BURN_ADDRESS;
+
+    // Extend with new config
+    const randomOwner = new Wallet(ANVIL_KEY).address;
+    const extendedConfig: TokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain2Addresses!.mailbox,
+      name: 'Ether',
+      owner: randomOwner,
+      symbol: 'ETH',
+      totalSupply: 0,
+      type: TokenType.native,
+    };
+
+    warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
+    writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
+
+    const updatedWarpDeployConfig_2 = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpDeployPath,
+    );
+    const updatedWarpDeployConfig_3 = await readWarpConfig(
+      CHAIN_NAME_3,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpDeployPath,
+    );
+    // Check that anvil2 owner is burned
+    expect(updatedWarpDeployConfig_2.anvil2.owner).to.equal(BURN_ADDRESS);
+
+    // Also, anvil3 owner is not burned
+    expect(updatedWarpDeployConfig_3.anvil3.owner).to.equal(randomOwner);
+
+    // Check that both chains enrolled
+    const chain2Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
+    const chain3Id = await getChainId(CHAIN_NAME_3, ANVIL_KEY);
+
+    const remoteRouterKeys2 = Object.keys(
+      updatedWarpDeployConfig_2[CHAIN_NAME_2].remoteRouters!,
+    );
+    const remoteRouterKeys3 = Object.keys(
+      updatedWarpDeployConfig_3[CHAIN_NAME_3].remoteRouters!,
+    );
+    expect(remoteRouterKeys2).to.include(chain3Id);
+    expect(remoteRouterKeys3).to.include(chain2Id);
   });
 });

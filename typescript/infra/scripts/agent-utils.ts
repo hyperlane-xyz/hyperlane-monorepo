@@ -497,17 +497,6 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
   }
 }
 
-export function getWarpAddresses(warpRouteId: string) {
-  const registry = getRegistry();
-  const warpRouteConfig = registry.getWarpRoute(warpRouteId);
-
-  if (!warpRouteConfig) {
-    throw new Error(`Warp route config for ${warpRouteId} not found`);
-  }
-
-  return warpConfigToWarpAddresses(warpRouteConfig);
-}
-
 export function writeAddresses(
   environment: DeployEnvironment,
   module: Modules,
@@ -528,7 +517,7 @@ export function writeAddresses(
 }
 
 export function getAgentConfigDirectory() {
-  return path.join('../../', 'rust', 'config');
+  return path.join('../../', 'rust', 'main', 'config');
 }
 
 export function getAgentConfigJsonPath(environment: AgentEnvironment) {

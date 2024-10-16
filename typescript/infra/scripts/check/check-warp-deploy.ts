@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
-import { WarpRouteIds } from '../../config/warp.js';
+import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules } from '../agent-utils.js';
 
@@ -13,7 +13,7 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const { environment, asDeployer, chain, fork, context, pushMetrics } =
+  const { environment, asDeployer, chains, fork, context, pushMetrics } =
     await getCheckWarpDeployArgs().argv;
 
   const metricsRegister = new Registry();
@@ -36,7 +36,7 @@ async function main() {
         environment,
         asDeployer,
         warpRouteId,
-        chain,
+        chains,
         fork,
       );
 

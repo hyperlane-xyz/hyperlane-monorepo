@@ -895,7 +895,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
     };
 }
 
-fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
+fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
     match cmd.cmd {
         TokenSubCmd::Query(query) => {
             let (token_account, token_bump) =
@@ -1024,6 +1024,7 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::TransferRemote(xfer) => {
             is_keypair(&xfer.sender).unwrap();
+            ctx.commitment = CommitmentConfig::finalized();
             let sender = read_keypair_file(xfer.sender).unwrap();
 
             let recipient = if xfer.recipient.starts_with("0x") {

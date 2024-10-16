@@ -7,6 +7,8 @@ import {IDelegationManager} from "../interfaces/avs/vendored/IDelegationManager.
 import {ISignatureUtils} from "../interfaces/avs/vendored/ISignatureUtils.sol";
 import {IServiceManager} from "../interfaces/avs/vendored/IServiceManager.sol";
 
+import {PackageVersioned} from "../PackageVersioned.sol";
+
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {CheckpointsUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/CheckpointsUpgradeable.sol";
 import {SignatureCheckerUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/SignatureCheckerUpgradeable.sol";
@@ -19,7 +21,8 @@ import {IERC1271Upgradeable} from "@openzeppelin/contracts-upgradeable/interface
 contract ECDSAStakeRegistry is
     IERC1271Upgradeable,
     OwnableUpgradeable,
-    ECDSAStakeRegistryStorage
+    ECDSAStakeRegistryStorage,
+    PackageVersioned
 {
     using SignatureCheckerUpgradeable for address;
     using CheckpointsUpgradeable for CheckpointsUpgradeable.History;

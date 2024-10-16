@@ -12,6 +12,7 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
+  addBufferToGasLimit,
   addressToBytes32,
   bytes32ToAddress,
   isZeroishAddress,
@@ -25,7 +26,10 @@ import {
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
-import { HyperlaneAddressesMap } from '../contracts/types.js';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+} from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
@@ -54,9 +58,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   getRouterConfig = (
     owners: Address | ChainMap<OwnableConfig>,
   ): ChainMap<RouterConfig> => {
+    // filter for EVM chains
+    const evmContractsMap = objFilter(
+      this.contractsMap,
+      (chainName, _): _ is HyperlaneContracts<CoreFactories> =>
+        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
+    );
+
     // get config
     const config = objMap(
-      this.contractsMap,
+      evmContractsMap,
       (chain, contracts): RouterConfig => ({
         mailbox: contracts.mailbox.address,
         owner: typeof owners === 'string' ? owners : owners[chain].owner,
@@ -64,12 +75,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
           typeof owners === 'string' ? undefined : owners[chain].ownerOverrides,
       }),
     );
-    // filter for EVM chains
-    return objFilter(
-      config,
-      (chainName, _): _ is RouterConfig =>
-        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
-    );
+
+    return config;
   };
 
   quoteGasPayment = (
@@ -149,17 +156,30 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       hook,
     );
 
+    const dispatchParams = [
+      destinationDomain,
+      recipientBytes32,
+      body,
+      metadata || '0x',
+      hook || ethers.constants.AddressZero,
+    ] as const;
+
+    const estimateGas = await mailbox.estimateGas[
+      'dispatch(uint32,bytes32,bytes,bytes,address)'
+    ](...dispatchParams, { value: quote });
+
     const dispatchTx = await this.multiProvider.handleTx(
       origin,
       mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
-        destinationDomain,
-        recipientBytes32,
-        body,
-        metadata || '0x',
-        hook || ethers.constants.AddressZero,
-        { value: quote },
+        ...dispatchParams,
+        {
+          ...this.multiProvider.getTransactionOverrides(origin),
+          value: quote,
+          gasLimit: addBufferToGasLimit(estimateGas),
+        },
       ),
     );
+
     return {
       dispatchTx,
       message: this.getDispatchedMessages(dispatchTx)[0],
@@ -244,11 +264,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     ismMetadata: string,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
+    const txOverrides =
+      this.multiProvider.getTransactionOverrides(destinationChain);
     return this.multiProvider.handleTx(
       destinationChain,
       this.getContracts(destinationChain).mailbox.process(
         ismMetadata,
         message.message,
+        { ...txOverrides },
       ),
     );
   }

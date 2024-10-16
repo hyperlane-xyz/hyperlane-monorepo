@@ -1,5 +1,93 @@
 # @hyperlane-xyz/sdk
 
+## 5.5.0
+
+### Minor Changes
+
+- 2afc484a2: Break out BlockExplorerSchema and export separately
+  Migrate RPC + Explorer health tests back to SDK from registry
+- 3254472e0: Add deployments for chains: immutablezkevm, rari, rootstock, alephzeroevm, chiliz, lumia, and superposition
+- 6176c9861: Add opstack, polygoncdk, polkadotsubstrate and zksync to ChainTechnicalStack enum
+
+### Patch Changes
+
+- fcfe91113: Reuse SDK transaction typings in tx submitters
+- Updated dependencies [92c86cca6]
+- Updated dependencies [2afc484a2]
+  - @hyperlane-xyz/core@5.4.1
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
+### Patch Changes
+
+- Updated dependencies [bb75eba74]
+- Updated dependencies [4415ac224]
+- Updated dependencies [c5c217f8e]
+  - @hyperlane-xyz/core@5.4.0
+  - @hyperlane-xyz/utils@5.4.0
+
+## 5.3.0
+
+### Patch Changes
+
+- eb47aaee8: Use collateral account for sealevel native warp route balance
+- 50319d8ba: Make HyperlaneDeployer.chainTimeoutMs public.
+  Remove HyperlaneDeployer.startingBlockNumbers as it's not used by any deployer.
+  Update HyperlaneDeployer.deploy for better logging and error handling.
+- 8de531fa4: fix: warn on submodule metadata builder failures
+- fd536a79a: Include priority fee instruction with SVM warp transfers
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/utils@5.3.0
+  - @hyperlane-xyz/core@5.3.0
+
+## 5.2.1
+
+### Patch Changes
+
+- Updated dependencies [eb5afcf3e]
+  - @hyperlane-xyz/core@5.2.1
+  - @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- a19e882fd: Improve Router Checker/Governor tooling to support enrolling multiple routers for missing domains
+- 203084df2: Added sdk support for Stake weighted ISM
+- 74a592e58: Adds OwnerCollateral to token mapping which will output the correct standard to the warp deploy artifact.
+- 739af9a34: Support providing multiple chains for checking in HyperlaneAppChecker
+- 44588c31d: Enroll new validators for cyber degenchain kroma lisk lukso merlin metis mint proofofplay real sanko tangle xai taiko
+- 291c5fe36: Use addBufferToGasLimit from @hyperlane-xyz/utils
+- 69f17d99a: Fix to correctly infer the default set of multisend addresses for a given chain, and update to latest safe-deployments patch release
+- 9563a8beb: Sorted cwNative funds by denom in transfer tx
+- 73c232b3a: Deploy to oortmainnet
+- 445b6222c: ArbL2ToL1Ism handles value via the executeTransaction branch
+- d6de34ad5: Sort values in EvmModuleDeployer.deployStaticAddressSet
+- 2e6176f67: Deploy to everclear mainnet
+- f2783c03b: Add ChainSubmissionStrategySchema
+- 3c07ded5b: Add Safe submit functionality to warp apply
+
+### Patch Changes
+
+- 518a1bef9: add 10% gas bump to initialize call in EvmModuleDeployer
+- 2bd540e0f: Estimate and add 10% gas bump for ICA initialization and enrollment
+- 3ad5918da: Support DefaultFallbackRoutingIsm in metadata builder
+- 2ffb78f5c: Improved check for mailbox initialization
+- 815542dd7: Fix arg validation for Sealevel HypNative adapters
+  Allow extra properties in ChainMetadata objects
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [203084df2]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [445b6222c]
+  - @hyperlane-xyz/utils@5.2.0
+  - @hyperlane-xyz/core@5.2.0
+
 ## 5.1.0
 
 ### Minor Changes

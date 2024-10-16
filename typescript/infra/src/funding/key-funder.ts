@@ -6,8 +6,8 @@ import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import { AgentContextConfig } from '../config/agent/agent.js';
 import { DeployEnvironment, EnvironmentConfig } from '../config/environment.js';
 import { KeyFunderConfig } from '../config/funding.js';
-import { HelmCommand, HelmManager, helmifyValues } from '../utils/helm.js';
-import { execCmd, getInfraPath } from '../utils/utils.js';
+import { HelmManager } from '../utils/helm.js';
+import { getInfraPath } from '../utils/utils.js';
 
 export class KeyFunderHelmManager extends HelmManager {
   readonly helmReleaseName: string = 'key-funder';

@@ -20,7 +20,7 @@ import {
   Domain,
   addressToBytes,
   eqAddress,
-  isZeroishAddress,
+  median,
 } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
@@ -50,7 +50,31 @@ import {
   SealevelTransferRemoteSchema,
 } from './serialization.js';
 
-// author @tkporter @jmrossy
+const NON_EXISTENT_ACCOUNT_ERROR = 'could not find account';
+
+/**
+ * The compute limit to set for the transfer remote instruction.
+ * This is typically around ~160k, but can be higher depending on
+ * the index in the merkle tree, which can result in more moderately
+ * more expensive merkle tree insertion.
+ * Because a higher compute limit doesn't increase the fee for a transaction,
+ * we generously request 1M units.
+ */
+const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
+
+/**
+ * The factor by which to multiply the median prioritization fee
+ * instruction added to transfer transactions.
+ */
+const PRIORITY_FEE_PADDING_FACTOR = 2;
+
+/**
+ * The minimum priority fee to use if the median fee is
+ * unavailable or too low, set in micro-lamports.
+ * 100,000 * 1e-6 * 1,000,000 (compute unit limit) / 1e9 == 0.0001 SOL
+ */
+const MINIMUM_PRIORITY_FEE = 100_000;
+
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
   extends BaseSealevelAdapter
@@ -95,7 +119,7 @@ export class SealevelTokenAdapter
   extends BaseSealevelAdapter
   implements ITokenAdapter<Transaction>
 {
-  public readonly tokenProgramPubKey: PublicKey;
+  public readonly tokenMintPubKey: PublicKey;
 
   constructor(
     public readonly chainName: ChainName,
@@ -104,15 +128,20 @@ export class SealevelTokenAdapter
     public readonly isSpl2022: boolean = false,
   ) {
     super(chainName, multiProvider, addresses);
-    this.tokenProgramPubKey = new PublicKey(addresses.token);
+    this.tokenMintPubKey = new PublicKey(addresses.token);
   }
 
   async getBalance(owner: Address): Promise<bigint> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.getProvider().getTokenAccountBalance(
-      tokenPubKey,
-    );
-    return BigInt(response.value.amount);
+    try {
+      const response = await this.getProvider().getTokenAccountBalance(
+        tokenPubKey,
+      );
+      return BigInt(response.value.amount);
+    } catch (error: any) {
+      if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
+      throw error;
+    }
   }
 
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
@@ -154,7 +183,7 @@ export class SealevelTokenAdapter
 
   deriveAssociatedTokenAccount(owner: PublicKey): PublicKey {
     return getAssociatedTokenAddressSync(
-      this.tokenProgramPubKey,
+      this.tokenMintPubKey,
       owner,
       true,
       this.getTokenProgramId(),
@@ -162,36 +191,28 @@ export class SealevelTokenAdapter
   }
 }
 
-// The compute limit to set for the transfer remote instruction.
-// This is typically around ~160k, but can be higher depending on
-// the index in the merkle tree, which can result in more moderately
-// more expensive merkle tree insertion.
-// Because a higher compute limit doesn't increase the fee for a transaction,
-// we generously request 1M units.
-const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
+interface HypTokenAddresses {
+  token: Address;
+  warpRouter: Address;
+  mailbox: Address;
+}
 
 export abstract class SealevelHypTokenAdapter
   extends SealevelTokenAdapter
   implements IHypTokenAdapter<Transaction>
 {
   public readonly warpProgramPubKey: PublicKey;
+  public readonly addresses: HypTokenAddresses;
   protected cachedTokenAccountData: SealevelHyperlaneTokenData | undefined;
 
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: {
-      token: Address;
-      warpRouter: Address;
-      mailbox: Address;
-    },
+    addresses: HypTokenAddresses,
     public readonly isSpl2022: boolean = false,
   ) {
-    // Pass in placeholder address to avoid errors for native token addresses (which as represented here as 0s)
-    const superTokenProgramId = isZeroishAddress(addresses.token)
-      ? SystemProgram.programId.toBase58()
-      : addresses.token;
-    super(chainName, multiProvider, { token: superTokenProgramId }, isSpl2022);
+    super(chainName, multiProvider, { token: addresses.token }, isSpl2022);
+    this.addresses = addresses;
     this.warpProgramPubKey = new PublicKey(addresses.warpRouter);
   }
 
@@ -292,10 +313,16 @@ export abstract class SealevelHypTokenAdapter
     });
 
     const setComputeLimitInstruction = ComputeBudgetProgram.setComputeUnitLimit(
-      {
-        units: TRANSFER_REMOTE_COMPUTE_LIMIT,
-      },
+      { units: TRANSFER_REMOTE_COMPUTE_LIMIT },
     );
+
+    // For more info about priority fees, see:
+    // https://solanacookbook.com/references/basic-transactions.html#how-to-change-compute-budget-fee-priority-for-a-transaction
+    // https://docs.phantom.app/developer-powertools/solana-priority-fees
+    // https://www.helius.dev/blog/priority-fees-understanding-solanas-transaction-fee-mechanics
+    const setPriorityFeeInstruction = ComputeBudgetProgram.setComputeUnitPrice({
+      microLamports: (await this.getMedianPriorityFee()) || 0,
+    });
 
     const recentBlockhash = (
       await this.getProvider().getLatestBlockhash('finalized')
@@ -308,6 +335,7 @@ export abstract class SealevelHypTokenAdapter
       recentBlockhash,
     })
       .add(setComputeLimitInstruction)
+      .add(setPriorityFeeInstruction)
       .add(transferRemoteInstruction);
     tx.partialSign(randomWallet);
     return tx;
@@ -479,6 +507,38 @@ export abstract class SealevelHypTokenAdapter
       this.warpProgramPubKey,
     );
   }
+
+  /**
+   * Fetches the median prioritization fee for transfers of the collateralAddress token.
+   * @returns The median prioritization fee in micro-lamports
+   */
+  async getMedianPriorityFee(): Promise<number | undefined> {
+    this.logger.debug('Fetching priority fee history for token transfer');
+
+    const collateralAddress = this.addresses.token;
+    const fees = await this.getProvider().getRecentPrioritizationFees({
+      lockedWritableAccounts: [new PublicKey(collateralAddress)],
+    });
+
+    const nonZeroFees = fees
+      .filter((fee) => fee.prioritizationFee > 0)
+      .map((fee) => fee.prioritizationFee);
+
+    if (nonZeroFees.length < 3) {
+      this.logger.warn(
+        'Insufficient historical prioritization fee data for padding, skipping',
+      );
+      return MINIMUM_PRIORITY_FEE;
+    }
+
+    const medianFee = Math.max(
+      Math.floor(median(nonZeroFees) * PRIORITY_FEE_PADDING_FACTOR),
+      MINIMUM_PRIORITY_FEE,
+    );
+
+    this.logger.debug(`Median priority fee: ${medianFee}`);
+    return medianFee;
+  }
 }
 
 // Interacts with Hyp Native token programs
@@ -488,14 +548,21 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: {
-      token: Address;
+    addresses: {
+      // A 'token' address is not required for hyp native tokens (e.g. hypSOL)
+      token?: Address;
       warpRouter: Address;
       mailbox: Address;
     },
     public readonly isSpl2022: boolean = false,
   ) {
-    super(chainName, multiProvider, addresses, isSpl2022);
+    // Pass in placeholder address for 'token' to avoid errors in the parent classes
+    super(
+      chainName,
+      multiProvider,
+      { ...addresses, token: SystemProgram.programId.toBase58() },
+      isSpl2022,
+    );
     this.wrappedNative = new SealevelNativeTokenAdapter(
       chainName,
       multiProvider,
@@ -504,11 +571,23 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
   }
 
   override async getBalance(owner: Address): Promise<bigint> {
+    if (eqAddress(owner, this.addresses.warpRouter)) {
+      const collateralAccount = this.deriveNativeTokenCollateralAccount();
+      const balance = await this.getProvider().getBalance(collateralAccount);
+      // TODO: account for rent in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4558
+      return BigInt(balance.toString());
+    }
     return this.wrappedNative.getBalance(owner);
   }
 
   override async getMetadata(): Promise<TokenMetadata> {
     return this.wrappedNative.getMetadata();
+  }
+
+  override async getMedianPriorityFee(): Promise<number | undefined> {
+    // Native tokens don't have a collateral address, so we don't fetch
+    // prioritization fee history
+    return undefined;
   }
 
   getTransferInstructionKeyList(params: KeyListParams): Array<AccountMeta> {
@@ -560,7 +639,7 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
       /// 9.   [executable] The SPL token program for the mint.
       { pubkey: this.getTokenProgramId(), isSigner: false, isWritable: false },
       /// 10.  [writeable] The mint.
-      { pubkey: this.tokenProgramPubKey, isSigner: false, isWritable: true },
+      { pubkey: this.tokenMintPubKey, isSigner: false, isWritable: true },
       /// 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
       {
         pubkey: this.deriveAssociatedTokenAccount(params.sender),
@@ -606,8 +685,20 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
 
   override async getBalance(owner: Address): Promise<bigint> {
     const tokenPubKey = this.deriveAssociatedTokenAccount(new PublicKey(owner));
-    const response = await this.getProvider().getTokenAccountBalance(
-      tokenPubKey,
+    try {
+      const response = await this.getProvider().getTokenAccountBalance(
+        tokenPubKey,
+      );
+      return BigInt(response.value.amount);
+    } catch (error: any) {
+      if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
+      throw error;
+    }
+  }
+
+  async getTotalSupply(): Promise<bigint> {
+    const response = await this.getProvider().getTokenSupply(
+      this.tokenMintPubKey,
     );
     return BigInt(response.value.amount);
   }

@@ -29,7 +29,6 @@ import {
   assert,
   deepEquals,
   eqAddress,
-  normalizeConfig,
   objFilter,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -49,6 +48,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 import { getZKArtifactByContractName } from '../utils/zksync.js';
 
@@ -551,6 +551,7 @@ export class EvmIsmModule extends HyperlaneModule<
         config.owner,
         availableDomainIds,
         submoduleAddresses,
+        this.multiProvider.getTransactionOverrides(this.args.chain),
       );
 
       await this.multiProvider.handleTx(this.chain, tx);
@@ -594,14 +595,14 @@ export class EvmIsmModule extends HyperlaneModule<
       overrides,
     );
 
-    // deploying new domain routing ISM, add 10% buffer
+    // deploying new domain routing ISM, add gas buffer
     const tx = await domainRoutingIsmFactory.deploy(
       owner,
       domainIds,
       submoduleAddresses,
       {
-        ...overrides,
         gasLimit: addBufferToGasLimit(estimatedGas),
+        ...overrides,
       },
     );
 

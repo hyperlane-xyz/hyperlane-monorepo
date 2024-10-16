@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+import { SystemProgram } from '@solana/web3.js';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
@@ -109,9 +110,32 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   },
   [TokenStandard.SealevelNative]:
     Token.FromChainMetadataNativeToken(testSealevelChain),
-  [TokenStandard.SealevelHypNative]: null,
-  [TokenStandard.SealevelHypCollateral]: null,
-  [TokenStandard.SealevelHypSynthetic]: null,
+  [TokenStandard.SealevelHypNative]: {
+    chainName: testSealevelChain.name,
+    standard: TokenStandard.SealevelHypNative,
+    addressOrDenom: '4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg',
+    decimals: 9,
+    symbol: 'SOL',
+    name: 'SOL',
+  },
+  [TokenStandard.SealevelHypCollateral]: {
+    chainName: testSealevelChain.name,
+    standard: TokenStandard.SealevelHypCollateral,
+    addressOrDenom: 'Fefw54S6NDdwNbPngPePvW4tiFTFQDT7gBPvFoDFeGqg',
+    collateralAddressOrDenom: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    decimals: 6,
+    symbol: 'USDC',
+    name: 'USDC',
+  },
+  [TokenStandard.SealevelHypSynthetic]: {
+    chainName: testSealevelChain.name,
+    standard: TokenStandard.SealevelHypSynthetic,
+    addressOrDenom: 'GLpdg3jt6w4eVYiCMhokVZ4mX6hmRvPhcL5RoCjzGr5k',
+    collateralAddressOrDenom: '8SuhHnSEogAN2udZsoychjTafnaGgM9MCidYZEP8vuVY',
+    decimals: 9,
+    symbol: 'SOL',
+    name: 'SOL',
+  },
 
   // Cosmos
   [TokenStandard.CosmosIcs20]: null,
@@ -161,18 +185,19 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
   [TokenStandard.CwHypSynthetic]: null,
 };
 
-const PROTOCOL_TO_ADDRESS: Partial<Record<ProtocolType, Address>> = {
+const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
+  Record<ProtocolType, Address>
+> = {
   [ProtocolType.Ethereum]: ethers.constants.AddressZero,
   [ProtocolType.Cosmos]:
     'neutron13we0myxwzlpx8l5ark8elw5gj5d59dl6cjkzmt80c5q5cv5rt54qvzkv2a',
+  [ProtocolType.Sealevel]: 'EK6cs8jNnu2d9pmKTGf1Bvre9oW2xNhcCKNdLKx6t74w',
 };
 
-const STANDARD_TO_ADDRESS: Partial<Record<TokenStandard, Address>> = {
+const STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
+  Record<TokenStandard, Address>
+> = {
   [TokenStandard.SealevelSpl]: 'HVSZJ2juJnMxd6yCNarTL56YmgUqzfUiwM7y7LtTXKHR',
-  [TokenStandard.SealevelSpl2022]:
-    'EK6cs8jNnu2d9pmKTGf1Bvre9oW2xNhcCKNdLKx6t74w',
-  [TokenStandard.SealevelNative]:
-    'EK6cs8jNnu2d9pmKTGf1Bvre9oW2xNhcCKNdLKx6t74w',
   [TokenStandard.CwHypNative]: 'inj1fl48vsnmsdzcv85q5d2q4z5ajdha8yu3lj7tt0',
 };
 
@@ -181,16 +206,21 @@ describe('Token', () => {
     if (!tokenArgs) continue;
     it(`Handles ${tokenArgs.standard} standard`, async () => {
       const multiProvider =
-        MultiProtocolProvider.createTestMultiProtocolProvider();
+        MultiProtocolProvider.createTestMultiProtocolProvider<{
+          mailbox?: string;
+        }>();
+      // A placeholder mailbox address for the sealevel chain
+      multiProvider.metadata[testSealevelChain.name].mailbox =
+        SystemProgram.programId.toBase58();
 
       console.debug('Testing token standard', tokenArgs.standard);
       const token = new Token(tokenArgs);
       expect(token.standard).to.eql(tokenArgs.standard);
       const adapter = token.getAdapter(multiProvider);
-      const address =
-        STANDARD_TO_ADDRESS[token.standard] ??
-        PROTOCOL_TO_ADDRESS[token.protocol];
-      if (!address)
+      const balanceCheckAddress =
+        STANDARD_TO_ADDRESS_FOR_BALANCE_CHECK[token.standard] ??
+        PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK[token.protocol];
+      if (!balanceCheckAddress)
         throw new Error(`No address for standard ${tokenArgs.standard}`);
 
       const sandbox = stubMultiProtocolProvider(multiProvider);
@@ -199,7 +229,7 @@ describe('Token', () => {
         balanceOf: async () => '100',
       };
 
-      const balance = await adapter.getBalance(address);
+      const balance = await adapter.getBalance(balanceCheckAddress);
       expect(typeof balance).to.eql('bigint');
       sandbox.restore();
     });

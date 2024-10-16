@@ -84,11 +84,6 @@ async function executeDelivery({
   const chainAddresses = await registry.getAddresses();
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
-  const hook = chainAddresses[origin]?.customHook;
-  if (hook) {
-    logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
-  }
-
   try {
     const recipient = chainAddresses[destination].testRecipient;
     if (!recipient) {
@@ -102,8 +97,8 @@ async function executeDelivery({
       destination,
       formattedRecipient,
       messageBody,
-      hook,
-      undefined,
+      // override the the default hook (with IGP) for self-relay to avoid race condition with the production relayer
+      selfRelay ? chainAddresses[origin].merkleTreeHook : undefined,
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);

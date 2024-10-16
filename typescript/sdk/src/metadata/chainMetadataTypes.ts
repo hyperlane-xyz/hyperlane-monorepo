@@ -4,7 +4,9 @@
  */
 import { SafeParseReturnType, z } from 'zod';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+
+import { ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 
@@ -72,6 +74,29 @@ export const RpcUrlSchema = z.object({
 
 export type RpcUrl = z.infer<typeof RpcUrlSchema>;
 
+export const BlockExplorerSchema = z.object({
+  name: z.string().describe('A human readable name for the explorer.'),
+  url: z.string().url().describe('The base URL for the explorer.'),
+  apiUrl: z
+    .string()
+    .url()
+    .describe('The base URL for requests to the explorer API.'),
+  apiKey: z
+    .string()
+    .optional()
+    .describe(
+      'An API key for the explorer (recommended for better reliability).',
+    ),
+  family: z
+    .nativeEnum(ExplorerFamily)
+    .optional()
+    .describe(
+      'The type of the block explorer. See ExplorerFamily for valid values.',
+    ),
+});
+
+export type BlockExplorer = z.infer<typeof BlockExplorerSchema>;
+
 export const NativeTokenSchema = z.object({
   name: z.string(),
   symbol: z.string(),
@@ -92,28 +117,7 @@ export const ChainMetadataSchemaObject = z.object({
     .describe('The human readable address prefix for the chains using bech32.'),
 
   blockExplorers: z
-    .array(
-      z.object({
-        name: z.string().describe('A human readable name for the explorer.'),
-        url: z.string().url().describe('The base URL for the explorer.'),
-        apiUrl: z
-          .string()
-          .url()
-          .describe('The base URL for requests to the explorer API.'),
-        apiKey: z
-          .string()
-          .optional()
-          .describe(
-            'An API key for the explorer (recommended for better reliability).',
-          ),
-        family: z
-          .nativeEnum(ExplorerFamily)
-          .optional()
-          .describe(
-            'The type of the block explorer. See ExplorerFamily for valid values.',
-          ),
-      }),
-    )
+    .array(BlockExplorerSchema)
     .optional()
     .describe('A list of block explorers with data for this chain'),
 
@@ -235,7 +239,7 @@ export const ChainMetadataSchemaObject = z.object({
 
   rpcUrls: z
     .array(RpcUrlSchema)
-    .nonempty()
+    .min(1)
     .describe('The list of RPC endpoints for interacting with the chain.'),
 
   slip44: z.number().optional().describe('The SLIP-0044 coin type.'),
@@ -253,8 +257,11 @@ export const ChainMetadataSchemaObject = z.object({
     .describe('Properties to include when forming transaction requests.'),
 });
 
+// Passthrough allows for extra fields to remain in the object (such as extensions consumers may want like `mailbox`)
+const ChainMetadataSchemaExtensible = ChainMetadataSchemaObject.passthrough();
+
 // Add refinements to the object schema to conditionally validate certain fields
-export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
+export const ChainMetadataSchema = ChainMetadataSchemaExtensible.refine(
   (metadata) => {
     if (
       [
@@ -340,13 +347,10 @@ export const ChainMetadataSchema = ChainMetadataSchemaObject.refine(
     },
   );
 
-export type ChainMetadata<Ext = object> = z.infer<typeof ChainMetadataSchema> &
+export type ChainMetadata<Ext = object> = z.infer<
+  typeof ChainMetadataSchemaObject
+> &
   Ext;
-
-export type BlockExplorer = Exclude<
-  ChainMetadata['blockExplorers'],
-  undefined
->[number];
 
 export function safeParseChainMetadata(
   c: ChainMetadata,
@@ -374,4 +378,18 @@ export function getReorgPeriod(chainMetadata: ChainMetadata): number {
   if (chainMetadata.blocks?.reorgPeriod !== undefined)
     return chainMetadata.blocks.reorgPeriod;
   else throw new Error('Chain has no reorg period');
+}
+
+export function mergeChainMetadata(
+  base: ChainMetadata,
+  overrides: Partial<ChainMetadata> | undefined,
+): ChainMetadata {
+  return objMerge<ChainMetadata>(base, overrides || {}, 10, true);
+}
+
+export function mergeChainMetadataMap(
+  base: ChainMap<ChainMetadata>,
+  overrides: ChainMap<Partial<ChainMetadata> | undefined> | undefined,
+): ChainMap<ChainMetadata> {
+  return objMerge<ChainMap<ChainMetadata>>(base, overrides || {}, 10, true);
 }
