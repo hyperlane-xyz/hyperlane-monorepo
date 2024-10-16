@@ -12,8 +12,10 @@ $.verbose = true;
  * Deploys the Warp route to the specified chain using the provided config.
  */
 export async function hyperlaneWarpDeploy(warpCorePath: string) {
+  // --overrides is " " to allow local testing to work
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
+        --overrides " " \
         --config ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
@@ -30,6 +32,7 @@ export async function hyperlaneWarpApply(
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
         --registry ${REGISTRY_PATH} \
+        --overrides " " \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
@@ -45,11 +48,29 @@ export async function hyperlaneWarpRead(
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
         --registry ${REGISTRY_PATH} \
+        --overrides " " \
         --address ${warpAddress} \
         --chain ${chain} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --config ${warpDeployPath}`;
+}
+
+export async function hyperlaneWarpSendRelay(
+  origin: string,
+  destination: string,
+  warpCorePath: string,
+) {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
+        --relay \
+        --registry ${REGISTRY_PATH} \
+        --overrides " " \
+        --origin ${origin} \
+        --destination ${destination} \
+        --warp ${warpCorePath} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
 }
 
 /**
