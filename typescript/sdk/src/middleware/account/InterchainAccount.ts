@@ -59,39 +59,21 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   async getAccount(
     destinationChain: ChainName,
     config: AccountConfig,
-    routerOverride?: Address,
-    ismOverride?: Address,
   ): Promise<Address> {
-    return this.getOrDeployAccount(
-      false,
-      destinationChain,
-      config,
-      routerOverride,
-      ismOverride,
-    );
+    return this.getOrDeployAccount(false, destinationChain, config);
   }
 
   async deployAccount(
     destinationChain: ChainName,
     config: AccountConfig,
-    routerOverride?: Address,
-    ismOverride?: Address,
   ): Promise<Address> {
-    return this.getOrDeployAccount(
-      true,
-      destinationChain,
-      config,
-      routerOverride,
-      ismOverride,
-    );
+    return this.getOrDeployAccount(true, destinationChain, config);
   }
 
   protected async getOrDeployAccount(
     deployIfNotExists: boolean,
     destinationChain: ChainName,
     config: AccountConfig,
-    routerOverride?: Address,
-    ismOverride?: Address,
   ): Promise<Address> {
     const originDomain = this.multiProvider.tryGetDomainId(config.origin);
     if (!originDomain) {
@@ -99,9 +81,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         `Origin chain (${config.origin}) metadata needed for deploying ICAs ...`,
       );
     }
-    const destinationRouter = this.router(this.contractsMap[destinationChain]);
+    const destinationRouter = this.mustGetRouter(destinationChain);
     const originRouterAddress =
-      routerOverride ??
+      config.routerOverride ??
       bytes32ToAddress(await destinationRouter.routers(originDomain));
     if (isZeroishAddress(originRouterAddress)) {
       throw new Error(
@@ -110,7 +92,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     }
 
     const destinationIsmAddress =
-      ismOverride ??
+      config.ismOverride ??
       bytes32ToAddress(await destinationRouter.isms(originDomain));
     const destinationAccount = await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
@@ -219,6 +201,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         hookMetadata,
       }),
     );
+  }
+
+  mustGetRouter(chainName: ChainName): InterchainAccountRouter {
+    const router = this.router(this.contractsMap[chainName]);
+    if (!router) {
+      throw new Error(`Router not found for chain: ${chainName}`);
+    }
+    return router;
   }
 }
 

@@ -1,10 +1,8 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
 import { Address, eqAddress, isZeroishAddress } from '@hyperlane-xyz/utils';
 
-import { icas } from '../../config/environments/mainnet3/owners.js';
-import { chainsToSkip } from '../../src/config/chain.js';
-import { isEthereumProtocolChain } from '../../src/utils/utils.js';
-import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
+import awIcas from '../../config/environments/mainnet3/aw-icas.json';
+import { getArgs as getEnvArgs } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 function getArgs() {
@@ -53,17 +51,8 @@ async function main() {
     string,
     { Expected: Address; Actual: Address }
   > = {};
-  for (const chain of checkOwnerIcaChains) {
-    const expectedAddress = icas[chain as keyof typeof icas];
-    if (!expectedAddress) {
-      console.error(`No expected address found for ${chain}`);
-      continue;
-    }
-    const actualAccount = await ica.getAccount(
-      chain,
-      ownerConfig,
-      ownerChainInterchainAccountRouter,
-    );
+  for (const [chain, { ica: expectedAddress }] of Object.entries(awIcas)) {
+    const actualAccount = await ica.getAccount(chain, ownerConfig);
     if (!eqAddress(expectedAddress, actualAccount)) {
       mismatchedResults[chain] = {
         Expected: expectedAddress,

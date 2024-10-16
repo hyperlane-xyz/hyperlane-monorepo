@@ -1,8 +1,12 @@
+import { ethers } from 'ethers';
+
 import { AddressesMap, ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
+import { IcaArtifact } from '../../../src/config/icas.js';
 import { getMainnetAddresses } from '../../registry.js';
 
+import awIcas from './aw-icas.json';
 import { ethereumChainNames } from './chains.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
@@ -60,9 +64,10 @@ export const safes: ChainMap<Address> = {
 
 export const icaOwnerChain = 'ethereum';
 
+// Can be removed after moving to the new ICAs:
 // Found by running:
 // yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
-export const icas: Partial<
+export const oldIcas: Partial<
   Record<(typeof supportedChainNames)[number], Address>
 > = {
   viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
@@ -129,41 +134,25 @@ export const icas: Partial<
 
   // Oct 16, 2024 batch
   // ----------------------------------------------------------
-  // lumia: '0x418E10Ac9e0b84022d0636228d05bc74172e0e41',
-
-  // Oct 30, 2024 batch
-  // ----------------------------------------------------------
-  apechain: '0xe68b0aB6BB8c11D855556A5d3539524f6DB3bdc6',
-  arbitrumnova: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  b3: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  fantom: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  gravity: '0x3104ADE26e21AEbdB325321433541DfE8B5dCF23',
-  harmony: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  kaia: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  morph: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  orderly: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-  snaxchain: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
-
-  // Nov 8, 2024 batch
-  // ----------------------------------------------------------
-  alephzeroevmmainnet: '0xDE91AC081E12107a033728A287b06B1Fc640A637',
-  chilizmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
-  flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
-  immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
-  metal: '0xf1d25462e1f82BbF25b3ef7A4C94F738a30a968B',
-  polynomialfi: '0x6ACa36E710dC0C80400090EA0bC55dA913a3D20D',
-  rarichain: '0xD0A4Ad2Ca0251BBc6541f8c2a594F1A82b67F114',
-  rootstockmainnet: '0x0C15f7479E0B46868693568a3f1C747Fdec9f17d',
-  superpositionmainnet: '0x5F17Dc2e1fd1371dc6e694c51f22aBAF8E27667B',
-  flame: '0x4F3d85360840497Cd1bc34Ca55f27629eee2AA2e',
-  prom: '0x1cDd3C143387cD1FaE23e2B66bc3F409D073aC3D',
+  immutablezkevm: '0x8483e1480B62cB9f0aCecEbF42469b9f4013577a',
+  rari: '0x1124D54E989570A798769E534eAFbE1444f40AF6',
+  rootstock: '0x69350aeA98c5195F2c3cC6E6A065d0d8B12F659A',
+  alephzeroevm: '0x004a4C2e4Cd4F5Bd564fe0A6Ab2Da56258aE576f',
+  chiliz: '0xb52D281aD2BA9761c16f400d755837493e2baDB7',
+  lumia: '0x418E10Ac9e0b84022d0636228d05bc74172e0e41',
+  superposition: '0x34b57ff8fBA8da0cFdA795CC0F874FfaB14B1DE9',
+  flow: '0xf48377f8A3ddA7AAD7C2460C81d939434c829b45',
+  metall2: '0x2f1b1B0Fb7652E621316460f6c3b019F61d8dC9a',
+  polynomial: '0xC20eFa1e5A378af9233e9b24515eb3408d43f900',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
-    const owner = icas[local] ?? safes[local] ?? DEPLOYER;
+    const icaArtifact: IcaArtifact | undefined =
+      awIcas[local as keyof typeof awIcas];
+    const owner = icaArtifact?.ica ?? safes[local] ?? DEPLOYER;
 
     return [
       local,
@@ -179,7 +168,12 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
           // So we need to keep the Safe and ICA addresses somewhere in the config
           // to be able to track down which addresses are SAFEs, ICAs, or standard SIGNERS.
           ...(safes[local] && { _safeAddress: safes[local] }),
-          ...(icas[local] && { _icaAddress: icas[local] }),
+          // After transitioning to the new ICAs, remove the following:
+          ...(oldIcas[local] && { _icaAddress: oldIcas[local] }),
+
+          // After transitioning to the new ICAs, uncomment the following:
+          // ...(icaArtifact && { _icaAddress: icaArtifact.ica }),
+          // ...(icaArtifact?.ism && { _icaIsmAddress: icaArtifact.ism }),
         },
       },
     ];

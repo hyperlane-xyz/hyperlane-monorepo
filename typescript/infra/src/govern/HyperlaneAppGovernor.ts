@@ -371,16 +371,36 @@ export abstract class HyperlaneAppGovernor<
       chain,
       account.address,
     );
-    const origin = this.interchainAccount.multiProvider.getChainName(
-      accountConfig.origin,
-    );
     console.info(
       chalk.gray(
         `Inferred call for ICA remote owner ${bytes32ToAddress(
           accountConfig.owner,
-        )} on ${origin} to ${chain}`,
+        )} on ${accountConfig.origin} to ${chain}`,
       ),
     );
+
+    // Ensure that we can derive the ICA using the ISM we're aware of.
+    const ismOverride =
+      this.checker.configMap[chain].ownerOverrides?._icaIsmAddress;
+    const recoveredAccount = await this.interchainAccount.getAccount(chain, {
+      owner: accountConfig.owner,
+      origin: accountConfig.origin,
+      ismOverride,
+    });
+    if (!eqAddress(recoveredAccount, account.address)) {
+      console.error(
+        chalk.red(
+          `Failed to recover the target owner ICA: (chain: ${chain}, remote owner: ${accountConfig.owner}, origin: ${accountConfig}).
+          Used ISM override: ${ismOverride}, recovered account: ${recoveredAccount}. Is the ICA's ISM override correct?
+          Defaulting to manual submission.`,
+        ),
+      );
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
+    }
 
     // Get the encoded call to the remote ICA
     const callRemote = await this.interchainAccount.getCallRemote({
