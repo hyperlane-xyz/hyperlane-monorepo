@@ -23,6 +23,13 @@ export type ArtifactsFile = {
   description: string;
 };
 
+export function removeEndingSlash(dirPath: string): string {
+  if (dirPath.endsWith('/')) {
+    return dirPath.slice(0, -1);
+  }
+  return dirPath;
+}
+
 export function resolvePath(filePath: string): string {
   if (filePath.startsWith('~')) {
     const homedir = os.homedir();

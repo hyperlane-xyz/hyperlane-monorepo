@@ -8,7 +8,7 @@ import {
   stopImpersonatingAccount,
 } from '../../../../utils/fork.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { PopulatedTransactions } from '../../types.js';
+import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5JsonRpcTxSubmitter } from './EV5JsonRpcTxSubmitter.js';
@@ -30,7 +30,7 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   }
 
   public async submit(
-    ...txs: PopulatedTransactions
+    ...txs: AnnotatedEV5Transaction[]
   ): Promise<TransactionReceipt[]> {
     const impersonatedAccount = await impersonateAccount(
       this.props.userAddress,
