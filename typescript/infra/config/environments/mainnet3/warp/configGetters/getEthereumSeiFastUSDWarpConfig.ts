@@ -21,7 +21,6 @@ export const getEthereumSeiFastUSDWarpConfig = async (
     name: 'fastUSD',
     symbol: 'fastUSD',
     decimals: 18,
-    totalSupply: 0,
     token: tokens.sei.fastUSD,
     interchainSecurityModule: ethers.constants.AddressZero,
     owner,
