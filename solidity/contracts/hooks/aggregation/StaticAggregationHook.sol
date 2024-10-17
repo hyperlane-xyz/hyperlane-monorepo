@@ -13,11 +13,19 @@ pragma solidity >=0.8.0;
  @@@@@@@@@       @@@@@@@@@
 @@@@@@@@@       @@@@@@@@*/
 
+// ============ Internal Imports ============
+import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
 
+// ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+
 contract StaticAggregationHook is AbstractPostDispatchHook {
+    using StandardHookMetadata for bytes;
+    using Address for address payable;
+
     // ============ External functions ============
 
     /// @inheritdoc IPostDispatchHook
@@ -32,16 +40,25 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
     ) internal override {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
+        uint256 gasRemaining = msg.value;
         for (uint256 i = 0; i < count; i++) {
             uint256 quote = IPostDispatchHook(_hooks[i]).quoteDispatch(
                 metadata,
                 message
             );
 
+            gasRemaining -= quote;
             IPostDispatchHook(_hooks[i]).postDispatch{value: quote}(
                 metadata,
                 message
             );
+        }
+
+        if (gasRemaining > 0) {
+            address payable refundAddress = payable(
+                metadata.refundAddress(msg.sender)
+            );
+            refundAddress.sendValue(gasRemaining);
         }
     }
 
