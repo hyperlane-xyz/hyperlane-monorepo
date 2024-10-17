@@ -65,7 +65,6 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
             }
         }
 
-        // ism = IInterchainSecurityModule(deployedIsm);
         ism = IInterchainSecurityModule(
             weightedFactory.deploy(validators, threshold)
         );
@@ -136,7 +135,7 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
         return metadata;
     }
 
-    function testVerify_revertInsufficientWeight(
+    function test_verify_revertInsufficientWeight(
         uint32 destination,
         bytes32 recipient,
         bytes calldata body,
@@ -160,6 +159,34 @@ abstract contract AbstractStaticWeightedMultisigIsmTest is
 
         vm.expectRevert("Insufficient validator weight");
         ism.verify(insufficientMetadata, message);
+    }
+
+    function test_verify_revertWhen_duplicateSignatures(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public virtual override {
+        vm.assume(1 < m && m <= n && n < 10);
+        bytes memory message = getMessage(destination, recipient, body);
+        bytes memory metadata = getMetadata(m, n, seed, message);
+
+        bytes memory duplicateMetadata = new bytes(metadata.length);
+        for (uint256 i = 0; i < metadata.length - 65; i++) {
+            duplicateMetadata[i] = metadata[i];
+        }
+        for (uint256 i = 0; i < 65; i++) {
+            duplicateMetadata[metadata.length - 65 + i] = metadata[
+                metadata.length - 130 + i
+            ];
+        }
+
+        if (weightedIsm.signatureCount(metadata) >= 2) {
+            vm.expectRevert("Invalid signer");
+            ism.verify(duplicateMetadata, message);
+        }
     }
 }
 
@@ -194,6 +221,28 @@ contract StaticMerkleRootWeightedMultisigIsmTest is
                 message
             );
     }
+
+    function test_verify_revertWhen_duplicateSignatures(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    )
+        public
+        override(AbstractMultisigIsmTest, AbstractStaticWeightedMultisigIsmTest)
+    {
+        AbstractStaticWeightedMultisigIsmTest
+            .test_verify_revertWhen_duplicateSignatures(
+                destination,
+                recipient,
+                body,
+                m,
+                n,
+                seed
+            );
+    }
 }
 
 contract StaticMessageIdWeightedMultisigIsmTest is
@@ -225,6 +274,28 @@ contract StaticMessageIdWeightedMultisigIsmTest is
                 n,
                 seed,
                 message
+            );
+    }
+
+    function test_verify_revertWhen_duplicateSignatures(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    )
+        public
+        override(AbstractMultisigIsmTest, AbstractStaticWeightedMultisigIsmTest)
+    {
+        AbstractStaticWeightedMultisigIsmTest
+            .test_verify_revertWhen_duplicateSignatures(
+                destination,
+                recipient,
+                body,
+                m,
+                n,
+                seed
             );
     }
 }
