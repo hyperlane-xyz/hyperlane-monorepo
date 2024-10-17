@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {console} from "forge-std/console.sol";
+
 import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
 import {ISlasher} from "../../contracts/interfaces/avs/vendored/ISlasher.sol";
 
@@ -8,7 +10,6 @@ import {IAVSDirectory} from "../../contracts/interfaces/avs/vendored/IAVSDirecto
 import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
 import {TestDelegationManager} from "../../contracts/test/avs/TestDelegationManager.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
-import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
 
 import {IStrategy} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
 import {ISignatureUtils} from "../../contracts/interfaces/avs/vendored/ISignatureUtils.sol";
@@ -24,7 +25,6 @@ import {EigenlayerBase} from "./EigenlayerBase.sol";
 contract HyperlaneServiceManagerTest is EigenlayerBase {
     TestHyperlaneServiceManager internal _hsm;
     ECDSAStakeRegistry internal _ecdsaStakeRegistry;
-    TestPaymentCoordinator internal _paymentCoordinator;
 
     // Operator info
     uint256 operatorPrivateKey = 0xdeadbeef;
@@ -40,16 +40,18 @@ contract HyperlaneServiceManagerTest is EigenlayerBase {
         _deployMockEigenLayerAndAVS();
 
         _ecdsaStakeRegistry = new ECDSAStakeRegistry(delegationManager);
-        _paymentCoordinator = new TestPaymentCoordinator();
 
         _hsm = new TestHyperlaneServiceManager(
             address(avsDirectory),
             address(_ecdsaStakeRegistry),
-            address(_paymentCoordinator),
+            address(0x0),
             address(delegationManager)
         );
+
         _hsm.initialize(address(this));
         _hsm.setSlasher(slasher);
+
+        console.log("Deployed HyperlaneServiceManager at", address(_hsm));
 
         IStrategy mockStrategy = IStrategy(address(0x1234));
         Quorum memory quorum = Quorum({strategies: new StrategyParams[](1)});
