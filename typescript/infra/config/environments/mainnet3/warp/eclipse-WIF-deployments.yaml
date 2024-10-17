@@ -10,6 +10,7 @@ data:
       type: collateral
       hypAddress: 'CuQmsT4eSF4dYiiGUGYYQxJ7c58pUAD5ADE3BbFGzQKx'
       tokenAddress: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm'
+      tokenCoinGeckoId: dogwifcoin
       name: dogwifhat
       symbol: WIF
       decimals: 9

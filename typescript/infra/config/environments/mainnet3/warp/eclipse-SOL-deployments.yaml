@@ -9,6 +9,7 @@ data:
       protocolType: sealevel
       type: native
       hypAddress: '8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc'
+      tokenCoinGeckoId: solana
       name: Solana
       symbol: SOL
       decimals: 9

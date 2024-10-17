@@ -9,6 +9,7 @@ data:
       protocolType: ethereum
       type: native
       hypAddress: '0x15b5D6B614242B118AA404528A7f3E2Ad241e4A4'
+      tokenCoinGeckoId: ethereum
       name: Ether
       symbol: ETH
       decimals: 18

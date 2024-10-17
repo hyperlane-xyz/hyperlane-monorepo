@@ -10,6 +10,7 @@ data:
       symbol: ezETH
       hypAddress: '0xC59336D8edDa9722B4f1Ec104007191Ec16f7087'
       tokenAddress: '0x2416092f143378750bb29b79eD961ab195CcEea5'
+      tokenCoinGeckoId: renzo-restaked-eth
       decimals: 18
     bsc:
       protocolType: ethereum
