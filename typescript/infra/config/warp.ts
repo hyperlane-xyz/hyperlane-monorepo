@@ -45,8 +45,8 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
-  [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EthereumZircuitPZETH]: getRenzoPZETHWarpConfig,
+  [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
 };
 
 export async function getWarpConfig(
