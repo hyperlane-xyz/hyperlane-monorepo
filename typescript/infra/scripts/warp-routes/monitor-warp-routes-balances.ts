@@ -102,18 +102,18 @@ async function main(): Promise<boolean> {
   const registry = await envConfig.getRegistry();
   const chainMetadata = await registry.getMetadata();
 
-  // TODO: eventually support token balance checks for xERC20 token type also
-  if (
-    Object.values(tokenConfig).some(
-      (token) =>
-        token.type === TokenType.XERC20 ||
-        token.type === TokenType.XERC20Lockbox,
-    )
-  ) {
-    await checkXERC20Limits(checkFrequency, tokenConfig, chainMetadata);
-  } else {
-    await checkTokenBalances(checkFrequency, tokenConfig, chainMetadata);
-  }
+  // // TODO: eventually support token balance checks for xERC20 token type also
+  // if (
+  //   Object.values(tokenConfig).some(
+  //     (token) =>
+  //       token.type === TokenType.XERC20 ||
+  //       token.type === TokenType.XERC20Lockbox,
+  //   )
+  // ) {
+  //   await checkXERC20Limits(checkFrequency, tokenConfig, chainMetadata);
+  // } else {
+  await checkTokenBalances(checkFrequency, tokenConfig, chainMetadata);
+  // }
 
   return true;
 }
@@ -136,7 +136,7 @@ async function checkBalance(
                 ethers.utils.formatUnits(nativeBalance, token.decimals),
               );
             }
-            case ProtocolType.Sealevel:
+            case ProtocolType.Sealevel: {
               const adapter = new SealevelHypNativeAdapter(
                 chain,
                 multiProtocolProvider,
@@ -155,6 +155,7 @@ async function checkBalance(
               return parseFloat(
                 ethers.utils.formatUnits(balance, token.decimals),
               );
+            }
             case ProtocolType.Cosmos: {
               if (!token.ibcDenom)
                 throw new Error('IBC denom missing for native token');
@@ -245,7 +246,7 @@ async function checkBalance(
                 ethers.utils.formatUnits(syntheticBalance, token.decimals),
               );
             }
-            case ProtocolType.Sealevel:
+            case ProtocolType.Sealevel: {
               if (!token.tokenAddress)
                 throw new Error('Token address missing for synthetic token');
               const adapter = new SealevelHypSyntheticAdapter(
@@ -265,11 +266,36 @@ async function checkBalance(
               return parseFloat(
                 ethers.utils.formatUnits(syntheticBalance, token.decimals),
               );
+            }
             case ProtocolType.Cosmos:
               // TODO - cosmos synthetic
               return 0;
           }
           break;
+        }
+        case TokenType.XERC20: {
+          switch (token.protocolType) {
+            case ProtocolType.Ethereum: {
+              if (!token.tokenAddress)
+                throw new Error('Token address missing for xERC20 token');
+              const provider = multiProtocolProvider.getEthersV5Provider(chain);
+              const hypXERC20 = HypXERC20__factory.connect(
+                token.hypAddress,
+                provider,
+              );
+              const xerc20Address = await hypXERC20.wrappedToken();
+              const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
+              const syntheticBalance = await xerc20.totalSupply();
+
+              return parseFloat(
+                ethers.utils.formatUnits(syntheticBalance, token.decimals),
+              );
+            }
+            default:
+              throw new Error(
+                `Unsupported protocol type ${token.protocolType} for token type ${token.type}`,
+              );
+          }
         }
       }
       return 0;
