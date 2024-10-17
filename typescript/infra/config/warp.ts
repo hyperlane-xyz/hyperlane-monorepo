@@ -21,7 +21,7 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
-import { CheckerWarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
+import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 
 type WarpConfigGetterWithConfig = (
   routerConfig: ChainMap<RouterConfig>,
@@ -33,21 +33,20 @@ export const warpConfigGetterMap: Record<
   string,
   WarpConfigGetterWithConfig | WarpConfigGetterWithoutConfig
 > = {
-  [CheckerWarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
-  [CheckerWarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
-  [CheckerWarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
-  [CheckerWarpRouteIds.ArbitrumNeutronEclip]: getArbitrumNeutronEclipWarpConfig,
-  [CheckerWarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
-  [CheckerWarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH]:
+  [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
+  [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
+  [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
+  [WarpRouteIds.ArbitrumNeutronEclip]: getArbitrumNeutronEclipWarpConfig,
+  [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
+  [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
-  [WarpRouteIds.EthereumEclipseTETH]: getEthereumEclipseTETHWarpConfig,
-  [WarpRouteIds.EthereumEclipseUSDC]: getEthereumEclipseUSDCWarpConfig,
   [WarpRouteIds.EthereumSeiFastUSD]: getEthereumSeiFastUSDWarpConfig,
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
+  [WarpRouteIds.EthereumZircuitPZETH]: getRenzoPZETHWarpConfig,
 };
 
 export async function getWarpConfig(
