@@ -1,11 +1,13 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
-import { getArgs as getEnvArgs, withChainsRequired } from './agent-utils.js';
+import { isEthereumProtocolChain } from '../src/utils/utils.js';
+
+import { getArgs as getEnvArgs, withChains } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 function getArgs() {
-  return withChainsRequired(getEnvArgs())
+  return withChains(getEnvArgs())
     .option('ownerChain', {
       type: 'string',
       description: 'Origin chain where the governing owner lives',
@@ -51,20 +53,47 @@ async function main() {
     owner: originOwner,
   };
 
-  const results: Record<string, { ICA: Address; Deployed?: string }> = {};
-  for (const chain of chains) {
-    const account = await ica.getAccount(chain, ownerConfig);
-    results[chain] = { ICA: account };
+  const getOwnerIcaChains = (
+    chains?.length ? chains : config.supportedChainNames
+  ).filter(isEthereumProtocolChain);
 
-    if (deploy) {
-      const deployedAccount = await ica.deployAccount(chain, ownerConfig);
-      assert(
-        eqAddress(account, deployedAccount),
-        'Fatal mismatch between account and deployed account',
-      );
-      results[chain].Deployed = '✅';
+  const results: Record<string, { ICA: Address; Deployed?: string }> = {};
+  const settledResults = await Promise.allSettled(
+    getOwnerIcaChains.map(async (chain) => {
+      try {
+        const account = await ica.getAccount(chain, ownerConfig);
+        const result: { ICA: Address; Deployed?: string } = { ICA: account };
+
+        if (deploy) {
+          const deployedAccount = await ica.deployAccount(chain, ownerConfig);
+          result.Deployed = eqAddress(account, deployedAccount) ? '✅' : '❌';
+          if (result.Deployed === '❌') {
+            console.warn(
+              `Mismatch between account and deployed account for ${chain}`,
+            );
+          }
+        }
+
+        return { chain, result };
+      } catch (error) {
+        console.error(`Error processing chain ${chain}:`, error);
+        return { chain, error };
+      }
+    }),
+  );
+
+  settledResults.forEach((settledResult) => {
+    if (settledResult.status === 'fulfilled') {
+      const { chain, result, error } = settledResult.value;
+      if (error || !result) {
+        console.error(`Failed to process ${chain}:`, error);
+      } else {
+        results[chain] = result;
+      }
+    } else {
+      console.error(`Promise rejected:`, settledResult.reason);
     }
-  }
+  });
 
   console.table(results);
 }
