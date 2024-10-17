@@ -1,13 +1,22 @@
+use base64::Engine;
+use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
+use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
     nonblocking::rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig,
     rpc_response::Response,
 };
 use solana_sdk::{
-    account::Account, commitment_config::CommitmentConfig, hash::Hash, pubkey::Pubkey,
-    signature::Signature, transaction::Transaction,
+    account::Account,
+    commitment_config::CommitmentConfig,
+    hash::Hash,
+    instruction::{AccountMeta, Instruction},
+    message::Message,
+    pubkey::Pubkey,
+    signature::{Keypair, Signature, Signer},
+    transaction::Transaction,
 };
-use solana_transaction_status::{TransactionStatus, UiTransactionReturnData};
+use solana_transaction_status::{TransactionStatus, UiReturnDataEncoding, UiTransactionReturnData};
 use tracing::warn;
 
 use crate::error::HyperlaneSealevelError;
@@ -40,6 +49,31 @@ impl SealevelRpcClient {
             .get_account(pubkey)
             .await
             .map_err(ChainCommunicationError::from_other)
+    }
+
+    /// Simulates an Instruction that will return a list of AccountMetas.
+    pub async fn get_account_metas(
+        &self,
+        payer: &Keypair,
+        instruction: Instruction,
+    ) -> ChainResult<Vec<AccountMeta>> {
+        // If there's no data at all, default to an empty vec.
+        let account_metas = self
+            .simulate_instruction::<SimulationReturnData<Vec<SerializableAccountMeta>>>(
+                payer,
+                instruction,
+            )
+            .await?
+            .map(|serializable_account_metas| {
+                serializable_account_metas
+                    .return_data
+                    .into_iter()
+                    .map(|serializable_account_meta| serializable_account_meta.into())
+                    .collect()
+            })
+            .unwrap_or_else(Vec::new);
+
+        Ok(account_metas)
     }
 
     pub async fn get_account_with_finalized_commitment(
@@ -140,7 +174,43 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    pub async fn simulate_transaction(
+    /// Simulates an instruction, and attempts to deserialize it into a T.
+    /// If no return data at all was returned, returns Ok(None).
+    /// If some return data was returned but deserialization was unsuccessful,
+    /// an Err is returned.
+    pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
+        &self,
+        payer: &Keypair,
+        instruction: Instruction,
+    ) -> ChainResult<Option<T>> {
+        let commitment = CommitmentConfig::finalized();
+        let recent_blockhash = self
+            .get_latest_blockhash_with_commitment(commitment)
+            .await?;
+        let transaction = Transaction::new_unsigned(Message::new_with_blockhash(
+            &[instruction],
+            Some(&payer.pubkey()),
+            &recent_blockhash,
+        ));
+        let return_data = self.simulate_transaction(&transaction).await?;
+
+        if let Some(return_data) = return_data {
+            let bytes = match return_data.data.1 {
+                UiReturnDataEncoding::Base64 => base64::engine::general_purpose::STANDARD
+                    .decode(return_data.data.0)
+                    .map_err(ChainCommunicationError::from_other)?,
+            };
+
+            let decoded_data =
+                T::try_from_slice(bytes.as_slice()).map_err(ChainCommunicationError::from_other)?;
+
+            return Ok(Some(decoded_data));
+        }
+
+        Ok(None)
+    }
+
+    async fn simulate_transaction(
         &self,
         transaction: &Transaction,
     ) -> ChainResult<Option<UiTransactionReturnData>> {

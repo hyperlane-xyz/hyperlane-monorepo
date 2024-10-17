@@ -55,10 +55,7 @@ use solana_transaction_status::{
     UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
 };
 
-use crate::{
-    utils::{get_account_metas, get_finalized_block_number, simulate_instruction},
-    ConnectionConf, SealevelProvider, SealevelRpcClient,
-};
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -140,14 +137,14 @@ impl SealevelMailbox {
         &self,
         instruction: Instruction,
     ) -> ChainResult<Option<T>> {
-        simulate_instruction(
-            &self.rpc(),
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await
+        self.rpc()
+            .simulate_instruction(
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
+            )
+            .await
     }
 
     /// Simulates an Instruction that will return a list of AccountMetas.
@@ -155,14 +152,14 @@ impl SealevelMailbox {
         &self,
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
-        get_account_metas(
-            &self.rpc(),
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await
+        self.rpc()
+            .get_account_metas(
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
+            )
+            .await
     }
 
     /// Gets the recipient ISM given a recipient program id and the ISM getter account metas.
@@ -785,7 +782,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        get_finalized_block_number(&self.rpc()).await
+        self.rpc().get_block_height().await
     }
 }
 

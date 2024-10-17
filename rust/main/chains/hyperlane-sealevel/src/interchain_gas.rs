@@ -16,9 +16,7 @@ use solana_client::{
 use std::ops::RangeInclusive;
 use tracing::{info, instrument};
 
-use crate::{
-    utils::get_finalized_block_number, ConnectionConf, SealevelProvider, SealevelRpcClient,
-};
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
 use derive_new::new;
@@ -259,7 +257,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        get_finalized_block_number(&self.rpc_client).await
+        self.rpc_client.get_block_height().await
     }
 }
 
@@ -279,7 +277,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
             .payment_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
-        let tip = get_finalized_block_number(&self.rpc_client).await?;
+        let tip = self.rpc_client.get_block_height().await?;
         Ok((Some(payment_count), tip))
     }
 }

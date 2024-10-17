@@ -10,7 +10,7 @@ use hyperlane_core::{
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::SimulationReturnData;
 
-use crate::{utils::simulate_instruction, ConnectionConf, SealevelProvider, SealevelRpcClient};
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 /// A reference to an InterchainSecurityModule contract on some Sealevel chain
 #[derive(Debug)]
@@ -64,18 +64,19 @@ impl InterchainSecurityModule for SealevelInterchainSecurityModule {
             vec![],
         );
 
-        let module = simulate_instruction::<SimulationReturnData<u32>>(
-            self.rpc(),
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await?
-        .ok_or_else(|| {
-            ChainCommunicationError::from_other_str("No return data was returned from the ISM")
-        })?
-        .return_data;
+        let module = self
+            .rpc()
+            .simulate_instruction::<SimulationReturnData<u32>>(
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
+            )
+            .await?
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("No return data was returned from the ISM")
+            })?
+            .return_data;
 
         if let Some(module_type) = ModuleType::from_u32(module) {
             Ok(module_type)

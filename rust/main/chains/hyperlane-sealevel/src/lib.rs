@@ -22,8 +22,6 @@ mod mailbox;
 mod merkle_tree_hook;
 mod multisig_ism;
 mod provider;
-mod trait_builder;
-mod utils;
-
 mod rpc;
+mod trait_builder;
 mod validator_announce;
