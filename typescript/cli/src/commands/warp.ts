@@ -9,8 +9,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   ChainMap,
+  ChainSubmissionStrategySchema,
   EvmERC20WarpRouteReader,
-  SubmitterMetadataSchema,
   TokenStandard,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -115,7 +115,8 @@ export const apply: CommandModuleWithWriteContext<{
       logRed(`Please specify either a symbol or warp config`);
       process.exit(0);
     }
-    if (strategyUrl) SubmitterMetadataSchema.parse(readYamlOrJson(strategyUrl));
+    if (strategyUrl)
+      ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
 
     await runWarpRouteApply({
