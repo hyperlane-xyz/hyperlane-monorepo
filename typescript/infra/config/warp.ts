@@ -15,6 +15,7 @@ import { getEthereumEclipseTETHWarpConfig } from './environments/mainnet3/warp/c
 import { getEthereumEclipseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumEclipseUSDCWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
+import { getEthereumSeiFastUSDWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiFastUSDWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
@@ -41,12 +42,13 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismZircuitEZETH]:
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
+  [WarpRouteIds.EthereumEclipseTETH]: getEthereumEclipseTETHWarpConfig,
+  [WarpRouteIds.EthereumEclipseUSDC]: getEthereumEclipseUSDCWarpConfig,
+  [WarpRouteIds.EthereumSeiFastUSD]: getEthereumSeiFastUSDWarpConfig,
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
-  [WarpRouteIds.EthereumEclipseTETH]: getEthereumEclipseTETHWarpConfig,
-  [WarpRouteIds.EthereumEclipseUSDC]: getEthereumEclipseUSDCWarpConfig,
 };
 
 export async function getWarpConfig(
@@ -59,7 +61,11 @@ export async function getWarpConfig(
 
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
   if (!warpConfigGetter) {
-    throw new Error(`Unknown warp route: ${warpRouteId}`);
+    throw new Error(
+      `Unknown warp route: ${warpRouteId}, must be one of: ${Object.keys(
+        warpConfigGetterMap,
+      ).join(', ')}`,
+    );
   }
 
   if (warpConfigGetter.length === 1) {
