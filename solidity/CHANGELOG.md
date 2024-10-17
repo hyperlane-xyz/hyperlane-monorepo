@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 5.4.2
+
+### Patch Changes
+
+- Updated dependencies [f1712deb7]
+  - @hyperlane-xyz/utils@5.6.0
+
 ## 5.4.1
 
 ### Patch Changes

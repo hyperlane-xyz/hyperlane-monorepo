@@ -1,5 +1,24 @@
 # @hyperlane-xyz/infra
 
+## 5.6.0
+
+### Minor Changes
+
+- b3495b205: Updates the warpIds for Renzo's latest deployment to Sei and Taiko to be used by the Checker
+
+### Patch Changes
+
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [e89f9e35d]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+  - @hyperlane-xyz/helloworld@5.6.0
+
 ## 5.5.0
 
 ### Patch Changes
