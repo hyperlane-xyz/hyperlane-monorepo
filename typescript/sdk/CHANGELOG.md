@@ -1,5 +1,21 @@
 # @hyperlane-xyz/sdk
 
+## 5.6.0
+
+### Minor Changes
+
+- 46044a2e9: Deploy to odysseytestnet
+- 8001bbbd6: Add override to some transactions to fix warp apply
+- b1ff48bd1: Add rebasing yield route support into CLI/SDK
+- 7d7bcc1a3: Add deployments for mainnets: flow, metall2, polynomial
+
+### Patch Changes
+
+- 2317eca3c: Set transaction overrides and add 10% gas limit buffer when sending message through HyperlaneCore.
+- Updated dependencies [f1712deb7]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/core@5.4.2
+
 ## 5.5.0
 
 ### Minor Changes
