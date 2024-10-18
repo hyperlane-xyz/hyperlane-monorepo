@@ -56,7 +56,7 @@ async function main() {
 async function getGasPrice(
   mpp: MultiProtocolProvider,
   chain: string,
-  gasPrice?: GasPriceConfig,
+  currentGasPrice?: GasPriceConfig,
 ): Promise<GasPriceConfig> {
   const protocolType = mpp.getProtocol(chain);
   switch (protocolType) {
@@ -80,7 +80,7 @@ async function getGasPrice(
       // Return the gas price from the config if it exists, otherwise return some  default
       // TODO get a reasonable value
       return (
-        gasPrice ?? {
+        currentGasPrice ?? {
           amount: 'PLEASE SET A GAS PRICE FOR SEALEVEL',
           decimals: 1,
         }
