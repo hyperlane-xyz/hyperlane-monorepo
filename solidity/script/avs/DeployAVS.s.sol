@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 
 import {IStrategy} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
 import {IAVSDirectory} from "../../contracts/interfaces/avs/vendored/IAVSDirectory.sol";
-import {IPaymentCoordinator} from "../../contracts/interfaces/avs/vendored/IPaymentCoordinator.sol";
+import {IRewardsCoordinator} from "../../contracts/interfaces/avs/vendored/IRewardsCoordinator.sol";
 import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
 
 import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
@@ -13,10 +13,7 @@ import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUp
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {ECDSAStakeRegistry} from "../../contracts/avs/ECDSAStakeRegistry.sol";
 import {Quorum, StrategyParams} from "../../contracts/interfaces/avs/vendored/IECDSAStakeRegistryEventsAndErrors.sol";
-import {ECDSAServiceManagerBase} from "../../contracts/avs/ECDSAServiceManagerBase.sol";
 import {HyperlaneServiceManager} from "../../contracts/avs/HyperlaneServiceManager.sol";
-
-import {TestPaymentCoordinator} from "../../contracts/test/avs/TestPaymentCoordinator.sol";
 
 contract DeployAVS is Script {
     using stdJson for string;
@@ -30,7 +27,7 @@ contract DeployAVS is Script {
 
     ProxyAdmin public proxyAdmin;
     IAVSDirectory public avsDirectory;
-    IPaymentCoordinator public paymentCoordinator;
+    IRewardsCoordinator public rewardsCoordinator;
     IDelegationManager public delegationManager;
 
     Quorum quorum;
@@ -61,8 +58,11 @@ contract DeployAVS is Script {
                 string(abi.encodePacked(".", targetEnv, ".delegationManager"))
             )
         );
-        // paymentCoordinator = IPaymentCoordinator(json.readAddress(string(abi.encodePacked(".", targetEnv, ".paymentCoordinator"))));
-        paymentCoordinator = new TestPaymentCoordinator(); // temporary until Eigenlayer deploys the real one
+        rewardsCoordinator = IRewardsCoordinator(
+            json.readAddress(
+                string(abi.encodePacked(".", targetEnv, ".rewardsCoordinator"))
+            )
+        );
 
         StrategyInfo[] memory strategies = abi.decode(
             vm.parseJson(
@@ -117,7 +117,7 @@ contract DeployAVS is Script {
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
                 address(stakeRegistryProxy),
-                address(paymentCoordinator),
+                address(rewardsCoordinator),
                 address(delegationManager)
             );
 
@@ -199,7 +199,7 @@ contract DeployAVS is Script {
         HyperlaneServiceManager strategyManagerImpl = new HyperlaneServiceManager(
                 address(avsDirectory),
                 stakeRegistryProxy,
-                address(paymentCoordinator),
+                address(rewardsCoordinator),
                 address(delegationManager)
             );
         console.log("Deployed new impl at", address(strategyManagerImpl));
