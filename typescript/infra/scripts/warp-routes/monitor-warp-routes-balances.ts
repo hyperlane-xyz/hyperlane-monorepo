@@ -102,18 +102,7 @@ async function main(): Promise<boolean> {
   const registry = await envConfig.getRegistry();
   const chainMetadata = await registry.getMetadata();
 
-  // // TODO: eventually support token balance checks for xERC20 token type also
-  // if (
-  //   Object.values(tokenConfig).some(
-  //     (token) =>
-  //       token.type === TokenType.XERC20 ||
-  //       token.type === TokenType.XERC20Lockbox,
-  //   )
-  // ) {
-  //   await checkXERC20Limits(checkFrequency, tokenConfig, chainMetadata);
-  // } else {
-  await checkTokenBalances(checkFrequency, tokenConfig, chainMetadata);
-  // }
+  await checkWarpRouteMetrics(checkFrequency, tokenConfig, chainMetadata);
 
   return true;
 }
@@ -297,6 +286,38 @@ async function checkBalance(
               );
           }
         }
+        case TokenType.XERC20Lockbox: {
+          switch (token.protocolType) {
+            case ProtocolType.Ethereum: {
+              if (!token.tokenAddress)
+                throw new Error(
+                  'Token address missing for xERC20Lockbox token',
+                );
+              const provider = multiProtocolProvider.getEthersV5Provider(chain);
+              const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+                token.hypAddress,
+                provider,
+              );
+              const xerc20LockboxAddress = await hypXERC20Lockbox.lockbox();
+              const tokenContract = ERC20__factory.connect(
+                token.tokenAddress,
+                provider,
+              );
+
+              const collateralBalance = await tokenContract.balanceOf(
+                xerc20LockboxAddress,
+              );
+
+              return parseFloat(
+                ethers.utils.formatUnits(collateralBalance, token.decimals),
+              );
+            }
+            default:
+              throw new Error(
+                `Unsupported protocol type ${token.protocolType} for token type ${token.type}`,
+              );
+          }
+        }
       }
       return 0;
     },
@@ -427,37 +448,35 @@ const getXERC20Limit = async (
   };
 };
 
-async function checkXERC20Limits(
+async function checkWarpRouteMetrics(
   checkFrequency: number,
   tokenConfig: WarpRouteConfig,
   chainMetadata: ChainMap<ChainMetadata>,
 ) {
   setInterval(async () => {
     try {
-      const xERC20Limits = await getXERC20Limits(tokenConfig, chainMetadata);
-      logger.info('xERC20 Limits:', xERC20Limits);
-      updateXERC20LimitsMetrics(xERC20Limits);
-    } catch (e) {
-      logger.error('Error checking balances', e);
-    }
-  }, checkFrequency);
-}
-
-async function checkTokenBalances(
-  checkFrequency: number,
-  tokenConfig: WarpRouteConfig,
-  chainMetadata: ChainMap<ChainMetadata>,
-) {
-  logger.info('Starting Warp Route balance monitor');
-  const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
-
-  setInterval(async () => {
-    try {
-      logger.debug('Checking balances');
+      const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
       const balances = await checkBalance(tokenConfig, multiProtocolProvider);
+      logger.info('Token Balances:', balances);
       updateTokenBalanceMetrics(tokenConfig, balances);
     } catch (e) {
       logger.error('Error checking balances', e);
+    }
+
+    try {
+      if (
+        Object.values(tokenConfig).every(
+          (token) =>
+            token.type === TokenType.XERC20 ||
+            token.type === TokenType.XERC20Lockbox,
+        )
+      ) {
+        const xERC20Limits = await getXERC20Limits(tokenConfig, chainMetadata);
+        logger.info('xERC20 Limits:', xERC20Limits);
+        updateXERC20LimitsMetrics(xERC20Limits);
+      }
+    } catch (e) {
+      logger.error('Error checking xERC20 limits', e);
     }
   }, checkFrequency);
 }
