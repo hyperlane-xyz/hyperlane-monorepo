@@ -393,6 +393,7 @@ export {
   ProxiedFactories,
   ProxiedRouterConfig,
   RemoteRouters,
+  DestinationGas,
   RouterAddress,
   RouterConfig,
   RouterViolation,
