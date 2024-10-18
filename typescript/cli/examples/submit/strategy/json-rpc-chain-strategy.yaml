@@ -4,3 +4,9 @@ anvil2:
 anvil3:
   submitter:
     type: jsonRpc
+zksync1:
+  submitter:
+    type: jsonRpc
+zksync2:
+  submitter:
+    type: jsonRpc
