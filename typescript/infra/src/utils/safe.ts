@@ -38,6 +38,40 @@ export function createSafeTransactionData(call: CallData): MetaTransactionData {
   };
 }
 
+export async function executeTx(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
+  safeTxHash: string,
+): Promise<void> {
+  const { safeSdk, safeService } = await getSafeAndService(
+    chain,
+    multiProvider,
+    safeAddress,
+  );
+  let safeTransaction;
+  try {
+    safeTransaction = await safeService.getTransaction(safeTxHash);
+    if (!safeTransaction) {
+      throw new Error(`Failed to fetch transaction details for ${safeTxHash}`);
+    }
+  } catch (error) {
+    console.error(chalk.red(`Error fetching transaction: ${error}`));
+    return;
+  }
+
+  try {
+    await safeSdk.executeTransaction(safeTransaction);
+  } catch (error) {
+    console.error(chalk.red(`Error executing transaction: ${error}`));
+    return;
+  }
+
+  console.log(
+    chalk.green.bold(`Executed transaction ${safeTxHash} on ${chain}`),
+  );
+}
+
 export async function createSafeTransaction(
   safeSdk: Safe.default,
   safeService: SafeApiKit.default,
