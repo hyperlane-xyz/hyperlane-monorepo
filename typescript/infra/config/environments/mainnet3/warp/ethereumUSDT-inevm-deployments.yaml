@@ -10,6 +10,7 @@ data:
       type: collateral
       hypAddress: '0xab852e67bf03E74C89aF67C4BA97dd1088D3dA19'
       tokenAddress: '0xdac17f958d2ee523a2206206994597c13d831ec7' # USDT
+      tokenCoinGeckoId: tether
       name: Tether USD
       symbol: USDT
       decimals: 6

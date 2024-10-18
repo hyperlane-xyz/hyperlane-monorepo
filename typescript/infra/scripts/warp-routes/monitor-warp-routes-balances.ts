@@ -1,4 +1,5 @@
 import { SystemProgram } from '@solana/web3.js';
+import CoinGecko from 'coingecko-api';
 import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
@@ -9,10 +10,12 @@ import {
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import { ERC20__factory } from '@hyperlane-xyz/core';
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  CoinGeckoTokenPriceGetter,
   CosmNativeTokenAdapter,
   CwNativeTokenAdapter,
   MultiProtocolProvider,
@@ -48,7 +51,15 @@ const warpRouteTokenBalance = new Gauge({
     'token_name',
     'wallet_address',
     'token_type',
+    'warp_route_id',
   ],
+});
+
+const warpRouteCollateralValue = new Gauge({
+  name: 'hyperlane_warp_route_collateral_value',
+  help: 'Total value of collateral held in a HypERC20Collateral or HypNative contract of a Warp Route',
+  registers: [metricsRegister],
+  labelNames: ['chain_name', 'token_address', 'token_name', 'warp_route_id'],
 });
 
 const xERC20LimitsGauge = new Gauge({
@@ -108,11 +119,17 @@ async function main(): Promise<boolean> {
   return true;
 }
 
+interface warpRouteInfo {
+  balance: number;
+  value?: number;
+}
+
 // TODO: see issue https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2708
 async function checkBalance(
   tokenConfig: WarpRouteConfig,
   multiProtocolProvider: MultiProtocolProvider,
-): Promise<ChainMap<number>> {
+  tokenPriceGetter: CoinGeckoTokenPriceGetter,
+): Promise<ChainMap<warpRouteInfo>> {
   const output = objMap(
     tokenConfig,
     async (chain: ChainName, token: WarpRouteConfig[ChainName]) => {
@@ -122,9 +139,27 @@ async function checkBalance(
             case ProtocolType.Ethereum: {
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
               const nativeBalance = await provider.getBalance(token.hypAddress);
-              return parseFloat(
-                ethers.utils.formatUnits(nativeBalance, token.decimals),
-              );
+              const price = await tokenPriceGetter.getTokenPrice(chain);
+              logger.debug('price', price);
+              logger.debug('calculated value...');
+              const value =
+                parseFloat(
+                  ethers.utils.formatUnits(nativeBalance, token.decimals),
+                ) * price;
+              logger.debug('Native balance', {
+                chain,
+                balance: parseFloat(
+                  ethers.utils.formatUnits(nativeBalance, token.decimals),
+                ),
+                value,
+              });
+
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(nativeBalance, token.decimals),
+                ),
+                value,
+              };
             }
             case ProtocolType.Sealevel: {
               const adapter = new SealevelHypNativeAdapter(
@@ -142,9 +177,21 @@ async function checkBalance(
               const balance = ethers.BigNumber.from(
                 await adapter.getBalance(token.hypAddress),
               );
-              return parseFloat(
+              const price = await tokenPriceGetter.getTokenPrice(chain);
+              const balanceFloat = parseFloat(
                 ethers.utils.formatUnits(balance, token.decimals),
               );
+              const nativeValue = balanceFloat * price;
+              logger.debug('Native balance', {
+                chain,
+                balance: balanceFloat,
+                price,
+                value: nativeValue,
+              });
+              return {
+                balance: balanceFloat,
+                value: nativeValue,
+              };
             }
             case ProtocolType.Cosmos: {
               if (!token.ibcDenom)
@@ -156,9 +203,11 @@ async function checkBalance(
                 { ibcDenom: token.ibcDenom },
               );
               const tokenBalance = await adapter.getBalance(token.hypAddress);
-              return parseFloat(
-                ethers.utils.formatUnits(tokenBalance, token.decimals),
-              );
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(tokenBalance, token.decimals),
+                ),
+              };
             }
           }
           break;
@@ -176,10 +225,35 @@ async function checkBalance(
               const collateralBalance = await tokenContract.balanceOf(
                 token.hypAddress,
               );
-
-              return parseFloat(
+              const collateralBalanceFloat = parseFloat(
                 ethers.utils.formatUnits(collateralBalance, token.decimals),
               );
+              let collateralValue: number | undefined = undefined;
+              let collateralPrice: number | undefined = undefined;
+              if (token.tokenCoinGeckoId) {
+                const collateralPrices =
+                  await tokenPriceGetter.getTokenPriceByIds([
+                    token.tokenCoinGeckoId,
+                  ]);
+                collateralPrice = collateralPrices[0];
+                collateralValue = collateralBalanceFloat * collateralPrice;
+              }
+
+              logger.debug('Collateral balance', {
+                chain,
+                balance: parseFloat(
+                  ethers.utils.formatUnits(collateralBalance, token.decimals),
+                ),
+                price: collateralPrice,
+                value: collateralValue,
+              });
+
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(collateralBalance, token.decimals),
+                ),
+                value: collateralValue,
+              };
             }
             case ProtocolType.Sealevel: {
               if (!token.tokenAddress)
@@ -198,9 +272,33 @@ async function checkBalance(
               const collateralBalance = ethers.BigNumber.from(
                 await adapter.getBalance(token.hypAddress),
               );
-              return parseFloat(
+              const collateralBalanceFloat = parseFloat(
                 ethers.utils.formatUnits(collateralBalance, token.decimals),
               );
+              let collateralValue: number | undefined = undefined;
+              let collateralPrice: number | undefined = undefined;
+
+              if (token.tokenCoinGeckoId) {
+                const collateralPrices =
+                  await tokenPriceGetter.getTokenPriceByIds([
+                    token.tokenCoinGeckoId,
+                  ]);
+                collateralPrice = collateralPrices[0];
+                collateralValue = collateralBalanceFloat * collateralPrice;
+              }
+
+              logger.debug('Collateral balance', {
+                chain,
+                balance: collateralBalanceFloat,
+                price: collateralPrice,
+                value: collateralValue,
+              });
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(collateralBalance, token.decimals),
+                ),
+                value: collateralValue,
+              };
             }
             case ProtocolType.Cosmos: {
               if (!token.tokenAddress)
@@ -216,9 +314,11 @@ async function checkBalance(
               const collateralBalance = ethers.BigNumber.from(
                 await adapter.getBalance(token.hypAddress),
               );
-              return parseFloat(
-                ethers.utils.formatUnits(collateralBalance, token.decimals),
-              );
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(collateralBalance, token.decimals),
+                ),
+              };
             }
           }
           break;
@@ -232,9 +332,11 @@ async function checkBalance(
                 provider,
               );
               const syntheticBalance = await tokenContract.totalSupply();
-              return parseFloat(
-                ethers.utils.formatUnits(syntheticBalance, token.decimals),
-              );
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(syntheticBalance, token.decimals),
+                ),
+              };
             }
             case ProtocolType.Sealevel: {
               if (!token.tokenAddress)
@@ -253,13 +355,15 @@ async function checkBalance(
               const syntheticBalance = ethers.BigNumber.from(
                 await adapter.getTotalSupply(),
               );
-              return parseFloat(
-                ethers.utils.formatUnits(syntheticBalance, token.decimals),
-              );
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(syntheticBalance, token.decimals),
+                ),
+              };
             }
             case ProtocolType.Cosmos:
               // TODO - cosmos synthetic
-              return 0;
+              return { balance: 0 };
           }
           break;
         }
@@ -275,9 +379,11 @@ async function checkBalance(
               const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
               const syntheticBalance = await xerc20.totalSupply();
 
-              return parseFloat(
-                ethers.utils.formatUnits(syntheticBalance, token.decimals),
-              );
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(syntheticBalance, token.decimals),
+                ),
+              };
             }
             default:
               throw new Error(
@@ -307,9 +413,11 @@ async function checkBalance(
                 xerc20LockboxAddress,
               );
 
-              return parseFloat(
-                ethers.utils.formatUnits(collateralBalance, token.decimals),
-              );
+              return {
+                balance: parseFloat(
+                  ethers.utils.formatUnits(collateralBalance, token.decimals),
+                ),
+              };
             }
             default:
               throw new Error(
@@ -318,7 +426,7 @@ async function checkBalance(
           }
         }
       }
-      return 0;
+      return { balance: 0 };
     },
   );
 
@@ -327,7 +435,7 @@ async function checkBalance(
 
 export function updateTokenBalanceMetrics(
   tokenConfig: WarpRouteConfig,
-  balances: ChainMap<number>,
+  balances: ChainMap<warpRouteInfo>,
 ) {
   objMap(tokenConfig, (chain: ChainName, token: WarpRouteConfig[ChainName]) => {
     warpRouteTokenBalance
@@ -337,12 +445,29 @@ export function updateTokenBalanceMetrics(
         token_name: token.name,
         wallet_address: token.hypAddress,
         token_type: token.type,
+        warp_route_id: createWarpRouteConfigId(
+          token.symbol,
+          Object.keys(tokenConfig) as ChainName[],
+        ),
       })
-      .set(balances[chain]);
+      .set(balances[chain].balance);
+    if (balances[chain].value) {
+      warpRouteCollateralValue
+        .labels({
+          chain_name: chain,
+          token_address: token.tokenAddress ?? ethers.constants.AddressZero,
+          token_name: token.name,
+          warp_route_id: createWarpRouteConfigId(
+            token.symbol,
+            Object.keys(tokenConfig) as ChainName[],
+          ),
+        })
+        .set(balances[chain].value as number);
+    }
     logger.debug('Wallet balance updated for chain', {
       chain,
       token: token.name,
-      balance: balances[chain],
+      balance: balances[chain].balance,
     });
   });
 }
@@ -473,10 +598,18 @@ async function checkWarpRouteMetrics(
   tokenConfig: WarpRouteConfig,
   chainMetadata: ChainMap<ChainMetadata>,
 ) {
+  const tokenPriceGetter = new CoinGeckoTokenPriceGetter(
+    new CoinGecko(),
+    chainMetadata,
+  );
   setInterval(async () => {
     try {
       const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
-      const balances = await checkBalance(tokenConfig, multiProtocolProvider);
+      const balances = await checkBalance(
+        tokenConfig,
+        multiProtocolProvider,
+        tokenPriceGetter,
+      );
       logger.info('Token Balances:', balances);
       updateTokenBalanceMetrics(tokenConfig, balances);
     } catch (e) {
