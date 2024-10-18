@@ -55,10 +55,11 @@ const xERC20LimitsGauge = new Gauge({
   name: 'hyperlane_xerc20_limits',
   help: 'Current minting and burning limits of xERC20 tokens',
   registers: [metricsRegister],
-  labelNames: ['chain_name', 'limit_type'],
+  labelNames: ['chain_name', 'limit_type', 'token_name'],
 });
 
 interface xERC20Limit {
+  tokenName: string;
   mint: number;
   burn: number;
   mintMax: number;
@@ -355,32 +356,33 @@ export function updateXERC20LimitsMetrics(
         .labels({
           chain_name: chain,
           limit_type: 'mint',
+          token_name: limits.tokenName,
         })
         .set(limits.mint);
       xERC20LimitsGauge
         .labels({
           chain_name: chain,
           limit_type: 'burn',
+          token_name: limits.tokenName,
         })
         .set(limits.burn);
       xERC20LimitsGauge
         .labels({
           chain_name: chain,
           limit_type: 'mintMax',
+          token_name: limits.tokenName,
         })
         .set(limits.mintMax);
       xERC20LimitsGauge
         .labels({
           chain_name: chain,
           limit_type: 'burnMax',
+          token_name: limits.tokenName,
         })
         .set(limits.burnMax);
       logger.info('xERC20 limits updated for chain', {
         chain,
-        mint: limits.mint,
-        burn: limits.burn,
-        mintMax: limits.mintMax,
-        burnMax: limits.burnMax,
+        limits,
       });
     }
   });
@@ -407,7 +409,12 @@ async function getXERC20Limits(
               );
               const xerc20Address = await lockbox.xERC20();
               const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
-              return getXERC20Limit(routerAddress, xerc20, token.decimals);
+              return getXERC20Limit(
+                routerAddress,
+                xerc20,
+                token.decimals,
+                token.name,
+              );
             }
             case TokenType.XERC20: {
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
@@ -418,7 +425,12 @@ async function getXERC20Limits(
               );
               const xerc20Address = await hypXERC20.wrappedToken();
               const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
-              return getXERC20Limit(routerAddress, xerc20, token.decimals);
+              return getXERC20Limit(
+                routerAddress,
+                xerc20,
+                token.decimals,
+                token.name,
+              );
             }
             default:
               logger.info(
@@ -441,12 +453,14 @@ const getXERC20Limit = async (
   routerAddress: string,
   xerc20: IXERC20,
   decimals: number,
+  tokenName: string,
 ): Promise<xERC20Limit> => {
   const mintCurrent = await xerc20.mintingCurrentLimitOf(routerAddress);
   const mintMax = await xerc20.mintingMaxLimitOf(routerAddress);
   const burnCurrent = await xerc20.burningCurrentLimitOf(routerAddress);
   const burnMax = await xerc20.burningMaxLimitOf(routerAddress);
   return {
+    tokenName,
     mint: parseFloat(ethers.utils.formatUnits(mintCurrent, decimals)),
     mintMax: parseFloat(ethers.utils.formatUnits(mintMax, decimals)),
     burn: parseFloat(ethers.utils.formatUnits(burnCurrent, decimals)),
