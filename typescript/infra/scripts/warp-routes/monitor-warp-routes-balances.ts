@@ -120,7 +120,6 @@ async function main(): Promise<boolean> {
 }
 
 interface warpRouteInfo {
-  warpRouteId: string;
   balance: number;
   value?: number;
 }
@@ -131,13 +130,9 @@ async function checkBalance(
   multiProtocolProvider: MultiProtocolProvider,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<ChainMap<warpRouteInfo>> {
-  const chains = Object.keys(tokenConfig) as ChainName[];
-
   const output = objMap(
     tokenConfig,
     async (chain: ChainName, token: WarpRouteConfig[ChainName]) => {
-      const warpRouteId = createWarpRouteConfigId(token.symbol, chains);
-
       switch (token.type) {
         case TokenType.native: {
           switch (token.protocolType) {
@@ -160,7 +155,6 @@ async function checkBalance(
               });
 
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(nativeBalance, token.decimals),
                 ),
@@ -195,7 +189,6 @@ async function checkBalance(
                 value: nativeValue,
               });
               return {
-                warpRouteId,
                 balance: balanceFloat,
                 value: nativeValue,
               };
@@ -211,7 +204,6 @@ async function checkBalance(
               );
               const tokenBalance = await adapter.getBalance(token.hypAddress);
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(tokenBalance, token.decimals),
                 ),
@@ -257,7 +249,6 @@ async function checkBalance(
               });
 
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(collateralBalance, token.decimals),
                 ),
@@ -303,7 +294,6 @@ async function checkBalance(
                 value: collateralValue,
               });
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(collateralBalance, token.decimals),
                 ),
@@ -325,7 +315,6 @@ async function checkBalance(
                 await adapter.getBalance(token.hypAddress),
               );
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(collateralBalance, token.decimals),
                 ),
@@ -344,7 +333,6 @@ async function checkBalance(
               );
               const syntheticBalance = await tokenContract.totalSupply();
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(syntheticBalance, token.decimals),
                 ),
@@ -368,7 +356,6 @@ async function checkBalance(
                 await adapter.getTotalSupply(),
               );
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(syntheticBalance, token.decimals),
                 ),
@@ -376,7 +363,7 @@ async function checkBalance(
             }
             case ProtocolType.Cosmos:
               // TODO - cosmos synthetic
-              return { warpRouteId, balance: 0 };
+              return { balance: 0 };
           }
           break;
         }
@@ -393,7 +380,6 @@ async function checkBalance(
               const syntheticBalance = await xerc20.totalSupply();
 
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(syntheticBalance, token.decimals),
                 ),
@@ -428,7 +414,6 @@ async function checkBalance(
               );
 
               return {
-                warpRouteId,
                 balance: parseFloat(
                   ethers.utils.formatUnits(collateralBalance, token.decimals),
                 ),
@@ -441,7 +426,7 @@ async function checkBalance(
           }
         }
       }
-      return { warpRouteId, balance: 0 };
+      return { balance: 0 };
     },
   );
 
@@ -460,6 +445,10 @@ export function updateTokenBalanceMetrics(
         token_name: token.name,
         wallet_address: token.hypAddress,
         token_type: token.type,
+        warp_route_id: createWarpRouteConfigId(
+          token.symbol,
+          Object.keys(tokenConfig) as ChainName[],
+        ),
       })
       .set(balances[chain].balance);
     if (balances[chain].value) {
@@ -468,6 +457,10 @@ export function updateTokenBalanceMetrics(
           chain_name: chain,
           token_address: token.tokenAddress ?? ethers.constants.AddressZero,
           token_name: token.name,
+          warp_route_id: createWarpRouteConfigId(
+            token.symbol,
+            Object.keys(tokenConfig) as ChainName[],
+          ),
         })
         .set(balances[chain].value as number);
     }
