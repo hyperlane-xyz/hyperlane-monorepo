@@ -162,15 +162,21 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   ): Promise<number[]> {
     const toQuery = ids.filter((id) => !this.cache.isFresh(id));
     if (toQuery.length > 0) {
+      let response: any;
       try {
-        const response = await this.coinGecko.simple.price({
+        response = await this.coinGecko.simple.price({
           ids: toQuery,
           vs_currencies: [currency],
         });
-        const prices = toQuery.map((id) => response.data[id][currency]);
-        toQuery.map((id, i) => this.cache.put(id, prices[i]));
+
+        if (response.success === true) {
+          const prices = toQuery.map((id) => response.data[id][currency]);
+          toQuery.map((id, i) => this.cache.put(id, prices[i]));
+        } else {
+          rootLogger.warn('Failed to query token prices', response.message);
+        }
       } catch (e) {
-        rootLogger.warn('Failed to query token prices', e);
+        rootLogger.warn('Error when querying token prices', e);
       }
     }
     return ids.map((id) => this.cache.fetch(id));

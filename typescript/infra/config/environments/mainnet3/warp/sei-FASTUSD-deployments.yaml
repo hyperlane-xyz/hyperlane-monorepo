@@ -8,6 +8,7 @@ data:
       type: collateral
       hypAddress: '0x9AD81058c6C3Bf552C9014CB30E824717A0ee21b'
       tokenAddress: '0x15700B564Ca08D9439C58cA5053166E8317aa138'
+      tokenCoinGheckoId: sei-fastusd
       name: fastUSD
       symbol: fastUSD
       decimals: 18
