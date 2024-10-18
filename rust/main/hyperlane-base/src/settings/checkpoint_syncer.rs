@@ -180,7 +180,7 @@ mod test {
     use std::panic::AssertUnwindSafe;
 
     use futures_util::FutureExt;
-    use hyperlane_core::{ReorgEvent, H256};
+    use hyperlane_core::{ReorgEvent, ReorgPeriod, H256};
 
     #[tokio::test]
     async fn test_build_and_validate() {
@@ -209,7 +209,7 @@ mod test {
             .unwrap();
             let dummy_checkpoint_index = 56;
             let unix_timestamp = 1620000000;
-            let reorg_period = 5;
+            let reorg_period = ReorgPeriod::from_blocks(5);
             let dummy_reorg_event = ReorgEvent {
                 local_merkle_root: dummy_local_merkle_root,
                 canonical_merkle_root: dummy_canonical_merkle_root,
@@ -237,7 +237,9 @@ mod test {
     canonical_merkle_root: 0xb437b888332ef12f7260c7f679aad3c96b91ab81c2dc7242f8b290f0b6bba92b,
     checkpoint_index: 56,
     unix_timestamp: 1620000000,
-    reorg_period: 5,
+    reorg_period: Blocks(
+        5,
+    ),
 }. Please resolve the reorg to continue."#
             );
         } else {

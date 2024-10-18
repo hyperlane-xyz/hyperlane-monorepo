@@ -62,6 +62,16 @@ describe('ChainMetadataSchema', () => {
         grpcUrls: [],
       }),
     ).to.eq(true);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        blocks: {
+          confirmations: 1,
+          reorgPeriod: 'finalized',
+        },
+      }),
+    ).to.eq(true);
   });
 
   it('Rejects invalid schemas', () => {

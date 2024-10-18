@@ -1,7 +1,7 @@
 use derive_new::new;
 use serde::{Deserialize, Serialize};
 
-use crate::H256;
+use crate::{ReorgPeriod, H256};
 
 /// Details about a detected chain reorg, from an agent's perspective
 #[derive(Debug, Clone, Serialize, Deserialize, new)]
@@ -15,6 +15,6 @@ pub struct ReorgEvent {
     pub checkpoint_index: u32,
     /// the timestamp when the reorg was detected, in seconds since the Unix epoch
     pub unix_timestamp: u64,
-    /// the reorg period configured for the agent, in blocks
-    pub reorg_period: u64,
+    /// the reorg period configured for the agent
+    pub reorg_period: ReorgPeriod,
 }
