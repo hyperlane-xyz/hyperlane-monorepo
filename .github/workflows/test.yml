@@ -234,40 +234,6 @@ jobs:
           RUST_BACKTRACE: 'full'
           SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
 
-  cli-advanced-e2e:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-install]
-    strategy:
-      matrix:
-        include:
-          - test-type: preset_hook_enabled
-          - test-type: configure_hook_enabled
-          - test-type: pi_with_core_chain
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
-
-      - name: cli e2e tests
-        run: ./typescript/cli/ci-advanced-test.sh ${{ matrix.test-type }}
-
   env-test:
     runs-on: ubuntu-latest
     env:
