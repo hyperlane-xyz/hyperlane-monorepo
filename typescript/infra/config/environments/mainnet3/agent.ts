@@ -77,6 +77,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     everclear: true,
     flare: true,
+    flow: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -91,6 +92,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantapacific: true,
     mantle: true,
     merlin: true,
+    metall2: true,
     metis: true,
     mint: true,
     mode: true,
@@ -102,6 +104,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     osmosis: true,
     polygon: true,
     polygonzkevm: true,
+    polynomial: true,
     proofofplay: true,
     rari: true,
     real: true,
@@ -147,6 +150,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     everclear: true,
     flare: true,
+    flow: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -161,6 +165,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantapacific: true,
     mantle: true,
     merlin: true,
+    metall2: true,
     metis: true,
     mint: true,
     mode: true,
@@ -173,6 +178,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     osmosis: true,
     polygon: true,
     polygonzkevm: true,
+    polynomial: true,
     proofofplay: true,
     rari: true,
     real: true,
@@ -219,6 +225,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     everclear: true,
     flare: true,
+    flow: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -233,6 +240,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantapacific: true,
     mantle: true,
     merlin: true,
+    metall2: true,
     metis: true,
     mint: true,
     mode: true,
@@ -244,6 +252,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     osmosis: true,
     polygon: true,
     polygonzkevm: true,
+    polynomial: true,
     proofofplay: true,
     rari: true,
     real: true,
@@ -409,7 +418,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '70bb863-20241009-193832',
+      tag: 'b1ff48b-20241016-183301',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -418,7 +427,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '70bb863-20241009-193832',
+      tag: 'efd438f-20241016-101828',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -428,7 +437,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '8001bbb-20241010-143553',
+      tag: 'efd438f-20241016-101828',
     },
     resources: scraperResources,
   },
@@ -443,7 +452,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5cb1787-20240924-192934',
+      tag: 'b1ff48b-20241016-183301',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -476,7 +485,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5a0d68b-20240916-144115',
+      tag: 'b1ff48b-20241016-183301',
     },
     gasPaymentEnforcement: [
       {

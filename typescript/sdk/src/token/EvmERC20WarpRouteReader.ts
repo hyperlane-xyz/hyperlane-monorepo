@@ -4,6 +4,8 @@ import {
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
+  HypERC4626OwnerCollateral__factory,
+  HypERC4626__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -81,15 +83,23 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const contractTypes: Partial<
       Record<TokenType, { factory: any; method: string }>
     > = {
-      collateralVault: {
+      [TokenType.collateralVaultRebase]: {
         factory: HypERC4626Collateral__factory,
+        method: 'NULL_RECIPIENT',
+      },
+      [TokenType.collateralVault]: {
+        factory: HypERC4626OwnerCollateral__factory,
         method: 'vault',
       },
-      collateral: {
+      [TokenType.collateral]: {
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
       },
-      synthetic: {
+      [TokenType.syntheticRebase]: {
+        factory: HypERC4626__factory,
+        method: 'collateralDomain',
+      },
+      [TokenType.synthetic]: {
         factory: HypERC20__factory,
         method: 'decimals',
       },
@@ -106,11 +116,11 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       try {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
-
-        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
         return tokenType as TokenType;
       } catch (e) {
         continue;
+      } finally {
+        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
       }
     }
 
@@ -186,7 +196,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         await this.fetchERC20Metadata(token);
 
       return { name, symbol, decimals, totalSupply, token };
-    } else if (type === TokenType.synthetic) {
+    } else if (
+      type === TokenType.synthetic ||
+      type === TokenType.syntheticRebase
+    ) {
       return this.fetchERC20Metadata(tokenAddress);
     } else if (type === TokenType.native) {
       const chainMetadata = this.multiProvider.getChainMetadata(this.chain);

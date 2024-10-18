@@ -41,6 +41,13 @@ describe('Object utilities', () => {
     expect(merged).to.eql({ a: 2, b: { c: ['arr2'] } });
   });
 
+  it('objMerge overwrites nested values', () => {
+    const obj1 = { a: { b: 10 }, c: 'value' };
+    const obj2 = { a: { b: 20 } };
+    const merged = objMerge(obj1, obj2);
+    expect(merged).to.eql({ a: { b: 20 }, c: 'value' });
+  });
+
   it('objOmit', () => {
     const obj1 = { a: 1, b: { c: ['arr1'], d: 'string' } };
     const obj2 = { a: true, b: { c: true } };

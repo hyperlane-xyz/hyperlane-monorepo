@@ -139,7 +139,7 @@ export abstract class HyperlaneAppChecker<
                 type: ViolationType.Owner,
                 actual: actualProxyAdminOwner,
                 expected: expectedOwner,
-                contract,
+                contract: actualProxyAdminContract,
               };
               this.addViolation(violation);
             }

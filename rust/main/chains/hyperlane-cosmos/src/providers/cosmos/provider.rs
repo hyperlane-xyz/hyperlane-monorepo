@@ -3,10 +3,12 @@ use std::str::FromStr;
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::crypto::PublicKey;
+use cosmrs::proto::traits::Message;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo, SignerPublicKey};
 use cosmrs::{proto, AccountId, Any, Coin, Tx};
-use itertools::Itertools;
+use itertools::{any, cloned, Itertools};
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::{client::CompatMode, Client, HttpClient};
@@ -21,10 +23,13 @@ use hyperlane_core::{
 };
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
+use crate::providers::cosmos::provider::parse::PacketData;
 use crate::providers::rpc::CosmosRpcClient;
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
 };
+
+mod parse;
 
 /// Exponent value for atto units (10^-18).
 const ATTO_EXPONENT: u32 = 18;
@@ -197,8 +202,29 @@ impl CosmosProvider {
     }
 
     /// Extract contract address from transaction.
-    /// Assumes that there is only one `MsgExecuteContract` message in the transaction
     fn contract(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
+        // We merge two error messages together so that both of them are reported
+        match Self::contract_address_from_msg_execute_contract(tx, tx_hash) {
+            Ok(contract) => Ok(contract),
+            Err(msg_execute_contract_error) => {
+                match Self::contract_address_from_msg_recv_packet(tx, tx_hash) {
+                    Ok(contract) => Ok(contract),
+                    Err(msg_recv_packet_error) => {
+                        let errors = vec![msg_execute_contract_error, msg_recv_packet_error];
+                        let error = HyperlaneCosmosError::ParsingAttemptsFailed(errors);
+                        warn!(?tx_hash, ?error);
+                        Err(ChainCommunicationError::from_other(error))?
+                    }
+                }
+            }
+        }
+    }
+
+    /// Assumes that there is only one `MsgExecuteContract` message in the transaction
+    fn contract_address_from_msg_execute_contract(
+        tx: &Tx,
+        tx_hash: &H256,
+    ) -> Result<H256, HyperlaneCosmosError> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
         let contract_execution_messages = tx
@@ -211,21 +237,43 @@ impl CosmosProvider {
 
         let contract_execution_messages_len = contract_execution_messages.len();
         if contract_execution_messages_len > 1 {
-            let msg = "transaction contains multiple contract execution messages, we are indexing the first entry only";
-            warn!(?tx_hash, ?contract_execution_messages, msg);
-            Err(ChainCommunicationError::CustomError(msg.to_owned()))?
+            let msg = "transaction contains multiple contract execution messages";
+            Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
         }
 
         let any = contract_execution_messages.first().ok_or_else(|| {
             let msg = "could not find contract execution message";
-            warn!(?tx_hash, msg);
-            ChainCommunicationError::from_other_str(msg)
+            HyperlaneCosmosError::ParsingFailed(msg.to_owned())
         })?;
         let proto =
             ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
         let msg = MsgExecuteContract::try_from(proto)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
+
         Ok(contract)
+    }
+
+    fn contract_address_from_msg_recv_packet(
+        tx: &Tx,
+        tx_hash: &H256,
+    ) -> Result<H256, HyperlaneCosmosError> {
+        let packet_data = tx
+            .body
+            .messages
+            .iter()
+            .filter(|a| a.type_url == "/ibc.core.channel.v1.MsgRecvPacket")
+            .map(PacketData::try_from)
+            .flat_map(|r| r.ok())
+            .next()
+            .ok_or_else(|| {
+                let msg = "could not find IBC receive packets message containing receiver address";
+                HyperlaneCosmosError::ParsingFailed(msg.to_owned())
+            })?;
+
+        let account_id = AccountId::from_str(&packet_data.receiver)?;
+        let address = H256::try_from(CosmosAccountId::new(&account_id))?;
+
+        Ok(address)
     }
 
     /// Reports if transaction contains fees expressed in unsupported denominations
@@ -281,6 +329,29 @@ impl CosmosProvider {
         let amount_in_native_denom = U256::from(coin.amount);
 
         amount_in_native_denom * coefficient
+    }
+
+    fn calculate_gas_price(&self, hash: &H256, tx: &Tx) -> U256 {
+        // TODO support multiple denominations for amount
+        let supported = self.report_unsupported_denominations(tx, hash);
+        if supported.is_err() {
+            return U256::max_value();
+        }
+
+        let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
+        let fee = tx
+            .auth_info
+            .fee
+            .amount
+            .iter()
+            .map(|c| self.convert_fee(c))
+            .fold(U256::zero(), |acc, v| acc + v);
+
+        if fee < gas_limit {
+            warn!(tx_hash = ?hash, ?fee, ?gas_limit, "calculated fee is less than gas limit. it will result in zero gas price");
+        }
+
+        fee / gas_limit
     }
 }
 
@@ -347,26 +418,7 @@ impl HyperlaneProvider for CosmosProvider {
 
         let contract = Self::contract(&tx, hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
-
-        // TODO support multiple denominations for amount
-        self.report_unsupported_denominations(&tx, hash)?;
-
-        let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
-        let fee = tx
-            .auth_info
-            .fee
-            .amount
-            .iter()
-            .map(|c| self.convert_fee(c))
-            .fold(U256::zero(), |acc, v| acc + v);
-
-        let gas_price = fee / gas_limit;
-        let gas_price = if gas_price == U256::zero() {
-            warn!(?fee, ?gas_limit, "calculated zero gas price");
-            U256::one()
-        } else {
-            gas_price
-        };
+        let gas_price = self.calculate_gas_price(hash, &tx);
 
         let tx_info = TxnInfo {
             hash: hash.to_owned(),
