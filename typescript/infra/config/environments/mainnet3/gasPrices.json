@@ -72,8 +72,8 @@
     "decimals": 9
   },
   "eclipsemainnet": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.0000001",
+    "decimals": 1
   },
   "endurance": {
     "amount": "3.0756015",
@@ -240,8 +240,8 @@
     "decimals": 9
   },
   "solanamainnet": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.5",
+    "decimals": 1
   },
   "superposition": {
     "amount": "0.01",
