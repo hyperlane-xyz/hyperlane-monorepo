@@ -68,6 +68,8 @@ contract GasRouterTest is Test {
     }
 
     function testSetDestinationGas(uint256 gas) public {
+        vm.expectEmit(true, true, true, true);
+        emit GasRouter.GasSet(originDomain, gas);
         setDestinationGas(remoteRouter, originDomain, gas);
         assertEq(remoteRouter.destinationGas(originDomain), gas);
 
