@@ -59,10 +59,15 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       // gasLimit: 6800000, // set when deploying contracts
     },
   },
-  // set when deploying contracts
+  // Deploy-only overrides, set when deploying contracts
   // chiliz: {
   //   transactionOverrides: {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+  //   },
+  // },
+  // zircuit: {
+  //   blocks: {
+  //     confirmations: 3,
   //   },
   // },
 };

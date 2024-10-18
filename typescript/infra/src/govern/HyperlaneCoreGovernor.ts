@@ -84,7 +84,11 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
         return this.handleProxyAdminViolation(violation as ProxyAdminViolation);
       }
       default:
-        throw new Error(`Unsupported violation type ${violation.type}`);
+        throw new Error(
+          `Unsupported violation type ${violation.type}: ${JSON.stringify(
+            violation,
+          )}`,
+        );
     }
   }
 }
