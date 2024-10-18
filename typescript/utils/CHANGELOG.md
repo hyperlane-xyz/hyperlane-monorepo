@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 5.6.0
+
+### Patch Changes
+
+- f1712deb7: Fix objMerge implementation
+
 ## 5.5.0
 
 ### Minor Changes

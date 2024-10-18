@@ -1,5 +1,28 @@
 # @hyperlane-xyz/cli
 
+## 5.6.0
+
+### Minor Changes
+
+- 41035aac8: Add strategyUrl detect and validation in the beginning of `warp apply`
+  Remove yaml transactions print from `warp apply`
+- 3662297fc: Add prompt in `warp init` command to choose if a trusted relayer should be used instead of making the choice by default for the user and enable the `--yes` flag to default to a trusted ISM
+- b1ff48bd1: Add rebasing yield route support into CLI/SDK
+- a4d5d692f: Update `warp apply` such that it updates in place AND extends in a single call
+- 01e7070eb: updates the multi chain selection prompt by adding search functionality and an optional confirmation prompt for the current selection
+
+### Patch Changes
+
+- e89f9e35d: Update registry to v4.7.0
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+
 ## 5.5.0
 
 ### Patch Changes
