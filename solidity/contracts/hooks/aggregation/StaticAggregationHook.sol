@@ -23,7 +23,6 @@ import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract StaticAggregationHook is AbstractPostDispatchHook {
-    using HookTypes for uint8;
     using Message for bytes;
     using StandardHookMetadata for bytes;
 
