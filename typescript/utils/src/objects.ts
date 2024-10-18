@@ -219,7 +219,8 @@ export type ObjectDiff =
   | {
       [key: string]: ObjectDiffOutput | ObjectDiff;
     }
-  | ObjectDiff[];
+  | ObjectDiff[]
+  | undefined;
 
 /**
  * Merges 2 objects showing any difference in value for common fields.
@@ -227,12 +228,12 @@ export type ObjectDiff =
 export function diffObjMerge(
   actual: Record<string, any>,
   expected: Record<string, any>,
-  max_depth = 10,
+  maxDepth = 10,
 ): {
   mergedObject: ObjectDiff;
   isInvalid: boolean;
 } {
-  if (max_depth === 0) {
+  if (maxDepth === 0) {
     throw new Error('diffObjMerge tried to go too deep');
   }
 
@@ -244,6 +245,10 @@ export function diffObjMerge(
     };
   }
 
+  if (isNullish(actual) && isNullish(expected)) {
+    return { mergedObject: undefined, isInvalid: isDiff };
+  }
+
   if (isObject(actual) && isObject(expected)) {
     const ret: Record<string, ObjectDiff> = {};
 
@@ -252,11 +257,8 @@ export function diffObjMerge(
     const allKeys = new Set([...actualKeys, ...expectedKeys]);
     for (const key of allKeys.values()) {
       if (actualKeys.has(key) && expectedKeys.has(key)) {
-        const { mergedObject, isInvalid } = diffObjMerge(
-          actual[key],
-          expected[key],
-          max_depth - 1,
-        );
+        const { mergedObject, isInvalid } =
+          diffObjMerge(actual[key], expected[key], maxDepth - 1) ?? {};
         ret[key] = mergedObject;
         isDiff ||= isInvalid;
       } else if (actualKeys.has(key) && !isNullish(actual[key])) {
@@ -264,11 +266,13 @@ export function diffObjMerge(
           actual: actual[key],
           expected: '' as any,
         };
+        isDiff = true;
       } else if (!isNullish(expected[key])) {
         ret[key] = {
           actual: '' as any,
           expected: expected[key],
         };
+        isDiff = true;
       }
     }
     return {

@@ -14,7 +14,7 @@ import {
 import { isAddressEvm, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { logGray, logGreen, logRed, logTable } from '../logger.js';
+import { logGray, logRed, logTable } from '../logger.js';
 import { getWarpCoreConfigOrExit } from '../utils/input.js';
 
 export async function runWarpRouteRead({
@@ -87,7 +87,7 @@ export async function runWarpRouteRead({
       [chain]: address,
     };
   } else {
-    logGreen(`Please specify either a symbol, chain and address or warp file`);
+    logRed(`Please specify either a symbol, chain and address or warp file`);
     process.exit(1);
   }
 

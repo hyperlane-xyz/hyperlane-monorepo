@@ -30,6 +30,7 @@ export function formatYamlViolationsOutput(
     const match = line.match(/^(\s*)/);
     const currentIndent = match ? match[0].length : 0;
 
+    let formattedLine = line;
     // if the current indentation is smaller than the previous diff one
     // we just got out of a diff property and we reset the formatting
     if (currentIndent < lastDiffIndent) {
@@ -39,14 +40,16 @@ export function formatYamlViolationsOutput(
     if (line.includes('expected:')) {
       lastDiffIndent = currentIndent;
       curr = ViolationDiffType.Expected;
+      formattedLine = line.replace('expected:', 'EXPECTED:');
     }
 
     if (line.includes('actual:')) {
       lastDiffIndent = currentIndent;
       curr = ViolationDiffType.Actual;
+      formattedLine = line.replace('actual:', 'ACTUAL:');
     }
 
-    return formatters[curr](line);
+    return formatters[curr](formattedLine);
   });
 
   return highlightedLines.join('\n');
