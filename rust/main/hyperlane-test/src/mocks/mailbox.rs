@@ -26,11 +26,11 @@ mock! {
             nonce: usize,
         ) -> ChainResult<Option<H256>> {}
 
-        pub fn _tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {}
+        pub fn _tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {}
 
-        pub fn _count(&self, lag: &ReorgPeriod) -> ChainResult<u32> {}
+        pub fn _count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {}
 
-        pub fn _latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint> {}
+        pub fn _latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {}
 
         pub fn _default_ism(&self) -> ChainResult<H256> {}
         pub fn _recipient_ism(&self, recipient: H256) -> ChainResult<H256> {}
@@ -66,8 +66,8 @@ impl std::fmt::Debug for MockMailboxContract {
 
 #[async_trait]
 impl Mailbox for MockMailboxContract {
-    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32> {
-        self._count(lag)
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        self._count(reorg_period)
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {

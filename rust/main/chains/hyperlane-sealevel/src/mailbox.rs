@@ -425,8 +425,8 @@ impl std::fmt::Debug for SealevelMailbox {
 #[async_trait]
 impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
-    async fn count(&self, _maybe_lag: &ReorgPeriod) -> ChainResult<u32> {
-        <Self as MerkleTreeHook>::count(self, _maybe_lag).await
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        <Self as MerkleTreeHook>::count(self, reorg_period).await
     }
 
     #[instrument(err, ret, skip(self))]

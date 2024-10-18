@@ -217,23 +217,23 @@ where
     Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
 }
 
-pub(crate) async fn call_with_lag<M, T>(
+pub(crate) async fn call_with_reorg_period<M, T>(
     call: ethers::contract::builders::ContractCall<M, T>,
     provider: &M,
-    lag: &ReorgPeriod,
+    reorg_period: &ReorgPeriod,
 ) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
 where
     M: Middleware + 'static,
     T: Detokenize,
 {
-    if !lag.is_none() {
-        let reorg_period = EthereumReorgPeriod::try_from(lag)?;
+    if !reorg_period.is_none() {
+        let reorg_period = EthereumReorgPeriod::try_from(reorg_period)?;
         let block = match reorg_period {
-            EthereumReorgPeriod::Blocks(lag) => provider
+            EthereumReorgPeriod::Blocks(blocks) => provider
                 .get_block_number()
                 .await
                 .map_err(ChainCommunicationError::from_other)?
-                .saturating_sub(lag.into())
+                .saturating_sub(blocks.into())
                 .into(),
             EthereumReorgPeriod::Tag(tag) => tag,
         };

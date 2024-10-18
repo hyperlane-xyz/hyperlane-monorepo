@@ -30,7 +30,7 @@ use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
 use crate::interfaces::mailbox::DispatchFilter;
-use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
+use crate::tx::{call_with_reorg_period, fill_tx_gas_params, report_tx};
 use crate::{
     BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod,
     TransactionOverrides,
@@ -460,8 +460,9 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32> {
-        let call = call_with_lag(self.contract.nonce(), &self.provider, lag).await?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let call =
+            call_with_reorg_period(self.contract.nonce(), &self.provider, reorg_period).await?;
         let nonce = call.call().await?;
         Ok(nonce)
     }

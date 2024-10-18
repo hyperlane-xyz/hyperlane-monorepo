@@ -486,9 +486,9 @@ mod test {
 
         #[async_trait]
         impl MerkleTreeHook for MerkleTreeHook {
-            async fn tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle>;
-            async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32>;
-            async fn latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint>;
+            async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle>;
+            async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32>;
+            async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint>;
         }
     }
 

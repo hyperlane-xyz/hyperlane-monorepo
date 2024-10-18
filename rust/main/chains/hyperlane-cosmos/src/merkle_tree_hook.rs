@@ -17,8 +17,8 @@ use crate::grpc::WasmProvider;
 use crate::payloads::{general, merkle_tree_hook};
 use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
 use crate::utils::{
-    execute_and_parse_log_futures, get_block_height_for_lag, parse_logs_in_range, parse_logs_in_tx,
-    CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
+    execute_and_parse_log_futures, get_block_height_for_reorg_period, parse_logs_in_range,
+    parse_logs_in_tx, CONTRACT_ADDRESS_ATTRIBUTE_KEY, CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64,
 };
 use crate::{ConnectionConf, CosmosProvider, HyperlaneCosmosError, Signer};
 
@@ -76,12 +76,13 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     /// Return the incremental merkle tree in storage
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
         let payload = merkle_tree_hook::MerkleTreeRequest {
             tree: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
+        let block_height =
+            get_block_height_for_reorg_period(self.provider.grpc(), reorg_period).await?;
 
         let data = self
             .provider
@@ -110,23 +111,26 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
     }
 
     /// Gets the current leaf count of the merkle tree
-    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32> {
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let payload = merkle_tree_hook::MerkleTreeCountRequest {
             count: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
+        let block_height =
+            get_block_height_for_reorg_period(self.provider.grpc(), reorg_period).await?;
 
         self.count_at_block(block_height).await
     }
+
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         let payload = merkle_tree_hook::CheckPointRequest {
             check_point: general::EmptyStruct {},
         };
 
-        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
+        let block_height =
+            get_block_height_for_reorg_period(self.provider.grpc(), reorg_period).await?;
 
         let data = self
             .provider

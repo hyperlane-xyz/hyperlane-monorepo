@@ -15,19 +15,19 @@ use crate::{
 pub trait MerkleTreeHook: HyperlaneContract + Send + Sync + Debug {
     /// Return the incremental merkle tree in storage
     ///
-    /// - `lag` is how far behind the current block to query, if not specified
+    /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle>;
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle>;
 
     /// Gets the current leaf count of the merkle tree
     ///
-    /// - `lag` is how far behind the current block to query, if not specified
+    /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32>;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32>;
 
     /// Get the latest checkpoint.
     ///
-    /// - `lag` is how far behind the current block to query, if not specified
+    /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint>;
+    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint>;
 }

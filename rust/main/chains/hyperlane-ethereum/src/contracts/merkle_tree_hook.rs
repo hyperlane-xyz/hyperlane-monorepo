@@ -17,7 +17,7 @@ use hyperlane_core::{
 use crate::interfaces::merkle_tree_hook::{
     InsertedIntoTreeFilter, MerkleTreeHook as MerkleTreeHookContract, Tree,
 };
-use crate::tx::call_with_lag;
+use crate::tx::call_with_reorg_period;
 use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod};
 
 use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
@@ -250,8 +250,13 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        let call = call_with_lag(self.contract.latest_checkpoint(), &self.provider, lag).await?;
+    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+        let call = call_with_reorg_period(
+            self.contract.latest_checkpoint(),
+            &self.provider,
+            reorg_period,
+        )
+        .await?;
 
         let (root, index) = call.call().await?;
         Ok(Checkpoint {
@@ -264,15 +269,17 @@ where
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        let call = call_with_lag(self.contract.tree(), &self.provider, lag).await?;
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+        let call =
+            call_with_reorg_period(self.contract.tree(), &self.provider, reorg_period).await?;
 
         Ok(call.call().await?.into())
     }
 
     #[instrument(skip(self))]
-    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32> {
-        let call = call_with_lag(self.contract.count(), &self.provider, lag).await?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let call =
+            call_with_reorg_period(self.contract.count(), &self.provider, reorg_period).await?;
         let count = call.call().await?;
         Ok(count)
     }

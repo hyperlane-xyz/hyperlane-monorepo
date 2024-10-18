@@ -19,9 +19,9 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
 
     /// Gets the current leaf count of the merkle tree
     ///
-    /// - `lag` is how far behind the current block to query, if not specified
+    /// - `reorg_period` is how far behind the current block to query, if not specified
     ///   it will query at the latest block.
-    async fn count(&self, lag: &ReorgPeriod) -> ChainResult<u32>;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32>;
 
     /// Fetch the status of a message
     async fn delivered(&self, id: H256) -> ChainResult<bool>;

@@ -17,9 +17,9 @@ use crate::{SealevelMailbox, SealevelMailboxIndexer};
 impl MerkleTreeHook for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, lag: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
         assert!(
-            lag.is_none(),
+            reorg_period.is_none(),
             "Sealevel does not support querying point-in-time"
         );
 
@@ -41,13 +41,13 @@ impl MerkleTreeHook for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint(&self, lag: &ReorgPeriod) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         assert!(
-            lag.is_none(),
+            reorg_period.is_none(),
             "Sealevel does not support querying point-in-time"
         );
 
-        let tree = self.tree(lag).await?;
+        let tree = self.tree(reorg_period).await?;
 
         let root = tree.root();
         let count: u32 = tree
@@ -70,8 +70,8 @@ impl MerkleTreeHook for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, _maybe_lag: &ReorgPeriod) -> ChainResult<u32> {
-        let tree = self.tree(_maybe_lag).await?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let tree = self.tree(reorg_period).await?;
 
         tree.count()
             .try_into()
