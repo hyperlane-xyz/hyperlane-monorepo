@@ -14,7 +14,7 @@ use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
 use tendermint_rpc::endpoint::tx;
 use tendermint_rpc::HttpClient;
 use time::OffsetDateTime;
-use tracing::{debug, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, LogMeta, H256, U256,
@@ -271,7 +271,12 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         debug!(?hash, cursor_label, domain=?self.domain, "Getting logs in transaction");
 
         let tx = self.rpc_client.get_tx_by_hash(hash).await?;
-        let block = self.rpc_client.get_block(tx.height.value() as u32).await?;
+
+        let block_number = tx.height.value() as u32;
+        let block = self.rpc_client.get_block(block_number).await?;
+
+        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in transaction: block info");
+
         let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
 
         Ok(self.handle_tx(tx, block_hash, parser).collect())
