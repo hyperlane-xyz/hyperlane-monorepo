@@ -146,7 +146,7 @@ where
     #[instrument(level = "debug", err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        get_finalized_block_number(&self.provider, self.reorg_period).await
+        get_finalized_block_number(&self.provider, &self.reorg_period).await
     }
 
     async fn fetch_logs_by_tx_hash(

@@ -128,7 +128,7 @@ where
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        get_finalized_block_number(&self.provider, self.reorg_period).await
+        get_finalized_block_number(&self.provider, &self.reorg_period).await
     }
 }
 
