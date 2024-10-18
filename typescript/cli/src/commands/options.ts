@@ -91,11 +91,14 @@ export const hookCommandOption: Options = {
     'A path to a JSON or YAML file with Hook configs (for every chain)',
 };
 
+export const DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH =
+  './configs/warp-route-deployment.yaml';
+
 export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
-  default: './configs/warp-route-deployment.yaml',
+  default: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   alias: 'wd',
 };
 
@@ -134,12 +137,23 @@ export const outputFileCommandOption = (
   demandOption,
 });
 
-export const inputFileCommandOption: Options = {
+interface InputFileCommandOptionConfig
+  extends Pick<Options, 'demandOption' | 'alias' | 'description'> {
+  defaultPath?: string;
+}
+
+export const inputFileCommandOption = ({
+  defaultPath,
+  demandOption = true,
+  description = 'Input file path',
+  alias = 'i',
+}: InputFileCommandOptionConfig = {}): Options => ({
   type: 'string',
-  description: 'Input file path',
-  alias: 'i',
-  demandOption: true,
-};
+  description,
+  default: defaultPath,
+  alias,
+  demandOption,
+});
 
 export const fromAddressCommandOption: Options = {
   type: 'string',
