@@ -265,8 +265,6 @@ async function checkBalance(
         case TokenType.XERC20: {
           switch (token.protocolType) {
             case ProtocolType.Ethereum: {
-              if (!token.tokenAddress)
-                throw new Error('Token address missing for xERC20 token');
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
               const hypXERC20 = HypXERC20__factory.connect(
                 token.hypAddress,
@@ -348,46 +346,50 @@ export function updateTokenBalanceMetrics(
   });
 }
 
-export function updateXERC20LimitsMetrics(xERC20Limits: ChainMap<xERC20Limit>) {
-  objMap(xERC20Limits, (chain: ChainName, limit: xERC20Limit) => {
-    xERC20LimitsGauge
-      .labels({
-        chain_name: chain,
-        limit_type: 'mint',
-      })
-      .set(limit.mint);
-    xERC20LimitsGauge
-      .labels({
-        chain_name: chain,
-        limit_type: 'burn',
-      })
-      .set(limit.burn);
-    xERC20LimitsGauge
-      .labels({
-        chain_name: chain,
-        limit_type: 'mintMax',
-      })
-      .set(limit.mintMax);
-    xERC20LimitsGauge
-      .labels({
-        chain_name: chain,
-        limit_type: 'burnMax',
-      })
-      .set(limit.burnMax);
-    logger.info('xERC20 limits updated for chain', {
-      chain,
-      mint: limit.mint,
-      burn: limit.burn,
-      mintMax: limit.mintMax,
-      burnMax: limit.burnMax,
-    });
+export function updateXERC20LimitsMetrics(
+  xERC20Limits: ChainMap<xERC20Limit | undefined>,
+) {
+  objMap(xERC20Limits, (chain: ChainName, limits: xERC20Limit | undefined) => {
+    if (limits) {
+      xERC20LimitsGauge
+        .labels({
+          chain_name: chain,
+          limit_type: 'mint',
+        })
+        .set(limits.mint);
+      xERC20LimitsGauge
+        .labels({
+          chain_name: chain,
+          limit_type: 'burn',
+        })
+        .set(limits.burn);
+      xERC20LimitsGauge
+        .labels({
+          chain_name: chain,
+          limit_type: 'mintMax',
+        })
+        .set(limits.mintMax);
+      xERC20LimitsGauge
+        .labels({
+          chain_name: chain,
+          limit_type: 'burnMax',
+        })
+        .set(limits.burnMax);
+      logger.info('xERC20 limits updated for chain', {
+        chain,
+        mint: limits.mint,
+        burn: limits.burn,
+        mintMax: limits.mintMax,
+        burnMax: limits.burnMax,
+      });
+    }
   });
 }
 
 async function getXERC20Limits(
   tokenConfig: WarpRouteConfig,
   chainMetadata: ChainMap<ChainMetadata>,
-): Promise<ChainMap<xERC20Limit>> {
+): Promise<ChainMap<xERC20Limit | undefined>> {
   const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
 
   const output = objMap(
@@ -419,7 +421,11 @@ async function getXERC20Limits(
               return getXERC20Limit(routerAddress, xerc20, token.decimals);
             }
             default:
-              throw new Error(`Unsupported token type ${token.type}`);
+              logger.info(
+                `Unsupported token type ${token.type} for xERC20 limits check on protocol type ${token.protocolType}`,
+              );
+
+              return undefined;
           }
         }
         default:
@@ -464,17 +470,9 @@ async function checkWarpRouteMetrics(
     }
 
     try {
-      if (
-        Object.values(tokenConfig).every(
-          (token) =>
-            token.type === TokenType.XERC20 ||
-            token.type === TokenType.XERC20Lockbox,
-        )
-      ) {
-        const xERC20Limits = await getXERC20Limits(tokenConfig, chainMetadata);
-        logger.info('xERC20 Limits:', xERC20Limits);
-        updateXERC20LimitsMetrics(xERC20Limits);
-      }
+      const xERC20Limits = await getXERC20Limits(tokenConfig, chainMetadata);
+      logger.info('xERC20 Limits:', xERC20Limits);
+      updateXERC20LimitsMetrics(xERC20Limits);
     } catch (e) {
       logger.error('Error checking xERC20 limits', e);
     }
