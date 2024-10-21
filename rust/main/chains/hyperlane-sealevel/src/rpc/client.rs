@@ -80,12 +80,22 @@ impl SealevelRpcClient {
         &self,
         pubkey: &Pubkey,
     ) -> ChainResult<Account> {
-        self.0
+        self.get_possible_account_with_finalized_commitment(pubkey)
+            .await?
+            .ok_or_else(|| ChainCommunicationError::from_other_str("Could not find account data"))
+    }
+
+    pub async fn get_possible_account_with_finalized_commitment(
+        &self,
+        pubkey: &Pubkey,
+    ) -> ChainResult<Option<Account>> {
+        let account = self
+            .0
             .get_account_with_commitment(pubkey, CommitmentConfig::finalized())
             .await
             .map_err(ChainCommunicationError::from_other)?
-            .value
-            .ok_or_else(|| ChainCommunicationError::from_other_str("Could not find account data"))
+            .value;
+        Ok(account)
     }
 
     pub async fn get_block_height(&self) -> ChainResult<u32> {

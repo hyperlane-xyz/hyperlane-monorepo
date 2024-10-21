@@ -428,16 +428,12 @@ impl Mailbox for SealevelMailbox {
                 &self.program_id,
             );
 
-        let result = self
+        let account = self
             .rpc()
-            .get_account_with_finalized_commitment(&processed_message_account_key)
-            .await;
+            .get_possible_account_with_finalized_commitment(&processed_message_account_key)
+            .await?;
 
-        Ok(if let Err(ContractError(_)) = result {
-            false
-        } else {
-            true
-        })
+        Ok(account.is_some())
     }
 
     #[instrument(err, ret, skip(self))]
