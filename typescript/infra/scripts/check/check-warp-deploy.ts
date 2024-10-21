@@ -24,64 +24,77 @@ async function main() {
 
   const failedWarpRoutesChecks: string[] = [];
 
-  // TODO: consider retrying this if check throws an error
   for (const warpRouteId of Object.keys(warpConfigGetterMap)) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
     const warpModule = Modules.WARP;
 
-    try {
-      const governor = await getGovernor(
-        warpModule,
-        context,
-        environment,
-        asDeployer,
-        warpRouteId,
-        chains,
-        fork,
-      );
+    let retryCount = 0; // Initialize retry count
+    const maxRetries = 3; // Set maximum number of retries
 
-      await governor.check();
+    while (retryCount < maxRetries) {
+      // Retry loop
+      try {
+        const governor = await getGovernor(
+          warpModule,
+          context,
+          environment,
+          asDeployer,
+          warpRouteId,
+          chains,
+          fork,
+        );
 
-      const violations: any = governor.getCheckerViolations();
-      if (violations.length > 0) {
-        logViolations(violations);
+        await governor.check();
+
+        const violations: any = governor.getCheckerViolations();
+        if (violations.length > 0) {
+          logViolations(violations);
+
+          if (pushMetrics) {
+            for (const violation of violations) {
+              checkerViolationsGauge
+                .labels({
+                  module: warpModule,
+                  warp_route_id: warpRouteId,
+                  chain: violation.chain,
+                  contract_name: violation.name,
+                  type: violation.type,
+                  actual: violation.actual,
+                  expected: violation.expected,
+                })
+                .set(1);
+              console.log(
+                `Violation: ${violation.name} on ${violation.chain} with ${violation.actual} ${violation.type} ${violation.expected} pushed to metrics`,
+              );
+            }
+          }
+        } else {
+          console.info(
+            chalk.green(`${warpModule} checker found no violations`),
+          );
+        }
 
         if (pushMetrics) {
-          for (const violation of violations) {
-            checkerViolationsGauge
-              .labels({
-                module: warpModule,
-                warp_route_id: warpRouteId,
-                chain: violation.chain,
-                contract_name: violation.name,
-                type: violation.type,
-                actual: violation.actual,
-                expected: violation.expected,
-              })
-              .set(1);
-            console.log(
-              `Violation: ${violation.name} on ${violation.chain} with ${violation.actual} ${violation.type} ${violation.expected} pushed to metrics`,
-            );
-          }
+          await submitMetrics(
+            metricsRegister,
+            `check-warp-deploy-${environment}`,
+            {
+              overwriteAllMetrics: true,
+            },
+          );
         }
-      } else {
-        console.info(chalk.green(`${warpModule} checker found no violations`));
-      }
-
-      if (pushMetrics) {
-        await submitMetrics(
-          metricsRegister,
-          `check-warp-deploy-${environment}`,
-          {
-            overwriteAllMetrics: true,
-          },
+        break; // Exit the retry loop if successful
+      } catch (e) {
+        retryCount++; // Increment retry count
+        console.error(
+          chalk.red(`Error checking warp route ${warpRouteId}: ${e}`),
         );
+        if (retryCount >= maxRetries) {
+          failedWarpRoutesChecks.push(warpRouteId); // Add to failed checks if max retries reached
+        } else {
+          console.log(`Retrying... (${retryCount}/${maxRetries})`); // Log retry attempt
+        }
       }
-    } catch (e) {
-      console.error(
-        chalk.red(`Error checking warp route ${warpRouteId}: ${e}`),
-      );
-      failedWarpRoutesChecks.push(warpRouteId);
     }
   }
 
