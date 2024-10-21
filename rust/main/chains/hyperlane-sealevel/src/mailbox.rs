@@ -780,7 +780,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.rpc().get_block_height().await
+        self.get_finalized_block_number().await
     }
 }
 

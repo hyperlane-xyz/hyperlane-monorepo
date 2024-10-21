@@ -100,7 +100,7 @@ impl SealevelRpcClient {
     pub async fn get_block_height(&self) -> ChainResult<u32> {
         let height = self
             .0
-            .get_block_height()
+            .get_block_height_with_commitment(CommitmentConfig::finalized())
             .await
             .map_err(ChainCommunicationError::from_other)?
             .try_into()
