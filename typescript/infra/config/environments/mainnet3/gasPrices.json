@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.008669818",
+    "amount": "0.015396226",
     "decimals": 9
   },
   "bitlayer": {
@@ -32,7 +32,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.004707204",
+    "amount": "0.005712307",
     "decimals": 9
   },
   "bob": {
@@ -72,15 +72,15 @@
     "decimals": 9
   },
   "eclipsemainnet": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.0000001",
+    "decimals": 1
   },
   "endurance": {
     "amount": "3.0756015",
     "decimals": 9
   },
   "ethereum": {
-    "amount": "21.610477208",
+    "amount": "14.852716956",
     "decimals": 9
   },
   "everclear": {
@@ -88,11 +88,11 @@
     "decimals": 9
   },
   "flare": {
-    "amount": "29.55878872",
+    "amount": "49.455765643",
     "decimals": 9
   },
   "flow": {
-    "amount": "0.0000001",
+    "amount": "0.1",
     "decimals": 9
   },
   "fraxtal": {
@@ -104,11 +104,11 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "2.000000007",
+    "amount": "1.500000007",
     "decimals": 9
   },
   "immutablezkevm": {
-    "amount": "10.00000005",
+    "amount": "10.1",
     "decimals": 9
   },
   "inevm": {
@@ -124,7 +124,7 @@
     "decimals": 9
   },
   "linea": {
-    "amount": "0.240000007",
+    "amount": "0.243",
     "decimals": 9
   },
   "lisk": {
@@ -156,7 +156,7 @@
     "decimals": 9
   },
   "metis": {
-    "amount": "1.247735823",
+    "amount": "1.278943587",
     "decimals": 9
   },
   "mint": {
@@ -236,12 +236,12 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "28.138673121",
+    "amount": "39.319461243",
     "decimals": 9
   },
   "solanamainnet": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.5",
+    "decimals": 1
   },
   "superposition": {
     "amount": "0.01",
