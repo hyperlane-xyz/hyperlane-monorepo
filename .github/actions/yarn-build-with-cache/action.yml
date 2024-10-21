@@ -22,6 +22,7 @@ runs:
     # restoring the cache, let's run the install step ourselves.
     - name: Install dependencies
       if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
       run: |
         yarn install
         CHANGES=$(git status -s --ignore-submodules)
