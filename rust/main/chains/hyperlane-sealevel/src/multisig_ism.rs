@@ -1,9 +1,9 @@
 use async_trait::async_trait;
-
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
+use hyperlane_sealevel_multisig_ism_message_id::instruction::ValidatorsAndThreshold;
 use serializable_account_meta::SimulationReturnData;
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
@@ -11,12 +11,8 @@ use solana_sdk::{
     signature::Keypair,
 };
 
-use crate::{
-    utils::{get_account_metas, simulate_instruction},
-    ConnectionConf, RpcClientWithDebug, SealevelProvider,
-};
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
-use hyperlane_sealevel_multisig_ism_message_id::instruction::ValidatorsAndThreshold;
 use multisig_ism::interface::{
     MultisigIsmInstruction, VALIDATORS_AND_THRESHOLD_ACCOUNT_METAS_PDA_SEEDS,
 };
@@ -44,7 +40,7 @@ impl SealevelMultisigIsm {
         }
     }
 
-    fn rpc(&self) -> &RpcClientWithDebug {
+    fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
 }
@@ -86,9 +82,9 @@ impl MultisigIsm for SealevelMultisigIsm {
             account_metas,
         );
 
-        let validators_and_threshold =
-            simulate_instruction::<SimulationReturnData<ValidatorsAndThreshold>>(
-                self.rpc(),
+        let validators_and_threshold = self
+            .rpc()
+            .simulate_instruction::<SimulationReturnData<ValidatorsAndThreshold>>(
                 self.payer
                     .as_ref()
                     .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
@@ -135,13 +131,13 @@ impl SealevelMultisigIsm {
             vec![AccountMeta::new_readonly(account_metas_pda_key, false)],
         );
 
-        get_account_metas(
-            self.rpc(),
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await
+        self.rpc()
+            .get_account_metas(
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
+            )
+            .await
     }
 }
