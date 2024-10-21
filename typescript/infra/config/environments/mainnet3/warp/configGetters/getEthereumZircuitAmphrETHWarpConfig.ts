@@ -7,9 +7,10 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
+import { tokens } from '../../../../../src/config/warp.js';
+
 const ethereumOwner = '0x008615770B588633265cB01Abd19740fAe67d0B9';
 const zircuitOwner = '0xD0673e7F3FB4037CA79F53d2d311D0e017d39963';
-const amphrEthCollateralAddress = '0x5fD13359Ba15A84B76f7F87568309040176167cd';
 
 export const getEthereumZircuitAmphrETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
@@ -17,7 +18,7 @@ export const getEthereumZircuitAmphrETHWarpConfig = async (
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
-    token: amphrEthCollateralAddress,
+    token: tokens.ethereum.amphrETH,
     owner: ethereumOwner,
     interchainSecurityModule: ethers.constants.AddressZero,
     ownerOverrides: {
