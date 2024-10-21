@@ -17,7 +17,6 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{TransactionStatus, UiReturnDataEncoding, UiTransactionReturnData};
-use tracing::warn;
 
 use crate::error::HyperlaneSealevelError;
 
@@ -35,13 +34,13 @@ impl SealevelRpcClient {
         &self,
         signature: &Signature,
         commitment: CommitmentConfig,
-    ) -> bool {
+    ) -> ChainResult<bool> {
         self.0
             .confirm_transaction_with_commitment(signature, commitment)
             .await
-            .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
             .map(|ctx| ctx.value)
-            .unwrap_or(false)
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
     }
 
     pub async fn get_account(&self, pubkey: &Pubkey) -> ChainResult<Account> {

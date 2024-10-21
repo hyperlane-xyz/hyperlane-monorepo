@@ -595,7 +595,9 @@ impl Mailbox for SealevelMailbox {
         let executed = self
             .rpc()
             .confirm_transaction_with_commitment(&signature, commitment)
-            .await;
+            .await
+            .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
+            .unwrap_or(false);
         let txid = signature.into();
 
         Ok(TxOutcome {
