@@ -18,6 +18,11 @@ import type { PartialDeep } from '@inquirer/type';
 import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { ChainName, DeployedOwnableConfig } from '@hyperlane-xyz/sdk';
+import { isAddress } from '@hyperlane-xyz/utils';
+
+import { CommandContext } from '../context/types.js';
 import { logGray } from '../logger.js';
 
 import { indentYamlOrJson } from './files.js';
@@ -70,6 +75,37 @@ export async function inputWithInfo({
     if (answer === INFO_COMMAND) logGray(indentedInfo);
   } while (answer === INFO_COMMAND);
   return answer;
+}
+
+/**
+ * Prompts the user to optionally set an existing ProxyAdmin contract address to be used in a WarpToken deployment.
+ */
+export async function setExistingProxyAdmin(
+  context: CommandContext,
+  chain: ChainName,
+): Promise<DeployedOwnableConfig | undefined> {
+  const useExistingProxy = await confirm({
+    message: `Use an existing Proxy Admin contract for the warp route deployment on chain "${chain}"?`,
+  });
+
+  if (!useExistingProxy) {
+    return;
+  }
+
+  const proxyAdminAddress = await input({
+    message: `Please enter the address of the Proxy Admin contract to be used on chain "${chain}":`,
+    validate: isAddress,
+  });
+
+  const proxy = ProxyAdmin__factory.connect(
+    proxyAdminAddress,
+    context.multiProvider.getProvider(chain),
+  );
+  const ownerAddress = await proxy.owner();
+  return {
+    address: proxyAdminAddress,
+    owner: ownerAddress,
+  };
 }
 
 /**
