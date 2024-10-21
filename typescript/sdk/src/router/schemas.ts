@@ -29,6 +29,7 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
 ).merge(
   z.object({
     remoteRouters: RemoteRoutersSchema.optional(),
+    proxyAdmin: OwnableSchema.extend({ address: ZHash }).optional(),
   }),
 );
 
