@@ -1,29 +1,41 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::crypto::PublicKey;
-use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo};
-use cosmrs::{AccountId, Any, Coin, Tx};
-use itertools::Itertools;
+use cosmrs::proto::traits::Message;
+use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo, SignerPublicKey};
+use cosmrs::{proto, AccountId, Any, Coin, Tx};
+use itertools::{any, cloned, Itertools};
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::{client::CompatMode, Client, HttpClient};
 use time::OffsetDateTime;
 use tracing::{error, warn};
 
+use crypto::decompress_public_key;
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo, H256, U256,
+    AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
+    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo,
+    H256, U256,
 };
 
-use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::libs::account::CosmosAccountId;
+use crate::providers::cosmos::provider::parse::PacketData;
 use crate::providers::rpc::CosmosRpcClient;
-use crate::{ConnectionConf, CosmosAmount, HyperlaneCosmosError, Signer};
+use crate::{
+    ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
+};
+
+mod parse;
 
 /// Exponent value for atto units (10^-18).
 const ATTO_EXPONENT: u32 = 18;
+
+/// Injective public key type URL for protobuf Any
+const INJECTIVE_PUBLIC_KEY_TYPE_URL: &str = "/injective.crypto.v1beta1.ethsecp256k1.PubKey";
 
 /// Abstraction over a connection to a Cosmos chain
 #[derive(Debug, Clone)]
@@ -93,14 +105,72 @@ impl CosmosProvider {
             HyperlaneCosmosError::PublicKeyError("no public key for default signer".to_owned())
         })?;
 
-        let public_key = PublicKey::try_from(signer_public_key)?;
+        let (key, account_address_type) = self.normalize_public_key(signer_public_key)?;
+        let public_key = PublicKey::try_from(key)?;
 
         let account_id = CosmosAccountId::account_id_from_pubkey(
             public_key,
             &self.connection_conf.get_bech32_prefix(),
+            &account_address_type,
         )?;
 
         Ok((account_id, signer_info.sequence))
+    }
+
+    fn normalize_public_key(
+        &self,
+        signer_public_key: SignerPublicKey,
+    ) -> ChainResult<(SignerPublicKey, AccountAddressType)> {
+        let public_key_and_account_address_type = match signer_public_key {
+            SignerPublicKey::Single(pk) => (SignerPublicKey::from(pk), AccountAddressType::Bitcoin),
+            SignerPublicKey::LegacyAminoMultisig(pk) => {
+                (SignerPublicKey::from(pk), AccountAddressType::Bitcoin)
+            }
+            SignerPublicKey::Any(pk) => {
+                if pk.type_url != PublicKey::ED25519_TYPE_URL
+                    && pk.type_url != PublicKey::SECP256K1_TYPE_URL
+                    && pk.type_url != INJECTIVE_PUBLIC_KEY_TYPE_URL
+                {
+                    let msg = format!(
+                        "can only normalize public keys with a known TYPE_URL: {}, {}, {}",
+                        PublicKey::ED25519_TYPE_URL,
+                        PublicKey::SECP256K1_TYPE_URL,
+                        INJECTIVE_PUBLIC_KEY_TYPE_URL
+                    );
+                    warn!(pk.type_url, msg);
+                    Err(HyperlaneCosmosError::PublicKeyError(msg.to_owned()))?
+                }
+
+                let (pub_key, account_address_type) =
+                    if pk.type_url == INJECTIVE_PUBLIC_KEY_TYPE_URL {
+                        let any = Any {
+                            type_url: PublicKey::SECP256K1_TYPE_URL.to_owned(),
+                            value: pk.value,
+                        };
+
+                        let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
+                            .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+                        let decompressed = decompress_public_key(&proto.key)
+                            .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
+
+                        let tendermint = tendermint::PublicKey::from_raw_secp256k1(&decompressed)
+                            .ok_or_else(|| {
+                            HyperlaneCosmosError::PublicKeyError(
+                                "cannot create tendermint public key".to_owned(),
+                            )
+                        })?;
+
+                        (PublicKey::from(tendermint), AccountAddressType::Ethereum)
+                    } else {
+                        (PublicKey::try_from(pk)?, AccountAddressType::Bitcoin)
+                    };
+
+                (SignerPublicKey::Single(pub_key), account_address_type)
+            }
+        };
+
+        Ok(public_key_and_account_address_type)
     }
 
     /// Calculates the sender and the nonce for the transaction.
@@ -132,8 +202,29 @@ impl CosmosProvider {
     }
 
     /// Extract contract address from transaction.
-    /// Assumes that there is only one `MsgExecuteContract` message in the transaction
     fn contract(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
+        // We merge two error messages together so that both of them are reported
+        match Self::contract_address_from_msg_execute_contract(tx, tx_hash) {
+            Ok(contract) => Ok(contract),
+            Err(msg_execute_contract_error) => {
+                match Self::contract_address_from_msg_recv_packet(tx, tx_hash) {
+                    Ok(contract) => Ok(contract),
+                    Err(msg_recv_packet_error) => {
+                        let errors = vec![msg_execute_contract_error, msg_recv_packet_error];
+                        let error = HyperlaneCosmosError::ParsingAttemptsFailed(errors);
+                        warn!(?tx_hash, ?error);
+                        Err(ChainCommunicationError::from_other(error))?
+                    }
+                }
+            }
+        }
+    }
+
+    /// Assumes that there is only one `MsgExecuteContract` message in the transaction
+    fn contract_address_from_msg_execute_contract(
+        tx: &Tx,
+        tx_hash: &H256,
+    ) -> Result<H256, HyperlaneCosmosError> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
         let contract_execution_messages = tx
@@ -146,27 +237,50 @@ impl CosmosProvider {
 
         let contract_execution_messages_len = contract_execution_messages.len();
         if contract_execution_messages_len > 1 {
-            error!(
-                ?tx_hash,
-                ?contract_execution_messages,
-                "transaction contains multiple contract execution messages, we are indexing the first entry only");
+            let msg = "transaction contains multiple contract execution messages";
+            Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
         }
 
         let any = contract_execution_messages.first().ok_or_else(|| {
-            ChainCommunicationError::from_other_str("could not find contract execution message")
+            let msg = "could not find contract execution message";
+            HyperlaneCosmosError::ParsingFailed(msg.to_owned())
         })?;
         let proto =
             ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
         let msg = MsgExecuteContract::try_from(proto)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
+
         Ok(contract)
+    }
+
+    fn contract_address_from_msg_recv_packet(
+        tx: &Tx,
+        tx_hash: &H256,
+    ) -> Result<H256, HyperlaneCosmosError> {
+        let packet_data = tx
+            .body
+            .messages
+            .iter()
+            .filter(|a| a.type_url == "/ibc.core.channel.v1.MsgRecvPacket")
+            .map(PacketData::try_from)
+            .flat_map(|r| r.ok())
+            .next()
+            .ok_or_else(|| {
+                let msg = "could not find IBC receive packets message containing receiver address";
+                HyperlaneCosmosError::ParsingFailed(msg.to_owned())
+            })?;
+
+        let account_id = AccountId::from_str(&packet_data.receiver)?;
+        let address = H256::try_from(CosmosAccountId::new(&account_id))?;
+
+        Ok(address)
     }
 
     /// Reports if transaction contains fees expressed in unsupported denominations
     /// The only denomination we support at the moment is the one we express gas minimum price
     /// in the configuration of a chain. If fees contain an entry in a different denomination,
     /// we report it in the logs.
-    fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) {
+    fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) -> ChainResult<()> {
         let supported_denomination = self.connection_conf.get_minimum_gas_price().denom;
         let unsupported_denominations = tx
             .auth_info
@@ -178,12 +292,17 @@ impl CosmosProvider {
             .fold("".to_string(), |acc, denom| acc + ", " + denom);
 
         if !unsupported_denominations.is_empty() {
-            error!(
+            let msg = "transaction contains fees in unsupported denominations, manual intervention is required";
+            warn!(
                 ?tx_hash,
                 ?supported_denomination,
                 ?unsupported_denominations,
-                "transaction contains fees in unsupported denominations, manual intervention is required");
+                msg,
+            );
+            Err(ChainCommunicationError::CustomError(msg.to_owned()))?
         }
+
+        Ok(())
     }
 
     /// Converts fees to a common denomination if necessary.
@@ -210,6 +329,29 @@ impl CosmosProvider {
         let amount_in_native_denom = U256::from(coin.amount);
 
         amount_in_native_denom * coefficient
+    }
+
+    fn calculate_gas_price(&self, hash: &H256, tx: &Tx) -> U256 {
+        // TODO support multiple denominations for amount
+        let supported = self.report_unsupported_denominations(tx, hash);
+        if supported.is_err() {
+            return U256::max_value();
+        }
+
+        let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
+        let fee = tx
+            .auth_info
+            .fee
+            .amount
+            .iter()
+            .map(|c| self.convert_fee(c))
+            .fold(U256::zero(), |acc, v| acc + v);
+
+        if fee < gas_limit {
+            warn!(tx_hash = ?hash, ?fee, ?gas_limit, "calculated fee is less than gas limit. it will result in zero gas price");
+        }
+
+        fee / gas_limit
     }
 }
 
@@ -276,26 +418,7 @@ impl HyperlaneProvider for CosmosProvider {
 
         let contract = Self::contract(&tx, hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
-
-        // TODO support multiple denominations for amount
-        self.report_unsupported_denominations(&tx, hash);
-
-        let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
-        let fee = tx
-            .auth_info
-            .fee
-            .amount
-            .iter()
-            .map(|c| self.convert_fee(c))
-            .fold(U256::zero(), |acc, v| acc + v);
-
-        let gas_price = fee / gas_limit;
-        let gas_price = if gas_price == U256::zero() {
-            warn!(?fee, ?gas_limit, "calculated zero gas price");
-            U256::one()
-        } else {
-            gas_price
-        };
+        let gas_price = self.calculate_gas_price(hash, &tx);
 
         let tx_info = TxnInfo {
             hash: hash.to_owned(),
