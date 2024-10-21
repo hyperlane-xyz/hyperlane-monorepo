@@ -11,15 +11,13 @@ use fuels::{
         BlockHeight, Bytes32, ContractId,
     },
 };
-use futures::lock::Mutex;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, Indexed, LogMeta, H512, U256,
 };
 use std::{
     collections::HashMap,
     fmt::Debug,
-    ops::Deref,
-    sync::atomic::{AtomicBool, Ordering},
+    ops::{Deref, RangeInclusive},
 };
 
 // TODO, clippy issues
@@ -30,9 +28,6 @@ pub struct FuelIndexer {
     fuel_provider: FuelProvider,
     contract_address: Bech32ContractId,
     target_event_type: TransactionEventType,
-    block_cursor: Mutex<Option<String>>,
-    transaction_cursor: Mutex<Option<String>>,
-    cursors_initialized: AtomicBool,
 }
 
 /// IGP payment log has a data length of 48 bytes
@@ -66,16 +61,13 @@ impl FuelIndexer {
             fuel_provider,
             contract_address,
             target_event_type,
-            block_cursor: Mutex::new(None),
-            transaction_cursor: Mutex::new(None),
-            cursors_initialized: AtomicBool::default(),
         }
     }
 
     /// Index logs depending on which transaction parser is passed as a parameter
     pub async fn index_logs_in_range<T>(
         &self,
-        range: std::ops::RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
         parser: fn(
             Vec<(Bytes32, TransactionResponse)>,
         ) -> Vec<(Bytes32, TransactionResponse, T, U256)>,
@@ -84,12 +76,14 @@ impl FuelIndexer {
         T: Into<Indexed<T>>,
         T: PartialEq + Send + Sync + Debug + 'static,
     {
-        if !self.cursors_initialized.load(Ordering::Relaxed) {
-            self.initialize_cursors(&range).await;
-        }
+        let (block_cursor, transaction_cursor) = self.get_sync_cursors(&range).await?;
 
-        let (transaction_amount, transaction_map) = self.get_block_data(range).await.unwrap();
-        let transaction_data = self.get_transaction_data(&transaction_map).await;
+        let (transaction_amount, transaction_map) = self
+            .get_block_data(range.clone(), block_cursor.clone())
+            .await?;
+        let transaction_data = self
+            .get_transaction_data(&transaction_map, transaction_cursor.clone())
+            .await?;
 
         let full_tx_data = parser(transaction_data);
 
@@ -121,14 +115,13 @@ impl FuelIndexer {
 
     /// Check if a transaction is from a contract
     /// @note: Only works for checking script transactions
-    /// Assumes that the first input is the contract id
     #[allow(clippy::get_first)]
     fn is_transaction_from_contract(
         res: &TransactionResponse,
         contract: &Bech32ContractId,
     ) -> bool {
         if let TransactionType::Script(script_transaction) = &res.transaction {
-            if script_transaction.inputs().get(0).is_some_and(|input| {
+            if script_transaction.inputs().iter().any(|input| {
                 input
                     .contract_id()
                     .is_some_and(|id| id == &ContractId::from(&contract.into()))
@@ -142,10 +135,11 @@ impl FuelIndexer {
     async fn get_transaction_data(
         &self,
         transaction_map: &HashMap<Bytes32, (Bytes32, u64)>,
-    ) -> Vec<(Bytes32, TransactionResponse)> {
+        cursor: Option<String>,
+    ) -> ChainResult<Vec<(Bytes32, TransactionResponse)>> {
         let transaction_ids = transaction_map.keys().cloned().collect::<Vec<_>>();
         let req = PaginationRequest {
-            cursor: self.transaction_cursor.lock().await.clone(),
+            cursor,
             results: transaction_ids.len() as i32,
             direction: PageDirection::Forward,
         };
@@ -155,15 +149,7 @@ impl FuelIndexer {
             .provider()
             .get_transactions(req)
             .await
-            .map_err(ChainCommunicationError::from_other)
-            .unwrap();
-
-        *self.transaction_cursor.lock().await = transactions.cursor.clone();
-
-        assert!(
-            transactions.results.len() == transaction_ids.len(),
-            "Transaction data amount does not match transaction id amount"
-        );
+            .map_err(ChainCommunicationError::from_other)?;
 
         let mut transaction_data = Vec::new();
         for (tx_id, tx_data) in transactions.results.iter().zip(transaction_ids) {
@@ -172,23 +158,26 @@ impl FuelIndexer {
 
         let transaction_matcher = self.get_transaction_matcher();
 
-        transaction_data
+        let filtered_transactions = transaction_data
             .into_iter()
             .filter(|(_, tx_data)| {
                 Self::is_transaction_from_contract(&tx_data, &self.contract_address)
                     && transaction_matcher(&tx_data)
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+
+        Ok(filtered_transactions)
     }
 
     async fn get_block_data(
         &self,
-        range: std::ops::RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
+        cursor: Option<String>,
     ) -> ChainResult<(i32, HashMap<Bytes32, (Bytes32, u64)>)> {
-        let result_amount = range.end() - range.start() + 1;
+        let result_amount: u32 = range.end() - range.start();
         let req = PaginationRequest {
-            cursor: self.block_cursor.lock().await.clone(),
-            results: i32::try_from(result_amount).expect("Invalid range"),
+            cursor,
+            results: result_amount as i32,
             direction: PageDirection::Forward,
         };
 
@@ -198,7 +187,6 @@ impl FuelIndexer {
             .get_blocks(req)
             .await
             .map_err(ChainCommunicationError::from_other)?;
-        *self.block_cursor.lock().await = blocks.cursor.clone();
 
         let mut transaction_map: HashMap<Bytes32, (Bytes32, u64)> = HashMap::new();
         blocks.results.iter().for_each(|block| {
@@ -220,18 +208,13 @@ impl FuelIndexer {
         Ok((transaction_amount, transaction_map))
     }
 
-    async fn initialize_cursors(&self, range: &std::ops::RangeInclusive<u32>) {
-        let mut block_cursor_guard = self.block_cursor.lock().await;
-        let mut transaction_cursor_guard = self.transaction_cursor.lock().await;
-        assert!(
-            block_cursor_guard.is_none() && transaction_cursor_guard.is_none(),
-            "Cursors already initialized"
-        );
-
+    async fn get_sync_cursors(
+        &self,
+        range: &RangeInclusive<u32>,
+    ) -> ChainResult<(Option<String>, Option<String>)> {
         let range_start = range.start();
-        if range.start() == &0 {
-            self.cursors_initialized.store(true, Ordering::Relaxed);
-            return;
+        if *range_start == 0 {
+            return Ok((None, None));
         }
 
         let start_block = BlockHeight::from(*range_start);
@@ -240,18 +223,18 @@ impl FuelIndexer {
             .provider()
             .block_by_height(start_block)
             .await
-            .expect("Failed to get block data")
-            .unwrap();
+            .map_err(ChainCommunicationError::from_other)
+            .map(|block| block.unwrap())?;
+
         let first_transaction = block_data.transactions.first().unwrap();
 
         let hex_block = hex::encode(range_start.to_be_bytes());
         let hex_tx = hex::encode(first_transaction.to_vec());
+
         let tx_cursor = Some(format!("{}#0x{}", hex_block, hex_tx));
         let block_cursor = Some(range_start.to_string());
 
-        *block_cursor_guard = block_cursor;
-        *transaction_cursor_guard = tx_cursor;
-        self.cursors_initialized.store(true, Ordering::Relaxed);
+        return Ok((block_cursor, tx_cursor));
     }
 }
 
@@ -306,10 +289,10 @@ impl FuelIndexer {
 
         let log_data_receipts = Self::filter_logdata_rec(receipts);
 
-        assert!(
-            log_data_receipts.len() == 1,
-            "IGP payment should have 1 log data receipt"
-        );
+        // IGP payment should have 1 log data receipt
+        if log_data_receipts.len() != 1 {
+            return false;
+        }
         let log = log_data_receipts.get(0).unwrap();
 
         match log {
