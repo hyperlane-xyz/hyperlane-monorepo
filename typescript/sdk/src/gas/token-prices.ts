@@ -159,7 +159,7 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   public async getTokenPriceByIds(
     ids: string[],
     currency: string = 'usd',
-  ): Promise<number[]> {
+  ): Promise<number[] | undefined> {
     const toQuery = ids.filter((id) => !this.cache.isFresh(id));
     if (toQuery.length > 0) {
       let response: any;
@@ -174,9 +174,11 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
           toQuery.map((id, i) => this.cache.put(id, prices[i]));
         } else {
           rootLogger.warn('Failed to query token prices', response.message);
+          return undefined;
         }
       } catch (e) {
         rootLogger.warn('Error when querying token prices', e);
+        return undefined;
       }
     }
     return ids.map((id) => this.cache.fetch(id));

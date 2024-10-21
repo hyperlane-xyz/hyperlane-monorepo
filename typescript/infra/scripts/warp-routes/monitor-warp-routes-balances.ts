@@ -139,25 +139,18 @@ async function checkBalance(
             case ProtocolType.Ethereum: {
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
               const nativeBalance = await provider.getBalance(token.hypAddress);
-              const price = await tokenPriceGetter.getTokenPrice(chain);
-              logger.debug('price', price);
-              logger.debug('calculated value...');
-              const value =
-                parseFloat(
-                  ethers.utils.formatUnits(nativeBalance, token.decimals),
-                ) * price;
-              logger.debug('Native balance', {
+              const nativeBalanceFloat = parseFloat(
+                ethers.utils.formatUnits(nativeBalance, token.decimals),
+              );
+
+              const value = await getNativeTokenValue(
                 chain,
-                balance: parseFloat(
-                  ethers.utils.formatUnits(nativeBalance, token.decimals),
-                ),
-                value,
-              });
+                nativeBalanceFloat,
+                tokenPriceGetter,
+              );
 
               return {
-                balance: parseFloat(
-                  ethers.utils.formatUnits(nativeBalance, token.decimals),
-                ),
+                balance: nativeBalanceFloat,
                 value,
               };
             }
@@ -177,17 +170,16 @@ async function checkBalance(
               const balance = ethers.BigNumber.from(
                 await adapter.getBalance(token.hypAddress),
               );
-              const price = await tokenPriceGetter.getTokenPrice(chain);
               const balanceFloat = parseFloat(
                 ethers.utils.formatUnits(balance, token.decimals),
               );
-              const nativeValue = balanceFloat * price;
-              logger.debug('Native balance', {
+
+              const nativeValue = await getNativeTokenValue(
                 chain,
-                balance: balanceFloat,
-                price,
-                value: nativeValue,
-              });
+                balanceFloat,
+                tokenPriceGetter,
+              );
+
               return {
                 balance: balanceFloat,
                 value: nativeValue,
@@ -228,30 +220,14 @@ async function checkBalance(
               const collateralBalanceFloat = parseFloat(
                 ethers.utils.formatUnits(collateralBalance, token.decimals),
               );
-              let collateralValue: number | undefined = undefined;
-              let collateralPrice: number | undefined = undefined;
-              if (token.tokenCoinGeckoId) {
-                const collateralPrices =
-                  await tokenPriceGetter.getTokenPriceByIds([
-                    token.tokenCoinGeckoId,
-                  ]);
-                collateralPrice = collateralPrices[0];
-                collateralValue = collateralBalanceFloat * collateralPrice;
-              }
-
-              logger.debug('Collateral balance', {
-                chain,
-                balance: parseFloat(
-                  ethers.utils.formatUnits(collateralBalance, token.decimals),
-                ),
-                price: collateralPrice,
-                value: collateralValue,
-              });
+              const collateralValue = await getCollateralTokenValue(
+                token.tokenCoinGeckoId,
+                collateralBalanceFloat,
+                tokenPriceGetter,
+              );
 
               return {
-                balance: parseFloat(
-                  ethers.utils.formatUnits(collateralBalance, token.decimals),
-                ),
+                balance: collateralBalanceFloat,
                 value: collateralValue,
               };
             }
@@ -275,28 +251,14 @@ async function checkBalance(
               const collateralBalanceFloat = parseFloat(
                 ethers.utils.formatUnits(collateralBalance, token.decimals),
               );
-              let collateralValue: number | undefined = undefined;
-              let collateralPrice: number | undefined = undefined;
+              const collateralValue = await getCollateralTokenValue(
+                token.tokenCoinGeckoId,
+                collateralBalanceFloat,
+                tokenPriceGetter,
+              );
 
-              if (token.tokenCoinGeckoId) {
-                const collateralPrices =
-                  await tokenPriceGetter.getTokenPriceByIds([
-                    token.tokenCoinGeckoId,
-                  ]);
-                collateralPrice = collateralPrices[0];
-                collateralValue = collateralBalanceFloat * collateralPrice;
-              }
-
-              logger.debug('Collateral balance', {
-                chain,
-                balance: collateralBalanceFloat,
-                price: collateralPrice,
-                value: collateralValue,
-              });
               return {
-                balance: parseFloat(
-                  ethers.utils.formatUnits(collateralBalance, token.decimals),
-                ),
+                balance: collateralBalanceFloat,
                 value: collateralValue,
               };
             }
@@ -412,11 +374,19 @@ async function checkBalance(
               const collateralBalance = await tokenContract.balanceOf(
                 xerc20LockboxAddress,
               );
+              const collateralBalanceFloat = parseFloat(
+                ethers.utils.formatUnits(collateralBalance, token.decimals),
+              );
+
+              const collateralValue = await getCollateralTokenValue(
+                token.tokenCoinGeckoId,
+                collateralBalanceFloat,
+                tokenPriceGetter,
+              );
 
               return {
-                balance: parseFloat(
-                  ethers.utils.formatUnits(collateralBalance, token.decimals),
-                ),
+                balance: collateralBalanceFloat,
+                value: collateralValue,
               };
             }
             default:
@@ -593,6 +563,51 @@ const getXERC20Limit = async (
   };
 };
 
+async function getTokenPriceByChain(
+  chain: ChainName,
+  tokenPriceGetter: CoinGeckoTokenPriceGetter,
+): Promise<number | undefined> {
+  try {
+    return tokenPriceGetter.getTokenPrice(chain);
+  } catch (e) {
+    logger.warn('Error getting token price', e);
+    return undefined;
+  }
+}
+
+async function getNativeTokenValue(
+  chain: ChainName,
+  balanceFloat: number,
+  tokenPriceGetter: CoinGeckoTokenPriceGetter,
+): Promise<number | undefined> {
+  const price = await getTokenPriceByChain(chain, tokenPriceGetter);
+  if (!price) return undefined;
+  return balanceFloat * price;
+}
+
+async function getCollateralTokenPrice(
+  tokenCoinGeckoId: string | undefined,
+  tokenPriceGetter: CoinGeckoTokenPriceGetter,
+): Promise<number | undefined> {
+  if (!tokenCoinGeckoId) return undefined;
+  const prices = await tokenPriceGetter.getTokenPriceByIds([tokenCoinGeckoId]);
+  if (!prices) return undefined;
+  return prices[0];
+}
+
+async function getCollateralTokenValue(
+  tokenCoinGeckoId: string | undefined,
+  balanceFloat: number,
+  tokenPriceGetter: CoinGeckoTokenPriceGetter,
+): Promise<number | undefined> {
+  const price = await getCollateralTokenPrice(
+    tokenCoinGeckoId,
+    tokenPriceGetter,
+  );
+  if (!price) return undefined;
+  return balanceFloat * price;
+}
+
 async function checkWarpRouteMetrics(
   checkFrequency: number,
   tokenConfig: WarpRouteConfig,
@@ -616,12 +631,21 @@ async function checkWarpRouteMetrics(
       logger.error('Error checking balances', e);
     }
 
-    try {
-      const xERC20Limits = await getXERC20Limits(tokenConfig, chainMetadata);
-      logger.info('xERC20 Limits:', xERC20Limits);
-      updateXERC20LimitsMetrics(xERC20Limits);
-    } catch (e) {
-      logger.error('Error checking xERC20 limits', e);
+    // only check xERC20 limits if there are xERC20 tokens in the config
+    if (
+      Object.keys(tokenConfig).some(
+        (chain) =>
+          tokenConfig[chain].type === TokenType.XERC20 ||
+          tokenConfig[chain].type === TokenType.XERC20Lockbox,
+      )
+    ) {
+      try {
+        const xERC20Limits = await getXERC20Limits(tokenConfig, chainMetadata);
+        logger.info('xERC20 Limits:', xERC20Limits);
+        updateXERC20LimitsMetrics(xERC20Limits);
+      } catch (e) {
+        logger.error('Error checking xERC20 limits', e);
+      }
     }
   }, checkFrequency);
 }

@@ -10,6 +10,7 @@ data:
       type: collateral
       hypAddress: '0xdD313D475f8A9d81CBE2eA953a357f52e10BA357'
       tokenAddress: '0xd9343a049d5dbd89cd19dc6bca8c48fb3a0a42a7'
+      tokenCoingeckoId: 'orion-protocol' # ORN->LUMIA 1:1
       name: Lumia Token
       symbol: LUMIA
       decimals: 18
