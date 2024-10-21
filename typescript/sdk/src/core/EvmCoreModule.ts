@@ -32,6 +32,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
@@ -253,10 +254,11 @@ export class EvmCoreModule extends HyperlaneModule<
     contractVerifier?: ContractVerifier;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, contractVerifier } = params;
-    const { name: chainName, protocol } = multiProvider.getChainMetadata(chain);
+    const { name: chainName, technicalStack } =
+      multiProvider.getChainMetadata(chain);
 
     const ismFactoryFactories: ProxyFactoryFactoriesAddresses =
-      await this.getIsmFactoryFactories(protocol, {
+      await this.getIsmFactoryFactories(technicalStack, {
         chainName,
         config,
         multiProvider,
@@ -455,7 +457,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns A promise that resolves to the addresses of the deployed ISM factory factories.
    */
   private static async getIsmFactoryFactories(
-    protocol: ProtocolType,
+    technicalStack: ChainTechnicalStack | undefined,
     params: {
       chainName: string;
       config: CoreConfig;
@@ -464,7 +466,7 @@ export class EvmCoreModule extends HyperlaneModule<
     },
   ): Promise<ProxyFactoryFactoriesAddresses> {
     // Check if we should skip static address set deployment
-    if (shouldSkipStaticDeployment(protocol)) {
+    if (shouldSkipStaticDeployment(technicalStack)) {
       return createDefaultProxyFactoryFactories();
     } else {
       // Otherwise, deploy ISM factories

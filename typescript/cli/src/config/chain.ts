@@ -5,6 +5,7 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   ChainMetadata,
   ChainMetadataSchema,
+  ChainTechnicalStack,
   ExplorerFamily,
   ZChainName,
 } from '@hyperlane-xyz/sdk';
@@ -68,11 +69,13 @@ export async function createChainConfig({
     default: name[0].toUpperCase() + name.slice(1),
   });
 
-  const protocol = (await select({
-    choices: [{ value: ProtocolType.Ethereum }, { value: ProtocolType.ZKSync }],
-    message: 'Select the correct protocol',
+  const technicalStack = (await select({
+    choices: Object.entries(ChainTechnicalStack).map(([_, value]) => ({
+      value,
+    })),
+    message: 'Select the correct chain technical stack',
     pageSize: 10,
-  })) as ProtocolType;
+  })) as ChainTechnicalStack;
 
   const chainId = parseInt(
     await detectAndConfirmOrPrompt(
@@ -97,7 +100,8 @@ export async function createChainConfig({
     displayName,
     chainId,
     domainId: chainId,
-    protocol: protocol,
+    protocol: ProtocolType.Ethereum,
+    technicalStack,
     rpcUrls: [{ http: rpcUrl }],
     isTestnet,
   };

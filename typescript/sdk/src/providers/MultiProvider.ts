@@ -13,7 +13,6 @@ import * as zk from 'zksync-ethers';
 import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
 import {
   Address,
-  ProtocolType,
   addBufferToGasLimit,
   pick,
   rootLogger,
@@ -21,7 +20,10 @@ import {
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import {
+  ChainMetadata,
+  ChainTechnicalStack,
+} from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKDeployer } from '../zksync/ZKDeployer.js';
 
@@ -95,12 +97,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls, protocol } = metadata;
+    const { name, chainId, rpcUrls, technicalStack } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
     if (testChains.includes(name)) {
-      if (protocol === ProtocolType.ZKSync) {
+      if (technicalStack === ChainTechnicalStack.ZKSync) {
         this.providers[name] = new zk.Provider('http://127.0.0.1:8011', 260);
       } else {
         this.providers[name] = new providers.JsonRpcProvider(
@@ -109,7 +111,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         );
       }
     } else if (rpcUrls.length) {
-      if (protocol === ProtocolType.ZKSync) {
+      if (technicalStack === ChainTechnicalStack.ZKSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
       } else {
         this.providers[name] = this.providerBuilder(rpcUrls, chainId);
@@ -333,13 +335,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       throw new Error('Chain metadata not found!');
     }
 
-    const { protocol } = metadata;
+    const { technicalStack } = metadata;
 
     let contract;
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
 
-    if (protocol === ProtocolType.ZKSync) {
+    if (technicalStack === ChainTechnicalStack.ZKSync) {
       if (!artifact) {
         throw new Error(`No ZKSync contract artifact provided!`);
       }

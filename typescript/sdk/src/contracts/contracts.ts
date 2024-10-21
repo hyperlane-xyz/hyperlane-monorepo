@@ -244,9 +244,7 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
     addressesMap,
     (chain, addresses) => {
       const metadata = multiProvider.getChainMetadata(chain);
-      if (
-        [ProtocolType.ZKSync, ProtocolType.Ethereum].includes(metadata.protocol)
-      ) {
+      if (metadata.protocol === ProtocolType.Ethereum) {
         return addresses;
       }
       return objMap(

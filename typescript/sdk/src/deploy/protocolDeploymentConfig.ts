@@ -1,12 +1,13 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 
-export const skipStaticDeployment: Record<ProtocolType, boolean> = {
-  [ProtocolType.ZKSync]: true,
-  [ProtocolType.Ethereum]: false,
-  [ProtocolType.Sealevel]: false,
-  [ProtocolType.Cosmos]: false,
-};
+export const skipStaticDeployment: ChainTechnicalStack[] = [
+  ChainTechnicalStack.ZKSync,
+];
 
-export function shouldSkipStaticDeployment(protocol: ProtocolType): boolean {
-  return skipStaticDeployment[protocol] || false;
+export function shouldSkipStaticDeployment(
+  chainTechnicalStack: ChainTechnicalStack | undefined,
+): boolean {
+  return chainTechnicalStack === undefined
+    ? false
+    : skipStaticDeployment.includes(chainTechnicalStack);
 }

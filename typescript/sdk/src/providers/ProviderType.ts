@@ -43,7 +43,6 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   ProtocolType,
   ProviderType
 > = {
-  [ProtocolType.ZKSync]: ProviderType.ZKSync,
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
@@ -69,12 +68,6 @@ type ProtocolTypesMapping = {
     provider: CosmJsWasmProvider;
     contract: CosmJsWasmContract;
     receipt: CosmJsWasmTransactionReceipt;
-  };
-  [ProtocolType.ZKSync]: {
-    transaction: ZKSyncTransaction;
-    provider: ZKSyncProvider;
-    contract: ZKSyncContract;
-    receipt: ZKSyncTransactionReceipt;
   };
 };
 

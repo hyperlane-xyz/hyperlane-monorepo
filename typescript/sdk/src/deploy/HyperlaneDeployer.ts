@@ -32,6 +32,7 @@ import { HookConfig } from '../hook/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
@@ -143,14 +144,8 @@ export abstract class HyperlaneDeployer<
         ProtocolType.Ethereum,
     );
 
-    const zksyncConfigChains = configChains.filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.ZKSync,
-    );
-
     const targetChains = this.multiProvider.intersect(
-      [...ethereumConfigChains, ...zksyncConfigChains],
+      ethereumConfigChains,
       true,
     ).intersection;
 
@@ -418,8 +413,8 @@ export abstract class HyperlaneDeployer<
       )})...`,
     );
 
-    const { protocol } = this.multiProvider.getChainMetadata(chain);
-    const isZKSyncChain = protocol === ProtocolType.ZKSync;
+    const { technicalStack } = this.multiProvider.getChainMetadata(chain);
+    const isZKSyncChain = technicalStack === ChainTechnicalStack.ZKSync;
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKArtifactByContractName(contractName);
 

@@ -10,13 +10,13 @@ import {
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
-  ProtocolType,
   addBufferToGasLimit,
   eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -105,8 +105,8 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       await this.multiProvider.handleTx(chain, initTx);
     }
 
-    const { protocol } = this.multiProvider.getChainMetadata(chain);
-    const isZKSyncChain = protocol === ProtocolType.ZKSync;
+    const { technicalStack } = this.multiProvider.getChainMetadata(chain);
+    const isZKSyncChain = technicalStack === ChainTechnicalStack.ZKSync;
 
     let verificationInput: ContractVerificationInput;
     if (isZKSyncChain) {

@@ -21,8 +21,7 @@ export function getExplorerApi(
 } | null {
   const { blockExplorers, protocol } = metadata;
   // TODO solana + cosmos support here as needed
-  if (protocol !== ProtocolType.Ethereum && protocol !== ProtocolType.ZKSync)
-    return null;
+  if (protocol !== ProtocolType.Ethereum) return null;
   if (!blockExplorers?.length || !blockExplorers[index].apiUrl) return null;
   return {
     apiUrl: blockExplorers[index].apiUrl,
