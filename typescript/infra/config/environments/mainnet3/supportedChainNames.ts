@@ -62,6 +62,7 @@ export const mainnet3SupportedChainNames = [
   'sei',
   'shibarium',
   'solanamainnet',
+  'stride',
   'superposition',
   'taiko',
   'tangle',

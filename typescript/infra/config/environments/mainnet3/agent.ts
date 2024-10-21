@@ -115,6 +115,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: true,
     shibarium: true,
     solanamainnet: true,
+    stride: false,
     superposition: true,
     taiko: true,
     tangle: true,
@@ -189,6 +190,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: true,
     shibarium: true,
     solanamainnet: true,
+    stride: true,
     superposition: true,
     taiko: true,
     tangle: true,
@@ -264,6 +266,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     // Cannot scrape Sealevel chains
     solanamainnet: false,
+    stride: false,
     superposition: true,
     taiko: true,
     tangle: true,
