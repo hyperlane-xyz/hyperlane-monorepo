@@ -13,6 +13,7 @@ export enum WarpRouteIds {
   EthereumVictionETH = 'ETH/ethereum-viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
+  EthereumZircuitAMPHRETH = 'AMPHRETH/ethereum-zircuit',
   EthereumZircuitPZETH = 'PZETH/ethereum-zircuit',
   InevmInjectiveINJ = 'INJ/inevm-injective',
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
