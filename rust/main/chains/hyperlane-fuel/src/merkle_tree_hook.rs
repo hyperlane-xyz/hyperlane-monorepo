@@ -1,8 +1,9 @@
 use std::{num::NonZeroU64, ops::RangeInclusive};
 
 use crate::{
-    contracts::merkle_tree_hook::MerkleTreeHook as MerkleTreeHookContract, conversions::*,
-    ConnectionConf, FuelIndexer, FuelProvider, TransactionEventType,
+    contracts::merkle_tree_hook::{MerkleTreeEvent, MerkleTreeHook as MerkleTreeHookContract},
+    conversions::*,
+    ConnectionConf, FuelIndexer, FuelProvider,
 };
 use async_trait::async_trait;
 use fuels::{
@@ -150,13 +151,7 @@ impl FuelMerkleTreeHookIndexer {
             Bech32ContractId::from_h256(&locator.address),
             wallet.clone(),
         );
-        let indexer = FuelIndexer::new(
-            conf,
-            locator,
-            wallet,
-            TransactionEventType::MerkleTreeHookInsert,
-        )
-        .await;
+        let indexer = FuelIndexer::new::<MerkleTreeEvent>(conf, locator, wallet).await;
 
         Ok(Self { indexer, contract })
     }

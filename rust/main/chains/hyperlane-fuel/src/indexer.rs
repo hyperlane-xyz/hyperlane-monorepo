@@ -1,8 +1,20 @@
-use crate::{conversions::*, ConnectionConf, FuelProvider};
+use crate::{
+    contracts::interchain_gas_paymaster::{
+        GasPaymentEvent, InterchainGasPaymaster as FuelIgpContract,
+    },
+    contracts::mailbox::{DispatchEvent, Mailbox as FuelMailboxContract},
+    contracts::merkle_tree_hook::{MerkleTreeEvent, MerkleTreeHook as FuelMerkleTreeHookContract},
+    conversions::*,
+    ConnectionConf, FuelProvider,
+};
 use fuels::{
     accounts::wallet::WalletUnlocked,
     client::{PageDirection, PaginationRequest},
-    tx::Receipt,
+    core::{
+        codec::LogDecoder,
+        traits::{Parameterize, Tokenizable},
+    },
+    programs::calls::ContractDependency,
     types::{
         bech32::Bech32ContractId,
         transaction::{Transaction, TransactionType},
@@ -23,48 +35,81 @@ use std::{
 // TODO, clippy issues
 
 /// A wrapper around a fuel provider to get generic blockchain information.
-#[derive(Debug)]
 pub struct FuelIndexer {
     fuel_provider: FuelProvider,
     contract_address: Bech32ContractId,
-    target_event_type: TransactionEventType,
+    event_checker: Box<dyn Fn(&TransactionResponse) -> bool + Sync + Send>,
 }
 
-/// IGP payment log has a data length of 48 bytes
-const IGP_PAYMENT_LOG_LENGTH: usize = 48;
-/// Dispatch is the only function call on the mailbox that has 2 log data receipts
-const DISPATCH_LOG_DATA_REC_AMOUNT: usize = 2;
+// Implementing Debug for FuelIndexer
+impl std::fmt::Debug for FuelIndexer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FuelIndexer")
+            .field("fuel_provider", &self.fuel_provider)
+            .field("contract_address", &self.contract_address)
+            .field("event_checker", &"<transaction_event_checker_closure>")
+            .finish()
+    }
+}
+/// Trait for getting decoders from different contracts depending on the event type
+pub trait HasLogDecoder {
+    /// Get the log decoder for a specific contract
+    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder;
+}
 
-/// Types of transaction logs that can be indexed
-#[derive(Debug, Clone)]
-pub enum TransactionEventType {
-    /// Event when a Mailbox dispatches a message
-    MailboxDispatch,
-    /// Event when and IGP payment is processed
-    IgpPayment,
-    /// Event when a MerkleTreeHook insertion is processed
-    MerkleTreeHookInsert,
+impl HasLogDecoder for DispatchEvent {
+    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder {
+        FuelMailboxContract::new(contract_address, wallet).log_decoder()
+    }
+}
+
+impl HasLogDecoder for GasPaymentEvent {
+    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder {
+        FuelIgpContract::new(contract_address, wallet).log_decoder()
+    }
+}
+
+impl HasLogDecoder for MerkleTreeEvent {
+    fn log_decoder(contract_address: Bech32ContractId, wallet: WalletUnlocked) -> LogDecoder {
+        FuelMerkleTreeHookContract::new(contract_address, wallet).log_decoder()
+    }
 }
 
 impl FuelIndexer {
     /// Create a new fuel indexer
-    pub async fn new(
+    /// -`T` is the type of event this indexer will be looking for
+    pub async fn new<T>(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
         wallet: WalletUnlocked,
-        target_event_type: TransactionEventType,
-    ) -> Self {
+    ) -> Self
+    where
+        T: Tokenizable + Parameterize + HasLogDecoder + 'static,
+    {
         let fuel_provider = FuelProvider::new(locator.domain.clone(), conf).await;
         let contract_address = Bech32ContractId::from_h256(&locator.address);
+
+        let decoder = T::log_decoder(contract_address.clone(), wallet);
+
+        let has_event_fn: Box<dyn Fn(&TransactionResponse) -> bool + Send + Sync> =
+            Box::new(move |tx_data: &TransactionResponse| -> bool {
+                if let TxStatus::Success { receipts } = &tx_data.status {
+                    if let Ok(decoded_logs) = decoder.decode_logs_with_type::<T>(receipts) {
+                        return !decoded_logs.is_empty();
+                    }
+                }
+                false
+            });
 
         Self {
             fuel_provider,
             contract_address,
-            target_event_type,
+            event_checker: has_event_fn,
         }
     }
 
     /// Index logs depending on which transaction parser is passed as a parameter
+    /// - `T` is the type of the indexed data
     pub async fn index_logs_in_range<T>(
         &self,
         range: RangeInclusive<u32>,
@@ -156,13 +201,11 @@ impl FuelIndexer {
             transaction_data.push((tx_data.clone(), tx_id.clone()));
         }
 
-        let transaction_matcher = self.get_transaction_matcher();
-
         let filtered_transactions = transaction_data
             .into_iter()
             .filter(|(_, tx_data)| {
                 Self::is_transaction_from_contract(&tx_data, &self.contract_address)
-                    && transaction_matcher(&tx_data)
+                    && (self.event_checker)(tx_data)
             })
             .collect::<Vec<_>>();
 
@@ -235,82 +278,5 @@ impl FuelIndexer {
         let block_cursor = Some(range_start.to_string());
 
         return Ok((block_cursor, tx_cursor));
-    }
-}
-
-// Functions to make sure that the correct function is being filtered
-impl FuelIndexer {
-    /// Get the correct function to validate a transaction depending on the indexer event target
-    fn get_transaction_matcher(&self) -> for<'a> fn(&'a TransactionResponse) -> bool {
-        match self.target_event_type {
-            TransactionEventType::MailboxDispatch => Self::is_dispatch_call,
-            TransactionEventType::IgpPayment => Self::is_igp_payment,
-            TransactionEventType::MerkleTreeHookInsert => Self::is_merkle_tree_insertion,
-        }
-    }
-
-    /// Check if a transaction is a call to the dispatch function of the Mailbox contract
-    fn is_dispatch_call(res: &TransactionResponse) -> bool {
-        let receipts = match &res.status {
-            TxStatus::Success { receipts } => receipts,
-            _ => return false,
-        };
-
-        let log_data_receipts = Self::filter_logdata_rec(receipts);
-
-        match log_data_receipts.len() {
-            DISPATCH_LOG_DATA_REC_AMOUNT => true,
-            _ => false,
-        }
-    }
-
-    /// Check if a transaction is a call to the post dispatch function of the MerkleTreeHook contract
-    fn is_merkle_tree_insertion(res: &TransactionResponse) -> bool {
-        let receipts = match &res.status {
-            TxStatus::Success { receipts } => receipts,
-            _ => return false,
-        };
-
-        let log_data_receipts = Self::filter_logdata_rec(receipts);
-
-        // Merkle tree insertion is the only function which has a single log data receipt
-        match log_data_receipts.len() {
-            1 => true,
-            _ => false,
-        }
-    }
-
-    /// Check if a transaction is a call to the pay_for_gas function of the IGP Hook contract
-    fn is_igp_payment(res: &TransactionResponse) -> bool {
-        let receipts = match &res.status {
-            TxStatus::Success { receipts } => receipts,
-            _ => return false,
-        };
-
-        let log_data_receipts = Self::filter_logdata_rec(receipts);
-
-        // IGP payment should have 1 log data receipt
-        if log_data_receipts.len() != 1 {
-            return false;
-        }
-        let log = log_data_receipts.get(0).unwrap();
-
-        match log {
-            Receipt::LogData { data, .. } => data
-                .to_owned()
-                .is_some_and(|data| data.len() == IGP_PAYMENT_LOG_LENGTH),
-            _ => false,
-        }
-    }
-
-    /// Retrieve only the logdata receipts
-    fn filter_logdata_rec(receipts: &Vec<Receipt>) -> Vec<&Receipt> {
-        receipts
-            .into_iter()
-            .filter(|rec| match rec {
-                Receipt::LogData { .. } => true,
-                _ => false,
-            })
-            .collect::<Vec<_>>()
     }
 }

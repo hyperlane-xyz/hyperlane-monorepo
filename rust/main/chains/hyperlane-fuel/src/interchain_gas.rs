@@ -1,8 +1,9 @@
+use crate::contracts::interchain_gas_paymaster::GasPaymentEvent;
 use crate::{
     contracts::interchain_gas_paymaster::InterchainGasPaymaster as InterchainGasPaymasterContract,
     conversions::*, FuelProvider,
 };
-use crate::{ConnectionConf, FuelIndexer, TransactionEventType};
+use crate::{ConnectionConf, FuelIndexer};
 use async_trait::async_trait;
 use fuels::accounts::wallet::WalletUnlocked;
 use fuels::tx::Receipt;
@@ -83,8 +84,7 @@ impl FuelInterchainGasPaymasterIndexer {
         locator: ContractLocator<'_>,
         wallet: WalletUnlocked,
     ) -> ChainResult<Self> {
-        let indexer =
-            FuelIndexer::new(conf, locator, wallet, TransactionEventType::IgpPayment).await;
+        let indexer = FuelIndexer::new::<GasPaymentEvent>(conf, locator, wallet).await;
 
         Ok(Self { indexer })
     }

@@ -1,15 +1,16 @@
 use crate::{
-    contracts::mailbox::Mailbox as FuelMailboxContract, conversions::*, ConnectionConf,
-    FuelIndexer, FuelProvider, TransactionEventType,
+    contracts::mailbox::{DispatchEvent, EncodedMessage, Mailbox as FuelMailboxContract},
+    conversions::*,
+    ConnectionConf, FuelIndexer, FuelProvider,
 };
 use async_trait::async_trait;
 use fuels::{
     prelude::{Bech32ContractId, WalletUnlocked},
-    programs::{calls::Execution, contract},
+    programs::calls::Execution,
     tx::{Receipt, ScriptExecutionResult},
     types::{
         transaction::TxPolicies, transaction_response::TransactionResponse, tx_status::TxStatus,
-        Bytes, Bytes32,
+        Bits256, Bytes, Bytes32,
     },
 };
 use hyperlane_core::{
@@ -237,6 +238,15 @@ pub struct FuelMailboxIndexer {
     contract: FuelMailboxContract<WalletUnlocked>,
 }
 
+fn mailbox_event() -> DispatchEvent {
+    DispatchEvent::new(
+        Bits256::zeroed(),
+        0,
+        Bits256::zeroed(),
+        EncodedMessage::new(Bytes(vec![0])),
+    )
+}
+
 impl FuelMailboxIndexer {
     /// Create a new FuelMailboxIndexer
     pub async fn new(
@@ -248,9 +258,8 @@ impl FuelMailboxIndexer {
             Bech32ContractId::from_h256(&locator.address),
             wallet.clone(),
         );
-        let indexer =
-            FuelIndexer::new(conf, locator, wallet, TransactionEventType::MailboxDispatch).await;
 
+        let indexer = FuelIndexer::new::<DispatchEvent>(conf, locator, wallet).await;
         Ok(Self { indexer, contract })
     }
 
