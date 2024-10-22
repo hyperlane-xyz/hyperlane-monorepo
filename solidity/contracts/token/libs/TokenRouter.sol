@@ -135,16 +135,26 @@ abstract contract TokenRouter is GasRouter {
         emit SentTransferRemote(_destination, _recipient, outboundAmount);
     }
 
+    /**
+     * @dev Should return the amount of tokens to be encoded in the message amount (eg for scaling `_localAmount`).
+     * @param _localAmount The amount of tokens transferred on this chain in local denomination.
+     * @return _messageAmount The amount of tokens to be encoded in the message body.
+     */
     function _outbound(
-        uint256 _amountOrId
-    ) internal view virtual returns (uint256) {
-        return _amountOrId;
+        uint256 _localAmount
+    ) internal view virtual returns (uint256 _messageAmount) {
+        _messageAmount = _localAmount;
     }
 
+    /**
+     * @dev Should return the amount of tokens to be decoded from the message amount.
+     * @param _messageAmount The amount of tokens received in the message body.
+     * @return _localAmount The amount of tokens to be transferred on this chain in local denomination.
+     */
     function _inbound(
-        uint256 _amountOrId
-    ) internal view virtual returns (uint256) {
-        return _amountOrId;
+        uint256 _messageAmount
+    ) internal view virtual returns (uint256 _localAmount) {
+        _localAmount = _messageAmount;
     }
 
     /**
