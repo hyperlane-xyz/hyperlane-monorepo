@@ -33,7 +33,10 @@ import {
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
-import { HyperlaneAddressesMap } from '../contracts/types.js';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContractsMap,
+} from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
@@ -55,15 +58,37 @@ import {
 } from './types.js';
 import { routingModuleDelta } from './utils.js';
 
+const ismFactories = {
+  pausableIsm: new PausableIsm__factory(),
+  trustedRelayerIsm: new TrustedRelayerIsm__factory(),
+  testIsm: new TestIsm__factory(),
+  opStackIsm: new OPStackIsm__factory(),
+};
+
+class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
+  deployContracts(_chain: ChainName, _config: any): Promise<any> {
+    throw new Error('Method not implemented.');
+  }
+}
+
 export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // The shape of this object is `ChainMap<Address | ChainMap<Address>`,
   // although `any` is use here because that type breaks a lot of signatures.
   // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
 
-  protected deployer?: HyperlaneDeployer<any, any>;
-  setDeployer(deployer: HyperlaneDeployer<any, any>): void {
-    this.deployer = deployer;
+  protected deployer: HyperlaneDeployer<any, any>;
+
+  constructor(
+    contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
+    public readonly multiProvider: MultiProvider,
+  ) {
+    super(
+      contractsMap,
+      multiProvider,
+      rootLogger.child({ module: 'ismFactoryApp' }),
+    );
+    this.deployer = new IsmDeployer(multiProvider, ismFactories);
   }
 
   static fromAddressesMap(
@@ -75,11 +100,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       proxyFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(
-      helper.contractsMap,
-      multiProvider,
-      rootLogger.child({ module: 'ismFactoryApp' }),
-    );
+    return new HyperlaneIsmFactory(helper.contractsMap, multiProvider);
   }
 
   async deploy<C extends IsmConfig>(params: {
@@ -142,10 +163,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.OP_STACK:
-        assert(
-          this.deployer,
-          `HyperlaneDeployer must be set to deploy ${ismType}`,
-        );
         contract = await this.deployer.deployContractFromFactory(
           destination,
           new OPStackIsm__factory(),
@@ -154,10 +171,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       case IsmType.PAUSABLE:
-        assert(
-          this.deployer,
-          `HyperlaneDeployer must be set to deploy ${ismType}`,
-        );
         contract = await this.deployer.deployContractFromFactory(
           destination,
           new PausableIsm__factory(),
@@ -169,10 +182,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.TRUSTED_RELAYER:
-        assert(
-          this.deployer,
-          `HyperlaneDeployer must be set to deploy ${ismType}`,
-        );
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
         contract = await this.deployer.deployContractFromFactory(
           destination,
@@ -182,9 +191,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       case IsmType.TEST_ISM:
-        if (!this.deployer) {
-          throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
-        }
         contract = await this.deployer.deployContractFromFactory(
           destination,
           new TestIsm__factory(),
