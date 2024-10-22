@@ -232,16 +232,16 @@ export const createIGPConfig = callWithConfigCreationLogs(
       'Select local chain for IGP hook',
     );
     const isTestnet = context.chainMetadata[localChain].isTestnet;
-    const remoteChains = await runMultiChainSelectionStep(
-      objFilter(
+    const remoteChains = await runMultiChainSelectionStep({
+      chainMetadata: objFilter(
         context.chainMetadata,
         (_, metadata): metadata is ChainMetadata =>
           metadata.name !== localChain,
       ),
-      'Select remote destination chains for IGP hook',
-      1,
-      isTestnet ? 'testnet' : 'mainnet',
-    );
+      message: 'Select remote destination chains for IGP hook',
+      requireNumber: 1,
+      networkType: isTestnet ? 'testnet' : 'mainnet',
+    });
 
     // Only need to set overhead for remote chains
     const overhead: ChainMap<number> = {};
