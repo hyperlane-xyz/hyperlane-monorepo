@@ -29,7 +29,11 @@ export class HyperlaneIgpGovernor extends HyperlaneAppGovernor<
         return super.handleOwnerViolation(violation as OwnerViolation);
       }
       default:
-        throw new Error(`Unsupported violation type ${violation.type}`);
+        throw new Error(
+          `Unsupported violation type ${violation.type}: ${JSON.stringify(
+            violation,
+          )}`,
+        );
     }
   }
 
