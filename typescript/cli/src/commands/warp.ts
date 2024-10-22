@@ -1,6 +1,8 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
+import { ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
+
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
   createWarpRouteDeployConfig,
@@ -17,6 +19,7 @@ import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import {
   indentYamlOrJson,
+  readYamlOrJson,
   removeEndingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
@@ -99,6 +102,9 @@ export const apply: CommandModuleWithWriteContext<{
       warp,
       context,
     });
+
+    if (strategyUrl)
+      ChainSubmissionStrategySchema.parse(readYamlOrJson(strategyUrl));
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
 
     await runWarpRouteApply({

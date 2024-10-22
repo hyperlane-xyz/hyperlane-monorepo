@@ -1,5 +1,9 @@
+// eslint-disable-next-line
+import fs from 'fs';
+
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  AgentConfig,
   ChainMap,
   ChainTechnicalStack,
   CoreFactories,
@@ -13,6 +17,7 @@ import {
   ProtocolType,
   objFilter,
   objMap,
+  objMerge,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
@@ -26,7 +31,8 @@ import {
   chainIsProtocol,
   filterRemoteDomainMetadata,
   isEthereumProtocolChain,
-  writeMergedJSONAtPath,
+  readJSONAtPath,
+  writeJsonAtPath,
 } from '../../src/utils/utils.js';
 import {
   Modules,
@@ -101,7 +107,7 @@ export async function writeAgentConfig(
             'Error:',
             err,
           );
-          return 0;
+          return undefined;
         }
       },
     ),
@@ -138,10 +144,18 @@ export async function writeAgentConfig(
     additionalConfig,
   );
 
-  writeMergedJSONAtPath(
-    getAgentConfigJsonPath(envNameToAgentEnv[environment]),
-    agentConfig,
-  );
+  const filepath = getAgentConfigJsonPath(envNameToAgentEnv[environment]);
+  if (fs.existsSync(filepath)) {
+    const currentAgentConfig: AgentConfig = readJSONAtPath(filepath);
+    // Remove transactionOverrides from each chain in the agent config
+    // To ensure all overrides are configured in infra code or the registry, and not in JSON
+    for (const chainConfig of Object.values(currentAgentConfig.chains)) {
+      delete chainConfig.transactionOverrides;
+    }
+    writeJsonAtPath(filepath, objMerge(currentAgentConfig, agentConfig));
+  } else {
+    writeJsonAtPath(filepath, agentConfig);
+  }
 }
 
 main()
