@@ -101,13 +101,19 @@ export async function getCosmosChainGasPrice(
 }
 
 // Gets the exchange rate of the remote quoted in local tokens
-export function getTokenExchangeRateFromValues(
-  local: ChainName,
-  remote: ChainName,
-  tokenPrices: ChainMap<string>,
-  exchangeRateMarginPct: number,
-  decimals: { local: number; remote: number },
-): BigNumber {
+export function getTokenExchangeRateFromValues({
+  local,
+  remote,
+  tokenPrices,
+  exchangeRateMarginPct,
+  decimals,
+}: {
+  local: ChainName;
+  remote: ChainName;
+  tokenPrices: ChainMap<string>;
+  exchangeRateMarginPct: number;
+  decimals: { local: number; remote: number };
+}): BigNumber {
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
@@ -134,11 +140,15 @@ export function getTokenExchangeRateFromValues(
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
 // Accommodates small non-integer gas prices by scaling up the gas price
 // and scaling down the exchange rate by the same factor.
-export function getLocalStorageGasOracleConfig(
-  local: ChainName,
-  gasOracleParams: ChainMap<ChainGasOracleParams>,
-  exchangeRateMarginPct: number,
-): ChainMap<StorageGasOracleConfig> {
+export function getLocalStorageGasOracleConfig({
+  local,
+  gasOracleParams,
+  exchangeRateMarginPct,
+}: {
+  local: ChainName;
+  gasOracleParams: ChainMap<ChainGasOracleParams>;
+  exchangeRateMarginPct: number;
+}): ChainMap<StorageGasOracleConfig> {
   const remotes = Object.keys(gasOracleParams).filter(
     (remote) => remote !== local,
   );
@@ -149,13 +159,13 @@ export function getLocalStorageGasOracleConfig(
   const localDecimals = gasOracleParams[local].nativeToken.decimals;
   return remotes.reduce((agg, remote) => {
     const remoteDecimals = gasOracleParams[remote].nativeToken.decimals;
-    let exchangeRate = getTokenExchangeRateFromValues(
+    let exchangeRate = getTokenExchangeRateFromValues({
       local,
       remote,
       tokenPrices,
       exchangeRateMarginPct,
-      { local: localDecimals, remote: remoteDecimals },
-    );
+      decimals: { local: localDecimals, remote: remoteDecimals },
+    });
 
     // First parse as a number, so we have floating point precision.
     // Recall it's possible to have gas prices that are not integers, even

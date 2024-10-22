@@ -311,11 +311,11 @@ export const createIGPConfig = callWithConfigCreationLogs(
       }),
     );
 
-    const oracleConfig = getLocalStorageGasOracleConfig(
-      localChain,
-      prices,
+    const oracleConfig = getLocalStorageGasOracleConfig({
+      local: localChain,
+      gasOracleParams: prices,
       exchangeRateMarginPct,
-    );
+    });
 
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,

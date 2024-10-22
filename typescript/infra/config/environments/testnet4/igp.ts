@@ -27,16 +27,16 @@ export const storageGasOracleConfig: AllStorageGasOracleConfigs =
     supportedChainNames,
     gasPrices,
     (local, remote) =>
-      getTokenExchangeRateFromValues(
+      getTokenExchangeRateFromValues({
         local,
         remote,
         tokenPrices,
-        EXCHANGE_RATE_MARGIN_PCT,
-        {
+        exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
+        decimals: {
           local: mustGetChainNativeToken(local).decimals,
           remote: mustGetChainNativeToken(remote).decimals,
         },
-      ),
+      }),
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(

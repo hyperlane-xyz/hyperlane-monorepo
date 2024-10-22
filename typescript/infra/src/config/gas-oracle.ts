@@ -25,7 +25,7 @@ export const EXCHANGE_RATE_MARGIN_PCT = 50;
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
 // Accommodates small non-integer gas prices by scaling up the gas price
 // and scaling down the exchange rate by the same factor.
-function getLocalStorageGasOracleConfig(
+function getLocalStorageGasOracleConfigOverride(
   local: ChainName,
   remotes: ChainName[],
   gasPrices: ChainMap<GasPriceConfig>,
@@ -196,7 +196,7 @@ export function getAllStorageGasOracleConfigs(
     const remotes = chainNames.filter((chain) => local !== chain);
     return {
       ...agg,
-      [local]: getLocalStorageGasOracleConfig(
+      [local]: getLocalStorageGasOracleConfigOverride(
         local,
         remotes,
         gasPrices,
