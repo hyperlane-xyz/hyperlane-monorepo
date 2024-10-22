@@ -2706,7 +2706,10 @@
       "validatorAnnounce": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
       "staticMerkleRootWeightedMultisigIsmFactory": "0xcb0D04010584AA5244b5826c990eeA4c16BeAC8C",
       "staticMessageIdWeightedMultisigIsmFactory": "0x609707355a53d2aAb6366f48E2b607C599D26B29",
-      "technicalStack": "other"
+      "technicalStack": "other",
+      "transactionOverrides": {
+        "gasPrice": 200000000
+      }
     },
     "sei": {
       "aggregationHook": "0x40514BD46C57455933Be8BAedE96C4F0Ba3507D6",
