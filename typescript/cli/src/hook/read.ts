@@ -19,7 +19,6 @@ export async function readHookConfig({
   address: Address;
   out?: string;
 }): Promise<void> {
-  // TODO: refactor to supported chains function
   if (context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
     const hookReader = new EvmHookReader(context.multiProvider, chain);
     const config = await hookReader.deriveHookConfig(address);
