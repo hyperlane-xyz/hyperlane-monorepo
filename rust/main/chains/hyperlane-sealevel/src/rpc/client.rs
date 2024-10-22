@@ -98,16 +98,16 @@ impl SealevelRpcClient {
     }
 
     pub async fn get_block_height(&self) -> ChainResult<u32> {
-        let height = self
-            .0
-            .get_block_height_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .try_into()
-            // FIXME solana block height is u64...
-            .expect("sealevel block height exceeds u32::MAX");
-        Ok(height)
-    }
+    let height = self
+        .0
+        .get_block_height_with_commitment(CommitmentConfig::finalized())
+        .await
+        .map_err(ChainCommunicationError::from_other)?;
+    let height_u32 = height.try_into().map_err(|_| {
+        ChainCommunicationError::from_other("Block height exceeds u32::MAX")
+    })?;
+    Ok(height_u32)
+}
 
     pub async fn get_multiple_accounts_with_finalized_commitment(
         &self,
