@@ -488,7 +488,7 @@ export {
   setFork,
   stopImpersonatingAccount,
 } from './utils/fork.js';
-export { multisigIsmVerificationCost } from './utils/ism.js';
+export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export {
   SealevelAccountDataWrapper,
@@ -517,9 +517,11 @@ export {
   NativeConfig,
   TokenRouterConfigSchema,
   WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigSchemaErrors,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
+  isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './token/schemas.js';
 export { isCompliant } from './utils/schemas.js';
