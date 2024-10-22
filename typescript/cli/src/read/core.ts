@@ -1,5 +1,5 @@
 import { ChainName, CoreConfig, EvmCoreReader } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, assert } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';
@@ -16,10 +16,11 @@ export async function executeCoreRead({
   if (!mailbox) {
     const addresses = await context.registry.getChainAddresses(chain);
     mailbox = addresses?.mailbox;
-    if (!mailbox) {
-      errorRed(`${chain} mailbox not provided and none found in registry.`);
-      process.exit(1);
-    }
+
+    assert(
+      mailbox,
+      `${chain} mailbox not provided and none found in registry.`,
+    );
   }
 
   const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
