@@ -8,6 +8,7 @@ import {AbstractMessageIdMultisigIsm} from "./AbstractMessageIdMultisigIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IThresholdAddressFactory} from "../../interfaces/IThresholdAddressFactory.sol";
 import {MinimalProxy} from "../../libs/MinimalProxy.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -83,7 +84,10 @@ contract StorageMessageIdMultisigIsm is
     ) AbstractStorageMultisigIsm(_validators, _threshold) {}
 }
 
-abstract contract StorageMultisigIsmFactory is IThresholdAddressFactory {
+abstract contract StorageMultisigIsmFactory is
+    IThresholdAddressFactory,
+    PackageVersioned
+{
     /**
      * @notice Emitted when a multisig module is deployed
      * @param module The deployed ISM
