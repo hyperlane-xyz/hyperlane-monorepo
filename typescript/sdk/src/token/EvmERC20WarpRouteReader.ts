@@ -67,7 +67,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
     const tokenMetadata = await this.fetchTokenMetadata(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
-    const proxyAdmin = await this.fetchAdminProxyData(warpRouteAddress);
+    const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
 
     return {
       ...baseMetadata,
