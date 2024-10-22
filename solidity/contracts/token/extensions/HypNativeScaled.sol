@@ -17,13 +17,13 @@ contract HypNativeScaled is HypNative {
         scale = _scale;
     }
 
-    function _outbound(
+    function _outboundAmount(
         uint256 _amount
     ) internal view override returns (uint256) {
         return _amount / scale;
     }
 
-    function _inbound(
+    function _inboundAmount(
         uint256 _amount
     ) internal view override returns (uint256) {
         return _amount * scale;
