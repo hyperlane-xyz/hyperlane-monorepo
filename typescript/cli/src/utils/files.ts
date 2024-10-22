@@ -15,6 +15,7 @@ import { objMerge } from '@hyperlane-xyz/utils';
 import { log } from '../logger.js';
 
 export const MAX_READ_LINE_OUTPUT = 250;
+export const MAX_ALIAS_YAML = 100_000; // Used for yaml maxAliasCount. Ref: https://eemeli.org/yaml/#tojs-options
 
 export type FileFormat = 'yaml' | 'json';
 
@@ -92,7 +93,9 @@ export function mergeJson<T extends Record<string, any>>(
 }
 
 export function readYaml<T>(filepath: string): T {
-  return yamlParse(readFileAtPath(filepath)) as T;
+  return yamlParse(readFileAtPath(filepath), {
+    maxAliasCount: MAX_ALIAS_YAML,
+  }) as T;
 }
 
 export function tryReadYamlAtPath<T>(filepath: string): T | null {
@@ -250,7 +253,7 @@ export function logYamlIfUnderMaxLines(
 ): void {
   const asYamlString = yamlStringify(obj, null, margin);
   const lineCounter = new LineCounter();
-  parse(asYamlString, { lineCounter });
+  parse(asYamlString, { lineCounter, maxAliasCount: MAX_ALIAS_YAML });
 
   log(lineCounter.lineStarts.length < maxLines ? asYamlString : '');
 }
