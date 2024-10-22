@@ -116,9 +116,11 @@ abstract contract TokenRouter is GasRouter {
         address _hook
     ) internal virtual returns (bytes32 messageId) {
         bytes memory _tokenMetadata = _transferFromSender(_amountOrId);
+
+        uint256 outboundAmount = _outbound(_amountOrId);
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            _amountOrId,
+            outboundAmount,
             _tokenMetadata
         );
 
@@ -130,7 +132,19 @@ abstract contract TokenRouter is GasRouter {
             _hook
         );
 
-        emit SentTransferRemote(_destination, _recipient, _amountOrId);
+        emit SentTransferRemote(_destination, _recipient, outboundAmount);
+    }
+
+    function _outbound(
+        uint256 _amountOrId
+    ) internal view virtual returns (uint256) {
+        return _amountOrId;
+    }
+
+    function _inbound(
+        uint256 _amountOrId
+    ) internal view virtual returns (uint256) {
+        return _amountOrId;
     }
 
     /**
@@ -163,7 +177,7 @@ abstract contract TokenRouter is GasRouter {
         bytes32 recipient = _message.recipient();
         uint256 amount = _message.amount();
         bytes calldata metadata = _message.metadata();
-        _transferTo(recipient.bytes32ToAddress(), amount, metadata);
+        _transferTo(recipient.bytes32ToAddress(), _inbound(amount), metadata);
         emit ReceivedTransferRemote(_origin, recipient, amount);
     }
 
