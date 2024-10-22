@@ -9,6 +9,7 @@ pub use self::primitive_types::*;
 pub use ::primitive_types as ethers_core_types;
 pub use account_address_type::AccountAddressType;
 pub use announcement::*;
+pub use block_id::BlockId;
 pub use chain_data::*;
 pub use checkpoint::*;
 pub use indexing::*;
@@ -23,6 +24,7 @@ use crate::{Decode, Encode, HyperlaneProtocolError};
 /// This module contains enum for account address type
 mod account_address_type;
 mod announcement;
+mod block_id;
 mod chain_data;
 mod checkpoint;
 mod indexing;
