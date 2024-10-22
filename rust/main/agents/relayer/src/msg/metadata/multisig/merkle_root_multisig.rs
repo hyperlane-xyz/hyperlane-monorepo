@@ -45,7 +45,7 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
                 .await
                 .context(CTX)?,
             debug!(
-                ?message,
+                hyp_message=?message,
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
             )
         );

@@ -22,6 +22,7 @@ import {
   concurrentMap,
   eqAddress,
   getLogLevel,
+  retryAsync,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -83,6 +84,12 @@ export interface HookReader {
 
 export class EvmHookReader extends HyperlaneReader implements HookReader {
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
+  /**
+   * HookConfig cache for already retrieved configs. Useful to avoid recomputing configs
+   * when they have already been retrieved in previous calls where `deriveHookConfig` was called by
+   * the specific hook methods.
+   */
+  private _cache: Map<Address, any> = new Map();
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -95,71 +102,86 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   }
 
   async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
-    let onchainHookType: OnchainHookType | undefined = undefined;
-    let derivedHookConfig: DerivedHookConfig;
-    try {
-      const hook = IPostDispatchHook__factory.connect(address, this.provider);
-      this.logger.debug('Deriving HookConfig:', { address });
+    this.logger.debug('Deriving HookConfig:', { address });
 
-      // Temporarily turn off SmartProvider logging
-      // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
-      this.setSmartProviderLogLevel('silent');
-      onchainHookType = await hook.hookType();
-
-      switch (onchainHookType) {
-        case OnchainHookType.ROUTING:
-          derivedHookConfig = await this.deriveDomainRoutingConfig(address);
-          break;
-        case OnchainHookType.AGGREGATION:
-          derivedHookConfig = await this.deriveAggregationConfig(address);
-          break;
-        case OnchainHookType.MERKLE_TREE:
-          derivedHookConfig = await this.deriveMerkleTreeConfig(address);
-          break;
-        case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
-          derivedHookConfig = await this.deriveIgpConfig(address);
-          break;
-        case OnchainHookType.FALLBACK_ROUTING:
-          derivedHookConfig = await this.deriveFallbackRoutingConfig(address);
-          break;
-        case OnchainHookType.PAUSABLE:
-          derivedHookConfig = await this.derivePausableConfig(address);
-          break;
-        case OnchainHookType.PROTOCOL_FEE:
-          derivedHookConfig = await this.deriveProtocolFeeConfig(address);
-          break;
-        // ID_AUTH_ISM could be OPStackHook, ERC5164Hook or LayerZeroV2Hook
-        // For now assume it's OP_STACK
-        case OnchainHookType.ID_AUTH_ISM:
-          derivedHookConfig = await this.deriveOpStackConfig(address);
-          break;
-        case OnchainHookType.ARB_L2_TO_L1:
-          derivedHookConfig = await this.deriveArbL2ToL1Config(address);
-          break;
-        default:
-          throw new Error(
-            `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
-          );
-      }
-    } catch (e: any) {
-      let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
-      if (
-        !onchainHookType &&
-        e.message.includes('Invalid response from provider')
-      ) {
-        customMessage = customMessage.concat(
-          ` [The provided hook contract might be outdated and not support hookType()]`,
-        );
-        this.logger.info(`${customMessage}:\n\t${e}`);
-      } else {
-        this.logger.debug(`${customMessage}:\n\t${e}`);
-      }
-      throw new Error(`${customMessage}:\n\t${e}`);
-    } finally {
-      this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
+    const cachedValue = this._cache.get(address);
+    if (cachedValue) {
+      this.logger.debug(
+        `Cache hit for HookConfig on chain ${this.chain} at: ${address}`,
+      );
+      return cachedValue;
     }
 
-    return derivedHookConfig;
+    this.logger.debug(
+      `Cache miss for HookConfig on chain ${this.chain} at: ${address}`,
+    );
+
+    return retryAsync(async () => {
+      let onchainHookType: OnchainHookType | undefined = undefined;
+      let derivedHookConfig: DerivedHookConfig;
+      try {
+        const hook = IPostDispatchHook__factory.connect(address, this.provider);
+
+        // Temporarily turn off SmartProvider logging
+        // Provider errors are expected because deriving will call methods that may not exist in the Bytecode
+        this.setSmartProviderLogLevel('silent');
+        onchainHookType = await hook.hookType();
+
+        switch (onchainHookType) {
+          case OnchainHookType.ROUTING:
+            derivedHookConfig = await this.deriveDomainRoutingConfig(address);
+            break;
+          case OnchainHookType.AGGREGATION:
+            derivedHookConfig = await this.deriveAggregationConfig(address);
+            break;
+          case OnchainHookType.MERKLE_TREE:
+            derivedHookConfig = await this.deriveMerkleTreeConfig(address);
+            break;
+          case OnchainHookType.INTERCHAIN_GAS_PAYMASTER:
+            derivedHookConfig = await this.deriveIgpConfig(address);
+            break;
+          case OnchainHookType.FALLBACK_ROUTING:
+            derivedHookConfig = await this.deriveFallbackRoutingConfig(address);
+            break;
+          case OnchainHookType.PAUSABLE:
+            derivedHookConfig = await this.derivePausableConfig(address);
+            break;
+          case OnchainHookType.PROTOCOL_FEE:
+            derivedHookConfig = await this.deriveProtocolFeeConfig(address);
+            break;
+          // ID_AUTH_ISM could be OPStackHook, ERC5164Hook or LayerZeroV2Hook
+          // For now assume it's OP_STACK
+          case OnchainHookType.ID_AUTH_ISM:
+            derivedHookConfig = await this.deriveOpStackConfig(address);
+            break;
+          case OnchainHookType.ARB_L2_TO_L1:
+            derivedHookConfig = await this.deriveArbL2ToL1Config(address);
+            break;
+          default:
+            throw new Error(
+              `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
+            );
+        }
+      } catch (e: any) {
+        let customMessage: string = `Failed to derive ${onchainHookType} hook (${address})`;
+        if (
+          !onchainHookType &&
+          e.message.includes('Invalid response from provider')
+        ) {
+          customMessage = customMessage.concat(
+            ` [The provided hook contract might be outdated and not support hookType()]`,
+          );
+          this.logger.info(`${customMessage}:\n\t${e}`);
+        } else {
+          this.logger.debug(`${customMessage}:\n\t${e}`);
+        }
+        throw new Error(`${customMessage}:\n\t${e}`);
+      } finally {
+        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
+      }
+
+      return derivedHookConfig;
+    });
   }
 
   async deriveMerkleTreeConfig(
@@ -168,10 +190,14 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const hook = MerkleTreeHook__factory.connect(address, this.provider);
     this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
 
-    return {
+    const config: WithAddress<MerkleTreeHookConfig> = {
       address,
       type: HookType.MERKLE_TREE,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveAggregationConfig(
@@ -187,11 +213,15 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       (hook) => this.deriveHookConfig(hook),
     );
 
-    return {
+    const config: WithAddress<AggregationHookConfig> = {
       address,
       type: HookType.AGGREGATION,
       hooks: hookConfigs,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>> {
@@ -259,7 +289,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey = resolvedOracleKeys[0];
     }
 
-    return {
+    const config: WithAddress<IgpHookConfig> = {
       owner,
       address,
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -268,6 +298,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       overhead,
       oracleConfig,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveProtocolFeeConfig(
@@ -281,7 +315,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const protocolFee = await hook.protocolFee();
     const beneficiary = await hook.beneficiary();
 
-    return {
+    const config: WithAddress<ProtocolFeeHookConfig> = {
       owner,
       address,
       type: HookType.PROTOCOL_FEE,
@@ -289,6 +323,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       protocolFee: protocolFee.toString(),
       beneficiary,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveOpStackConfig(
@@ -303,13 +341,17 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
-    return {
+    const config: WithAddress<OpStackHookConfig> = {
       owner,
       address,
       type: HookType.OP_STACK,
       nativeBridge: messengerContract,
       destinationChain: destinationChainName,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveArbL2ToL1Config(
@@ -321,12 +363,17 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationDomain = await hook.destinationDomain();
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
-    return {
+
+    const config: WithAddress<ArbL2ToL1HookConfig> = {
       address,
       type: HookType.ARB_L2_TO_L1,
       destinationChain: destinationChainName,
       arbSys,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveDomainRoutingConfig(
@@ -338,12 +385,16 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
 
-    return {
+    const config: WithAddress<DomainRoutingHookConfig> = {
       owner,
       address,
       type: HookType.ROUTING,
       domains: domainHooks,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveFallbackRoutingConfig(
@@ -364,13 +415,17 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const fallbackHook = await hook.fallbackHook();
     const fallbackHookConfig = await this.deriveHookConfig(fallbackHook);
 
-    return {
+    const config: WithAddress<FallbackRoutingHookConfig> = {
       owner,
       address,
       type: HookType.FALLBACK_ROUTING,
       domains: domainHooks,
       fallback: fallbackHookConfig,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   private async fetchDomainHooks(
@@ -406,12 +461,16 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     const owner = await hook.owner();
     const paused = await hook.paused();
-    return {
+    const config: WithAddress<PausableHookConfig> = {
       owner,
       address,
       paused,
       type: HookType.PAUSABLE,
     };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   assertHookType(
