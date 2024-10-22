@@ -2,14 +2,12 @@ import React, { memo } from 'react';
 
 import { ColorPalette } from '../color.js';
 
-export interface WideChevronProps {
-  width?: string | number;
-  height?: string | number;
+import { DefaultIconProps } from './types.js';
+
+export type WideChevronProps = DefaultIconProps & {
   direction: 'n' | 'e' | 's' | 'w';
-  color?: string;
   rounded?: boolean;
-  classes?: string;
-}
+};
 
 function _WideChevron({
   width,
@@ -17,7 +15,8 @@ function _WideChevron({
   direction,
   color,
   rounded,
-  classes,
+  className,
+  ...rest
 }: WideChevronProps) {
   let directionClass;
   switch (direction) {
@@ -45,7 +44,8 @@ function _WideChevron({
         width={width}
         height={height}
         fill={color || ColorPalette.Blue}
-        className={`${directionClass} ${classes}`}
+        className={`${directionClass} ${className}`}
+        {...rest}
       >
         <path d="M4.4 0h53c7.2 0 13.7 3 16.2 7.7l46.5 85.1a2 2 0 0 1 0 2l-.2.5-46.3 87c-2.5 4.6-9 7.7-16.3 7.7h-53c-3 0-5-2-4-4L48 92.9.4 4c-1-2 1-4 4-4Z" />
       </svg>
@@ -57,7 +57,8 @@ function _WideChevron({
         viewBox="0 0 28 27"
         width={width}
         height={height}
-        className={`${directionClass} ${classes}`}
+        className={`${directionClass} ${className}`}
+        {...rest}
       >
         <path
           d="M13.44 13.5 0 27h14.56L28 13.5 14.56 0H0l13.44 13.5Z"

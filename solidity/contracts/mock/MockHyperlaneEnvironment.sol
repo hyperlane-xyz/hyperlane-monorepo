@@ -38,8 +38,10 @@ contract MockHyperlaneEnvironment {
         mailboxes[_destinationDomain] = destinationMailbox;
     }
 
-    function processNextPendingMessage() public {
-        mailboxes[destinationDomain].processNextInboundMessage();
+    function processNextPendingMessage() public payable {
+        mailboxes[destinationDomain].processNextInboundMessage{
+            value: msg.value
+        }();
     }
 
     function processNextPendingMessageFromDestination() public {

@@ -133,10 +133,10 @@ contract OPStackIsmTest is ExternalBridgeTest {
     }
 
     function _encodeExternalDestinationBridgeCall(
-        address _from,
-        address _to,
-        uint256 _msgValue,
-        bytes32 _messageId
+        address /*_from*/,
+        address /*_to*/,
+        uint256 /*_msgValue*/,
+        bytes32 /*_messageId*/
     ) internal pure override returns (bytes memory) {
         return new bytes(0);
     }
@@ -147,6 +147,8 @@ contract OPStackIsmTest is ExternalBridgeTest {
     function test_verify_msgValue_externalBridgeCall() public override {}
 
     function test_verify_revertsWhen_invalidIsm() public override {}
+
+    function test_verify_false_arbitraryCall() public override {}
 
     /* ============ ISM.verifyMessageId ============ */
 

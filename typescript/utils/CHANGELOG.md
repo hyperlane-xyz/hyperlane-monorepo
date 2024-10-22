@@ -1,5 +1,19 @@
 # @hyperlane-xyz/utils
 
+## 5.5.0
+
+### Minor Changes
+
+- 2afc484a2: Migrate fetchWithTimeout from widgets to utils
+  Add objSlice function and improve types for objMerge
+  Add isUrl function
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
 ## 5.3.0
 
 ### Minor Changes

@@ -20,6 +20,8 @@ contract HypERC4626Collateral is HypERC20Collateral {
     uint256 public constant PRECISION = 1e10;
     bytes32 public constant NULL_RECIPIENT =
         0x0000000000000000000000000000000000000000000000000000000000000001;
+    // Nonce for the rate update, to ensure sequential updates
+    uint32 public rateUpdateNonce;
 
     constructor(
         ERC4626 _vault,
@@ -48,7 +50,12 @@ contract HypERC4626Collateral is HypERC20Collateral {
         _transferFromSender(_amount);
         uint256 _shares = _depositIntoVault(_amount);
         uint256 _exchangeRate = vault.convertToAssets(PRECISION);
-        bytes memory _tokenMetadata = abi.encode(_exchangeRate);
+
+        rateUpdateNonce++;
+        bytes memory _tokenMetadata = abi.encode(
+            _exchangeRate,
+            rateUpdateNonce
+        );
 
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,

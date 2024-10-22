@@ -38,6 +38,14 @@ pub struct SingletonSignerHandle {
     tx: mpsc::UnboundedSender<SignTask>,
 }
 
+#[cfg(feature = "test-utils")]
+impl SingletonSignerHandle {
+    /// Create a new handle for testing purposes
+    pub fn new(address: H160, tx: mpsc::UnboundedSender<SignTask>) -> Self {
+        Self { address, tx }
+    }
+}
+
 impl fmt::Debug for SingletonSignerHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("SingletonSignerHandle")

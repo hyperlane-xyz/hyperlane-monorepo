@@ -1,5 +1,36 @@
 # @hyperlane-xyz/sdk
 
+## 5.5.0
+
+### Minor Changes
+
+- 2afc484a2: Break out BlockExplorerSchema and export separately
+  Migrate RPC + Explorer health tests back to SDK from registry
+- 3254472e0: Add deployments for chains: immutablezkevm, rari, rootstock, alephzeroevm, chiliz, lumia, and superposition
+- 6176c9861: Add opstack, polygoncdk, polkadotsubstrate and zksync to ChainTechnicalStack enum
+
+### Patch Changes
+
+- fcfe91113: Reuse SDK transaction typings in tx submitters
+- Updated dependencies [92c86cca6]
+- Updated dependencies [2afc484a2]
+  - @hyperlane-xyz/core@5.4.1
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
+### Patch Changes
+
+- Updated dependencies [bb75eba74]
+- Updated dependencies [4415ac224]
+- Updated dependencies [c5c217f8e]
+  - @hyperlane-xyz/core@5.4.0
+  - @hyperlane-xyz/utils@5.4.0
+
 ## 5.3.0
 
 ### Patch Changes
