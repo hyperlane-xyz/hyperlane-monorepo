@@ -6,6 +6,7 @@ import {AbstractAggregationIsm} from "./AbstractAggregationIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IThresholdAddressFactory} from "../../interfaces/IThresholdAddressFactory.sol";
 import {MinimalProxy} from "../../libs/MinimalProxy.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -52,7 +53,10 @@ contract StorageAggregationIsm is AbstractAggregationIsm, OwnableUpgradeable {
     }
 }
 
-contract StorageAggregationIsmFactory is IThresholdAddressFactory {
+contract StorageAggregationIsmFactory is
+    IThresholdAddressFactory,
+    PackageVersioned
+{
     address public immutable implementation;
 
     constructor() {

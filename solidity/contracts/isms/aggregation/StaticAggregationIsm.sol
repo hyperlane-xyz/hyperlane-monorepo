@@ -12,7 +12,7 @@ import {PackageVersioned} from "contracts/PackageVersioned.sol";
  * @notice Manages per-domain m-of-n ISM sets that are used to verify
  * interchain messages.
  */
-contract StaticAggregationIsm is AbstractAggregationIsm, PackageVersioned {
+contract StaticAggregationIsm is AbstractAggregationIsm {
     // ============ Public Functions ============
 
     /**
