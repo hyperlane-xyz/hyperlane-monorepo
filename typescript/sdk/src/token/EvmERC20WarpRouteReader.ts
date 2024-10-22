@@ -251,7 +251,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     );
   }
 
-  async fetchAdminProxyData(
+  async fetchProxyAdminConfig(
     tokenAddress: Address,
   ): Promise<DeployedOwnableConfig> {
     const proxyAdminAddress = await proxyAdmin(this.provider, tokenAddress);
