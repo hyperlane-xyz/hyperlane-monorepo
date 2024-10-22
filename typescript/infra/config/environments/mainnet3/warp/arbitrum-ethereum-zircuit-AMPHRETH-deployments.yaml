@@ -5,10 +5,17 @@ timestamp: '2024-10-18T14:00:00.000Z'
 deployer: Abacus Works (Hyperlane)
 data:
   config:
+    arbitrum:
+      protocolType: ethereum
+      type: synthetic
+      hypAddress: '0x6D251aADfc6Ff69031e01eA39bE3cb5BABf8438f'
+      name: Amphor Restaked ETH
+      symbol: AMPHRETH
+      decimals: 18
     ethereum:
       protocolType: ethereum
       type: collateral
-      hypAddress: '0xA4e45cB601d43818518FB6023b8070d2564b935f'
+      hypAddress: '0xdc89990a6fdC1C922b841f1d977835628A24Ed57'
       tokenAddress: '0x5fD13359Ba15A84B76f7F87568309040176167cd'
       name: Amphor Restaked ETH
       symbol: AMPHRETH
@@ -16,7 +23,7 @@ data:
     zircuit:
       protocolType: ethereum
       type: synthetic
-      hypAddress: '0xCE8260c1b5cF2fAD15bb4B6542716b050Fdf35c9'
+      hypAddress: '0x7D5a79539d7B1c9aE5e54d18EEE188840f1Fe4CC'
       name: Amphor Restaked ETH
       symbol: AMPHRETH
       decimals: 18

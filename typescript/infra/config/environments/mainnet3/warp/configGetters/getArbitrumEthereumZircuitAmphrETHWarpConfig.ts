@@ -9,12 +9,23 @@ import {
 
 import { tokens } from '../../../../../src/config/warp.js';
 
+const arbitrumOwner = '0x008615770B588633265cB01Abd19740fAe67d0B9';
 const ethereumOwner = '0x008615770B588633265cB01Abd19740fAe67d0B9';
 const zircuitOwner = '0xD0673e7F3FB4037CA79F53d2d311D0e017d39963';
 
-export const getEthereumZircuitAmphrETHWarpConfig = async (
+export const getArbitrumEthereumZircuitAmphrETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
+  const arbitrum: TokenRouterConfig = {
+    ...routerConfig.arbitrum,
+    type: TokenType.synthetic,
+    interchainSecurityModule: ethers.constants.AddressZero,
+    owner: arbitrumOwner,
+    ownerOverrides: {
+      proxyAdmin: arbitrumOwner,
+    },
+  };
+
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
@@ -37,6 +48,7 @@ export const getEthereumZircuitAmphrETHWarpConfig = async (
   };
 
   return {
+    arbitrum,
     ethereum,
     zircuit,
   };
