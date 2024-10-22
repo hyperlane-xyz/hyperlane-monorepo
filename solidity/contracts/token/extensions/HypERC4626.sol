@@ -17,9 +17,12 @@ contract HypERC4626 is HypERC20 {
     using Message for bytes;
     using TokenMessage for bytes;
 
+    event ExchangeRateUpdated(uint256 newExchangeRate, uint32 rateUpdateNonce);
+
     uint256 public constant PRECISION = 1e10;
     uint32 public immutable collateralDomain;
     uint256 public exchangeRate; // 1e10
+    uint32 public previousNonce;
 
     constructor(
         uint8 _decimals,
@@ -66,7 +69,16 @@ contract HypERC4626 is HypERC20 {
         bytes calldata _message
     ) internal virtual override {
         if (_origin == collateralDomain) {
-            exchangeRate = abi.decode(_message.metadata(), (uint256));
+            (uint256 newExchangeRate, uint32 rateUpdateNonce) = abi.decode(
+                _message.metadata(),
+                (uint256, uint32)
+            );
+            // only update if the nonce is greater than the previous nonce
+            if (rateUpdateNonce > previousNonce) {
+                exchangeRate = newExchangeRate;
+                previousNonce = rateUpdateNonce;
+                emit ExchangeRateUpdated(exchangeRate, rateUpdateNonce);
+            }
         }
         super._handle(_origin, _sender, _message);
     }
