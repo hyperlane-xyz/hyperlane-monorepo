@@ -125,7 +125,7 @@ export async function writeAgentConfig(
         .map(async (chain) => [
           chain,
           {
-            gasPrice: await getCosmosChainGasPrice(chain),
+            gasPrice: await getCosmosChainGasPrice(chain, multiProvider),
           },
         ]),
     ),

@@ -70,8 +70,7 @@ async function getGasPrice(
       };
     }
     case ProtocolType.Cosmos: {
-      const { amount } = await getCosmosChainGasPrice(chain);
-
+      const { amount } = await getCosmosChainGasPrice(chain, mpp);
       return {
         amount,
         decimals: 1,

@@ -7,6 +7,7 @@ import {
   TOKEN_EXCHANGE_RATE_DECIMALS,
   TOKEN_EXCHANGE_RATE_SCALE,
 } from '../consts/igp.js';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { AgentCosmosGasPrice } from '../metadata/agentConfig.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -45,7 +46,7 @@ export async function getGasPrice(
       };
     }
     case ProtocolType.Cosmos: {
-      const { amount } = await getCosmosChainGasPrice(chain);
+      const { amount } = await getCosmosChainGasPrice(chain, mpp);
       return {
         amount,
         decimals: 1,
@@ -65,8 +66,9 @@ export async function getGasPrice(
 // Gets the gas price for a Cosmos chain
 export async function getCosmosChainGasPrice(
   chain: ChainName,
-  metadata?: ChainMetadata,
+  chainMetadataManager: ChainMetadataManager,
 ): Promise<AgentCosmosGasPrice> {
+  const metadata = chainMetadataManager.getChainMetadata(chain);
   if (!metadata) {
     throw new Error(`No metadata found for Cosmos chain ${chain}`);
   }
