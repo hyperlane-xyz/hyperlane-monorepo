@@ -4,10 +4,6 @@ use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromS
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use jsonrpc_core::futures_util::TryFutureExt;
-use tracing::{debug, info, instrument, warn};
-
-use account_utils::AccountData;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
     ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
@@ -31,6 +27,7 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
+use jsonrpc_core::futures_util::TryFutureExt;
 use serializable_account_meta::SimulationReturnData;
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
@@ -58,6 +55,7 @@ use solana_transaction_status::{
     UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiReturnDataEncoding,
     UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
 };
+use tracing::{debug, info, instrument, warn};
 
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
@@ -657,39 +655,20 @@ impl SealevelMailboxIndexer {
         self.rpc().get_block_height().await
     }
 
-    async fn get_message_with_nonce(
+    async fn get_dispatched_message_with_nonce(
         &self,
         nonce: u32,
     ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
         let discriminator = hyperlane_sealevel_mailbox::accounts::DISPATCHED_MESSAGE_DISCRIMINATOR;
-        let accounts = self.search_accounts(&discriminator, nonce).await?;
+        let offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
+        let length = 32; // the length of the `unique_message_pubkey` field
+        let accounts = self
+            .search_accounts_by_descriminator(&discriminator, nonce, offset, length)
+            .await?;
 
-        // Now loop through matching accounts and find the one with a valid account pubkey
-        // that proves it's an actual message storage PDA.
-        let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
-
-        for (pubkey, account) in accounts {
-            let unique_message_pubkey = Pubkey::new(&account.data);
-            let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
-                mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
-                &self.mailbox.program_id,
-            )
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find program address for unique_message_pubkey",
-                )
-            })?;
-            if expected_pubkey == pubkey {
-                valid_message_storage_pda_pubkey = Some(pubkey);
-                break;
-            }
-        }
-
-        let valid_message_storage_pda_pubkey =
-            valid_message_storage_pda_pubkey.ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find valid message storage PDA pubkey",
-                )
+        let valid_message_storage_pda_pubkey = self
+            .search_and_validate_account(accounts, |account| {
+                self.dispatched_message_account(&account)
             })?;
 
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
@@ -719,60 +698,54 @@ impl SealevelMailboxIndexer {
         ))
     }
 
+    fn dispatched_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        let unique_message_pubkey = Pubkey::new(&account.data);
+        let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+            mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
+            &self.mailbox.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Could not find program address for unique message pubkey",
+            )
+        })?;
+        Ok(expected_pubkey)
+    }
+
     async fn get_delivered_message_with_nonce(
         &self,
         nonce: u32,
     ) -> ChainResult<(Indexed<H256>, LogMeta)> {
         let discriminator = hyperlane_sealevel_mailbox::accounts::PROCESSED_MESSAGE_DISCRIMINATOR;
-        let accounts = self.search_accounts(&discriminator, nonce).await?;
+        let offset = 1 + 8 + 8; // the offset to get the `message_id` field
+        let length = 32;
+        let accounts = self
+            .search_accounts_by_descriminator(&discriminator, nonce, offset, length)
+            .await?;
 
         debug!(account_len = ?accounts.len(), "Found accounts with processed message discriminator");
 
-        // Now we loop through all the accounts with the discriminator and get their full account data
-        // Since the account identifier was created using message id we cannot verify if the
-        // account is actually the one we need until we get the content (namely message id) and
-        // check if it was used to create the account id.
-        let mut valid_processed_message_account = None;
+        let valid_message_storage_pda_pubkey = self
+            .search_and_validate_account(accounts, |account| {
+                self.delivered_message_account(&account)
+            })?;
 
-        for (pubkey, _) in accounts {
-            let account = self
-                .rpc()
-                .get_account_with_finalized_commitment(&pubkey)
-                .await?;
-
-            let processed_message_account =
-                match ProcessedMessageAccount::fetch(&mut account.data.as_ref()) {
-                    Ok(account) => account.into_inner(),
-                    Err(_) => continue,
-                };
-
-            let message_id = processed_message_account.message_id;
-
-            let expected_pubkey = match Pubkey::try_find_program_address(
-                mailbox_processed_message_pda_seeds!(message_id),
-                &self.mailbox.program_id,
-            ) {
-                Some((expected_pubkey, _bump)) => expected_pubkey,
-                None => continue,
-            };
-
-            if expected_pubkey == pubkey {
-                valid_processed_message_account = Some(processed_message_account);
-                break;
-            }
-        }
-
-        let valid = valid_processed_message_account.ok_or_else(|| {
-            ChainCommunicationError::from_other_str(
-                "Could not find valid deliveled message storage PDA",
-            )
-        })?;
+        // Now that we have the valid delivered message storage PDA pubkey,
+        // we can get the full account data.
+        let account = self
+            .rpc()
+            .get_account_with_finalized_commitment(&valid_message_storage_pda_pubkey)
+            .await?;
+        let delivered_message_account = ProcessedMessageAccount::fetch(&mut account.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        let message_id = delivered_message_account.message_id;
 
         Ok((
-            valid.message_id.into(),
+            message_id.into(),
             LogMeta {
                 address: self.mailbox.program_id.to_bytes().into(),
-                block_number: valid.slot,
+                block_number: delivered_message_account.slot,
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
@@ -783,10 +756,48 @@ impl SealevelMailboxIndexer {
         ))
     }
 
-    async fn search_accounts(
+    fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        let message_id = H256::from_slice(&account.data);
+        let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+            mailbox_processed_message_pda_seeds!(message_id),
+            &self.mailbox.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str("Could not find program address for message id")
+        })?;
+        Ok(expected_pubkey)
+    }
+
+    fn search_and_validate_account<F>(
+        &self,
+        accounts: Vec<(Pubkey, Account)>,
+        message_account: F,
+    ) -> ChainResult<Pubkey>
+    where
+        F: Fn(&Account) -> ChainResult<Pubkey>,
+    {
+        let mut valid_storage_pda_pubkey = Option::<Pubkey>::None;
+
+        for (pubkey, account) in accounts {
+            let expected_pubkey = message_account(&account)?;
+            if expected_pubkey == pubkey {
+                valid_storage_pda_pubkey = Some(pubkey);
+                break;
+            }
+        }
+
+        let valid_storage_pda_pubkey = valid_storage_pda_pubkey.ok_or_else(|| {
+            ChainCommunicationError::from_other_str("Could not find valid storage PDA pubkey")
+        })?;
+        Ok(valid_storage_pda_pubkey)
+    }
+
+    async fn search_accounts_by_descriminator(
         &self,
         discriminator: &[u8; 8],
         nonce: u32,
+        offset: usize,
+        length: usize,
     ) -> Result<Vec<(Pubkey, Account)>, ChainCommunicationError> {
         let target_message_account_bytes = &[&discriminator[..], &nonce.to_le_bytes()[..]].concat();
         let target_message_account_bytes = base64::encode(target_message_account_bytes);
@@ -805,11 +816,7 @@ impl SealevelMailboxIndexer {
             filters: Some(vec![memcmp]),
             account_config: RpcAccountInfoConfig {
                 encoding: Some(UiAccountEncoding::Base64),
-                // Don't return any data
-                data_slice: Some(UiDataSliceConfig {
-                    offset: 1 + 8 + 4 + 8, // the offset to get the `unique_message_pubkey` field
-                    length: 32,            // the length of the `unique_message_pubkey` field
-                }),
+                data_slice: Some(UiDataSliceConfig { offset, length }),
                 commitment: Some(CommitmentConfig::finalized()),
                 min_context_slot: None,
             },
@@ -848,7 +855,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
         let message_capacity = range.end().saturating_sub(*range.start());
         let mut messages = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
-            messages.push(self.get_message_with_nonce(nonce).await?);
+            messages.push(self.get_dispatched_message_with_nonce(nonce).await?);
         }
         Ok(messages)
     }
