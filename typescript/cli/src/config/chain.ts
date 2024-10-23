@@ -187,7 +187,7 @@ async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
     });
     const blockReorgPeriod = await input({
       message:
-        'Enter reorg period as number of blocks (0-500) or block tag (earliest, latest, safe, finalized, pending):',
+        'Enter no. of blocks before a transaction has a near-zero chance of reverting (0-500) or block tag (earliest, latest, safe, finalized, pending):',
       validate: (value) => {
         const parsedInt = parseInt(value, 10);
         return (
