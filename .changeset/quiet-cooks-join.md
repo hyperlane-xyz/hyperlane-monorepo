@@ -1,6 +1,6 @@
 ---
-'@hyperlane-xyz/cli': major
-'@hyperlane-xyz/sdk': major
+'@hyperlane-xyz/cli': minor
+'@hyperlane-xyz/sdk': minor
 ---
 
 Restrict reorgPeriod string to one of ethereum's EthJsonRpcBlockParameterTag
