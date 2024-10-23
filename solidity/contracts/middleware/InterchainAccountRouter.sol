@@ -163,7 +163,7 @@ contract InterchainAccountRouter is Router {
 
     function setHook(
         address _hook
-    ) public override onlyInitializing onlyContractOrNull(_hook) onlyOwner {
+    ) public override onlyContractOrNull(_hook) onlyOwner {
         hook = IPostDispatchHook(_hook);
     }
 

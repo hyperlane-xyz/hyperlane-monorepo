@@ -157,15 +157,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(_account.owner(), address(destinationIcaRouter));
     }
 
-    function test_setHook_revertsWhen_reInitializing() public {
-        TestInterchainGasPaymaster newIgp = new TestInterchainGasPaymaster();
-
-        vm.expectRevert("Initializable: contract is not initializing");
-        originIcaRouter.setHook(address(newIgp));
-
-        assertEq(address(originIcaRouter.hook()), address(0x0));
-    }
-
     function testFuzz_getRemoteInterchainAccount(
         address _localOwner,
         address _ism
