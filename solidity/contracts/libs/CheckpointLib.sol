@@ -12,6 +12,11 @@ struct Checkpoint {
     bytes32 messageId;
 }
 
+struct SignedCheckpoint {
+    Checkpoint checkpoint;
+    bytes signature; // 72 bytes
+}
+
 library CheckpointLib {
     using TypeCasts for bytes32;
 
@@ -88,5 +93,16 @@ library CheckpointLib {
         // anything other than a whitelisted tree.
         return
             keccak256(abi.encodePacked(_origin, _merkleTreeHook, "HYPERLANE"));
+    }
+
+    /**
+     * @notice Returns true if the checkpoint is empty.
+     * @param checkpoint The checkpoint to check.
+     * @return True if the checkpoint is empty, false otherwise.
+     */
+    function isEmpty(
+        Checkpoint memory checkpoint
+    ) internal pure returns (bool) {
+        return checkpoint.index == 0 && checkpoint.root == bytes32(0);
     }
 }

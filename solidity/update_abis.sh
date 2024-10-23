@@ -16,4 +16,4 @@ copy interfaces/IInterchainSecurityModule && \
 copy interfaces/isms/IMultisigIsm && \
 copy interfaces/isms/IRoutingIsm && \
 copy interfaces/isms/IAggregationIsm && \
-copy interfaces/ICheckpointSubmission
+copy interfaces/ICheckpointStorage

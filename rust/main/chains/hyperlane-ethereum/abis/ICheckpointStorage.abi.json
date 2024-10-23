@@ -1,0 +1,398 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "validator",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "mailboxAddress",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "mailboxDomain",
+                "type": "uint32"
+              },
+              {
+                "internalType": "string",
+                "name": "storageLocation",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct ICheckpointStorage.Announcement",
+            "name": "value",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct ICheckpointStorage.SignedAnnouncement",
+        "name": "signedAnnouncement",
+        "type": "tuple"
+      }
+    ],
+    "name": "AnnouncementUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "origin",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "merkleTree",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "index",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "messageId",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct Checkpoint",
+            "name": "checkpoint",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct SignedCheckpoint",
+        "name": "signedCheckpoint",
+        "type": "tuple"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "index",
+        "type": "uint32"
+      }
+    ],
+    "name": "CheckpointSubmitted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "gitSha",
+        "type": "string"
+      }
+    ],
+    "name": "MetadataUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      }
+    ],
+    "name": "fetchAnnouncement",
+    "outputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "validator",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "mailboxAddress",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "mailboxDomain",
+                "type": "uint32"
+              },
+              {
+                "internalType": "string",
+                "name": "storageLocation",
+                "type": "string"
+              }
+            ],
+            "internalType": "struct ICheckpointStorage.Announcement",
+            "name": "value",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct ICheckpointStorage.SignedAnnouncement",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint32",
+        "name": "index",
+        "type": "uint32"
+      }
+    ],
+    "name": "fetchCheckpoint",
+    "outputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "origin",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "merkleTree",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "index",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "messageId",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct Checkpoint",
+            "name": "checkpoint",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct SignedCheckpoint",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      }
+    ],
+    "name": "fetchMetadata",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "string",
+            "name": "gitSha",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ICheckpointStorage.AgentMetadata",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "latestIndex",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "validator",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "mailboxAddress",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "mailboxDomain",
+            "type": "uint32"
+          },
+          {
+            "internalType": "string",
+            "name": "storageLocation",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct ICheckpointStorage.Announcement",
+        "name": "announcement",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bytes",
+        "name": "signature",
+        "type": "bytes"
+      }
+    ],
+    "name": "writeAnnouncement",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "components": [
+              {
+                "internalType": "uint32",
+                "name": "origin",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "merkleTree",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "root",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint32",
+                "name": "index",
+                "type": "uint32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "messageId",
+                "type": "bytes32"
+              }
+            ],
+            "internalType": "struct Checkpoint",
+            "name": "checkpoint",
+            "type": "tuple"
+          },
+          {
+            "internalType": "bytes",
+            "name": "signature",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct SignedCheckpoint",
+        "name": "signedCheckpoint",
+        "type": "tuple"
+      }
+    ],
+    "name": "writeCheckpoint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "gitSha",
+        "type": "string"
+      }
+    ],
+    "name": "writeMetadata",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
