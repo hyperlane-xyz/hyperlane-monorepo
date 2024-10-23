@@ -299,6 +299,7 @@ pub enum HyperlaneDomainTechnicalStack {
     OpStack,
     PolygonCDK,
     PolkadotSubstrate,
+    ZkSync,
     #[default]
     Other,
 }
