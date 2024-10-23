@@ -78,7 +78,9 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
             options,
             false // payInLzToken
         );
-        lZEndpoint.send{value: msg.value}(msgParams, refundAddress);
+
+        uint256 quote = _quoteDispatch(metadata, message);
+        lZEndpoint.send{value: quote}(msgParams, refundAddress);
     }
 
     /// @dev payInZRO is hardcoded to false because zro tokens should not be directly accepted
