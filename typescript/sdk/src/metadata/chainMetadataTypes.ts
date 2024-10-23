@@ -134,7 +134,7 @@ export const ChainMetadataSchemaObject = z.object({
         'Number of blocks to wait before considering a transaction confirmed.',
       ),
       reorgPeriod: z
-        .union([ZUint, z.nativeEnum(EthJsonRpcBlockParameterTag)])
+        .union([ZUint, z.string()])
         .optional()
         .describe(
           'Number of blocks before a transaction has a near-zero chance of reverting or block tag.',
