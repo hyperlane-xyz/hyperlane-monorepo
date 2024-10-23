@@ -76,6 +76,8 @@ type HookModuleAddresses = {
 };
 
 class HookDeployer extends HyperlaneDeployer<{}, HookFactories> {
+  protected cachingEnabled = false;
+
   deployContracts(_chain: ChainName, _config: {}): Promise<any> {
     throw new Error('Method not implemented.');
   }
@@ -658,7 +660,8 @@ export class EvmHookModule extends HyperlaneModule<
     config: ProtocolFeeHookConfig;
   }): Promise<ProtocolFee> {
     this.logger.debug('Deploying ProtocolFeeHook...');
-    return this.deployer.deployContract(this.chain, HookType.PROTOCOL_FEE, [
+    const deployer = new HookDeployer(this.multiProvider, hookFactories);
+    return deployer.deployContract(this.chain, HookType.PROTOCOL_FEE, [
       config.maxProtocolFee,
       config.protocolFee,
       config.beneficiary,
@@ -672,7 +675,8 @@ export class EvmHookModule extends HyperlaneModule<
     config: PausableHookConfig;
   }): Promise<PausableHook> {
     this.logger.debug('Deploying PausableHook...');
-    const hook = await this.deployer.deployContract(
+    const deployer = new HookDeployer(this.multiProvider, hookFactories);
+    const hook = await deployer.deployContract(
       this.chain,
       HookType.PAUSABLE,
       [],

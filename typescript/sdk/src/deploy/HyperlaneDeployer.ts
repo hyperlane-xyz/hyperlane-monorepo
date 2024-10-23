@@ -74,6 +74,8 @@ export abstract class HyperlaneDeployer<
   public cachedAddresses: HyperlaneAddressesMap<any> = {};
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
 
+  protected cachingEnabled = true;
+
   protected logger: Logger;
   chainTimeoutMs: number;
 
@@ -373,7 +375,7 @@ export abstract class HyperlaneDeployer<
     shouldRecover = true,
     implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
-    if (shouldRecover) {
+    if (this.cachingEnabled && shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
       if (cachedContract) {
         if (this.recoverVerificationInputs) {

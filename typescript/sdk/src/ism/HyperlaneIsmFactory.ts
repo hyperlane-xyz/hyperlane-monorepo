@@ -68,6 +68,8 @@ const ismFactories = {
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
+  protected readonly cachingEnabled = false;
+
   deployContracts(_chain: ChainName, _config: any): Promise<any> {
     throw new Error('Method not implemented.');
   }
@@ -78,6 +80,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // although `any` is use here because that type breaks a lot of signatures.
   // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
+  protected readonly deployer: IsmDeployer;
 
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
@@ -88,6 +91,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       multiProvider,
       rootLogger.child({ module: 'ismFactoryApp' }),
     );
+    this.deployer = new IsmDeployer(multiProvider, ismFactories);
   }
 
   static fromAddressesMap(
@@ -117,9 +121,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         this.multiProvider.getSignerOrProvider(destination),
       );
     }
-
-    // always instantiate to avoid deployer caching
-    const deployer = new IsmDeployer(this.multiProvider, ismFactories);
 
     const ismType = config.type;
     const logger = this.logger.child({ destination, ismType });
@@ -165,12 +166,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.OP_STACK:
-        contract = await deployer.deployContract(destination, ismType, [
+        contract = await this.deployer.deployContract(destination, ismType, [
           config.nativeBridge,
         ]);
         break;
       case IsmType.PAUSABLE:
-        contract = await deployer.deployContract(
+        contract = await this.deployer.deployContract(
           destination,
           IsmType.PAUSABLE,
           [config.owner],
@@ -178,21 +179,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.TRUSTED_RELAYER:
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
-        contract = await deployer.deployContract(
+        contract = await this.deployer.deployContract(
           destination,
           IsmType.TRUSTED_RELAYER,
           [mailbox, config.relayer],
         );
         break;
       case IsmType.TEST_ISM:
-        contract = await deployer.deployContract(
+        contract = await this.deployer.deployContract(
           destination,
           IsmType.TEST_ISM,
           [],
         );
         break;
       case IsmType.ARB_L2_TO_L1:
-        contract = await deployer.deployContract(destination, ismType, [
+        contract = await this.deployer.deployContract(destination, ismType, [
           config.bridge,
         ]);
         break;
