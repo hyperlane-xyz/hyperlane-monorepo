@@ -830,6 +830,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  zeronetwork: {
+    threshold: 1,
+    validators: ['0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87'],
+  },
+
   zetachain: {
     threshold: 3,
     validators: [

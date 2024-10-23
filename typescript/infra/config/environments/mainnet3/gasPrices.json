@@ -271,6 +271,10 @@
     "amount": "14.54921875",
     "decimals": 9
   },
+  "zeronetwork": {
+    "amount": "0.04525",
+    "decimals": 9
+  },
   "zetachain": {
     "amount": "10.1",
     "decimals": 9

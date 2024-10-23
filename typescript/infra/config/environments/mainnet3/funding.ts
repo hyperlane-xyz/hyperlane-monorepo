@@ -89,6 +89,7 @@ export const keyFunderConfig: KeyFunderConfig<
     worldchain: '0.2',
     xai: '20',
     xlayer: '0.5',
+    zeronetwork: '0.05',
     zetachain: '20',
     zircuit: '0.02',
     zoramainnet: '0.2',
