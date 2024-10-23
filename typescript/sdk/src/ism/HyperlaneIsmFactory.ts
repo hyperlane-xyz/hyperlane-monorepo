@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
@@ -59,10 +60,11 @@ import {
 import { routingModuleDelta } from './utils.js';
 
 const ismFactories = {
-  pausableIsm: new PausableIsm__factory(),
-  trustedRelayerIsm: new TrustedRelayerIsm__factory(),
-  testIsm: new TestIsm__factory(),
-  opStackIsm: new OPStackIsm__factory(),
+  [IsmType.PAUSABLE]: new PausableIsm__factory(),
+  [IsmType.TRUSTED_RELAYER]: new TrustedRelayerIsm__factory(),
+  [IsmType.TEST_ISM]: new TestIsm__factory(),
+  [IsmType.OP_STACK]: new OPStackIsm__factory(),
+  [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
@@ -77,7 +79,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
 
-  protected deployer: HyperlaneDeployer<any, any>;
+  protected deployer: IsmDeployer;
 
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
@@ -163,40 +165,36 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.OP_STACK:
-        contract = await this.deployer.deployContractFromFactory(
-          destination,
-          new OPStackIsm__factory(),
-          IsmType.OP_STACK,
-          [config.nativeBridge],
-        );
+        contract = await this.deployer.deployContract(destination, ismType, [
+          config.nativeBridge,
+        ]);
         break;
       case IsmType.PAUSABLE:
-        contract = await this.deployer.deployContractFromFactory(
+        contract = await this.deployer.deployContract(
           destination,
-          new PausableIsm__factory(),
           IsmType.PAUSABLE,
           [config.owner],
         );
-        await this.deployer.transferOwnershipOfContracts(destination, config, {
-          [IsmType.PAUSABLE]: contract,
-        });
         break;
       case IsmType.TRUSTED_RELAYER:
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
-        contract = await this.deployer.deployContractFromFactory(
+        contract = await this.deployer.deployContract(
           destination,
-          new TrustedRelayerIsm__factory(),
           IsmType.TRUSTED_RELAYER,
           [mailbox, config.relayer],
         );
         break;
       case IsmType.TEST_ISM:
-        contract = await this.deployer.deployContractFromFactory(
+        contract = await this.deployer.deployContract(
           destination,
-          new TestIsm__factory(),
           IsmType.TEST_ISM,
           [],
         );
+        break;
+      case IsmType.ARB_L2_TO_L1:
+        contract = await this.deployer.deployContract(destination, ismType, [
+          config.bridge,
+        ]);
         break;
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
