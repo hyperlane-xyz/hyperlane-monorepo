@@ -253,7 +253,6 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
       );
     },
   );
-
   // Attaches contracts for each chain for which we have a complete set of
   // addresses
   const contractsMap = attachContractsMap(

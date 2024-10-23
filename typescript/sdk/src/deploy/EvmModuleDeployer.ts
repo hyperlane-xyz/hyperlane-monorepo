@@ -16,17 +16,23 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
+import { getZKArtifactByContractName } from '../utils/zksync.js';
 
 import { isProxy, proxyConstructorArgs } from './proxy.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
+import { ZKSyncContractVerifier } from './verify/ZKSyncContractVerifier.js';
 import {
   ContractVerificationInput,
   ExplorerLicenseType,
 } from './verify/types.js';
-import { getContractVerificationInput } from './verify/utils.js';
+import {
+  getContractVerificationInput,
+  getContractVerificationInputForZKSync,
+} from './verify/utils.js';
 
 export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
   public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
@@ -68,10 +74,18 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
         ', ',
       )})...`,
     );
+
+    const artifact = await getZKArtifactByContractName(contractName);
+
+    if (!artifact) {
+      throw new Error(`No ZKSync artifact found for contract: ${contractName}`);
+    }
+
     const contract = await this.multiProvider.handleDeploy(
       chain,
       factory,
       constructorArgs,
+      artifact,
     );
 
     if (initializeArgs) {
@@ -91,17 +105,37 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       await this.multiProvider.handleTx(chain, initTx);
     }
 
-    const verificationInput = getContractVerificationInput({
-      name: contractName,
-      contract,
-      bytecode: factory.bytecode,
-      expectedimplementation: implementationAddress,
-    });
+    const { technicalStack } = this.multiProvider.getChainMetadata(chain);
+    const isZKSyncChain = technicalStack === ChainTechnicalStack.ZKSync;
+
+    let verificationInput: ContractVerificationInput;
+    if (isZKSyncChain) {
+      verificationInput = await getContractVerificationInputForZKSync({
+        name: contractName,
+        contract,
+        constructorArgs: constructorArgs,
+        artifact: artifact,
+        expectedimplementation: implementationAddress,
+      });
+    } else {
+      verificationInput = getContractVerificationInput({
+        name: contractName,
+        contract,
+        bytecode: factory.bytecode,
+        expectedimplementation: implementationAddress,
+      });
+    }
+
     this.addVerificationArtifacts({ chain, artifacts: [verificationInput] });
 
     // try verifying contract
     try {
-      await this.contractVerifier?.verifyContract(chain, verificationInput);
+      if (isZKSyncChain) {
+        const verifier = new ZKSyncContractVerifier(this.multiProvider);
+        await verifier?.verifyContract(chain, verificationInput);
+      } else {
+        await this.contractVerifier?.verifyContract(chain, verificationInput);
+      }
     } catch (error) {
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);
@@ -277,6 +311,7 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       sortedValues,
       threshold,
     );
+    const signer = multiProvider.getSigner(chain);
     const code = await multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
@@ -285,19 +320,21 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
       const overrides = multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
-      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
-        sortedValues,
-        threshold,
-        overrides,
-      );
+      const estimatedGas = await factory
+        .connect(signer)
+        .estimateGas['deploy(address[],uint8)'](
+          sortedValues,
+          threshold,
+          overrides,
+        );
 
-      // add gas buffer
+      // add 10% buffer
       const hash = await factory['deploy(address[],uint8)'](
         sortedValues,
         threshold,
         {
-          gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
+          gasLimit: addBufferToGasLimit(estimatedGas),
         },
       );
 

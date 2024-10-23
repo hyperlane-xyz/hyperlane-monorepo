@@ -16,6 +16,8 @@ import {
   OPStackIsm__factory,
   Ownable__factory,
   PausableIsm__factory,
+  StorageMerkleRootMultisigIsm__factory,
+  StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
@@ -48,6 +50,7 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
+import { getZKArtifactByContractName } from '../utils/zksync.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { IsmConfigSchema } from './schemas.js';
@@ -95,6 +98,7 @@ export class EvmIsmModule extends HyperlaneModule<
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
+
     this.deployer = new EvmModuleDeployer(
       this.multiProvider,
       {},
@@ -118,6 +122,7 @@ export class EvmIsmModule extends HyperlaneModule<
         staticMessageIdWeightedMultisigIsmFactory:
           params.addresses.staticMessageIdWeightedMultisigIsmFactory,
       },
+
       proxyFactoryFactories,
       multiProvider.getSigner(params.chain),
     );
@@ -415,6 +420,7 @@ export class EvmIsmModule extends HyperlaneModule<
           factory: new TrustedRelayerIsm__factory(),
           contractName: IsmType.TRUSTED_RELAYER,
           constructorArgs: [this.args.addresses.mailbox, config.relayer],
+          implementationAddress: undefined,
         });
 
       case IsmType.TEST_ISM:
@@ -424,10 +430,58 @@ export class EvmIsmModule extends HyperlaneModule<
           contractName: IsmType.TEST_ISM,
           constructorArgs: [],
         });
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+        return this.deployStorageMessageIdMultisigIsm({
+          config,
+          logger,
+        });
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+        return this.deployStorageMultisigIsm({
+          config,
+          logger,
+        });
 
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
+  }
+
+  // TODO: handle logging part
+  protected async deployStorageMessageIdMultisigIsm({
+    config,
+    logger,
+  }: {
+    config: MultisigIsmConfig;
+    logger: Logger;
+  }): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(this.chain);
+
+    const contract = await this.deployer.deployContractFromFactory({
+      chain: this.chain,
+      factory: new StorageMessageIdMultisigIsm__factory(),
+      contractName: IsmType.STORAGE_MESSAGE_ID_MULTISIG,
+      constructorArgs: [config.validators, config.threshold],
+    });
+    return IMultisigIsm__factory.connect(contract.address, signer);
+  }
+
+  // TODO: handle logging part
+  protected async deployStorageMultisigIsm({
+    config,
+    logger,
+  }: {
+    config: MultisigIsmConfig;
+    logger: Logger;
+  }): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(this.chain);
+
+    const contract = await this.deployer.deployContractFromFactory({
+      chain: this.chain,
+      factory: new StorageMerkleRootMultisigIsm__factory(),
+      contractName: IsmType.STORAGE_MERKLE_ROOT_MULTISIG,
+      constructorArgs: [config.validators, config.threshold],
+    });
+    return IMultisigIsm__factory.connect(contract.address, signer);
   }
 
   protected async deployMultisigIsm({
@@ -488,6 +542,7 @@ export class EvmIsmModule extends HyperlaneModule<
         this.chain,
         new DefaultFallbackRoutingIsm__factory(),
         [this.args.addresses.mailbox],
+        await getZKArtifactByContractName('DefaultFallbackRoutingIsm'),
       );
 
       // initialize the fallback routing ISM

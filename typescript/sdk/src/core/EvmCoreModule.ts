@@ -23,12 +23,16 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { shouldSkipStaticDeployment } from '../deploy/protocolDeploymentConfig.js';
+import { createDefaultProxyFactoryFactories } from '../deploy/proxyFactoryUtils.js';
+import { ProxyFactoryFactoriesAddresses } from '../deploy/schemas.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
@@ -250,14 +254,16 @@ export class EvmCoreModule extends HyperlaneModule<
     contractVerifier?: ContractVerifier;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, contractVerifier } = params;
-    const chainName = multiProvider.getChainName(chain);
+    const { name: chainName, technicalStack } =
+      multiProvider.getChainMetadata(chain);
 
-    const ismFactoryFactories = await EvmCoreModule.deployIsmFactories({
-      chainName,
-      config,
-      multiProvider,
-      contractVerifier,
-    });
+    const ismFactoryFactories: ProxyFactoryFactoriesAddresses =
+      await this.getIsmFactoryFactories(technicalStack, {
+        chainName,
+        config,
+        multiProvider,
+        contractVerifier,
+      });
 
     const ismFactory = new HyperlaneIsmFactory(
       attachContractsMap(
@@ -334,7 +340,6 @@ export class EvmCoreModule extends HyperlaneModule<
     // Set Core & extra addresses
     return {
       ...ismFactoryFactories,
-
       proxyAdmin,
       mailbox: mailbox.address,
       interchainAccountRouter,
@@ -438,5 +443,34 @@ export class EvmCoreModule extends HyperlaneModule<
       ),
     );
     return mailbox;
+  }
+
+  /**
+   * Retrieves the ISM factory factories based on the provided protocol and parameters.
+   *
+   * @param protocol - The protocol type to determine if static address set deployment should be skipped.
+   * @param params - An object containing the parameters needed for ISM factory deployment.
+   * @param params.chainName - The name of the chain for which the ISM factories are being deployed.
+   * @param params.config - The core configuration to be used during deployment.
+   * @param params.multiProvider - The multi-provider instance for interacting with the blockchain.
+   * @param params.contractVerifier - An optional contract verifier for validating contracts during deployment.
+   * @returns A promise that resolves to the addresses of the deployed ISM factory factories.
+   */
+  private static async getIsmFactoryFactories(
+    technicalStack: ChainTechnicalStack | undefined,
+    params: {
+      chainName: string;
+      config: CoreConfig;
+      multiProvider: MultiProvider;
+      contractVerifier?: ContractVerifier;
+    },
+  ): Promise<ProxyFactoryFactoriesAddresses> {
+    // Check if we should skip static address set deployment
+    if (shouldSkipStaticDeployment(technicalStack)) {
+      return createDefaultProxyFactoryFactories();
+    } else {
+      // Otherwise, deploy ISM factories
+      return await EvmCoreModule.deployIsmFactories(params);
+    }
   }
 }
