@@ -10,13 +10,12 @@ use fuels::{
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer, TxCostEstimate,
-    TxOutcome, H256, H512, U256,
+    Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
+    TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
-    num::NonZeroU64,
     ops::RangeInclusive,
 };
 use tracing::{instrument, warn};
@@ -74,9 +73,9 @@ impl Debug for FuelMailbox {
 impl Mailbox for FuelMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         assert!(
-            lag.is_none(),
+            reorg_period.is_none(),
             "Fuel does not support querying point-in-time"
         );
         self.contract
