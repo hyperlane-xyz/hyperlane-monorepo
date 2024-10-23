@@ -3,4 +3,4 @@
 '@hyperlane-xyz/sdk': major
 ---
 
-Restrict reorgPeriod string to one of ethereum's BlockParameterTags
+Restrict reorgPeriod string to one of ethereum's EthJsonRpcBlockParameterTag

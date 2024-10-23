@@ -3,9 +3,9 @@ import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
-  BlockParameterTags,
   ChainMetadata,
   ChainMetadataSchema,
+  EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ZChainName,
 } from '@hyperlane-xyz/sdk';
@@ -169,9 +169,11 @@ async function addBlockOrGasConfig(metadata: ChainMetadata): Promise<void> {
 }
 
 async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
-  const parseReorgPeriod = (value: string): number | BlockParameterTags => {
+  const parseReorgPeriod = (
+    value: string,
+  ): number | EthJsonRpcBlockParameterTag => {
     const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? (value as BlockParameterTags) : parsed;
+    return isNaN(parsed) ? (value as EthJsonRpcBlockParameterTag) : parsed;
   };
 
   const wantBlockConfig = await confirm({
@@ -189,8 +191,8 @@ async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
       validate: (value) => {
         const parsedInt = parseInt(value, 10);
         return (
-          Object.values(BlockParameterTags).includes(
-            value as BlockParameterTags,
+          Object.values(EthJsonRpcBlockParameterTag).includes(
+            value as EthJsonRpcBlockParameterTag,
           ) ||
           (!isNaN(parsedInt) && parsedInt >= 0 && parsedInt <= 500)
         );
