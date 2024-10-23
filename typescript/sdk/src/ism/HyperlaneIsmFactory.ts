@@ -79,8 +79,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
 
-  protected deployer: IsmDeployer;
-
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
     public readonly multiProvider: MultiProvider,
@@ -90,7 +88,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       multiProvider,
       rootLogger.child({ module: 'ismFactoryApp' }),
     );
-    this.deployer = new IsmDeployer(multiProvider, ismFactories);
   }
 
   static fromAddressesMap(
@@ -120,6 +117,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         this.multiProvider.getSignerOrProvider(destination),
       );
     }
+
+    // always instantiate to avoid deployer caching
+    const deployer = new IsmDeployer(this.multiProvider, ismFactories);
 
     const ismType = config.type;
     const logger = this.logger.child({ destination, ismType });
@@ -165,12 +165,12 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.OP_STACK:
-        contract = await this.deployer.deployContract(destination, ismType, [
+        contract = await deployer.deployContract(destination, ismType, [
           config.nativeBridge,
         ]);
         break;
       case IsmType.PAUSABLE:
-        contract = await this.deployer.deployContract(
+        contract = await deployer.deployContract(
           destination,
           IsmType.PAUSABLE,
           [config.owner],
@@ -178,21 +178,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.TRUSTED_RELAYER:
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
-        contract = await this.deployer.deployContract(
+        contract = await deployer.deployContract(
           destination,
           IsmType.TRUSTED_RELAYER,
           [mailbox, config.relayer],
         );
         break;
       case IsmType.TEST_ISM:
-        contract = await this.deployer.deployContract(
+        contract = await deployer.deployContract(
           destination,
           IsmType.TEST_ISM,
           [],
         );
         break;
       case IsmType.ARB_L2_TO_L1:
-        contract = await this.deployer.deployContract(destination, ismType, [
+        contract = await deployer.deployContract(destination, ismType, [
           config.bridge,
         ]);
         break;
