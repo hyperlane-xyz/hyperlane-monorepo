@@ -1,5 +1,19 @@
 # @hyperlane-xyz/core
 
+## 5.5.0
+
+### Minor Changes
+
+- 72c23c0d6: Added PRECISION and rateUpdateNonce to ensure compatibility of HypERC4626
+
+### Patch Changes
+
+- c9085afd9: Patched OPL2ToL1Ism to check for correct messageId for external call in verify
+- ec6b874b1: Added nonce to HypERC4626
+- Updated dependencies [f1712deb7]
+- Updated dependencies [29341950e]
+  - @hyperlane-xyz/utils@5.6.0
+
 ## 5.4.1
 
 ### Patch Changes
