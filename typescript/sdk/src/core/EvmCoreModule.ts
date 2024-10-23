@@ -1,4 +1,8 @@
-import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
+import {
+  Mailbox,
+  Mailbox__factory,
+  Ownable__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
@@ -274,15 +278,17 @@ export class EvmCoreModule extends HyperlaneModule<
     );
 
     // Deploy proxyAdmin
-    const proxyAdmin = (
-      await coreDeployer.deployContract(chainName, 'proxyAdmin', [])
-    ).address;
+    const proxyAdmin = await coreDeployer.deployContract(
+      chainName,
+      'proxyAdmin',
+      [],
+    );
 
     // Deploy Mailbox
     const mailbox = await this.deployMailbox({
       config,
       coreDeployer,
-      proxyAdmin,
+      proxyAdmin: proxyAdmin.address,
       multiProvider,
       chain,
     });
@@ -294,7 +300,9 @@ export class EvmCoreModule extends HyperlaneModule<
         multiProvider: multiProvider,
         config: {
           mailbox: mailbox.address,
-          owner: await multiProvider.getSigner(chain).getAddress(),
+          owner:
+            config.interchainAccountRouter?.owner ??
+            (await multiProvider.getSigner(chain).getAddress()),
         },
         contractVerifier,
       })
@@ -331,11 +339,27 @@ export class EvmCoreModule extends HyperlaneModule<
     const { merkleTreeHook, interchainGasPaymaster } =
       serializedContracts[chainName];
 
+    // Update the ProxyAdmin owner of the Mailbox if the config defines a different owner from the current signer
+    const currentProxyOwner = await proxyAdmin.owner();
+    if (
+      config?.proxyAdmin?.owner &&
+      config.proxyAdmin.owner !== currentProxyOwner
+    ) {
+      await multiProvider.sendTransaction(chainName, {
+        annotation: `Transferring ownership of ProxyAdmin to the configured address ${config.proxyAdmin.owner}`,
+        to: proxyAdmin.address,
+        data: Ownable__factory.createInterface().encodeFunctionData(
+          'transferOwnership(address)',
+          [config.proxyAdmin.owner],
+        ),
+      });
+    }
+
     // Set Core & extra addresses
     return {
       ...ismFactoryFactories,
 
-      proxyAdmin,
+      proxyAdmin: proxyAdmin.address,
       mailbox: mailbox.address,
       interchainAccountRouter,
       interchainAccountIsm,
