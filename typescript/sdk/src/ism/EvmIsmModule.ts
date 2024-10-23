@@ -12,6 +12,7 @@ import {
   assert,
   deepEquals,
   eqAddress,
+  intersection,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -244,19 +245,24 @@ export class EvmIsmModule extends HyperlaneModule<
     target: RoutingIsmConfig;
     logger: Logger;
   }): Promise<AnnotatedEV5Transaction[]> {
-    const contract = new DomainRoutingIsm__factory().attach(
+    const contract = DomainRoutingIsm__factory.connect(
       this.args.addresses.deployedIsm,
+      this.multiProvider.getProvider(this.chain),
     );
 
     const updateTxs: AnnotatedEV5Transaction[] = [];
+
+    const knownChains = new Set(this.multiProvider.getKnownChainNames());
 
     const { domainsToEnroll, domainsToUnenroll } = calculateDomainRoutingDelta(
       current,
       target,
     );
 
+    const knownEnrolls = intersection(knownChains, new Set(domainsToEnroll));
+
     // Enroll domains
-    for (const origin of domainsToEnroll) {
+    for (const origin of knownEnrolls) {
       logger.debug(
         `Reconfiguring preexisting routing ISM for origin ${origin}...`,
       );
@@ -272,8 +278,13 @@ export class EvmIsmModule extends HyperlaneModule<
       });
     }
 
+    const knownUnenrolls = intersection(
+      knownChains,
+      new Set(domainsToUnenroll),
+    );
+
     // Unenroll domains
-    for (const origin of domainsToUnenroll) {
+    for (const origin of knownUnenrolls) {
       const domainId = this.multiProvider.getDomainId(origin);
       const tx = await contract.populateTransaction.remove(domainId);
       updateTxs.push({
