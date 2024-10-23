@@ -176,25 +176,33 @@ We use the tokio async runtime environment. Please see the docs
 
 ### Repo layout
 
-- `hyperlane-base`
-  - lowest dependency hyperlane utilities
-  - contains shared utilities for building off-chain agents
-  - this includes
-    - trait implementations for different chains
-    - shared configuration file formats
-    - basic setup for an off-chain agent
 - `hyperlane-core`
-  - depends on hyperlane-base
   - contains implementations of core primitives
+  - lowest level of the dependency graph
   - this includes
     - traits (interfaces) for the on-chain contracts
     - model implementations of the contracts in rust
     - merkle tree implementations (for provers)
+- `hyperlane-base`
+  - contains shared utilities for building off-chain agents
+  - depends on hyperlane-{chainname}
+  - this includes
+    - trait implementations for different chains
+    - shared configuration file formats
+    - basic setup for an off-chain agent
 - `chains/hyperlane-ethereum`
-  - depends on hyperlane-core (and transitively hyperlane-base)
+  - depends on hyperlane-core
   - interfaces to the ethereum contracts
 - `chains/hyperlane-fuel`
   - depends on hyperlane-core
   - interfaces to the fuel contracts
 - `agents`
+  - depends on hyperlane-base
   - each of the off-chain agents implemented thus far
+
+### Dependency Graph
+
+hyperlane-core <---(depended on by)---
+hyperlane-{chainname} <---(depended on by)---
+hyperlane-base <---(depended on by)---
+agents
