@@ -170,7 +170,7 @@ where
                     Ok(logs) => logs,
                     Err(err) => {
                         warn!(?err, ?range, "Error fetching logs in range");
-                        break SLEEP_DURATION;
+                        break Some(SLEEP_DURATION);
                     }
                 };
 
@@ -196,15 +196,16 @@ where
                 // Update cursor
                 if let Err(err) = cursor.update(logs, range).await {
                     warn!(?err, "Error updating cursor");
-                    break SLEEP_DURATION;
+                    break Some(SLEEP_DURATION);
                 };
-                break Default::default();
+                break None;
             },
-            CursorAction::Sleep(duration) => duration,
+            CursorAction::Sleep(duration) => Some(duration),
         };
-        if sleep_duration > Duration::from_secs(0) {
+        if let Some(sleep_duration) = sleep_duration {
             debug!(
                 cursor = ?cursor,
+                ?sleep_duration,
                 "Cursor can't make progress, sleeping",
             );
             sleep(sleep_duration).await
