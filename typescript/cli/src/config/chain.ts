@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
+  BlockParameterTags,
   ChainMetadata,
   ChainMetadataSchema,
   ExplorerFamily,
@@ -168,9 +169,9 @@ async function addBlockOrGasConfig(metadata: ChainMetadata): Promise<void> {
 }
 
 async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
-  const parseReorgPeriod = (value: string) => {
+  const parseReorgPeriod = (value: string): number | BlockParameterTags => {
     const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? value : parsed;
+    return isNaN(parsed) ? (value as BlockParameterTags) : parsed;
   };
 
   const wantBlockConfig = await confirm({
@@ -184,10 +185,16 @@ async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
     });
     const blockReorgPeriod = await input({
       message:
-        'Enter no. of blocks before a transaction has a near-zero chance of reverting (0-500) or block tag:',
-      validate: (value) =>
-        isNaN(parseInt(value)) ||
-        (parseInt(value) >= 0 && parseInt(value) <= 500),
+        'Enter reorg period as number of blocks (0-500) or block tag (earliest, latest, safe, finalized, pending):',
+      validate: (value) => {
+        const parsedInt = parseInt(value, 10);
+        return (
+          Object.values(BlockParameterTags).includes(
+            value as BlockParameterTags,
+          ) ||
+          (!isNaN(parsedInt) && parsedInt >= 0 && parsedInt <= 500)
+        );
+      },
     });
     const blockTimeEstimate = await input({
       message: 'Enter the rough estimate of time per block in seconds (0-20):',

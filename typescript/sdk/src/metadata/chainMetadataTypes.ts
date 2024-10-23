@@ -10,6 +10,14 @@ import { ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 
+export enum EthJsonRpcBlockParameterTag {
+  Earliest = 'earliest',
+  Latest = 'latest',
+  Safe = 'safe',
+  Finalized = 'finalized',
+  Pending = 'pending',
+}
+
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
@@ -126,7 +134,7 @@ export const ChainMetadataSchemaObject = z.object({
         'Number of blocks to wait before considering a transaction confirmed.',
       ),
       reorgPeriod: z
-        .union([ZUint, z.string()])
+        .union([ZUint, z.nativeEnum(EthJsonRpcBlockParameterTag)])
         .optional()
         .describe(
           'Number of blocks before a transaction has a near-zero chance of reverting or block tag.',

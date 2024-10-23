@@ -196,6 +196,7 @@ export {
 export {
   BlockExplorer,
   BlockExplorerSchema,
+  EthJsonRpcBlockParameterTag as BlockParameterTags,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
