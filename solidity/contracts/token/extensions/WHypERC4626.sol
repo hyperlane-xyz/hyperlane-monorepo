@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {HypERC4626} from "./HypERC4626.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /*@@@@@@@       @@@@@@@@@
  @@@@@@@@@       @@@@@@@@@
@@ -21,7 +22,7 @@ import {HypERC4626} from "./HypERC4626.sol";
  * @author Abacus Works
  * @notice A wrapper for HypERC4626 that allows for wrapping and unwrapping of underlying rebasing tokens
  */
-contract WHypERC4626 is ERC20 {
+contract WHypERC4626 is ERC20, PackageVersioned {
     HypERC4626 public immutable underlying;
 
     constructor(
