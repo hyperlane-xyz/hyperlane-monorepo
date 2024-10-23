@@ -9,12 +9,14 @@ import {MerkleLib, TREE_DEPTH} from "./libs/Merkle.sol";
 import {MerkleTreeHook} from "./hooks/MerkleTreeHook.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
 
+import {PackageVersioned} from "./PackageVersioned.sol";
+
 struct StoredIndex {
     uint32 index;
     bool exists;
 }
 
-contract CheckpointFraudProofs {
+contract CheckpointFraudProofs is PackageVersioned {
     using CheckpointLib for Checkpoint;
     using Address for address;
 

@@ -74,7 +74,11 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
    */
   public async submit(
     ...txs: ProtocolTypedTransaction<TProtocol>['transaction'][]
-  ): Promise<ProtocolTypedReceipt<TProtocol>['receipt'][] | void> {
+  ): Promise<
+    | ProtocolTypedReceipt<TProtocol>['receipt']
+    | ProtocolTypedReceipt<TProtocol>['receipt'][]
+    | void
+  > {
     this.logger.debug(
       `Submitting ${txs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter...`,
     );

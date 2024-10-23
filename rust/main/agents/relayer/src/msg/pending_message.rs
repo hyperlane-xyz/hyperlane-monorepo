@@ -9,7 +9,10 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use hyperlane_base::{db::HyperlaneRocksDB, CoreMetrics};
+use hyperlane_base::{
+    db::{HyperlaneDb, HyperlaneRocksDB},
+    CoreMetrics,
+};
 use hyperlane_core::{
     gas_used_by_operation, BatchItem, ChainCommunicationError, ChainResult, ConfirmReason,
     HyperlaneChain, HyperlaneDomain, HyperlaneMessage, Mailbox, MessageSubmissionData,
@@ -79,6 +82,9 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     metadata: Option<Vec<u8>>,
+    #[new(default)]
+    #[serde(skip_serializing)]
+    metric: Option<Arc<IntGauge>>,
 }
 
 impl Debug for PendingMessage {
@@ -477,6 +483,14 @@ impl PendingOperation for PendingMessage {
 
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         Some(self.ctx.destination_mailbox.clone())
+    }
+
+    fn get_metric(&self) -> Option<Arc<IntGauge>> {
+        self.metric.clone()
+    }
+
+    fn set_metric(&mut self, metric: Arc<IntGauge>) {
+        self.metric = Some(metric);
     }
 }
 

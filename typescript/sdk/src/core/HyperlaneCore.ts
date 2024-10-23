@@ -12,6 +12,7 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
+  addBufferToGasLimit,
   addressToBytes32,
   bytes32ToAddress,
   isZeroishAddress,
@@ -153,17 +154,31 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       metadata,
       hook,
     );
+
+    const dispatchParams = [
+      destinationDomain,
+      recipientBytes32,
+      body,
+      metadata || '0x',
+      hook || ethers.constants.AddressZero,
+    ] as const;
+
+    const estimateGas = await mailbox.estimateGas[
+      'dispatch(uint32,bytes32,bytes,bytes,address)'
+    ](...dispatchParams, { value: quote });
+
     const dispatchTx = await this.multiProvider.handleTx(
       origin,
       mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
-        destinationDomain,
-        recipientBytes32,
-        body,
-        metadata || '0x',
-        hook || ethers.constants.AddressZero,
-        { value: quote },
+        ...dispatchParams,
+        {
+          ...this.multiProvider.getTransactionOverrides(origin),
+          value: quote,
+          gasLimit: addBufferToGasLimit(estimateGas),
+        },
       ),
     );
+
     return {
       dispatchTx,
       message: this.getDispatchedMessages(dispatchTx)[0],
@@ -241,11 +256,14 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     ismMetadata: string,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
+    const txOverrides =
+      this.multiProvider.getTransactionOverrides(destinationChain);
     return this.multiProvider.handleTx(
       destinationChain,
       this.getContracts(destinationChain).mailbox.process(
         ismMetadata,
         message.message,
+        { ...txOverrides },
       ),
     );
   }
