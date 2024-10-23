@@ -429,7 +429,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 3,
-        "reorgPeriod": 15
+        "reorgPeriod": "finalized"
       },
       "chainId": 56,
       "deployer": {
@@ -1981,7 +1981,7 @@
       "blocks": {
         "confirmations": 2,
         "estimateBlockTime": 12,
-        "reorgPeriod": 10
+        "reorgPeriod": "finalized"
       },
       "chainId": 1284,
       "deployer": {
@@ -2258,7 +2258,7 @@
       "blocks": {
         "confirmations": 3,
         "estimateBlockTime": 2,
-        "reorgPeriod": 256
+        "reorgPeriod": "finalized"
       },
       "chainId": 137,
       "deployer": {
@@ -2912,7 +2912,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 6,
-        "reorgPeriod": 10
+        "reorgPeriod": "finalized"
       },
       "chainId": 5845,
       "deployer": {
@@ -3446,7 +3446,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 13,
-        "reorgPeriod": 32
+        "reorgPeriod": "finalized"
       },
       "chainId": 592,
       "deployer": {
@@ -3924,7 +3924,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 5,
-        "reorgPeriod": 5
+        "reorgPeriod": "finalized"
       },
       "chainId": 109,
       "deployer": {
@@ -4187,7 +4187,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 3,
-        "reorgPeriod": 9
+        "reorgPeriod": "finalized"
       },
       "chainId": 88888,
       "deployer": {
