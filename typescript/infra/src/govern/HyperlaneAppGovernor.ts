@@ -166,16 +166,22 @@ export abstract class HyperlaneAppGovernor<
 
       // If calls are being submitted via a safe, we need to check for any safe owner changes first
       if (submissionType === SubmissionType.SAFE) {
-        const { safeSdk } = await getSafeAndService(
-          chain,
-          this.checker.multiProvider,
-          (multiSend as SafeMultiSend).safeAddress,
-        );
-        const updateOwnerCalls = await updateSafeOwner(safeSdk);
-        callsForSubmissionType.push(...updateOwnerCalls, ...filteredCalls);
-      } else {
-        callsForSubmissionType.push(...filteredCalls);
+        try {
+          const { safeSdk } = await getSafeAndService(
+            chain,
+            this.checker.multiProvider,
+            (multiSend as SafeMultiSend).safeAddress,
+          );
+          const updateOwnerCalls = await updateSafeOwner(safeSdk);
+          callsForSubmissionType.push(...updateOwnerCalls);
+        } catch (error) {
+          // Catch but don't throw because we want to try submitting any remaining calls
+          console.error(`Error updating safe owner: ${error}`);
+        }
       }
+
+      // Add the filtered calls to the calls for submission type
+      callsForSubmissionType.push(...filteredCalls);
 
       if (callsForSubmissionType.length > 0) {
         this.printSeparator();

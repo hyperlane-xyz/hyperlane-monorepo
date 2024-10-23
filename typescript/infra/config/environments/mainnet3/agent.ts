@@ -115,6 +115,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: true,
     shibarium: true,
     solanamainnet: true,
+    stride: false,
     superposition: true,
     taiko: true,
     tangle: true,
@@ -189,6 +190,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: true,
     shibarium: true,
     solanamainnet: true,
+    stride: true,
     superposition: true,
     taiko: true,
     tangle: true,
@@ -264,6 +266,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     shibarium: true,
     // Cannot scrape Sealevel chains
     solanamainnet: false,
+    stride: true,
     superposition: true,
     taiko: true,
     tangle: true,
@@ -418,7 +421,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b1ff48b-20241016-183301',
+      tag: '42d6b50-20241021-155906',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -437,7 +440,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '9c0c4bb-20241018-113820',
+      tag: '42d6b50-20241021-155906',
     },
     resources: scraperResources,
   },
@@ -452,7 +455,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b1ff48b-20241016-183301',
+      tag: '42d6b50-20241021-155906',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
