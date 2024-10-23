@@ -82,6 +82,8 @@ export const keyFunderConfig: KeyFunderConfig<
     scroll: '0.5',
     sei: '50',
     shibarium: '50',
+    // ignore non-evm chains
+    stride: '0',
     superposition: '0.05',
     taiko: '0.2',
     tangle: '2',
