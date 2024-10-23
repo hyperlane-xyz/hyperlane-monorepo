@@ -21,7 +21,6 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { EvmModuleDeployer } from '../deploy/EvmModuleDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -53,7 +52,6 @@ export class EvmIsmModule extends HyperlaneModule<
 > {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmModule' });
   protected readonly reader: EvmIsmReader;
-  protected readonly deployer: EvmModuleDeployer<any>;
   protected readonly ismFactory: HyperlaneIsmFactory;
   protected readonly mailbox: Address;
 
@@ -75,12 +73,6 @@ export class EvmIsmModule extends HyperlaneModule<
     super(params);
 
     this.reader = new EvmIsmReader(multiProvider, params.chain);
-    this.deployer = new EvmModuleDeployer(
-      this.multiProvider,
-      {},
-      this.logger,
-      contractVerifier,
-    );
 
     this.ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       { [params.chain]: params.addresses },
