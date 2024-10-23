@@ -8,7 +8,6 @@ use hyperlane_core::{
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
-use solana_sdk::commitment_config::CommitmentConfig;
 use tracing::instrument;
 
 use crate::{SealevelMailbox, SealevelMailboxIndexer};
@@ -25,13 +24,8 @@ impl MerkleTreeHook for SealevelMailbox {
 
         let outbox_account = self
             .rpc()
-            .get_account_with_commitment(&self.outbox.0, CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("Could not find account data")
-            })?;
+            .get_account_with_finalized_commitment(&self.outbox.0)
+            .await?;
         let outbox = OutboxAccount::fetch(&mut outbox_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();

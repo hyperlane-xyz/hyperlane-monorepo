@@ -1,6 +1,5 @@
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
-
-import { fetchWithTimeout } from './timeout.js';
+import { fetchWithTimeout } from '@hyperlane-xyz/utils';
 
 export interface ExplorerQueryResponse<R> {
   status: string;

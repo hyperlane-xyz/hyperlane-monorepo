@@ -52,6 +52,7 @@ export abstract class GasRouterDeployer<
         chain,
         this.router(contracts)['setDestinationGas((uint32,uint256)[])'](
           remoteConfigs,
+          this.multiProvider.getTransactionOverrides(chain),
         ),
       );
     }

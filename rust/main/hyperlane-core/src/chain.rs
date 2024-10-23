@@ -295,6 +295,9 @@ impl HyperlaneDomainProtocol {
 )]
 pub enum HyperlaneDomainTechnicalStack {
     ArbitrumNitro,
+    OpStack,
+    PolygonCDK,
+    PolkadotSubstrate,
     #[default]
     Other,
 }
@@ -368,19 +371,27 @@ impl KnownHyperlaneDomain {
                 // Test chains
                 ConnextSepolia, PlumeTestnet, SuperpositionTestnet
             ],
+            HyperlaneDomainTechnicalStack::OpStack: [
+                Ancient8, Blast, Bob, Cyber, Fraxtal, Kroma, Lisk, MantaPacific, Mantle, Metis,
+                Mint, Mode, Optimism, Redstone, Worldchain, Zircuit, ZoraMainnet
+            ],
+            HyperlaneDomainTechnicalStack::PolygonCDK: [
+                Merlin, Xlayer
+            ],
+            HyperlaneDomainTechnicalStack::PolkadotSubstrate: [
+                Moonbeam, Tangle
+            ],
             HyperlaneDomainTechnicalStack::Other: [
-                Ancient8, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cyber, EclipseMainnet, Endurance, Ethereum,
-                Fraxtal, Fuji, FuseMainnet, Gnosis, Injective, Kroma, Linea, Lisk, Lukso,
-                MantaPacific, Mantle, Merlin, Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis,
-                Polygon, Redstone, Sei, SolanaMainnet, Taiko, Tangle, Viction, Worldchain, Xlayer, Zetachain,
-                Zircuit, ZoraMainnet,
+                Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
+                FuseMainnet, Gnosis, Injective, Linea, Lukso, Neutron, Osmosis, Polygon,
+                Sei, SolanaMainnet, Taiko, Viction, Zetachain,
 
                 // Local chains
                 CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,
                 Test2, Test3,
 
                 // Test chains
-                Alfajores, BinanceSmartChainTestnet, Chiado, Holesky, MoonbaseAlpha, ScrollSepolia,
+                Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
                 Sepolia
            ],
         })

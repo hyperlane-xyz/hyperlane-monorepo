@@ -77,6 +77,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     everclear: true,
     flare: true,
+    flow: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -91,6 +92,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantapacific: true,
     mantle: true,
     merlin: true,
+    metall2: true,
     metis: true,
     mint: true,
     mode: true,
@@ -102,6 +104,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     osmosis: true,
     polygon: true,
     polygonzkevm: true,
+    polynomial: true,
     proofofplay: true,
     rari: true,
     real: true,
@@ -147,6 +150,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ethereum: true,
     everclear: true,
     flare: true,
+    flow: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -161,6 +165,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantapacific: true,
     mantle: true,
     merlin: true,
+    metall2: true,
     metis: true,
     mint: true,
     mode: true,
@@ -173,6 +178,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     osmosis: true,
     polygon: true,
     polygonzkevm: true,
+    polynomial: true,
     proofofplay: true,
     rari: true,
     real: true,
@@ -213,19 +219,19 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     cyber: true,
     degenchain: true,
     dogechain: true,
-    // Cannot scrape non-EVM chains
+    // Cannot scrape Sealevel chains
     eclipsemainnet: false,
     endurance: true,
     ethereum: true,
     everclear: true,
     flare: true,
+    flow: true,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
     immutablezkevm: true,
     inevm: true,
-    // Cannot scrape non-EVM chains
-    injective: false,
+    injective: true,
     kroma: true,
     linea: true,
     lisk: true,
@@ -234,19 +240,19 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     mantapacific: true,
     mantle: true,
     merlin: true,
+    metall2: true,
     metis: true,
     mint: true,
     mode: true,
     molten: true,
     moonbeam: true,
-    // Cannot scrape non-EVM chains
-    neutron: false,
+    neutron: true,
     oortmainnet: true,
     optimism: true,
-    // Cannot scrape non-EVM chains
-    osmosis: false,
+    osmosis: true,
     polygon: true,
     polygonzkevm: true,
+    polynomial: true,
     proofofplay: true,
     rari: true,
     real: true,
@@ -254,11 +260,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     rootstock: true,
     sanko: true,
     scroll: true,
-    // Out of caution around pointer contracts (https://www.docs.sei.io/dev-interoperability/pointer-contracts) not being compatible
-    // and the scraper not gracefully handling txs that may not exist via the eth RPC, we don't run the scraper.
-    sei: false,
+    sei: true,
     shibarium: true,
-    // Cannot scrape non-EVM chains
+    // Cannot scrape Sealevel chains
     solanamainnet: false,
     superposition: true,
     taiko: true,
@@ -414,7 +418,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6f414af-20241004-131949',
+      tag: 'b1ff48b-20241016-183301',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -423,7 +427,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '6f414af-20241004-131949',
+      tag: 'efd438f-20241016-101828',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -433,7 +437,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6f414af-20241004-131949',
+      tag: '9c0c4bb-20241018-113820',
     },
     resources: scraperResources,
   },
@@ -448,7 +452,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5cb1787-20240924-192934',
+      tag: 'b1ff48b-20241016-183301',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -481,7 +485,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5a0d68b-20240916-144115',
+      tag: 'b1ff48b-20241016-183301',
     },
     gasPaymentEnforcement: [
       {
