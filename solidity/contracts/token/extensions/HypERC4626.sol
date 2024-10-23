@@ -37,6 +37,7 @@ contract HypERC4626 is HypERC20 {
 
     /// Override transfer to handle underlying amounts while using shares internally
     /// @inheritdoc ERC20Upgradeable
+    /// @dev the Transfer event emitted from ERC20Upgradeable will be in terms of shares not assets, so it may be misleading
     function transfer(
         address to,
         uint256 amount
@@ -133,17 +134,5 @@ contract HypERC4626 is HypERC20 {
             exchangeRate = abi.decode(_message.metadata(), (uint256));
         }
         super._handle(_origin, _sender, _message);
-    }
-
-    /// override _transfer to handle share amounts internally but emit asset amounts
-    /// @notice This maintains internal share-based accounting while providing asset-based transfer events
-    /// @inheritdoc ERC20Upgradeable
-    function _transfer(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) internal virtual override {
-        super._transfer(sender, recipient, amount);
-        emit Transfer(sender, recipient, sharesToAssets(amount));
     }
 }
