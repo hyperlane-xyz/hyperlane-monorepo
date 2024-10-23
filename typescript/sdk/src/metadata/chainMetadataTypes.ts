@@ -10,6 +10,14 @@ import { ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 
+export enum EthJsonRpcBlockParameterTag {
+  Earliest = 'earliest',
+  Latest = 'latest',
+  Safe = 'safe',
+  Finalized = 'finalized',
+  Pending = 'pending',
+}
+
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',

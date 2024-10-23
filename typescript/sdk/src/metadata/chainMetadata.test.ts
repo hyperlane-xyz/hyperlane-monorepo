@@ -2,7 +2,11 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, isValidChainMetadata } from './chainMetadataTypes.js';
+import {
+  ChainMetadata,
+  EthJsonRpcBlockParameterTag,
+  isValidChainMetadata,
+} from './chainMetadataTypes.js';
 
 const minimalSchema: ChainMetadata = {
   chainId: 5,
@@ -68,7 +72,7 @@ describe('ChainMetadataSchema', () => {
         ...minimalSchema,
         blocks: {
           confirmations: 1,
-          reorgPeriod: 'finalized',
+          reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
         },
       }),
     ).to.eq(true);
