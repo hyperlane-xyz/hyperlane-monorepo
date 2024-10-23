@@ -202,11 +202,13 @@ where
             },
             CursorAction::Sleep(duration) => duration,
         };
-        debug!(
-            cursor = ?cursor,
-            "Cursor can't make progress, sleeping",
-        );
-        sleep(sleep_duration).await
+        if sleep_duration > Duration::from_secs(0) {
+            debug!(
+                cursor = ?cursor,
+                "Cursor can't make progress, sleeping",
+            );
+            sleep(sleep_duration).await
+        }
     }
 
     async fn dedupe_and_store_logs(

@@ -784,7 +784,8 @@
       "gasCurrencyCoinGeckoId": "ethereum",
       "index": {
         "from": 1,
-        "mode": "sequence"
+        "mode": "sequence",
+        "chunk": 100
       },
       "interchainGasPaymaster": "ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK",
       "mailbox": "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y",
@@ -2804,7 +2805,8 @@
       "gasCurrencyCoinGeckoId": "solana",
       "index": {
         "from": 1,
-        "mode": "sequence"
+        "mode": "sequence",
+        "chunk": 100
       },
       "interchainGasPaymaster": "JAvHW21tYXE9dtdG83DReqU2b4LUexFuCbtJT5tF8X6M",
       "mailbox": "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi",
