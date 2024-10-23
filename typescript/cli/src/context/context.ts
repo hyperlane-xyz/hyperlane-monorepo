@@ -195,6 +195,10 @@ export async function getOrRequestApiKeys(
   const apiKeys: ChainMap<string> = {};
 
   for (const chain of chains) {
+    if (chainMetadata[chain]?.blockExplorers?.[0]?.apiKey) {
+      apiKeys[chain] = chainMetadata[chain]!.blockExplorers![0]!.apiKey!;
+      continue;
+    }
     const wantApiKey = await confirm({
       default: false,
       message: `Do you want to use an API key to verify on this (${chain}) chain's block explorer`,

@@ -11,25 +11,30 @@ use std::{
 
 use convert_case::{Case, Casing};
 use eyre::{eyre, Context};
-use h_cosmos::RawCosmosAmount;
-use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode,
-};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
 
-pub use self::json_value_parser::ValueParser;
-pub use super::envs::*;
+use h_cosmos::RawCosmosAmount;
+use hyperlane_core::{
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod,
+};
+
 use crate::settings::{
     chains::IndexSettings, parser::connection_parser::build_connection_conf, trace::TracingConfig,
     ChainConf, CoreContractAddresses, Settings, SignerConf,
 };
 
+pub use super::envs::*;
+
+pub use self::json_value_parser::ValueParser;
+
 mod connection_parser;
 mod json_value_parser;
+
+const DEFAULT_CHUNK_SIZE: u32 = 1999;
 
 /// The base agent config
 #[derive(Debug, Deserialize)]
@@ -133,8 +138,8 @@ fn parse_chain(
         .chain(&mut err)
         .get_opt_key("blocks")
         .get_key("reorgPeriod")
-        .parse_u32()
-        .unwrap_or(1);
+        .parse_value("Invalid reorgPeriod")
+        .unwrap_or(ReorgPeriod::from_blocks(1));
 
     let rpcs = parse_base_and_override_urls(&chain, "rpcUrls", "customRpcUrls", "http", &mut err);
 
@@ -149,7 +154,7 @@ fn parse_chain(
         .get_opt_key("index")
         .get_opt_key("chunk")
         .parse_u32()
-        .unwrap_or(1999);
+        .unwrap_or(DEFAULT_CHUNK_SIZE);
     let mode = chain
         .chain(&mut err)
         .get_opt_key("index")
@@ -329,9 +334,16 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .get_key("prefix")
                 .parse_string()
                 .unwrap_or_default();
+            let account_address_type = signer
+                .chain(&mut err)
+                .get_opt_key("accountAddressType")
+                .parse_from_str("Expected Account Address Type")
+                .end()
+                .unwrap_or_default();
             err.into_result(SignerConf::CosmosKey {
                 key,
                 prefix: prefix.to_string(),
+                account_address_type,
             })
         }};
     }

@@ -463,6 +463,12 @@ fn run_locally() {
         .unwrap()
     );
 
+    // count all the dispatched messages
+    let mut dispatched_messages = 0;
+
+    // dispatch the first batch of messages (before agents start)
+    dispatched_messages += dispatch(&osmosisd, linker, &nodes);
+
     let config_dir = tempdir().unwrap();
 
     // export agent config
@@ -525,9 +531,51 @@ fn run_locally() {
 
     let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
 
-    // dispatch messages
-    let mut dispatched_messages = 0;
+    // dispatch the second batch of messages (after agents start)
+    dispatched_messages += dispatch(&osmosisd, linker, &nodes);
 
+    let _stack = CosmosHyperlaneStack {
+        validators: hpl_val.into_iter().map(|v| v.join()).collect(),
+        relayer: hpl_rly.join(),
+        scraper: hpl_scr.join(),
+        postgres,
+    };
+
+    // Mostly copy-pasta from `rust/main/utils/run-locally/src/main.rs`
+    // TODO: refactor to share code
+    let loop_start = Instant::now();
+    let mut failure_occurred = false;
+    loop {
+        // look for the end condition.
+        if termination_invariants_met(
+            hpl_rly_metrics_port,
+            hpl_scr_metrics_port,
+            dispatched_messages,
+            starting_relayer_balance,
+        )
+        .unwrap_or(false)
+        {
+            // end condition reached successfully
+            break;
+        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
+            // we ran out of time
+            log!("timeout reached before message submission was confirmed");
+            failure_occurred = true;
+            break;
+        }
+
+        sleep(Duration::from_secs(5));
+    }
+
+    if failure_occurred {
+        panic!("E2E tests failed");
+    } else {
+        log!("E2E tests passed");
+    }
+}
+
+fn dispatch(osmosisd: &Path, linker: &str, nodes: &[CosmosNetwork]) -> u32 {
+    let mut dispatched_messages = 0;
     for node in nodes.iter() {
         let targets = nodes
             .iter()
@@ -545,7 +593,7 @@ fn run_locally() {
         for target in targets {
             dispatched_messages += 1;
             let cli = OsmosisCLI::new(
-                osmosisd.clone(),
+                osmosisd.to_path_buf(),
                 node.launch_resp.home_path.to_str().unwrap(),
             );
 
@@ -574,78 +622,43 @@ fn run_locally() {
         }
     }
 
-    let _stack = CosmosHyperlaneStack {
-        validators: hpl_val.into_iter().map(|v| v.join()).collect(),
-        relayer: hpl_rly.join(),
-        scraper: hpl_scr.join(),
-        postgres,
-    };
-
-    // Mostly copy-pasta from `rust/main/utils/run-locally/src/main.rs`
-    // TODO: refactor to share code
-    let loop_start = Instant::now();
-    let mut failure_occurred = false;
-    loop {
-        // look for the end condition.
-        if termination_invariants_met(
-            hpl_rly_metrics_port,
-            dispatched_messages,
-            starting_relayer_balance,
-        )
-        .unwrap_or(false)
-        {
-            // end condition reached successfully
-            break;
-        } else if (Instant::now() - loop_start).as_secs() > TIMEOUT_SECS {
-            // we ran out of time
-            log!("timeout reached before message submission was confirmed");
-            failure_occurred = true;
-            break;
-        }
-
-        sleep(Duration::from_secs(5));
-    }
-
-    if failure_occurred {
-        panic!("E2E tests failed");
-    } else {
-        log!("E2E tests passed");
-    }
+    dispatched_messages
 }
 
 fn termination_invariants_met(
     relayer_metrics_port: u32,
+    scraper_metrics_port: u32,
     messages_expected: u32,
     starting_relayer_balance: f64,
 ) -> eyre::Result<bool> {
-    let gas_payments_scraped = fetch_metric(
+    let expected_gas_payments = messages_expected;
+    let gas_payments_event_count = fetch_metric(
         &relayer_metrics_port.to_string(),
         "hyperlane_contract_sync_stored_events",
         &hashmap! {"data_type" => "gas_payment"},
     )?
     .iter()
     .sum::<u32>();
-    let expected_gas_payments = messages_expected;
-    if gas_payments_scraped != expected_gas_payments {
+    if gas_payments_event_count != expected_gas_payments {
         log!(
             "Relayer has indexed {} gas payments, expected {}",
-            gas_payments_scraped,
+            gas_payments_event_count,
             expected_gas_payments
         );
         return Ok(false);
     }
 
-    let delivered_messages_scraped = fetch_metric(
+    let msg_processed_count = fetch_metric(
         &relayer_metrics_port.to_string(),
         "hyperlane_operations_processed_count",
         &hashmap! {"phase" => "confirmed"},
     )?
     .iter()
     .sum::<u32>();
-    if delivered_messages_scraped != messages_expected {
+    if msg_processed_count != messages_expected {
         log!(
             "Relayer confirmed {} submitted messages, expected {}",
-            delivered_messages_scraped,
+            msg_processed_count,
             messages_expected
         );
         return Ok(false);
@@ -663,6 +676,54 @@ fn termination_invariants_met(
             "Expected starting relayer balance to be greater than ending relayer balance, but got {} <= {}",
             starting_relayer_balance,
             ending_relayer_balance
+        );
+        return Ok(false);
+    }
+
+    let dispatched_messages_scraped = fetch_metric(
+        &scraper_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_dispatch"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if dispatched_messages_scraped != messages_expected {
+        log!(
+            "Scraper has scraped {} dispatched messages, expected {}",
+            dispatched_messages_scraped,
+            messages_expected
+        );
+        return Ok(false);
+    }
+
+    let gas_payments_scraped = fetch_metric(
+        &scraper_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if gas_payments_scraped != expected_gas_payments {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            expected_gas_payments
+        );
+        return Ok(false);
+    }
+
+    let delivered_messages_scraped = fetch_metric(
+        &scraper_metrics_port.to_string(),
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_delivery"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if delivered_messages_scraped != messages_expected {
+        log!(
+            "Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped,
+            messages_expected
         );
         return Ok(false);
     }

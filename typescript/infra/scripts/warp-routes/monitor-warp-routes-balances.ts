@@ -17,6 +17,8 @@ import {
   CwNativeTokenAdapter,
   MultiProtocolProvider,
   SealevelHypCollateralAdapter,
+  SealevelHypNativeAdapter,
+  SealevelHypSyntheticAdapter,
   TokenType,
   WarpRouteConfig,
   WarpRouteConfigSchema,
@@ -53,10 +55,11 @@ const xERC20LimitsGauge = new Gauge({
   name: 'hyperlane_xerc20_limits',
   help: 'Current minting and burning limits of xERC20 tokens',
   registers: [metricsRegister],
-  labelNames: ['chain_name', 'limit_type'],
+  labelNames: ['chain_name', 'limit_type', 'token_name'],
 });
 
 interface xERC20Limit {
+  tokenName: string;
   mint: number;
   burn: number;
   mintMax: number;
@@ -100,18 +103,7 @@ async function main(): Promise<boolean> {
   const registry = await envConfig.getRegistry();
   const chainMetadata = await registry.getMetadata();
 
-  // TODO: eventually support token balance checks for xERC20 token type also
-  if (
-    Object.values(tokenConfig).some(
-      (token) =>
-        token.type === TokenType.XERC20 ||
-        token.type === TokenType.XERC20Lockbox,
-    )
-  ) {
-    await checkXERC20Limits(checkFrequency, tokenConfig, chainMetadata);
-  } else {
-    await checkTokenBalances(checkFrequency, tokenConfig, chainMetadata);
-  }
+  await checkWarpRouteMetrics(checkFrequency, tokenConfig, chainMetadata);
 
   return true;
 }
@@ -134,9 +126,26 @@ async function checkBalance(
                 ethers.utils.formatUnits(nativeBalance, token.decimals),
               );
             }
-            case ProtocolType.Sealevel:
-              // TODO - solana native
-              return 0;
+            case ProtocolType.Sealevel: {
+              const adapter = new SealevelHypNativeAdapter(
+                chain,
+                multiProtocolProvider,
+                {
+                  token: token.tokenAddress,
+                  warpRouter: token.hypAddress,
+                  // Mailbox only required for transfers, using system as placeholder
+                  mailbox: SystemProgram.programId.toBase58(),
+                },
+                // Not used for native tokens, but required for the adapter
+                token?.isSpl2022 ?? false,
+              );
+              const balance = ethers.BigNumber.from(
+                await adapter.getBalance(token.hypAddress),
+              );
+              return parseFloat(
+                ethers.utils.formatUnits(balance, token.decimals),
+              );
+            }
             case ProtocolType.Cosmos: {
               if (!token.ibcDenom)
                 throw new Error('IBC denom missing for native token');
@@ -174,7 +183,7 @@ async function checkBalance(
             }
             case ProtocolType.Sealevel: {
               if (!token.tokenAddress)
-                throw new Error('Token address missing for synthetic token');
+                throw new Error('Token address missing for collateral token');
               const adapter = new SealevelHypCollateralAdapter(
                 chain,
                 multiProtocolProvider,
@@ -227,14 +236,86 @@ async function checkBalance(
                 ethers.utils.formatUnits(syntheticBalance, token.decimals),
               );
             }
-            case ProtocolType.Sealevel:
-              // TODO - solana native
-              return 0;
+            case ProtocolType.Sealevel: {
+              if (!token.tokenAddress)
+                throw new Error('Token address missing for synthetic token');
+              const adapter = new SealevelHypSyntheticAdapter(
+                chain,
+                multiProtocolProvider,
+                {
+                  token: token.tokenAddress,
+                  warpRouter: token.hypAddress,
+                  // Mailbox only required for transfers, using system as placeholder
+                  mailbox: SystemProgram.programId.toBase58(),
+                },
+                token?.isSpl2022 ?? false,
+              );
+              const syntheticBalance = ethers.BigNumber.from(
+                await adapter.getTotalSupply(),
+              );
+              return parseFloat(
+                ethers.utils.formatUnits(syntheticBalance, token.decimals),
+              );
+            }
             case ProtocolType.Cosmos:
-              // TODO - cosmos native
+              // TODO - cosmos synthetic
               return 0;
           }
           break;
+        }
+        case TokenType.XERC20: {
+          switch (token.protocolType) {
+            case ProtocolType.Ethereum: {
+              const provider = multiProtocolProvider.getEthersV5Provider(chain);
+              const hypXERC20 = HypXERC20__factory.connect(
+                token.hypAddress,
+                provider,
+              );
+              const xerc20Address = await hypXERC20.wrappedToken();
+              const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
+              const syntheticBalance = await xerc20.totalSupply();
+
+              return parseFloat(
+                ethers.utils.formatUnits(syntheticBalance, token.decimals),
+              );
+            }
+            default:
+              throw new Error(
+                `Unsupported protocol type ${token.protocolType} for token type ${token.type}`,
+              );
+          }
+        }
+        case TokenType.XERC20Lockbox: {
+          switch (token.protocolType) {
+            case ProtocolType.Ethereum: {
+              if (!token.tokenAddress)
+                throw new Error(
+                  'Token address missing for xERC20Lockbox token',
+                );
+              const provider = multiProtocolProvider.getEthersV5Provider(chain);
+              const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+                token.hypAddress,
+                provider,
+              );
+              const xerc20LockboxAddress = await hypXERC20Lockbox.lockbox();
+              const tokenContract = ERC20__factory.connect(
+                token.tokenAddress,
+                provider,
+              );
+
+              const collateralBalance = await tokenContract.balanceOf(
+                xerc20LockboxAddress,
+              );
+
+              return parseFloat(
+                ethers.utils.formatUnits(collateralBalance, token.decimals),
+              );
+            }
+            default:
+              throw new Error(
+                `Unsupported protocol type ${token.protocolType} for token type ${token.type}`,
+              );
+          }
         }
       }
       return 0;
@@ -266,46 +347,51 @@ export function updateTokenBalanceMetrics(
   });
 }
 
-export function updateXERC20LimitsMetrics(xERC20Limits: ChainMap<xERC20Limit>) {
-  objMap(xERC20Limits, (chain: ChainName, limit: xERC20Limit) => {
-    xERC20LimitsGauge
-      .labels({
-        chain_name: chain,
-        limit_type: 'mint',
-      })
-      .set(limit.mint);
-    xERC20LimitsGauge
-      .labels({
-        chain_name: chain,
-        limit_type: 'burn',
-      })
-      .set(limit.burn);
-    xERC20LimitsGauge
-      .labels({
-        chain_name: chain,
-        limit_type: 'mintMax',
-      })
-      .set(limit.mintMax);
-    xERC20LimitsGauge
-      .labels({
-        chain_name: chain,
-        limit_type: 'burnMax',
-      })
-      .set(limit.burnMax);
-    logger.info('xERC20 limits updated for chain', {
-      chain,
-      mint: limit.mint,
-      burn: limit.burn,
-      mintMax: limit.mintMax,
-      burnMax: limit.burnMax,
-    });
+export function updateXERC20LimitsMetrics(
+  xERC20Limits: ChainMap<xERC20Limit | undefined>,
+) {
+  objMap(xERC20Limits, (chain: ChainName, limits: xERC20Limit | undefined) => {
+    if (limits) {
+      xERC20LimitsGauge
+        .labels({
+          chain_name: chain,
+          limit_type: 'mint',
+          token_name: limits.tokenName,
+        })
+        .set(limits.mint);
+      xERC20LimitsGauge
+        .labels({
+          chain_name: chain,
+          limit_type: 'burn',
+          token_name: limits.tokenName,
+        })
+        .set(limits.burn);
+      xERC20LimitsGauge
+        .labels({
+          chain_name: chain,
+          limit_type: 'mintMax',
+          token_name: limits.tokenName,
+        })
+        .set(limits.mintMax);
+      xERC20LimitsGauge
+        .labels({
+          chain_name: chain,
+          limit_type: 'burnMax',
+          token_name: limits.tokenName,
+        })
+        .set(limits.burnMax);
+      logger.info('xERC20 limits updated for chain', {
+        chain,
+        limits,
+      });
+    }
   });
 }
 
 async function getXERC20Limits(
   tokenConfig: WarpRouteConfig,
   chainMetadata: ChainMap<ChainMetadata>,
-): Promise<ChainMap<xERC20Limit>> {
+): Promise<ChainMap<xERC20Limit | undefined>> {
   const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
 
   const output = objMap(
@@ -323,7 +409,12 @@ async function getXERC20Limits(
               );
               const xerc20Address = await lockbox.xERC20();
               const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
-              return getXERC20Limit(routerAddress, xerc20, token.decimals);
+              return getXERC20Limit(
+                routerAddress,
+                xerc20,
+                token.decimals,
+                token.name,
+              );
             }
             case TokenType.XERC20: {
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
@@ -334,10 +425,19 @@ async function getXERC20Limits(
               );
               const xerc20Address = await hypXERC20.wrappedToken();
               const xerc20 = IXERC20__factory.connect(xerc20Address, provider);
-              return getXERC20Limit(routerAddress, xerc20, token.decimals);
+              return getXERC20Limit(
+                routerAddress,
+                xerc20,
+                token.decimals,
+                token.name,
+              );
             }
             default:
-              throw new Error(`Unsupported token type ${token.type}`);
+              logger.info(
+                `Unsupported token type ${token.type} for xERC20 limits check on protocol type ${token.protocolType}`,
+              );
+
+              return undefined;
           }
         }
         default:
@@ -353,12 +453,14 @@ const getXERC20Limit = async (
   routerAddress: string,
   xerc20: IXERC20,
   decimals: number,
+  tokenName: string,
 ): Promise<xERC20Limit> => {
   const mintCurrent = await xerc20.mintingCurrentLimitOf(routerAddress);
   const mintMax = await xerc20.mintingMaxLimitOf(routerAddress);
   const burnCurrent = await xerc20.burningCurrentLimitOf(routerAddress);
   const burnMax = await xerc20.burningMaxLimitOf(routerAddress);
   return {
+    tokenName,
     mint: parseFloat(ethers.utils.formatUnits(mintCurrent, decimals)),
     mintMax: parseFloat(ethers.utils.formatUnits(mintMax, decimals)),
     burn: parseFloat(ethers.utils.formatUnits(burnCurrent, decimals)),
@@ -366,37 +468,27 @@ const getXERC20Limit = async (
   };
 };
 
-async function checkXERC20Limits(
+async function checkWarpRouteMetrics(
   checkFrequency: number,
   tokenConfig: WarpRouteConfig,
   chainMetadata: ChainMap<ChainMetadata>,
 ) {
   setInterval(async () => {
+    try {
+      const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
+      const balances = await checkBalance(tokenConfig, multiProtocolProvider);
+      logger.info('Token Balances:', balances);
+      updateTokenBalanceMetrics(tokenConfig, balances);
+    } catch (e) {
+      logger.error('Error checking balances', e);
+    }
+
     try {
       const xERC20Limits = await getXERC20Limits(tokenConfig, chainMetadata);
       logger.info('xERC20 Limits:', xERC20Limits);
       updateXERC20LimitsMetrics(xERC20Limits);
     } catch (e) {
-      logger.error('Error checking balances', e);
-    }
-  }, checkFrequency);
-}
-
-async function checkTokenBalances(
-  checkFrequency: number,
-  tokenConfig: WarpRouteConfig,
-  chainMetadata: ChainMap<ChainMetadata>,
-) {
-  logger.info('Starting Warp Route balance monitor');
-  const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
-
-  setInterval(async () => {
-    try {
-      logger.debug('Checking balances');
-      const balances = await checkBalance(tokenConfig, multiProtocolProvider);
-      updateTokenBalanceMetrics(tokenConfig, balances);
-    } catch (e) {
-      logger.error('Error checking balances', e);
+      logger.error('Error checking xERC20 limits', e);
     }
   }, checkFrequency);
 }

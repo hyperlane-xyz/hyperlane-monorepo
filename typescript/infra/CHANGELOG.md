@@ -1,5 +1,42 @@
 # @hyperlane-xyz/infra
 
+## 5.5.0
+
+### Patch Changes
+
+- Updated dependencies [2afc484a2]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/sdk@5.5.0
+  - @hyperlane-xyz/utils@5.5.0
+  - @hyperlane-xyz/helloworld@5.5.0
+
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+  - @hyperlane-xyz/sdk@5.4.0
+  - @hyperlane-xyz/helloworld@5.4.0
+
+## 5.3.0
+
+### Patch Changes
+
+- Updated dependencies [eb47aaee8]
+- Updated dependencies [50319d8ba]
+- Updated dependencies [35d4503b9]
+- Updated dependencies [8de531fa4]
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [fd536a79a]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/sdk@5.3.0
+  - @hyperlane-xyz/helloworld@5.3.0
+  - @hyperlane-xyz/utils@5.3.0
+
 ## 5.2.1
 
 ### Patch Changes

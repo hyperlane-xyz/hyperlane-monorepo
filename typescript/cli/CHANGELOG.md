@@ -1,5 +1,49 @@
 # @hyperlane-xyz/cli
 
+## 5.5.0
+
+### Patch Changes
+
+- fcfe91113: Reuse SDK transaction typings in tx submitters
+- Updated dependencies [2afc484a2]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/sdk@5.5.0
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+  - @hyperlane-xyz/sdk@5.4.0
+
+## 5.3.0
+
+### Minor Changes
+
+- 35d4503b9: Update to registry v4.3.6
+- aef3dbf4d: Remove mailbox choice prompt if it can be automatically detected from the registry
+
+### Patch Changes
+
+- a513e1b51: Override default with merkle hook for self relay
+- Updated dependencies [eb47aaee8]
+- Updated dependencies [50319d8ba]
+- Updated dependencies [8de531fa4]
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [fd536a79a]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/sdk@5.3.0
+  - @hyperlane-xyz/utils@5.3.0
+
 ## 5.2.1
 
 ### Patch Changes

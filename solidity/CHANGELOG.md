@@ -1,5 +1,33 @@
 # @hyperlane-xyz/core
 
+## 5.4.1
+
+### Patch Changes
+
+- 92c86cca6: Forward value from ICA router to proxy for multicall
+- Updated dependencies [2afc484a2]
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- bb75eba74: fix: constrain rate limited ISM to a single message recipient
+- c5c217f8e: Embed NPM package version in bytecode constant
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+
+## 5.3.0
+
+### Patch Changes
+
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/utils@5.3.0
+
 ## 5.2.1
 
 ### Patch Changes

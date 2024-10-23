@@ -5,10 +5,11 @@ use cosmrs::{
     AccountId,
 };
 use derive_new::new;
-use hyperlane_core::{ChainCommunicationError, ChainResult, Error::Overflow, H256};
+use hyperlane_core::{
+    AccountAddressType, ChainCommunicationError, ChainResult, Error::Overflow, H256,
+};
 
-use crate::libs::account::CosmosAccountId;
-use crate::HyperlaneCosmosError;
+use crate::{CosmosAccountId, HyperlaneCosmosError};
 
 /// Wrapper around the cosmrs AccountId type that abstracts bech32 encoding
 #[derive(new, Debug, Clone)]
@@ -20,23 +21,19 @@ pub struct CosmosAddress {
 }
 
 impl CosmosAddress {
-    /// Returns a Bitcoin style address: RIPEMD160(SHA256(pubkey))
-    /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
-    pub fn from_pubkey(pubkey: PublicKey, prefix: &str) -> ChainResult<Self> {
-        let account_id = CosmosAccountId::account_id_from_pubkey(pubkey, prefix)?;
-        Self::from_account_id(account_id)
-    }
-
     /// Creates a wrapper around a cosmrs AccountId from a private key byte array
-    pub fn from_privkey(priv_key: &[u8], prefix: &str) -> ChainResult<Self> {
+    pub fn from_privkey(
+        priv_key: &[u8],
+        prefix: &str,
+        account_address_type: &AccountAddressType,
+    ) -> ChainResult<Self> {
         let pubkey = SigningKey::from_slice(priv_key)
             .map_err(Into::<HyperlaneCosmosError>::into)?
             .public_key();
-        Self::from_pubkey(pubkey, prefix)
+        Self::from_pubkey(pubkey, prefix, account_address_type)
     }
 
-    /// Returns a Bitcoin style address calculated from Bech32 encoding
-    /// Source: `<https://github.com/cosmos/cosmos-sdk/blob/177e7f45959215b0b4e85babb7c8264eaceae052/crypto/keys/secp256k1/secp256k1.go#L154>`
+    /// Returns an account address calculated from Bech32 encoding
     pub fn from_account_id(account_id: AccountId) -> ChainResult<Self> {
         // Hex digest
         let digest = H256::try_from(&CosmosAccountId::new(&account_id))?;
@@ -77,13 +74,25 @@ impl CosmosAddress {
     pub fn digest(&self) -> H256 {
         self.digest
     }
+
+    /// Calculates an account address depending on prefix and account address type
+    fn from_pubkey(
+        pubkey: PublicKey,
+        prefix: &str,
+        account_address_type: &AccountAddressType,
+    ) -> ChainResult<Self> {
+        let account_id =
+            CosmosAccountId::account_id_from_pubkey(pubkey, prefix, account_address_type)?;
+        Self::from_account_id(account_id)
+    }
 }
 
 impl TryFrom<&CosmosAddress> for H256 {
     type Error = ChainCommunicationError;
 
     fn try_from(cosmos_address: &CosmosAddress) -> Result<Self, Self::Error> {
-        CosmosAccountId::new(&cosmos_address.account_id).try_into()
+        H256::try_from(CosmosAccountId::new(&cosmos_address.account_id))
+            .map_err(Into::<ChainCommunicationError>::into)
     }
 }
 
@@ -119,8 +128,9 @@ pub mod test {
         let hex_key = "0x5486418967eabc770b0fcb995f7ef6d9a72f7fc195531ef76c5109f44f51af26";
         let key = hex_or_base58_to_h256(hex_key).unwrap();
         let prefix = "neutron";
-        let addr = CosmosAddress::from_privkey(key.as_bytes(), prefix)
-            .expect("Cosmos address creation failed");
+        let addr =
+            CosmosAddress::from_privkey(key.as_bytes(), prefix, &AccountAddressType::Bitcoin)
+                .expect("Cosmos address creation failed");
         assert_eq!(
             addr.address(),
             "neutron1kknekjxg0ear00dky5ykzs8wwp2gz62z9s6aaj"

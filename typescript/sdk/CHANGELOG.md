@@ -1,5 +1,51 @@
 # @hyperlane-xyz/sdk
 
+## 5.5.0
+
+### Minor Changes
+
+- 2afc484a2: Break out BlockExplorerSchema and export separately
+  Migrate RPC + Explorer health tests back to SDK from registry
+- 3254472e0: Add deployments for chains: immutablezkevm, rari, rootstock, alephzeroevm, chiliz, lumia, and superposition
+- 6176c9861: Add opstack, polygoncdk, polkadotsubstrate and zksync to ChainTechnicalStack enum
+
+### Patch Changes
+
+- fcfe91113: Reuse SDK transaction typings in tx submitters
+- Updated dependencies [92c86cca6]
+- Updated dependencies [2afc484a2]
+  - @hyperlane-xyz/core@5.4.1
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
+### Patch Changes
+
+- Updated dependencies [bb75eba74]
+- Updated dependencies [4415ac224]
+- Updated dependencies [c5c217f8e]
+  - @hyperlane-xyz/core@5.4.0
+  - @hyperlane-xyz/utils@5.4.0
+
+## 5.3.0
+
+### Patch Changes
+
+- eb47aaee8: Use collateral account for sealevel native warp route balance
+- 50319d8ba: Make HyperlaneDeployer.chainTimeoutMs public.
+  Remove HyperlaneDeployer.startingBlockNumbers as it's not used by any deployer.
+  Update HyperlaneDeployer.deploy for better logging and error handling.
+- 8de531fa4: fix: warn on submodule metadata builder failures
+- fd536a79a: Include priority fee instruction with SVM warp transfers
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/utils@5.3.0
+  - @hyperlane-xyz/core@5.3.0
+
 ## 5.2.1
 
 ### Patch Changes

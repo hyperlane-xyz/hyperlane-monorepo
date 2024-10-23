@@ -5,9 +5,8 @@ use url::Url;
 use hyperlane_core::config::OperationBatchConfig;
 use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain};
 
-use crate::address::CosmosAddress;
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::{ConnectionConf, CosmosAmount, RawCosmosAmount};
+use crate::{ConnectionConf, CosmosAddress, CosmosAmount, NativeToken, RawCosmosAmount};
 
 #[ignore]
 #[tokio::test]
@@ -64,6 +63,10 @@ fn provider(address: &str) -> WasmGrpcProvider {
             OperationBatchConfig {
                 batch_contract_address: None,
                 max_batch_size: 1,
+            },
+            NativeToken {
+                decimals: 6,
+                denom: "untrn".to_owned(),
             },
         ),
         CosmosAmount {

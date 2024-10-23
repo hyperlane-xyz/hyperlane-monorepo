@@ -94,6 +94,9 @@ const MONOREPO_ROOT_PATH: &str = "../../";
 
 const ZERO_MERKLE_INSERTION_KATHY_MESSAGES: u32 = 10;
 
+const RELAYER_METRICS_PORT: &str = "9092";
+const SCRAPER_METRICS_PORT: &str = "9093";
+
 type DynPath = Box<dyn AsRef<Path>>;
 
 static RUN_LOG_WATCHERS: AtomicBool = AtomicBool::new(true);
@@ -210,7 +213,7 @@ fn main() -> ExitCode {
             multicall_address_string,
         )
         .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
-        .hyp_env("METRICSPORT", "9092")
+        .hyp_env("METRICSPORT", RELAYER_METRICS_PORT)
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
@@ -284,7 +287,7 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
         .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
-        .hyp_env("METRICSPORT", "9093")
+        .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
         .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
@@ -310,7 +313,11 @@ fn main() -> ExitCode {
     //
 
     let solana_paths = if config.sealevel_enabled {
-        let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
+        let (solana_path, solana_path_tempdir) = install_solana_cli_tools(
+            SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
+            SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
+        )
+        .join();
         state.data.push(Box::new(solana_path_tempdir));
         let solana_program_builder = build_solana_programs(solana_path.clone());
         Some((solana_program_builder.join(), solana_path))
@@ -355,8 +362,14 @@ fn main() -> ExitCode {
     }
 
     let solana_ledger_dir = tempdir().unwrap();
-    let solana_config_path = if let Some((solana_program_path, solana_path)) = solana_paths.clone()
-    {
+    let solana_config_path = if let Some((solana_program_path, _)) = solana_paths.clone() {
+        // use the agave 2.x validator version to ensure mainnet compatibility
+        let (solana_path, solana_path_tempdir) = install_solana_cli_tools(
+            SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
+            SOLANA_NETWORK_CLI_VERSION.to_owned(),
+        )
+        .join();
+        state.data.push(Box::new(solana_path_tempdir));
         let start_solana_validator = start_solana_test_validator(
             solana_path.clone(),
             solana_program_path,

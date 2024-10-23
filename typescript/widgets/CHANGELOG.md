@@ -1,5 +1,45 @@
 # @hyperlane-xyz/widgets
 
+## 5.5.0
+
+### Minor Changes
+
+- 2afc484a2: Create ChainSearchMenu and ChainDetailsMenu components
+  Add required icon and button components
+  Add persisted zustand store and hooks
+  Add clipboard utility functions
+
+### Patch Changes
+
+- Updated dependencies [2afc484a2]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/sdk@5.5.0
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/sdk@5.4.0
+
+## 5.3.0
+
+### Minor Changes
+
+- 35d4503b9: Update to registry v4.3.6
+
+### Patch Changes
+
+- Updated dependencies [eb47aaee8]
+- Updated dependencies [50319d8ba]
+- Updated dependencies [8de531fa4]
+- Updated dependencies [fd536a79a]
+  - @hyperlane-xyz/sdk@5.3.0
+
 ## 5.2.1
 
 ### Patch Changes
