@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { Provider as ZkProvider, Wallet as ZkWallet } from 'zksync-ethers';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
@@ -60,8 +61,8 @@ export abstract class CloudAgentKey extends BaseCloudAgentKey {
   abstract update(): Promise<string>;
 
   abstract getSigner(
-    provider?: ethers.providers.Provider,
-  ): Promise<ethers.Signer>;
+    provider?: ethers.providers.Provider | ZkProvider,
+  ): Promise<ethers.Signer | ZkWallet>;
 
   abstract privateKey: string;
 

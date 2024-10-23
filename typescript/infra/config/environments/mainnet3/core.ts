@@ -8,6 +8,7 @@ import {
   CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
+  IgpConfig,
   IsmType,
   MerkleTreeHookConfig,
   MultisigConfig,
@@ -26,6 +27,9 @@ import { igp } from './igp.js';
 import { DEPLOYER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
+// There are no static ISMs or hooks for zkSync, this means
+// that the default ISM is a routing ISM and the default hook
+// is a fallback routing hook.
 export const core: ChainMap<CoreConfig> = objMap(
   ethereumChainOwners,
   (local, owner) => {
@@ -38,6 +42,7 @@ export const core: ChainMap<CoreConfig> = objMap(
     const isZksyncChain =
       getChain(local).technicalStack === ChainTechnicalStack.ZKSync;
 
+    // zkSync uses a different ISM for the merkle root
     const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
       type: isZksyncChain
         ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
@@ -45,6 +50,7 @@ export const core: ChainMap<CoreConfig> = objMap(
       ...multisig,
     });
 
+    // zkSync uses a different ISM for the message ID
     const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
       type: isZksyncChain
         ? IsmType.STORAGE_MESSAGE_ID_MULTISIG
@@ -52,15 +58,22 @@ export const core: ChainMap<CoreConfig> = objMap(
       ...multisig,
     });
 
+    // No static aggregation ISM support on zkSync
     const routingIsm: RoutingIsmConfig = {
       type: IsmType.ROUTING,
       domains: objMap(
         originMultisigs,
-        (_, multisig): AggregationIsmConfig => ({
-          type: IsmType.AGGREGATION,
-          modules: [messageIdIsm(multisig), merkleRoot(multisig)],
-          threshold: 1,
-        }),
+        (_, multisig): AggregationIsmConfig | MultisigIsmConfig => {
+          if (isZksyncChain) {
+            return messageIdIsm(multisig);
+          } else {
+            return {
+              type: IsmType.AGGREGATION,
+              modules: [messageIdIsm(multisig), merkleRoot(multisig)],
+              threshold: 1,
+            };
+          }
+        },
       ),
       ...owner,
     };
@@ -71,11 +84,14 @@ export const core: ChainMap<CoreConfig> = objMap(
       owner: DEPLOYER, // keep pausable hot
     };
 
-    const defaultIsm: AggregationIsmConfig = {
-      type: IsmType.AGGREGATION,
-      modules: [routingIsm, pausableIsm],
-      threshold: 2,
-    };
+    // No static aggregation ISM support on zkSync
+    const defaultIsm: AggregationIsmConfig | RoutingIsmConfig = isZksyncChain
+      ? routingIsm
+      : {
+          type: IsmType.AGGREGATION,
+          modules: [routingIsm, pausableIsm],
+          threshold: 2,
+        };
 
     const merkleHook: MerkleTreeHookConfig = {
       type: HookType.MERKLE_TREE,
@@ -88,30 +104,45 @@ export const core: ChainMap<CoreConfig> = objMap(
       paused: false,
       owner: DEPLOYER, // keep pausable hot
     };
-    const aggregationHooks = objMap(
+
+    // No static aggregation hook support on zkSync
+    const defaultHookDomains = objMap(
       originMultisigs,
-      (_origin, _): AggregationHookConfig => ({
-        type: HookType.AGGREGATION,
-        hooks: [pausableHook, merkleHook, igpHook],
-      }),
+      (_origin, _): AggregationHookConfig | IgpConfig => {
+        return isZksyncChain
+          ? igpHook
+          : {
+              type: HookType.AGGREGATION,
+              hooks: [pausableHook, merkleHook, igpHook],
+            };
+      },
     );
+
     const defaultHook: FallbackRoutingHookConfig = {
       type: HookType.FALLBACK_ROUTING,
       ...owner,
-      domains: aggregationHooks,
+      domains: defaultHookDomains,
       fallback: merkleHook,
     };
 
     if (typeof owner.owner !== 'string') {
       throw new Error('beneficiary must be a string');
     }
-    const requiredHook: ProtocolFeeHookConfig = {
-      type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
-      protocolFee: BigNumber.from(0).toString(), // 0 wei
-      beneficiary: owner.owner as Address, // Owner can be AccountConfig
-      ...owner,
-    };
+
+    // No aggregation hook support on zkSync, so we ignore protocolFee
+    // and make the merkleTreeHook required
+    const requiredHook: ProtocolFeeHookConfig | MerkleTreeHookConfig =
+      isZksyncChain
+        ? {
+            type: HookType.MERKLE_TREE,
+          }
+        : {
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
+            protocolFee: BigNumber.from(0).toString(), // 0 wei
+            beneficiary: owner.owner as Address, // Owner can be AccountConfig
+            ...owner,
+          };
 
     return {
       defaultIsm,
