@@ -4,6 +4,7 @@ import {
   AggregationHookConfig,
   AggregationIsmConfig,
   ChainMap,
+  ChainTechnicalStack,
   CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
@@ -19,6 +20,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
+import { getChain } from '../../registry.js';
+
 import { igp } from './igp.js';
 import { DEPLOYER, ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -32,13 +35,20 @@ export const core: ChainMap<CoreConfig> = objMap(
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
 
+    const isZksyncChain =
+      getChain(local).technicalStack === ChainTechnicalStack.ZKSync;
+
     const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
-      type: IsmType.MERKLE_ROOT_MULTISIG,
+      type: isZksyncChain
+        ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+        : IsmType.MERKLE_ROOT_MULTISIG,
       ...multisig,
     });
 
     const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
-      type: IsmType.MESSAGE_ID_MULTISIG,
+      type: isZksyncChain
+        ? IsmType.STORAGE_MESSAGE_ID_MULTISIG
+        : IsmType.MESSAGE_ID_MULTISIG,
       ...multisig,
     });
 
