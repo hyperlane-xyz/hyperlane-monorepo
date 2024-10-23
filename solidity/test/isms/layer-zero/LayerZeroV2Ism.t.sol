@@ -23,8 +23,8 @@ contract LayerZeroV2IsmTest is Test {
     ) internal pure returns (bytes memory) {
         return
             abi.encodeCall(
-                AbstractMessageIdAuthorizedIsm.verifyMessageId,
-                (_messageId)
+                AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+                (_messageId, 0)
             );
     }
 
@@ -133,7 +133,7 @@ contract LayerZeroV2IsmTest is Test {
         vm.stopPrank();
     }
 
-    function testLzV2Ism_verifyMessageId_SetsCorrectMessageId(
+    function testLzV2Ism_preVerifyMessage_SetsCorrectMessageId(
         bytes32 messageId
     ) public {
         lZIsm.setAuthorizedHook(hook.addressToBytes32());
