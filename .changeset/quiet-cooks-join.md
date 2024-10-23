@@ -3,4 +3,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Restrict reorgPeriod string to one of ethereum's EthJsonRpcBlockParameterTag
+Add `EthJsonRpcBlockParameterTag` enum for validating reorgPeriod
