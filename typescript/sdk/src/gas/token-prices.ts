@@ -28,18 +28,18 @@ class TokenPriceCache {
   protected evictionSeconds: number;
 
   constructor(freshSeconds = 60, evictionSeconds = 3 * 60 * 60) {
-    this.cache = new Map<ChainName, TokenPriceCacheEntry>();
+    this.cache = new Map<string, TokenPriceCacheEntry>();
     this.freshSeconds = freshSeconds;
     this.evictionSeconds = evictionSeconds;
   }
 
-  put(chain: ChainName, price: number): void {
+  put(id: string, price: number): void {
     const now = new Date();
-    this.cache.set(chain, { timestamp: now, price });
+    this.cache.set(id, { timestamp: now, price });
   }
 
-  isFresh(chain: ChainName): boolean {
-    const entry = this.cache.get(chain);
+  isFresh(id: string): boolean {
+    const entry = this.cache.get(id);
     if (!entry) return false;
 
     const expiryTime = new Date(
@@ -49,17 +49,17 @@ class TokenPriceCache {
     return now < expiryTime;
   }
 
-  fetch(chain: ChainName): number {
-    const entry = this.cache.get(chain);
+  fetch(id: string): number {
+    const entry = this.cache.get(id);
     if (!entry) {
-      throw new Error(`no entry found for ${chain} in token price cache`);
+      throw new Error(`no entry found for ${id} in token price cache`);
     }
     const evictionTime = new Date(
       entry.timestamp.getTime() + 1000 * this.evictionSeconds,
     );
     const now = new Date();
     if (now > evictionTime) {
-      throw new Error(`evicted entry found for ${chain} in token price cache`);
+      throw new Error(`evicted entry found for ${id} in token price cache`);
     }
     return entry.price;
   }
@@ -97,20 +97,30 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     );
   }
 
-  async getTokenPrice(chain: ChainName): Promise<number> {
-    const [price] = await this.getTokenPrices([chain]);
+  async getTokenPrice(
+    chain: ChainName,
+    currency: string = 'usd',
+  ): Promise<number> {
+    const [price] = await this.getTokenPrices([chain], currency);
     return price;
   }
 
   async getTokenExchangeRate(
     base: ChainName,
     quote: ChainName,
+    currency: string = 'usd',
   ): Promise<number> {
-    const [basePrice, quotePrice] = await this.getTokenPrices([base, quote]);
+    const [basePrice, quotePrice] = await this.getTokenPrices(
+      [base, quote],
+      currency,
+    );
     return basePrice / quotePrice;
   }
 
-  private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
+  private async getTokenPrices(
+    chains: ChainName[],
+    currency: string = 'usd',
+  ): Promise<number[]> {
     const isMainnet = chains.map((c) => !this.metadata[c].isTestnet);
     const allMainnets = isMainnet.every((v) => v === true);
     const allTestnets = isMainnet.every((v) => v === false);
@@ -125,35 +135,14 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       );
     }
 
-    const toQuery = chains.filter((c) => !this.cache.isFresh(c));
-    if (toQuery.length > 0) {
-      try {
-        await this.queryTokenPrices(toQuery);
-      } catch (e) {
-        rootLogger.warn('Failed to query token prices', e);
-      }
-    }
-    return chains.map((chain) => this.cache.fetch(chain));
-  }
-
-  private async queryTokenPrices(
-    chains: ChainName[],
-    currency: string = 'usd',
-  ): Promise<void> {
-    // The CoinGecko API expects, in some cases, IDs that do not match
-    // ChainNames.
     const ids = chains.map(
       (chain) => this.metadata[chain].gasCurrencyCoinGeckoId || chain,
     );
-    // Coingecko rate limits, so we are adding this sleep
-    await sleep(this.sleepMsBetweenRequests);
-    const response = await this.coinGecko.simple.price({
-      ids,
-      vs_currencies: [currency],
-    });
-    const prices = ids.map((id) => response.data[id][currency]);
-    // Update the cache with the newly fetched prices
-    chains.map((chain, i) => this.cache.put(chain, prices[i]));
+
+    await this.getTokenPriceByIds(ids, currency);
+    return chains.map((chain) =>
+      this.cache.fetch(this.metadata[chain].gasCurrencyCoinGeckoId || chain),
+    );
   }
 
   public async getTokenPriceByIds(
@@ -161,6 +150,8 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     currency: string = 'usd',
   ): Promise<number[] | undefined> {
     const toQuery = ids.filter((id) => !this.cache.isFresh(id));
+    await sleep(this.sleepMsBetweenRequests);
+
     if (toQuery.length > 0) {
       let response: any;
       try {
