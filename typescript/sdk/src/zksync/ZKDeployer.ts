@@ -15,12 +15,11 @@ export class ZKDeployer {
 
   constructor(zkWallet: zk.Wallet, deploymentType?: zk.types.DeploymentType) {
     this.deploymentType = deploymentType;
-    let l2Provider: zk.Provider;
 
-    const zkWeb3Provider = new zk.Provider('http://127.0.0.1:8011', 260);
-
-    l2Provider =
-      zkWallet.provider === null ? zkWeb3Provider : zkWallet.provider;
+    const l2Provider =
+      zkWallet.provider === null
+        ? new zk.Provider('http://127.0.0.1:8011', 260)
+        : zkWallet.provider;
 
     this.zkWallet = zkWallet.connect(l2Provider);
   }
