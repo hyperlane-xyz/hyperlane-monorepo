@@ -153,8 +153,6 @@ async function checkBalance(
               const provider = multiProtocolProvider.getEthersV5Provider(chain);
               const nativeBalance = await provider.getBalance(token.hypAddress);
 
-              logger.debug('Chain', chain);
-              logger.debug('token', JSON.stringify(token, null, 2));
               return getNativeTokenWarpInfo(
                 nativeBalance,
                 token.decimals,
@@ -220,13 +218,12 @@ async function checkBalance(
               const collateralBalance = await tokenContract.balanceOf(
                 token.hypAddress,
               );
-              logger.debug('Chain', chain);
-              logger.debug('token', JSON.stringify(token, null, 2));
+
               return getCollateralTokenWarpInfo(
                 collateralBalance,
                 token.decimals,
                 tokenPriceGetter,
-                token.tokenCoinGeckoId,
+                token.tokenCoingeckoId,
               );
             }
             case ProtocolType.Sealevel: {
@@ -247,12 +244,11 @@ async function checkBalance(
                 await adapter.getBalance(token.hypAddress),
               );
 
-              logger.debug('Chain', chain);
               return getCollateralTokenWarpInfo(
                 collateralBalance,
                 token.decimals,
                 tokenPriceGetter,
-                token.tokenCoinGeckoId,
+                token.tokenCoingeckoId,
               );
             }
             case ProtocolType.Cosmos: {
@@ -269,12 +265,12 @@ async function checkBalance(
               const collateralBalance = ethers.BigNumber.from(
                 await adapter.getBalance(token.hypAddress),
               );
-              logger.debug('Chain', chain);
+
               return getCollateralTokenWarpInfo(
                 collateralBalance,
                 token.decimals,
                 tokenPriceGetter,
-                token.tokenCoinGeckoId,
+                token.tokenCoingeckoId,
               );
             }
           }
@@ -370,12 +366,11 @@ async function checkBalance(
                 xerc20LockboxAddress,
               );
 
-              logger.debug('Chain', chain);
               return getCollateralTokenWarpInfo(
                 collateralBalance,
                 token.decimals,
                 tokenPriceGetter,
-                token.tokenCoinGeckoId,
+                token.tokenCoingeckoId,
               );
             }
             default:
@@ -569,7 +564,7 @@ async function getNativeTokenValue(
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<number | undefined> {
   const price = await getTokenPriceByChain(chain, tokenPriceGetter);
-  logger.debug('price', price);
+  logger.debug(`${chain} native token price ${price}`);
   if (!price) return undefined;
   return balanceFloat * price;
 }
@@ -590,26 +585,26 @@ async function getNativeTokenWarpInfo(
 }
 
 async function getCollateralTokenPrice(
-  tokenCoinGeckoId: string | undefined,
+  tokenCoingeckoId: string | undefined,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<number | undefined> {
-  if (!tokenCoinGeckoId) return undefined;
-  const prices = await tokenPriceGetter.getTokenPriceByIds([tokenCoinGeckoId]);
-  logger.debug(`${tokenCoinGeckoId} prices ${prices}`);
+  if (!tokenCoingeckoId) return undefined;
+  const prices = await tokenPriceGetter.getTokenPriceByIds([tokenCoingeckoId]);
+  logger.debug(`${tokenCoingeckoId} price ${prices ? prices[0] : undefined}`);
   if (!prices) return undefined;
   return prices[0];
 }
 
 async function getCollateralTokenValue(
-  tokenCoinGeckoId: string | undefined,
+  tokenCoingeckoId: string | undefined,
   balanceFloat: number,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<number | undefined> {
-  logger.debug('tokenCoinGeckoId', tokenCoinGeckoId);
   const price = await getCollateralTokenPrice(
-    tokenCoinGeckoId,
+    tokenCoingeckoId,
     tokenPriceGetter,
   );
+  logger.debug(`${tokenCoingeckoId} token price ${price ? price : undefined}`);
   if (!price) return undefined;
   return balanceFloat * price;
 }
