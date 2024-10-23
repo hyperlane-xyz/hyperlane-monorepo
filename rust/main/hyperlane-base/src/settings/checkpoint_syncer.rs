@@ -1,6 +1,6 @@
 use crate::{
-    CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage, GCS_SERVICE_ACCOUNT_KEY,
-    GCS_USER_SECRET,
+    types::OnChainStorage, CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage,
+    GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
 };
 use core::str::FromStr;
 use eyre::{eyre, Context, Report, Result};
@@ -38,6 +38,10 @@ pub enum CheckpointSyncerConf {
         /// Path to oauth user secrets, like those created by
         /// `gcloud auth application-default login`
         user_secrets: Option<String>,
+    },
+    OnChain {
+        chain_name: String,
+        contract_address: String,
     },
 }
 
@@ -94,6 +98,16 @@ impl FromStr for CheckpointSyncerConf {
                         user_secrets,
                     }),
                 }
+            }
+            "onchain" => {
+                let parts: Vec<&str> = suffix.split('/').collect::<Vec<&str>>();
+                if parts.len() != 2 {
+                    return Err(eyre!("Invalid onchain checkpoint syncer format"));
+                }
+                let chain_name = parts[0].to_string();
+                let contract_address = parts[1].to_string();
+                todo!()
+                /* Ok(Box::new(OnChainStorage::new(chain_name, contract_address))) */
             }
             _ => Err(eyre!("Unknown storage location prefix `{prefix}`")),
         }
@@ -170,6 +184,13 @@ impl CheckpointSyncerConf {
                         .build(bucket, folder.to_owned())
                         .await?,
                 )
+            }
+            CheckpointSyncerConf::OnChain {
+                chain_name,
+                contract_address,
+            } => {
+                todo!()
+                /* Box::new(OnChainStorage::new(chain_name, contract_address, provider, chain_signer)) */
             }
         })
     }
