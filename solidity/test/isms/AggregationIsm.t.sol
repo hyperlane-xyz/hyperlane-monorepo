@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 
 import {IAggregationIsm} from "../../contracts/interfaces/isms/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
+import {IThresholdAddressFactory} from "../../contracts/interfaces/IThresholdAddressFactory.sol";
+import {StorageAggregationIsmFactory} from "../../contracts/isms/aggregation/StorageAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../../contracts/isms/libs/AggregationIsmMetadata.sol";
 import {TestIsm, ThresholdTestUtils} from "./IsmTestUtils.sol";
 
@@ -16,10 +18,10 @@ contract AggregationIsmTest is Test {
 
     string constant fixtureKey = "fixture";
 
-    StaticAggregationIsmFactory factory;
+    IThresholdAddressFactory factory;
     IAggregationIsm ism;
 
-    function setUp() public {
+    function setUp() public virtual {
         factory = new StaticAggregationIsmFactory();
     }
 
@@ -147,5 +149,11 @@ contract AggregationIsmTest is Test {
             .modulesAndThreshold("");
         assertEq(abi.encode(actualIsms), abi.encode(expectedIsms));
         assertEq(actualThreshold, m);
+    }
+}
+
+contract StorageAggregationIsmTest is AggregationIsmTest {
+    function setUp() public override {
+        factory = new StorageAggregationIsmFactory();
     }
 }

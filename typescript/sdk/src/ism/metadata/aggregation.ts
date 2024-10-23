@@ -20,7 +20,7 @@ import {
 // null indicates that metadata is NOT INCLUDED for this submodule
 // empty or 0x string indicates that metadata is INCLUDED but NULL
 export interface AggregationMetadata<T = string> {
-  type: IsmType.AGGREGATION;
+  type: AggregationIsmConfig['type'];
   submoduleMetadata: Array<T | null>;
 }
 
