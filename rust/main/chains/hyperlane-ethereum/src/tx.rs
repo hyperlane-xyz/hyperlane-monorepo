@@ -20,7 +20,7 @@ use hyperlane_core::{
 };
 use tracing::{debug, error, info, warn};
 
-use crate::{EthereumReorgPeriod, Middleware, TransactionOverrides};
+use crate::{get_finalized_block_number, EthereumReorgPeriod, Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
 pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
@@ -228,15 +228,7 @@ where
 {
     if !reorg_period.is_none() {
         let reorg_period = EthereumReorgPeriod::try_from(reorg_period)?;
-        let block = match reorg_period {
-            EthereumReorgPeriod::Blocks(blocks) => provider
-                .get_block_number()
-                .await
-                .map_err(ChainCommunicationError::from_other)?
-                .saturating_sub(blocks.into())
-                .into(),
-            EthereumReorgPeriod::Tag(tag) => tag,
-        };
+        let block = get_finalized_block_number(provider, &reorg_period).await? as u64;
 
         Ok(call.block(block))
     } else {

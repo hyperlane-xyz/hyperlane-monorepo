@@ -1,6 +1,5 @@
 use ethers_core::types::{BlockId, BlockNumber};
-use eyre::{eyre, Report};
-use hyperlane_core::{config::OperationBatchConfig, ReorgPeriod, U256};
+use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, ReorgPeriod, U256};
 use url::Url;
 
 /// Ethereum RPC connection configuration
@@ -65,7 +64,7 @@ pub enum EthereumReorgPeriod {
 }
 
 impl TryFrom<&ReorgPeriod> for EthereumReorgPeriod {
-    type Error = Report;
+    type Error = ChainCommunicationError;
 
     fn try_from(value: &ReorgPeriod) -> Result<Self, Self::Error> {
         match value {
@@ -78,7 +77,7 @@ impl TryFrom<&ReorgPeriod> for EthereumReorgPeriod {
                     "safe" => BlockNumber::Safe,
                     "earliest" => BlockNumber::Earliest,
                     "pending" => BlockNumber::Pending,
-                    _ => return Err(eyre!("Invalid Ethereum reorg period")),
+                    _ => return Err(ChainCommunicationError::InvalidReorgPeriod(value.clone())),
                 };
                 Ok(EthereumReorgPeriod::Tag(tag.into()))
             }

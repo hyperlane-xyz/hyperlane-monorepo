@@ -7,7 +7,6 @@ use std::{
 };
 
 use derive_new::new;
-use eyre::{eyre, Report};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -15,7 +14,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
-use crate::{utils::many_to_one, HyperlaneProtocolError, IndexMode, H160, H256};
+use crate::{
+    utils::many_to_one, ChainCommunicationError, HyperlaneProtocolError, IndexMode, H160, H256,
+};
 
 #[derive(Debug, Clone)]
 pub struct Address(pub bytes::Bytes);
@@ -57,11 +58,11 @@ impl ReorgPeriod {
             .unwrap_or(ReorgPeriod::None)
     }
 
-    pub fn as_blocks(&self) -> Result<u32, Report> {
+    pub fn as_blocks(&self) -> Result<u32, ChainCommunicationError> {
         match self {
             ReorgPeriod::None => Ok(0),
             ReorgPeriod::Blocks(blocks) => Ok(blocks.get()),
-            ReorgPeriod::Tag(_) => Err(eyre!("Invalid reorg period")),
+            ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(self.clone())),
         }
     }
 

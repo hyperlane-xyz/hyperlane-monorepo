@@ -39,8 +39,8 @@ pub(crate) async fn get_block_height_for_reorg_period(
         }
         ReorgPeriod::None => None,
         ReorgPeriod::Tag(_) => {
-            return Err(ChainCommunicationError::CustomError(
-                "Cosmos does not support reorg period as a tag".into(),
+            return Err(ChainCommunicationError::InvalidReorgPeriod(
+                reorg_period.clone(),
             ))
         }
     };
