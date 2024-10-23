@@ -34,6 +34,8 @@ pub use self::json_value_parser::ValueParser;
 mod connection_parser;
 mod json_value_parser;
 
+const DEFAULT_CHUNK_SIZE: u32 = 1999;
+
 /// The base agent config
 #[derive(Debug, Deserialize)]
 #[serde(transparent)]
@@ -152,7 +154,7 @@ fn parse_chain(
         .get_opt_key("index")
         .get_opt_key("chunk")
         .parse_u32()
-        .unwrap_or(1999);
+        .unwrap_or(DEFAULT_CHUNK_SIZE);
     let mode = chain
         .chain(&mut err)
         .get_opt_key("index")
