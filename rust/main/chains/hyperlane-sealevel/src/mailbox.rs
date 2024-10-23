@@ -663,7 +663,7 @@ impl SealevelMailboxIndexer {
         let offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
         let length = 32; // the length of the `unique_message_pubkey` field
         let accounts = self
-            .search_accounts_by_descriminator(&discriminator, nonce, offset, length)
+            .search_accounts_by_discriminator(&discriminator, nonce, offset, length)
             .await?;
 
         let valid_message_storage_pda_pubkey = self
@@ -720,7 +720,7 @@ impl SealevelMailboxIndexer {
         let offset = 1 + 8 + 8; // the offset to get the `message_id` field
         let length = 32;
         let accounts = self
-            .search_accounts_by_descriminator(&discriminator, nonce, offset, length)
+            .search_accounts_by_discriminator(&discriminator, nonce, offset, length)
             .await?;
 
         debug!(account_len = ?accounts.len(), "Found accounts with processed message discriminator");
@@ -792,7 +792,7 @@ impl SealevelMailboxIndexer {
         Ok(valid_storage_pda_pubkey)
     }
 
-    async fn search_accounts_by_descriminator(
+    async fn search_accounts_by_discriminator(
         &self,
         discriminator: &[u8; 8],
         nonce: u32,
