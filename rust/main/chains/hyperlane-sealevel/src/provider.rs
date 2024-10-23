@@ -5,6 +5,7 @@ use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
     HyperlaneProviderError, TxnInfo, H256, U256,
 };
+use solana_sdk::bs58;
 use solana_sdk::pubkey::Pubkey;
 
 use crate::{error::HyperlaneSealevelError, ConnectionConf, SealevelRpcClient};
@@ -46,25 +47,23 @@ impl HyperlaneChain for SealevelProvider {
 
 #[async_trait]
 impl HyperlaneProvider for SealevelProvider {
-    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let confirmed_block = self.rpc_client.get_block(height).await?;
-        let block_hash = H256::from_str(&confirmed_block.blockhash)?;
+    async fn get_block_by_height(&self, slot: u64) -> ChainResult<BlockInfo> {
+        let confirmed_block = self.rpc_client.get_block(slot).await?;
 
-        let block_info = match (confirmed_block.block_height, confirmed_block.block_time) {
-            (Some(block_height), Some(block_time)) => BlockInfo {
-                hash: block_hash,
-                timestamp: block_time as u64,
-                number: block_height,
-            },
-            _ => Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height))?,
+        let hash_binary = bs58::decode(confirmed_block.blockhash)
+            .into_vec()
+            .map_err(HyperlaneSealevelError::Decoding)?;
+        let block_hash = H256::from_slice(&hash_binary);
+
+        let block_time = confirmed_block
+            .block_time
+            .ok_or(HyperlaneProviderError::CouldNotFindBlockByHeight(slot))?;
+
+        let block_info = BlockInfo {
+            hash: block_hash,
+            timestamp: block_time as u64,
+            number: slot,
         };
-
-        if block_info.number != height {
-            Err(HyperlaneProviderError::IncorrectBlockByHeight(
-                height,
-                block_info.number,
-            ))?
-        }
 
         Ok(block_info)
     }

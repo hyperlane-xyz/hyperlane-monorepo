@@ -3,8 +3,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig,
-    rpc_response::Response,
+    nonblocking::rpc_client::RpcClient, rpc_config::RpcBlockConfig,
+    rpc_config::RpcProgramAccountsConfig, rpc_response::Response,
 };
 use solana_sdk::{
     account::Account,
@@ -17,7 +17,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{
-    EncodedConfirmedBlock, TransactionStatus, UiReturnDataEncoding, UiTransactionReturnData,
+    TransactionStatus, UiConfirmedBlock, UiReturnDataEncoding, UiTransactionReturnData,
 };
 
 use crate::error::HyperlaneSealevelError;
@@ -99,9 +99,14 @@ impl SealevelRpcClient {
         Ok(account)
     }
 
-    pub async fn get_block(&self, height: u64) -> ChainResult<EncodedConfirmedBlock> {
+    pub async fn get_block(&self, height: u64) -> ChainResult<UiConfirmedBlock> {
+        let config = RpcBlockConfig {
+            commitment: Some(CommitmentConfig::finalized()),
+            max_supported_transaction_version: Some(0),
+            ..Default::default()
+        };
         self.0
-            .get_block(height)
+            .get_block_with_config(height, config)
             .await
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
