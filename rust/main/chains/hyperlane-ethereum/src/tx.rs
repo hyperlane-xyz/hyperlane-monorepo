@@ -20,7 +20,7 @@ use hyperlane_core::{
 };
 use tracing::{debug, error, info, warn};
 
-use crate::{get_finalized_block_number, EthereumReorgPeriod, Middleware, TransactionOverrides};
+use crate::{EthereumReorgPeriod, Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
 pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
@@ -227,10 +227,10 @@ where
     T: Detokenize,
 {
     if !reorg_period.is_none() {
-        let reorg_period = EthereumReorgPeriod::try_from(reorg_period)?;
-        let block = get_finalized_block_number(provider, &reorg_period).await? as u64;
-
-        Ok(call.block(block))
+        let block_id = EthereumReorgPeriod::try_from(reorg_period)?
+            .into_block_id(provider)
+            .await?;
+        Ok(call.block(block_id))
     } else {
         Ok(call)
     }

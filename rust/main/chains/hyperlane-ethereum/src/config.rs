@@ -1,5 +1,8 @@
+use ethers::providers::Middleware;
 use ethers_core::types::{BlockId, BlockNumber};
-use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, ReorgPeriod, U256};
+use hyperlane_core::{
+    config::OperationBatchConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
+};
 use url::Url;
 
 /// Ethereum RPC connection configuration
@@ -82,5 +85,22 @@ impl TryFrom<&ReorgPeriod> for EthereumReorgPeriod {
                 Ok(EthereumReorgPeriod::Tag(tag.into()))
             }
         }
+    }
+}
+
+impl EthereumReorgPeriod {
+    /// Converts the reorg period into a block id
+    pub async fn into_block_id<M: Middleware + 'static>(
+        &self,
+        provider: &M,
+    ) -> ChainResult<BlockId> {
+        let block_id = match self {
+            EthereumReorgPeriod::Blocks(_) => {
+                (crate::get_finalized_block_number(provider, self).await? as u64).into()
+            }
+            // no need to fetch the block number for the `tag`
+            EthereumReorgPeriod::Tag(tag) => *tag,
+        };
+        Ok(block_id)
     }
 }
