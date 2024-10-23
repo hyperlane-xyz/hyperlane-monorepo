@@ -125,9 +125,12 @@ export const ChainMetadataSchemaObject = z.object({
       confirmations: ZUint.describe(
         'Number of blocks to wait before considering a transaction confirmed.',
       ),
-      reorgPeriod: ZUint.optional().describe(
-        'Number of blocks before a transaction has a near-zero chance of reverting.',
-      ),
+      reorgPeriod: z
+        .union([ZUint, z.string()])
+        .optional()
+        .describe(
+          'Number of blocks before a transaction has a near-zero chance of reverting or block tag.',
+        ),
       estimateBlockTime: z
         .number()
         .positive()
@@ -371,7 +374,7 @@ export function getChainIdNumber(chainMetadata: ChainMetadata): number {
   else throw new Error('ChainId is not a number, chain may be of Cosmos type');
 }
 
-export function getReorgPeriod(chainMetadata: ChainMetadata): number {
+export function getReorgPeriod(chainMetadata: ChainMetadata): string | number {
   if (chainMetadata.blocks?.reorgPeriod !== undefined)
     return chainMetadata.blocks.reorgPeriod;
   else throw new Error('Chain has no reorg period');

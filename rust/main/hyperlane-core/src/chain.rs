@@ -3,16 +3,20 @@
 use std::{
     fmt::{Debug, Formatter},
     hash::{Hash, Hasher},
+    num::NonZeroU32,
 };
 
 use derive_new::new;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
-use crate::{utils::many_to_one, HyperlaneProtocolError, IndexMode, H160, H256};
+use crate::{
+    utils::many_to_one, ChainCommunicationError, HyperlaneProtocolError, IndexMode, H160, H256,
+};
 
 #[derive(Debug, Clone)]
 pub struct Address(pub bytes::Bytes);
@@ -36,6 +40,80 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
             self.domain.id(),
             self.address
         )
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub enum ReorgPeriod {
+    #[default]
+    None,
+    Blocks(NonZeroU32),
+    Tag(String),
+}
+
+impl ReorgPeriod {
+    pub fn from_blocks(blocks: u32) -> Self {
+        NonZeroU32::try_from(blocks)
+            .map(ReorgPeriod::Blocks)
+            .unwrap_or(ReorgPeriod::None)
+    }
+
+    pub fn as_blocks(&self) -> Result<u32, ChainCommunicationError> {
+        match self {
+            ReorgPeriod::None => Ok(0),
+            ReorgPeriod::Blocks(blocks) => Ok(blocks.get()),
+            ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(self.clone())),
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        matches!(self, ReorgPeriod::None)
+    }
+}
+
+impl Serialize for ReorgPeriod {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            ReorgPeriod::None => serializer.serialize_u32(0),
+            ReorgPeriod::Blocks(blocks) => serializer.serialize_u32(blocks.get()),
+            ReorgPeriod::Tag(tag) => serializer.serialize_str(tag),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ReorgPeriod {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de;
+
+        struct ReorgPeriodVisitor;
+
+        impl<'de> de::Visitor<'de> for ReorgPeriodVisitor {
+            type Value = ReorgPeriod;
+
+            fn expecting(&self, f: &mut Formatter) -> std::fmt::Result {
+                f.write_str("reorgPeriod as a number or string")
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                let v = v.try_into().map_err(de::Error::custom)?;
+                Ok(ReorgPeriod::from_blocks(v))
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                match v.parse::<u32>() {
+                    Ok(v) => self.visit_u32(v),
+                    Err(_) => Ok(ReorgPeriod::Tag(v.to_string())),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(ReorgPeriodVisitor)
     }
 }
 
@@ -505,9 +583,9 @@ impl HyperlaneDomain {
 #[cfg(test)]
 #[cfg(feature = "strum")]
 mod tests {
-    use std::str::FromStr;
+    use std::{num::NonZeroU32, str::FromStr};
 
-    use crate::KnownHyperlaneDomain;
+    use crate::{KnownHyperlaneDomain, ReorgPeriod};
 
     #[test]
     fn domain_strings() {
@@ -559,5 +637,33 @@ mod tests {
             Ok(56)
         );
         assert!("foo".parse::<KnownHyperlaneDomain>().is_err());
+    }
+
+    #[test]
+    fn parse_reorg_period() {
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>(0.into()).unwrap(),
+            ReorgPeriod::None
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("0".into()).unwrap(),
+            ReorgPeriod::None
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>(12.into()).unwrap(),
+            ReorgPeriod::Blocks(NonZeroU32::new(12).unwrap())
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("12".into()).unwrap(),
+            ReorgPeriod::Blocks(NonZeroU32::new(12).unwrap())
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("finalized".into()).unwrap(),
+            ReorgPeriod::Tag("finalized".into())
+        );
     }
 }
