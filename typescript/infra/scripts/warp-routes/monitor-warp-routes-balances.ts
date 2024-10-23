@@ -48,6 +48,7 @@ interface WarpRouteMetrics {
   wallet_address: string;
   token_type: TokenType;
   warp_route_id: string;
+  related_chain_names: string;
 }
 
 type WarpRouteMetricLabels = keyof WarpRouteMetrics;
@@ -59,6 +60,7 @@ const warpRouteMetricLabels: WarpRouteMetricLabels[] = [
   'wallet_address',
   'token_type',
   'warp_route_id',
+  'related_chain_names',
 ];
 
 const warpRouteTokenBalance = new Gauge({
@@ -88,6 +90,11 @@ interface xERC20Limit {
   burn: number;
   mintMax: number;
   burnMax: number;
+}
+
+interface WarpRouteInfo {
+  balance: number;
+  valueUSD?: number;
 }
 
 export function readWarpRouteConfig(filePath: string) {
@@ -130,11 +137,6 @@ async function main(): Promise<boolean> {
   await checkWarpRouteMetrics(checkFrequency, tokenConfig, chainMetadata);
 
   return true;
-}
-
-interface WarpRouteInfo {
-  balance: number;
-  valueUSD?: number;
 }
 
 // TODO: see issue https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2708
@@ -402,6 +404,9 @@ export function updateTokenBalanceMetrics(
         token.symbol,
         Object.keys(tokenConfig) as ChainName[],
       ),
+      related_chain_names: Object.keys(tokenConfig)
+        .filter((c) => c !== chain)
+        .join(','),
     };
 
     warpRouteTokenBalance.labels(metrics).set(balances[chain].balance);
@@ -411,6 +416,7 @@ export function updateTokenBalanceMetrics(
         .set(balances[chain].valueUSD as number);
       logger.debug('Collateral value updated for chain', {
         chain,
+        related_chain_names: metrics.related_chain_names,
         warp_route_id: metrics.warp_route_id,
         token: metrics.token_name,
         value: balances[chain].valueUSD,
@@ -418,6 +424,7 @@ export function updateTokenBalanceMetrics(
     }
     logger.debug('Wallet balance updated for chain', {
       chain,
+      related_chain_names: metrics.related_chain_names,
       warp_route_id: metrics.warp_route_id,
       token: metrics.token_name,
       balance: balances[chain].balance,
@@ -590,7 +597,6 @@ async function getCollateralTokenPrice(
 ): Promise<number | undefined> {
   if (!tokenCoingeckoId) return undefined;
   const prices = await tokenPriceGetter.getTokenPriceByIds([tokenCoingeckoId]);
-  logger.debug(`${tokenCoingeckoId} price ${prices ? prices[0] : undefined}`);
   if (!prices) return undefined;
   return prices[0];
 }
