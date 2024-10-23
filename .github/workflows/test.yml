@@ -109,6 +109,30 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
+  cli-e2e:
+    runs-on: ubuntu-latest
+    needs: [yarn-install]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI e2e tests
+        run: yarn --cwd typescript/cli test:e2e
+
   agent-configs:
     runs-on: ubuntu-latest
     needs: [yarn-install]
@@ -218,7 +242,7 @@ jobs:
         run: |
           if [[ -n "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" 
+            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)"
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
@@ -233,40 +257,6 @@ jobs:
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
           SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
-
-  cli-advanced-e2e:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.base_ref == 'main' || github.base_ref == 'cli-2.0') || github.event_name == 'merge_group'
-    needs: [yarn-install]
-    strategy:
-      matrix:
-        include:
-          - test-type: preset_hook_enabled
-          - test-type: configure_hook_enabled
-          - test-type: pi_with_core_chain
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
-
-      - name: foundry-install
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: yarn-build
-        uses: ./.github/actions/yarn-build-with-cache
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Checkout registry
-        uses: ./.github/actions/checkout-registry
-
-      - name: cli e2e tests
-        run: ./typescript/cli/ci-advanced-test.sh ${{ matrix.test-type }}
 
   env-test:
     runs-on: ubuntu-latest

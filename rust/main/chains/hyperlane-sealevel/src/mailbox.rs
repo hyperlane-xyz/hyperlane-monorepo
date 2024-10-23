@@ -8,11 +8,12 @@ use jsonrpc_core::futures_util::TryFutureExt;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError, ChainResult,
-    Checkpoint, ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexed, Indexer, KnownHyperlaneDomain, LogMeta, Mailbox, MerkleTreeHook, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H256, H512, U256,
+    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
+    ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
+    Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
+    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
+    H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -54,11 +55,7 @@ use solana_transaction_status::{
     UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
 };
 
-use crate::RpcClientWithDebug;
-use crate::{
-    utils::{get_account_metas, get_finalized_block_number, simulate_instruction},
-    ConnectionConf, SealevelProvider,
-};
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -128,7 +125,7 @@ impl SealevelMailbox {
         self.outbox
     }
 
-    pub fn rpc(&self) -> &RpcClientWithDebug {
+    pub fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
 
@@ -140,14 +137,14 @@ impl SealevelMailbox {
         &self,
         instruction: Instruction,
     ) -> ChainResult<Option<T>> {
-        simulate_instruction(
-            &self.rpc(),
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await
+        self.rpc()
+            .simulate_instruction(
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
+            )
+            .await
     }
 
     /// Simulates an Instruction that will return a list of AccountMetas.
@@ -155,14 +152,14 @@ impl SealevelMailbox {
         &self,
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
-        get_account_metas(
-            &self.rpc(),
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await
+        self.rpc()
+            .get_account_metas(
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
+            )
+            .await
     }
 
     /// Gets the recipient ISM given a recipient program id and the ISM getter account metas.
@@ -293,7 +290,6 @@ impl SealevelMailbox {
                 .rpc()
                 .send_and_confirm_transaction(transaction)
                 .await
-                .map_err(ChainCommunicationError::from_other)
         }
     }
 
@@ -343,13 +339,10 @@ impl SealevelMailbox {
             );
 
             let recent_blockhash = if transaction.uses_durable_nonce() {
-                let (recent_blockhash, ..) = self
-                    .provider
+                self.provider
                     .rpc()
                     .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-                    .await
-                    .map_err(ChainCommunicationError::from_other)?;
-                recent_blockhash
+                    .await?
             } else {
                 *transaction.get_recent_blockhash()
             };
@@ -359,8 +352,7 @@ impl SealevelMailbox {
                     .provider
                     .rpc()
                     .get_signature_statuses(&[*signature])
-                    .await
-                    .map_err(ChainCommunicationError::from_other)?;
+                    .await?;
                 let signature_status = signature_statuses.value.first().cloned().flatten();
                 match signature_status {
                     Some(_) => return Ok(*signature),
@@ -368,9 +360,8 @@ impl SealevelMailbox {
                         if !self
                             .provider
                             .rpc()
-                            .is_blockhash_valid(&recent_blockhash, CommitmentConfig::processed())
-                            .await
-                            .map_err(ChainCommunicationError::from_other)?
+                            .is_blockhash_valid(&recent_blockhash)
+                            .await?
                         {
                             // Block hash is not found by some reason
                             break 'sending;
@@ -425,8 +416,8 @@ impl std::fmt::Debug for SealevelMailbox {
 #[async_trait]
 impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
-    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        <Self as MerkleTreeHook>::count(self, _maybe_lag).await
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        <Self as MerkleTreeHook>::count(self, reorg_period).await
     }
 
     #[instrument(err, ret, skip(self))]
@@ -439,23 +430,15 @@ impl Mailbox for SealevelMailbox {
 
         let account = self
             .rpc()
-            .get_account_with_commitment(
-                &processed_message_account_key,
-                CommitmentConfig::finalized(),
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .get_possible_account_with_finalized_commitment(&processed_message_account_key)
+            .await?;
 
-        Ok(account.value.is_some())
+        Ok(account.is_some())
     }
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        let inbox_account = self
-            .rpc()
-            .get_account(&self.inbox.0)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+        let inbox_account = self.rpc().get_account(&self.inbox.0).await?;
         let inbox = InboxAccount::fetch(&mut inbox_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
@@ -591,11 +574,10 @@ impl Mailbox for SealevelMailbox {
             accounts,
         };
         instructions.push(inbox_instruction);
-        let (recent_blockhash, _) = self
+        let recent_blockhash = self
             .rpc()
             .get_latest_blockhash_with_commitment(commitment)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .await?;
 
         let txn = Transaction::new_signed_with_payer(
             &instructions,
@@ -615,7 +597,6 @@ impl Mailbox for SealevelMailbox {
             .confirm_transaction_with_commitment(&signature, commitment)
             .await
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
-            .map(|ctx| ctx.value)
             .unwrap_or(false);
         let txid = signature.into();
 
@@ -664,20 +645,12 @@ impl SealevelMailboxIndexer {
         })
     }
 
-    fn rpc(&self) -> &RpcClientWithDebug {
+    fn rpc(&self) -> &SealevelRpcClient {
         &self.mailbox.rpc()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let height = self
-            .rpc()
-            .get_block_height()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .try_into()
-            // FIXME solana block height is u64...
-            .expect("sealevel block height exceeds u32::MAX");
-        Ok(height)
+        self.rpc().get_block_height().await
     }
 
     async fn get_message_with_nonce(
@@ -718,8 +691,7 @@ impl SealevelMailboxIndexer {
         let accounts = self
             .rpc()
             .get_program_accounts_with_config(&self.mailbox.program_id, config)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .await?;
 
         // Now loop through matching accounts and find the one with a valid account pubkey
         // that proves it's an actual message storage PDA.
@@ -752,16 +724,8 @@ impl SealevelMailboxIndexer {
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
         let account = self
             .rpc()
-            .get_account_with_commitment(
-                &valid_message_storage_pda_pubkey,
-                CommitmentConfig::finalized(),
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("Could not find account data")
-            })?;
+            .get_account_with_finalized_commitment(&valid_message_storage_pda_pubkey)
+            .await?;
         let dispatched_message_account =
             DispatchedMessageAccount::fetch(&mut account.data.as_ref())
                 .map_err(ChainCommunicationError::from_other)?
@@ -791,7 +755,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, None).await?;
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
         Ok((Some(count), tip))
     }
 }
@@ -816,7 +780,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        get_finalized_block_number(&self.rpc()).await
+        self.get_finalized_block_number().await
     }
 }
 
