@@ -299,6 +299,7 @@ pub enum HyperlaneDomainTechnicalStack {
     OpStack,
     PolygonCDK,
     PolkadotSubstrate,
+    ZkSync,
     #[default]
     Other,
 }
@@ -382,6 +383,7 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainTechnicalStack::PolkadotSubstrate: [
                 Moonbeam, Tangle
             ],
+            HyperlaneDomainTechnicalStack::ZkSync: [],
             HyperlaneDomainTechnicalStack::Other: [
                 Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
                 FuseMainnet, Gnosis, Injective, Linea, Lukso, Neutron, Osmosis, Polygon,
