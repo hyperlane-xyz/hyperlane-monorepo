@@ -58,22 +58,25 @@ export const core: ChainMap<CoreConfig> = objMap(
       ...multisig,
     });
 
-    // No static aggregation ISM support on zkSync
     const routingIsm: RoutingIsmConfig = {
       type: IsmType.ROUTING,
       domains: objMap(
         originMultisigs,
-        (_, multisig): AggregationIsmConfig | MultisigIsmConfig => {
-          if (isZksyncChain) {
-            return messageIdIsm(multisig);
-          } else {
-            return {
-              type: IsmType.AGGREGATION,
-              modules: [messageIdIsm(multisig), merkleRoot(multisig)],
-              threshold: 1,
-            };
-          }
-        },
+        (_, multisig): AggregationIsmConfig => ({
+          type: IsmType.AGGREGATION,
+          modules: [messageIdIsm(multisig), merkleRoot(multisig)],
+          threshold: 1,
+        }),
+      ),
+      ...owner,
+    };
+
+    // No static aggregation or domain routing ISM support on zkSync
+    const defaultZkSyncIsm: RoutingIsmConfig = {
+      type: IsmType.FALLBACK_ROUTING,
+      domains: objMap(
+        originMultisigs,
+        (_, multisig): MultisigIsmConfig => messageIdIsm(multisig),
       ),
       ...owner,
     };
@@ -86,7 +89,7 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     // No static aggregation ISM support on zkSync
     const defaultIsm: AggregationIsmConfig | RoutingIsmConfig = isZksyncChain
-      ? routingIsm
+      ? defaultZkSyncIsm
       : {
           type: IsmType.AGGREGATION,
           modules: [routingIsm, pausableIsm],
