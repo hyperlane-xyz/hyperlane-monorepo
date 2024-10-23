@@ -12,8 +12,8 @@ use hyperlane_core::{
     ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
     Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
-    LogMeta, Mailbox, MerkleTreeHook, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512,
-    U256,
+    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
+    H256, H512, U256,
 };
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -416,8 +416,8 @@ impl std::fmt::Debug for SealevelMailbox {
 #[async_trait]
 impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
-    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        <Self as MerkleTreeHook>::count(self, _maybe_lag).await
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        <Self as MerkleTreeHook>::count(self, reorg_period).await
     }
 
     #[instrument(err, ret, skip(self))]
@@ -755,7 +755,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, None).await?;
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
         Ok((Some(count), tip))
     }
 }
