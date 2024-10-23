@@ -202,6 +202,10 @@ where
             },
             CursorAction::Sleep(duration) => duration,
         };
+        debug!(
+            cursor = ?cursor,
+            "Cursor can't make progress, sleeping",
+        );
         sleep(sleep_duration).await
     }
 
