@@ -18,8 +18,8 @@ use tracing::{error, warn};
 use crypto::decompress_public_key;
 use hyperlane_core::{
     AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
-    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo,
-    H256, U256,
+    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError,
+    TxnInfo, TxnReceiptInfo, H256, U256,
 };
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
@@ -367,33 +367,26 @@ impl HyperlaneChain for CosmosProvider {
 
 #[async_trait]
 impl HyperlaneProvider for CosmosProvider {
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
-            .expect("block hash should be of correct size");
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let response = self.rpc_client.get_block(height as u32).await?;
 
-        let response = self.rpc_client.get_block_by_hash(tendermint_hash).await?;
+        let block = response.block;
+        let block_height = block.header.height.value();
 
-        let received_hash = H256::from_slice(response.block_id.hash.as_bytes());
-
-        if &received_hash != hash {
-            return Err(ChainCommunicationError::from_other_str(
-                &format!("received incorrect block, expected hash: {hash:?}, received hash: {received_hash:?}")
-            ));
+        if block_height != height {
+            Err(HyperlaneProviderError::IncorrectBlockByHeight(
+                height,
+                block_height,
+            ))?
         }
 
-        let block = response.block.ok_or_else(|| {
-            ChainCommunicationError::from_other_str(&format!(
-                "empty block info for block: {:?}",
-                hash
-            ))
-        })?;
-
+        let hash = H256::from_slice(response.block_id.hash.as_bytes());
         let time: OffsetDateTime = block.header.time.into();
 
         let block_info = BlockInfo {
             hash: hash.to_owned(),
             timestamp: time.unix_timestamp() as u64,
-            number: block.header.height.value(),
+            number: block_height,
         };
 
         Ok(block_info)
