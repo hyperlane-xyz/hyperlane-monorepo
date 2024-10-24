@@ -3,12 +3,12 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ChainMap,
   ChainName,
+  GasPriceConfig,
   TOKEN_EXCHANGE_RATE_DECIMALS,
 } from '@hyperlane-xyz/sdk';
 
 import {
   AllStorageGasOracleConfigs,
-  GasPriceConfig,
   getAllStorageGasOracleConfigs,
 } from '../../../src/config/gas-oracle.js';
 

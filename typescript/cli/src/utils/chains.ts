@@ -58,6 +58,13 @@ type RunMultiChainSelectionStepOptions = {
    * @default false
    */
   requiresConfirmation?: boolean;
+
+  /**
+   * The network type to filter the chains by
+   *
+   * @default undefined
+   */
+  networkType?: 'mainnet' | 'testnet';
 };
 
 export async function runMultiChainSelectionStep({
@@ -65,11 +72,12 @@ export async function runMultiChainSelectionStep({
   message = 'Select chains',
   requireNumber = 0,
   requiresConfirmation = false,
+  networkType = undefined,
 }: RunMultiChainSelectionStepOptions) {
-  const networkType = await selectNetworkType();
+  const selectedNetworkType = networkType ?? (await selectNetworkType());
   const { choices, networkTypeSeparator } = getChainChoices(
     chainMetadata,
-    networkType,
+    selectedNetworkType,
   );
 
   let currentChoiceSelection = new Set();
