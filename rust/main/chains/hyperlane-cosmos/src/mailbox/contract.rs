@@ -8,7 +8,7 @@ use tracing::instrument;
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox, RawHyperlaneMessage,
-    TxCostEstimate, TxOutcome, H256, U256,
+    ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
 use crate::grpc::WasmProvider;
@@ -17,7 +17,7 @@ use crate::payloads::mailbox::{
     GeneralMailboxQuery, ProcessMessageRequest, ProcessMessageRequestInner,
 };
 use crate::types::tx_response_to_outcome;
-use crate::utils::get_block_height_for_lag;
+use crate::utils::get_block_height_for_reorg_period;
 use crate::{payloads, ConnectionConf, CosmosAddress, CosmosProvider, Signer};
 
 #[derive(Clone, Debug)]
@@ -82,8 +82,9 @@ impl HyperlaneChain for CosmosMailbox {
 impl Mailbox for CosmosMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let block_height = get_block_height_for_lag(self.provider.grpc(), lag).await?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let block_height =
+            get_block_height_for_reorg_period(self.provider.grpc(), reorg_period).await?;
         self.nonce_at_block(block_height).await
     }
 

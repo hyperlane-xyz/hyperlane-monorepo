@@ -11,7 +11,7 @@ use tendermint::Hash;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
-use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta, H256};
+use hyperlane_core::{ChainCommunicationError, ChainResult, Indexed, LogMeta, ReorgPeriod, H256};
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::rpc::{CosmosWasmRpcProvider, ParsedEvent, WasmRpcProvider};
@@ -24,20 +24,25 @@ pub(crate) const CONTRACT_ADDRESS_ATTRIBUTE_KEY: &str = "_contract_address";
 pub(crate) static CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64: Lazy<String> =
     Lazy::new(|| BASE64.encode(CONTRACT_ADDRESS_ATTRIBUTE_KEY));
 
-/// Given a lag, returns the block height at the moment.
-/// If the lag is None, a block height of None is given, indicating that the
-/// tip directly can be used.
-pub(crate) async fn get_block_height_for_lag(
+/// Given a `reorg_period`, returns the block height at the moment.
+/// If the `reorg_period` is None, a block height of None is given,
+/// indicating that the tip directly can be used.
+pub(crate) async fn get_block_height_for_reorg_period(
     provider: &WasmGrpcProvider,
-    lag: Option<NonZeroU64>,
+    reorg_period: &ReorgPeriod,
 ) -> ChainResult<Option<u64>> {
-    let block_height = match lag {
-        Some(lag) => {
+    let block_height = match reorg_period {
+        ReorgPeriod::Blocks(blocks) => {
             let tip = provider.latest_block_height().await?;
-            let block_height = tip - lag.get();
+            let block_height = tip - blocks.get() as u64;
             Some(block_height)
         }
-        None => None,
+        ReorgPeriod::None => None,
+        ReorgPeriod::Tag(_) => {
+            return Err(ChainCommunicationError::InvalidReorgPeriod(
+                reorg_period.clone(),
+            ))
+        }
     };
 
     Ok(block_height)
