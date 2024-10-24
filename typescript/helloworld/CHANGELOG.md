@@ -1,5 +1,49 @@
 # @hyperlane-xyz/helloworld
 
+## 5.6.0
+
+### Patch Changes
+
+- e89f9e35d: Update registry to v4.7.0
+- Updated dependencies [46044a2e9]
+- Updated dependencies [02a5b92ba]
+- Updated dependencies [29341950e]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [32d0a67c2]
+- Updated dependencies [c9085afd9]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [d41aa6928]
+- Updated dependencies [ec6b874b1]
+- Updated dependencies [c3e9268f1]
+- Updated dependencies [72c23c0d6]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [7f3e0669d]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/sdk@5.6.0
+  - @hyperlane-xyz/core@5.5.0
+
+## 5.5.0
+
+### Patch Changes
+
+- Updated dependencies [92c86cca6]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/core@5.4.1
+  - @hyperlane-xyz/sdk@5.5.0
+
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [bb75eba74]
+- Updated dependencies [4415ac224]
+- Updated dependencies [c5c217f8e]
+  - @hyperlane-xyz/core@5.4.0
+  - @hyperlane-xyz/sdk@5.4.0
+
 ## 5.3.0
 
 ### Minor Changes

@@ -105,10 +105,12 @@ describe('EvmCoreModule', async () => {
     });
 
     it('should deploy ISM factories', () => {
-      // Each ISM factory
-      const deployedContracts = evmCoreModule.serialize();
+      // Each ISM factory is a contract that is deployed by the core module
+      // Ignore IGP because it's not part of the default config
+      const { interchainGasPaymaster: _, ...coreContracts } =
+        evmCoreModule.serialize();
 
-      objMap(deployedContracts as any, (_, address) => {
+      objMap(coreContracts as any, (_, address) => {
         expect(address).to.exist;
         expect(address).to.not.equal(constants.AddressZero);
       });

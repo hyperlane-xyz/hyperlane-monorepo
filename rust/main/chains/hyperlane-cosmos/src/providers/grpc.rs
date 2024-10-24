@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use cosmrs::{
     proto::{
@@ -25,13 +27,8 @@ use cosmrs::{
     Any, Coin,
 };
 use derive_new::new;
-use hyperlane_core::{
-    rpc_clients::{BlockNumberGetter, FallbackProvider},
-    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneDomain, U256,
-};
 use protobuf::Message as _;
 use serde::Serialize;
-use std::fmt::Debug;
 use tonic::{
     transport::{Channel, Endpoint},
     GrpcMethod, IntoRequest,
@@ -39,9 +36,14 @@ use tonic::{
 use tracing::{debug, instrument};
 use url::Url;
 
-use crate::{address::CosmosAddress, CosmosAmount};
+use hyperlane_core::{
+    rpc_clients::{BlockNumberGetter, FallbackProvider},
+    ChainCommunicationError, ChainResult, ContractLocator, FixedPointNumber, HyperlaneDomain, U256,
+};
+
 use crate::{rpc_clients::CosmosFallbackProvider, HyperlaneCosmosError};
 use crate::{signers::Signer, ConnectionConf};
+use crate::{CosmosAddress, CosmosAmount};
 
 /// A multiplier applied to a simulated transaction's gas usage to
 /// calculate the estimated gas.

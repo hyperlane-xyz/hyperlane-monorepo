@@ -1,5 +1,29 @@
 # @hyperlane-xyz/utils
 
+## 5.6.0
+
+### Minor Changes
+
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+
+### Patch Changes
+
+- f1712deb7: Fix objMerge implementation
+
+## 5.5.0
+
+### Minor Changes
+
+- 2afc484a2: Migrate fetchWithTimeout from widgets to utils
+  Add objSlice function and improve types for objMerge
+  Add isUrl function
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
 ## 5.3.0
 
 ### Minor Changes

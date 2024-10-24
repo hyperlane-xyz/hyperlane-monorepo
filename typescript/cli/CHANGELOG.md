@@ -1,5 +1,63 @@
 # @hyperlane-xyz/cli
 
+## 5.6.0
+
+### Minor Changes
+
+- 41035aac8: Add strategyUrl detect and validation in the beginning of `warp apply`
+  Remove yaml transactions print from `warp apply`
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+- 32d0a67c2: Adds the warp check command to compare warp routes config files with on chain warp route deployments
+- 3662297fc: Add prompt in `warp init` command to choose if a trusted relayer should be used instead of making the choice by default for the user and enable the `--yes` flag to default to a trusted ISM
+- b1ff48bd1: Add rebasing yield route support into CLI/SDK
+- d41aa6928: Add `EthJsonRpcBlockParameterTag` enum for validating reorgPeriod
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+- a4d5d692f: Update `warp apply` such that it updates in place AND extends in a single call
+- 01e7070eb: updates the multi chain selection prompt by adding search functionality and an optional confirmation prompt for the current selection
+
+### Patch Changes
+
+- e89f9e35d: Update registry to v4.7.0
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [02a5b92ba]
+- Updated dependencies [29341950e]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [32d0a67c2]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [d41aa6928]
+- Updated dependencies [c3e9268f1]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [7f3e0669d]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+
+## 5.5.0
+
+### Patch Changes
+
+- fcfe91113: Reuse SDK transaction typings in tx submitters
+- Updated dependencies [2afc484a2]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/sdk@5.5.0
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+  - @hyperlane-xyz/sdk@5.4.0
+
 ## 5.3.0
 
 ### Minor Changes

@@ -14,6 +14,7 @@ base64 = { workspace = true }
 bech32 = { workspace = true }
 cosmrs = { workspace = true, features = ["cosmwasm", "tokio", "grpc", "rpc"] }
 cosmwasm-std = { workspace = true }
+crypto = { path = "../../utils/crypto" }
 derive-new = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }

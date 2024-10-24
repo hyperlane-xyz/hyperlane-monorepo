@@ -418,7 +418,7 @@ export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
-  startBlocks: ChainMap<number>,
+  startBlocks: ChainMap<number | undefined>,
   additionalConfig?: ChainMap<any>,
 ): AgentConfig {
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
@@ -438,9 +438,11 @@ export function buildAgentConfig(
       ...metadata,
       ...addresses[chain],
       ...(additionalConfig ? additionalConfig[chain] : {}),
-      index: {
-        from: startBlocks[chain],
-      },
+      ...(startBlocks[chain] !== undefined && {
+        index: {
+          from: startBlocks[chain],
+        },
+      }),
     };
     chainConfigs[chain] = chainConfig;
   }

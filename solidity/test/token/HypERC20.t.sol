@@ -406,6 +406,11 @@ contract HypERC20CollateralTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
+    function test_constructor_revert_ifInvalidToken() public {
+        vm.expectRevert("HypERC20Collateral: invalid token");
+        new HypERC20Collateral(address(0), address(localMailbox));
+    }
+
     function testInitialize_revert_ifAlreadyInitialized() public {}
 
     function testRemoteTransfer() public {
