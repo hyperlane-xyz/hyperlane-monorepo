@@ -15,6 +15,8 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
+import {Message} from "../../libs/Message.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {MetaProxy} from "../../libs/MetaProxy.sol";
@@ -23,6 +25,8 @@ import {MetaProxy} from "../../libs/MetaProxy.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 contract StaticAggregationHook is AbstractPostDispatchHook {
+    using Message for bytes;
+    using TypeCasts for bytes32;
     using StandardHookMetadata for bytes;
     using Address for address payable;
 
@@ -40,16 +44,15 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
     ) internal override {
         address[] memory _hooks = hooks(message);
         uint256 count = _hooks.length;
-        uint256 gasRemaining = msg.value;
+        uint256 valueRemaining = msg.value;
         for (uint256 i = 0; i < count; i++) {
             uint256 quote = IPostDispatchHook(_hooks[i]).quoteDispatch(
                 metadata,
                 message
             );
-
             require(
-                gasRemaining >= quote,
-                "StaticAggregationHook: Insufficient value"
+                valueRemaining >= quote,
+                "StaticAggregationHook: insufficient value"
             );
 
             IPostDispatchHook(_hooks[i]).postDispatch{value: quote}(
@@ -57,11 +60,13 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
                 message
             );
 
-            gasRemaining -= quote;
+            valueRemaining -= quote;
         }
 
-        if (gasRemaining > 0) {
-            payable(metadata.refundAddress(msg.sender)).sendValue(gasRemaining);
+        if (valueRemaining > 0) {
+            payable(metadata.refundAddress(msg.sender)).sendValue(
+                valueRemaining
+            );
         }
     }
 
