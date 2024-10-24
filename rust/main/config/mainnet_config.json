@@ -429,7 +429,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 3,
-        "reorgPeriod": "finalized"
+        "reorgPeriod": "15"
       },
       "chainId": 56,
       "deployer": {
