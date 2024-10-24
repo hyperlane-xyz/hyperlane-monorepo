@@ -17,7 +17,7 @@ data:
       type: synthetic
       hypAddress: 'tKUHyJ5NxhnwU94JUmzh1ekukDcHHX8mZF6fqxbMwX6'
       tokenAddress: 'V5m1Cc9VK61mKL8xVYrjR7bjD2BC5VpADLa6ws3G8KM'
-      isSpl2022: false
+      isSpl2022: true
       name: Turbo Eth
       symbol: tETH
       decimals: 6
