@@ -1009,5 +1009,15 @@ export const validatorChainConfig = (
         'zeronetwork',
       ),
     },
+    zksync: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zksync'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a'],
+        },
+        'zksync',
+      ),
+    },
   };
 };

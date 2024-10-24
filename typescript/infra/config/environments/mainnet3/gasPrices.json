@@ -283,6 +283,10 @@
     "amount": "0.001000253",
     "decimals": 9
   },
+  "zksync": {
+    "amount": "0.04525",
+    "decimals": 9
+  },
   "zoramainnet": {
     "amount": "0.001000274",
     "decimals": 9

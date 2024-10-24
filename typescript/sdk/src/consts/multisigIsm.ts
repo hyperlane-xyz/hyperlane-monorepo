@@ -855,6 +855,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  zksync: {
+    threshold: 1,
+    validators: ['0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a'],
+  },
+
   zoramainnet: {
     threshold: 3,
     validators: [

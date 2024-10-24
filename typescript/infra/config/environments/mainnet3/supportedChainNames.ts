@@ -72,6 +72,7 @@ export const mainnet3SupportedChainNames = [
   'zeronetwork',
   'zetachain',
   'zircuit',
+  'zksync',
   'zoramainnet',
 ] as const;
 
