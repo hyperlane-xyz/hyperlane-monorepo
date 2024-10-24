@@ -1,7 +1,7 @@
 import { pick } from '@hyperlane-xyz/utils';
 
-import { getArgs } from './agent-utils.js';
-import { getEnvironmentConfig } from './core-utils.js';
+import { getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 // This script exists to print the chain metadata configs for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
