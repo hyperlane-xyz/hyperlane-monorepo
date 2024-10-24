@@ -42,10 +42,10 @@ pub enum HyperlaneProviderError {
     #[error("Could not find transaction from provider with hash {0:?}")]
     CouldNotFindTransactionByHash(H256),
     /// Could not find a block by height
-    #[error("Could not find block from provider with hash {0:?}")]
+    #[error("Could not find block from provider with height {0:?}")]
     CouldNotFindBlockByHeight(u64),
     /// The requested block does not have its hash
-    #[error("Block does not contain its hash {0:?}")]
+    #[error("Block with height {0:?} does not contain its hash")]
     BlockWithoutHash(u64),
     /// Incorrect block is received
     #[error("Requested block with height {0:?}, received block with height {1:?}")]
