@@ -32,9 +32,14 @@ async function main() {
 
   for (const chain of Object.keys(config)) {
     if (config[chain].threshold > MAX_THRESHOLD) {
+      console.warn(
+        `Threshold for ${chain} is ${config[chain].threshold}. Capping to ${MAX_THRESHOLD}.`,
+      );
       config[chain].threshold = MAX_THRESHOLD;
     }
   }
+
+  console.warn;
 
   console.log(JSON.stringify(config, null, 2));
 }
