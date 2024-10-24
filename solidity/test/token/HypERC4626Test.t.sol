@@ -314,7 +314,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
 
         _accrueYield();
-        localRebasingToken.rebase(DESTINATION);
+        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
         remoteMailbox.processNextInboundMessage();
 
         uint256 sharesAfterYield = remoteRebasingToken.totalShares();
@@ -336,7 +336,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
 
         _accrueYield();
-        localRebasingToken.rebase(DESTINATION);
+        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
         remoteMailbox.processNextInboundMessage();
 
         uint256 bobShareBalanceAfterYield = remoteRebasingToken.shareBalanceOf(
@@ -600,7 +600,7 @@ contract HypERC4626CollateralTest is HypTokenTest {
         );
 
         _accrueYield();
-        localRebasingToken.rebase(DESTINATION);
+        localRebasingToken.rebase(DESTINATION, bytes(""), address(0));
         remoteMailbox.processNextInboundMessage();
 
         uint256 supplyAfterYield = remoteToken.totalSupply();
