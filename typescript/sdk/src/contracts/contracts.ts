@@ -262,6 +262,7 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 }
 
 export function transferOwnershipTransactions(
+  chainId: number,
   contract: Address,
   actual: OwnableConfig,
   expected: OwnableConfig,
@@ -273,6 +274,7 @@ export function transferOwnershipTransactions(
 
   return [
     {
+      chainId,
       annotation: `Transferring ownership of ${label ?? contract} from ${
         actual.owner
       } to ${expected.owner}`,
