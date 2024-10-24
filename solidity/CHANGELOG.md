@@ -1,5 +1,17 @@
 # @hyperlane-xyz/core
 
+## 5.6.0
+
+### Minor Changes
+
+- c55257cf5: Minor token related changes like adding custom hook to 4626 collateral, checking for ERC20 as valid contract in HypERC20Collateral, etc.
+- 8cc0d9a4a: Added WHypERC4626 as a wrapper for rebasing HypERC4626
+
+### Patch Changes
+
+- 8cc0d9a4a: Add wrapped HypERC4626 for easy defi use
+  - @hyperlane-xyz/utils@5.6.1
+
 ## 5.5.0
 
 ### Minor Changes
