@@ -1,12 +1,9 @@
 import { z } from 'zod';
 
-import {
-  OwnableConfigSchema,
-  ProxyFactoryFactoriesSchema,
-} from '../deploy/schemas.js';
+import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
 import { HookConfigSchema } from '../hook/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
-import { OwnableSchema } from '../schemas.js';
+import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
 
 export const CoreConfigSchema = OwnableSchema.extend({
   defaultIsm: IsmConfigSchema,
@@ -14,8 +11,8 @@ export const CoreConfigSchema = OwnableSchema.extend({
   requiredHook: HookConfigSchema,
   // These fields are set as optional because the old core config
   // did not have them and we want to maintain backward compatibility
-  proxyAdmin: OwnableConfigSchema.optional(),
-  interchainAccountRouter: OwnableConfigSchema.optional(),
+  proxyAdmin: DeployedOwnableSchema.optional(),
+  interchainAccountRouter: DeployedOwnableSchema.optional(),
 });
 
 export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
