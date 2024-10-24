@@ -85,7 +85,7 @@ export abstract class ProxiedRouterDeployer<
     config: Config,
   ): Promise<HyperlaneContracts<Factories & ProxiedFactories>> {
     let proxyAdmin: ProxyAdmin;
-    if (config.proxyAdmin) {
+    if (config.proxyAdmin?.address) {
       this.logger.debug(
         `Reusing existing ProxyAdmin at ${config.proxyAdmin.address} for chain ${chain}`,
       );

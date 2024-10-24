@@ -31,7 +31,7 @@ import {
 } from '../utils/files.js';
 import {
   detectAndConfirmOrPrompt,
-  setExistingProxyAdmin,
+  setProxyAdminConfig,
 } from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
@@ -153,11 +153,11 @@ export async function createWarpRouteDeployConfig({
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
 
-    const proxyAdmin: DeployedOwnableConfig | undefined =
-      // default to deploying a new ProxyAdmin if the user supplied the --yes flag
-      !context.skipConfirmation
-        ? await setExistingProxyAdmin(context, chain)
-        : undefined;
+    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
+      context,
+      chain,
+      owner,
+    );
 
     /**
      * The logic from the cli is as follows:

@@ -21,7 +21,7 @@ import chalk from 'chalk';
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { ChainName, DeployedOwnableConfig } from '@hyperlane-xyz/sdk';
 import { WarpCoreConfig } from '@hyperlane-xyz/sdk';
-import { isAddress } from '@hyperlane-xyz/utils';
+import { Address, isAddress } from '@hyperlane-xyz/utils';
 
 import { readWarpCoreConfig } from '../config/warp.js';
 import { CommandContext } from '../context/types.js';
@@ -84,16 +84,27 @@ export async function inputWithInfo({
 /**
  * Prompts the user to optionally set an existing ProxyAdmin contract address to be used in a WarpToken deployment.
  */
-export async function setExistingProxyAdmin(
+export async function setProxyAdminConfig(
   context: CommandContext,
   chain: ChainName,
-): Promise<DeployedOwnableConfig | undefined> {
+  warpRouteOwner: Address,
+): Promise<DeployedOwnableConfig> {
+  const defaultAdminConfig: DeployedOwnableConfig = {
+    owner: warpRouteOwner,
+  };
+
+  // default to deploying a new ProxyAdmin with `warpRouteOwner` as the owner
+  // if the user supplied the --yes flag
+  if (context.skipConfirmation) {
+    return defaultAdminConfig;
+  }
+
   const useExistingProxy = await confirm({
     message: `Use an existing Proxy Admin contract for the warp route deployment on chain "${chain}"?`,
   });
 
   if (!useExistingProxy) {
-    return;
+    return defaultAdminConfig;
   }
 
   const proxyAdminAddress = await input({
@@ -105,11 +116,18 @@ export async function setExistingProxyAdmin(
     proxyAdminAddress,
     context.multiProvider.getProvider(chain),
   );
-  const ownerAddress = await proxy.owner();
-  return {
-    address: proxyAdminAddress,
-    owner: ownerAddress,
-  };
+
+  try {
+    const ownerAddress = await proxy.owner();
+    return {
+      address: proxyAdminAddress,
+      owner: ownerAddress,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to read owner address from ProxyAdmin contract at ${proxy.address}. Are you sure this is a ProxyAdmin contract?`,
+    );
+  }
 }
 
 /**

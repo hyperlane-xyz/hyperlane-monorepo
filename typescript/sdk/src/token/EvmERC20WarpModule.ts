@@ -248,7 +248,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ...EvmModuleDeployer.createTransferOwnershipTx({
         actualOwner: actualProxyAdmin.owner,
         expectedOwner: expectedConfig.proxyAdmin.owner,
-        deployedAddress: actualProxyAdmin.address,
+        deployedAddress: actualProxyAdmin.address!,
         chainId: this.domainId,
       }),
     );
