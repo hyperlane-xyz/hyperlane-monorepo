@@ -4,7 +4,7 @@ import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
 import { HookConfigSchema } from '../hook/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { OwnableSchema } from '../schemas.js';
+import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
 
 export const MailboxClientConfigSchema = OwnableSchema.extend({
   mailbox: ZHash,
@@ -29,6 +29,7 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
 ).merge(
   z.object({
     remoteRouters: RemoteRoutersSchema.optional(),
+    proxyAdmin: DeployedOwnableSchema.optional(),
   }),
 );
 

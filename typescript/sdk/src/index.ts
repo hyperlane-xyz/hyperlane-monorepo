@@ -96,6 +96,7 @@ export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDep
 export {
   CheckerViolation,
   OwnableConfig,
+  DeployedOwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
   ViolationType,
