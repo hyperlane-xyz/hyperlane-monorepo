@@ -20,6 +20,7 @@ use hyperlane_sealevel_mailbox::{
         DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessage,
         ProcessedMessageAccount,
     },
+    instruction,
     instruction::InboxProcess,
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
@@ -52,11 +53,14 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta, TransactionStatus,
-    UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiReturnDataEncoding,
-    UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
+    UiCompiledInstruction, UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction,
+    UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
 };
 use tracing::{debug, info, instrument, warn};
 
+use crate::error::HyperlaneSealevelError;
+use crate::transaction::search_transaction;
+use crate::utils::{decode_h256, decode_h512, from_base58};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -671,6 +675,8 @@ impl SealevelMailboxIndexer {
                 self.dispatched_message_account(&account)
             })?;
 
+        info!(?valid_message_storage_pda_pubkey);
+
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
         let account = self
             .rpc()
@@ -683,6 +689,44 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
+        // TODO
+        // 1. Request block using dispatched_message_account.slot
+        // 2. Identify the transaction:
+        //  2.1 transaction contains Mailbox program in list of accounts (number 15) mailbox.program_id
+        //  2.2 transaction contains dispatched message PDA in the list of accounts (number 6) valid_message_storage_pda_pubkey
+        //  2.3 confirm that transaction performs message dispatch (OutboxDispatch) from data
+        // 3. Extract block hash from block
+        // 4. Extract transaction signature from transaction (first signature)
+
+        let block = self
+            .mailbox
+            .provider
+            .rpc()
+            .get_block(dispatched_message_account.slot)
+            .await?;
+        let block_hash = decode_h256(&block.blockhash)?;
+
+        let transactions =
+            block.transactions.ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any transaction".to_owned()))?;
+
+        let transaction_hashes = search_transaction(
+            &self.mailbox.program_id,
+            &valid_message_storage_pda_pubkey,
+            transactions,
+        );
+
+        // We expect to see that there is only one message dispatch transaction
+        if transaction_hashes.len() > 1 {
+            Err(HyperlaneSealevelError::TooManyTransactions("Block contains more than one dispatch message transaction operating on the same dispatch message store PDA".to_owned()))?
+        }
+
+        let transaction_hash = transaction_hashes
+            .into_iter()
+            .next()
+            .ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any after filtering".to_owned()))?;
+
+        // info!(?block, "confirmed_block");
+
         Ok((
             hyperlane_message.into(),
             LogMeta {
@@ -690,8 +734,8 @@ impl SealevelMailboxIndexer {
                 block_number: dispatched_message_account.slot,
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
-                block_hash: H256::zero(),
-                transaction_id: H512::zero(),
+                block_hash,
+                transaction_id: transaction_hash,
                 transaction_index: 0,
                 log_index: U256::zero(),
             },

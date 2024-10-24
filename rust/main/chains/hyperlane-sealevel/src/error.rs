@@ -17,6 +17,12 @@ pub enum HyperlaneSealevelError {
     /// Decoding error
     #[error("{0}")]
     Decoding(#[from] solana_sdk::bs58::decode::Error),
+    /// No transaction in block error
+    #[error("{0}")]
+    NoTransactions(String),
+    /// Too many transactions of particular content in block
+    #[error("{0}")]
+    TooManyTransactions(String),
 }
 
 impl From<HyperlaneSealevelError> for ChainCommunicationError {
