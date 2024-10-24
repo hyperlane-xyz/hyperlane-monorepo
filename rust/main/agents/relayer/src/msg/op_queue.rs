@@ -6,7 +6,7 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
 
-use crate::server::MessageRetryRequest;
+use crate::settings::matching_list::MatchingList;
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
@@ -16,7 +16,7 @@ pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
+    retry_rx: Arc<Mutex<Receiver<MatchingList>>>,
     #[new(default)]
     pub queue: OperationPriorityQueue,
 }
@@ -86,7 +86,7 @@ impl OpQueue {
             .map(|Reverse(mut op)| {
                 // Can check for equality here because of the PartialEq implementation for MessageRetryRequest,
                 // but can't use `contains` because the types are different
-                if message_retry_requests.iter().any(|r| r == op) {
+                if message_retry_requests.iter().any(|r| r.op_matches(&op)) {
                     info!(
                         operation = %op,
                         queue_label = %self.queue_metrics_label,
@@ -115,152 +115,10 @@ impl OpQueue {
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
-        TryBatchAs, TxOutcome, H256, U256,
-    };
-    use serde::Serialize;
-    use std::{
-        collections::VecDeque,
-        time::{Duration, Instant},
-    };
+    use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
+    use hyperlane_test::{mocks::MockPendingOperation, setup::dummy_metrics_and_label};
+    use std::collections::VecDeque;
     use tokio::sync;
-
-    #[derive(Debug, Clone, Serialize)]
-    pub struct MockPendingOperation {
-        id: H256,
-        seconds_to_next_attempt: u64,
-        destination_domain: HyperlaneDomain,
-    }
-
-    impl MockPendingOperation {
-        pub fn new(seconds_to_next_attempt: u64, destination_domain: HyperlaneDomain) -> Self {
-            Self {
-                id: H256::random(),
-                seconds_to_next_attempt,
-                destination_domain,
-            }
-        }
-
-        pub fn with_id(self, id: H256) -> Self {
-            Self { id, ..self }
-        }
-    }
-
-    impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
-
-    #[async_trait::async_trait]
-    #[typetag::serialize]
-    impl PendingOperation for MockPendingOperation {
-        fn id(&self) -> H256 {
-            self.id
-        }
-
-        fn status(&self) -> PendingOperationStatus {
-            PendingOperationStatus::FirstPrepareAttempt
-        }
-
-        fn set_status(&mut self, _status: PendingOperationStatus) {}
-
-        fn reset_attempts(&mut self) {
-            self.seconds_to_next_attempt = 0;
-        }
-
-        fn priority(&self) -> u32 {
-            todo!()
-        }
-
-        fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
-            todo!()
-        }
-
-        fn get_operation_labels(&self) -> (String, String) {
-            Default::default()
-        }
-
-        fn origin_domain_id(&self) -> u32 {
-            todo!()
-        }
-
-        fn destination_domain(&self) -> &HyperlaneDomain {
-            &self.destination_domain
-        }
-
-        fn app_context(&self) -> Option<String> {
-            todo!()
-        }
-
-        async fn prepare(&mut self) -> PendingOperationResult {
-            todo!()
-        }
-
-        /// Submit this operation to the blockchain and report if it was successful
-        /// or not.
-        async fn submit(&mut self) -> PendingOperationResult {
-            todo!()
-        }
-
-        fn set_submission_outcome(&mut self, _outcome: TxOutcome) {
-            todo!()
-        }
-
-        fn get_tx_cost_estimate(&self) -> Option<U256> {
-            todo!()
-        }
-
-        /// This will be called after the operation has been submitted and is
-        /// responsible for checking if the operation has reached a point at
-        /// which we consider it safe from reorgs.
-        async fn confirm(&mut self) -> PendingOperationResult {
-            todo!()
-        }
-
-        fn set_operation_outcome(
-            &mut self,
-            _submission_outcome: TxOutcome,
-            _submission_estimated_cost: U256,
-        ) {
-            todo!()
-        }
-
-        fn next_attempt_after(&self) -> Option<Instant> {
-            Some(
-                Instant::now()
-                    .checked_add(Duration::from_secs(self.seconds_to_next_attempt))
-                    .unwrap(),
-            )
-        }
-
-        fn set_next_attempt_after(&mut self, _delay: Duration) {
-            todo!()
-        }
-
-        fn set_retries(&mut self, _retries: u32) {
-            todo!()
-        }
-
-        fn get_metric(&self) -> Option<Arc<IntGauge>> {
-            None
-        }
-
-        fn set_metric(&mut self, _metric: Arc<IntGauge>) {}
-    }
-
-    pub fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
-        (
-            IntGaugeVec::new(
-                prometheus::Opts::new("op_queue", "OpQueue metrics"),
-                &[
-                    "destination",
-                    "queue_metrics_label",
-                    "operation_status",
-                    "app_context",
-                ],
-            )
-            .unwrap(),
-            "queue_metrics_label".to_string(),
-        )
-    }
 
     #[tokio::test]
     async fn test_multiple_op_queues_message_id() {
@@ -312,10 +170,10 @@ pub mod test {
 
         // Retry by message ids
         broadcaster
-            .send(MessageRetryRequest::MessageId(op_ids[1]))
+            .send(MatchingList::with_message_id(op_ids[1]))
             .unwrap();
         broadcaster
-            .send(MessageRetryRequest::MessageId(op_ids[2]))
+            .send(MatchingList::with_message_id(op_ids[2]))
             .unwrap();
 
         // Pop elements from queue 1
@@ -373,7 +231,7 @@ pub mod test {
 
         // Retry by domain
         broadcaster
-            .send(MessageRetryRequest::DestinationDomain(
+            .send(MatchingList::with_destination_domain(
                 destination_domain_2.id(),
             ))
             .unwrap();

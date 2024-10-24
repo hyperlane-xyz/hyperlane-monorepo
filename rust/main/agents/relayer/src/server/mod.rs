@@ -3,7 +3,7 @@ use derive_new::new;
 use std::collections::HashMap;
 use tokio::sync::broadcast::Sender;
 
-use crate::msg::op_queue::OperationPriorityQueue;
+use crate::{msg::op_queue::OperationPriorityQueue, settings::matching_list::MatchingList};
 
 pub const ENDPOINT_MESSAGES_QUEUE_SIZE: usize = 100;
 
@@ -16,13 +16,13 @@ mod message_retry;
 #[derive(new)]
 pub struct Server {
     #[new(default)]
-    retry_transmitter: Option<Sender<MessageRetryRequest>>,
+    retry_transmitter: Option<Sender<MatchingList>>,
     #[new(default)]
     op_queues: Option<HashMap<u32, OperationPriorityQueue>>,
 }
 
 impl Server {
-    pub fn with_op_retry(mut self, transmitter: Sender<MessageRetryRequest>) -> Self {
+    pub fn with_op_retry(mut self, transmitter: Sender<MatchingList>) -> Self {
         self.retry_transmitter = Some(transmitter);
         self
     }

@@ -167,6 +167,14 @@ impl PendingOperation for PendingMessage {
         self.ctx.destination_mailbox.domain()
     }
 
+    fn sender_address(&self) -> &H256 {
+        &self.message.sender
+    }
+
+    fn recipient_address(&self) -> &H256 {
+        &self.message.recipient
+    }
+
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
         match self.ctx.origin_db.retrieve_status_by_message_id(&self.id()) {
             Ok(status) => status,
