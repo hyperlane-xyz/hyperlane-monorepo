@@ -47,18 +47,21 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
                 message
             );
 
-            gasRemaining -= quote;
+            require(
+                gasRemaining >= quote,
+                "StaticAggregationHook: Insufficient value"
+            );
+
             IPostDispatchHook(_hooks[i]).postDispatch{value: quote}(
                 metadata,
                 message
             );
+
+            gasRemaining -= quote;
         }
 
         if (gasRemaining > 0) {
-            address payable refundAddress = payable(
-                metadata.refundAddress(msg.sender)
-            );
-            refundAddress.sendValue(gasRemaining);
+            payable(metadata.refundAddress(msg.sender)).sendValue(gasRemaining);
         }
     }
 
