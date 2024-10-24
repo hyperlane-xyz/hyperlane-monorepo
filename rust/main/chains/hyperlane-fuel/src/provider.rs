@@ -1,5 +1,3 @@
-use std::io::Read;
-
 use crate::{make_client, make_provider, ConnectionConf};
 use async_trait::async_trait;
 use fuels::{

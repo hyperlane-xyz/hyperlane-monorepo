@@ -59,6 +59,10 @@ impl HyperlaneChain for FuelInterchainSecurityModule {
 #[async_trait]
 impl InterchainSecurityModule for FuelInterchainSecurityModule {
     async fn module_type(&self) -> ChainResult<ModuleType> {
+        if self.address() == H256::zero() {
+            return Ok(ModuleType::Null);
+        }
+
         self.contract
             .methods()
             .module_type()

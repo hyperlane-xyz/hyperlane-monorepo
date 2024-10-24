@@ -423,7 +423,31 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " Gets the default hook used for message processing."
+            " Gets the default hook used for message verification."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [ContractId] - Address implementing Hook interface."
           ]
         },
         {
@@ -443,6 +467,30 @@
           "name": "doc-comment",
           "arguments": [
             " Gets the default ISM used for message verification."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [ContractId] - Address implementing ISM interface."
           ]
         },
         {
@@ -490,7 +538,31 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " * `message_id` - The unique identifier of the message."
+            " * `message_id`: [b256] - The unique identifier of the message."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [bool] - True if the message has been processed."
           ]
         },
         {
@@ -560,19 +632,97 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " * `destination_domain` - The domain of the destination chain."
+            " * `destination_domain`: [u32] - The domain of the destination chain."
           ]
         },
         {
           "name": "doc-comment",
           "arguments": [
-            " * `recipient` - Address of the recipient on the destination chain."
+            " * `recipient`: [b256] - Address of the recipient on the destination chain."
           ]
         },
         {
           "name": "doc-comment",
           "arguments": [
-            " * `message_body` - Raw bytes content of the message body."
+            " * `message_body`: [Bytes] - Raw bytes content of the message body."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `metadata`: [Bytes] - Raw bytes content of the metadata."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `hook`: [ContractId] - The hook contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [b256] - The ID of the dispatched message."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the message body is too large."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the contract is paused."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If reentrancy is detected."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If any external call fails."
           ]
         },
         {
@@ -617,6 +767,72 @@
           ]
         },
         {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `owner`: [b256] - The owner of the contract."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `default_ism`: [b256] - The default ISM contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `default_hook`: [b256] - The default hook contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `required_hook`: [b256] - The required hook contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the contract is already initialized."
+          ]
+        },
+        {
           "name": "storage",
           "arguments": [
             "write"
@@ -629,6 +845,36 @@
       "name": "latest_dispatched_id",
       "output": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b",
       "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Returns the ID of the last dispatched message."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [b256] - The ID of the last dispatched message."
+          ]
+        },
         {
           "name": "storage",
           "arguments": [
@@ -645,7 +891,31 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " Returns the domain of the chain where the contract is deployed."
+            " Gets the domain which is specified on contract initialization."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [u32] - The domain of the contract."
           ]
         },
         {
@@ -661,6 +931,36 @@
       "name": "nonce",
       "output": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc",
       "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Returns the number of inserted leaves (i.e. messages) in the merkle tree."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [u32] - The number of leaves in the merkle tree."
+          ]
+        },
         {
           "name": "storage",
           "arguments": [
@@ -710,13 +1010,73 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " * `metadata` - The metadata for ISM verification."
+            " * `metadata`: [Bytes] - The metadata for ISM verification."
           ]
         },
         {
           "name": "doc-comment",
           "arguments": [
-            " * `message` - The message as emitted by dispatch."
+            " * `message`: [Bytes] - The message as emitted by dispatch."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the contract is paused."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If reentrancy is detected."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the message has already been delivered."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the message's protocol version is invalid."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the message's origin is invalid."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the message's verification fails."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If any external call fails."
           ]
         },
         {
@@ -757,7 +1117,7 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " Quotes the cost of dispatching a message to the destination domain and recipient."
+            " Quotes a price for dispatching a message"
           ]
         },
         {
@@ -781,19 +1141,79 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " * `destination_domain` - The domain of the destination chain."
+            " * `destination_domain`: [u32] - The domain of the destination chain."
           ]
         },
         {
           "name": "doc-comment",
           "arguments": [
-            " * `recipient` - Address of the recipient on the destination chain."
+            " * `recipient_address`: [b256] - Address of the recipient on the destination chain."
           ]
         },
         {
           "name": "doc-comment",
           "arguments": [
-            " * `message_body` - Raw bytes content of the message body."
+            " * `message_body`: [Bytes] - Raw bytes content of the message body."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `metadata`: [Bytes] - Raw bytes content of the metadata."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `hook`: [ContractId] - The hook contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [u64] - The price of the dispatch."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If any external call fails."
           ]
         },
         {
@@ -815,6 +1235,84 @@
       "output": "29c10735d33b5159f0c71ee1dbd17b36a3e69e41f00fab0d42e1bd9f428d8a54",
       "attributes": [
         {
+          "name": "doc-comment",
+          "arguments": [
+            " Returns the ISM set by a recipient."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `recipient`: [ContractId] - The recipient's contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [ContractId] - The ISM contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If recipient call fails."
+          ]
+        },
+        {
           "name": "storage",
           "arguments": [
             "read",
@@ -831,7 +1329,31 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " Gets the required hook used for message processing."
+            " Gets the required hook used for message verification."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [ContractId] - Address implementing Hook interface."
           ]
         },
         {
@@ -855,7 +1377,61 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " Sets the default hook used for message processing."
+            " Sets the required hook used for message verification."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `module`: [ContractId] - Address implementing Hook interface."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the caller is not the owner."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the provided hook address is zero."
           ]
         },
         {
@@ -903,7 +1479,37 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " * `module` - Address implementing ISM interface."
+            " * `module`: [ContractId] - Address implementing ISM interface."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the caller is not the owner."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the provided ISM address is zero."
           ]
         },
         {
@@ -928,7 +1534,61 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " Sets the required hook used for message processing."
+            " Sets the required hook used for message verification."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `module`: [ContractId] - Address implementing Hook interface."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the caller is not the owner."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the provided hook address is zero."
           ]
         },
         {
@@ -1119,7 +1779,7 @@
     {
       "name": "LOCAL_DOMAIN",
       "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc",
-      "offset": 56248
+      "offset": 55856
     }
   ]
 }

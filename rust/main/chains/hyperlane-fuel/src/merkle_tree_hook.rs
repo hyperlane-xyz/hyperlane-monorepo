@@ -15,9 +15,9 @@ use fuels::{
 };
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
-    ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneIdentifier,
-    HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion,
-    SequenceAwareIndexer, H256, U256,
+    ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
+    Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    U256,
 };
 
 /// A reference to a AggregationIsm contract on some Fuel chain

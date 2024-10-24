@@ -5,7 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use fuels::{
     prelude::{Bech32ContractId, WalletUnlocked},
-    programs::{calls::Execution, contract},
+    programs::calls::Execution,
     tx::{Receipt, ScriptExecutionResult},
     types::{
         transaction::TxPolicies, transaction_response::TransactionResponse, tx_status::TxStatus,
@@ -120,9 +120,11 @@ impl Mailbox for FuelMailbox {
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        let parsed_recipient = Bech32ContractId::from_h256(&recipient);
         self.contract
             .methods()
-            .recipient_ism(Bech32ContractId::from_h256(&recipient))
+            .recipient_ism(parsed_recipient.clone())
+            .with_contract_ids(&[parsed_recipient])
             .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value.into_h256())
@@ -197,6 +199,10 @@ impl Mailbox for FuelMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
+        // The tolerance to go over the exact gas esimated is
+        // quite high due to the SDK reporting innacurate gas estimates
+        let tolerance = Some(1.0);
+
         let call_res = self
             .contract
             .methods()
@@ -204,15 +210,12 @@ impl Mailbox for FuelMailbox {
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
-            .determine_missing_contracts(Some(3))
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .estimate_transaction_cost(None, None)
+            .estimate_transaction_cost(tolerance, None)
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(TxCostEstimate {
-            gas_limit: call_res.total_fee.into(),
+            gas_limit: call_res.gas_used.into(),
             gas_price: call_res.gas_price.into(),
             l2_gas_limit: None,
         })
@@ -354,7 +357,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for FuelMailboxIndexer {
             .await
             .map(|r| r.value)
             .map_err(ChainCommunicationError::from_other)
-            .map(|sequence| (Some(sequence as u32), tip))
+            .map(|sequence| (Some(sequence), tip))
     }
 }
 
