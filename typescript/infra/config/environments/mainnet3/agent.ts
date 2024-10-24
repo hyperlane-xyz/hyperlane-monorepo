@@ -316,7 +316,7 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     matchingList: [
       ...routerMatchingList(injectiveInevmInjAddresses),
       // As we are still indexing the IGP on Stride, temporarily whitelist
-      // Stride to TIA messages.
+      // Stride to Eclipse messages.
       ...routerMatchingList(eclipseStrideTiaAddresses),
       ...routerMatchingList(eclipseStrideStTiaAddresses),
     ],
