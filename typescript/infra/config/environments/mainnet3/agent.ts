@@ -27,6 +27,8 @@ import { validatorChainConfig } from './validators.js';
 import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import arbitrumNeutronEclipAddresses from './warp/arbitrum-neutron-eclip-addresses.json';
+import eclipseStrideTiaAddresses from './warp/eclipse-stride-TIA-addresses.json';
+import eclipseStrideStTiaAddresses from './warp/eclipse-stride-stTIA-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
@@ -311,7 +313,13 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   // warp routes that we know are certainly paying for gas.
   {
     type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [...routerMatchingList(injectiveInevmInjAddresses)],
+    matchingList: [
+      ...routerMatchingList(injectiveInevmInjAddresses),
+      // As we are still indexing the IGP on Stride, temporarily whitelist
+      // Stride to TIA messages.
+      ...routerMatchingList(eclipseStrideTiaAddresses),
+      ...routerMatchingList(eclipseStrideStTiaAddresses),
+    ],
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
