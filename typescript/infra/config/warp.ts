@@ -22,6 +22,8 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
+import { getStrideEclipseTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getStrideEclipseStTiaWarpConfig.js';
+import { getStrideEclipseStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getStrideEclipseTiaWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 
 type WarpConfigGetterWithConfig = (
@@ -50,6 +52,8 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.EthereumZircuitPZETH]: getRenzoPZETHWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
+  [WarpRouteIds.StrideEclipseTIA]: getStrideEclipseTiaWarpConfig,
+  [WarpRouteIds.StrideEclipseSTTIA]: getStrideEclipseStTiaWarpConfig,
 };
 
 export async function getWarpConfig(
