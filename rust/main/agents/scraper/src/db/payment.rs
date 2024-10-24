@@ -1,12 +1,11 @@
 use eyre::{eyre, Result};
+use hyperlane_core::{h256_to_bytes, InterchainGasPayment, LogMeta};
 use itertools::Itertools;
+use migration::OnConflict;
 use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
 use tracing::{debug, instrument, trace};
 
-use hyperlane_core::{InterchainGasPayment, LogMeta};
-use migration::OnConflict;
-
-use crate::conversions::{h256_to_bytes, u256_to_decimal};
+use crate::conversions::u256_to_decimal;
 use crate::date_time;
 use crate::db::ScraperDb;
 

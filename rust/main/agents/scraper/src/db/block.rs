@@ -1,14 +1,13 @@
 use eyre::{Context, Result};
+use migration::OnConflict;
 use sea_orm::{
     prelude::*, ActiveValue::*, DbErr, EntityTrait, FromQueryResult, Insert, QueryResult,
     QuerySelect,
 };
 use tracing::{debug, trace};
 
-use hyperlane_core::{BlockInfo, H256};
-use migration::OnConflict;
+use hyperlane_core::{address_to_bytes, h256_to_bytes, BlockInfo, H256};
 
-use crate::conversions::{address_to_bytes, h256_to_bytes};
 use crate::date_time;
 use crate::db::ScraperDb;
 

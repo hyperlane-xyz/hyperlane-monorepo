@@ -17,9 +17,9 @@ use tracing::{error, warn};
 
 use crypto::decompress_public_key;
 use hyperlane_core::{
-    AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
-    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError,
-    TxnInfo, TxnReceiptInfo, H256, U256,
+    bytes_to_h512, h512_to_bytes, AccountAddressType, BlockInfo, ChainCommunicationError,
+    ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
+    HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
@@ -202,12 +202,12 @@ impl CosmosProvider {
     }
 
     /// Extract contract address from transaction.
-    fn contract(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
+    fn contract(tx: &Tx, tx_hash: &H512) -> ChainResult<H256> {
         // We merge two error messages together so that both of them are reported
-        match Self::contract_address_from_msg_execute_contract(tx, tx_hash) {
+        match Self::contract_address_from_msg_execute_contract(tx) {
             Ok(contract) => Ok(contract),
             Err(msg_execute_contract_error) => {
-                match Self::contract_address_from_msg_recv_packet(tx, tx_hash) {
+                match Self::contract_address_from_msg_recv_packet(tx) {
                     Ok(contract) => Ok(contract),
                     Err(msg_recv_packet_error) => {
                         let errors = vec![msg_execute_contract_error, msg_recv_packet_error];
@@ -221,10 +221,7 @@ impl CosmosProvider {
     }
 
     /// Assumes that there is only one `MsgExecuteContract` message in the transaction
-    fn contract_address_from_msg_execute_contract(
-        tx: &Tx,
-        tx_hash: &H256,
-    ) -> Result<H256, HyperlaneCosmosError> {
+    fn contract_address_from_msg_execute_contract(tx: &Tx) -> Result<H256, HyperlaneCosmosError> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
         let contract_execution_messages = tx
@@ -253,10 +250,7 @@ impl CosmosProvider {
         Ok(contract)
     }
 
-    fn contract_address_from_msg_recv_packet(
-        tx: &Tx,
-        tx_hash: &H256,
-    ) -> Result<H256, HyperlaneCosmosError> {
+    fn contract_address_from_msg_recv_packet(tx: &Tx) -> Result<H256, HyperlaneCosmosError> {
         let packet_data = tx
             .body
             .messages
@@ -280,7 +274,7 @@ impl CosmosProvider {
     /// The only denomination we support at the moment is the one we express gas minimum price
     /// in the configuration of a chain. If fees contain an entry in a different denomination,
     /// we report it in the logs.
-    fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) -> ChainResult<()> {
+    fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H512) -> ChainResult<()> {
         let supported_denomination = self.connection_conf.get_minimum_gas_price().denom;
         let unsupported_denominations = tx
             .auth_info
@@ -331,7 +325,7 @@ impl CosmosProvider {
         amount_in_native_denom * coefficient
     }
 
-    fn calculate_gas_price(&self, hash: &H256, tx: &Tx) -> U256 {
+    fn calculate_gas_price(&self, hash: &H512, tx: &Tx) -> U256 {
         // TODO support multiple denominations for amount
         let supported = self.report_unsupported_denominations(tx, hash);
         if supported.is_err() {
@@ -392,13 +386,13 @@ impl HyperlaneProvider for CosmosProvider {
         Ok(block_info)
     }
 
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
-        let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, &h512_to_bytes(hash))
             .expect("transaction hash should be of correct size");
 
         let response = self.rpc_client.get_tx_by_hash(tendermint_hash).await?;
 
-        let received_hash = H256::from_slice(response.hash.as_bytes());
+        let received_hash = bytes_to_h512(response.hash.as_bytes());
 
         if &received_hash != hash {
             return Err(ChainCommunicationError::from_other_str(&format!(
