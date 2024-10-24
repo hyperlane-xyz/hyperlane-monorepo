@@ -42,6 +42,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getZKArtifactByContractName } from '../utils/zksync.js';
@@ -442,6 +443,31 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       } else {
         // deploying new domain routing ISM
         const owner = config.owner;
+
+        // if zksync we can't use the proxy factories, so we need to deploy directly
+        const isZksync =
+          this.multiProvider.getChainMetadata(destination).technicalStack ===
+          ChainTechnicalStack.ZKSync;
+        if (isZksync) {
+          assert(
+            this.deployer,
+            'HyperlaneDeployer must be set to deploy routing ISM',
+          );
+          const routingIsm = await this.deployer?.deployContractFromFactory(
+            destination,
+            new DomainRoutingIsm__factory(),
+            IsmType.ROUTING,
+            [],
+          );
+          await routingIsm['initialize(address,uint32[],address[])'](
+            owner,
+            safeConfigDomains,
+            submoduleAddresses,
+            overrides,
+          );
+          return routingIsm;
+        }
+
         // estimate gas
         const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
           owner,

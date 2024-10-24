@@ -73,7 +73,7 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     // No static aggregation or domain routing ISM support on zkSync
     const defaultZkSyncIsm: RoutingIsmConfig = {
-      type: IsmType.FALLBACK_ROUTING,
+      type: IsmType.ROUTING,
       domains: objMap(
         originMultisigs,
         (_, multisig): MultisigIsmConfig => messageIdIsm(multisig),
