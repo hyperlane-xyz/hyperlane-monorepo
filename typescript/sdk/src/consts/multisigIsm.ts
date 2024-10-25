@@ -830,6 +830,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  zeronetwork: {
+    threshold: 1,
+    validators: ['0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87'],
+  },
+
   zetachain: {
     threshold: 3,
     validators: [
@@ -848,6 +853,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x0180444c9342BD672867Df1432eb3dA354413a6E', // hashkey cloud
       '0x1da9176C2CE5cC7115340496fa7D1800a98911CE', // renzo
     ],
+  },
+
+  zksync: {
+    threshold: 1,
+    validators: ['0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a'],
   },
 
   zoramainnet: {

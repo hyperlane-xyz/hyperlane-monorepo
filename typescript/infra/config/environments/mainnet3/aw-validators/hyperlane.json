@@ -263,6 +263,9 @@
   "xlayer": {
     "validators": ["0xa2ae7c594703e988f23d97220717c513db638ea3"]
   },
+  "zeronetwork": {
+    "validators": ["0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87"]
+  },
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
   },
@@ -271,5 +274,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "zksync": {
+    "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
   }
 }

@@ -125,8 +125,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xai: true,
     xlayer: true,
+    zeronetwork: true,
     zetachain: true,
     zircuit: true,
+    zksync: true,
     zoramainnet: true,
   },
   [Role.Relayer]: {
@@ -200,8 +202,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xai: true,
     xlayer: true,
+    zeronetwork: false,
     zetachain: true,
     zircuit: true,
+    zksync: false,
     zoramainnet: true,
   },
   [Role.Scraper]: {
@@ -277,8 +281,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     worldchain: true,
     xai: true,
     xlayer: true,
+    zeronetwork: false,
     zetachain: true,
     zircuit: true,
+    zksync: false,
     zoramainnet: true,
   },
 };

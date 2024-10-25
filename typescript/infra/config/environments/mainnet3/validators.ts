@@ -998,5 +998,26 @@ export const validatorChainConfig = (
         'flow',
       ),
     },
+
+    zeronetwork: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zeronetwork'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87'],
+        },
+        'zeronetwork',
+      ),
+    },
+    zksync: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('zksync'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a'],
+        },
+        'zksync',
+      ),
+    },
   };
 };
