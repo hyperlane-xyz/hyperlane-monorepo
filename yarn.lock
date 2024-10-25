@@ -7971,7 +7971,7 @@ __metadata:
     "@ethersproject/providers": "npm:^5.7.2"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:5.6.1"
-    "@hyperlane-xyz/registry": "npm:4.7.0"
+    "@hyperlane-xyz/registry": "npm:4.10.0"
     "@hyperlane-xyz/sdk": "npm:5.6.1"
     "@hyperlane-xyz/utils": "npm:5.6.1"
     "@inquirer/prompts": "npm:^5.3.8"

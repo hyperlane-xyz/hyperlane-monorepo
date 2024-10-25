@@ -225,7 +225,7 @@ async function checkBalance(
                 collateralBalance,
                 token.decimals,
                 tokenPriceGetter,
-                token.tokenCoingeckoId,
+                token.tokenCoinGeckoId,
               );
             }
             case ProtocolType.Sealevel: {
@@ -250,7 +250,7 @@ async function checkBalance(
                 collateralBalance,
                 token.decimals,
                 tokenPriceGetter,
-                token.tokenCoingeckoId,
+                token.tokenCoinGeckoId,
               );
             }
             case ProtocolType.Cosmos: {
@@ -272,7 +272,7 @@ async function checkBalance(
                 collateralBalance,
                 token.decimals,
                 tokenPriceGetter,
-                token.tokenCoingeckoId,
+                token.tokenCoinGeckoId,
               );
             }
           }
@@ -372,7 +372,7 @@ async function checkBalance(
                 collateralBalance,
                 token.decimals,
                 tokenPriceGetter,
-                token.tokenCoingeckoId,
+                token.tokenCoinGeckoId,
               );
             }
             default:
@@ -405,7 +405,8 @@ export function updateTokenBalanceMetrics(
         Object.keys(tokenConfig) as ChainName[],
       ),
       related_chain_names: Object.keys(tokenConfig)
-        .filter((c) => c !== chain)
+        .filter((chainName) => chainName !== chain)
+        .sort()
         .join(','),
     };
 
@@ -592,25 +593,25 @@ async function getNativeTokenWarpInfo(
 }
 
 async function getCollateralTokenPrice(
-  tokenCoingeckoId: string | undefined,
+  tokenCoinGeckoId: string | undefined,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<number | undefined> {
-  if (!tokenCoingeckoId) return undefined;
-  const prices = await tokenPriceGetter.getTokenPriceByIds([tokenCoingeckoId]);
+  if (!tokenCoinGeckoId) return undefined;
+  const prices = await tokenPriceGetter.getTokenPriceByIds([tokenCoinGeckoId]);
   if (!prices) return undefined;
   return prices[0];
 }
 
 async function getCollateralTokenValue(
-  tokenCoingeckoId: string | undefined,
+  tokenCoinGeckoId: string | undefined,
   balanceFloat: number,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<number | undefined> {
   const price = await getCollateralTokenPrice(
-    tokenCoingeckoId,
+    tokenCoinGeckoId,
     tokenPriceGetter,
   );
-  logger.debug(`${tokenCoingeckoId} token price ${price ? price : undefined}`);
+  logger.debug(`${tokenCoinGeckoId} token price ${price}`);
   if (!price) return undefined;
   return balanceFloat * price;
 }
@@ -619,11 +620,11 @@ async function getCollateralTokenWarpInfo(
   balance: ethers.BigNumber | bigint,
   decimal: number,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
-  tokenCoingeckoId?: string,
+  tokenCoinGeckoId?: string,
 ): Promise<WarpRouteInfo> {
   const balanceFloat = parseFloat(ethers.utils.formatUnits(balance, decimal));
   const value = await getCollateralTokenValue(
-    tokenCoingeckoId,
+    tokenCoinGeckoId,
     balanceFloat,
     tokenPriceGetter,
   );
