@@ -174,7 +174,6 @@ describe('ERC20WarpRouterReader', async () => {
         name: TOKEN_NAME,
         symbol: TOKEN_NAME,
         decimals: TOKEN_DECIMALS,
-        totalSupply: TOKEN_SUPPLY,
         ...baseConfig,
       },
     };
