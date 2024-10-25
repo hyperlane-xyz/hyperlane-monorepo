@@ -11,6 +11,10 @@ describe('Math Utility Functions', () => {
     it('should return the median of an even-length array', () => {
       expect(median([1, 2, 3, 4])).to.equal(2.5);
     });
+
+    it('should return the median of an even-length array with non sorted numbers', () => {
+      expect(median([1, 2, 0, 4, 5, 6])).to.equal(3);
+    });
   });
 
   describe('sum', () => {
