@@ -138,6 +138,16 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
       pubkey: new PublicKey('CijxTbPs9JZxTUfo8Hmz2imxzHtKnDFD3kZP3RPy34uJ'),
       walletName: 'SOL/eclipsemainnet-solanamainnet/ata-payer',
     },
+    {
+      // stTIA warp route ATA payer
+      pubkey: new PublicKey('Bg3bAM3gEhdam5mbPqkiMi3mLZkoAieakMRdMHo6mbcn'),
+      walletName: 'stTIA/eclipsemainnet-stride/ata-payer',
+    },
+    {
+      // stTIA warp route ATA payer
+      pubkey: new PublicKey('AZs4Rw6H6YwJBKoHBCfChCitHnHvQcVGgrJwGh4bKmAf'),
+      walletName: 'TIA/eclipsemainnet-stride/ata-payer',
+    },
   ],
 };
 
