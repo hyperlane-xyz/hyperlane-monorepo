@@ -26,8 +26,8 @@ export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
 export interface ValidatorBaseChainConfig {
   // How frequently to check for new checkpoints
   interval: number;
-  // The reorg_period in blocks; overrides chain metadata
-  reorgPeriod: number;
+  // The reorg_period in blocks or block tag; overrides chain metadata
+  reorgPeriod: string | number;
   // Individual validator agents
   validators: Array<ValidatorBaseConfig>;
 }
