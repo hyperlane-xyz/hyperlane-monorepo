@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
+
 import {Test} from "forge-std/Test.sol";
 
 import {Message} from "contracts/libs/Message.sol";
@@ -46,10 +47,6 @@ contract RateLimitedHookTest is Test {
 
         token = new ERC20Test("Test", "Test", 100 ether, 18);
         noopHook = new TestPostDispatchHook();
-        rateLimitedHook = new RateLimitedHook(
-            address(localMailbox),
-            MAX_CAPACITY
-        );
 
         localMailbox.setDefaultHook(address(noopHook));
         localMailbox.setRequiredHook(address(noopHook));
@@ -57,6 +54,12 @@ contract RateLimitedHookTest is Test {
         warpRouteLocal = new HypERC20Collateral(
             address(token),
             address(localMailbox)
+        );
+
+        rateLimitedHook = new RateLimitedHook(
+            address(localMailbox),
+            MAX_CAPACITY,
+            address(warpRouteLocal)
         );
 
         warpRouteLocal.initialize(
@@ -78,11 +81,40 @@ contract RateLimitedHookTest is Test {
         );
     }
 
+    function testRateLimitedHook_revertsIfInvalidSender() external {
+        vm.expectRevert("InvalidSender");
+        new RateLimitedHook(address(localMailbox), MAX_CAPACITY, address(0));
+    }
+
     function testRateLimitedHook_revertsIfCalledByNonMailbox(
         bytes calldata _message
     ) external {
+        vm.prank(address(warpRouteLocal));
+        bytes memory testMessage = localMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(warpRouteRemote).addressToBytes32(),
+            TokenMessage.format(BOB.addressToBytes32(), 1 ether, _message)
+        );
+
         vm.expectRevert("InvalidDispatchedMessage");
-        rateLimitedHook.postDispatch(bytes(""), _message);
+        rateLimitedHook.postDispatch(bytes(""), testMessage);
+    }
+
+    function testRateLimitedHook_revertsIfNonAuthorizedSender(
+        bytes calldata _message
+    ) external {
+        bytes memory testMessage = localMailbox.buildOutboundMessage(
+            DESTINATION,
+            address(warpRouteRemote).addressToBytes32(),
+            TokenMessage.format(
+                BOB.addressToBytes32(),
+                1 ether,
+                bytes("hello world")
+            )
+        );
+
+        vm.expectRevert("InvalidSender");
+        rateLimitedHook.postDispatch(bytes(""), testMessage);
     }
 
     function testRateLimitedHook_revertsTransfer_ifExceedsFilledLevel(
