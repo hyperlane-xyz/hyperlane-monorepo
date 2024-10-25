@@ -1,6 +1,12 @@
 import { expect } from 'chai';
 
-import { deepCopy, deepEquals, objMerge, objOmit } from './objects.js';
+import {
+  deepCopy,
+  deepEquals,
+  isObject,
+  objMerge,
+  objOmit,
+} from './objects.js';
 
 describe('Object utilities', () => {
   it('deepEquals', () => {
@@ -66,5 +72,13 @@ describe('Object utilities', () => {
     const obj2 = { b: { c: ['arr1'] } };
     const omitted1_2 = objOmit(obj1, obj2, 10, false);
     expect(omitted1_2).to.eql({ a: 1, b: { d: 'string' } });
+  });
+
+  it('isObject', () => {
+    expect(isObject({})).to.be.true;
+    expect(isObject([])).to.be.false;
+    expect(isObject(null)).to.be.false;
+    expect(isObject(undefined)).to.be.false;
+    expect(isObject(42)).to.be.false;
   });
 });

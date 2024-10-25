@@ -4,8 +4,8 @@ import { stringify as yamlStringify } from 'yaml';
 import { ethersBigNumberSerializer } from './logging.js';
 import { assert } from './validation.js';
 
-export function isObject(item: any) {
-  return item && typeof item === 'object' && !Array.isArray(item);
+export function isObject(item: any): boolean {
+  return !!item && typeof item === 'object' && !Array.isArray(item);
 }
 
 export function deepEquals(v1: any, v2: any) {
