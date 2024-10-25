@@ -243,6 +243,10 @@
     "amount": "0.5",
     "decimals": 1
   },
+  "stride": {
+    "amount": "0.005",
+    "decimals": 1
+  },
   "superposition": {
     "amount": "0.01",
     "decimals": 9

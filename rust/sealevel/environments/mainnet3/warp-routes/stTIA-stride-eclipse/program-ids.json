@@ -1,0 +1,10 @@
+{
+  "stride": {
+    "hex": "0x8d7a6737fdd9545dc77d1c5cc2d26cb1321f6c67f0facb030149da9cc58f0cbe",
+    "base58": "AXGjtKVpzYdXYX155z6qYQC4Up7fi5LPKNXAK32gi3x9"
+  },
+  "eclipsemainnet": {
+    "hex": "0x0d258188d0761163da174da890d0c1becdee51a01dbc9e2a6bfcb342140eb509",
+    "base58": "tKUHyJ5NxhnwU94JUmzh1ekukDcHHX8mZF6fqxbMwX6"
+  }
+}

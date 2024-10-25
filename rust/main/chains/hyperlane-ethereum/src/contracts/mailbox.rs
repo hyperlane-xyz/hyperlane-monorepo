@@ -2,7 +2,6 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -14,7 +13,7 @@ use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
 use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{BatchResult, QueueOperation, H512};
+use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
 use itertools::Itertools;
 use tracing::instrument;
 
@@ -31,11 +30,14 @@ use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
 use crate::interfaces::mailbox::DispatchFilter;
-use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
-use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
+use crate::tx::{call_with_reorg_period, fill_tx_gas_params, report_tx};
+use crate::{
+    BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod,
+    TransactionOverrides,
+};
 
 use super::multicall::{self, build_multicall};
-use super::utils::fetch_raw_logs_and_meta;
+use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -47,7 +49,7 @@ where
 }
 
 pub struct SequenceIndexerBuilder {
-    pub reorg_period: u32,
+    pub reorg_period: EthereumReorgPeriod,
 }
 
 #[async_trait]
@@ -70,7 +72,7 @@ impl BuildableWithProvider for SequenceIndexerBuilder {
 }
 
 pub struct DeliveryIndexerBuilder {
-    pub reorg_period: u32,
+    pub reorg_period: EthereumReorgPeriod,
 }
 
 #[async_trait]
@@ -100,7 +102,7 @@ where
 {
     contract: Arc<EthereumMailboxInternal<M>>,
     provider: Arc<M>,
-    reorg_period: u32,
+    reorg_period: EthereumReorgPeriod,
 }
 
 impl<M> EthereumMailboxIndexer<M>
@@ -108,7 +110,11 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumMailboxIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, reorg_period: u32) -> Self {
+    pub fn new(
+        provider: Arc<M>,
+        locator: &ContractLocator,
+        reorg_period: EthereumReorgPeriod,
+    ) -> Self {
         let contract = Arc::new(EthereumMailboxInternal::new(
             locator.address,
             provider.clone(),
@@ -122,13 +128,7 @@ where
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .as_u32()
-            .saturating_sub(self.reorg_period))
+        get_finalized_block_number(&self.provider, &self.reorg_period).await
     }
 }
 
@@ -460,8 +460,9 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let call = call_with_lag(self.contract.nonce(), &self.provider, maybe_lag).await?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let call =
+            call_with_reorg_period(self.contract.nonce(), &self.provider, reorg_period).await?;
         let nonce = call.call().await?;
         Ok(nonce)
     }

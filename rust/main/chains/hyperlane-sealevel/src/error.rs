@@ -14,6 +14,9 @@ pub enum HyperlaneSealevelError {
     /// ClientError error
     #[error("{0}")]
     ClientError(#[from] ClientError),
+    /// Decoding error
+    #[error("{0}")]
+    Decoding(#[from] solana_sdk::bs58::decode::Error),
 }
 
 impl From<HyperlaneSealevelError> for ChainCommunicationError {

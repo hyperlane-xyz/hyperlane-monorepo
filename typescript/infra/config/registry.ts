@@ -78,7 +78,7 @@ export function getDomainId(chainName: ChainName): number {
   return resolveDomainId(chain);
 }
 
-export function getReorgPeriod(chainName: ChainName): number {
+export function getReorgPeriod(chainName: ChainName): string | number {
   const chain = getChain(chainName);
   return resolveReorgPeriod(chain);
 }
