@@ -1,6 +1,11 @@
 import { ethers } from 'ethers';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+
+import { EvmModuleDeployer } from './EvmModuleDeployer.js';
+import { DeployedOwnableConfig } from './types.js';
 
 export type UpgradeConfig = {
   timelock: {
@@ -66,4 +71,37 @@ export async function isProxy(
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
   return !eqAddress(admin, ethers.constants.AddressZero);
+}
+
+export function proxyAdminOwnershipUpdateTxs(
+  actualConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
+  expectedConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
+  chainId: number,
+): AnnotatedEV5Transaction[] {
+  const transactions: AnnotatedEV5Transaction[] = [];
+
+  // Return early because old config files did not have the
+  // proxyAdmin property
+  if (!expectedConfig.proxyAdmin?.address) {
+    return transactions;
+  }
+
+  const actualProxyAdmin = actualConfig.proxyAdmin!;
+  assert(
+    actualProxyAdmin.address === expectedConfig.proxyAdmin.address,
+    `ProxyAdmin contract addresses do not match. Expected ${expectedConfig.proxyAdmin.address}, got ${actualProxyAdmin.address}`,
+  );
+
+  transactions.push(
+    // Internally the createTransferOwnershipTx method already checks if the
+    // two owner values are the same and produces an empty tx batch if they are
+    ...EvmModuleDeployer.createTransferOwnershipTx({
+      actualOwner: actualProxyAdmin.owner,
+      expectedOwner: expectedConfig.proxyAdmin.owner,
+      deployedAddress: actualProxyAdmin.address!,
+      chainId: chainId,
+    }),
+  );
+
+  return transactions;
 }

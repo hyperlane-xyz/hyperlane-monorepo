@@ -27,6 +27,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { proxyAdminOwnershipUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -95,6 +96,11 @@ export class EvmCoreModule extends HyperlaneModule<
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
+      ...proxyAdminOwnershipUpdateTxs(
+        actualConfig,
+        expectedConfig,
+        this.domainId,
+      ),
     );
 
     return transactions;
