@@ -384,24 +384,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
 
-    if (this.messageContext) {
-      const destinationChain = this.multiProvider.getChainName(
-        this.messageContext.parsed.destination,
-      );
-      const destinationHook = await hook.hooks(
-        this.messageContext.parsed.destination,
-      );
-      const derivedHookConfig = await this.deriveHookConfig(destinationHook);
-      // @ts-ignore
-      return {
-        type: HookType.ROUTING,
-        address,
-        domains: {
-          [destinationChain]: derivedHookConfig,
-        },
-      };
-    }
-
     this.assertHookType(await hook.hookType(), OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
@@ -461,7 +443,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   private async fetchDomainHooks(
     hook: DomainRoutingHook | FallbackDomainRoutingHook,
   ): Promise<RoutingHookConfig['domains']> {
-    const domainIds = this.multiProvider.getKnownDomainIds();
+    const domainIds = this.messageContext
+      ? [this.messageContext.parsed.destination]
+      : this.multiProvider.getKnownDomainIds();
 
     const domainHooks: RoutingHookConfig['domains'] = {};
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
