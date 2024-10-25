@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import {
   ArbL2ToL1Ism__factory,
@@ -136,7 +136,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
 
     const domainIds = this.messageContext
-      ? [this.messageContext.parsed.origin]
+      ? [BigNumber.from(this.messageContext.parsed.origin)]
       : await ism.domains();
     const domains: RoutingIsmConfig['domains'] = {};
 
