@@ -10,6 +10,7 @@ data:
       type: collateral
       hypAddress: '0xe1De9910fe71cC216490AC7FCF019e13a34481D7'
       tokenAddress: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48' # USDC
+      tokenCoinGeckoId: usd-coin
       name: USDC
       symbol: USDC
       decimals: 6
@@ -18,6 +19,7 @@ data:
       type: collateral
       hypAddress: '3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm'
       tokenAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+      tokenCoinGeckoId: usd-coin
       isSpl2022: false
       name: USDC
       symbol: USDC
