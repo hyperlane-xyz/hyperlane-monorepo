@@ -3,8 +3,8 @@ import { expect } from 'chai';
 import {
   deepCopy,
   deepEquals,
-  isObject,
   diffObjMerge,
+  isObject,
   objMerge,
   objOmit,
 } from './objects.js';
@@ -210,4 +210,5 @@ describe('Object utilities', () => {
       });
     });
   });
+
 });
