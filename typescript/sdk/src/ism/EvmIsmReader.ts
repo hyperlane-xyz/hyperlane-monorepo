@@ -133,14 +133,18 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     );
 
     if (this.messageContext) {
+      const originChain = this.multiProvider.getChainName(
+        this.messageContext.parsed.origin,
+      );
       const inner = await ism.route(this.messageContext.message);
       const derivedOrigin = await this.deriveIsmConfig(inner);
 
       // @ts-ignore
       return {
+        type: IsmType.ROUTING,
         address,
         domains: {
-          [this.messageContext.parsed.originChain!]: derivedOrigin,
+          [originChain]: derivedOrigin,
         },
       };
     }

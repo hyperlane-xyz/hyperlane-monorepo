@@ -385,15 +385,19 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
 
     if (this.messageContext) {
+      const destinationChain = this.multiProvider.getChainName(
+        this.messageContext.parsed.destination,
+      );
       const destinationHook = await hook.hooks(
         this.messageContext.parsed.destination,
       );
       const derivedHookConfig = await this.deriveHookConfig(destinationHook);
       // @ts-ignore
       return {
+        type: HookType.ROUTING,
         address,
         domains: {
-          [this.messageContext.parsed.destinationChain!]: derivedHookConfig,
+          [destinationChain]: derivedHookConfig,
         },
       };
     }
@@ -424,7 +428,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     );
     if (this.messageContext) {
       // @ts-ignore
-      return this.deriveDomainRoutingConfig(address);
+      return {
+        ...(await this.deriveDomainRoutingConfig(address)),
+        type: HookType.FALLBACK_ROUTING,
+      };
     }
 
     this.assertHookType(
