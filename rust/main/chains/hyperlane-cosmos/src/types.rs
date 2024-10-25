@@ -1,5 +1,6 @@
-use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::{cosmos::base::abci::v1beta1::TxResponse, tendermint::Error};
 use hyperlane_core::{ChainResult, ModuleType, TxOutcome, H256, U256};
+use url::Url;
 
 pub struct IsmType(pub hyperlane_cosmwasm_interface::ism::IsmType);
 
@@ -27,6 +28,21 @@ impl From<IsmType> for ModuleType {
             hyperlane_cosmwasm_interface::ism::IsmType::Null => ModuleType::Null,
             hyperlane_cosmwasm_interface::ism::IsmType::CcipRead => ModuleType::CcipRead,
         }
+    }
+}
+
+pub trait ToCosmosHttpUrl {
+    fn to_cosmos_http_url(
+        &self,
+    ) -> Result<tendermint_rpc::HttpClientUrl, tendermint_rpc::error::Error>;
+}
+
+impl ToCosmosHttpUrl for url::Url {
+    fn to_cosmos_http_url(
+        &self,
+    ) -> Result<tendermint_rpc::HttpClientUrl, tendermint_rpc::error::Error> {
+        let tendermint_url = tendermint_rpc::Url::try_from(self.to_owned())?;
+        tendermint_rpc::HttpClientUrl::try_from(tendermint_url)
     }
 }
 
