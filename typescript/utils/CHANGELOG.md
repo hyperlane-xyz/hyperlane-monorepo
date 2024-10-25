@@ -1,5 +1,17 @@
 # @hyperlane-xyz/utils
 
+## 5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+
+### Patch Changes
+
+- f1712deb7: Fix objMerge implementation
+
 ## 5.5.0
 
 ### Minor Changes
