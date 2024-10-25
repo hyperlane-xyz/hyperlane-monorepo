@@ -1,6 +1,7 @@
-use hyperlane_core::U256;
 use num_bigint::{BigInt, Sign};
 use sea_orm::prelude::BigDecimal;
+
+use hyperlane_core::U256;
 
 pub fn u256_to_decimal(v: U256) -> BigDecimal {
     let mut buf = [0u8; 32];

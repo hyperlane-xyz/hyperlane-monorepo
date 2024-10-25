@@ -309,13 +309,8 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
         let storable = messages
             .iter()
             .filter_map(|(message, meta)| {
-                txns.get(
-                    &meta
-                        .transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .map(|t| (message.inner().clone(), meta, t.id))
+                txns.get(&meta.transaction_id)
+                    .map(|t| (message.inner().clone(), meta, t.id))
             })
             .map(|(msg, meta, txn_id)| StorableMessage { msg, meta, txn_id });
         let stored = self
@@ -343,13 +338,8 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
         let storable = deliveries
             .iter()
             .filter_map(|(message_id, meta)| {
-                txns.get(
-                    &meta
-                        .transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .map(|txn| (*message_id.inner(), meta, txn.id))
+                txns.get(&meta.transaction_id)
+                    .map(|txn| (*message_id.inner(), meta, txn.id))
             })
             .map(|(message_id, meta, txn_id)| StorableDelivery {
                 message_id,
@@ -385,13 +375,8 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
         let storable = payments
             .iter()
             .filter_map(|(payment, meta)| {
-                txns.get(
-                    &meta
-                        .transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .map(|txn| (payment.inner(), meta, txn.id))
+                txns.get(&meta.transaction_id)
+                    .map(|txn| (payment.inner(), meta, txn.id))
             })
             .map(|(payment, meta, txn_id)| StorablePayment {
                 payment,

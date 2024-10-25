@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use derive_more::Deref;
 use eyre::{eyre, Context, Result};
-use hyperlane_core::{address_to_bytes, bytes_to_h512, h512_to_bytes, TxnInfo, H512};
 use sea_orm::{
     prelude::*, sea_query::OnConflict, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet,
     QuerySelect,
 };
 use tracing::{debug, instrument, trace};
+
+use hyperlane_core::{address_to_bytes, bytes_to_h512, h512_to_bytes, TxnInfo, H512};
 
 use super::generated::transaction;
 

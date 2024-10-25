@@ -76,17 +76,19 @@ pub const fn is_h160<const S: usize>(data: &[u8; S]) -> bool {
     }
 }
 
-/// Checks if a byte slice fits within 32 bytess. Assumes a big-endian encoding;
-/// ignores leading zeros. Current implementation only supports up to a 32 byte
+/// Checks if a byte slice fits within 32 bytes. Assumes a big-endian encoding;
+/// ignores leading zeros. Current implementation only supports up to a 64 byte long
 /// array but this could easily be extended if needed.
-pub fn is_h256<const S: usize>(data: &[u8; S]) -> bool {
+pub const fn is_h256<const S: usize>(data: &[u8; S]) -> bool {
     assert!(S <= 64);
     if S <= 32 {
         true
     } else {
-        for i in 0..32 {
-            if data[i] != 0 {
-                return false;
+        unroll! {
+            for i in 0..32 {
+                if data[i] != 0 {
+                    return false;
+                }
             }
         }
 
