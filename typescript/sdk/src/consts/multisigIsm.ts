@@ -30,6 +30,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  apechain: {
+    threshold: 1,
+    validators: ['0x773d7fe6ffb1ba4de814c28044ff9a2d83a48221'],
+  },
+
   arbitrum: {
     threshold: 3,
     validators: [
@@ -39,6 +44,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
       '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
     ],
+  },
+
+  arbitrumnova: {
+    threshold: 1,
+    validators: ['0xd2a5e9123308d187383c87053811a2c21bd8af1f'],
   },
 
   arbitrumsepolia: {
@@ -76,6 +86,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x402e0f8c6e4210d408b6ac00d197d4a099fcd25a', // dsrv
       '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
     ],
+  },
+
+  b3: {
+    threshold: 1,
+    validators: ['0xd77b516730a836fc41934e7d5864e72c165b934e'],
   },
 
   base: {
@@ -284,6 +299,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  fantom: {
+    threshold: 1,
+    validators: ['0xa779572028e634e16f26af5dfd4fa685f619457d'],
+  },
+
   flare: {
     threshold: 2,
     validators: [
@@ -344,6 +364,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  gravity: {
+    threshold: 1,
+    validators: ['0x23d549bf757a02a6f6068e9363196ecd958c974e'],
+  },
+
+  harmony: {
+    threshold: 1,
+    validators: ['0xd677803a67651974b1c264171b5d7ca8838db8d5'],
+  },
+
   holesky: {
     threshold: 1,
     validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
@@ -379,6 +409,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x6B1d09A97b813D53e9D4b7523DA36604C0B52242', // caldera
       '0x9e551b6694bbd295d7d6e6a2540c7d41ce70a3b9', // imperator
     ],
+  },
+
+  kaia: {
+    threshold: 1,
+    validators: ['0x9de0b3abb221d19719882fa4d61f769fdc2be9a4'],
   },
 
   kroma: {
@@ -513,6 +548,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  morph: {
+    threshold: 1,
+    validators: ['0x4884535f393151ec419add872100d352f71af380'],
+  },
+
   neutron: {
     threshold: 4,
     validators: [
@@ -554,6 +594,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   optimismsepolia: {
     threshold: 1,
     validators: ['0x03efe4d0632ee15685d7e8f46dea0a874304aa29'],
+  },
+
+  orderly: {
+    threshold: 1,
+    validators: ['0xec3dc91f9fa2ad35edf5842aa764d5573b778bb6'],
   },
 
   osmosis: {
@@ -698,6 +743,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
+  },
+
+  snaxchain: {
+    threshold: 1,
+    validators: ['0x2c25829ae32a772d2a49f6c4b34f8b01fd03ef9e'],
   },
 
   solanadevnet: {
