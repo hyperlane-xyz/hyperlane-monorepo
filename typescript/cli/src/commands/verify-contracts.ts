@@ -243,7 +243,7 @@ async function getConstructorArgs({
   let constructorArgs: string;
   switch (family) {
     case ExplorerFamily.Etherscan:
-      constructorArgs = await getEtherscanCreationTx({
+      constructorArgs = await getEtherscanConstructorArgs({
         context,
         chainName,
         contractAddress,
@@ -251,7 +251,7 @@ async function getConstructorArgs({
       });
       break;
     case ExplorerFamily.Blockscout:
-      constructorArgs = await getBlockScoutCreationTx({
+      constructorArgs = await getBlockScoutConstructorArgs({
         context,
         chainName,
         contractAddress,
@@ -264,7 +264,7 @@ async function getConstructorArgs({
   return constructorArgs;
 }
 
-async function getEtherscanCreationTx({
+async function getEtherscanConstructorArgs({
   context,
   chainName,
   contractAddress,
@@ -310,7 +310,7 @@ async function getEtherscanCreationTx({
   return creationInput.substring(bytecode.length);
 }
 
-async function getBlockScoutCreationTx({
+async function getBlockScoutConstructorArgs({
   context,
   chainName,
   contractAddress,
