@@ -5,8 +5,8 @@ import {
   isS3Checkpoint,
   isS3CheckpointWithId,
   isValidSignature,
-} from '../src/checkpoints.js';
-import { Checkpoint, S3Checkpoint, S3CheckpointWithId } from '../src/types.js';
+} from './checkpoints.js';
+import { Checkpoint, S3Checkpoint, S3CheckpointWithId } from './types.js';
 
 describe('Checkpoints', () => {
   describe('isValidSignature', () => {

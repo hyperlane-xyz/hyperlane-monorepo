@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { mean, median, randomInt, stdDev, sum } from '../src/math.js';
+import { mean, median, randomInt, stdDev, sum } from './math.js';
 
 describe('Math Utility Functions', () => {
   describe('median', () => {
