@@ -13,4 +13,4 @@ function _Linkedin({ color, ...rest }: DefaultIconProps) {
   );
 }
 
-export const Linkedin = memo(_Linkedin);
+export const LinkedInIcon = memo(_Linkedin);

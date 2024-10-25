@@ -2,8 +2,72 @@ import { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
 
 import { ColorPalette } from '../color';
-import * as Icons from '../icons';
-import { Circle } from '../icons/Circle';
+import {
+  AirplaneIcon,
+  ArrowIcon,
+  BoxArrowIcon,
+  CheckmarkIcon,
+  ChevronIcon,
+  Circle,
+  CopyIcon,
+  DiscordIcon,
+  DocsIcon,
+  EnvelopeIcon,
+  FilterIcon,
+  FunnelIcon,
+  GearIcon,
+  GithubIcon,
+  HistoryIcon,
+  LinkedInIcon,
+  LockIcon,
+  MediumIcon,
+  PencilIcon,
+  PlusCircleIcon,
+  PlusIcon,
+  QuestionMarkIcon,
+  SearchIcon,
+  ShieldIcon,
+  Spinner,
+  TwitterIcon,
+  UpDownArrowsIcon,
+  WalletIcon,
+  WebIcon,
+  WideChevron,
+  XIcon,
+} from '../index';
+
+const iconList: Array<React.ComponentType<any>> = [
+  AirplaneIcon,
+  ArrowIcon,
+  BoxArrowIcon,
+  CheckmarkIcon,
+  ChevronIcon,
+  CopyIcon,
+  DiscordIcon,
+  DocsIcon,
+  EnvelopeIcon,
+  FilterIcon,
+  FunnelIcon,
+  GearIcon,
+  GithubIcon,
+  HistoryIcon,
+  LinkedInIcon,
+  LockIcon,
+  MediumIcon,
+  PencilIcon,
+  PlusCircleIcon,
+  PlusIcon,
+  QuestionMarkIcon,
+  SearchIcon,
+  ShieldIcon,
+  Spinner,
+  TwitterIcon,
+  UpDownArrowsIcon,
+  WalletIcon,
+  WebIcon,
+  WideChevron,
+  XIcon,
+];
 
 function IconList({
   width,
@@ -29,24 +93,21 @@ function IconList({
         flexWrap: 'wrap',
       }}
     >
-      {Object.keys(Icons).map((iconName, index) => {
-        const IconComponent = Icons[iconName];
-        return (
-          <IconContainer key={index}>
-            <span>{IconComponent.displayName}</span>
-            <IconComponent
-              width={width}
-              height={height}
-              color={color}
-              direction={direction}
-              rounded={roundedWideChevron}
-            />
-          </IconContainer>
-        );
-      })}
+      {iconList.map((Icon) => (
+        <IconContainer>
+          <span>{Icon.displayName}</span>
+          <Icon
+            width={width}
+            height={height}
+            color={color}
+            direction={direction}
+            rounded={roundedWideChevron}
+          />
+        </IconContainer>
+      ))}
       <IconContainer>
-        <span>CircleIcon</span>
-        <Circle size={24} bgColorSeed={bgColorSeed} />
+        <span>Circle</span>
+        <Circle size={width} bgColorSeed={bgColorSeed} />
       </IconContainer>
     </div>
   );
