@@ -5,13 +5,13 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-export const getStrideEclipseStTiaWarpConfig = async (
+export const getEclipseStrideTiaWarpConfig = async (
   _routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   // @ts-ignore - foreignDeployment configs don't conform to the TokenRouterConfig
   const eclipsemainnet: TokenRouterConfig = {
     type: TokenType.synthetic,
-    foreignDeployment: 'tKUHyJ5NxhnwU94JUmzh1ekukDcHHX8mZF6fqxbMwX6',
+    foreignDeployment: 'BpXHAiktwjx7fN6M9ST9wr6qKAsH27wZFhdHEhReJsR6',
     gas: 300_000,
   };
 
@@ -19,7 +19,7 @@ export const getStrideEclipseStTiaWarpConfig = async (
   const stride: TokenRouterConfig = {
     type: TokenType.collateral,
     foreignDeployment:
-      'stride134axwdlam929m3mar3wv95nvkyep7mr87ravkqcpf8dfe3v0pjlqwrw6ee',
+      'stride1pvtesu3ve7qn7ctll2x495mrqf2ysp6fws68grvcu6f7n2ajghgsh2jdj6',
   };
 
   return {

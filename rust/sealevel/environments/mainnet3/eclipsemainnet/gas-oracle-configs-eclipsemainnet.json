@@ -21,8 +21,8 @@
     "domain": 745,
     "gasOracle": {
       "type": "remoteGasData",
-      "tokenExchangeRate": "46951091051",
-      "gasPrice": "0.025",
+      "tokenExchangeRate": "435246388284187",
+      "gasPrice": "7",
       "tokenDecimals": 6
     }
   }

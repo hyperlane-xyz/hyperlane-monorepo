@@ -8,7 +8,6 @@ data:
       protocolType: cosmos
       type: collateral
       hypAddress: stride134axwdlam929m3mar3wv95nvkyep7mr87ravkqcpf8dfe3v0pjlqwrw6ee
-      tokenAddress: ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7
       name: Stride Staked TIA
       symbol: stTIA
       decimals: 6
