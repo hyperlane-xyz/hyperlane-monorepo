@@ -1,6 +1,10 @@
-import { DefaultFallbackRoutingIsm__factory } from '@hyperlane-xyz/core';
-import { WithAddress, assert } from '@hyperlane-xyz/utils';
+import {
+  DefaultFallbackRoutingIsm__factory,
+  IRoutingIsm__factory,
+} from '@hyperlane-xyz/core';
+import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
 
+import { DispatchedMessage } from '../../core/types.js';
 import { ChainName } from '../../types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../EvmIsmReader.js';
 import { IsmType, RoutingIsmConfig } from '../types.js';
@@ -21,6 +25,17 @@ export type RoutingMetadata<T> = {
 export class RoutingMetadataBuilder implements MetadataBuilder {
   constructor(protected baseMetadataBuilder: BaseMetadataBuilder) {}
 
+  public evaluate(
+    address: Address,
+    message: DispatchedMessage,
+  ): Promise<Address> {
+    const provider = this.baseMetadataBuilder.multiProvider.getProvider(
+      message.parsed.destination,
+    );
+    const ism = IRoutingIsm__factory.connect(address, provider);
+    return ism.route(message.message);
+  }
+
   public async build(
     context: MetadataContext<WithAddress<RoutingIsmConfig>>,
     maxDepth = 10,
@@ -28,6 +43,7 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
     const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
       context.message.parsed.origin,
     );
+
     const originContext = {
       ...context,
       ism: context.ism.domains[originChain] as DerivedIsmConfig,

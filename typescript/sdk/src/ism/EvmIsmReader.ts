@@ -21,6 +21,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -66,6 +67,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
   }
@@ -129,6 +131,20 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       this.provider,
     );
+
+    if (this.messageContext) {
+      const inner = await ism.route(this.messageContext.message);
+      const derivedOrigin = await this.deriveIsmConfig(inner);
+
+      // @ts-ignore
+      return {
+        address,
+        domains: {
+          [this.messageContext.parsed.originChain!]: derivedOrigin,
+        },
+      };
+    }
+
     const owner = await ism.owner();
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
 
@@ -171,7 +187,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>> {
     const ism = StaticAggregationIsm__factory.connect(address, this.provider);
-    this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
+    if (!this.messageContext)
+      this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
 
     const [modules, threshold] = await ism.modulesAndThreshold(
       ethers.constants.AddressZero,
@@ -226,7 +243,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       this.provider,
     );
-    this.assertModuleType(await ism.moduleType(), ModuleType.NULL);
+    if (!this.messageContext)
+      this.assertModuleType(await ism.moduleType(), ModuleType.NULL);
 
     // if it has trustedRelayer() property --> TRUSTED_RELAYER
     const trustedRelayerIsm = TrustedRelayerIsm__factory.connect(

@@ -26,6 +26,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -96,6 +97,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
   }
@@ -187,7 +189,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
     const hook = MerkleTreeHook__factory.connect(address, this.provider);
-    this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
+    if (!this.messageContext)
+      this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
 
     const config: WithAddress<MerkleTreeHookConfig> = {
       address,
@@ -203,7 +206,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>> {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
-    this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
+    if (!this.messageContext)
+      this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
@@ -379,6 +383,21 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
+
+    if (this.messageContext) {
+      const destinationHook = await hook.hooks(
+        this.messageContext.parsed.destination,
+      );
+      const derivedHookConfig = await this.deriveHookConfig(destinationHook);
+      // @ts-ignore
+      return {
+        address,
+        domains: {
+          [this.messageContext.parsed.destinationChain!]: derivedHookConfig,
+        },
+      };
+    }
+
     this.assertHookType(await hook.hookType(), OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
@@ -403,6 +422,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       this.provider,
     );
+    if (this.messageContext) {
+      // @ts-ignore
+      return this.deriveDomainRoutingConfig(address);
+    }
+
     this.assertHookType(
       await hook.hookType(),
       OnchainHookType.FALLBACK_ROUTING,
