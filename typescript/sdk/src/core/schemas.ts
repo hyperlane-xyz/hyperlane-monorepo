@@ -9,10 +9,9 @@ export const CoreConfigSchema = OwnableSchema.extend({
   defaultIsm: IsmConfigSchema,
   defaultHook: HookConfigSchema,
   requiredHook: HookConfigSchema,
-  // These fields are set as optional because the old core config
-  // did not have them and we want to maintain backward compatibility
+  // This field is set as optional because the old core config
+  // did not have it and we want to maintain backward compatibility
   proxyAdmin: DeployedOwnableSchema.optional(),
-  interchainAccountRouter: DeployedOwnableSchema.optional(),
 });
 
 export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({

@@ -49,7 +49,7 @@ export async function createCoreDeployConfig({
     : await createTrustedRelayerConfig(context, advanced);
 
   let defaultHook: HookConfig, requiredHook: HookConfig;
-  let proxyAdmin: OwnableConfig, interchainAccountRouter: OwnableConfig;
+  let proxyAdmin: OwnableConfig;
   if (advanced) {
     defaultHook = await createHookConfig({
       context,
@@ -69,21 +69,10 @@ export async function createCoreDeployConfig({
         SIGNER_PROMPT_LABEL,
       ),
     };
-    interchainAccountRouter = {
-      owner: await detectAndConfirmOrPrompt(
-        async () => context.signer?.getAddress(),
-        ENTER_DESIRED_VALUE_MSG,
-        'ICA Router owner address',
-        SIGNER_PROMPT_LABEL,
-      ),
-    };
   } else {
     defaultHook = await createMerkleTreeConfig();
     requiredHook = await createProtocolFeeConfig(context, advanced);
     proxyAdmin = {
-      owner,
-    };
-    interchainAccountRouter = {
       owner,
     };
   }
@@ -95,7 +84,6 @@ export async function createCoreDeployConfig({
       defaultHook,
       requiredHook,
       proxyAdmin,
-      interchainAccountRouter,
     });
     logBlue(`Core config is valid, writing to file ${configFilePath}:\n`);
     log(indentYamlOrJson(yamlStringify(coreConfig, null, 2), 4));

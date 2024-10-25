@@ -306,9 +306,7 @@ export class EvmCoreModule extends HyperlaneModule<
         multiProvider: multiProvider,
         config: {
           mailbox: mailbox.address,
-          owner:
-            config.interchainAccountRouter?.owner ??
-            (await multiProvider.getSigner(chain).getAddress()),
+          owner: await multiProvider.getSigner(chain).getAddress(),
         },
         contractVerifier,
       })
