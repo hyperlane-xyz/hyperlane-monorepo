@@ -189,8 +189,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<MerkleTreeHookConfig>> {
     const hook = MerkleTreeHook__factory.connect(address, this.provider);
-    if (!this.messageContext)
-      this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
+    this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
 
     const config: WithAddress<MerkleTreeHookConfig> = {
       address,
@@ -206,8 +205,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>> {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
-    if (!this.messageContext)
-      this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
+    this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
 
     const hooks = await hook.hooks(ethers.constants.AddressZero);
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(

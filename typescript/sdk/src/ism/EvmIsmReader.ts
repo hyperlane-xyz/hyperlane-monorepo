@@ -176,8 +176,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>> {
     const ism = StaticAggregationIsm__factory.connect(address, this.provider);
-    if (!this.messageContext)
-      this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
+    this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
 
     const [modules, threshold] = await ism.modulesAndThreshold(
       ethers.constants.AddressZero,
@@ -232,8 +231,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       this.provider,
     );
-    if (!this.messageContext)
-      this.assertModuleType(await ism.moduleType(), ModuleType.NULL);
+    this.assertModuleType(await ism.moduleType(), ModuleType.NULL);
 
     // if it has trustedRelayer() property --> TRUSTED_RELAYER
     const trustedRelayerIsm = TrustedRelayerIsm__factory.connect(
