@@ -26,6 +26,7 @@ import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
 import { submitCommand } from './src/commands/submit.js';
 import { validatorCommand } from './src/commands/validator.js';
+import { verifyContractsCommand } from './src/commands/verify-contracts.js';
 import { warpCommand } from './src/commands/warp.js';
 import { contextMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
@@ -68,6 +69,7 @@ try {
     .command(statusCommand)
     .command(submitCommand)
     .command(validatorCommand)
+    .command(verifyContractsCommand) // TODO: Move to Warp
     .command(warpCommand)
     .version(VERSION)
     .demandCommand()

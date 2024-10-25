@@ -54,6 +54,7 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
             this.logger.error(
               { name: input.name, address: input.address },
               `Failed to verify contract on ${chain}`,
+              error,
             );
           }
         }
