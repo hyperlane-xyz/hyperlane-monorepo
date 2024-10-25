@@ -18,7 +18,7 @@ import { deserializeUnchecked, serialize } from 'borsh';
 import {
   Address,
   Domain,
-  addressToBytes,
+  addressToBytes32,
   eqAddress,
   median,
 } from '@hyperlane-xyz/utils';
@@ -295,7 +295,7 @@ export abstract class SealevelHypTokenAdapter
       instruction: SealevelHypTokenInstruction.TransferRemote,
       data: new SealevelTransferRemoteInstruction({
         destination_domain: destination,
-        recipient: addressToBytes(recipient),
+        recipient: addressToBytes32(recipient),
         amount_or_id: BigInt(weiAmountOrId),
       }),
     });
