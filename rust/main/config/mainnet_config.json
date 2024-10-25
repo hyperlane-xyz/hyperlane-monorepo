@@ -429,7 +429,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 3,
-        "reorgPeriod": 15
+        "reorgPeriod": "finalized"
       },
       "chainId": 56,
       "deployer": {
@@ -1981,7 +1981,7 @@
       "blocks": {
         "confirmations": 2,
         "estimateBlockTime": 12,
-        "reorgPeriod": 10
+        "reorgPeriod": "finalized"
       },
       "chainId": 1284,
       "deployer": {
@@ -2258,7 +2258,7 @@
       "blocks": {
         "confirmations": 3,
         "estimateBlockTime": 2,
-        "reorgPeriod": 256
+        "reorgPeriod": "finalized"
       },
       "chainId": 137,
       "deployer": {
@@ -2912,7 +2912,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 6,
-        "reorgPeriod": 10
+        "reorgPeriod": "finalized"
       },
       "chainId": 5845,
       "deployer": {
@@ -3446,7 +3446,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 13,
-        "reorgPeriod": 32
+        "reorgPeriod": "finalized"
       },
       "chainId": 592,
       "deployer": {
@@ -3924,7 +3924,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 5,
-        "reorgPeriod": 5
+        "reorgPeriod": "finalized"
       },
       "chainId": 109,
       "deployer": {
@@ -4829,7 +4829,7 @@
         }
       ],
       "slip44": 118,
-      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "interchainGasPaymaster": "0x602D5BF31F85FE90BF812A5EE6E2CC8CF6998A687125CABEDD120983CB88DA54",
       "mailbox": "0x89945750e089d84581f194e1947a58480b335f18386ad4f761f05feebf5e2454",
       "merkleTreeHook": "0x7ab4a8c3ba5371e34cd8d5dc584e0d924504fc21c3cbf41c3f64d436176bf007",
       "validatorAnnounce": "0xf57d954bf3ddb5f1032a0e020a99e931215cf83ceb4de987c781488065aaae0d",
