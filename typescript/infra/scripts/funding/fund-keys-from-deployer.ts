@@ -144,7 +144,7 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
       walletName: 'stTIA/eclipsemainnet-stride/ata-payer',
     },
     {
-      // stTIA warp route ATA payer
+      // TIA warp route ATA payer
       pubkey: new PublicKey('AZs4Rw6H6YwJBKoHBCfChCitHnHvQcVGgrJwGh4bKmAf'),
       walletName: 'TIA/eclipsemainnet-stride/ata-payer',
     },
