@@ -5,10 +5,11 @@ use itertools::Itertools;
 use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QuerySelect};
 use tracing::{debug, instrument, trace};
 
-use hyperlane_core::{HyperlaneMessage, LogMeta, H256};
+use hyperlane_core::{
+    address_to_bytes, bytes_to_address, h256_to_bytes, HyperlaneMessage, LogMeta, H256,
+};
 use migration::OnConflict;
 
-use crate::conversions::{address_to_bytes, bytes_to_address, h256_to_bytes};
 use crate::date_time;
 use crate::db::ScraperDb;
 

@@ -7670,7 +7670,6 @@ dependencies = [
  "ethers",
  "eyre",
  "futures",
- "hex 0.1.0",
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-test",

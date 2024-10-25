@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use thiserror::Error;
 
-use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, U256};
+use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, H512, U256};
 
 /// Interface for a provider. Allows abstraction over different provider types
 /// for different chains.
@@ -16,11 +16,11 @@ use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, U2
 #[async_trait]
 #[auto_impl(&, Box, Arc)]
 pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
-    /// Get block info for a given block hash
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo>;
+    /// Get block info for a given block height
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo>;
 
     /// Get txn info for a given txn hash
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo>;
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo>;
 
     /// Returns whether a contract exists at the provided address
     async fn is_contract(&self, address: &H256) -> ChainResult<bool>;
@@ -35,13 +35,19 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
 /// Errors when querying for provider information.
 #[derive(Error, Debug)]
 pub enum HyperlaneProviderError {
-    /// The requested block hash is not yet known by the provider
-    #[error("Block is not part of chain yet {0:?}")]
-    BlockIsNotPartOfChainYet(H256),
     /// The provider did not return the gas which was used
     #[error("Provider did not return gas used")]
     NoGasUsed,
-    /// Could not find a transaction, block, or other object
-    #[error("Could not find object from provider with hash {0:?}")]
-    CouldNotFindObjectByHash(H256),
+    /// Could not find a transaction by hash
+    #[error("Could not find transaction from provider with hash {0:?}")]
+    CouldNotFindTransactionByHash(H512),
+    /// Could not find a block by height
+    #[error("Could not find block from provider with height {0:?}")]
+    CouldNotFindBlockByHeight(u64),
+    /// The requested block does not have its hash
+    #[error("Block with height {0:?} does not contain its hash")]
+    BlockWithoutHash(u64),
+    /// Incorrect block is received
+    #[error("Requested block with height {0:?}, received block with height {1:?}")]
+    IncorrectBlockByHeight(u64, u64),
 }

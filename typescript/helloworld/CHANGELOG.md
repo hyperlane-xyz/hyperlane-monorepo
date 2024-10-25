@@ -1,5 +1,24 @@
 # @hyperlane-xyz/helloworld
 
+## 5.6.2
+
+### Patch Changes
+
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a42616ff3]
+  - @hyperlane-xyz/sdk@5.6.2
+  - @hyperlane-xyz/core@5.6.1
+
+## 5.6.1
+
+### Patch Changes
+
+- Updated dependencies [8cc0d9a4a]
+- Updated dependencies [c55257cf5]
+- Updated dependencies [8cc0d9a4a]
+  - @hyperlane-xyz/core@5.6.0
+  - @hyperlane-xyz/sdk@5.6.1
+
 ## 5.6.0
 
 ### Patch Changes

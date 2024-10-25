@@ -89,8 +89,10 @@ abstract class TokenDeployer<
     ];
     if (isCollateralConfig(config) || isNativeConfig(config)) {
       return defaultArgs;
-    } else if (isSyntheticConfig(config) || isSyntheticRebaseConfig(config)) {
+    } else if (isSyntheticConfig(config)) {
       return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+    } else if (isSyntheticRebaseConfig(config)) {
+      return [0, config.name, config.symbol, ...defaultArgs];
     } else {
       throw new Error('Unknown collateral type when initializing arguments');
     }
