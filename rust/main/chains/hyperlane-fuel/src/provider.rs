@@ -17,9 +17,9 @@ use fuels::{
 };
 use futures::future::join_all;
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, Indexed, LogMeta, TxnInfo, H256,
-    H512, U256,
+    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, Indexed, LogMeta,
+    TxnInfo, H256, H512, U256,
 };
 
 use crate::{make_client, make_provider, prelude::FuelIntoH256, ConnectionConf};
@@ -314,7 +314,9 @@ impl HyperlaneProvider for FuelProvider {
     /// Used by scraper
     #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
     #[allow(clippy::match_like_matches_macro)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let hash = H256::from_slice(&h512_to_bytes(hash));
+
         let transaction_res = self
             .provider
             .get_transaction_by_id(&hash.0.into())
@@ -370,7 +372,7 @@ impl HyperlaneProvider for FuelProvider {
                 };
 
                 Ok(TxnInfo {
-                    hash: hash.clone(),
+                    hash: hash.into(),
                     gas_limit: gas_limit.into(),
                     max_priority_fee_per_gas: None,
                     max_fee_per_gas: None,
