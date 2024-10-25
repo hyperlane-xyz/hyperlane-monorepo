@@ -1,6 +1,6 @@
 use derive_new::new;
 
-use crate::{H256, U256};
+use crate::{H256, H512, U256};
 
 /// Info about a given block in the chain.
 #[derive(Debug, Clone, Default)]
@@ -27,7 +27,7 @@ pub struct ChainInfo {
 #[derive(Debug, Clone)]
 pub struct TxnInfo {
     /// Hash of this transaction
-    pub hash: H256,
+    pub hash: H512,
     /// Amount of gas which was allocated for running the transaction
     pub gas_limit: U256,
     /// Represents the maximum tx fee that will go to the miner as part of the
