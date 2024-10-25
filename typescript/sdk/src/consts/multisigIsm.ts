@@ -4,8 +4,12 @@ import { ChainMap } from '../types.js';
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alephzeroevm: {
-    threshold: 1,
-    validators: ['0xcae8fab142adc4e434bb7409e40dd932cc3851aa'],
+    threshold: 2,
+    validators: [
+      '0xcae8fab142adc4e434bb7409e40dd932cc3851aa',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   alfajores: {
@@ -175,8 +179,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   chiliz: {
-    threshold: 1,
-    validators: ['0x82d024f453b1a3f3f6606226f06b038da27596f3'],
+    threshold: 2,
+    validators: [
+      '0x82d024f453b1a3f3f6606226f06b038da27596f3',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   citreatestnet: {
@@ -286,8 +294,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   flow: {
-    threshold: 1,
-    validators: ['0x3aee1090318e9c54d1d23194dcd0f2bee00ddc97'],
+    threshold: 2,
+    validators: [
+      '0x3aee1090318e9c54d1d23194dcd0f2bee00ddc97',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   formtestnet: {
@@ -343,8 +355,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   immutablezkevm: {
-    threshold: 1,
-    validators: ['0xa787c2952a4d22f776ee6e87e828e6f75de24330'],
+    threshold: 2,
+    validators: [
+      '0xa787c2952a4d22f776ee6e87e828e6f75de24330',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   inevm: {
@@ -402,8 +418,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   lumia: {
-    threshold: 1,
-    validators: ['0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f'],
+    threshold: 2,
+    validators: [
+      '0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   mantapacific: {
@@ -438,8 +458,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   metall2: {
-    threshold: 1,
-    validators: ['0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09'],
+    threshold: 2,
+    validators: [
+      '0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   metis: {
@@ -567,8 +591,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   polynomial: {
-    threshold: 1,
-    validators: ['0xa63ad0891e921ad5947d57e05831fabb9816eca7'],
+    threshold: 2,
+    validators: [
+      '0xa63ad0891e921ad5947d57e05831fabb9816eca7',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   proofofplay: {
@@ -581,8 +609,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   rari: {
-    threshold: 1,
-    validators: ['0x989d6862e09de21337078efbd86843a3eb1133e3'],
+    threshold: 2,
+    validators: [
+      '0x989d6862e09de21337078efbd86843a3eb1133e3',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   real: {
@@ -604,8 +636,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   rootstock: {
-    threshold: 1,
-    validators: ['0xcb8e3a72cf427feff27416d0e2ec375a052eaaee'],
+    threshold: 2,
+    validators: [
+      '0xcb8e3a72cf427feff27416d0e2ec375a052eaaee',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   sanko: {
@@ -721,8 +757,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   superposition: {
-    threshold: 1,
-    validators: ['0x5978d0e6afa9270ddb87cff43a8fa7a763a5dfc4'],
+    threshold: 2,
+    validators: [
+      '0x5978d0e6afa9270ddb87cff43a8fa7a763a5dfc4',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   superpositiontestnet: {

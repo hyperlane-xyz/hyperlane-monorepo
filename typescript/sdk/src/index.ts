@@ -196,6 +196,7 @@ export {
 export {
   BlockExplorer,
   BlockExplorerSchema,
+  EthJsonRpcBlockParameterTag,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
@@ -487,7 +488,7 @@ export {
   setFork,
   stopImpersonatingAccount,
 } from './utils/fork.js';
-export { multisigIsmVerificationCost } from './utils/ism.js';
+export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export {
   SealevelAccountDataWrapper,
