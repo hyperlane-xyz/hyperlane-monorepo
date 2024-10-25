@@ -406,13 +406,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       this.provider,
     );
-    if (this.messageContext) {
-      // @ts-ignore
-      return {
-        ...(await this.deriveDomainRoutingConfig(address)),
-        type: HookType.FALLBACK_ROUTING,
-      };
-    }
 
     this.assertHookType(
       await hook.hookType(),
