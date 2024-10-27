@@ -1,5 +1,6 @@
 import { expect } from 'chai';
-import { isAddress } from 'viem';
+
+import { isAddress } from '@hyperlane-xyz/utils';
 
 import { defaultMultisigConfigs } from './multisigIsm.js';
 
@@ -27,7 +28,8 @@ describe('MultisigIsm', () => {
     it('has valid EVM addresses for each validator', async () => {
       for (const [chain, config] of Object.entries(defaultMultisigConfigs)) {
         for (const validator of config.validators) {
-          expect(isAddress(validator)).to.be.true(
+          expect(isAddress(validator)).to.equal(
+            true,
             `Validator address ${validator} for ${chain} is not a valid EVM address`,
           );
         }
