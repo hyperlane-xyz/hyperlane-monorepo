@@ -20,6 +20,7 @@ describe('Math Utility Functions', () => {
   describe('sum', () => {
     it('should return the sum of an array', () => {
       expect(sum([1, 2, 3, 4])).to.equal(10);
+      expect(sum([1, -2, 3, 4])).to.equal(6);
     });
   });
 
@@ -32,6 +33,10 @@ describe('Math Utility Functions', () => {
   describe('stdDev', () => {
     it('should return the standard deviation of an array', () => {
       expect(stdDev([1, 2, 3, 4])).to.be.closeTo(1.118, 0.001);
+    });
+
+    it('should return the standard deviation of an array with negative numbers', () => {
+      expect(stdDev([-1, -2, -3, -4])).to.be.closeTo(1.118, 0.001);
     });
   });
 
