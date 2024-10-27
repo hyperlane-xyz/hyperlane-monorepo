@@ -21,6 +21,7 @@ import {
   addressToBytes,
   eqAddress,
   median,
+  padBytesToLength,
 } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
@@ -295,7 +296,7 @@ export abstract class SealevelHypTokenAdapter
       instruction: SealevelHypTokenInstruction.TransferRemote,
       data: new SealevelTransferRemoteInstruction({
         destination_domain: destination,
-        recipient: addressToBytes(recipient),
+        recipient: padBytesToLength(addressToBytes(recipient), 32),
         amount_or_id: BigInt(weiAmountOrId),
       }),
     });

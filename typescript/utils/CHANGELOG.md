@@ -1,5 +1,12 @@
 # @hyperlane-xyz/utils
 
+## 5.6.2
+
+### Patch Changes
+
+- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
+- a36fc5fb2: fix: isObject utils fn should return only boolean value
+
 ## 5.6.1
 
 ## 5.6.0
