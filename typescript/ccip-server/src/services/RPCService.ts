@@ -18,8 +18,8 @@ type ProofResult = {
 
 class RPCService {
   provider: ethers.providers.JsonRpcProvider;
-  constructor(private readonly providerAddress: string) {
-    this.provider = new ethers.providers.JsonRpcProvider(this.providerAddress);
+  constructor(private readonly providerUrl: string) {
+    this.provider = new ethers.providers.JsonRpcProvider(this.providerUrl);
   }
 
   /**
@@ -32,12 +32,12 @@ class RPCService {
   async getProofs(
     address: string,
     storageKeys: string[],
-    block: string,
+    block: number | string,
   ): Promise<ProofResult> {
     const results = await this.provider.send('eth_getProof', [
       address,
       storageKeys,
-      block,
+      Number(block),
     ]);
 
     return results;
