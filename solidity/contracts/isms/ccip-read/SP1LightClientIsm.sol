@@ -117,10 +117,9 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
         bytes32 _dispatchedSlotKey
     ) public view returns (bytes memory) {
         // Get the slot value as bytes
-        (bytes[] memory accountProof, bytes[] memory storageProof) = abi.decode(
-            _proofs,
-            (bytes[], bytes[])
-        );
+        bytes[][] memory proofs = abi.decode(_proofs, (bytes[][]));
+        bytes[] memory accountProof = proofs[0];
+        bytes[] memory storageProof = proofs[1];
 
         // Get the storage root of DispatchedHook
         bytes32 storageRoot = StorageProof.getStorageRoot(
@@ -144,6 +143,10 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
         return lightClient.executionStateRoots(lightClient.head());
     }
 
+    function getHeadStateSlot() public view returns (uint256) {
+        return lightClient.head();
+    }
+
     /**
      * @notice Reverts with the data needed to query Succinct for header proofs
      * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
@@ -160,7 +163,7 @@ contract SP1LightClientIsm is AbstractCcipReadIsm, OwnableUpgradeable {
                 ISuccinctProofsService.getProofs.selector,
                 address(dispatchedHook),
                 dispatchedSlotKey(_message.nonce()),
-                getHeadStateRoot()
+                getHeadStateSlot()
             ),
             SP1LightClientIsm.process.selector,
             _message
