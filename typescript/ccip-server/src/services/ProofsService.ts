@@ -22,6 +22,7 @@ class ProofsService {
     storageKey: string,
     slot: string,
   ): Promise<Array<[string[], string[]]>> {
+    // Get current head in LightClient smart contract
     const blockNumber = await this.consensusService.getOriginBlockNumberBySlot(
       slot,
     );
@@ -29,7 +30,7 @@ class ProofsService {
       await this.rpcService.getProofs(
         target,
         [storageKey],
-        `0x` + new Number(blockNumber).toString(16), // Converts to hexstring
+        blockNumber, // Converts to hexstring
       );
     return [[accountProof, storageProof[0].proof]]; // Since we only expect one storage key, we only return the first proof
   }
