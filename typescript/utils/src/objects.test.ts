@@ -127,19 +127,25 @@ describe('Object utilities', () => {
 
   it('objFilter', () => {
     const obj = { a: 1, b: 2, c: 3 };
-    const result = objFilter(obj, (k, v) => v > 1);
+    const result = objFilter(obj, (k: string, v: number): v is number => v > 1);
     expect(result).to.eql({ b: 2, c: 3 });
   });
 
   it('deepFind should find nested object', () => {
     const obj = { a: { b: { c: 3 } } };
-    const result = deepFind(obj, (v) => v.c === 3);
+    const result = deepFind(
+      obj,
+      (v: any): v is { c: number } => v && v.c === 3,
+    );
     expect(result).to.eql({ c: 3 });
   });
 
   it('deepFind should return undefined if object is not found', () => {
     const obj = { a: { b: { c: 3 } } };
-    const result = deepFind(obj, (v) => v.c === 4);
+    const result = deepFind(
+      obj,
+      (v: any): v is { c: number } => v && v.c === 4,
+    );
     expect(result).to.be.undefined;
   });
 
@@ -167,28 +173,30 @@ describe('Object utilities', () => {
     expect(result).to.eql({});
   });
 
-  it('invertKeysAndValues should invert the keys and values', () => {
-    const obj = { a: '1', b: '2' };
-    const result = invertKeysAndValues(obj);
-    expect(result).to.eql({ '1': 'a', '2': 'b' });
-  });
+  describe('invertKeysAndValues', () => {
+    it('invertKeysAndValues should invert the keys and values', () => {
+      const obj = { a: '1', b: '2' };
+      const result = invertKeysAndValues(obj);
+      expect(result).to.eql({ '1': 'a', '2': 'b' });
+    });
 
-  it('invertKeysAndValues should return an empty object if the object is empty', () => {
-    const obj = {};
-    const result = invertKeysAndValues(obj);
-    expect(result).to.eql({});
-  });
+    it('invertKeysAndValues should return an empty object if the object is empty', () => {
+      const obj = {};
+      const result = invertKeysAndValues(obj);
+      expect(result).to.eql({});
+    });
 
-  it('invertKeysAndValues should return an object if the object has duplicate values', () => {
-    const obj = { a: '1', b: '1' };
-    const result = invertKeysAndValues(obj);
-    expect(result).to.eql({ '1': 'b' });
-  });
+    it('invertKeysAndValues should return an object if the object has duplicate values', () => {
+      const obj = { a: '1', b: '1' };
+      const result = invertKeysAndValues(obj);
+      expect(result).to.eql({ '1': 'b' });
+    });
 
-  it('invertKeysAndValues should return an object if the object has undefined/null values', () => {
-    const obj = { a: '1', b: '2', c: undefined, d: null, e: 0 };
-    const result = invertKeysAndValues(obj);
-    expect(result).to.eql({ '1': 'a', '2': 'b', '0': 'e' });
+    it('invertKeysAndValues should return an object if the object has undefined/null values', () => {
+      const obj = { a: '1', b: '2', c: undefined, d: null, e: 0 };
+      const result = invertKeysAndValues(obj);
+      expect(result).to.eql({ '1': 'a', '2': 'b', '0': 'e' });
+    });
   });
 
   it('arrayToObject', () => {
