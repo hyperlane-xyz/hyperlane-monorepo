@@ -24,6 +24,7 @@ import {
 import {
   Address,
   Domain,
+  addBufferToGasLimit,
   assert,
   eqAddress,
   objFilter,
@@ -400,14 +401,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           submoduleAddresses,
           overrides,
         );
-        // add 10% buffer
+        // add gas buffer
         const tx = await domainRoutingIsmFactory.deploy(
           owner,
           safeConfigDomains,
           submoduleAddresses,
           {
+            gasLimit: addBufferToGasLimit(estimatedGas),
             ...overrides,
-            gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
           },
         );
         // TODO: Should verify contract here
@@ -496,10 +497,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         threshold,
         overrides,
       );
-      // add 10% buffer
+      // add gas buffer
       const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
-        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
       });
 
       await this.multiProvider.handleTx(chain, hash);
@@ -536,13 +537,13 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       const estimatedGas = await factory.estimateGas[
         'deploy((address,uint96)[],uint96)'
       ](sorted, thresholdWeight, overrides);
-      // add 10% buffer
+      // add gas buffer
       const hash = await factory['deploy((address,uint96)[],uint96)'](
         sorted,
         thresholdWeight,
         {
+          gasLimit: addBufferToGasLimit(estimatedGas),
           ...overrides,
-          gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
         },
       );
 

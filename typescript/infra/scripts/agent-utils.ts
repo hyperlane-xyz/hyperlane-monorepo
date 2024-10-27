@@ -71,6 +71,7 @@ export enum Modules {
   TEST_RECIPIENT = 'testrecipient',
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
+  HAAS = 'haas',
 }
 
 export const REGISTRY_MODULES = [
@@ -112,6 +113,13 @@ export function withContext<T>(args: Argv<T>) {
     .coerce('context', assertContext)
     .alias('x', 'context')
     .demandOption('context');
+}
+
+export function withPushMetrics<T>(args: Argv<T>) {
+  return args
+    .describe('pushMetrics', 'Push metrics to prometheus')
+    .boolean('pushMetrics')
+    .default('pushMetrics', false);
 }
 
 export function withAsDeployer<T>(args: Argv<T>) {
@@ -159,6 +167,10 @@ export function withChains<T>(args: Argv<T>) {
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains')
   );
+}
+
+export function withChainsRequired<T>(args: Argv<T>) {
+  return withChains(args).demandOption('chains');
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {
@@ -485,17 +497,6 @@ export function getAddresses(environment: DeployEnvironment, module: Modules) {
   }
 }
 
-export function getWarpAddresses(warpRouteId: string) {
-  const registry = getRegistry();
-  const warpRouteConfig = registry.getWarpRoute(warpRouteId);
-
-  if (!warpRouteConfig) {
-    throw new Error(`Warp route config for ${warpRouteId} not found`);
-  }
-
-  return warpConfigToWarpAddresses(warpRouteConfig);
-}
-
 export function writeAddresses(
   environment: DeployEnvironment,
   module: Modules,
@@ -516,7 +517,7 @@ export function writeAddresses(
 }
 
 export function getAgentConfigDirectory() {
-  return path.join('../../', 'rust', 'config');
+  return path.join('../../', 'rust', 'main', 'config');
 }
 
 export function getAgentConfigJsonPath(environment: AgentEnvironment) {

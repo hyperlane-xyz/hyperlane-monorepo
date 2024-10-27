@@ -27,7 +27,7 @@ import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
-import { deployWithArtifacts } from '../src/deployment/deploy.js';
+import { DeployCache, deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
   extractBuildArtifact,
@@ -126,6 +126,7 @@ async function main() {
       ismFactory,
       contractVerifier,
       concurrentDeploy,
+      60 * 60 * 1000, // 60 minutes
     );
   } else if (module === Modules.WARP) {
     if (!warpRouteId) {
@@ -250,7 +251,7 @@ async function main() {
 
   const verification = path.join(modulePath, 'verification.json');
 
-  const cache = {
+  const cache: DeployCache = {
     verification,
     read: environment !== 'test',
     write: !fork,
@@ -289,6 +290,9 @@ async function main() {
     // Use chains if provided, otherwise deploy to all chains
     // If fork is provided, deploy to fork only
     targetNetworks: chains && chains.length > 0 ? chains : !fork ? [] : [fork],
+    module,
+    multiProvider,
+    concurrentDeploy,
   });
 }
 

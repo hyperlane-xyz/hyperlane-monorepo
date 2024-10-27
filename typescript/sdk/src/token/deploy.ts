@@ -33,6 +33,7 @@ import {
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
+  isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './schemas.js';
 import { TokenMetadata, WarpRouteDeployConfig } from './types.js';
@@ -64,6 +65,11 @@ abstract class TokenDeployer<
     } else if (isSyntheticConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, config.mailbox];
+    } else if (isSyntheticRebaseConfig(config)) {
+      const collateralDomain = this.multiProvider.getDomainId(
+        config.collateralChainName,
+      );
+      return [config.decimals, config.mailbox, collateralDomain];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -84,6 +90,8 @@ abstract class TokenDeployer<
       return defaultArgs;
     } else if (isSyntheticConfig(config)) {
       return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+    } else if (isSyntheticRebaseConfig(config)) {
+      return [0, config.name, config.symbol, ...defaultArgs];
     } else {
       throw new Error('Unknown collateral type when initializing arguments');
     }

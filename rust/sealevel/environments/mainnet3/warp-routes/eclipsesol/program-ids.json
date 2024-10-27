@@ -1,10 +1,10 @@
 {
-  "eclipse": {
-    "hex": "0x6d8f3a8e68449b4c5fa5f09f9f9bf82607f6b2b1b6052260bf7c5c66aa5a5684",
-    "base58": "8Ng7TLE223sWcRjH7rEdUPoR3seaugqPw1djdQRRZ6Gj"
+  "solanamainnet": {
+    "hex": "0x6b4e9fed101f020c0b989737843efb49ac1aa918aa992c4a3808d29bc12f7efd",
+    "base58": "8DtAGQpcMuD5sG3KdxDy49ydqXUggR1LQtebh2TECbAc"
   },
-  "solana": {
-    "hex": "0x6903def7c07b2844eb549e7037651c07f508884e0c962345c8bb2b9834633e15",
-    "base58": "84wESfpyisKVYwkpaJpkHS6XxkLPC5bLZrTD1jQw1TrL"
+  "eclipsemainnet": {
+    "hex": "0xd49959a478c4c4170ef86528b8e14646d0a94b4ecbc0582f28d7e4de2e4f5b44",
+    "base58": "FJu4E1BDYKVg7aTWdwATZRUvytJZ8ZZ2gQuvPfMWAz9y"
   }
 }

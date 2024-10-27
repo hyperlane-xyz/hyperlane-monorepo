@@ -6,12 +6,13 @@ import {IMailbox} from "../interfaces/IMailbox.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../libs/Message.sol";
+import {PackageVersioned} from "../PackageVersioned.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-abstract contract MailboxClient is OwnableUpgradeable {
+abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
     using Message for bytes;
 
     IMailbox public immutable mailbox;

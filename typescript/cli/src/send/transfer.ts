@@ -12,7 +12,7 @@ import {
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { timeout } from '@hyperlane-xyz/utils';
+import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -22,6 +22,10 @@ import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
+
+export const WarpSendLogs = {
+  SUCCESS: 'Transfer was self-relayed!',
+};
 
 export async function sendTestTransfer({
   context,
@@ -144,6 +148,7 @@ async function executeDelivery({
     throw new Error('Error validating transfer');
   }
 
+  // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
@@ -164,11 +169,14 @@ async function executeDelivery({
   const message: DispatchedMessage =
     HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
 
+  const parsed = parseWarpRouteMessage(message.parsed.body);
+
   logBlue(
     `Sent transfer from sender (${senderAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
   log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
+  log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
   if (selfRelay) {
     const relayer = new HyperlaneRelayer({ core });
@@ -179,7 +187,7 @@ async function executeDelivery({
 
     log('Attempting self-relay of transfer...');
     await relayer.relayMessage(transferTxReceipt, messageIndex, message);
-    logGreen('Transfer was self-relayed!');
+    logGreen(WarpSendLogs.SUCCESS);
     return;
   }
 

@@ -2,15 +2,22 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  Ownable__factory,
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  addBufferToGasLimit,
+  eqAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { isProxy, proxyConstructorArgs } from './proxy.js';
@@ -69,8 +76,18 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
 
     if (initializeArgs) {
       this.logger.debug(`Initialize ${contractName} on ${chain}`);
+      // Estimate gas for the initialize transaction
+      const estimatedGas = await contract.estimateGas.initialize(
+        ...initializeArgs,
+      );
+
+      // deploy with buffer on gas limit
       const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const initTx = await contract.initialize(...initializeArgs, overrides);
+      const initTx = await contract.initialize(...initializeArgs, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...overrides,
+      });
+
       await this.multiProvider.handleTx(chain, initTx);
     }
 
@@ -254,34 +271,40 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     threshold?: number;
     multiProvider: MultiProvider;
   }): Promise<Address> {
+    const sortedValues = [...values].sort();
+
     const address = await factory['getAddress(address[],uint8)'](
-      values,
+      sortedValues,
       threshold,
     );
     const code = await multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
       logger.debug(
-        `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
+        `Deploying new ${threshold} of ${sortedValues.length} address set to ${chain}`,
       );
       const overrides = multiProvider.getTransactionOverrides(chain);
 
       // estimate gas
       const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
-        values,
+        sortedValues,
         threshold,
         overrides,
       );
 
-      // add 10% buffer
-      const hash = await factory['deploy(address[],uint8)'](values, threshold, {
-        ...overrides,
-        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
-      });
+      // add gas buffer
+      const hash = await factory['deploy(address[],uint8)'](
+        sortedValues,
+        threshold,
+        {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        },
+      );
 
       await multiProvider.handleTx(chain, hash);
     } else {
       logger.debug(
-        `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
+        `Recovered ${threshold} of ${sortedValues.length} address set on ${chain}: ${address}`,
       );
     }
 
@@ -298,5 +321,39 @@ export class EvmModuleDeployer<Factories extends HyperlaneFactories> {
     // );
 
     return address;
+  }
+
+  /**
+   * Transfers ownership of a contract to a new owner.
+   *
+   * @param actualOwner - The current owner of the contract.
+   * @param expectedOwner - The expected new owner of the contract.
+   * @param deployedAddress - The address of the deployed contract.
+   * @param chainId - The chain ID of the network the contract is deployed on.
+   * @returns An array of annotated EV5 transactions that need to be executed to update the owner.
+   */
+  public static createTransferOwnershipTx(params: {
+    actualOwner: Address;
+    expectedOwner: Address;
+    deployedAddress: Address;
+    chainId: number;
+  }): AnnotatedEV5Transaction[] {
+    const { actualOwner, expectedOwner, deployedAddress, chainId } = params;
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (eqAddress(actualOwner, expectedOwner)) {
+      return [];
+    }
+
+    updateTransactions.push({
+      annotation: `Transferring ownership of ${deployedAddress} from current owner ${actualOwner} to new owner ${expectedOwner}`,
+      chainId,
+      to: deployedAddress,
+      data: Ownable__factory.createInterface().encodeFunctionData(
+        'transferOwnership(address)',
+        [expectedOwner],
+      ),
+    });
+
+    return updateTransactions;
   }
 }

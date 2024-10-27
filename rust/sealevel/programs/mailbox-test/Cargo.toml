@@ -23,17 +23,18 @@ thiserror.workspace = true
 
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
-hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../../libraries/interchain-security-module-interface" }
 hyperlane-sealevel-mailbox = { path = "../mailbox" }
 hyperlane-sealevel-message-recipient-interface = { path = "../../libraries/message-recipient-interface" }
-hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = ["test-client"] }
-hyperlane-sealevel-test-send-receiver = { path = "../test-send-receiver", features = ["test-client"] }
+hyperlane-sealevel-test-ism = { path = "../ism/test-ism", features = [
+    "test-client",
+] }
+hyperlane-sealevel-test-send-receiver = { path = "../test-send-receiver", features = [
+    "test-client",
+] }
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
-
-[profile.release]
-overflow-checks = true
