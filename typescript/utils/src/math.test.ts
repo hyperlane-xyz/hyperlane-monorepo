@@ -11,10 +11,15 @@ describe('Math Utility Functions', () => {
     it('should return the median of an even-length array', () => {
       expect(median([1, 2, 3, 4])).to.equal(2.5);
     });
+
+    it('should return the median of an even-length array with non sorted numbers', () => {
+      expect(median([1, 2, 0, 4, 5, 6])).to.equal(3);
+    });
   });
 
   describe('sum', () => {
     it('should return the sum of an array', () => {
+      expect(sum([1, 2, 3, 4])).to.equal(10);
       expect(sum([1, -2, 3, 4])).to.equal(6);
     });
   });
@@ -42,7 +47,7 @@ describe('Math Utility Functions', () => {
       const result = randomInt(max, min);
       expect(result).to.be.at.least(min);
       expect(result).to.be.below(max);
-      expect(result % 1).to.equal(0);
+      expect(result % 1).to.equal(0); // its an integer
     });
   });
 });
