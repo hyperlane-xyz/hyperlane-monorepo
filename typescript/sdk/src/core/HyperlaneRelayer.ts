@@ -75,12 +75,18 @@ export class HyperlaneRelayer {
   async getHookConfig(
     chain: ChainName,
     hook: Address,
+    messageContext?: DispatchedMessage,
   ): Promise<DerivedHookConfig> {
     let config: DerivedHookConfig | undefined;
     if (this.cache?.hook[chain]?.[hook]) {
       config = this.cache.hook[chain][hook] as DerivedHookConfig | undefined;
     } else {
-      const evmHookReader = new EvmHookReader(this.multiProvider, chain);
+      const evmHookReader = new EvmHookReader(
+        this.multiProvider,
+        chain,
+        undefined,
+        messageContext,
+      );
       config = await evmHookReader.deriveHookConfig(hook);
     }
 
@@ -98,12 +104,18 @@ export class HyperlaneRelayer {
   async getIsmConfig(
     chain: ChainName,
     ism: Address,
+    messageContext?: DispatchedMessage,
   ): Promise<DerivedIsmConfig> {
     let config: DerivedIsmConfig | undefined;
     if (this.cache?.ism[chain]?.[ism]) {
       config = this.cache.ism[chain][ism] as DerivedIsmConfig | undefined;
     } else {
-      const evmIsmReader = new EvmIsmReader(this.multiProvider, chain);
+      const evmIsmReader = new EvmIsmReader(
+        this.multiProvider,
+        chain,
+        undefined,
+        messageContext,
+      );
       config = await evmIsmReader.deriveIsmConfig(ism);
     }
 
@@ -124,7 +136,7 @@ export class HyperlaneRelayer {
   ): Promise<DerivedHookConfig> {
     const originChain = this.core.getOrigin(message);
     const hook = await this.core.getSenderHookAddress(message);
-    return this.getHookConfig(originChain, hook);
+    return this.getHookConfig(originChain, hook, message);
   }
 
   async getRecipientIsmConfig(
@@ -132,7 +144,7 @@ export class HyperlaneRelayer {
   ): Promise<DerivedIsmConfig> {
     const destinationChain = this.core.getDestination(message);
     const ism = await this.core.getRecipientIsmAddress(message);
-    return this.getIsmConfig(destinationChain, ism);
+    return this.getIsmConfig(destinationChain, ism, message);
   }
 
   async relayMessage(
