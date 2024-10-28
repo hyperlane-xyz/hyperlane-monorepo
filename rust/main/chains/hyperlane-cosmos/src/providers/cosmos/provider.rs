@@ -18,9 +18,9 @@ use tracing::{error, warn};
 
 use crypto::decompress_public_key;
 use hyperlane_core::{
-    AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
-    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError,
-    TxnInfo, TxnReceiptInfo, H256, U256,
+    bytes_to_h512, h512_to_bytes, AccountAddressType, BlockInfo, ChainCommunicationError,
+    ChainInfo, ChainResult, ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
+    HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
@@ -215,10 +215,10 @@ impl CosmosProvider {
     /// Extract contract address from transaction.
     fn contract(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
         // We merge two error messages together so that both of them are reported
-        match Self::contract_address_from_msg_execute_contract(tx, tx_hash) {
+        match Self::contract_address_from_msg_execute_contract(tx) {
             Ok(contract) => Ok(contract),
             Err(msg_execute_contract_error) => {
-                match Self::contract_address_from_msg_recv_packet(tx, tx_hash) {
+                match Self::contract_address_from_msg_recv_packet(tx) {
                     Ok(contract) => Ok(contract),
                     Err(msg_recv_packet_error) => {
                         let errors = vec![msg_execute_contract_error, msg_recv_packet_error];
@@ -232,10 +232,7 @@ impl CosmosProvider {
     }
 
     /// Assumes that there is only one `MsgExecuteContract` message in the transaction
-    fn contract_address_from_msg_execute_contract(
-        tx: &Tx,
-        tx_hash: &H256,
-    ) -> Result<H256, HyperlaneCosmosError> {
+    fn contract_address_from_msg_execute_contract(tx: &Tx) -> Result<H256, HyperlaneCosmosError> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
         let contract_execution_messages = tx
@@ -264,10 +261,7 @@ impl CosmosProvider {
         Ok(contract)
     }
 
-    fn contract_address_from_msg_recv_packet(
-        tx: &Tx,
-        tx_hash: &H256,
-    ) -> Result<H256, HyperlaneCosmosError> {
+    fn contract_address_from_msg_recv_packet(tx: &Tx) -> Result<H256, HyperlaneCosmosError> {
         let packet_data = tx
             .body
             .messages
@@ -406,7 +400,9 @@ impl HyperlaneProvider for CosmosProvider {
         Ok(block_info)
     }
 
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
+
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
@@ -419,7 +415,7 @@ impl HyperlaneProvider for CosmosProvider {
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 
-        if &received_hash != hash {
+        if received_hash != hash {
             return Err(ChainCommunicationError::from_other_str(&format!(
                 "received incorrect transaction, expected hash: {:?}, received hash: {:?}",
                 hash, received_hash,
@@ -428,12 +424,12 @@ impl HyperlaneProvider for CosmosProvider {
 
         let tx = Tx::from_bytes(&response.tx)?;
 
-        let contract = Self::contract(&tx, hash)?;
+        let contract = Self::contract(&tx, &hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
-        let gas_price = self.calculate_gas_price(hash, &tx);
+        let gas_price = self.calculate_gas_price(&hash, &tx);
 
         let tx_info = TxnInfo {
-            hash: hash.to_owned(),
+            hash: hash.into(),
             gas_limit: U256::from(response.tx_result.gas_wanted),
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,

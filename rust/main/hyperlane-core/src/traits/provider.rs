@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use auto_impl::auto_impl;
 use thiserror::Error;
 
-use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, U256};
+use crate::{BlockInfo, ChainInfo, ChainResult, HyperlaneChain, TxnInfo, H256, H512, U256};
 
 /// Interface for a provider. Allows abstraction over different provider types
 /// for different chains.
@@ -20,7 +20,7 @@ pub trait HyperlaneProvider: HyperlaneChain + Send + Sync + Debug {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo>;
 
     /// Get txn info for a given txn hash
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo>;
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo>;
 
     /// Returns whether a contract exists at the provided address
     async fn is_contract(&self, address: &H256) -> ChainResult<bool>;
@@ -40,7 +40,7 @@ pub enum HyperlaneProviderError {
     NoGasUsed,
     /// Could not find a transaction by hash
     #[error("Could not find transaction from provider with hash {0:?}")]
-    CouldNotFindTransactionByHash(H256),
+    CouldNotFindTransactionByHash(H512),
     /// Could not find a block by height
     #[error("Could not find block from provider with height {0:?}")]
     CouldNotFindBlockByHeight(u64),

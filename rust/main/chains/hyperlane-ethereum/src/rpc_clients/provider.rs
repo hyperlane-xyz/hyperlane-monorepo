@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
 use ethers_core::{abi::Address, types::BlockNumber};
-use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, U256};
+use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
 use tokio::time::sleep;
 use tracing::instrument;
 
@@ -84,7 +84,7 @@ where
 
     #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let txn = get_with_retry_on_none(
             hash,
             |h| self.provider.get_transaction(*h),
