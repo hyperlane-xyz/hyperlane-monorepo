@@ -2,4 +2,10 @@
 '@hyperlane-xyz/widgets': minor
 ---
 
-Added new icons, new components and storybook
+Update widgets with components from explorer and warp ui
+
+- Add icons: Discord, Docs, Github, Help, History, LinkedIn, Medium, Twitter, Wallet and Web
+- Add animation component: Fade component
+- Add components: DatetimeField and SelectField
+- New stories: IconList and Fade
+- Add "Icon" suffix for icons that did not have it
