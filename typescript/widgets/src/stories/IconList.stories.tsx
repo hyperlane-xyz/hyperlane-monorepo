@@ -1,73 +1,19 @@
 import { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
 
-import { ColorPalette } from '../color';
-import {
-  AirplaneIcon,
-  ArrowIcon,
-  BoxArrowIcon,
-  CheckmarkIcon,
-  ChevronIcon,
-  Circle,
-  CopyIcon,
-  DiscordIcon,
-  DocsIcon,
-  EnvelopeIcon,
-  FilterIcon,
-  FunnelIcon,
-  GearIcon,
-  GithubIcon,
-  HistoryIcon,
-  LinkedInIcon,
-  LockIcon,
-  MediumIcon,
-  PencilIcon,
-  PlusCircleIcon,
-  PlusIcon,
-  QuestionMarkIcon,
-  SearchIcon,
-  ShieldIcon,
-  Spinner,
-  TwitterIcon,
-  UpDownArrowsIcon,
-  WalletIcon,
-  WebIcon,
-  WideChevron,
-  XIcon,
-} from '../index';
+import * as Hyperlane from '../index';
 
-const iconList: Array<React.ComponentType<any>> = [
-  AirplaneIcon,
-  ArrowIcon,
-  BoxArrowIcon,
-  CheckmarkIcon,
-  ChevronIcon,
-  CopyIcon,
-  DiscordIcon,
-  DocsIcon,
-  EnvelopeIcon,
-  FilterIcon,
-  FunnelIcon,
-  GearIcon,
-  GithubIcon,
-  HistoryIcon,
-  LinkedInIcon,
-  LockIcon,
-  MediumIcon,
-  PencilIcon,
-  PlusCircleIcon,
-  PlusIcon,
-  QuestionMarkIcon,
-  SearchIcon,
-  ShieldIcon,
-  Spinner,
-  TwitterIcon,
-  UpDownArrowsIcon,
-  WalletIcon,
-  WebIcon,
-  WideChevron,
-  XIcon,
-];
+interface StoryIconProps {
+  width?: number;
+  height?: number;
+  color?: string;
+  direction?: 'n' | 'e' | 's' | 'w';
+  rounded?: boolean;
+}
+
+const iconList = Object.entries(Hyperlane)
+  .filter(([name]) => name.includes('Icon') && !name.includes('IconButton'))
+  .map(([_, Component]) => Component as React.ComponentType<StoryIconProps>);
 
 function IconList({
   width,
@@ -107,7 +53,7 @@ function IconList({
       ))}
       <IconContainer>
         <span>Circle</span>
-        <Circle size={width} bgColorSeed={bgColorSeed} />
+        <Hyperlane.Circle size={width} bgColorSeed={bgColorSeed} />
       </IconContainer>
     </div>
   );
@@ -146,7 +92,7 @@ export const DefaultIconList = {
   args: {
     width: 24,
     height: 24,
-    color: ColorPalette.Black,
+    color: Hyperlane.ColorPalette.Black,
     direction: 's',
     bgColorSeed: 0,
     roundedWideChevron: false,
