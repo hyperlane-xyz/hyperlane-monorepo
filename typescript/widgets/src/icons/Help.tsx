@@ -21,7 +21,7 @@ function _HelpIcon({
   };
 
   return (
-    // @ts-ignore allow pass-thru tooltip props
+    // @ts-ignore allow pass-through tooltip props
     <IconButton
       title="Help"
       width={size}
