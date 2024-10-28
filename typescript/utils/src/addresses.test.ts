@@ -4,6 +4,7 @@ import {
   addressToBytes,
   bytesToProtocolAddress,
   isZeroishAddress,
+  padBytesToLength,
 } from './addresses.js';
 import { ProtocolType } from './types.js';
 
@@ -39,6 +40,17 @@ describe('Address utilities', () => {
       expect(() => addressToBytes(ETH_ZERO_ADDR)).to.throw(Error);
       expect(() => addressToBytes(COS_ZERO_ADDR)).to.throw(Error);
       expect(() => addressToBytes(SOL_ZERO_ADDR)).to.throw(Error);
+    });
+  });
+
+  describe('padBytesToLength', () => {
+    it('Pads bytes to a given length', () => {
+      const bytes = Buffer.from([1, 2, 3]);
+      expect(padBytesToLength(bytes, 5).equals(Buffer.from([0, 0, 1, 2, 3])));
+    });
+    it('Rejects bytes that exceed the target length', () => {
+      const bytes = Buffer.from([1, 2, 3]);
+      expect(() => padBytesToLength(bytes, 2)).to.throw(Error);
     });
   });
 
