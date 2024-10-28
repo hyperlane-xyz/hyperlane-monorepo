@@ -35,6 +35,7 @@
   },
   "workspaces": [
     "solidity",
+    "starknet",
     "typescript/*"
   ],
   "resolutions": {

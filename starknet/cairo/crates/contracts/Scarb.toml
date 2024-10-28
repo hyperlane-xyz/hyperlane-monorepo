@@ -1,0 +1,30 @@
+[package]
+name = "contracts"
+version = "0.0.6"
+edition = "2023_11"
+
+# See more keys and their definitions at https://docs.swmansion.com/scarb/docs/reference/manifest.html
+
+[dependencies]
+starknet.workspace = true
+alexandria_bytes.workspace = true
+alexandria_storage.workspace = true
+openzeppelin.workspace = true
+mocks = {path = "../mocks"}
+
+[dev-dependencies]
+snforge_std = { git = "https://github.com/foundry-rs/starknet-foundry", tag = "v0.22.0" }
+
+
+[tool]
+fmt.workspace = true
+
+[[target.starknet-contract]]
+allowed-libfuncs-list.name = "experimental"
+sierra = true
+casm = true
+casm-add-pythonic-hints = true
+build-external-contracts = ["mocks::*"]
+
+[lib]
+name = "contracts"

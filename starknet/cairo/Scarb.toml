@@ -1,0 +1,23 @@
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+name = "hyperlane_starknet"
+description = "Implementation of the Hyperlane protocol on Starknet."
+version = "0.0.6"
+edition = "2023_11"
+cairo-version = "2.6.3"
+license-file = "../LICENSE"
+readme = "../README.md"
+
+# See more keys and their definitions at https://docs.swmansion.com/scarb/docs/reference/manifest.html
+
+[workspace.dependencies]
+starknet = "2.6.3"
+alexandria_bytes = { git = "https://github.com/keep-starknet-strange/alexandria.git", rev = "bcdca70" }
+alexandria_storage = { git = "https://github.com/keep-starknet-strange/alexandria.git", rev = "bcdca70" }
+openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.14.0" }
+
+
+[workspace.tool.fmt]
+sort-module-level-items = true
