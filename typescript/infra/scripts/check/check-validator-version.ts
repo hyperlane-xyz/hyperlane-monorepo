@@ -36,6 +36,7 @@ const KNOWN_VALIDATOR_ADDRESSES: Record<string, string> = {
   '0xbac4ac39f1d8b5ef15f26fdb1294a7c9aba3f948': 'dsrv', // from scroll
   '0x47aa126e05933b95c5eb90b26e6b668d84f4b25a': 'dsrv', // from neutron
   '0xa3eaa1216827ad63dd9db43f6168258a89177990': 'dsrv', // from stride
+  '0x645428d198d2e76cbd9c1647f5c80740bb750b97': 'dsrv', // from moonbeam
   '0x0180444c9342bd672867df1432eb3da354413a6e': 'hashkey cloud',
   '0x0230505530b80186f8cdccfaf9993eb97aebe98a': 'mint',
   '0x032de4f94676bf9314331e7d83e8db4ac74c9e21': 'oort',
@@ -44,7 +45,6 @@ const KNOWN_VALIDATOR_ADDRESSES: Record<string, string> = {
   '0x42b6de2edbaa62c2ea2309ad85d20b3e37d38acf': 'sg-1',
   '0x4e53da92cd5bf0a032b6b4614b986926456756a7': 'blockpi',
   '0x521a3e6bf8d24809fde1c1fd3494a859a16f132c': 'cosmostation',
-  '0x645428d198d2e76cbd9c1647f5c80740bb750b97': 'dsrv',
   '0x6760226b34213d262d41d5291ed57e81a68b4e0b': 'fuse',
   '0x6b1d09a97b813d53e9d4b7523da36604c0b52242': 'caldera',
   '0x7419021c0de2772b763e554480158a82a291c1f2': 'fusionist',
