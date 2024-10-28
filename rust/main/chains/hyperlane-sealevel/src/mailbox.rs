@@ -706,6 +706,8 @@ impl SealevelMailboxIndexer {
             .await?;
         let block_hash = decode_h256(&block.blockhash)?;
 
+        info!(?block_hash, slot = ?dispatched_message_account.slot, "block with dispatch message transaction");
+
         let transactions =
             block.transactions.ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any transaction".to_owned()))?;
 
@@ -842,7 +844,7 @@ impl SealevelMailboxIndexer {
         nonce: u32,
         offset: usize,
         length: usize,
-    ) -> Result<Vec<(Pubkey, Account)>, ChainCommunicationError> {
+    ) -> ChainResult<Vec<(Pubkey, Account)>> {
         let target_message_account_bytes = &[&discriminator[..], &nonce.to_le_bytes()[..]].concat();
         let target_message_account_bytes = base64::encode(target_message_account_bytes);
 
