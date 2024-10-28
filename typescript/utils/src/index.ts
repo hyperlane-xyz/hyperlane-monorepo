@@ -35,6 +35,7 @@ export {
   normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
+  padBytesToLength,
   shortenAddress,
   strip0x,
 } from './addresses.js';

@@ -27,6 +27,8 @@ import { validatorChainConfig } from './validators.js';
 import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
 import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
 import arbitrumNeutronEclipAddresses from './warp/arbitrum-neutron-eclip-addresses.json';
+import eclipseStrideTiaAddresses from './warp/eclipse-stride-TIA-addresses.json';
+import eclipseStrideStTiaAddresses from './warp/eclipse-stride-stTIA-addresses.json';
 import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
 import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
 import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
@@ -311,7 +313,13 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   // warp routes that we know are certainly paying for gas.
   {
     type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [...routerMatchingList(injectiveInevmInjAddresses)],
+    matchingList: [
+      ...routerMatchingList(injectiveInevmInjAddresses),
+      // As we are still indexing the IGP on Stride, temporarily whitelist
+      // Stride to Eclipse messages.
+      ...routerMatchingList(eclipseStrideTiaAddresses),
+      ...routerMatchingList(eclipseStrideStTiaAddresses),
+    ],
   },
   {
     type: GasPaymentEnforcementPolicyType.OnChainFeeQuoting,
@@ -421,7 +429,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '42d6b50-20241021-155906',
+      tag: 'a64af8b-20241024-120818',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContexts,
@@ -430,7 +438,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'efd438f-20241016-101828',
+      tag: 'a64af8b-20241024-120818',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -440,7 +448,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '42d6b50-20241021-155906',
+      tag: 'a64af8b-20241024-120818',
     },
     resources: scraperResources,
   },
@@ -455,7 +463,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '42d6b50-20241021-155906',
+      tag: 'a64af8b-20241024-120818',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -467,7 +475,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '9c056c7-20240911-154357',
+      tag: 'a64af8b-20241024-120818',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

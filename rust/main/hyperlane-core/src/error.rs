@@ -93,9 +93,6 @@ pub enum ChainCommunicationError {
     /// Failed to parse strings or integers
     #[error("Data parsing error {0:?}")]
     StrOrIntParseError(#[from] StrOrIntParseError),
-    /// BlockNotFoundError
-    #[error("Block not found: {0:?}")]
-    BlockNotFound(H256),
     /// utf8 error
     #[error("{0}")]
     Utf8(#[from] FromUtf8Error),
