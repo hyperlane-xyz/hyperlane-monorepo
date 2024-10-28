@@ -1,21 +1,18 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import {
-  DomainRoutingIsm__factory,
-  Ownable__factory,
-} from '@hyperlane-xyz/core';
+import { DomainRoutingIsm__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
   ProtocolType,
   assert,
   deepEquals,
-  eqAddress,
   intersection,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
@@ -170,24 +167,14 @@ export class EvmIsmModule extends HyperlaneModule<
     }
 
     // Lastly, check if the resolved owner is different from the current owner
-    const provider = this.multiProvider.getProvider(this.chain);
-    const owner = await Ownable__factory.connect(
-      this.args.addresses.deployedIsm,
-      provider,
-    ).owner();
-
-    // Return an ownership transfer transaction if required
-    if (!eqAddress(targetConfig.owner, owner)) {
-      updateTxs.push({
-        annotation: 'Transferring ownership of ownable ISM...',
-        chainId: this.domainId,
-        to: this.args.addresses.deployedIsm,
-        data: Ownable__factory.createInterface().encodeFunctionData(
-          'transferOwnership(address)',
-          [targetConfig.owner],
-        ),
-      });
-    }
+    updateTxs.push(
+      ...transferOwnershipTransactions(
+        this.domainId,
+        this.args.addresses.deployedIsm,
+        currentConfig,
+        targetConfig,
+      ),
+    );
 
     return updateTxs;
   }
