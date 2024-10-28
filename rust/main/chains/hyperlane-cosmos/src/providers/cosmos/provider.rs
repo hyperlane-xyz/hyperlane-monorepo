@@ -68,7 +68,7 @@ impl CosmosProvider {
         let providers = conf
             .get_rpc_urls()
             .iter()
-            .map(|url| CosmosRpcClient::new(url))
+            .map(CosmosRpcClient::new)
             .collect::<Result<Vec<_>, _>>()?;
         let mut builder = FallbackProvider::builder();
         builder = builder.add_providers(providers);
@@ -375,7 +375,7 @@ impl HyperlaneProvider for CosmosProvider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let response = self
             .rpc_client
-            .call(|provider| Box::pin(async move { Ok(provider.get_block(height as u32).await?) }))
+            .call(|provider| Box::pin(async move { provider.get_block(height as u32).await }))
             .await?;
 
         let block = response.block;
@@ -409,7 +409,7 @@ impl HyperlaneProvider for CosmosProvider {
         let response = self
             .rpc_client
             .call(|provider| {
-                Box::pin(async move { Ok(provider.get_tx_by_hash(tendermint_hash).await?) })
+                Box::pin(async move { provider.get_tx_by_hash(tendermint_hash).await })
             })
             .await?;
 

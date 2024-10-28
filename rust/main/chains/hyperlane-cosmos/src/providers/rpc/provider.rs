@@ -97,7 +97,7 @@ impl CosmosWasmRpcProvider {
         let providers = conf
             .get_rpc_urls()
             .iter()
-            .map(|url| CosmosRpcClient::new(url))
+            .map(CosmosRpcClient::new)
             .collect::<Result<Vec<_>, _>>()?;
         let mut builder = FallbackProvider::builder();
         builder = builder.add_providers(providers);
@@ -119,7 +119,7 @@ impl CosmosWasmRpcProvider {
 
     async fn get_block(&self, height: u32) -> ChainResult<BlockResponse> {
         self.rpc_client
-            .call(|provider| Box::pin(async move { Ok(provider.get_block(height).await?) }))
+            .call(|provider| Box::pin(async move { provider.get_block(height).await }))
             .await
     }
 }
@@ -240,7 +240,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         let latest_block = self
             .rpc_client
-            .call(|provider| Box::pin(async move { Ok(provider.get_latest_block().await?) }))
+            .call(|provider| Box::pin(async move { provider.get_latest_block().await }))
             .await?;
         let latest_height: u32 = latest_block
             .block
@@ -269,7 +269,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         let block_results = self
             .rpc_client
             .call(|provider| {
-                Box::pin(async move { Ok(provider.get_block_results(block_number).await?) })
+                Box::pin(async move { provider.get_block_results(block_number).await })
             })
             .await?;
         debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in block with hash");
@@ -290,7 +290,7 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
     {
         let tx = self
             .rpc_client
-            .call(|provider| Box::pin(async move { Ok(provider.get_tx_by_hash(hash).await?) }))
+            .call(|provider| Box::pin(async move { provider.get_tx_by_hash(hash).await }))
             .await?;
         let block_number = tx.height.value() as u32;
         let block = self.get_block(block_number).await?;
