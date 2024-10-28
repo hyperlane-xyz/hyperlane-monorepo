@@ -3081,7 +3081,7 @@
       "proxyAdmin": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "rpcUrls": [
         {
-          "http": "https://raas-backend.alchemy.com/rpc/worldchain-mainnet/rollup"
+          "http": "https://worldchain-mainnet.g.alchemy.com/public"
         }
       ],
       "staticAggregationHookFactory": "0xEb9FcFDC9EfDC17c1EC5E1dc085B98485da213D6",
@@ -5120,7 +5120,7 @@
         {
           "apiUrl": "https://explorer.gravity.xyz/api",
           "family": "blockscout",
-          "name": "Gravity Alpha Mainnet Explorer",
+          "name": "Gravity Alpha Explorer",
           "url": "https://explorer.gravity.xyz"
         }
       ],
@@ -5177,7 +5177,8 @@
       "storageGasOracle": "0xD0dca420feFda68537695A8D887080eeF4030AF7",
       "testRecipient": "0x60B8d195f1b2EcaC26d54b95C69E6399cFD64b53",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x61374178e45F65fF9D6252d017Cd580FC60B7654"
+      "validatorAnnounce": "0x61374178e45F65fF9D6252d017Cd580FC60B7654",
+      "displayNameShort": "Gravity"
     },
     "harmony": {
       "blockExplorers": [
