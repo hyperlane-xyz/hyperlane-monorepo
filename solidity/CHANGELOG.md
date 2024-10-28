@@ -1,5 +1,14 @@
 # @hyperlane-xyz/core
 
+## 5.6.1
+
+### Patch Changes
+
+- a42616ff3: Added overrides for transferFrom, totalSupply to reflect the internal share based accounting for the 4626 mirror asset
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+
 ## 5.6.0
 
 ### Minor Changes

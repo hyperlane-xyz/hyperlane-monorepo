@@ -5,8 +5,8 @@ import { ethersBigNumberSerializer } from './logging.js';
 import { isNullish } from './typeof.js';
 import { assert } from './validation.js';
 
-export function isObject(item: any) {
-  return item && typeof item === 'object' && !Array.isArray(item);
+export function isObject(item: any): boolean {
+  return !!item && typeof item === 'object' && !Array.isArray(item);
 }
 
 export function deepEquals(v1: any, v2: any) {
