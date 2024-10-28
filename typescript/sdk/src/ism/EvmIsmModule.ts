@@ -265,9 +265,9 @@ export class EvmIsmModule extends HyperlaneModule<
       const domainId = this.multiProvider.getDomainId(origin);
       const tx = await contract.populateTransaction.set(domainId, ism.address);
       updateTxs.push({
-        chainId: this.domainId,
         annotation: `Setting new ISM for origin ${origin}...`,
         ...tx,
+        chainId: this.domainId,
       });
     }
 
@@ -281,9 +281,9 @@ export class EvmIsmModule extends HyperlaneModule<
       const domainId = this.multiProvider.getDomainId(origin);
       const tx = await contract.populateTransaction.remove(domainId);
       updateTxs.push({
-        chainId: this.domainId,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         ...tx,
+        chainId: this.domainId,
       });
     }
 

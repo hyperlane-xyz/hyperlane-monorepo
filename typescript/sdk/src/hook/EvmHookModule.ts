@@ -90,6 +90,7 @@ export class EvmHookModule extends HyperlaneModule<
 > {
   protected readonly logger = rootLogger.child({ module: 'EvmHookModule' });
   protected readonly reader: EvmHookReader;
+  // "ISM" Factory has aggregation hook factories too
   protected readonly hookFactory: HyperlaneIsmFactory;
   protected readonly deployer: HookDeployer;
 

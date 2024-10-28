@@ -203,7 +203,7 @@ export class EvmCoreModule extends HyperlaneModule<
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
     return transferOwnershipTransactions(
-      this.multiProvider.getDomainId(this.args.chain),
+      this.domainId,
       this.args.addresses.mailbox,
       actualConfig,
       expectedConfig,

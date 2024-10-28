@@ -193,9 +193,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         );
         break;
       case IsmType.ARB_L2_TO_L1:
-        contract = await this.deployer.deployContract(destination, ismType, [
-          config.bridge,
-        ]);
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.ARB_L2_TO_L1,
+          [config.bridge],
+        );
         break;
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
