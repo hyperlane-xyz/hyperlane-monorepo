@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'fs';
 import { dirname, join } from 'path';
+import { CairoAssembly, CompiledContract } from 'starknet';
 import { fileURLToPath } from 'url';
 
 import { CONFIG } from './config.js';
 import { ContractError, ErrorMessages } from './errors.js';
-import { CompiledContractCasm, ContractData } from './types.js';
 import { assertValidContractName } from './utils.js';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -14,10 +14,10 @@ const TARGET_DEV_PATH = join(currentDirectory, CONFIG.PATHS.MAIN);
  * @notice Retrieves and parses the standard compiled contract data
  * @dev Reads the contract file with STANDARD suffix and parses it as JSON
  * @param name The name of the contract to retrieve
- * @returns {ContractData} The parsed contract data
+ * @returns {CompiledContract} The parsed contract data
  * @throws {ContractError} If the file is not found, cannot be parsed, or name is invalid
  */
-export const getCompiledContract = (name: string): ContractData => {
+export const getCompiledContract = (name: string): CompiledContract => {
   try {
     return JSON.parse(
       readFileSync(findContractFile(name, 'STANDARD'), 'utf-8'),
@@ -39,10 +39,10 @@ export const getCompiledContract = (name: string): ContractData => {
  * @notice Retrieves and parses the CASM compiled contract data
  * @dev Reads the contract file with COMPILED suffix and parses it as JSON
  * @param name The name of the contract to retrieve
- * @returns {CompiledContractCasm} The parsed CASM contract data
+ * @returns {CairoAssembly} The parsed CASM contract data
  * @throws {ContractError} If the file is not found, cannot be parsed, or name is invalid
  */
-export const getCompiledContractCasm = (name: string): CompiledContractCasm => {
+export const getCompiledContractCasm = (name: string): CairoAssembly => {
   try {
     return JSON.parse(
       readFileSync(findContractFile(name, 'COMPILED'), 'utf-8'),

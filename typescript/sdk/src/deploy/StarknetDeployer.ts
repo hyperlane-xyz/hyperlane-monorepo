@@ -7,8 +7,11 @@ import {
   ContractFactory,
   ContractFactoryParams,
 } from 'starknet';
-import { getCompiledContract, getCompiledContractCasm } from 'starknet-core';
 
+import {
+  getCompiledContract,
+  getCompiledContractCasm,
+} from '@hyperlane-xyz/starknet-core';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 export interface StarknetContractConfig {

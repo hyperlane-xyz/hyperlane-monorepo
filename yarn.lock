@@ -8147,6 +8147,7 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@hyperlane-xyz/core": "npm:5.6.1"
+    "@hyperlane-xyz/starknet-core": "npm:1.0.0"
     "@hyperlane-xyz/utils": "npm:5.6.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -8189,7 +8190,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/starknet-core@workspace:starknet":
+"@hyperlane-xyz/starknet-core@npm:1.0.0, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
@@ -8197,6 +8198,7 @@ __metadata:
     eslint: "npm:^9.13.0"
     eslint-config-prettier: "npm:^9.1.0"
     prettier: "npm:^3.3.3"
+    starknet: "npm:6.11.0"
     ts-node: "npm:^10.9.2"
     tsx: "npm:^4.19.1"
     typescript: "npm:5.3.3"
