@@ -13,6 +13,8 @@ const acceptableValidatorVersions = [
   'ffbe1dd82e2452dbc111b6fb469a34fb870da8f1', // 1.0.0
 ];
 
+// TODO: refactor multisigIsm.ts to include mappings of addresses to aliases as part of the config
+// This will also allow us to programmatically generate the default ISM docs page.
 const KNOWN_VALIDATOR_ADDRESSES: Record<string, string> = {
   '0x5450447aee7b544c462c9352bef7cad049b0c2dc': 'zeeprime',
   '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b': 'staked',
