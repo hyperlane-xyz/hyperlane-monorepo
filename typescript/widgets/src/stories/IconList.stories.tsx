@@ -1,5 +1,6 @@
 import { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
+import { Tooltip } from 'react-tooltip';
 
 import * as Hyperlane from '../index';
 
@@ -32,32 +33,35 @@ function IconList({
   roundedWideChevron: boolean;
 }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: '1rem',
-        textAlign: 'center',
-        flexWrap: 'wrap',
-      }}
-    >
-      {iconList.map((Icon) => (
+    <>
+      <div
+        style={{
+          display: 'flex',
+          gap: '1rem',
+          textAlign: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        {iconList.map((Icon) => (
+          <IconContainer>
+            <span>{Icon.displayName}</span>
+            <Icon
+              width={width}
+              height={height}
+              color={color}
+              direction={direction}
+              rounded={roundedWideChevron}
+              text="Help Icon Tooltip Text"
+            />
+          </IconContainer>
+        ))}
         <IconContainer>
-          <span>{Icon.displayName}</span>
-          <Icon
-            width={width}
-            height={height}
-            color={color}
-            direction={direction}
-            rounded={roundedWideChevron}
-            text="Help Icon Tooltip Text"
-          />
+          <span>Circle</span>
+          <Hyperlane.Circle size={width} bgColorSeed={bgColorSeed} />
         </IconContainer>
-      ))}
-      <IconContainer>
-        <span>Circle</span>
-        <Hyperlane.Circle size={width} bgColorSeed={bgColorSeed} />
-      </IconContainer>
-    </div>
+      </div>
+      <Tooltip id="root-tooltip" className="z-50" />
+    </>
   );
 }
 

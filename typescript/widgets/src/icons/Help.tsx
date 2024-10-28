@@ -32,7 +32,7 @@ function _HelpIcon({
       <QuestionMarkIcon
         height={size}
         width={size}
-        color={color || ColorPalette.LightGray}
+        color={color || ColorPalette.Black}
         className="htw-opacity-50"
       />
     </IconButton>
