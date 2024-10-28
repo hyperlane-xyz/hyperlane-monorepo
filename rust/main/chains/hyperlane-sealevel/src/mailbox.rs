@@ -689,15 +689,6 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
-        // TODO
-        // 1. Request block using dispatched_message_account.slot
-        // 2. Identify the transaction:
-        //  2.1 transaction contains Mailbox program in list of accounts (number 15) mailbox.program_id
-        //  2.2 transaction contains dispatched message PDA in the list of accounts (number 6) valid_message_storage_pda_pubkey
-        //  2.3 confirm that transaction performs message dispatch (OutboxDispatch) from data
-        // 3. Extract block hash from block
-        // 4. Extract transaction signature from transaction (first signature)
-
         let block = self
             .mailbox
             .provider

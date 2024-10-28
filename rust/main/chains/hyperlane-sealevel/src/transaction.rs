@@ -12,6 +12,22 @@ use hyperlane_sealevel_mailbox::instruction::Instruction;
 
 use crate::utils::{decode_h512, from_base58};
 
+/// This function searches for a transaction which dispatches Hyperlane message and returns
+/// list of hashes of such transactions.
+///
+/// This function takes the mailbox program identifier and the identifier for PDA for storing
+/// a dispatched message and searches a message dispatch transaction in a list of transaction.
+/// The list of transaction is usually comes from a block. The function returns list of hashes
+/// of such transactions.
+///
+/// The transaction will be searched with the following criteria:
+///     1. Transaction contains Mailbox program id in the list of accounts.
+///     2. Transaction contains dispatched message PDA in the list of accounts.
+///     3. Transaction is performing message dispatch (OutboxDispatch).
+///
+/// * `mailbox_program_id` - Identifier of Mailbox program
+/// * `message_storage_pda_pubkey` - Identifier for dispatch message store PDA
+/// * `transactions` - List of transactions
 pub fn search_transaction(
     mailbox_program_id: &Pubkey,
     message_storage_pda_pubkey: &Pubkey,
