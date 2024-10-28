@@ -19,20 +19,21 @@ function _HelpIcon({
     'data-tooltip-id': 'root-tooltip',
     'data-tooltip-place': 'top-start',
   };
+
   return (
     // @ts-ignore allow pass-thru tooltip props
     <IconButton
       title="Help"
       width={size}
       height={size}
-      className="rounded-full border border-gray-400 p-px"
+      className="htw-rounded-full htw-border htw-border-gray-400 htw-p-px"
       {...tooltipProps}
     >
       <QuestionMarkIcon
         height={size}
         width={size}
         color={color || ColorPalette.LightGray}
-        className="opacity-50"
+        className="htw-opacity-50"
       />
     </IconButton>
   );

@@ -9,6 +9,7 @@ interface StoryIconProps {
   color?: string;
   direction?: 'n' | 'e' | 's' | 'w';
   rounded?: boolean;
+  text?: string;
 }
 
 const iconList = Object.entries(Hyperlane)
@@ -48,6 +49,7 @@ function IconList({
             color={color}
             direction={direction}
             rounded={roundedWideChevron}
+            text="Help Icon Tooltip Text"
           />
         </IconContainer>
       ))}

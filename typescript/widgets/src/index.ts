@@ -33,6 +33,7 @@ export { FilterIcon } from './icons/Filter.js';
 export { FunnelIcon } from './icons/Funnel.js';
 export { GearIcon } from './icons/Gear.js';
 export { GithubIcon } from './icons/Github.js';
+export { HelpIcon } from './icons/Help.js';
 export { HistoryIcon } from './icons/History.js';
 export { LinkedInIcon } from './icons/LinkedIn.js';
 export { LockIcon } from './icons/Lock.js';
