@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { BigNumber } from 'ethers';
 
 import {
@@ -76,14 +77,18 @@ export class HyperlaneCoreGovernor extends HyperlaneAppGovernor<
         return this.handleMailboxViolation(violation as MailboxViolation);
       }
       case CoreViolationType.ValidatorAnnounce: {
-        console.warn('Ignoring ValidatorAnnounce violation');
+        console.warn(chalk.yellow('Ignoring ValidatorAnnounce violation'));
         return undefined;
       }
       case ViolationType.ProxyAdmin: {
         return this.handleProxyAdminViolation(violation as ProxyAdminViolation);
       }
       default:
-        throw new Error(`Unsupported violation type ${violation.type}`);
+        throw new Error(
+          `Unsupported violation type ${violation.type}: ${JSON.stringify(
+            violation,
+          )}`,
+        );
     }
   }
 }

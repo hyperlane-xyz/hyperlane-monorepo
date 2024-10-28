@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
+import { fetchWithTimeout } from '@hyperlane-xyz/utils';
 
 import { HYPERLANE_EXPLORER_API_URL } from '../consts.js';
 import { queryExplorerForBlock } from '../utils/explorers.js';
-import { fetchWithTimeout } from '../utils/timeout.js';
 import { useInterval } from '../utils/useInterval.js';
 
 import {

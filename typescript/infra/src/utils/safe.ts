@@ -5,7 +5,8 @@ import {
   MetaTransactionData,
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
-import { ethers } from 'ethers';
+import chalk from 'chalk';
+import { BigNumber, ethers } from 'ethers';
 
 import {
   ChainNameOrId,
@@ -13,7 +14,10 @@ import {
   getSafe,
   getSafeService,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
+
+import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
+import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
 export async function getSafeAndService(
   chain: ChainNameOrId,
@@ -42,10 +46,12 @@ export async function createSafeTransaction(
   safeService: SafeApiKit.default,
   safeAddress: Address,
   safeTransactionData: MetaTransactionData[],
+  onlyCalls?: boolean,
 ): Promise<SafeTransaction> {
   const nextNonce = await safeService.getNextNonce(safeAddress);
   return safeSdk.createTransaction({
     safeTransactionData,
+    onlyCalls,
     options: { nonce: nextNonce },
   });
 }
@@ -70,7 +76,9 @@ export async function proposeSafeTransaction(
     senderSignature: senderSignature.data,
   });
 
-  console.log(`Proposed transaction on ${chain} with hash ${safeTxHash}`);
+  console.log(
+    chalk.green(`Proposed transaction on ${chain} with hash ${safeTxHash}`),
+  );
 }
 
 export async function deleteAllPendingSafeTxs(
@@ -89,7 +97,9 @@ export async function deleteAllPendingSafeTxs(
   });
 
   if (!pendingTxsResponse.ok) {
-    console.error(`Failed to fetch pending transactions for ${safeAddress}`);
+    console.error(
+      chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
+    );
     return;
   }
 
@@ -124,7 +134,9 @@ export async function deleteSafeTx(
   });
 
   if (!txDetailsResponse.ok) {
-    console.error(`Failed to fetch transaction details for ${safeTxHash}`);
+    console.error(
+      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+    );
     return;
   }
 
@@ -132,7 +144,7 @@ export async function deleteSafeTx(
   const proposer = txDetails.proposer;
 
   if (!proposer) {
-    console.error(`No proposer found for transaction ${safeTxHash}`);
+    console.error(chalk.red(`No proposer found for transaction ${safeTxHash}`));
     return;
   }
 
@@ -140,7 +152,9 @@ export async function deleteSafeTx(
   const signerAddress = await signer.getAddress();
   if (proposer !== signerAddress) {
     console.log(
-      `Skipping deletion of transaction ${safeTxHash} proposed by ${proposer}`,
+      chalk.italic(
+        `Skipping deletion of transaction ${safeTxHash} proposed by ${proposer}`,
+      ),
     );
     return;
   }
@@ -190,18 +204,71 @@ export async function deleteSafeTx(
     });
 
     if (res.status === 204) {
-      console.log(`Successfully deleted transaction ${safeTxHash} on ${chain}`);
+      console.log(
+        chalk.green(
+          `Successfully deleted transaction ${safeTxHash} on ${chain}`,
+        ),
+      );
       return;
     }
 
     const errorBody = await res.text();
     console.error(
-      `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
+      chalk.red(
+        `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
+      ),
     );
   } catch (error) {
     console.error(
-      `Failed to delete transaction ${safeTxHash} on ${chain}:`,
+      chalk.red(`Failed to delete transaction ${safeTxHash} on ${chain}:`),
       error,
     );
   }
+}
+
+export async function updateSafeOwner(
+  safeSdk: Safe.default,
+): Promise<AnnotatedCallData[]> {
+  const threshold = await safeSdk.getThreshold();
+  const owners = await safeSdk.getOwners();
+  const newOwners = safeSigners.signers;
+  const ownersToRemove = owners.filter(
+    (owner) => !newOwners.some((newOwner) => eqAddress(owner, newOwner)),
+  );
+  const ownersToAdd = newOwners.filter(
+    (newOwner) => !owners.some((owner) => eqAddress(newOwner, owner)),
+  );
+
+  console.log(chalk.magentaBright('Owners to remove:', ownersToRemove));
+  console.log(chalk.magentaBright('Owners to add:', ownersToAdd));
+
+  const transactions: AnnotatedCallData[] = [];
+
+  for (const ownerToRemove of ownersToRemove) {
+    const { data: removeTxData } = await safeSdk.createRemoveOwnerTx({
+      ownerAddress: ownerToRemove,
+      threshold,
+    });
+    transactions.push({
+      to: removeTxData.to,
+      data: removeTxData.data,
+      value: BigNumber.from(removeTxData.value),
+      description: `Remove safe owner ${ownerToRemove}`,
+    });
+  }
+
+  for (const ownerToAdd of ownersToAdd) {
+    const { data: addTxData } = await safeSdk.createAddOwnerTx({
+      ownerAddress: ownerToAdd,
+      threshold,
+    });
+    transactions.push({
+      to: addTxData.to,
+      data: addTxData.data,
+      value: BigNumber.from(addTxData.value),
+      description: `Add safe owner ${ownerToAdd}`,
+    });
+  }
+
+  return transactions;
 }

@@ -1,5 +1,3 @@
-import { info } from 'console';
-
 import { Message, MessageTx } from './explorerTypes';
 
 // These types are copied from hyperlane-explorer. TODO: export them so this file can use them directly.
@@ -21,7 +19,7 @@ class HyperlaneService {
    * @param id: Message id to look up
    */
   async getOriginBlockByMessageId(id: string): Promise<MessageTx> {
-    info(`Fetching block for id: ${id}`);
+    console.info(`Fetching block for id: ${id}`);
     const response = await fetch(
       `${this.baseUrl}?module=message&action=${API_ACTION.GetMessages}&id=${id}`,
     );

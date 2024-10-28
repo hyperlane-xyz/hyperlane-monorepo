@@ -13,6 +13,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   constructor(
     readonly configFilePath: string,
     readonly runEnv: DeployEnvironment,
+    readonly environmentChainNames: string[],
   ) {
     super();
   }
@@ -26,10 +27,14 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '38ff1c4-20240823-093934',
+        tag: '8e2f616-20241025-163752',
       },
       configFilePath: pathRelativeToMonorepoRoot,
       fullnameOverride: this.helmReleaseName,
+      environment: this.runEnv,
+      hyperlane: {
+        chains: this.environmentChainNames,
+      },
     };
   }
 

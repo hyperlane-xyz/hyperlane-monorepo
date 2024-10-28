@@ -528,7 +528,7 @@ export class WarpCore {
       token.addressOrDenom,
       amount,
     );
-    this.logger.info(
+    this.logger.debug(
       `Approval is${isRequired ? '' : ' not'} required for transfer of ${
         token.symbol
       }`,

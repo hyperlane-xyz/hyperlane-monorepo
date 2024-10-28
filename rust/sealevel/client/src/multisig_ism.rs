@@ -27,8 +27,10 @@ pub(crate) struct MultisigIsmConfig {
     /// Note this type is ignored in this tooling. It'll always assume this
     /// relates to a multisig-ism-message-id variant, which is the only type
     /// implemented in Sealevel.
-    #[serde(rename = "type")]
-    pub module_type: u8,
+    /// Commenting out for now until this is needed, and due to `infra`
+    /// generating non-numeric types at the moment.
+    // #[serde(rename = "type")]
+    // pub module_type: u8,
     pub validators: Vec<H160>,
     pub threshold: u8,
 }
