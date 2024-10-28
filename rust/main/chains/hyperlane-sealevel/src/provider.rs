@@ -1,48 +1,34 @@
 use std::{str::FromStr, sync::Arc};
 
 use async_trait::async_trait;
-
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo,
-    H256, U256,
+    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
+    HyperlaneProviderError, TxnInfo, H256, H512, U256,
 };
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
+use solana_sdk::bs58;
+use solana_sdk::pubkey::Pubkey;
 
-use crate::{client::RpcClientWithDebug, error::HyperlaneSealevelError, ConnectionConf};
+use crate::{error::HyperlaneSealevelError, ConnectionConf, SealevelRpcClient};
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct SealevelProvider {
     domain: HyperlaneDomain,
-    rpc_client: Arc<RpcClientWithDebug>,
+    rpc_client: Arc<SealevelRpcClient>,
 }
 
 impl SealevelProvider {
     /// Create a new Sealevel provider.
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         // Set the `processed` commitment at rpc level
-        let rpc_client = Arc::new(RpcClientWithDebug::new_with_commitment(
-            conf.url.to_string(),
-            CommitmentConfig::processed(),
-        ));
+        let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
 
         SealevelProvider { domain, rpc_client }
     }
 
     /// Get an rpc client
-    pub fn rpc(&self) -> &RpcClientWithDebug {
+    pub fn rpc(&self) -> &SealevelRpcClient {
         &self.rpc_client
-    }
-
-    /// Get the balance of an address
-    pub async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        let pubkey = Pubkey::from_str(&address).map_err(Into::<HyperlaneSealevelError>::into)?;
-        let balance = self
-            .rpc_client
-            .get_balance(&pubkey)
-            .await
-            .map_err(Into::<HyperlaneSealevelError>::into)?;
-        Ok(balance.into())
     }
 }
 
@@ -61,11 +47,28 @@ impl HyperlaneChain for SealevelProvider {
 
 #[async_trait]
 impl HyperlaneProvider for SealevelProvider {
-    async fn get_block_by_hash(&self, _hash: &H256) -> ChainResult<BlockInfo> {
-        todo!() // FIXME
+    async fn get_block_by_height(&self, slot: u64) -> ChainResult<BlockInfo> {
+        let confirmed_block = self.rpc_client.get_block(slot).await?;
+
+        let hash_binary = bs58::decode(confirmed_block.blockhash)
+            .into_vec()
+            .map_err(HyperlaneSealevelError::Decoding)?;
+        let block_hash = H256::from_slice(&hash_binary);
+
+        let block_time = confirmed_block
+            .block_time
+            .ok_or(HyperlaneProviderError::CouldNotFindBlockByHeight(slot))?;
+
+        let block_info = BlockInfo {
+            hash: block_hash,
+            timestamp: block_time as u64,
+            number: slot,
+        };
+
+        Ok(block_info)
     }
 
-    async fn get_txn_by_hash(&self, _hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, _hash: &H512) -> ChainResult<TxnInfo> {
         todo!() // FIXME
     }
 
@@ -75,7 +78,8 @@ impl HyperlaneProvider for SealevelProvider {
     }
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        self.get_balance(address).await
+        let pubkey = Pubkey::from_str(&address).map_err(Into::<HyperlaneSealevelError>::into)?;
+        self.rpc_client.get_balance(&pubkey).await
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {

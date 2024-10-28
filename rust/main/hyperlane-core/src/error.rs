@@ -10,8 +10,10 @@ use crate::config::StrOrIntParseError;
 use crate::rpc_clients::RpcClientError;
 use std::string::FromUtf8Error;
 
-use crate::HyperlaneProviderError;
-use crate::{Error as PrimitiveTypeError, HyperlaneSignerError, H256, U256};
+use crate::{
+    Error as PrimitiveTypeError, HyperlaneProviderError, HyperlaneSignerError, ReorgPeriod, H256,
+    U256,
+};
 
 /// The result of interacting with a chain.
 pub type ChainResult<T> = Result<T, ChainCommunicationError>;
@@ -91,9 +93,6 @@ pub enum ChainCommunicationError {
     /// Failed to parse strings or integers
     #[error("Data parsing error {0:?}")]
     StrOrIntParseError(#[from] StrOrIntParseError),
-    /// BlockNotFoundError
-    #[error("Block not found: {0:?}")]
-    BlockNotFound(H256),
     /// utf8 error
     #[error("{0}")]
     Utf8(#[from] FromUtf8Error),
@@ -157,6 +156,9 @@ pub enum ChainCommunicationError {
     /// Hyperlane signer error
     #[error("{0}")]
     HyperlaneSignerError(#[from] HyperlaneSignerError),
+    /// Invalid reorg period
+    #[error("Invalid reorg period: {0:?}")]
+    InvalidReorgPeriod(ReorgPeriod),
 }
 
 impl ChainCommunicationError {
