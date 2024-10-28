@@ -8,10 +8,10 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
-const acceptableValidatorVersions = [
-  'a64af8be9a76120d0cfc727bb70660fa07e70cce', // pre-1.0.0
-  'ffbe1dd82e2452dbc111b6fb469a34fb870da8f1', // 1.0.0
-];
+const acceptableValidatorVersions: Record<string, string> = {
+  a64af8be9a76120d0cfc727bb70660fa07e70cce: 'pre-1.0.0', // pre-1.0.0
+  ffbe1dd82e2452dbc111b6fb469a34fb870da8f1: '1.0.0', // 1.0.0
+};
 
 // TODO: refactor multisigIsm.ts to include mappings of addresses to aliases as part of the config
 // This will also allow us to programmatically generate the default ISM docs page.
@@ -57,7 +57,36 @@ const KNOWN_VALIDATOR_ADDRESSES: Record<string, string> = {
   '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de': 'pier two',
   '0xd79dfbf56ee2268f061cc613027a44a880f61ba2': 'everclear',
   '0xe271ef9a6e312540f099a378865432fa73f26689': 'tangle',
+  '0x101ce77261245140a0871f9407d6233c8230ec47': 'blockhunters',
+  '0x7ac6584c068eb2a72d4db82a7b7cd5ab34044061': 'luganodes',
+  '0x2f007c82672f2bb97227d4e3f80ac481bfb40a2a': 'luganodes',
+  '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91': 'luganodes',
+  '0xb683b742b378632a5f73a2a5a45801b3489bba44': 'luganodes (avs)',
+  '0x11e2a683e83617f186614071e422b857256a9aae': 'imperator',
+  '0x7089b6352d37d23fb05a7fee4229c78e038fba09': 'imperator',
+  '0xfed056cc0967f5bc9c6350f6c42ee97d3983394d': 'imperator',
+  '0x9ab11f38a609940153850df611c9a2175dcffe0f': 'imperator',
+  '0x14025fe092f5f8a401dd9819704d9072196d2125': 'p2p',
 };
+
+type ValidatorInfo = {
+  chain: ChainName;
+  validator: string;
+  alias: string;
+  version: string;
+};
+
+function sortValidatorInfo(a: ValidatorInfo, b: ValidatorInfo) {
+  // First sort by alias
+  if (a.alias && !b.alias) return -1;
+  if (!a.alias && b.alias) return 1;
+  if (a.alias && b.alias) {
+    const aliasCompare = a.alias.localeCompare(b.alias);
+    if (aliasCompare !== 0) return aliasCompare;
+  }
+  // Then sort by validator address
+  return a.chain.localeCompare(b.chain);
+}
 
 async function main() {
   const { environment, chains } = await withChains(getArgs()).argv;
@@ -69,12 +98,8 @@ async function main() {
     chains && chains.length > 0 ? chains : config.supportedChainNames
   ).filter(isEthereumProtocolChain);
 
-  const mismatchedValidators: {
-    chain: ChainName;
-    validator: string;
-    alias?: string;
-    actual: string;
-  }[] = [];
+  const mismatchedValidators: ValidatorInfo[] = [];
+  const upgradedValidators: ValidatorInfo[] = [];
 
   await Promise.all(
     targetNetworks.map(async (chain) => {
@@ -88,9 +113,8 @@ async function main() {
       for (let i = 0; i < expectedValidators.length; i++) {
         const validator = expectedValidators[i];
         const location = storageLocations[i][0];
-        const alias = KNOWN_VALIDATOR_ADDRESSES[validator.toLowerCase()]
-          ? { alias: KNOWN_VALIDATOR_ADDRESSES[validator.toLowerCase()] }
-          : {};
+        const alias =
+          KNOWN_VALIDATOR_ADDRESSES[validator.toLowerCase()] ?? 'UNKNOWN';
 
         // Get metadata from each storage location
         try {
@@ -98,12 +122,19 @@ async function main() {
           const metadata = await s3Validator.getMetadata();
           const gitSha = metadata?.git_sha;
 
-          if (!acceptableValidatorVersions.includes(gitSha)) {
+          if (Object.keys(acceptableValidatorVersions).includes(gitSha)) {
+            upgradedValidators.push({
+              chain,
+              validator,
+              alias,
+              version: acceptableValidatorVersions[gitSha],
+            });
+          } else {
             mismatchedValidators.push({
               chain,
               validator,
-              actual: gitSha || 'missing',
-              ...alias,
+              alias,
+              version: gitSha || 'missing',
             });
           }
         } catch (error) {
@@ -113,8 +144,8 @@ async function main() {
           mismatchedValidators.push({
             chain,
             validator,
-            actual: `UNKNOWN`,
-            ...alias,
+            alias,
+            version: `UNKNOWN`,
           });
         }
       }
@@ -127,22 +158,10 @@ async function main() {
       acceptableValidatorVersions,
     );
     console.log('\n⚠️ Validators with mismatched git SHA:');
-    console.table(
-      mismatchedValidators.sort((a, b) => {
-        // First sort by alias
-        if (a.alias && !b.alias) return -1;
-        if (!a.alias && b.alias) return 1;
-        if (a.alias && b.alias) {
-          const aliasCompare = a.alias.localeCompare(b.alias);
-          if (aliasCompare !== 0) return aliasCompare;
-        }
-        // Then sort by validator address
-        return a.validator
-          .toLowerCase()
-          .localeCompare(b.validator.toLowerCase());
-      }),
-      ['chain', 'validator', 'alias', 'actual'],
-    );
+    console.table(mismatchedValidators.sort(sortValidatorInfo));
+
+    console.log('\n✅ Validators with expected git SHA:');
+    console.table(upgradedValidators.sort(sortValidatorInfo));
     process.exit(1);
   } else {
     console.log('\n✅ All validators running expected git SHA!');
