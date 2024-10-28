@@ -266,13 +266,13 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
         // The two calls below could be made in parallel, but on cosmos rate limiting is a bigger problem
         // than indexing latency, so we do them sequentially.
         let block = self.get_block(block_number).await?;
+        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in block with hash");
         let block_results = self
             .rpc_client
             .call(|provider| {
                 Box::pin(async move { provider.get_block_results(block_number).await })
             })
             .await?;
-        debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in block with hash");
 
         Ok(self.handle_txs(block, block_results, parser, cursor_label))
     }

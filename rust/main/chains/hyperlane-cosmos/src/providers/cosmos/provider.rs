@@ -70,10 +70,9 @@ impl CosmosProvider {
             .iter()
             .map(CosmosRpcClient::new)
             .collect::<Result<Vec<_>, _>>()?;
-        let mut builder = FallbackProvider::builder();
-        builder = builder.add_providers(providers);
-        let fallback_provider = builder.build();
-        let provider = CosmosFallbackProvider::new(fallback_provider);
+        let provider = CosmosFallbackProvider::new(
+            FallbackProvider::builder().add_providers(providers).build(),
+        );
 
         Ok(Self {
             domain,

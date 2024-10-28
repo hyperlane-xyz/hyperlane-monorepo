@@ -31,21 +31,6 @@ impl From<IsmType> for ModuleType {
     }
 }
 
-pub trait ToCosmosHttpUrl {
-    fn to_cosmos_http_url(
-        &self,
-    ) -> Result<tendermint_rpc::HttpClientUrl, tendermint_rpc::error::Error>;
-}
-
-impl ToCosmosHttpUrl for url::Url {
-    fn to_cosmos_http_url(
-        &self,
-    ) -> Result<tendermint_rpc::HttpClientUrl, tendermint_rpc::error::Error> {
-        let tendermint_url = tendermint_rpc::Url::try_from(self.to_owned())?;
-        tendermint_rpc::HttpClientUrl::try_from(tendermint_url)
-    }
-}
-
 pub fn tx_response_to_outcome(response: TxResponse) -> ChainResult<TxOutcome> {
     Ok(TxOutcome {
         transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),

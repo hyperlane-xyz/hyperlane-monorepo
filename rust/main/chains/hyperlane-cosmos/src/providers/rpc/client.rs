@@ -9,7 +9,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult};
 use tonic::async_trait;
 use url::Url;
 
-use crate::{types::ToCosmosHttpUrl, ConnectionConf, HyperlaneCosmosError};
+use crate::{ConnectionConf, HyperlaneCosmosError};
 
 /// Thin wrapper around Cosmos RPC client with error mapping
 #[derive(Clone, Debug)]
@@ -20,8 +20,9 @@ pub struct CosmosRpcClient {
 impl CosmosRpcClient {
     /// Create new `CosmosRpcClient`
     pub fn new(url: &Url) -> ChainResult<Self> {
-        let url = url
-            .to_cosmos_http_url()
+        let tendermint_url = tendermint_rpc::Url::try_from(url.to_owned())
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let url = tendermint_rpc::HttpClientUrl::try_from(tendermint_url)
             .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         let client = HttpClient::builder(url)
