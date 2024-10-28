@@ -40,8 +40,11 @@ export const NativeConfigSchema = TokenMetadataSchema.partial().extend({
   type: z.enum([TokenType.native, TokenType.nativeScaled]),
 });
 
-export const CollateralRebaseConfigSchema =
-  TokenMetadataSchema.partial().extend({
+export const CollateralRebaseConfigSchema = TokenMetadataSchema.omit({
+  totalSupply: true,
+})
+  .partial()
+  .extend({
     type: z.literal(TokenType.collateralVaultRebase),
   });
 

@@ -168,7 +168,6 @@ describe('HyperlaneIsmFactory', async () => {
 
     ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     ismFactory = new HyperlaneIsmFactory(contractsMap, multiProvider);
-    ismFactory.setDeployer(new TestCoreDeployer(multiProvider, ismFactory));
 
     exampleRoutingConfig = {
       type: IsmType.ROUTING,
