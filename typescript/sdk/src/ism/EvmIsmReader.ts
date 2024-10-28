@@ -148,7 +148,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         );
         return;
       }
-      const module = await ism.module(domainId);
+      const module = this.messageContext
+        ? await ism.route(this.messageContext.message)
+        : await ism.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
     });
 
