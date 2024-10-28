@@ -35,9 +35,6 @@ export const getEthereumBscLUMIAWarpConfig = async (
     ...routerConfig[chain],
     ...config,
     owner,
-    ownerOverrides: {
-      proxyAdmin: owner,
-    },
   }));
 
   return merged as ChainMap<TokenRouterConfig>;
