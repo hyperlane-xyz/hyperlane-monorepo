@@ -1,12 +1,16 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use solana_sdk::signature::Signature;
+use solana_transaction_status::EncodedTransaction;
+
 use hyperlane_core::{
-    BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider,
-    HyperlaneProviderError, TxnInfo, H256, H512, U256,
+    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
+    HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 
-use crate::utils::{decode_h256, decode_pubkey};
+use crate::error::HyperlaneSealevelError;
+use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 use crate::{ConnectionConf, SealevelRpcClient};
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
@@ -64,8 +68,47 @@ impl HyperlaneProvider for SealevelProvider {
         Ok(block_info)
     }
 
-    async fn get_txn_by_hash(&self, _hash: &H512) -> ChainResult<TxnInfo> {
-        todo!() // FIXME
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let signature = Signature::new(hash.as_bytes());
+        let transaction = self.rpc_client.get_transaction(&signature).await?;
+
+        let ui_transaction = match transaction.transaction.transaction {
+            EncodedTransaction::Json(t) => t,
+            t => Err(HyperlaneSealevelError::UnsupportedTransactionEncoding(t))
+                .map_err(Into::<ChainCommunicationError>::into)?,
+        };
+
+        let received_signature = ui_transaction
+            .signatures
+            .first()
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+        let received_hash = decode_h512(received_signature)?;
+
+        if &received_hash != hash {
+            Err(HyperlaneSealevelError::IncorrectTransaction(
+                *hash,
+                received_hash,
+            ))
+            .map_err(Into::<ChainCommunicationError>::into)?;
+        }
+
+        let receipt = TxnReceiptInfo {
+            gas_used: Default::default(),
+            cumulative_gas_used: Default::default(),
+            effective_gas_price: None,
+        };
+
+        Ok(TxnInfo {
+            hash: *hash,
+            gas_limit: Default::default(),
+            max_priority_fee_per_gas: None,
+            max_fee_per_gas: None,
+            gas_price: None,
+            nonce: 0,
+            sender: Default::default(),
+            recipient: None,
+            receipt: Some(receipt),
+        })
     }
 
     async fn is_contract(&self, _address: &H256) -> ChainResult<bool> {
