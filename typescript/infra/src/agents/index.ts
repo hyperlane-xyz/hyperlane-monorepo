@@ -168,12 +168,13 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       values.tolerations = [];
     }
 
-    // Relayer pods should only be scheduled on nodes with the component label set to relayer
+    // Relayer pods should only be scheduled on nodes with the component label set to relayer.
+    // NoSchedule was chosen so that some daemonsets (like the prometheus node exporter) would not be evicted.
     values.tolerations.push({
       key: 'component',
       operator: 'Equal',
       value: 'relayer',
-      effect: 'NoExecute',
+      effect: 'NoSchedule',
     });
 
     return values;
