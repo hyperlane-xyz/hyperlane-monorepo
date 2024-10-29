@@ -64,8 +64,9 @@ contract StaticAggregationHook is AbstractPostDispatchHook {
         }
 
         if (valueRemaining > 0) {
-            payable(metadata.refundAddress(message.sender().bytes32ToAddress()))
-                .sendValue(valueRemaining);
+            payable(metadata.refundAddress(message.senderAddress())).sendValue(
+                valueRemaining
+            );
         }
     }
 
