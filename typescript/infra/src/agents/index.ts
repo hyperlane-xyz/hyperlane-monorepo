@@ -164,6 +164,18 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       signer: signers[name],
     }));
 
+    if (!values.tolerations) {
+      values.tolerations = [];
+    }
+
+    // Relayer pods should only be scheduled on nodes with the component label set to relayer
+    values.tolerations.push({
+      key: 'component',
+      operator: 'Equal',
+      value: 'relayer',
+      effect: 'NoExecute',
+    });
+
     return values;
   }
 }
