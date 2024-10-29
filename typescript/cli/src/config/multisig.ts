@@ -72,9 +72,7 @@ export async function createMultisigConfig({
   log(
     'Select your own chain below to run your own validators. If you want to reuse existing Hyperlane validators instead of running your own, do not select additional mainnet or testnet chains.',
   );
-  const chains = await runMultiChainSelectionStep({
-    chainMetadata: context.chainMetadata,
-  });
+  const chains = await runMultiChainSelectionStep(context.chainMetadata);
 
   const chainAddresses = await context.registry.getAddresses();
   const result: MultisigConfigMap = {};

@@ -35,12 +35,10 @@ export {
   normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
-  padBytesToLength,
   shortenAddress,
   strip0x,
 } from './addresses.js';
 export {
-  addBufferToGasLimit,
   convertDecimals,
   eqAmountApproximate,
   fromWei,
@@ -51,7 +49,6 @@ export {
 export { chunk, exclude, randomElement } from './arrays.js';
 export {
   concurrentMap,
-  fetchWithTimeout,
   pollAsync,
   raceWithContext,
   retryAsync,
@@ -92,44 +89,31 @@ export {
   setRootLogger,
 } from './logging.js';
 export { mean, median, randomInt, stdDev, sum } from './math.js';
-export {
-  formatMessage,
-  messageId,
-  parseMessage,
-  parseWarpRouteMessage,
-} from './messages.js';
+export { formatMessage, messageId, parseMessage } from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,
   parseLegacyMultisigIsmMetadata,
 } from './multisig.js';
 export {
-  ObjectDiff,
   ValueOf,
   arrayToObject,
   deepCopy,
   deepEquals,
-  diffObjMerge,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  normalizeConfig,
   objFilter,
   objKeys,
   objLength,
   objMap,
   objMapEntries,
   objMerge,
-  objOmit,
   pick,
   promiseObjAll,
   stringifyObject,
 } from './objects.js';
-export { Result, failure, success } from './result.js';
-export {
-  difference,
-  intersection,
-  setEquality,
-  symmetricDifference,
-} from './sets.js';
+export { difference, setEquality, symmetricDifference } from './sets.js';
 export {
   errorToString,
   fromHexString,
@@ -167,7 +151,6 @@ export {
   TokenCaip19Id,
   WithAddress,
 } from './types.js';
-export { isHttpsUrl, isUrl } from './url.js';
+export { isHttpsUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
-export { tryParseJsonOrYaml } from './yaml.js';

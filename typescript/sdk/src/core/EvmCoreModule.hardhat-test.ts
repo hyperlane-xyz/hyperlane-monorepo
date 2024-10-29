@@ -10,14 +10,13 @@ import {
   TimelockController__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { objMap } from '@hyperlane-xyz/utils';
+import { normalizeConfig, objMap } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { IsmConfig, IsmType } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { randomAddress, testCoreConfig } from '../test/testUtils.js';
-import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmCoreModule } from './EvmCoreModule.js';
 import { CoreConfig } from './types.js';
@@ -105,12 +104,10 @@ describe('EvmCoreModule', async () => {
     });
 
     it('should deploy ISM factories', () => {
-      // Each ISM factory is a contract that is deployed by the core module
-      // Ignore IGP because it's not part of the default config
-      const { interchainGasPaymaster: _, ...coreContracts } =
-        evmCoreModule.serialize();
+      // Each ISM factory
+      const deployedContracts = evmCoreModule.serialize();
 
-      objMap(coreContracts as any, (_, address) => {
+      objMap(deployedContracts as any, (_, address) => {
         expect(address).to.exist;
         expect(address).to.not.equal(constants.AddressZero);
       });

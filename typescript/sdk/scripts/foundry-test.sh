@@ -3,7 +3,7 @@
 function cleanup() {
   set +e 
   pkill -f anvil
-  rm -rf /tmp/anvil1
+  rm -rf /tmp/anvil*
   set -e
 }
 

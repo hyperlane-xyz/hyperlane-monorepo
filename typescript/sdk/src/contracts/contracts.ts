@@ -1,11 +1,10 @@
-import { Contract } from 'ethers';
+import { Contract, ethers } from 'ethers';
 
-import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
+import { Ownable } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
   ValueOf,
-  eqAddress,
   hexOrBase58ToHex,
   objFilter,
   objMap,
@@ -13,10 +12,8 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { OwnableConfig } from '../deploy/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainMap, Connection } from '../types.js';
 
 import {
@@ -238,15 +235,31 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>;
   multiProvider: MultiProvider;
 } {
-  // Filter out non-Ethereum chains from the addressesMap
-  const ethereumAddressesMap = objFilter(
+  // Hack to accommodate non-Ethereum artifacts, while still retaining their
+  // presence in the addressesMap so that they are included in the list of chains
+  // on the MultiProvider (needed for getting metadata). A non-Ethereum-style address
+  // from another execution environment will cause Ethers to throw if we try to attach
+  // it, so we just replace it with the zero address.
+  const addressesMapWithEthereumizedAddresses = objMap(
     addressesMap,
-    (chain, _): _ is HyperlaneAddresses<F> =>
-      multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    (chain, addresses) => {
+      const metadata = multiProvider.getChainMetadata(chain);
+      if (metadata.protocol === ProtocolType.Ethereum) {
+        return addresses;
+      }
+      return objMap(
+        addresses,
+        (_key, _address) => ethers.constants.AddressZero,
+      );
+    },
   );
 
-  // Attaches contracts for each Ethereum chain for which we have a complete set of addresses
-  const contractsMap = attachContractsMap(ethereumAddressesMap, factories);
+  // Attaches contracts for each chain for which we have a complete set of
+  // addresses
+  const contractsMap = attachContractsMap(
+    addressesMapWithEthereumizedAddresses,
+    factories,
+  );
 
   // Filters out providers for chains for which we don't have a complete set
   // of addresses
@@ -257,32 +270,6 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 
   return {
     contractsMap: filteredContractsMap,
-    multiProvider,
+    multiProvider: multiProvider,
   };
-}
-
-export function transferOwnershipTransactions(
-  chainId: number,
-  contract: Address,
-  actual: OwnableConfig,
-  expected: OwnableConfig,
-  label?: string,
-): AnnotatedEV5Transaction[] {
-  if (eqAddress(actual.owner, expected.owner)) {
-    return [];
-  }
-
-  return [
-    {
-      chainId,
-      annotation: `Transferring ownership of ${label ?? contract} from ${
-        actual.owner
-      } to ${expected.owner}`,
-      to: contract,
-      data: Ownable__factory.createInterface().encodeFunctionData(
-        'transferOwnership',
-        [expected.owner],
-      ),
-    },
-  ];
 }

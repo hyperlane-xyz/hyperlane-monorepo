@@ -1,0 +1,42 @@
+{
+  "moonbeam": {
+    "hex": "0x000000000000000000000000ae067c08703508230357025b38c35cd12793628c",
+    "base58": "1111111111113RcuHPfDctyAnFWHvj8tS1q8UHPh"
+  },
+  "bsc": {
+    "hex": "0x000000000000000000000000b97d3bf2fc296c2cac4056bbc8a783ff39408e20",
+    "base58": "1111111111113atAoP8gQ2GYeue77ETUPAf8w9zw"
+  },
+  "optimism": {
+    "hex": "0x000000000000000000000000a6f0a37dfde9c2c8f46f010989c47d9edb3a9fa8",
+    "base58": "1111111111113KtqevvpYv7NCiadmp6tRRfivB8K"
+  },
+  "avalanche": {
+    "hex": "0x0000000000000000000000002a925cd8a5d919c5c6599633090c37fe38a561b6",
+    "base58": "111111111111bQB6b7XVDHSyvi7XmLrQMT8C3xH"
+  },
+  "ethereum": {
+    "hex": "0x0000000000000000000000009311cee522a7c122b843b66cc31c6a63e2f92641",
+    "base58": "11111111111133qb6DzNiJ7whNaYGud2WqqtjxFS"
+  },
+  "solana": {
+    "hex": "0x3797d0096b18b5b645c346a66d7f18c6c5738782c6bce24da57a3462bdef82b1",
+    "base58": "4k1gruSdH1r57V9QQK4aunzfMYzLFfF83jdYkkEwyem6"
+  },
+  "celo": {
+    "hex": "0x0000000000000000000000004151773db70c0b2d4c43ea44a5fb5803ff1d3e0b",
+    "base58": "111111111111unDVQcjdeHntE83qvf1vsKCZ4av"
+  },
+  "polygon": {
+    "hex": "0x0000000000000000000000006c0ac8cea75232aa7bed8cbe9c4f820e7a77a9c3",
+    "base58": "1111111111112WJXE3PCAsCXYZxU9Kh51sSZEa5G"
+  },
+  "arbitrum": {
+    "hex": "0x00000000000000000000000096271ca0ab9eefb3ca481749c0ca4c705fd4f523",
+    "base58": "11111111111136L61X7cdT9tPZ4GKBtzJtrjFAd8"
+  },
+  "gnosis": {
+    "hex": "0x00000000000000000000000026f32245fcf5ad53159e875d5cae62aecf19c2d4",
+    "base58": "111111111111YURfyMRiiTWy8X6pYHAqmYPmBpf"
+  }
+}

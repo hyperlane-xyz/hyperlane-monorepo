@@ -2,8 +2,8 @@
 import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
-// eslint-disable-next-line
 import fs from 'fs';
+import stringify from 'json-stable-stringify';
 import path, { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { parse as yamlParse } from 'yaml';
@@ -14,7 +14,6 @@ import {
   ProtocolType,
   objFilter,
   objMerge,
-  stringifyObject,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
@@ -151,26 +150,12 @@ export function writeMergedJSON(directory: string, filename: string, obj: any) {
   writeMergedJSONAtPath(path.join(directory, filename), obj);
 }
 
-function ensureDirectoryExists(filepath: string) {
+export function writeJsonAtPath(filepath: string, obj: any) {
   const dir = path.dirname(filepath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-}
-
-function writeToFile(filepath: string, content: string) {
-  ensureDirectoryExists(filepath);
-  fs.writeFileSync(filepath, content + '\n');
-}
-
-export function writeJsonAtPath(filepath: string, obj: any) {
-  const content = stringifyObject(obj, 'json', 2);
-  writeToFile(filepath, content);
-}
-
-export function writeYamlAtPath(filepath: string, obj: any) {
-  const content = stringifyObject(obj, 'yaml');
-  writeToFile(filepath, content);
+  fs.writeFileSync(filepath, stringify(obj, { space: '  ' }) + '\n');
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {

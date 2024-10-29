@@ -1,17 +1,14 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "5.6.2",
+  "version": "5.0.0",
   "description": "A command-line utility for common Hyperlane operations",
   "dependencies": {
     "@aws-sdk/client-kms": "^3.577.0",
     "@aws-sdk/client-s3": "^3.577.0",
-    "@hyperlane-xyz/registry": "4.7.0",
-    "@hyperlane-xyz/sdk": "5.6.2",
-    "@hyperlane-xyz/utils": "5.6.2",
-    "@inquirer/core": "9.0.10",
-    "@inquirer/figures": "1.0.5",
+    "@hyperlane-xyz/registry": "2.5.0",
+    "@hyperlane-xyz/sdk": "5.0.0",
+    "@hyperlane-xyz/utils": "5.0.0",
     "@inquirer/prompts": "^3.0.0",
-    "ansi-escapes": "^7.0.0",
     "asn1.js": "^5.4.1",
     "bignumber.js": "^9.1.1",
     "chalk": "^5.3.0",
@@ -19,28 +16,25 @@
     "latest-version": "^8.0.0",
     "terminal-link": "^3.0.0",
     "tsx": "^4.7.1",
-    "yaml": "2.4.5",
+    "yaml": "^2.4.1",
     "yargs": "^17.7.2",
     "zod": "^3.21.2",
-    "zod-validation-error": "^3.3.0",
-    "zx": "^8.1.4"
+    "zod-validation-error": "^3.3.0"
   },
   "devDependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
-    "@types/chai-as-promised": "^8",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.5",
     "@types/yargs": "^17.0.24",
     "@typescript-eslint/eslint-plugin": "^7.4.0",
     "@typescript-eslint/parser": "^7.4.0",
-    "chai": "^4.5.0",
-    "chai-as-promised": "^8.0.0",
+    "chai": "^4.3.6",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "mocha": "^10.2.0",
     "prettier": "^2.8.8",
-    "typescript": "5.3.3"
+    "typescript": "^5.1.6"
   },
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
@@ -49,8 +43,8 @@
     "clean": "rm -rf ./dist",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./src ./examples",
-    "test:ci": "yarn mocha --config .mocharc.json",
-    "test:e2e": "./scripts/run-e2e-test.sh",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "yarn test",
     "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts"
   },
   "files": [

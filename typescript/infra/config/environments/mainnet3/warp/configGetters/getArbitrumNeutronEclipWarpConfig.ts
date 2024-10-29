@@ -24,8 +24,7 @@ export const getArbitrumNeutronEclipWarpConfig = async (
     decimals: 6,
     totalSupply: 0,
     gas: 600_000,
-    interchainSecurityModule: '0x676151bFB8D29690a359F99AE764860595504689', // This has diverged from the default ism on neutron, we cannot change as it is owned by the Eclip team
-    owner: '0xfF07222cb0AC905304d6586Aabf13f497C07F0C8', // Eclip team
+    interchainSecurityModule: '0x53a5c239d62ff35c98e0ec9612c86517748fff59', // TODO: we should replace this with an ISM config
   };
 
   return {

@@ -7,91 +7,47 @@ export const CosmosChainSchema = z
     $schema: z
       .string()
       .regex(new RegExp('^(\\.\\./)+chain\\.schema\\.json$'))
-      .min(1)
       .optional(),
-    chain_name: z.string().regex(new RegExp('[a-z0-9]+')).min(1),
-    chain_type: z
-      .enum([
-        'cosmos',
-        'eip155',
-        'bip122',
-        'polkadot',
-        'solana',
-        'algorand',
-        'arweave',
-        'ergo',
-        'fil',
-        'hedera',
-        'monero',
-        'reef',
-        'stacks',
-        'starknet',
-        'stellar',
-        'tezos',
-        'vechain',
-        'waves',
-        'xrpl',
-        'unknown',
-      ])
-      .describe(
-        "The 'type' of chain as the corresponding CAIP-2 Namespace value. E.G., 'cosmos' or 'eip155'. Namespaces can be found here: https://github.com/ChainAgnostic/namespaces/tree/main.",
-      ),
-    chain_id: z.string().min(1).optional(),
-    pre_fork_chain_name: z
-      .string()
-      .regex(new RegExp('[a-z0-9]+'))
-      .min(1)
-      .optional(),
-    pretty_name: z.string().min(1).optional(),
-    website: z.string().url().min(1).optional(),
-    update_link: z.string().url().min(1).optional(),
+    chain_name: z.string().regex(new RegExp('[a-z0-9]+')),
+    chain_type: z.string().regex(new RegExp('[a-z0-9]+')),
+    chain_id: z.string(),
+    pre_fork_chain_name: z.string().regex(new RegExp('[a-z0-9]+')).optional(),
+    pretty_name: z.string().optional(),
+    website: z.string().url().optional(),
+    update_link: z.string().url().optional(),
     status: z.enum(['live', 'upcoming', 'killed']).optional(),
     network_type: z.enum(['mainnet', 'testnet', 'devnet']).optional(),
     bech32_prefix: z
       .string()
-      .min(1)
       .describe(
         "The default prefix for the human-readable part of addresses that identifies the coin type. Must be registered with SLIP-0173. E.g., 'cosmos'",
-      )
-      .optional(),
+      ),
     bech32_config: z
       .object({
-        bech32PrefixAccAddr: z
-          .string()
-          .min(1)
-          .describe("e.g., 'cosmos'")
-          .optional(),
-        bech32PrefixAccPub: z
-          .string()
-          .min(1)
-          .describe("e.g., 'cosmospub'")
-          .optional(),
+        bech32PrefixAccAddr: z.string().describe("e.g., 'cosmos'").optional(),
+        bech32PrefixAccPub: z.string().describe("e.g., 'cosmospub'").optional(),
         bech32PrefixValAddr: z
           .string()
-          .min(1)
           .describe("e.g., 'cosmosvaloper'")
           .optional(),
         bech32PrefixValPub: z
           .string()
-          .min(1)
           .describe("e.g., 'cosmosvaloperpub'")
           .optional(),
         bech32PrefixConsAddr: z
           .string()
-          .min(1)
           .describe("e.g., 'cosmosvalcons'")
           .optional(),
         bech32PrefixConsPub: z
           .string()
-          .min(1)
           .describe("e.g., 'cosmosvalconspub'")
           .optional(),
       })
       .strict()
       .describe('Used to override the bech32_prefix for specific uses.')
       .optional(),
-    daemon_name: z.string().min(1).optional(),
-    node_home: z.string().min(1).optional(),
+    daemon_name: z.string().optional(),
+    node_home: z.string().optional(),
     key_algos: z
       .array(
         z.enum(['secp256k1', 'ethsecp256k1', 'ed25519', 'sr25519', 'bn254']),
@@ -104,7 +60,7 @@ export const CosmosChainSchema = z
         fee_tokens: z.array(
           z
             .object({
-              denom: z.string().min(1),
+              denom: z.string(),
               fixed_min_gas_price: z.number().optional(),
               low_gas_price: z.number().optional(),
               average_gas_price: z.number().optional(),
@@ -124,9 +80,7 @@ export const CosmosChainSchema = z
       .optional(),
     staking: z
       .object({
-        staking_tokens: z.array(
-          z.object({ denom: z.string().min(1) }).strict(),
-        ),
+        staking_tokens: z.array(z.object({ denom: z.string() }).strict()),
         lock_duration: z
           .object({
             blocks: z
@@ -137,7 +91,6 @@ export const CosmosChainSchema = z
               .optional(),
             time: z
               .string()
-              .min(1)
               .describe(
                 'The approximate time for which the staked tokens are locked.',
               )
@@ -150,142 +103,43 @@ export const CosmosChainSchema = z
       .optional(),
     codebase: z
       .object({
-        git_repo: z.string().url().min(1).optional(),
-        recommended_version: z.string().min(1).optional(),
-        compatible_versions: z.array(z.string().min(1)).optional(),
+        git_repo: z.string().url().optional(),
+        recommended_version: z.string().optional(),
         go_version: z
           .string()
           .regex(new RegExp('^[0-9]+\\.[0-9]+(\\.[0-9]+)?$'))
-          .min(1)
           .describe('Minimum accepted go version to build the binary.')
           .optional(),
-        language: z
-          .object({
-            type: z.enum(['go', 'rust', 'solidity', 'other']),
-            version: z
-              .string()
-              .min(1)
-              .describe("Simple version string (e.g., 'v1.0.0').")
-              .optional(),
-            repo: z
-              .string()
-              .url()
-              .min(1)
-              .describe('URL of the code repository.')
-              .optional(),
-            tag: z
-              .string()
-              .min(1)
-              .describe(
-                "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-              )
-              .optional(),
-          })
-          .strict()
-          .optional(),
+        compatible_versions: z.array(z.string()).optional(),
         binaries: z
           .object({
-            'linux/amd64': z.string().url().min(1).optional(),
-            'linux/arm64': z.string().url().min(1).optional(),
-            'darwin/amd64': z.string().url().min(1).optional(),
-            'darwin/arm64': z.string().url().min(1).optional(),
-            'windows/amd64': z.string().url().min(1).optional(),
-            'windows/arm64': z.string().url().min(1).optional(),
+            'linux/amd64': z.string().url().optional(),
+            'linux/arm64': z.string().url().optional(),
+            'darwin/amd64': z.string().url().optional(),
+            'darwin/arm64': z.string().url().optional(),
+            'windows/amd64': z.string().url().optional(),
+            'windows/arm64': z.string().url().optional(),
           })
           .strict()
           .optional(),
-        cosmos_sdk_version: z.string().min(1).optional(),
-        sdk: z
-          .object({
-            type: z.enum(['cosmos', 'penumbra', 'other']),
-            version: z
-              .string()
-              .min(1)
-              .describe("Simple version string (e.g., 'v1.0.0').")
-              .optional(),
-            repo: z
-              .string()
-              .url()
-              .min(1)
-              .describe('URL of the code repository.')
-              .optional(),
-            tag: z
-              .string()
-              .min(1)
-              .describe(
-                "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-              )
-              .optional(),
-          })
-          .strict()
-          .optional(),
+        cosmos_sdk_version: z.string().optional(),
         consensus: z
           .object({
             type: z.enum(['tendermint', 'cometbft', 'sei-tendermint']),
-            version: z
-              .string()
-              .min(1)
-              .describe("Simple version string (e.g., 'v1.0.0').")
-              .optional(),
-            repo: z
-              .string()
-              .url()
-              .min(1)
-              .describe('URL of the code repository.')
-              .optional(),
-            tag: z
-              .string()
-              .min(1)
-              .describe(
-                "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-              )
-              .optional(),
+            version: z.string().optional(),
           })
           .strict()
           .optional(),
-        cosmwasm_version: z.string().min(1).optional(),
+        cosmwasm_version: z.string().optional(),
         cosmwasm_enabled: z.boolean().optional(),
         cosmwasm_path: z
           .string()
           .regex(new RegExp('^\\$HOME.*$'))
-          .min(1)
           .describe(
             'Relative path to the cosmwasm directory. ex. $HOME/.juno/data/wasm',
           )
           .optional(),
-        cosmwasm: z
-          .object({
-            version: z
-              .string()
-              .min(1)
-              .describe("Simple version string (e.g., 'v1.0.0').")
-              .optional(),
-            repo: z
-              .string()
-              .url()
-              .min(1)
-              .describe('URL of the code repository.')
-              .optional(),
-            tag: z
-              .string()
-              .min(1)
-              .describe(
-                "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-              )
-              .optional(),
-            enabled: z.boolean().optional(),
-            path: z
-              .string()
-              .regex(new RegExp('^\\$HOME.*$'))
-              .min(1)
-              .describe(
-                'Relative path to the cosmwasm directory. ex. $HOME/.juno/data/wasm',
-              )
-              .optional(),
-          })
-          .strict()
-          .optional(),
-        ibc_go_version: z.string().min(1).optional(),
+        ibc_go_version: z.string().optional(),
         ics_enabled: z
           .array(
             z
@@ -296,45 +150,11 @@ export const CosmosChainSchema = z
             'List of IBC apps (usually corresponding to a ICS standard) which have been enabled on the network.',
           )
           .optional(),
-        ibc: z
-          .object({
-            type: z.enum(['go', 'rust', 'other']),
-            version: z
-              .string()
-              .min(1)
-              .describe("Simple version string (e.g., 'v1.0.0').")
-              .optional(),
-            repo: z
-              .string()
-              .url()
-              .min(1)
-              .describe('URL of the code repository.')
-              .optional(),
-            tag: z
-              .string()
-              .min(1)
-              .describe(
-                "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-              )
-              .optional(),
-            ics_enabled: z
-              .array(
-                z
-                  .enum(['ics20-1', 'ics27-1', 'mauth'])
-                  .describe('IBC app or ICS standard.'),
-              )
-              .describe(
-                'List of IBC apps (usually corresponding to a ICS standard) which have been enabled on the network.',
-              )
-              .optional(),
-          })
-          .strict()
-          .optional(),
         genesis: z
           .object({
-            name: z.string().min(1).optional(),
-            genesis_url: z.string().url().min(1),
-            ics_ccv_url: z.string().url().min(1).optional(),
+            name: z.string().optional(),
+            genesis_url: z.string().url(),
+            ics_ccv_url: z.string().url().optional(),
           })
           .strict()
           .optional(),
@@ -342,8 +162,8 @@ export const CosmosChainSchema = z
           .array(
             z
               .object({
-                name: z.string().min(1).describe('Official Upgrade Name'),
-                tag: z.string().min(1).describe('Git Upgrade Tag').optional(),
+                name: z.string().describe('Official Upgrade Name'),
+                tag: z.string().describe('Git Upgrade Tag').optional(),
                 height: z.number().describe('Block Height').optional(),
                 proposal: z
                   .number()
@@ -353,138 +173,37 @@ export const CosmosChainSchema = z
                   .optional(),
                 previous_version_name: z
                   .string()
-                  .min(1)
                   .describe('[Optional] Name of the previous version')
                   .optional(),
                 next_version_name: z
                   .string()
-                  .min(0)
                   .describe('[Optional] Name of the following version')
                   .optional(),
-                recommended_version: z.string().min(1).optional(),
-                compatible_versions: z.array(z.string().min(1)).optional(),
+                recommended_version: z.string().optional(),
                 go_version: z
                   .string()
                   .regex(new RegExp('^[0-9]+\\.[0-9]+(\\.[0-9]+)?$'))
-                  .min(1)
                   .describe('Minimum accepted go version to build the binary.')
                   .optional(),
-                language: z
-                  .object({
-                    type: z.enum(['go', 'rust', 'solidity', 'other']),
-                    version: z
-                      .string()
-                      .min(1)
-                      .describe("Simple version string (e.g., 'v1.0.0').")
-                      .optional(),
-                    repo: z
-                      .string()
-                      .url()
-                      .min(1)
-                      .describe('URL of the code repository.')
-                      .optional(),
-                    tag: z
-                      .string()
-                      .min(1)
-                      .describe(
-                        "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-                      )
-                      .optional(),
-                  })
-                  .strict()
-                  .optional(),
-                cosmos_sdk_version: z.string().min(1).optional(),
-                sdk: z
-                  .object({
-                    type: z.enum(['cosmos', 'penumbra', 'other']),
-                    version: z
-                      .string()
-                      .min(1)
-                      .describe("Simple version string (e.g., 'v1.0.0').")
-                      .optional(),
-                    repo: z
-                      .string()
-                      .url()
-                      .min(1)
-                      .describe('URL of the code repository.')
-                      .optional(),
-                    tag: z
-                      .string()
-                      .min(1)
-                      .describe(
-                        "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-                      )
-                      .optional(),
-                  })
-                  .strict()
-                  .optional(),
+                compatible_versions: z.array(z.string()).optional(),
+                cosmos_sdk_version: z.string().optional(),
                 consensus: z
                   .object({
                     type: z.enum(['tendermint', 'cometbft', 'sei-tendermint']),
-                    version: z
-                      .string()
-                      .min(1)
-                      .describe("Simple version string (e.g., 'v1.0.0').")
-                      .optional(),
-                    repo: z
-                      .string()
-                      .url()
-                      .min(1)
-                      .describe('URL of the code repository.')
-                      .optional(),
-                    tag: z
-                      .string()
-                      .min(1)
-                      .describe(
-                        "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-                      )
-                      .optional(),
+                    version: z.string().optional(),
                   })
                   .strict()
                   .optional(),
-                cosmwasm_version: z.string().min(1).optional(),
+                cosmwasm_version: z.string().optional(),
                 cosmwasm_enabled: z.boolean().optional(),
                 cosmwasm_path: z
                   .string()
                   .regex(new RegExp('^\\$HOME.*$'))
-                  .min(1)
                   .describe(
                     'Relative path to the cosmwasm directory. ex. $HOME/.juno/data/wasm',
                   )
                   .optional(),
-                cosmwasm: z
-                  .object({
-                    version: z
-                      .string()
-                      .min(1)
-                      .describe("Simple version string (e.g., 'v1.0.0').")
-                      .optional(),
-                    repo: z
-                      .string()
-                      .url()
-                      .min(1)
-                      .describe('URL of the code repository.')
-                      .optional(),
-                    tag: z
-                      .string()
-                      .min(1)
-                      .describe(
-                        "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-                      )
-                      .optional(),
-                    enabled: z.boolean().optional(),
-                    path: z
-                      .string()
-                      .regex(new RegExp('^\\$HOME.*$'))
-                      .min(1)
-                      .describe(
-                        'Relative path to the cosmwasm directory. ex. $HOME/.juno/data/wasm',
-                      )
-                      .optional(),
-                  })
-                  .strict()
-                  .optional(),
-                ibc_go_version: z.string().min(1).optional(),
+                ibc_go_version: z.string().optional(),
                 ics_enabled: z
                   .array(
                     z
@@ -495,48 +214,14 @@ export const CosmosChainSchema = z
                     'List of IBC apps (usually corresponding to a ICS standard) which have been enabled on the network.',
                   )
                   .optional(),
-                ibc: z
-                  .object({
-                    type: z.enum(['go', 'rust', 'other']),
-                    version: z
-                      .string()
-                      .min(1)
-                      .describe("Simple version string (e.g., 'v1.0.0').")
-                      .optional(),
-                    repo: z
-                      .string()
-                      .url()
-                      .min(1)
-                      .describe('URL of the code repository.')
-                      .optional(),
-                    tag: z
-                      .string()
-                      .min(1)
-                      .describe(
-                        "Detailed version identifier (e.g., 'v1.0.0-a1s2f43g').",
-                      )
-                      .optional(),
-                    ics_enabled: z
-                      .array(
-                        z
-                          .enum(['ics20-1', 'ics27-1', 'mauth'])
-                          .describe('IBC app or ICS standard.'),
-                      )
-                      .describe(
-                        'List of IBC apps (usually corresponding to a ICS standard) which have been enabled on the network.',
-                      )
-                      .optional(),
-                  })
-                  .strict()
-                  .optional(),
                 binaries: z
                   .object({
-                    'linux/amd64': z.string().url().min(1).optional(),
-                    'linux/arm64': z.string().url().min(1).optional(),
-                    'darwin/amd64': z.string().url().min(1).optional(),
-                    'darwin/arm64': z.string().url().min(1).optional(),
-                    'windows/amd64': z.string().url().min(1).optional(),
-                    'windows/arm64': z.string().url().min(1).optional(),
+                    'linux/amd64': z.string().url().optional(),
+                    'linux/arm64': z.string().url().optional(),
+                    'darwin/amd64': z.string().url().optional(),
+                    'darwin/arm64': z.string().url().optional(),
+                    'windows/amd64': z.string().url().optional(),
+                    'windows/arm64': z.string().url().optional(),
                   })
                   .strict()
                   .optional(),
@@ -555,13 +240,11 @@ export const CosmosChainSchema = z
               .object({
                 chain_name: z
                   .string()
-                  .min(1)
                   .describe(
                     "The chain name or platform from which the object resides. E.g., 'cosmoshub', 'ethereum', 'forex', or 'nasdaq'",
                   ),
                 base_denom: z
                   .string()
-                  .min(1)
                   .describe(
                     "The base denom of the asset from which the object originates. E.g., when describing ATOM from Cosmos Hub, specify 'uatom', NOT 'atom' nor 'ATOM'; base units are unique per platform.",
                   )
@@ -579,7 +262,6 @@ export const CosmosChainSchema = z
                   '^https://raw\\.githubusercontent\\.com/cosmos/chain-registry/master/(|testnets/|_non-cosmos/)[a-z0-9]+/images/.+\\.png$',
                 ),
               )
-              .min(1)
               .optional(),
             svg: z
               .string()
@@ -588,27 +270,37 @@ export const CosmosChainSchema = z
                   '^https://raw\\.githubusercontent\\.com/cosmos/chain-registry/master/(|testnets/|_non-cosmos/)[a-z0-9]+/images/.+\\.svg$',
                 ),
               )
-              .min(1)
               .optional(),
             theme: z
               .object({
                 primary_color_hex: z
                   .string()
-                  .regex(new RegExp('^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$'))
                   .min(1)
+                  .regex(new RegExp('^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$'))
                   .optional(),
                 background_color_hex: z
                   .string()
+                  .min(1)
                   .regex(
                     new RegExp('^(#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})|none)$'),
                   )
-                  .min(1)
                   .optional(),
                 circle: z.boolean().optional(),
                 dark_mode: z.boolean().optional(),
-                monochrome: z.boolean().optional(),
               })
               .strict()
+              .optional(),
+            layout: z
+              .enum(['logo', 'logomark', 'logotype'])
+              .describe(
+                'logomark == icon only; logotype == text only; logo == icon + text.',
+              )
+              .optional(),
+            text_position: z
+              .enum(['top', 'bottom', 'left', 'right', 'integrated'])
+              .describe(
+                "Indicates in which position the text is placed, in case the layout is 'icon' type, it's required only in this case.",
+              )
               .optional(),
           })
           .strict()
@@ -624,7 +316,6 @@ export const CosmosChainSchema = z
               '^https://raw\\.githubusercontent\\.com/cosmos/chain-registry/master/(|testnets/|_non-cosmos/)[a-z0-9]+/images/.+\\.png$',
             ),
           )
-          .min(1)
           .optional(),
         svg: z
           .string()
@@ -633,21 +324,20 @@ export const CosmosChainSchema = z
               '^https://raw\\.githubusercontent\\.com/cosmos/chain-registry/master/(|testnets/|_non-cosmos/)[a-z0-9]+/images/.+\\.svg$',
             ),
           )
-          .min(1)
           .optional(),
       })
       .strict()
       .optional(),
-    description: z.string().min(1).max(3000).optional(),
+    description: z.string().max(3000).optional(),
     peers: z
       .object({
         seeds: z
           .array(
             z
               .object({
-                id: z.string().min(1),
-                address: z.string().min(1),
-                provider: z.string().min(1).optional(),
+                id: z.string(),
+                address: z.string(),
+                provider: z.string().optional(),
               })
               .strict(),
           )
@@ -656,9 +346,9 @@ export const CosmosChainSchema = z
           .array(
             z
               .object({
-                id: z.string().min(1),
-                address: z.string().min(1),
-                provider: z.string().min(1).optional(),
+                id: z.string(),
+                address: z.string(),
+                provider: z.string().optional(),
               })
               .strict(),
           )
@@ -672,8 +362,8 @@ export const CosmosChainSchema = z
           .array(
             z
               .object({
-                address: z.string().min(1),
-                provider: z.string().min(1).optional(),
+                address: z.string(),
+                provider: z.string().optional(),
                 archive: z.boolean().default(false),
               })
               .strict(),
@@ -683,8 +373,8 @@ export const CosmosChainSchema = z
           .array(
             z
               .object({
-                address: z.string().min(1),
-                provider: z.string().min(1).optional(),
+                address: z.string(),
+                provider: z.string().optional(),
                 archive: z.boolean().default(false),
               })
               .strict(),
@@ -694,8 +384,8 @@ export const CosmosChainSchema = z
           .array(
             z
               .object({
-                address: z.string().min(1),
-                provider: z.string().min(1).optional(),
+                address: z.string(),
+                provider: z.string().optional(),
                 archive: z.boolean().default(false),
               })
               .strict(),
@@ -705,8 +395,8 @@ export const CosmosChainSchema = z
           .array(
             z
               .object({
-                address: z.string().min(1),
-                provider: z.string().min(1).optional(),
+                address: z.string(),
+                provider: z.string().optional(),
                 archive: z.boolean().default(false),
               })
               .strict(),
@@ -716,8 +406,8 @@ export const CosmosChainSchema = z
           .array(
             z
               .object({
-                address: z.string().min(1),
-                provider: z.string().min(1).optional(),
+                address: z.string(),
+                provider: z.string().optional(),
                 archive: z.boolean().default(false),
               })
               .strict(),
@@ -727,8 +417,8 @@ export const CosmosChainSchema = z
           .array(
             z
               .object({
-                address: z.string().min(1),
-                provider: z.string().min(1).optional(),
+                address: z.string(),
+                provider: z.string().optional(),
                 archive: z.boolean().default(false),
               })
               .strict(),
@@ -741,28 +431,21 @@ export const CosmosChainSchema = z
       .array(
         z
           .object({
-            kind: z.string().min(1).optional(),
-            url: z.string().min(1).optional(),
-            tx_page: z.string().min(1).optional(),
-            account_page: z.string().min(1).optional(),
-            validator_page: z.string().min(1).optional(),
-            proposal_page: z.string().min(1).optional(),
-            block_page: z.string().min(1).optional(),
+            kind: z.string().optional(),
+            url: z.string().optional(),
+            tx_page: z.string().optional(),
+            account_page: z.string().optional(),
           })
           .strict(),
       )
       .optional(),
-    keywords: z.array(z.string().min(1)).optional(),
+    keywords: z.array(z.string()).optional(),
     extra_codecs: z.array(z.enum(['ethermint', 'injective'])).optional(),
   })
-  .strict()
-  .and(z.intersection(z.any(), z.any()))
+  .passthrough()
   .describe(
     'Cosmos Chain.json is a metadata file that contains information about a cosmos sdk based chain.',
   );
-
-// .strict().and(z.intersection(z.any(), z.any())) is similar to .passthrough()
-// using this way as it's exactly as generated by the tool
 
 export async function getCosmosRegistryChain(chain: string) {
   const json = await fetch(

@@ -20,7 +20,6 @@
   "packageManager": "yarn@4.0.2",
   "private": true,
   "scripts": {
-    "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4 && yarn prettier",
     "build": "yarn workspaces foreach --all --parallel --topological run build",
     "clean": "yarn workspaces foreach --all --parallel run clean",
     "prettier": "yarn workspaces foreach --since --parallel run prettier",

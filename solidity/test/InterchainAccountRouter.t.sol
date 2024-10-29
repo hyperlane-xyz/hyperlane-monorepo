@@ -13,16 +13,12 @@ import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPay
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {CallLib, OwnableMulticall, InterchainAccountRouter} from "../contracts/middleware/InterchainAccountRouter.sol";
 import {InterchainAccountIsm} from "../contracts/isms/routing/InterchainAccountIsm.sol";
-import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
-import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 
 contract Callable {
     mapping(address => bytes32) public data;
-    mapping(address => uint256) public value;
 
-    function set(bytes32 _data) external payable {
+    function set(bytes32 _data) external {
         data[msg.sender] = _data;
-        value[msg.sender] = msg.value;
     }
 }
 
@@ -42,7 +38,7 @@ contract FailingIsm is IInterchainSecurityModule {
     }
 }
 
-contract InterchainAccountRouterTestBase is Test {
+contract InterchainAccountRouterTest is Test {
     using TypeCasts for address;
 
     event InterchainAccountCreated(
@@ -59,8 +55,8 @@ contract InterchainAccountRouterTestBase is Test {
 
     TestInterchainGasPaymaster internal igp;
     InterchainAccountIsm internal icaIsm;
-    InterchainAccountRouter internal originIcaRouter;
-    InterchainAccountRouter internal destinationIcaRouter;
+    InterchainAccountRouter internal originRouter;
+    InterchainAccountRouter internal destinationRouter;
     bytes32 internal ismOverride;
     bytes32 internal routerOverride;
     uint256 gasPaymentQuote;
@@ -94,7 +90,7 @@ contract InterchainAccountRouterTestBase is Test {
         return InterchainAccountRouter(address(proxy));
     }
 
-    function setUp() public virtual {
+    function setUp() public {
         environment = new MockHyperlaneEnvironment(origin, destination);
 
         igp = new TestInterchainGasPaymaster();
@@ -108,14 +104,13 @@ contract InterchainAccountRouterTestBase is Test {
         );
 
         address owner = address(this);
-        originIcaRouter = deployProxiedIcaRouter(
+        originRouter = deployProxiedIcaRouter(
             environment.mailboxes(origin),
-            environment.igps(origin),
+            environment.igps(destination),
             icaIsm,
             owner
         );
-
-        destinationIcaRouter = deployProxiedIcaRouter(
+        destinationRouter = deployProxiedIcaRouter(
             environment.mailboxes(destination),
             environment.igps(destination),
             icaIsm,
@@ -124,55 +119,47 @@ contract InterchainAccountRouterTestBase is Test {
 
         environment.mailboxes(origin).setDefaultHook(address(igp));
 
-        routerOverride = TypeCasts.addressToBytes32(
-            address(destinationIcaRouter)
-        );
+        routerOverride = TypeCasts.addressToBytes32(address(destinationRouter));
         ismOverride = TypeCasts.addressToBytes32(
             address(environment.isms(destination))
         );
-        ica = destinationIcaRouter.getLocalInterchainAccount(
+        ica = destinationRouter.getLocalInterchainAccount(
             origin,
             address(this),
-            address(originIcaRouter),
+            address(originRouter),
             address(environment.isms(destination))
         );
 
         target = new Callable();
     }
 
-    receive() external payable {}
-}
-
-contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
-    using TypeCasts for address;
-
     function testFuzz_constructor(address _localOwner) public {
-        OwnableMulticall _account = destinationIcaRouter
+        OwnableMulticall _account = destinationRouter
             .getDeployedInterchainAccount(
                 origin,
                 _localOwner,
-                address(originIcaRouter),
+                address(originRouter),
                 address(environment.isms(destination))
             );
-        assertEq(_account.owner(), address(destinationIcaRouter));
+        assertEq(_account.owner(), address(destinationRouter));
     }
 
     function testFuzz_getRemoteInterchainAccount(
         address _localOwner,
         address _ism
     ) public {
-        address _account = originIcaRouter.getRemoteInterchainAccount(
+        address _account = originRouter.getRemoteInterchainAccount(
             address(_localOwner),
-            address(destinationIcaRouter),
+            address(destinationRouter),
             _ism
         );
-        originIcaRouter.enrollRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             TypeCasts.addressToBytes32(_ism)
         );
         assertEq(
-            originIcaRouter.getRemoteInterchainAccount(
+            originRouter.getRemoteInterchainAccount(
                 destination,
                 address(_localOwner)
             ),
@@ -197,16 +184,16 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         }
 
         // act
-        originIcaRouter.enrollRemoteRouters(domains, routers);
+        originRouter.enrollRemoteRouters(domains, routers);
 
         // assert
-        uint32[] memory actualDomains = originIcaRouter.domains();
+        uint32[] memory actualDomains = originRouter.domains();
         assertEq(actualDomains.length, domains.length);
-        assertEq(abi.encode(originIcaRouter.domains()), abi.encode(domains));
+        assertEq(abi.encode(originRouter.domains()), abi.encode(domains));
 
         for (uint256 i = 0; i < count; i++) {
-            bytes32 actualRouter = originIcaRouter.routers(domains[i]);
-            bytes32 actualIsm = originIcaRouter.isms(domains[i]);
+            bytes32 actualRouter = originRouter.routers(domains[i]);
+            bytes32 actualIsm = originRouter.isms(domains[i]);
 
             assertEq(actualRouter, routers[i]);
             assertEq(actualIsm, bytes32(0));
@@ -221,17 +208,17 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         vm.assume(router != bytes32(0));
 
         // arrange pre-condition
-        bytes32 actualRouter = originIcaRouter.routers(destination);
-        bytes32 actualIsm = originIcaRouter.isms(destination);
+        bytes32 actualRouter = originRouter.routers(destination);
+        bytes32 actualIsm = originRouter.isms(destination);
         assertEq(actualRouter, bytes32(0));
         assertEq(actualIsm, bytes32(0));
 
         // act
-        originIcaRouter.enrollRemoteRouterAndIsm(destination, router, ism);
+        originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
 
         // assert
-        actualRouter = originIcaRouter.routers(destination);
-        actualIsm = originIcaRouter.isms(destination);
+        actualRouter = originRouter.routers(destination);
+        actualIsm = originRouter.isms(destination);
         assertEq(actualRouter, router);
         assertEq(actualIsm, ism);
     }
@@ -247,21 +234,17 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             destinations.length != isms.length
         ) {
             vm.expectRevert(bytes("length mismatch"));
-            originIcaRouter.enrollRemoteRouterAndIsms(
-                destinations,
-                routers,
-                isms
-            );
+            originRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
             return;
         }
 
         // act
-        originIcaRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
+        originRouter.enrollRemoteRouterAndIsms(destinations, routers, isms);
 
         // assert
         for (uint256 i = 0; i < destinations.length; i++) {
-            bytes32 actualRouter = originIcaRouter.routers(destinations[i]);
-            bytes32 actualIsm = originIcaRouter.isms(destinations[i]);
+            bytes32 actualRouter = originRouter.routers(destinations[i]);
+            bytes32 actualIsm = originRouter.isms(destinations[i]);
             assertEq(actualRouter, routers[i]);
             assertEq(actualIsm, isms[i]);
         }
@@ -276,13 +259,13 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         vm.assume(routerA != bytes32(0) && routerB != bytes32(0));
 
         // act
-        originIcaRouter.enrollRemoteRouterAndIsm(destination, routerA, ismA);
+        originRouter.enrollRemoteRouterAndIsm(destination, routerA, ismA);
 
         // assert
         vm.expectRevert(
             bytes("router and ISM defaults are immutable once set")
         );
-        originIcaRouter.enrollRemoteRouterAndIsm(destination, routerB, ismB);
+        originRouter.enrollRemoteRouterAndIsm(destination, routerB, ismB);
     }
 
     function testFuzz_enrollRemoteRouterAndIsmNonOwner(
@@ -290,27 +273,24 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         bytes32 router,
         bytes32 ism
     ) public {
-        vm.assume(
-            newOwner != address(0) && newOwner != originIcaRouter.owner()
-        );
+        vm.assume(newOwner != address(0) && newOwner != originRouter.owner());
 
         // act
-        originIcaRouter.transferOwnership(newOwner);
+        originRouter.transferOwnership(newOwner);
 
         // assert
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
-        originIcaRouter.enrollRemoteRouterAndIsm(destination, router, ism);
+        originRouter.enrollRemoteRouterAndIsm(destination, router, ism);
     }
 
     function getCalls(
-        bytes32 data,
-        uint256 value
+        bytes32 data
     ) private view returns (CallLib.Call[] memory) {
         vm.assume(data != bytes32(0));
 
         CallLib.Call memory call = CallLib.Call(
             TypeCasts.addressToBytes32(address(target)),
-            value,
+            0,
             abi.encodeCall(target.set, (data))
         );
         CallLib.Call[] memory calls = new CallLib.Call[](1);
@@ -318,22 +298,17 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         return calls;
     }
 
-    function assertRemoteCallReceived(bytes32 data, uint256 value) private {
+    function assertRemoteCallReceived(bytes32 data) private {
         assertEq(target.data(address(this)), bytes32(0));
-        assertEq(target.value(address(this)), 0);
-
-        vm.expectEmit(true, true, false, true, address(destinationIcaRouter));
+        vm.expectEmit(true, true, false, true, address(destinationRouter));
         emit InterchainAccountCreated(
             origin,
             address(this).addressToBytes32(),
             TypeCasts.bytes32ToAddress(ismOverride),
             address(ica)
         );
-        vm.deal(address(this), value);
-        environment.processNextPendingMessage{value: value}();
-
+        environment.processNextPendingMessage();
         assertEq(target.data(address(ica)), data);
-        assertEq(target.value(address(ica)), value);
     }
 
     function assertIgpPayment(
@@ -350,15 +325,16 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         address owner
     ) public {
         // act
-        ica = destinationIcaRouter.getDeployedInterchainAccount(
+        ica = destinationRouter.getDeployedInterchainAccount(
             origin,
             owner,
-            address(originIcaRouter),
+            address(originRouter),
             address(environment.isms(destination))
         );
 
-        (uint32 domain, bytes32 ownerBytes) = destinationIcaRouter
-            .accountOwners(address(ica));
+        (uint32 domain, bytes32 ownerBytes) = destinationRouter.accountOwners(
+            address(ica)
+        );
         // assert
         assertEq(domain, origin);
         assertEq(ownerBytes, owner.addressToBytes32());
@@ -366,19 +342,19 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
     function test_quoteGasPayment() public {
         // arrange
-        originIcaRouter.enrollRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
         );
 
         // assert
-        assertEq(originIcaRouter.quoteGasPayment(destination), gasPaymentQuote);
+        assertEq(originRouter.quoteGasPayment(destination), gasPaymentQuote);
     }
 
     function test_quoteGasPayment_gasLimitOverride() public {
         // arrange
-        originIcaRouter.enrollRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
@@ -386,40 +362,14 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // assert
         assertEq(
-            originIcaRouter.quoteGasPayment(
-                destination,
-                "",
-                GAS_LIMIT_OVERRIDE
-            ),
+            originRouter.quoteGasPayment(destination, "", GAS_LIMIT_OVERRIDE),
             igp.quoteGasPayment(destination, GAS_LIMIT_OVERRIDE)
         );
     }
 
-    function test_quoteDispatch_differentHook() public {
+    function testFuzz_singleCallRemoteWithDefault(bytes32 data) public {
         // arrange
-        TestPostDispatchHook testHook = new TestPostDispatchHook();
-        originIcaRouter = deployProxiedIcaRouter(
-            environment.mailboxes(origin),
-            testHook,
-            icaIsm,
-            address(this)
-        );
-        originIcaRouter.enrollRemoteRouterAndIsm(
-            destination,
-            routerOverride,
-            ismOverride
-        );
-
-        // assert
-        assertEq(originIcaRouter.quoteGasPayment(destination), 0);
-    }
-
-    function testFuzz_singleCallRemoteWithDefault(
-        bytes32 data,
-        uint256 value
-    ) public {
-        // arrange
-        originIcaRouter.enrollRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
@@ -427,8 +377,8 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 balanceBefore = address(this).balance;
 
         // act
-        CallLib.Call[] memory calls = getCalls(data, value);
-        originIcaRouter.callRemote{value: gasPaymentQuote}(
+        CallLib.Call[] memory calls = getCalls(data);
+        originRouter.callRemote{value: gasPaymentQuote}(
             destination,
             TypeCasts.bytes32ToAddress(calls[0].to),
             calls[0].value,
@@ -437,17 +387,13 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // assert
         uint256 balanceAfter = address(this).balance;
+        assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
-
-        assertRemoteCallReceived(data, value);
     }
 
-    function testFuzz_callRemoteWithDefault(
-        bytes32 data,
-        uint256 value
-    ) public {
+    function testFuzz_callRemoteWithDefault(bytes32 data) public {
         // arrange
-        originIcaRouter.enrollRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
@@ -455,52 +401,20 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 balanceBefore = address(this).balance;
 
         // act
-        originIcaRouter.callRemote{value: gasPaymentQuote}(
+        originRouter.callRemote{value: gasPaymentQuote}(
             destination,
-            getCalls(data, value)
+            getCalls(data)
         );
 
         // assert
         uint256 balanceAfter = address(this).balance;
-        assertRemoteCallReceived(data, value);
+        assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
     }
 
-    function testFuzz_callRemoteWithDefault_differentHook(
-        bytes32 data,
-        uint256 value
-    ) public {
+    function testFuzz_overrideAndCallRemote(bytes32 data) public {
         // arrange
-        TestPostDispatchHook testHook = new TestPostDispatchHook();
-        originIcaRouter = deployProxiedIcaRouter(
-            environment.mailboxes(origin),
-            testHook,
-            icaIsm,
-            address(this)
-        );
-        originIcaRouter.enrollRemoteRouterAndIsm(
-            destination,
-            routerOverride,
-            ismOverride
-        );
-
-        // assert
-        vm.expectCall(
-            address(testHook),
-            0,
-            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
-        );
-
-        // act
-        originIcaRouter.callRemote(destination, getCalls(data, value));
-    }
-
-    function testFuzz_overrideAndCallRemote(
-        bytes32 data,
-        uint256 value
-    ) public {
-        // arrange
-        originIcaRouter.enrollRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
@@ -508,32 +422,30 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 balanceBefore = address(this).balance;
 
         // act
-        originIcaRouter.callRemote{value: gasPaymentQuote}(
+        originRouter.callRemote{value: gasPaymentQuote}(
             destination,
-            getCalls(data, value)
+            getCalls(data)
         );
 
         // assert
         uint256 balanceAfter = address(this).balance;
-        assertRemoteCallReceived(data, value);
+        assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
     }
 
     function testFuzz_callRemoteWithoutDefaults_revert_noRouter(
-        bytes32 data,
-        uint256 value
+        bytes32 data
     ) public {
         // assert error
-        CallLib.Call[] memory calls = getCalls(data, value);
+        CallLib.Call[] memory calls = getCalls(data);
         vm.expectRevert(bytes("no router specified for destination"));
-        originIcaRouter.callRemote(destination, calls);
+        originRouter.callRemote(destination, calls);
     }
 
     function testFuzz_customMetadata_forIgp(
         uint64 gasLimit,
         uint64 overpayment,
-        bytes32 data,
-        uint256 value
+        bytes32 data
     ) public {
         // arrange
         bytes memory metadata = StandardHookMetadata.formatMetadata(
@@ -542,7 +454,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(this),
             ""
         );
-        originIcaRouter.enrollRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
@@ -550,23 +462,24 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 balanceBefore = address(this).balance;
 
         // act
-        originIcaRouter.callRemote{
-            value: gasLimit * igp.gasPrice() + overpayment
-        }(destination, getCalls(data, value), metadata);
+        originRouter.callRemote{value: gasLimit * igp.gasPrice() + overpayment}(
+            destination,
+            getCalls(data),
+            metadata
+        );
 
         // assert
         uint256 balanceAfter = address(this).balance;
-        assertRemoteCallReceived(data, value);
+        assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, gasLimit);
     }
 
     function testFuzz_customMetadata_reverts_underpayment(
         uint64 gasLimit,
         uint64 payment,
-        bytes32 data,
-        uint256 value
+        bytes32 data
     ) public {
-        CallLib.Call[] memory calls = getCalls(data, value);
+        CallLib.Call[] memory calls = getCalls(data);
         vm.assume(payment < gasLimit * igp.gasPrice());
         // arrange
         bytes memory metadata = StandardHookMetadata.formatMetadata(
@@ -575,7 +488,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             address(this),
             ""
         );
-        originIcaRouter.enrollRemoteRouterAndIsm(
+        originRouter.enrollRemoteRouterAndIsm(
             destination,
             routerOverride,
             ismOverride
@@ -583,39 +496,30 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         // act
         vm.expectRevert("IGP: insufficient interchain gas payment");
-        originIcaRouter.callRemote{value: payment}(
-            destination,
-            calls,
-            metadata
-        );
+        originRouter.callRemote{value: payment}(destination, calls, metadata);
     }
 
-    function testFuzz_callRemoteWithOverrides_default(
-        bytes32 data,
-        uint256 value
-    ) public {
+    function testFuzz_callRemoteWithOverrides_default(bytes32 data) public {
         // arrange
         uint256 balanceBefore = address(this).balance;
 
         // act
-        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+        originRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
             destination,
             routerOverride,
             ismOverride,
-            getCalls(data, value)
+            getCalls(data)
         );
 
         // assert
         uint256 balanceAfter = address(this).balance;
-        assertRemoteCallReceived(data, value);
+        assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, igp.getDefaultGasUsage());
-        assertEq(address(originIcaRouter.hook()), address(0));
     }
 
     function testFuzz_callRemoteWithOverrides_metadata(
         uint64 gasLimit,
-        bytes32 data,
-        uint256 value
+        bytes32 data
     ) public {
         // arrange
         bytes memory metadata = StandardHookMetadata.formatMetadata(
@@ -627,58 +531,21 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         uint256 balanceBefore = address(this).balance;
 
         // act
-        originIcaRouter.callRemoteWithOverrides{
-            value: gasLimit * igp.gasPrice()
-        }(
+        originRouter.callRemoteWithOverrides{value: gasLimit * igp.gasPrice()}(
             destination,
             routerOverride,
             ismOverride,
-            getCalls(data, value),
+            getCalls(data),
             metadata
         );
 
         // assert
         uint256 balanceAfter = address(this).balance;
-        assertRemoteCallReceived(data, value);
+        assertRemoteCallReceived(data);
         assertIgpPayment(balanceBefore, balanceAfter, gasLimit);
     }
 
-    function testFuzz_callRemoteWithOverrides_withHook(
-        bytes32 data,
-        uint256 value
-    ) public {
-        TestPostDispatchHook testHook = new TestPostDispatchHook();
-
-        originIcaRouter = deployProxiedIcaRouter(
-            environment.mailboxes(origin),
-            testHook,
-            icaIsm,
-            address(this)
-        );
-        originIcaRouter.enrollRemoteRouterAndIsm(
-            destination,
-            routerOverride,
-            ismOverride
-        );
-
-        vm.expectCall(
-            address(testHook),
-            0,
-            abi.encodePacked(AbstractPostDispatchHook.postDispatch.selector)
-        );
-        originIcaRouter.callRemoteWithOverrides(
-            destination,
-            routerOverride,
-            ismOverride,
-            getCalls(data, value),
-            new bytes(0)
-        );
-    }
-
-    function testFuzz_callRemoteWithFailingIsmOverride(
-        bytes32 data,
-        uint256 value
-    ) public {
+    function testFuzz_callRemoteWithFailingIsmOverride(bytes32 data) public {
         // arrange
         string memory failureMessage = "failing ism";
         bytes32 failingIsm = TypeCasts.addressToBytes32(
@@ -686,11 +553,11 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         );
 
         // act
-        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+        originRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
             destination,
             routerOverride,
             failingIsm,
-            getCalls(data, value),
+            getCalls(data),
             ""
         );
 
@@ -699,21 +566,18 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         environment.processNextPendingMessage();
     }
 
-    function testFuzz_callRemoteWithFailingDefaultIsm(
-        bytes32 data,
-        uint256 value
-    ) public {
+    function testFuzz_callRemoteWithFailingDefaultIsm(bytes32 data) public {
         // arrange
         string memory failureMessage = "failing ism";
         FailingIsm failingIsm = new FailingIsm(failureMessage);
 
         // act
         environment.mailboxes(destination).setDefaultIsm(address(failingIsm));
-        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+        originRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
             destination,
             routerOverride,
             bytes32(0),
-            getCalls(data, value),
+            getCalls(data),
             ""
         );
 
@@ -722,25 +586,22 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         environment.processNextPendingMessage();
     }
 
-    function testFuzz_getLocalInterchainAccount(
-        bytes32 data,
-        uint256 value
-    ) public {
+    function testFuzz_getLocalInterchainAccount(bytes32 data) public {
         // check
-        OwnableMulticall destinationIca = destinationIcaRouter
+        OwnableMulticall destinationIca = destinationRouter
             .getLocalInterchainAccount(
                 origin,
                 address(this),
-                address(originIcaRouter),
+                address(originRouter),
                 address(environment.isms(destination))
             );
         assertEq(
             address(destinationIca),
             address(
-                destinationIcaRouter.getLocalInterchainAccount(
+                destinationRouter.getLocalInterchainAccount(
                     origin,
                     TypeCasts.addressToBytes32(address(this)),
-                    TypeCasts.addressToBytes32(address(originIcaRouter)),
+                    TypeCasts.addressToBytes32(address(originRouter)),
                     address(environment.isms(destination))
                 )
             )
@@ -748,16 +609,16 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         assertEq(address(destinationIca).code.length, 0);
 
         // act
-        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+        originRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
             destination,
             routerOverride,
             ismOverride,
-            getCalls(data, value),
+            getCalls(data),
             ""
         );
 
         // recheck
-        assertRemoteCallReceived(data, value);
+        assertRemoteCallReceived(data);
         assert(address(destinationIca).code.length != 0);
     }
 
@@ -770,10 +631,10 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         require(success, "transfer before deploy failed");
 
         // receive value after deployed
-        destinationIcaRouter.getDeployedInterchainAccount(
+        destinationRouter.getDeployedInterchainAccount(
             origin,
             address(this),
-            address(originIcaRouter),
+            address(originRouter),
             address(environment.isms(destination))
         );
         assert(address(ica).code.length > 0);
@@ -797,7 +658,7 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         CallLib.Call[] memory calls = new CallLib.Call[](1);
         calls[0] = call;
 
-        originIcaRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
+        originRouter.callRemoteWithOverrides{value: gasPaymentQuote}(
             destination,
             routerOverride,
             ismOverride,
@@ -807,4 +668,6 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
         vm.expectCall(address(this), value, data);
         environment.processNextPendingMessage();
     }
+
+    receive() external payable {}
 }

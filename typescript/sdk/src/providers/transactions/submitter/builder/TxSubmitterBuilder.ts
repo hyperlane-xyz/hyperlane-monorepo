@@ -74,25 +74,21 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
    */
   public async submit(
     ...txs: ProtocolTypedTransaction<TProtocol>['transaction'][]
-  ): Promise<
-    | ProtocolTypedReceipt<TProtocol>['receipt']
-    | ProtocolTypedReceipt<TProtocol>['receipt'][]
-    | void
-  > {
-    this.logger.debug(
+  ): Promise<ProtocolTypedReceipt<TProtocol>['receipt'][] | void> {
+    this.logger.info(
       `Submitting ${txs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter...`,
     );
 
     let transformedTxs = txs;
     for (const currentTransformer of this.currentTransformers) {
       transformedTxs = await currentTransformer.transform(...transformedTxs);
-      this.logger.debug(
+      this.logger.info(
         `🔄 Transformed ${transformedTxs.length} transactions with the ${currentTransformer.txTransformerType} transformer...`,
       );
     }
 
     const txReceipts = await this.currentSubmitter.submit(...transformedTxs);
-    this.logger.debug(
+    this.logger.info(
       `✅ Successfully submitted ${transformedTxs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter.`,
     );
 

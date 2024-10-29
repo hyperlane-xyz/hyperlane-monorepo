@@ -394,7 +394,6 @@ export class CwHypNativeAdapter
     const { addressOrDenom: igpDenom, amount: igpAmount } = interchainGas;
     assert(igpDenom, 'Interchain gas denom required for Cosmos');
 
-    // If more than one denom is used as funds, they must be sorted by the denom
     const funds: Coin[] =
       collateralDenom === igpDenom
         ? [
@@ -412,7 +411,7 @@ export class CwHypNativeAdapter
               amount: igpAmount.toString(),
               denom: igpDenom,
             },
-          ].sort((a, b) => a.denom.localeCompare(b.denom));
+          ];
 
     return this.cw20adapter.prepareRouter(
       {

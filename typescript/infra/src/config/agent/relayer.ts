@@ -51,14 +51,14 @@ export interface BaseRelayerConfig {
 // Full relayer-specific agent config for a single chain
 export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
 
-// See rust/main/helm/values.yaml for the full list of options and their defaults.
+// See rust/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
   aws: boolean;
   config?: RelayerConfig;
 }
 
-// See rust/main/helm/values.yaml for the full list of options and their defaults.
+// See rust/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayerChains` in the values file.
 export interface HelmRelayerChainValues {
   name: string;
@@ -169,26 +169,16 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       }),
     );
 
-    const sanctionedEthereumAdresses = allSanctionedAddresses
-      .flat()
-      .filter((address) => {
-        if (!isValidAddressEvm(address)) {
-          this.logger.debug(
-            { address },
-            'Invalid sanctioned address, throwing out',
-          );
-          return false;
-        }
-        return true;
-      });
-
-    const radiantExploiter = [
-      '0xA0e768A68ba1BFffb9F4366dfC8D9195EE7217d1',
-      '0x0629b1048298AE9deff0F4100A31967Fb3f98962',
-      '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
-    ];
-
-    return [...sanctionedEthereumAdresses, ...radiantExploiter];
+    return allSanctionedAddresses.flat().filter((address) => {
+      if (!isValidAddressEvm(address)) {
+        this.logger.debug(
+          { address },
+          'Invalid sanctioned address, throwing out',
+        );
+        return false;
+      }
+      return true;
+    });
   }
 
   // Returns whether the relayer requires AWS credentials

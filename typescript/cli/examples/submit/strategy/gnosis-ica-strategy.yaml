@@ -1,3 +1,4 @@
+chain: avalanche
 submitter:
   type: gnosisSafe
   chain: avalanche

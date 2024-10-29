@@ -1,44 +1,57 @@
-import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  AgentCosmosGasPrice,
   ChainMap,
   ChainName,
-  GasPriceConfig,
-  StorageGasOracleConfig,
+  StorageGasOracleConfig as DestinationOracleConfig,
   TOKEN_EXCHANGE_RATE_SCALE,
-  defaultMultisigConfigs,
-  multisigIsmVerificationCost,
+  getCosmosRegistryChain,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType, convertDecimals } from '@hyperlane-xyz/utils';
 
-import { isEthereumProtocolChain } from '../utils/utils.js';
+import { getChain } from '../../config/registry.js';
+import {
+  isEthereumProtocolChain,
+  mustGetChainNativeToken,
+} from '../utils/utils.js';
 
-// gas oracle configs for each chain, which includes
-// a map for each chain's remote chains
-export type AllStorageGasOracleConfigs = ChainMap<
-  ChainMap<StorageGasOracleConfig>
->;
+// Gas data to configure on a single local chain. Includes DestinationOracleConfig
+// for each remote chain.
+export type StorageGasOracleConfig = ChainMap<DestinationOracleConfig>;
+
+// StorageGasOracleConfigs for each local chain
+export type AllStorageGasOracleConfigs = ChainMap<StorageGasOracleConfig>;
+
+// A configuration for a gas price.
+// Some chains, e.g. Neutron, have gas prices that are
+// not integers and and are still quoted in the "wei" version
+// of the token. Therefore it's possible for the amount to be a
+// float (e.g. "0.0053") and for decimals to be 1. This is why
+// we intentionally don't deal with BigNumber here.
+export interface GasPriceConfig {
+  amount: string;
+  decimals: number;
+}
 
 // Overcharge by 50% to account for market making risk
-export const EXCHANGE_RATE_MARGIN_PCT = 50;
+const EXCHANGE_RATE_MARGIN_PCT = 50;
 
-// Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
+// Gets the StorageGasOracleConfig for a particular local chain.
 // Accommodates small non-integer gas prices by scaling up the gas price
 // and scaling down the exchange rate by the same factor.
-function getLocalStorageGasOracleConfigOverride(
+function getLocalStorageGasOracleConfig(
   local: ChainName,
   remotes: ChainName[],
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
   getTokenUsdPrice?: (chain: ChainName) => number,
-  getOverhead?: (local: ChainName, remote: ChainName) => number,
-): ChainMap<StorageGasOracleConfig> {
+  remoteOverhead?: (remote: ChainName) => number,
+): StorageGasOracleConfig {
   return remotes.reduce((agg, remote) => {
     let exchangeRate = getTokenExchangeRate(local, remote);
     if (!gasPrices[remote]) {
-      // Will run into this case when adding new chains
-      console.warn(chalk.yellow(`No gas price set for ${remote}`));
-      return agg;
+      throw new Error(`No gas price found for chain ${remote}`);
     }
 
     // First parse as a number, so we have floating point precision.
@@ -80,8 +93,8 @@ function getLocalStorageGasOracleConfigOverride(
 
     // If we have access to these, let's use the USD prices to apply some minimum
     // typical USD payment heuristics.
-    if (getTokenUsdPrice && getOverhead) {
-      const typicalRemoteGasAmount = getOverhead(local, remote) + 50_000;
+    if (getTokenUsdPrice && remoteOverhead) {
+      const typicalRemoteGasAmount = remoteOverhead(remote) + 50_000;
       const typicalIgpQuoteUsd = getUsdQuote(
         local,
         gasPriceBn,
@@ -167,43 +180,76 @@ function getUsdQuote(
   return quoteUsd;
 }
 
-// cosmwasm warp route somewhat arbitrarily chosen
-const FOREIGN_DEFAULT_OVERHEAD = 600_000;
-
-// Overhead for interchain messaging
-export function getOverhead(
-  local: ChainName,
-  remote: ChainName,
-  ethereumChainNames: ChainName[],
-): number {
-  return ethereumChainNames.includes(remote as any)
-    ? multisigIsmVerificationCost(
-        defaultMultisigConfigs[local].threshold,
-        defaultMultisigConfigs[local].validators.length,
-      )
-    : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
-}
-
-// Gets the map of remote gas oracle configs for each local chain
+// Gets the StorageGasOracleConfig for each local chain
 export function getAllStorageGasOracleConfigs(
   chainNames: ChainName[],
   gasPrices: ChainMap<GasPriceConfig>,
   getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
   getTokenUsdPrice?: (chain: ChainName) => number,
-  getOverhead?: (local: ChainName, remote: ChainName) => number,
+  remoteOverhead?: (remote: ChainName) => number,
 ): AllStorageGasOracleConfigs {
   return chainNames.filter(isEthereumProtocolChain).reduce((agg, local) => {
     const remotes = chainNames.filter((chain) => local !== chain);
     return {
       ...agg,
-      [local]: getLocalStorageGasOracleConfigOverride(
+      [local]: getLocalStorageGasOracleConfig(
         local,
         remotes,
         gasPrices,
         getTokenExchangeRate,
         getTokenUsdPrice,
-        getOverhead,
+        remoteOverhead,
       ),
     };
   }, {}) as AllStorageGasOracleConfigs;
+}
+
+export function getTokenExchangeRateFromValues(
+  local: ChainName,
+  localValue: BigNumber,
+  remote: ChainName,
+  remoteValue: BigNumber,
+): BigNumber {
+  // This does not yet account for decimals!
+  let exchangeRate = remoteValue.mul(TOKEN_EXCHANGE_RATE_SCALE).div(localValue);
+  // Apply the premium
+  exchangeRate = exchangeRate.mul(100 + EXCHANGE_RATE_MARGIN_PCT).div(100);
+
+  return BigNumber.from(
+    convertDecimals(
+      mustGetChainNativeToken(remote).decimals,
+      mustGetChainNativeToken(local).decimals,
+      exchangeRate.toString(),
+    ),
+  );
+}
+
+export async function getCosmosChainGasPrice(
+  chain: ChainName,
+): Promise<AgentCosmosGasPrice> {
+  const metadata = getChain(chain);
+  if (!metadata) {
+    throw new Error(`No metadata found for Cosmos chain ${chain}`);
+  }
+  if (metadata.protocol !== ProtocolType.Cosmos) {
+    throw new Error(`Chain ${chain} is not a Cosmos chain`);
+  }
+
+  const cosmosRegistryChain = await getCosmosRegistryChain(chain);
+
+  const nativeToken = mustGetChainNativeToken(chain);
+
+  const fee = cosmosRegistryChain.fees?.fee_tokens.find((fee) => {
+    return (
+      fee.denom === nativeToken.denom || fee.denom === `u${nativeToken.denom}`
+    );
+  });
+  if (!fee || fee.average_gas_price === undefined) {
+    throw new Error(`No gas price found for Cosmos chain ${chain}`);
+  }
+
+  return {
+    denom: fee.denom,
+    amount: fee.average_gas_price.toString(),
+  };
 }

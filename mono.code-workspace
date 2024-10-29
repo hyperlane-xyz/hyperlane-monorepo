@@ -17,13 +17,6 @@
       "**/.git/**": true,
       "**/node_modules/*/**": true
     },
-    "cSpell.words": [
-      "hyperlane"
-    ],
-    "rust-analyzer.linkedProjects": [
-      "./rust/main/Cargo.toml",
-      "./rust/sealevel/Cargo.toml",
-  ],
   },
   "folders": [
     {
@@ -37,10 +30,7 @@
       "path": "./solidity"
     },
     {
-      "path": "./rust/main"
-    },
-    {
-      "path": "./rust/sealevel"
+      "path": "./rust"
     }
   ],
   "extensions": {
@@ -73,8 +63,6 @@
       "yoavbls.pretty-ts-errors",
       // Yaml language support
       "redhat.vscode-yaml",
-      // Rust language support
-      "rust-lang.rust-analyzer"
     ],
     // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
     "unwantedRecommendations": []

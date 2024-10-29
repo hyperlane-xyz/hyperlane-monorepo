@@ -4,8 +4,6 @@ import {
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
-  HypERC4626OwnerCollateral__factory,
-  HypERC4626__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -83,23 +81,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const contractTypes: Partial<
       Record<TokenType, { factory: any; method: string }>
     > = {
-      [TokenType.collateralVaultRebase]: {
+      collateralVault: {
         factory: HypERC4626Collateral__factory,
-        method: 'NULL_RECIPIENT',
-      },
-      [TokenType.collateralVault]: {
-        factory: HypERC4626OwnerCollateral__factory,
         method: 'vault',
       },
-      [TokenType.collateral]: {
+      collateral: {
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
       },
-      [TokenType.syntheticRebase]: {
-        factory: HypERC4626__factory,
-        method: 'collateralDomain',
-      },
-      [TokenType.synthetic]: {
+      synthetic: {
         factory: HypERC20__factory,
         method: 'decimals',
       },
@@ -116,11 +106,11 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       try {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
+
+        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
         return tokenType as TokenType;
       } catch (e) {
         continue;
-      } finally {
-        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
       }
     }
 
@@ -134,7 +124,9 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       });
       return TokenType.native;
     } catch (e) {
-      throw Error(`Error accessing token specific method ${e}`);
+      throw Error(
+        `Error accessing token specific method, implying this is not a supported token.`,
+      );
     } finally {
       this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
     }
@@ -196,10 +188,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         await this.fetchERC20Metadata(token);
 
       return { name, symbol, decimals, totalSupply, token };
-    } else if (
-      type === TokenType.synthetic ||
-      type === TokenType.syntheticRebase
-    ) {
+    } else if (type === TokenType.synthetic) {
       return this.fetchERC20Metadata(tokenAddress);
     } else if (type === TokenType.native) {
       const chainMetadata = this.multiProvider.getChainMetadata(this.chain);

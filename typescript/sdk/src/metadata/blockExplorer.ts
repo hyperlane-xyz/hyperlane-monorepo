@@ -2,19 +2,13 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, ExplorerFamily } from './chainMetadataTypes.js';
 
-export function getExplorerBaseUrl(
-  metadata: ChainMetadata,
-  index = 0,
-): string | null {
+export function getExplorerBaseUrl(metadata: ChainMetadata): string | null {
   if (!metadata?.blockExplorers?.length) return null;
-  const url = new URL(metadata.blockExplorers[index].url);
+  const url = new URL(metadata.blockExplorers[0].url);
   return url.toString();
 }
 
-export function getExplorerApi(
-  metadata: ChainMetadata,
-  index = 0,
-): {
+export function getExplorerApi(metadata: ChainMetadata): {
   apiUrl: string;
   apiKey?: string | undefined;
   family?: ExplorerFamily | undefined;
@@ -22,21 +16,20 @@ export function getExplorerApi(
   const { protocol, blockExplorers } = metadata;
   // TODO solana + cosmos support here as needed
   if (protocol !== ProtocolType.Ethereum) return null;
-  if (!blockExplorers?.length || !blockExplorers[index].apiUrl) return null;
+  if (!blockExplorers?.length || !blockExplorers[0].apiUrl) return null;
   return {
-    apiUrl: blockExplorers[index].apiUrl,
-    apiKey: blockExplorers[index].apiKey,
-    family: blockExplorers[index].family,
+    apiUrl: blockExplorers[0].apiUrl,
+    apiKey: blockExplorers[0].apiKey,
+    family: blockExplorers[0].family,
   };
 }
 
-export function getExplorerApiUrl(
-  metadata: ChainMetadata,
-  index = 0,
-): string | null {
-  const explorer = getExplorerApi(metadata, index)!;
-  if (!explorer) return null;
-  const { apiUrl, apiKey } = explorer;
+export function getExplorerApiUrl(metadata: ChainMetadata): string | null {
+  const { protocol, blockExplorers } = metadata;
+  // TODO solana + cosmos support here as needed
+  if (protocol !== ProtocolType.Ethereum) return null;
+  if (!blockExplorers?.length || !blockExplorers[0].apiUrl) return null;
+  const { apiUrl, apiKey } = blockExplorers[0];
   if (!apiKey) return apiUrl;
   const url = new URL(apiUrl);
   url.searchParams.set('apikey', apiKey);

@@ -1,19 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
-
-/*@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-     @@@@@  HYPERLANE  @@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-@@@@@@@@@       @@@@@@@@*/
-
-// ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
@@ -21,26 +7,16 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * @notice A contract used to keep track of an address sender's token amount limits.
  * @dev Implements a modified token bucket algorithm where the bucket is full in the beginning and gradually refills
  * See: https://dev.to/satrobit/rate-limiting-using-the-token-bucket-algorithm-3cjh
- *
- */
+ **/
 contract RateLimited is OwnableUpgradeable {
     uint256 public constant DURATION = 1 days; // 86400
-    /// @notice Current filled level
-    uint256 public filledLevel;
-    /// @notice Tokens per second refill rate
-    uint256 public refillRate;
-    /// @notice Timestamp of the last time an action has been taken
-    uint256 public lastUpdated;
+    uint256 public filledLevel; /// @notice Current filled level
+    uint256 public refillRate; /// @notice Tokens per second refill rate
+    uint256 public lastUpdated; /// @notice Timestamp of the last time an action has been taken TODO prob can be uint40
 
     event RateLimitSet(uint256 _oldCapacity, uint256 _newCapacity);
 
-    event ConsumedFilledLevel(uint256 filledLevel, uint256 lastUpdated);
-
     constructor(uint256 _capacity) {
-        require(
-            _capacity >= DURATION,
-            "Capacity must be greater than DURATION"
-        );
         _transferOwnership(msg.sender);
         setRefillRate(_capacity);
         filledLevel = _capacity;
@@ -112,21 +88,19 @@ contract RateLimited is OwnableUpgradeable {
 
     /**
      * Validate an amount and decreases the currentCapacity
-     * @param _consumedAmount The amount to consume the fill level
+     * @param _newAmount The amount to consume the fill level
      * @return The new filled level
      */
     function validateAndConsumeFilledLevel(
-        uint256 _consumedAmount
+        uint256 _newAmount
     ) public returns (uint256) {
         uint256 adjustedFilledLevel = calculateCurrentLevel();
-        require(_consumedAmount <= adjustedFilledLevel, "RateLimitExceeded");
+        require(_newAmount <= adjustedFilledLevel, "RateLimitExceeded");
 
         // Reduce the filledLevel and update lastUpdated
-        uint256 _filledLevel = adjustedFilledLevel - _consumedAmount;
+        uint256 _filledLevel = adjustedFilledLevel - _newAmount;
         filledLevel = _filledLevel;
         lastUpdated = block.timestamp;
-
-        emit ConsumedFilledLevel(filledLevel, lastUpdated);
 
         return _filledLevel;
     }

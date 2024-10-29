@@ -30,7 +30,6 @@ export enum ProviderType {
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
-  GnosisTxBuilder = 'gnosis-txBuilder',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<

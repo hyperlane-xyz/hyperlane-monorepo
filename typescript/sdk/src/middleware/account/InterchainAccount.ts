@@ -31,12 +31,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     super(contractsMap, multiProvider);
   }
 
-  override async remoteChains(chainName: string): Promise<ChainName[]> {
-    return Object.keys(this.contractsMap).filter(
-      (chain) => chain !== chainName,
-    );
-  }
-
   router(
     contracts: HyperlaneContracts<InterchainAccountFactories>,
   ): InterchainAccountRouter {
@@ -120,8 +114,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         .getProvider(destinationChain)
         .getCode(destinationAccount)) === '0x'
     ) {
-      const txOverrides =
-        this.multiProvider.getTransactionOverrides(destinationChain);
       await this.multiProvider.handleTx(
         destinationChain,
         destinationRouter[
@@ -131,7 +123,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           config.owner,
           originRouterAddress,
           destinationIsmAddress,
-          txOverrides,
         ),
       );
       this.logger.debug(`Interchain account deployed at ${destinationAccount}`);

@@ -316,14 +316,6 @@ export function bytesToBytes32(bytes: Uint8Array): string {
   );
 }
 
-// Pad bytes to a certain length, padding with 0s at the start
-export function padBytesToLength(bytes: Uint8Array, length: number) {
-  if (bytes.length > length) {
-    throw new Error(`bytes must be ${length} bytes or less`);
-  }
-  return Buffer.concat([Buffer.alloc(length - bytes.length), bytes]);
-}
-
 export function bytesToAddressEvm(bytes: Uint8Array): Address {
   return bytes32ToAddress(Buffer.from(bytes).toString('hex'));
 }

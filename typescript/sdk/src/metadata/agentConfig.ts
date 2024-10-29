@@ -381,27 +381,6 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
           ),
       })
       .describe('A checkpoint syncer that uses S3'),
-    z
-      .object({
-        type: z.literal('gcs'),
-        bucket: z.string().min(1),
-        folder: z
-          .string()
-          .min(1)
-          .optional()
-          .describe('The folder to use, defaults to the root of the bucket'),
-        service_account_key: z
-          .string()
-          .min(1)
-          .optional()
-          .describe('The path to GCS service account key file'),
-        user_secrets: z
-          .string()
-          .min(1)
-          .optional()
-          .describe('The path to GCS user secret file'),
-      })
-      .describe('A checkpoint syncer that uses Google Cloud Storage'),
   ]),
   interval: ZUint.optional().describe(
     'How long to wait between checking for new checkpoints in seconds.',
@@ -418,7 +397,7 @@ export function buildAgentConfig(
   chains: ChainName[],
   multiProvider: MultiProvider,
   addresses: ChainMap<HyperlaneDeploymentArtifacts>,
-  startBlocks: ChainMap<number | undefined>,
+  startBlocks: ChainMap<number>,
   additionalConfig?: ChainMap<any>,
 ): AgentConfig {
   const chainConfigs: ChainMap<AgentChainMetadata> = {};
@@ -438,11 +417,9 @@ export function buildAgentConfig(
       ...metadata,
       ...addresses[chain],
       ...(additionalConfig ? additionalConfig[chain] : {}),
-      ...(startBlocks[chain] !== undefined && {
-        index: {
-          from: startBlocks[chain],
-        },
-      }),
+      index: {
+        from: startBlocks[chain],
+      },
     };
     chainConfigs[chain] = chainConfig;
   }

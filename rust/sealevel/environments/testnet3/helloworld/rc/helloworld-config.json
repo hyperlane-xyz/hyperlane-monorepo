@@ -1,0 +1,20 @@
+{
+  "solanadevnet": {
+    "interchainSecurityModule": "2NE6Y1rXp1Kpp6vBNqDHYL7HNk7iqh8BKmvCoZtUcZLn"
+  },
+  "alfajores": {
+    "foreignDeployment": "0x40Adcb03F3C58170b4751c4140636FC6085Ff475"
+  },
+  "fuji": {
+    "foreignDeployment": "0xAc003FcDD0EE223664F2A000B5A59D082745700b"
+  },
+  "bsctestnet": {
+    "foreignDeployment": "0xd259b0e793535325786675542aB296c451535c27"
+  },
+  "moonbasealpha": {
+    "foreignDeployment": "0xE9D6317a10860340f035f3d09052D9d376855bE8"
+  },
+  "sepolia": {
+    "foreignDeployment": "0x6AD4DEBA8A147d000C09de6465267a9047d1c217"
+  }
+}

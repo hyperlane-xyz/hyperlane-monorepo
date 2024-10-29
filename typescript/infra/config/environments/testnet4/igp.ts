@@ -1,43 +1,27 @@
 import {
   ChainMap,
+  ChainName,
   HookType,
   IgpConfig,
-  getTokenExchangeRateFromValues,
+  defaultMultisigConfigs,
+  multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import {
-  AllStorageGasOracleConfigs,
-  EXCHANGE_RATE_MARGIN_PCT,
-  getAllStorageGasOracleConfigs,
-  getOverhead,
-} from '../../../src/config/gas-oracle.js';
-import { mustGetChainNativeToken } from '../../../src/utils/utils.js';
+import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 
-import { ethereumChainNames } from './chains.js';
-import gasPrices from './gasPrices.json';
+import { storageGasOracleConfig } from './gas-oracle.js';
 import { owners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
-import rawTokenPrices from './tokenPrices.json';
 
-const tokenPrices: ChainMap<string> = rawTokenPrices;
-
-export const storageGasOracleConfig: AllStorageGasOracleConfigs =
-  getAllStorageGasOracleConfigs(
-    supportedChainNames,
-    gasPrices,
-    (local, remote) =>
-      getTokenExchangeRateFromValues({
-        local,
-        remote,
-        tokenPrices,
-        exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
-        decimals: {
-          local: mustGetChainNativeToken(local).decimals,
-          remote: mustGetChainNativeToken(remote).decimals,
-        },
-      }),
-  );
+const FOREIGN_DEFAULT_OVERHEAD = 600_000; // cosmwasm warp route somewhat arbitrarily chosen
+const remoteOverhead = (remote: ChainName) =>
+  supportedChainNames.filter(isEthereumProtocolChain).includes(remote as any)
+    ? multisigIsmVerificationCost(
+        defaultMultisigConfigs[remote].threshold,
+        defaultMultisigConfigs[remote].validators.length,
+      )
+    : FOREIGN_DEFAULT_OVERHEAD; // non-ethereum overhead
 
 export const igp: ChainMap<IgpConfig> = objMap(
   owners,
@@ -51,7 +35,7 @@ export const igp: ChainMap<IgpConfig> = objMap(
       overhead: Object.fromEntries(
         exclude(chain, supportedChainNames).map((remote) => [
           remote,
-          getOverhead(chain, remote, ethereumChainNames),
+          remoteOverhead(remote),
         ]),
       ),
     };

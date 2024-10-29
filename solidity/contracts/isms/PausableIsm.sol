@@ -7,14 +7,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
-contract PausableIsm is
-    IInterchainSecurityModule,
-    Ownable,
-    Pausable,
-    PackageVersioned
-{
+contract PausableIsm is IInterchainSecurityModule, Ownable, Pausable {
     uint8 public constant override moduleType = uint8(Types.NULL);
 
     constructor(address owner) Ownable() Pausable() {

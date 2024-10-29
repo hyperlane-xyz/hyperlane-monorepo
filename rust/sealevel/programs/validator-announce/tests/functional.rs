@@ -1,6 +1,6 @@
 use hyperlane_core::{Announcement, H160};
 
-use std::{str::FromStr, thread::sleep};
+use std::str::FromStr;
 
 use account_utils::SizedData;
 use borsh::BorshSerialize;
@@ -300,7 +300,12 @@ async fn test_announce() {
         storage_location: announcement.storage_location,
         signature,
     };
-    let announcement_res = announce(
+    let (
+        validator_storage_locations_key,
+        validator_storage_locations_bump_seed,
+        replay_protection_key,
+        _replay_protection_bump_seed,
+    ) = announce(
         &mut banks_client,
         &payer,
         program_id,
@@ -309,17 +314,6 @@ async fn test_announce() {
     )
     .await
     .unwrap();
-
-    // there's a race condition that isn't fixed by setting `CommitmentLevel::Confirmed`
-    // just wait a bit to ensure the account is created
-    sleep(std::time::Duration::from_secs(1));
-
-    let (
-        validator_storage_locations_key,
-        validator_storage_locations_bump_seed,
-        replay_protection_key,
-        _replay_protection_bump_seed,
-    ) = announcement_res;
 
     assert_successful_announcement(
         &mut banks_client,

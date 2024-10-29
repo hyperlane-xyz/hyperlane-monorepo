@@ -1,9 +1,9 @@
+import { assert } from 'console';
 import { ethers } from 'ethers';
 import { readFileSync } from 'fs';
 import * as path from 'path';
 
 import { ChainName } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
 
 import { getChains } from '../config/registry.js';
 import { InfraS3Validator } from '../src/agents/aws/validator.js';
@@ -118,10 +118,7 @@ async function main() {
     const location = announcement.value.storage_location;
     const announcedLocations =
       await validatorAnnounce.getAnnouncedStorageLocations([address]);
-    assert(
-      announcedLocations.length == 1,
-      `Expected 1 announced location, got ${announcedLocations.length}`,
-    );
+    assert(announcedLocations.length == 1);
     const announced = announcedLocations[0].includes(location);
     if (!announced) {
       const signature = ethers.utils.joinSignature(announcement.signature);

@@ -22,7 +22,6 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {EnumerableMapExtended} from "../libs/EnumerableMapExtended.sol";
 import {Router} from "../client/Router.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -159,12 +158,6 @@ contract InterchainAccountRouter is Router {
         for (uint256 i = 0; i < _destinations.length; i++) {
             _enrollRemoteRouterAndIsm(_destinations[i], _routers[i], _isms[i]);
         }
-    }
-
-    function setHook(
-        address _hook
-    ) public override onlyContractOrNull(_hook) onlyOwner {
-        hook = IPostDispatchHook(_hook);
     }
 
     // ============ External Functions ============
@@ -314,7 +307,7 @@ contract InterchainAccountRouter is Router {
             _sender,
             _ism.bytes32ToAddress()
         );
-        _interchainAccount.multicall{value: msg.value}(_calls);
+        _interchainAccount.multicall(_calls);
     }
 
     /**
@@ -607,14 +600,7 @@ contract InterchainAccountRouter is Router {
     ) private returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
         emit RemoteCallDispatched(_destination, msg.sender, _router, _ism);
-        return
-            mailbox.dispatch{value: msg.value}(
-                _destination,
-                _router,
-                _body,
-                new bytes(0),
-                hook
-            );
+        return mailbox.dispatch{value: msg.value}(_destination, _router, _body);
     }
 
     /**
@@ -639,8 +625,7 @@ contract InterchainAccountRouter is Router {
                 _destination,
                 _router,
                 _body,
-                _hookMetadata,
-                hook
+                _hookMetadata
             );
     }
 
@@ -680,13 +665,7 @@ contract InterchainAccountRouter is Router {
     function quoteGasPayment(
         uint32 _destination
     ) external view returns (uint256 _gasPayment) {
-        return
-            _Router_quoteDispatch(
-                _destination,
-                new bytes(0),
-                new bytes(0),
-                address(hook)
-            );
+        return _quoteDispatch(_destination, "");
     }
 
     /**
@@ -700,12 +679,13 @@ contract InterchainAccountRouter is Router {
         bytes calldata _messageBody,
         uint256 gasLimit
     ) external view returns (uint256 _gasPayment) {
+        bytes32 _router = _mustHaveRemoteRouter(_destination);
         return
-            _Router_quoteDispatch(
+            mailbox.quoteDispatch(
                 _destination,
+                _router,
                 _messageBody,
-                StandardHookMetadata.overrideGasLimit(gasLimit),
-                address(hook)
+                StandardHookMetadata.overrideGasLimit(gasLimit)
             );
     }
 }

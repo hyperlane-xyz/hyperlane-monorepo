@@ -16,8 +16,6 @@ contract RateLimitedIsm is
     using Message for bytes;
     using TokenMessage for bytes;
 
-    address public immutable recipient;
-
     mapping(bytes32 messageId => bool validated) public messageValidated;
 
     modifier validateMessageOnce(bytes calldata _message) {
@@ -27,22 +25,14 @@ contract RateLimitedIsm is
         _;
     }
 
-    modifier onlyRecipient(bytes calldata _message) {
-        require(_message.recipientAddress() == recipient, "InvalidRecipient");
-        _;
-    }
-
     constructor(
         address _mailbox,
-        uint256 _maxCapacity,
-        address _recipient
-    ) MailboxClient(_mailbox) RateLimited(_maxCapacity) {
-        recipient = _recipient;
-    }
+        uint256 _maxCapacity
+    ) MailboxClient(_mailbox) RateLimited(_maxCapacity) {}
 
     /// @inheritdoc IInterchainSecurityModule
     function moduleType() external pure returns (uint8) {
-        return uint8(IInterchainSecurityModule.Types.NULL);
+        return uint8(IInterchainSecurityModule.Types.UNUSED);
     }
 
     /**
@@ -52,12 +42,7 @@ contract RateLimitedIsm is
     function verify(
         bytes calldata,
         bytes calldata _message
-    )
-        external
-        onlyRecipient(_message)
-        validateMessageOnce(_message)
-        returns (bool)
-    {
+    ) external validateMessageOnce(_message) returns (bool) {
         require(_isDelivered(_message.id()), "InvalidDeliveredMessage");
 
         uint256 newAmount = _message.body().amount();

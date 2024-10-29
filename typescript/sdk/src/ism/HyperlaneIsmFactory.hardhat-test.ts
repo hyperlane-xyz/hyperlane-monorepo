@@ -6,10 +6,9 @@ import { DomainRoutingIsm, TrustedRelayerIsm } from '@hyperlane-xyz/core';
 import { Address, randomElement, randomInt } from '@hyperlane-xyz/utils';
 
 import { TestChainName, testChains } from '../consts/testChains.js';
-import { HyperlaneContractsMap } from '../contracts/types.js';
+import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { randomAddress } from '../test/testUtils.js';
 
@@ -22,7 +21,6 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
-  WeightedMultisigIsmConfig,
 } from './types.js';
 import { moduleMatchesConfig } from './utils.js';
 
@@ -30,7 +28,6 @@ function randomModuleType(): ModuleType {
   const choices = [
     ModuleType.AGGREGATION,
     ModuleType.MESSAGE_ID_MULTISIG,
-    ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG,
     ModuleType.ROUTING,
     ModuleType.NULL,
   ];
@@ -53,36 +50,6 @@ const randomMultisigIsmConfig = (
   };
 };
 
-const randomWeightedMultisigIsmConfig = (
-  n: number,
-  addresses?: string[],
-): WeightedMultisigIsmConfig => {
-  const totalWeight = 1e10;
-  const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray.map(() => ({
-    signingAddress: addresses ? randomElement(addresses) : randomAddress(),
-    weight: 0,
-  }));
-  let remainingWeight = totalWeight;
-
-  for (let i = 0; i < n; i++) {
-    if (i === n - 1) {
-      validators[i].weight = remainingWeight;
-    } else {
-      const weight = Math.floor(Math.random() * (remainingWeight + 1));
-      validators[i].weight = weight;
-      remainingWeight -= weight;
-    }
-  }
-
-  const thresholdWeight = Math.floor(Math.random() * totalWeight);
-  return {
-    type: IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
-    validators,
-    thresholdWeight,
-  };
-};
-
 export const randomIsmConfig = (
   maxDepth = 5,
   validatorAddresses?: string[],
@@ -93,9 +60,6 @@ export const randomIsmConfig = (
   if (moduleType === ModuleType.MESSAGE_ID_MULTISIG) {
     const n = randomInt(validatorAddresses?.length ?? 5, 1);
     return randomMultisigIsmConfig(randomInt(n, 1), n, validatorAddresses);
-  } else if (moduleType === ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG) {
-    const n = randomInt(validatorAddresses?.length ?? 5, 1);
-    return randomWeightedMultisigIsmConfig(randomInt(n, 1), validatorAddresses);
   } else if (moduleType === ModuleType.ROUTING) {
     const config: RoutingIsmConfig = {
       type: IsmType.ROUTING,
@@ -133,41 +97,29 @@ export const randomIsmConfig = (
 };
 
 describe('HyperlaneIsmFactory', async () => {
-  let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let ismFactory: HyperlaneIsmFactory;
+  let coreApp: TestCoreApp;
   let multiProvider: MultiProvider;
+  let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let exampleRoutingConfig: RoutingIsmConfig;
-  let mailboxAddress: Address;
-  let newMailboxAddress: Address;
-  let contractsMap: HyperlaneContractsMap<ProxyFactoryFactories> = {};
-
+  let mailboxAddress: Address, newMailboxAddress: Address;
   const chain = TestChainName.test1;
-
-  before(async () => {
-    const [signer] = await hre.ethers.getSigners();
-    multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
-    ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    contractsMap = await ismFactoryDeployer.deploy(
-      multiProvider.mapKnownChains(() => ({})),
-    );
-    ismFactory = new HyperlaneIsmFactory(contractsMap, multiProvider);
-
-    mailboxAddress = (
-      await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
-    ).getContracts(chain).mailbox.address;
-
-    newMailboxAddress = (
-      await new TestCoreDeployer(multiProvider, ismFactory).deployApp()
-    ).getContracts(chain).mailbox.address;
-  });
 
   beforeEach(async () => {
     const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
-
     ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
-    ismFactory = new HyperlaneIsmFactory(contractsMap, multiProvider);
+    ismFactory = new HyperlaneIsmFactory(
+      await ismFactoryDeployer.deploy(multiProvider.mapKnownChains(() => ({}))),
+      multiProvider,
+    );
+    let coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
+    coreApp = await coreDeployer.deployApp();
+    mailboxAddress = coreApp.getContracts(chain).mailbox.address;
+
+    coreDeployer = new TestCoreDeployer(multiProvider, ismFactory);
+    coreApp = await coreDeployer.deployApp();
+    newMailboxAddress = coreApp.getContracts(chain).mailbox.address;
 
     exampleRoutingConfig = {
       type: IsmType.ROUTING,

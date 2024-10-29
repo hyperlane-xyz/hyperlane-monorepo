@@ -29,7 +29,6 @@ pub(crate) struct Context {
     pub require_tx_approval: bool,
 }
 
-#[derive(Debug)]
 pub(crate) struct InstructionWithDescription {
     pub instruction: Instruction,
     pub description: Option<String>,
@@ -155,21 +154,8 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             );
         }
 
-        let message = Message::new(&self.instructions(), Some(&self.ctx.payer_pubkey));
-        // Useful for plugging into ledger-friendly tools
-        if std::env::var("TX_BINARY").is_ok() {
-            println!(
-                "\t==== Message as binary: ====\n\t{:?}",
-                bincode::serialize(&message)
-                    .unwrap()
-                    .iter()
-                    .map(|n| n.to_string())
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            );
-        }
-
-        let txn = Transaction::new_unsigned(message.clone());
+        let message = Message::new(&self.instructions(), None);
+        let txn = Transaction::new_unsigned(message);
         println!(
             "\t==== Transaction in base58: ====\n\t{}",
             bs58::encode(bincode::serialize(&txn).unwrap()).into_string()

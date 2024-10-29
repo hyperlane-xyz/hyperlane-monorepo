@@ -23,9 +23,5 @@ export interface TxSubmitterInterface<TProtocol extends ProtocolType> {
    */
   submit(
     ...txs: ProtocolTypedTransaction<TProtocol>['transaction'][]
-  ): Promise<
-    | ProtocolTypedReceipt<TProtocol>['receipt']
-    | ProtocolTypedReceipt<TProtocol>['receipt'][]
-    | void
-  >;
+  ): Promise<ProtocolTypedReceipt<TProtocol>['receipt'][] | void>;
 }

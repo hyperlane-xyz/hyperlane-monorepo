@@ -98,11 +98,6 @@ export type ParsedMessage = {
   body: string;
 };
 
-export type ParsedWarpRouteMessage = {
-  recipient: string;
-  amount: bigint;
-};
-
 export type ParsedLegacyMultisigIsmMetadata = {
   checkpointRoot: string;
   checkpointIndex: number;

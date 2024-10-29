@@ -10,12 +10,8 @@ import {
 import {
   attachContractsMap,
   serializeContractsMap,
-  transferOwnershipTransactions,
 } from '../contracts/contracts.js';
-import {
-  HyperlaneAddresses,
-  HyperlaneContractsMap,
-} from '../contracts/types.js';
+import { HyperlaneAddresses } from '../contracts/types.js';
 import { DeployedCoreAddresses } from '../core/schemas.js';
 import { CoreConfig } from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
@@ -24,7 +20,6 @@ import {
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
-import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
@@ -40,7 +35,6 @@ import {
 import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
-import { CoreFactories } from './contracts.js';
 import { CoreConfigSchema } from './schemas.js';
 
 export class EvmCoreModule extends HyperlaneModule<
@@ -163,8 +157,6 @@ export class EvmCoreModule extends HyperlaneModule<
       staticAggregationHookFactory,
       staticMessageIdMultisigIsmFactory,
       staticMerkleRootMultisigIsmFactory,
-      staticMerkleRootWeightedMultisigIsmFactory,
-      staticMessageIdWeightedMultisigIsmFactory,
     } = this.serialize();
 
     const ismModule = new EvmIsmModule(this.multiProvider, {
@@ -177,8 +169,6 @@ export class EvmCoreModule extends HyperlaneModule<
         staticAggregationHookFactory,
         staticMessageIdMultisigIsmFactory,
         staticMerkleRootMultisigIsmFactory,
-        staticMerkleRootWeightedMultisigIsmFactory,
-        staticMessageIdWeightedMultisigIsmFactory,
         deployedIsm: actualDefaultIsmConfig.address,
       },
     });
@@ -202,13 +192,12 @@ export class EvmCoreModule extends HyperlaneModule<
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
-    return transferOwnershipTransactions(
-      this.domainId,
-      this.args.addresses.mailbox,
-      actualConfig,
-      expectedConfig,
-      'Mailbox',
-    );
+    return EvmCoreModule.createTransferOwnershipTx({
+      actualOwner: actualConfig.owner,
+      expectedOwner: expectedConfig.owner,
+      deployedAddress: this.args.addresses.mailbox,
+      chainId: this.domainId,
+    });
   }
 
   /**
@@ -322,20 +311,9 @@ export class EvmCoreModule extends HyperlaneModule<
       )
     ).address;
 
-    // Obtain addresses of every contract created by the deployer
-    // and extract only the merkleTreeHook and interchainGasPaymaster
-    const serializedContracts = serializeContractsMap(
-      coreDeployer.deployedContracts as HyperlaneContractsMap<
-        CoreFactories & HookFactories
-      >,
-    );
-    const { merkleTreeHook, interchainGasPaymaster } =
-      serializedContracts[chainName];
-
     // Set Core & extra addresses
     return {
       ...ismFactoryFactories,
-
       proxyAdmin,
       mailbox: mailbox.address,
       interchainAccountRouter,
@@ -343,8 +321,6 @@ export class EvmCoreModule extends HyperlaneModule<
       validatorAnnounce,
       timelockController,
       testRecipient,
-      merkleTreeHook,
-      interchainGasPaymaster,
     };
   }
 

@@ -9,13 +9,9 @@ import {
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
-import {
-  BaseRelayerConfig,
-  routerMatchingList,
-} from '../../../src/config/agent/relayer.js';
+import { routerMatchingList } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
-import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
@@ -43,94 +39,58 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   [Role.Validator]: {
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
     basesepolia: true,
-    berabartio: true,
     bsctestnet: true,
-    camptestnet: true,
-    citreatestnet: true,
     connextsepolia: true,
     ecotestnet: true,
     eclipsetestnet: false,
-    formtestnet: true,
     fuji: true,
     holesky: true,
-    // hyperliquidevmtestnet: false,
-    odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
-    solanatestnet: false,
-    soneiumtestnet: true,
-    sonictestnet: true,
-    suavetoliman: true,
+    solanatestnet: true,
     superpositiontestnet: true,
-    unichaintestnet: true,
   },
   [Role.Relayer]: {
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
     basesepolia: true,
-    berabartio: true,
     bsctestnet: true,
-    camptestnet: true,
-    citreatestnet: true,
     connextsepolia: true,
     ecotestnet: true,
     eclipsetestnet: false,
-    formtestnet: true,
     fuji: true,
     holesky: true,
-    // hyperliquidevmtestnet: false,
-    odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
-    solanatestnet: false,
-    soneiumtestnet: true,
-    sonictestnet: true,
-    suavetoliman: true,
+    solanatestnet: true,
     superpositiontestnet: true,
-    unichaintestnet: true,
   },
   [Role.Scraper]: {
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
     basesepolia: true,
-    berabartio: true,
     bsctestnet: true,
-    camptestnet: true,
-    citreatestnet: true,
     connextsepolia: false,
     ecotestnet: true,
     // Cannot scrape non-EVM chains
     eclipsetestnet: false,
-    formtestnet: true,
     fuji: true,
     holesky: true,
-    // hyperliquidevmtestnet: false,
-    odysseytestnet: true,
     optimismsepolia: true,
-    // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
-    // plumetestnet: true,
+    plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
     // Cannot scrape non-EVM chains
     solanatestnet: false,
-    soneiumtestnet: true,
-    sonictestnet: true,
-    suavetoliman: true,
     superpositiontestnet: false,
-    unichaintestnet: true,
   },
 };
 
@@ -177,29 +137,6 @@ const scraperResources = {
   },
 };
 
-const relayBlacklist: BaseRelayerConfig['blacklist'] = [
-  {
-    // In an effort to reduce some giant retry queues that resulted
-    // from spam txs to the old TestRecipient before we were charging for
-    // gas, we blacklist the old TestRecipient address.
-    recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
-  },
-  // Ignore load testing done by Mitosis from sepolia when they used a different Mailbox on
-  // arbitrumsepolia and optimismsepolia.
-  {
-    originDomain: getDomainId('sepolia'),
-    senderAddress: '0xb6f4a8dccac0beab1062212f4665879d9937c83c',
-    destinationDomain: getDomainId('arbitrumsepolia'),
-    recipientAddress: '0x3da95d8d0b98d7428dc2f864511e2650e34f7087',
-  },
-  {
-    originDomain: getDomainId('sepolia'),
-    senderAddress: '0xb6f4a8dccac0beab1062212f4665879d9937c83c',
-    destinationDomain: getDomainId('optimismsepolia'),
-    recipientAddress: '0xa49942c908ec50db14652914317518661ec04904',
-  },
-];
-
 const hyperlane: RootAgentConfig = {
   ...contextBase,
   contextChainNames: hyperlaneContextAgentChainNames,
@@ -209,9 +146,17 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '463b35b-20241011-161150',
+      tag: '874a58f-20240812-172417',
     },
-    blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
+    blacklist: [
+      ...releaseCandidateHelloworldMatchingList,
+      {
+        // In an effort to reduce some giant retry queues that resulted
+        // from spam txs to the old TestRecipient before we were charging for
+        // gas, we blacklist the old TestRecipient address.
+        recipientAddress: '0xBC3cFeca7Df5A45d61BC60E7898E63670e1654aE',
+      },
+    ],
     gasPaymentEnforcement,
     metricAppContexts: [
       {
@@ -231,7 +176,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '463b35b-20241011-161150',
+      tag: '874a58f-20240812-172417',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -240,7 +185,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '463b35b-20241011-161150',
+      tag: '874a58f-20240812-172417',
     },
     resources: scraperResources,
   },
@@ -255,10 +200,9 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5a0d68b-20240916-144115',
+      tag: '0d12ff3-20240620-173353',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
-    blacklist: relayBlacklist,
     gasPaymentEnforcement,
     transactionGasLimit: 750000,
     resources: relayerResources,
@@ -267,7 +211,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '73c232b-20240912-124300',
+      tag: '0d12ff3-20240620-173353',
     },
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
     resources: validatorResources,

@@ -1,6 +1,11 @@
-import type { MultiProvider, SubmissionStrategy } from '@hyperlane-xyz/sdk';
+import { z } from 'zod';
+
+import type {
+  MultiProvider,
+  SubmissionStrategySchema,
+} from '@hyperlane-xyz/sdk';
 
 export type SubmitterBuilderSettings = {
-  submissionStrategy: SubmissionStrategy;
+  submissionStrategy: z.infer<typeof SubmissionStrategySchema>;
   multiProvider: MultiProvider;
 };

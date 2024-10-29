@@ -36,8 +36,6 @@ Common labels
 {{- define "hyperlane.labels" -}}
 helm.sh/chart: {{ include "hyperlane.chart" . }}
 hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
-hyperlane/context: {{ .Values.hyperlane.context | quote }}
-app.kubernetes.io/component: kathy
 {{ include "hyperlane.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}

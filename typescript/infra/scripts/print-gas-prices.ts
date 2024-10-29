@@ -1,52 +1,28 @@
 import { Provider } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  GasPriceConfig,
-  MultiProtocolProvider,
-  getCosmosChainGasPrice,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 // Intentionally circumvent `mainnet3/index.ts` and `getEnvironmentConfig('mainnet3')`
 // to avoid circular dependencies.
 import { getRegistry as getMainnet3Registry } from '../config/environments/mainnet3/chains.js';
-import mainnet3GasPrices from '../config/environments/mainnet3/gasPrices.json' assert { type: 'json' };
 import { supportedChainNames as mainnet3SupportedChainNames } from '../config/environments/mainnet3/supportedChainNames.js';
-import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
-import testnet4GasPrices from '../config/environments/testnet4/gasPrices.json' assert { type: 'json' };
-import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
-
-import { getArgs } from './agent-utils.js';
+import {
+  GasPriceConfig,
+  getCosmosChainGasPrice,
+} from '../src/config/gas-oracle.js';
 
 async function main() {
-  const { environment } = await getArgs().argv;
-  const { registry, supportedChainNames, gasPrices } =
-    environment === 'mainnet3'
-      ? {
-          registry: await getMainnet3Registry(),
-          supportedChainNames: mainnet3SupportedChainNames,
-          gasPrices: mainnet3GasPrices,
-        }
-      : {
-          registry: await getTestnet4Registry(),
-          supportedChainNames: testnet4SupportedChainNames,
-          gasPrices: testnet4GasPrices,
-        };
-
+  const registry = await getMainnet3Registry();
   const chainMetadata = await registry.getMetadata();
   const mpp = new MultiProtocolProvider(chainMetadata);
 
   const prices: ChainMap<GasPriceConfig> = Object.fromEntries(
     await Promise.all(
-      supportedChainNames.map(async (chain) => [
+      mainnet3SupportedChainNames.map(async (chain) => [
         chain,
-        await getGasPrice(
-          mpp,
-          chain,
-          gasPrices[chain as keyof typeof gasPrices],
-        ),
+        await getGasPrice(mpp, chain),
       ]),
     ),
   );
@@ -57,7 +33,6 @@ async function main() {
 async function getGasPrice(
   mpp: MultiProtocolProvider,
   chain: string,
-  currentGasPrice?: GasPriceConfig,
 ): Promise<GasPriceConfig> {
   const protocolType = mpp.getProtocol(chain);
   switch (protocolType) {
@@ -70,21 +45,19 @@ async function getGasPrice(
       };
     }
     case ProtocolType.Cosmos: {
-      const { amount } = await getCosmosChainGasPrice(chain, mpp);
+      const { amount } = await getCosmosChainGasPrice(chain);
+
       return {
         amount,
         decimals: 1,
       };
     }
     case ProtocolType.Sealevel:
-      // Return the gas price from the config if it exists, otherwise return some  default
       // TODO get a reasonable value
-      return (
-        currentGasPrice ?? {
-          amount: 'PLEASE SET A GAS PRICE FOR SEALEVEL',
-          decimals: 1,
-        }
-      );
+      return {
+        amount: '0.001',
+        decimals: 9,
+      };
     default:
       throw new Error(`Unsupported protocol type: ${protocolType}`);
   }

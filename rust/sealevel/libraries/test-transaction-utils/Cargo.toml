@@ -12,3 +12,6 @@ solana-sdk.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

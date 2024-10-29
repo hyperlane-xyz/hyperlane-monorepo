@@ -3,9 +3,7 @@ import {
   StaticAggregationHookFactory__factory,
   StaticAggregationIsmFactory__factory,
   StaticMerkleRootMultisigIsmFactory__factory,
-  StaticMerkleRootWeightedMultisigIsmFactory__factory,
   StaticMessageIdMultisigIsmFactory__factory,
-  StaticMessageIdWeightedMultisigIsmFactory__factory,
 } from '@hyperlane-xyz/core';
 
 // Any name changes here should also be reflected in the example artifacts.
@@ -18,10 +16,6 @@ export const proxyFactoryFactories = {
   staticAggregationIsmFactory: new StaticAggregationIsmFactory__factory(),
   staticAggregationHookFactory: new StaticAggregationHookFactory__factory(),
   domainRoutingIsmFactory: new DomainRoutingIsmFactory__factory(),
-  staticMerkleRootWeightedMultisigIsmFactory:
-    new StaticMerkleRootWeightedMultisigIsmFactory__factory(),
-  staticMessageIdWeightedMultisigIsmFactory:
-    new StaticMessageIdWeightedMultisigIsmFactory__factory(),
 };
 
 export type ProxyFactoryFactories = typeof proxyFactoryFactories;
@@ -35,8 +29,4 @@ export const proxyFactoryImplementations: ProxyFactoryImplementations = {
   staticAggregationIsmFactory: 'StaticAggregationIsm',
   staticAggregationHookFactory: 'StaticAggregationHook',
   domainRoutingIsmFactory: 'DomaingRoutingIsm',
-  staticMerkleRootWeightedMultisigIsmFactory:
-    'StaticMerkleRootWeightedMultisigIsm',
-  staticMessageIdWeightedMultisigIsmFactory:
-    'StaticMessageIdWeightedMultisigIsm',
 };

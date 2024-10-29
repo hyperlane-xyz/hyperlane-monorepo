@@ -12,7 +12,6 @@ import {
   Address,
   AddressBytes32,
   ProtocolType,
-  addBufferToGasLimit,
   addressToBytes32,
   bytes32ToAddress,
   isZeroishAddress,
@@ -26,10 +25,7 @@ import {
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
-import {
-  HyperlaneAddressesMap,
-  HyperlaneContracts,
-} from '../contracts/types.js';
+import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { OwnableConfig } from '../deploy/types.js';
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
@@ -41,10 +37,6 @@ import { findMatchingLogEvents } from '../utils/logUtils.js';
 import { CoreFactories, coreFactories } from './contracts.js';
 import { DispatchEvent } from './events.js';
 import { DispatchedMessage } from './types.js';
-
-// If no metadata is provided, ensure we provide a default of 0x0001.
-// We set to 0x0001 instead of 0x0 to ensure it does not break on zksync.
-const DEFAULT_METADATA = '0x0001';
 
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromAddressesMap(
@@ -62,25 +54,23 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   getRouterConfig = (
     owners: Address | ChainMap<OwnableConfig>,
   ): ChainMap<RouterConfig> => {
-    // filter for EVM chains
-    const evmContractsMap = objFilter(
-      this.contractsMap,
-      (chainName, _): _ is HyperlaneContracts<CoreFactories> =>
-        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
-    );
-
     // get config
     const config = objMap(
-      evmContractsMap,
+      this.contractsMap,
       (chain, contracts): RouterConfig => ({
         mailbox: contracts.mailbox.address,
         owner: typeof owners === 'string' ? owners : owners[chain].owner,
         ownerOverrides:
           typeof owners === 'string' ? undefined : owners[chain].ownerOverrides,
+        proxyAdmin: contracts.proxyAdmin.address,
       }),
     );
-
-    return config;
+    // filter for EVM chains
+    return objFilter(
+      config,
+      (chainName, _): _ is RouterConfig =>
+        this.multiProvider.getProtocol(chainName) === ProtocolType.Ethereum,
+    );
   };
 
   quoteGasPayment = (
@@ -98,7 +88,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       destinationId,
       recipient,
       body,
-      metadata || DEFAULT_METADATA,
+      metadata || '0x',
       hook || ethers.constants.AddressZero,
     );
   };
@@ -158,31 +148,17 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       metadata,
       hook,
     );
-
-    const dispatchParams = [
-      destinationDomain,
-      recipientBytes32,
-      body,
-      metadata || DEFAULT_METADATA,
-      hook || ethers.constants.AddressZero,
-    ] as const;
-
-    const estimateGas = await mailbox.estimateGas[
-      'dispatch(uint32,bytes32,bytes,bytes,address)'
-    ](...dispatchParams, { value: quote });
-
     const dispatchTx = await this.multiProvider.handleTx(
       origin,
       mailbox['dispatch(uint32,bytes32,bytes,bytes,address)'](
-        ...dispatchParams,
-        {
-          ...this.multiProvider.getTransactionOverrides(origin),
-          value: quote,
-          gasLimit: addBufferToGasLimit(estimateGas),
-        },
+        destinationDomain,
+        recipientBytes32,
+        body,
+        metadata || '0x',
+        hook || ethers.constants.AddressZero,
+        { value: quote },
       ),
     );
-
     return {
       dispatchTx,
       message: this.getDispatchedMessages(dispatchTx)[0],
@@ -260,14 +236,11 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     ismMetadata: string,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
-    const txOverrides =
-      this.multiProvider.getTransactionOverrides(destinationChain);
     return this.multiProvider.handleTx(
       destinationChain,
       this.getContracts(destinationChain).mailbox.process(
         ismMetadata,
         message.message,
-        { ...txOverrides },
       ),
     );
   }

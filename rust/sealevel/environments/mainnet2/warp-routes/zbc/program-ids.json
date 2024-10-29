@@ -1,0 +1,10 @@
+{
+  "solana": {
+    "hex": "0xc5ba229fa2822fe65ac2bd0a93d8371d75292c3415dd381923c1088a3308528b",
+    "base58": "EJqwFjvVJSAxH8Ur2PYuMfdvoJeutjmH6GkoEFQ4MdSa"
+  },
+  "nautilus": {
+    "hex": "0x0000000000000000000000004501bbe6e731a4bc5c60c03a77435b2f6d5e9fe7",
+    "base58": "111111111111xm5qkrK7gZ8Cmjr4ggPLRxy2T8a"
+  }
+}

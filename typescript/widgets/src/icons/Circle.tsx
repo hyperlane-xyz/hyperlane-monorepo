@@ -6,13 +6,13 @@ export function Circle({
   size,
   title,
   bgColorSeed,
-  className,
+  classes,
   children,
 }: PropsWithChildren<{
   size: string | number;
   title?: string;
   bgColorSeed?: number;
-  className?: string;
+  classes?: string;
 }>) {
   const bgColor =
     bgColorSeed === null || bgColorSeed == undefined
@@ -21,7 +21,7 @@ export function Circle({
   return (
     <div
       style={{ width: `${size}px`, height: `${size}px` }}
-      className={`htw-flex htw-items-center htw-justify-center htw-rounded-full htw-transition-all overflow-hidden ${bgColor} ${className}`}
+      className={`htw-flex htw-items-center htw-justify-center htw-rounded-full htw-transition-all overflow-hidden ${bgColor} ${classes}`}
       title={title}
     >
       {children}

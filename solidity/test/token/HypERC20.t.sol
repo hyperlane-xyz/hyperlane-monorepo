@@ -49,7 +49,7 @@ abstract contract HypTokenTest is Test {
     uint256 internal constant TOTAL_SUPPLY = 1_000_000e18;
     uint256 internal REQUIRED_VALUE; // initialized in setUp
     uint256 internal constant GAS_LIMIT = 10_000;
-    uint256 internal TRANSFER_AMT = 100e18;
+    uint256 internal constant TRANSFER_AMT = 100e18;
     string internal constant NAME = "HyperlaneInu";
     string internal constant SYMBOL = "HYP";
     address internal constant ALICE = address(0x1);
@@ -406,11 +406,6 @@ contract HypERC20CollateralTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function test_constructor_revert_ifInvalidToken() public {
-        vm.expectRevert("HypERC20Collateral: invalid token");
-        new HypERC20Collateral(address(0), address(localMailbox));
-    }
-
     function testInitialize_revert_ifAlreadyInitialized() public {}
 
     function testRemoteTransfer() public {
@@ -645,25 +640,7 @@ contract HypNativeTest is HypTokenTest {
         _enrollRemoteTokenRouter();
     }
 
-    function testTransfer_withHookSpecified(
-        uint256 fee,
-        bytes calldata metadata
-    ) public override {
-        TestPostDispatchHook hook = new TestPostDispatchHook();
-        hook.setFee(fee);
-
-        uint256 value = REQUIRED_VALUE + TRANSFER_AMT;
-
-        vm.prank(ALICE);
-        primaryToken.approve(address(localToken), TRANSFER_AMT);
-        bytes32 messageId = _performRemoteTransferWithHook(
-            value,
-            TRANSFER_AMT,
-            address(hook),
-            metadata
-        );
-        assertTrue(hook.messageDispatched(messageId));
-    }
+    function testInitialize_revert_ifAlreadyInitialized() public {}
 
     function testRemoteTransfer() public {
         _performRemoteTransferWithEmit(
@@ -689,30 +666,6 @@ contract HypNativeTest is HypTokenTest {
             REQUIRED_VALUE,
             TRANSFER_AMT,
             TRANSFER_AMT + GAS_LIMIT * igp.gasPrice()
-        );
-    }
-
-    function test_transferRemote_reverts_whenAmountExceedsValue(
-        uint256 nativeValue
-    ) public {
-        vm.assume(nativeValue < address(this).balance);
-
-        address recipient = address(0xdeadbeef);
-        bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
-        vm.expectRevert("Native: amount exceeds msg.value");
-        nativeToken.transferRemote{value: nativeValue}(
-            DESTINATION,
-            bRecipient,
-            nativeValue + 1
-        );
-
-        vm.expectRevert("Native: amount exceeds msg.value");
-        nativeToken.transferRemote{value: nativeValue}(
-            DESTINATION,
-            bRecipient,
-            nativeValue + 1,
-            bytes(""),
-            address(0)
         );
     }
 }

@@ -390,20 +390,6 @@ export class ChainMetadataManager<MetaExt = {}> {
   }
 
   /**
-   * Get native token for given chain
-   * @throws if native token has not been set
-   */
-  async getNativeToken(
-    chainNameOrId: ChainNameOrId,
-  ): Promise<NonNullable<ChainMetadata['nativeToken']>> {
-    const metadata = this.tryGetChainMetadata(chainNameOrId);
-    if (!metadata || !metadata.nativeToken) {
-      throw new Error(`Missing data for native token for ${chainNameOrId}`);
-    }
-    return metadata.nativeToken;
-  }
-
-  /**
    * Creates a new ChainMetadataManager with the extended metadata
    * @param additionalMetadata extra fields to add to the metadata for each chain
    * @returns a new ChainMetadataManager

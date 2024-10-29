@@ -1,59 +1,5 @@
 # @hyperlane-xyz/utils
 
-## 5.6.2
-
-### Patch Changes
-
-- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
-- a36fc5fb2: fix: isObject utils fn should return only boolean value
-
-## 5.6.1
-
-## 5.6.0
-
-### Minor Changes
-
-- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
-
-### Patch Changes
-
-- f1712deb7: Fix objMerge implementation
-
-## 5.5.0
-
-### Minor Changes
-
-- 2afc484a2: Migrate fetchWithTimeout from widgets to utils
-  Add objSlice function and improve types for objMerge
-  Add isUrl function
-
-## 5.4.0
-
-### Minor Changes
-
-- 4415ac224: Add Gnosis safe transaction builder to warp apply
-
-## 5.3.0
-
-### Minor Changes
-
-- 746eeb9d9: Add parseTokenMessage util for decoding warp route transfers
-
-### Patch Changes
-
-- 50319d8ba: Ensure runWithTimeout cleans up after itself properly
-
-## 5.2.1
-
-## 5.2.0
-
-### Minor Changes
-
-- d6de34ad5: Add sortArraysInConfig method, normalizeConfig implementation to call sortArraysInConfig after current behavior
-- 291c5fe36: Add addBufferToGasLimit for gas limit buffer calculations
-
-## 5.1.0
-
 ## 5.0.0
 
 ### Major Changes

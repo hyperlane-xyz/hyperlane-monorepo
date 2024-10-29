@@ -5,7 +5,7 @@ import {
   TestRecipient,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
-import { Address, isZeroishAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -34,11 +34,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     readonly ismFactory: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
     concurrentDeploy: boolean = false,
-    chainTimeoutMs: number = 1000 * 60 * 10, // 10 minutes
   ) {
     super(multiProvider, coreFactories, {
       logger: rootLogger.child({ module: 'CoreDeployer' }),
-      chainTimeoutMs,
+      chainTimeoutMs: 1000 * 60 * 10, // 10 minutes
       ismFactory,
       contractVerifier,
       concurrentDeploy,
@@ -48,12 +47,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       {},
       ismFactory,
       contractVerifier,
-      concurrentDeploy,
     );
     this.testRecipient = new TestRecipientDeployer(
       multiProvider,
       contractVerifier,
-      concurrentDeploy,
     );
   }
 
@@ -110,60 +107,63 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       hookAddresses,
     );
 
-    const txOverrides = this.multiProvider.getTransactionOverrides(chain);
-
-    // Check if the mailbox has already been initialized
-    const currentDefaultIsm = await mailbox.defaultIsm();
-    if (isZeroishAddress(currentDefaultIsm)) {
-      // If the default ISM is the zero address, the mailbox hasn't been initialized
+    // configure mailbox
+    try {
       this.logger.debug('Initializing mailbox');
-      try {
-        await this.multiProvider.handleTx(
-          chain,
-          mailbox.initialize(
-            config.owner,
-            defaultIsm,
-            defaultHook.address,
-            requiredHook.address,
-            txOverrides,
-          ),
-        );
-      } catch (e: any) {
-        // If we still get an error here, it's likely a genuine error
-        this.logger.error('Failed to initialize mailbox:', e);
+      await this.multiProvider.handleTx(
+        chain,
+        mailbox.initialize(
+          config.owner,
+          defaultIsm,
+          defaultHook.address,
+          requiredHook.address,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
+    } catch (e: any) {
+      if (
+        !e.message.includes('already initialized') &&
+        // Some RPC providers dont return the revert reason (nor allow ethers to parse it), so we have to check the message
+        !e.message.includes('Reverted 0x08c379a') &&
+        // Handle situation where the gas estimation fails on the call function,
+        // then the real error reason is not available in `e.message`, but rather in `e.error.reason`
+        !e.error?.reason?.includes('already initialized') &&
+        // Some providers, like on Viction, return a generic error message for all revert reasons
+        !e.message.includes('always failing transaction')
+      ) {
         throw e;
       }
-    } else {
-      // If the default ISM is not the zero address, the mailbox has likely been initialized
-      this.logger.debug('Mailbox appears to be already initialized');
+
+      this.logger.debug('Mailbox already initialized');
+
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
+      await this.configureHook(
+        chain,
+        mailbox,
+        defaultHook.address,
+        (_mailbox) => _mailbox.defaultHook(),
+        (_mailbox, _hook) =>
+          _mailbox.populateTransaction.setDefaultHook(_hook, { ...overrides }),
+      );
+
+      await this.configureHook(
+        chain,
+        mailbox,
+        requiredHook.address,
+        (_mailbox) => _mailbox.requiredHook(),
+        (_mailbox, _hook) =>
+          _mailbox.populateTransaction.setRequiredHook(_hook, { ...overrides }),
+      );
+
+      await this.configureIsm(
+        chain,
+        mailbox,
+        defaultIsm,
+        (_mailbox) => _mailbox.defaultIsm(),
+        (_mailbox, _module) =>
+          _mailbox.populateTransaction.setDefaultIsm(_module),
+      );
     }
-
-    await this.configureHook(
-      chain,
-      mailbox,
-      defaultHook.address,
-      (_mailbox) => _mailbox.defaultHook(),
-      (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setDefaultHook(_hook, { ...txOverrides }),
-    );
-
-    await this.configureHook(
-      chain,
-      mailbox,
-      requiredHook.address,
-      (_mailbox) => _mailbox.requiredHook(),
-      (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setRequiredHook(_hook, { ...txOverrides }),
-    );
-
-    await this.configureIsm(
-      chain,
-      mailbox,
-      defaultIsm,
-      (_mailbox) => _mailbox.defaultIsm(),
-      (_mailbox, _module) =>
-        _mailbox.populateTransaction.setDefaultIsm(_module),
-    );
 
     return mailbox;
   }

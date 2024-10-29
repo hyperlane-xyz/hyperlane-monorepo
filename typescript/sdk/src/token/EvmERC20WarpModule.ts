@@ -12,10 +12,10 @@ import {
   assert,
   deepEquals,
   isObjEmpty,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -25,7 +25,6 @@ import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -215,13 +214,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    return transferOwnershipTransactions(
-      this.multiProvider.getDomainId(this.args.chain),
-      this.args.addresses.deployedTokenRoute,
-      actualConfig,
-      expectedConfig,
-      `${expectedConfig.type} Warp Route`,
-    );
+    return EvmERC20WarpModule.createTransferOwnershipTx({
+      actualOwner: actualConfig.owner,
+      expectedOwner: expectedConfig.owner,
+      deployedAddress: this.args.addresses.deployedTokenRoute,
+      chainId: this.domainId,
+    });
   }
 
   /**

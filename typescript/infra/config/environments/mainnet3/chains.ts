@@ -19,10 +19,13 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
     },
   },
   polygon: {
+    blocks: {
+      confirmations: 3,
+    },
     transactionOverrides: {
       // A very high max fee per gas is used as Polygon is susceptible
       // to large swings in gas prices.
-      maxFeePerGas: 800 * 10 ** 9, // 800 gwei
+      maxFeePerGas: 550 * 10 ** 9, // 550 gwei
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
@@ -31,20 +34,28 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 1 * 10 ** 9, // 1 gwei
     },
   },
+  ethereum: {
+    blocks: {
+      confirmations: 3,
+    },
+    transactionOverrides: {
+      maxFeePerGas: 150 * 10 ** 9, // gwei
+      maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
+    },
+  },
   scroll: {
     transactionOverrides: {
       // Scroll doesn't use EIP 1559 and the gas price that's returned is sometimes
       // too low for the transaction to be included in a reasonable amount of time -
       // this often leads to transaction underpriced issues.
-      gasPrice: 2 * 10 ** 8, // 0.2 gwei
+      gasPrice: 2 * 10 ** 9, // 2 gwei
     },
   },
   sei: {
     // Sei's `eth_feeHistory` is not to spec and incompatible with ethers-rs,
     // so we force legacy transactions by setting a gas price.
-    // A minimum fee of 100 gwei is imposed https://seitrace.com/proposal/83?chain=pacific-1
     transactionOverrides: {
-      gasPrice: 101 * 10 ** 9, // 101 gwei
+      gasPrice: 2 * 10 ** 9, // 2 gwei
     },
   },
   moonbeam: {
@@ -53,23 +64,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
-  rootstock: {
-    transactionOverrides: {
-      gasPrice: 7 * 10 ** 7, // 0.07 gwei
-      // gasLimit: 6800000, // set when deploying contracts
-    },
-  },
-  // Deploy-only overrides, set when deploying contracts
-  // chiliz: {
-  //   transactionOverrides: {
-  //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
-  //   },
-  // },
-  // zircuit: {
-  //   blocks: {
-  //     confirmations: 3,
-  //   },
-  // },
 };
 
 export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>

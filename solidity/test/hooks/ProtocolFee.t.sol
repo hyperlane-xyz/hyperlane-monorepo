@@ -42,9 +42,6 @@ contract ProtocolFeeTest is Test {
 
     function testSetProtocolFee(uint256 fee) public {
         fee = bound(fee, 0, fees.MAX_PROTOCOL_FEE());
-
-        vm.expectEmit(true, true, true, true);
-        emit ProtocolFee.ProtocolFeeSet(fee);
         fees.setProtocolFee(fee);
         assertEq(fees.protocolFee(), fee);
     }
@@ -70,13 +67,6 @@ contract ProtocolFeeTest is Test {
         fees.setProtocolFee(fee);
 
         assertEq(fees.protocolFee(), FEE);
-    }
-
-    function testSetBeneficiary(address beneficiary) public {
-        vm.expectEmit(true, true, true, true);
-        emit ProtocolFee.BeneficiarySet(beneficiary);
-        fees.setBeneficiary(beneficiary);
-        assertEq(fees.beneficiary(), beneficiary);
     }
 
     function testSetBeneficiary_revertWhen_notOwner() public {

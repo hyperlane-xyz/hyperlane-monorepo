@@ -1,6 +1,5 @@
 {
   "rules": {
-    "no-console": ["off"],
-    "no-restricted-imports": ["off"]
+    "no-console": ["off"]
   }
 }

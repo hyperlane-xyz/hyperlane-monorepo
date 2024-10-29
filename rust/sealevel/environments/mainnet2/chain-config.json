@@ -1,0 +1,350 @@
+{
+  "bsc": {
+    "chainId": 56,
+    "domainId": 56,
+    "name": "bsc",
+    "protocol": "ethereum",
+    "displayName": "Binance Smart Chain",
+    "displayNameShort": "Binance",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "BNB",
+      "symbol": "BNB"
+    },
+    "rpcUrls": [
+      {
+        "http": "https://bsc-dataseed.binance.org"
+      },
+      {
+        "http": "https://rpc.ankr.com/bsc"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "BscScan",
+        "url": "https://bscscan.com",
+        "apiUrl": "https://api.bscscan.com/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 15,
+      "estimateBlockTime": 3
+    },
+    "gasCurrencyCoinGeckoId": "binancecoin",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-bsc.safe.global/",
+    "transactionOverrides": {
+      "gasPrice": 7000000000
+    }
+  },
+  "avalanche": {
+    "chainId": 43114,
+    "domainId": 43114,
+    "name": "avalanche",
+    "protocol": "ethereum",
+    "displayName": "Avalanche",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Avalanche",
+      "symbol": "AVAX"
+    },
+    "rpcUrls": [
+      {
+        "http": "https://api.avax.network/ext/bc/C/rpc",
+        "pagination": {
+          "maxBlockRange": 100000,
+          "minBlockNumber": 6765067
+        }
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "SnowTrace",
+        "url": "https://snowtrace.io",
+        "apiUrl": "https://api.snowtrace.io/api",
+        "family": "other"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "reorgPeriod": 3,
+      "estimateBlockTime": 2
+    },
+    "gasCurrencyCoinGeckoId": "avalanche-2",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-avalanche.safe.global/"
+  },
+  "polygon": {
+    "chainId": 137,
+    "domainId": 137,
+    "name": "polygon",
+    "protocol": "ethereum",
+    "displayName": "Polygon",
+    "nativeToken": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://rpc-mainnet.matic.quiknode.pro",
+        "pagination": {
+          "maxBlockRange": 10000,
+          "minBlockNumber": 19657100
+        }
+      },
+      {
+        "http": "https://polygon-rpc.com"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "PolygonScan",
+        "url": "https://polygonscan.com",
+        "apiUrl": "https://api.polygonscan.com/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "reorgPeriod": 256,
+      "estimateBlockTime": 2
+    },
+    "gasCurrencyCoinGeckoId": "matic-network",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-polygon.safe.global/",
+    "transactionOverrides": {
+      "maxFeePerGas": 500000000000,
+      "maxPriorityFeePerGas": 100000000000
+    }
+  },
+  "celo": {
+    "chainId": 42220,
+    "domainId": 42220,
+    "name": "celo",
+    "protocol": "ethereum",
+    "displayName": "Celo",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "CELO",
+      "symbol": "CELO"
+    },
+    "rpcUrls": [
+      {
+        "http": "https://forno.celo.org"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "CeloScan",
+        "url": "https://celoscan.io",
+        "apiUrl": "https://api.celoscan.io/api",
+        "family": "etherscan"
+      },
+      {
+        "name": "Blockscout",
+        "url": "https://explorer.celo.org",
+        "apiUrl": "https://explorer.celo.org/mainnet/api",
+        "family": "blockscout"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 0,
+      "estimateBlockTime": 5
+    },
+    "gnosisSafeTransactionServiceUrl": "https://mainnet-tx-svc.celo-safe-prod.celo-networks-dev.org/"
+  },
+  "arbitrum": {
+    "chainId": 42161,
+    "domainId": 42161,
+    "name": "arbitrum",
+    "protocol": "ethereum",
+    "displayName": "Arbitrum",
+    "nativeToken": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://arb1.arbitrum.io/rpc"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "Arbiscan",
+        "url": "https://arbiscan.io",
+        "apiUrl": "https://api.arbiscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 0,
+      "estimateBlockTime": 3
+    },
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-arbitrum.safe.global/"
+  },
+  "optimism": {
+    "chainId": 10,
+    "domainId": 10,
+    "name": "optimism",
+    "protocol": "ethereum",
+    "displayName": "Optimism",
+    "nativeToken": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://mainnet.optimism.io"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "Etherscan",
+        "url": "https://optimistic.etherscan.io",
+        "apiUrl": "https://api-optimistic.etherscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 0,
+      "estimateBlockTime": 3
+    },
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-optimism.safe.global/"
+  },
+  "ethereum": {
+    "chainId": 1,
+    "domainId": 1,
+    "name": "ethereum",
+    "protocol": "ethereum",
+    "displayName": "Ethereum",
+    "nativeToken": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
+      },
+      {
+        "http": "https://cloudflare-eth.com"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "Etherscan",
+        "url": "https://etherscan.io",
+        "apiUrl": "https://api.etherscan.io/api",
+        "family": "etherscan"
+      },
+      {
+        "name": "Blockscout",
+        "url": "https://blockscout.com/eth/mainnet",
+        "apiUrl": "https://blockscout.com/eth/mainnet/api",
+        "family": "blockscout"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "reorgPeriod": 14,
+      "estimateBlockTime": 13
+    },
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-mainnet.safe.global/",
+    "transactionOverrides": {
+      "maxFeePerGas": 150000000000,
+      "maxPriorityFeePerGas": 5000000000
+    }
+  },
+  "moonbeam": {
+    "chainId": 1284,
+    "domainId": 1284,
+    "name": "moonbeam",
+    "protocol": "ethereum",
+    "displayName": "Moonbeam",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "GLMR",
+      "symbol": "GLMR"
+    },
+    "rpcUrls": [
+      {
+        "http": "https://rpc.api.moonbeam.network"
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "MoonScan",
+        "url": "https://moonscan.io",
+        "apiUrl": "https://api-moonbeam.moonscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 2,
+      "reorgPeriod": 2,
+      "estimateBlockTime": 12
+    },
+    "gnosisSafeTransactionServiceUrl": "https://transaction.multisig.moonbeam.network"
+  },
+  "gnosis": {
+    "chainId": 100,
+    "domainId": 100,
+    "name": "gnosis",
+    "protocol": "ethereum",
+    "displayName": "Gnosis",
+    "nativeToken": {
+      "name": "xDai",
+      "symbol": "xDai",
+      "decimals": 18
+    },
+    "rpcUrls": [
+      {
+        "http": "https://rpc.gnosischain.com",
+        "pagination": {
+          "maxBlockRange": 10000,
+          "minBlockNumber": 25997478
+        }
+      }
+    ],
+    "blockExplorers": [
+      {
+        "name": "GnosisScan",
+        "url": "https://gnosisscan.io",
+        "apiUrl": "https://api.gnosisscan.io/api",
+        "family": "etherscan"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "reorgPeriod": 14,
+      "estimateBlockTime": 5
+    },
+    "gasCurrencyCoinGeckoId": "xdai",
+    "gnosisSafeTransactionServiceUrl": "https://safe-transaction-gnosis-chain.safe.global/"
+  },
+  "solana": {
+    "chainId": 1399811149,
+    "name": "solana",
+    "rpcUrls": [
+      {
+        "http": "https://api.mainnet-beta.solana.com"
+      }
+    ]
+  },
+  "nautilus": {
+    "chainId": 22222,
+    "name": "nautilus",
+    "rpcUrls": [
+      {
+        "http": "https://api.nautilus.nautchain.xyz"
+      }
+    ]
+  }
+}

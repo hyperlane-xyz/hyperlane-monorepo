@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
-  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
@@ -13,19 +12,16 @@ import {
   IMultisigIsm,
   IMultisigIsm__factory,
   IRoutingIsm,
-  IStaticWeightedMultisigIsm,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
-  StaticWeightedValidatorSetFactory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
-  addBufferToGasLimit,
   assert,
   eqAddress,
   objFilter,
@@ -34,10 +30,7 @@ import {
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
-import {
-  HyperlaneAddressesMap,
-  HyperlaneContractsMap,
-} from '../contracts/types.js';
+import { HyperlaneAddressesMap } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
@@ -55,43 +48,18 @@ import {
   MultisigIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
-  WeightedMultisigIsmConfig,
 } from './types.js';
 import { routingModuleDelta } from './utils.js';
-
-const ismFactories = {
-  [IsmType.PAUSABLE]: new PausableIsm__factory(),
-  [IsmType.TRUSTED_RELAYER]: new TrustedRelayerIsm__factory(),
-  [IsmType.TEST_ISM]: new TestIsm__factory(),
-  [IsmType.OP_STACK]: new OPStackIsm__factory(),
-  [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
-};
-
-class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
-  protected readonly cachingEnabled = false;
-
-  deployContracts(_chain: ChainName, _config: any): Promise<any> {
-    throw new Error('Method not implemented.');
-  }
-}
 
 export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // The shape of this object is `ChainMap<Address | ChainMap<Address>`,
   // although `any` is use here because that type breaks a lot of signatures.
   // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
-  protected readonly deployer: IsmDeployer;
 
-  constructor(
-    contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
-    public readonly multiProvider: MultiProvider,
-  ) {
-    super(
-      contractsMap,
-      multiProvider,
-      rootLogger.child({ module: 'ismFactoryApp' }),
-    );
-    this.deployer = new IsmDeployer(multiProvider, ismFactories);
+  protected deployer?: HyperlaneDeployer<any, any>;
+  setDeployer(deployer: HyperlaneDeployer<any, any>): void {
+    this.deployer = deployer;
   }
 
   static fromAddressesMap(
@@ -103,7 +71,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       proxyFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(helper.contractsMap, multiProvider);
+    return new HyperlaneIsmFactory(
+      helper.contractsMap,
+      multiProvider,
+      rootLogger.child({ module: 'ismFactoryApp' }),
+    );
   }
 
   async deploy<C extends IsmConfig>(params: {
@@ -137,14 +109,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       case IsmType.MERKLE_ROOT_MULTISIG:
         contract = await this.deployMultisigIsm(destination, config, logger);
         break;
-      case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
-      case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
-        contract = await this.deployWeightedMultisigIsm(
-          destination,
-          config,
-          logger,
-        );
-        break;
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
         contract = await this.deployRoutingIsm({
@@ -166,37 +130,54 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.OP_STACK:
-        contract = await this.deployer.deployContract(destination, ismType, [
-          config.nativeBridge,
-        ]);
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        contract = await this.deployer.deployContractFromFactory(
+          destination,
+          new OPStackIsm__factory(),
+          IsmType.OP_STACK,
+          [config.nativeBridge],
+        );
         break;
       case IsmType.PAUSABLE:
-        contract = await this.deployer.deployContract(
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        contract = await this.deployer.deployContractFromFactory(
           destination,
+          new PausableIsm__factory(),
           IsmType.PAUSABLE,
           [config.owner],
         );
+        await this.deployer.transferOwnershipOfContracts(destination, config, {
+          [IsmType.PAUSABLE]: contract,
+        });
         break;
       case IsmType.TRUSTED_RELAYER:
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
-        contract = await this.deployer.deployContract(
+        contract = await this.deployer.deployContractFromFactory(
           destination,
+          new TrustedRelayerIsm__factory(),
           IsmType.TRUSTED_RELAYER,
           [mailbox, config.relayer],
         );
         break;
       case IsmType.TEST_ISM:
-        contract = await this.deployer.deployContract(
+        if (!this.deployer) {
+          throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
+        }
+        contract = await this.deployer.deployContractFromFactory(
           destination,
+          new TestIsm__factory(),
           IsmType.TEST_ISM,
           [],
-        );
-        break;
-      case IsmType.ARB_L2_TO_L1:
-        contract = await this.deployer.deployContract(
-          destination,
-          IsmType.ARB_L2_TO_L1,
-          [config.bridge],
         );
         break;
       default:
@@ -238,30 +219,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       config.validators,
       logger,
       config.threshold,
-    );
-
-    return IMultisigIsm__factory.connect(address, signer);
-  }
-
-  protected async deployWeightedMultisigIsm(
-    destination: ChainName,
-    config: WeightedMultisigIsmConfig,
-    logger: Logger,
-  ): Promise<IMultisigIsm> {
-    const signer = this.multiProvider.getSigner(destination);
-    const weightedmultisigIsmFactory =
-      config.type === IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG
-        ? this.getContracts(destination)
-            .staticMerkleRootWeightedMultisigIsmFactory
-        : this.getContracts(destination)
-            .staticMessageIdWeightedMultisigIsmFactory;
-
-    const address = await this.deployStaticWeightedValidatorSet(
-      destination,
-      weightedmultisigIsmFactory,
-      config.validators,
-      config.thresholdWeight,
-      logger,
     );
 
     return IMultisigIsm__factory.connect(address, signer);
@@ -408,14 +365,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           submoduleAddresses,
           overrides,
         );
-        // add gas buffer
+        // add 10% buffer
         const tx = await domainRoutingIsmFactory.deploy(
           owner,
           safeConfigDomains,
           submoduleAddresses,
           {
-            gasLimit: addBufferToGasLimit(estimatedGas),
             ...overrides,
+            gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
           },
         );
         // TODO: Should verify contract here
@@ -504,10 +461,10 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         threshold,
         overrides,
       );
-      // add gas buffer
+      // add 10% buffer
       const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
+        gasLimit: estimatedGas.add(estimatedGas.div(10)), // 10% buffer
       });
 
       await this.multiProvider.handleTx(chain, hash);
@@ -515,50 +472,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     } else {
       logger.debug(
         `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
-      );
-    }
-    return address;
-  }
-
-  async deployStaticWeightedValidatorSet(
-    chain: ChainName,
-    factory: StaticWeightedValidatorSetFactory,
-    values: IStaticWeightedMultisigIsm.ValidatorInfoStruct[],
-    thresholdWeight = 66e8,
-    logger: Logger,
-  ): Promise<Address> {
-    const sorted = [...values].sort();
-
-    const address = await factory['getAddress((address,uint96)[],uint96)'](
-      sorted,
-      thresholdWeight,
-    );
-    const code = await this.multiProvider.getProvider(chain).getCode(address);
-    if (code === '0x') {
-      logger.debug(
-        `Deploying new weighted set of ${values.length} validators with a threshold weight ${thresholdWeight} on ${chain} `,
-      );
-      const overrides = this.multiProvider.getTransactionOverrides(chain);
-
-      // estimate gas
-      const estimatedGas = await factory.estimateGas[
-        'deploy((address,uint96)[],uint96)'
-      ](sorted, thresholdWeight, overrides);
-      // add gas buffer
-      const hash = await factory['deploy((address,uint96)[],uint96)'](
-        sorted,
-        thresholdWeight,
-        {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        },
-      );
-
-      await this.multiProvider.handleTx(chain, hash);
-      // TODO: add proxy verification artifact?
-    } else {
-      logger.debug(
-        `Recovered weighted set of ${values.length} validators on ${chain} with a threshold weight ${thresholdWeight}: ${address}`,
       );
     }
     return address;

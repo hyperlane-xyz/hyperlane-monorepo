@@ -24,6 +24,7 @@ import {
   TestChainName,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
+import { normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -35,7 +36,6 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { TokenType } from './config.js';
@@ -111,7 +111,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a collateral config', async () => {
-    const config: TokenRouterConfig = {
+    const config = {
       ...baseConfig,
       type: TokenType.collateral,
       token: token.address,
@@ -139,7 +139,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       TOKEN_NAME,
       TOKEN_NAME,
     );
-    const config: TokenRouterConfig = {
+    const config = {
       type: TokenType.collateralVault,
       token: vault.address,
       hook: hookAddress,
@@ -172,8 +172,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a synthetic config', async () => {
-    const config: TokenRouterConfig = {
+    const config = {
       type: TokenType.synthetic,
+      token: token.address,
       hook: hookAddress,
       name: TOKEN_NAME,
       symbol: TOKEN_NAME,

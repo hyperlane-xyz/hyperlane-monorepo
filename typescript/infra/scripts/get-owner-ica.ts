@@ -1,13 +1,15 @@
+import { ethers } from 'ethers';
+
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { isEthereumProtocolChain } from '../src/utils/utils.js';
+import { getSecretRpcEndpoints } from '../src/agents/index.js';
 
-import { getArgs as getEnvArgs, withChains } from './agent-utils.js';
+import { getArgs as getEnvArgs, withChainRequired } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
 function getArgs() {
-  return withChains(getEnvArgs())
+  return withChainRequired(getEnvArgs())
     .option('ownerChain', {
       type: 'string',
       description: 'Origin chain where the governing owner lives',
@@ -24,14 +26,14 @@ function getArgs() {
       description: 'Deploys the ICA if it does not exist',
       default: false,
     })
-    .alias('chains', 'destinationChains').argv;
+    .alias('chain', 'destinationChain').argv;
 }
 
 async function main() {
   const {
     environment,
     ownerChain,
-    chains,
+    chain,
     deploy,
     owner: ownerOverride,
   } = await getArgs();
@@ -43,7 +45,7 @@ async function main() {
     throw new Error(`No owner found for ${ownerChain}`);
   }
 
-  console.log(`Governance owner on ${ownerChain}: ${originOwner}`);
+  rootLogger.info(`Governance owner on ${ownerChain}: ${originOwner}`);
 
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
   const ica = InterchainAccount.fromAddressesMap(chainAddresses, multiProvider);
@@ -53,49 +55,23 @@ async function main() {
     owner: originOwner,
   };
 
-  const getOwnerIcaChains = (
-    chains?.length ? chains : config.supportedChainNames
-  ).filter(isEthereumProtocolChain);
+  const account = await ica.getAccount(chain, ownerConfig);
 
-  const results: Record<string, { ICA: Address; Deployed?: string }> = {};
-  const settledResults = await Promise.allSettled(
-    getOwnerIcaChains.map(async (chain) => {
-      try {
-        const account = await ica.getAccount(chain, ownerConfig);
-        const result: { ICA: Address; Deployed?: string } = { ICA: account };
+  rootLogger.info(`ICA on ${chain}: ${account}`);
 
-        if (deploy) {
-          const deployedAccount = await ica.deployAccount(chain, ownerConfig);
-          result.Deployed = eqAddress(account, deployedAccount) ? '✅' : '❌';
-          if (result.Deployed === '❌') {
-            console.warn(
-              `Mismatch between account and deployed account for ${chain}`,
-            );
-          }
-        }
+  if (deploy) {
+    // Ensuring the account was deployed
+    const deployedAccount = await ica.deployAccount(chain, ownerConfig);
+    // This shouldn't ever happen, but let's be safe
+    assert(
+      eqAddress(account, deployedAccount),
+      'Fatal mismatch between account and deployed account',
+    );
 
-        return { chain, result };
-      } catch (error) {
-        console.error(`Error processing chain ${chain}:`, error);
-        return { chain, error };
-      }
-    }),
-  );
-
-  settledResults.forEach((settledResult) => {
-    if (settledResult.status === 'fulfilled') {
-      const { chain, result, error } = settledResult.value;
-      if (error || !result) {
-        console.error(`Failed to process ${chain}:`, error);
-      } else {
-        results[chain] = result;
-      }
-    } else {
-      console.error(`Promise rejected:`, settledResult.reason);
-    }
-  });
-
-  console.table(results);
+    rootLogger.info(
+      `ICA deployed or recovered on ${chain}: ${deployedAccount}`,
+    );
+  }
 }
 
 main()

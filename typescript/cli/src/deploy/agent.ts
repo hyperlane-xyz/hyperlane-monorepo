@@ -28,11 +28,11 @@ export async function runKurtosisAgentDeploy({
     );
   }
   if (!relayChains) {
-    const selectedRelayChains = await runMultiChainSelectionStep({
-      chainMetadata: context.chainMetadata,
-      message: 'Select chains to relay between',
-      requireNumber: 2,
-    });
+    const selectedRelayChains = await runMultiChainSelectionStep(
+      context.chainMetadata,
+      'Select chains to relay between',
+      2,
+    );
     relayChains = selectedRelayChains.join(',');
   }
 

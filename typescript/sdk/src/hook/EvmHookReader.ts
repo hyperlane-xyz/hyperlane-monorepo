@@ -26,7 +26,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
-import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -84,12 +83,6 @@ export interface HookReader {
 
 export class EvmHookReader extends HyperlaneReader implements HookReader {
   protected readonly logger = rootLogger.child({ module: 'EvmHookReader' });
-  /**
-   * HookConfig cache for already retrieved configs. Useful to avoid recomputing configs
-   * when they have already been retrieved in previous calls where `deriveHookConfig` was called by
-   * the specific hook methods.
-   */
-  private _cache: Map<Address, any> = new Map();
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -97,29 +90,13 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
-    protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
   }
 
   async deriveHookConfig(address: Address): Promise<DerivedHookConfig> {
-    this.logger.debug('Deriving HookConfig:', { address });
-
-    const cachedValue = this._cache.get(address);
-    if (cachedValue) {
-      this.logger.debug(
-        `Cache hit for HookConfig on chain ${this.chain} at: ${address}`,
-      );
-      return cachedValue;
-    }
-
-    this.logger.debug(
-      `Cache miss for HookConfig on chain ${this.chain} at: ${address}`,
-    );
-
     let onchainHookType: OnchainHookType | undefined = undefined;
     let derivedHookConfig: DerivedHookConfig;
-
     try {
       const hook = IPostDispatchHook__factory.connect(address, this.provider);
       this.logger.debug('Deriving HookConfig:', { address });
@@ -191,14 +168,10 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const hook = MerkleTreeHook__factory.connect(address, this.provider);
     this.assertHookType(await hook.hookType(), OnchainHookType.MERKLE_TREE);
 
-    const config: WithAddress<MerkleTreeHookConfig> = {
+    return {
       address,
       type: HookType.MERKLE_TREE,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   async deriveAggregationConfig(
@@ -214,15 +187,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       (hook) => this.deriveHookConfig(hook),
     );
 
-    const config: WithAddress<AggregationHookConfig> = {
+    return {
       address,
       type: HookType.AGGREGATION,
       hooks: hookConfigs,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   async deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>> {
@@ -290,7 +259,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       oracleKey = resolvedOracleKeys[0];
     }
 
-    const config: WithAddress<IgpHookConfig> = {
+    return {
       owner,
       address,
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
@@ -299,10 +268,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       overhead,
       oracleConfig,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   async deriveProtocolFeeConfig(
@@ -316,7 +281,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const protocolFee = await hook.protocolFee();
     const beneficiary = await hook.beneficiary();
 
-    const config: WithAddress<ProtocolFeeHookConfig> = {
+    return {
       owner,
       address,
       type: HookType.PROTOCOL_FEE,
@@ -324,10 +289,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       protocolFee: protocolFee.toString(),
       beneficiary,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   async deriveOpStackConfig(
@@ -342,17 +303,13 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
-    const config: WithAddress<OpStackHookConfig> = {
+    return {
       owner,
       address,
       type: HookType.OP_STACK,
       nativeBridge: messengerContract,
       destinationChain: destinationChainName,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   async deriveArbL2ToL1Config(
@@ -364,39 +321,29 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationDomain = await hook.destinationDomain();
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
-
-    const config: WithAddress<ArbL2ToL1HookConfig> = {
+    return {
       address,
       type: HookType.ARB_L2_TO_L1,
       destinationChain: destinationChainName,
       arbSys,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   async deriveDomainRoutingConfig(
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
-
     this.assertHookType(await hook.hookType(), OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
     const domainHooks = await this.fetchDomainHooks(hook);
 
-    const config: WithAddress<DomainRoutingHookConfig> = {
+    return {
       owner,
       address,
       type: HookType.ROUTING,
       domains: domainHooks,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   async deriveFallbackRoutingConfig(
@@ -406,7 +353,6 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       this.provider,
     );
-
     this.assertHookType(
       await hook.hookType(),
       OnchainHookType.FALLBACK_ROUTING,
@@ -418,25 +364,19 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const fallbackHook = await hook.fallbackHook();
     const fallbackHookConfig = await this.deriveHookConfig(fallbackHook);
 
-    const config: WithAddress<FallbackRoutingHookConfig> = {
+    return {
       owner,
       address,
       type: HookType.FALLBACK_ROUTING,
       domains: domainHooks,
       fallback: fallbackHookConfig,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   private async fetchDomainHooks(
     hook: DomainRoutingHook | FallbackDomainRoutingHook,
   ): Promise<RoutingHookConfig['domains']> {
-    const domainIds = this.messageContext
-      ? [this.messageContext.parsed.destination]
-      : this.multiProvider.getKnownDomainIds();
+    const domainIds = this.multiProvider.getKnownDomainIds();
 
     const domainHooks: RoutingHookConfig['domains'] = {};
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
@@ -466,16 +406,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     const owner = await hook.owner();
     const paused = await hook.paused();
-    const config: WithAddress<PausableHookConfig> = {
+    return {
       owner,
       address,
       paused,
       type: HookType.PAUSABLE,
     };
-
-    this._cache.set(address, config);
-
-    return config;
   }
 
   assertHookType(

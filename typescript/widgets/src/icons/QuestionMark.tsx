@@ -2,13 +2,24 @@ import React, { memo } from 'react';
 
 import { ColorPalette } from '../color.js';
 
-import { DefaultIconProps } from './types.js';
+interface Props {
+  width?: string | number;
+  height?: string | number;
+  color?: string;
+  classes?: string;
+}
 
-function _QuestionMarkIcon({ color, ...rest }: DefaultIconProps) {
+function _QuestionMarkIcon({ width, height, color, classes }: Props) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" {...rest}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={width}
+      height={height}
+      viewBox="13.7 6 20.65 38"
+      className={classes}
+    >
       <path
-        d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286m1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94"
+        d="M21.55 31.5q.05-3.6.82-5.25.78-1.65 2.93-3.6 2.1-1.9 3.23-3.52t1.12-3.48q0-2.25-1.5-3.75t-4.2-1.5q-2.6 0-4 1.48t-2.05 3.07l-4.2-1.85q1.1-2.95 3.73-5.03T23.95 6q5 0 7.7 2.77t2.7 6.68q0 2.4-1.02 4.35-1.03 1.95-3.28 4.1-2.45 2.35-2.95 3.6t-.55 4Zm2.4 12.5q-1.45 0-2.48-1.02-1.02-1.03-1.02-2.48t1.02-2.48Q22.5 37 23.95 37t2.48 1.02q1.02 1.03 1.02 2.48t-1.02 2.48Q25.4 44 23.95 44Z"
         fill={color || ColorPalette.Black}
       />
     </svg>

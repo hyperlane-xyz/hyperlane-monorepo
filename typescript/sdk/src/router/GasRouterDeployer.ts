@@ -40,7 +40,7 @@ export abstract class GasRouterDeployer<
       const remoteConfigs = remoteDomains
         .map((domain, i) => ({
           domain,
-          gas: configMap[remoteChains[i]]?.gas ?? DEFAULT_GAS_OVERHEAD,
+          gas: configMap[remoteChains[i]].gas ?? DEFAULT_GAS_OVERHEAD,
         }))
         .filter(({ gas }, index) => !currentConfigs[index].eq(gas));
       if (remoteConfigs.length == 0) {
@@ -52,7 +52,6 @@ export abstract class GasRouterDeployer<
         chain,
         this.router(contracts)['setDestinationGas((uint32,uint256)[])'](
           remoteConfigs,
-          this.multiProvider.getTransactionOverrides(chain),
         ),
       );
     }

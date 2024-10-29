@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "5.6.2",
+  "version": "5.0.0",
   "dependencies": {
     "@cosmjs/encoding": "^0.32.4",
     "@solana/web3.js": "^1.78.0",
@@ -9,17 +9,14 @@
     "ethers": "^5.7.2",
     "lodash-es": "^4.17.21",
     "pino": "^8.19.0",
-    "yaml": "2.4.5"
+    "yaml": "^2.4.1"
   },
   "devDependencies": {
     "@types/lodash-es": "^4.17.12",
     "@types/mocha": "^10.0.1",
-    "@types/sinon": "^17.0.1",
-    "@types/sinon-chai": "^3.2.12",
-    "chai": "4.5.0",
+    "chai": "^4.3.6",
     "mocha": "^10.2.0",
     "prettier": "^2.8.8",
-    "sinon": "^13.0.2",
     "typescript": "5.3.3"
   },
   "homepage": "https://www.hyperlane.xyz",

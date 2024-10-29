@@ -29,7 +29,7 @@ export async function fetchProvider(
     throw Error(`Unsupported chain: ${chainName}`);
   }
   const chainId = chainMetadata.chainId;
-  const rpcData = chainMetadata.rpcUrls.map((url) => url.http);
+  let rpcData = chainMetadata.rpcUrls.map((url) => url.http);
   if (rpcData.length === 0) {
     throw Error(`No RPC URLs found for chain: ${chainName}`);
   }
@@ -81,12 +81,10 @@ export async function getRegistryForEnvironment(
   useSecrets: boolean = true,
 ): Promise<IRegistry> {
   let overrides = defaultChainMetadataOverrides;
-  if (useSecrets) {
+  if (useSecrets && !inCIMode()) {
     overrides = objMerge(
       overrides,
-      !inCIMode()
-        ? await getSecretMetadataOverrides(deployEnv, chains)
-        : await getSecretMetadataOverridesFromGitHubSecrets(deployEnv, chains),
+      await getSecretMetadataOverrides(deployEnv, chains),
     );
   }
   const registry = getRegistryWithOverrides(overrides);
@@ -126,36 +124,6 @@ export async function getSecretMetadataOverrides(
     chainMetadataOverrides[chain] = {
       rpcUrls: metadataRpcUrls,
     };
-  }
-
-  return chainMetadataOverrides;
-}
-
-/**
- * Gets chain metadata overrides from GitHub secrets.
- * This function is intended to be used when running in CI/CD environments,
- * where secrets are injected as environment variables.
- * @param deployEnv The deploy environment.
- * @param chains The chains to get metadata overrides for.
- * @returns A partial chain metadata map with the secret overrides.
- */
-export async function getSecretMetadataOverridesFromGitHubSecrets(
-  deployEnv: DeployEnvironment,
-  chains: string[],
-): Promise<ChainMap<Partial<ChainMetadata>>> {
-  const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
-
-  for (const chain of chains) {
-    const rpcUrlsEnv = `${deployEnv.toUpperCase()}_${chain.toUpperCase()}_RPC_URLS`;
-    const rpcUrls = process.env[rpcUrlsEnv];
-    if (rpcUrls) {
-      const metadataRpcUrls = rpcUrls
-        .split(',')
-        .map((rpcUrl) => ({ http: rpcUrl })) as ChainMetadata['rpcUrls'];
-      chainMetadataOverrides[chain] = {
-        rpcUrls: metadataRpcUrls,
-      };
-    }
   }
 
   return chainMetadataOverrides;

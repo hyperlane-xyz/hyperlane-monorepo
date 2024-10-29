@@ -21,48 +21,34 @@ export const s3BucketName = (
 ) => `${context}-${environment}-${chainName}-validator-${index}`;
 
 /**
- * Creates a validator base config for a single chain
- * @param environment The environment name
- * @param context The context
- * @param chain The chain name
- * @param addresses Validator addresses for the chain
- * @returns Array of ValidatorBaseConfig for the chain
+ *
+ * @param addresses Validator addresses, provided in order of deployment priority
+ * only the first `count` addresses will be used
+ * @param context
+ * @param environment
+ * @param chain
+ * @param count Number of validators to use
+ * @returns
  */
-const createChainValidatorBaseConfigs = (
+export const validatorBaseConfigsFn = (
   environment: string,
   context: Contexts,
+): ((
+  addresses: Record<Contexts, string[]>,
   chain: ChainName,
-  addresses: string[] = [],
-): ValidatorBaseConfig[] => {
-  return addresses.map((address, index) => {
-    const bucketName = s3BucketName(context, environment, chain, index);
-    return {
-      name: bucketName,
-      address,
-      checkpointSyncer: {
-        type: CheckpointSyncerType.S3,
-        bucket: bucketName,
-        region: s3BucketRegion,
-      },
-    };
-  });
+) => ValidatorBaseConfig[]) => {
+  return (addresses, chain) => {
+    return addresses[context].map((address, index) => {
+      const bucketName = s3BucketName(context, environment, chain, index);
+      return {
+        name: bucketName,
+        address,
+        checkpointSyncer: {
+          type: CheckpointSyncerType.S3,
+          bucket: bucketName,
+          region: s3BucketRegion,
+        },
+      };
+    });
+  };
 };
-
-/**
- * Creates validator base configs for a given context and environment
- * @param environment The environment name
- * @param context The context
- * @returns Function to generate ValidatorBaseConfig[] for a specific chain
- */
-export const validatorBaseConfigsFn =
-  (environment: string, context: Contexts) =>
-  (
-    addresses: Partial<Record<Contexts, string[]>>,
-    chain: ChainName,
-  ): ValidatorBaseConfig[] =>
-    createChainValidatorBaseConfigs(
-      environment,
-      context,
-      chain,
-      addresses[context],
-    );

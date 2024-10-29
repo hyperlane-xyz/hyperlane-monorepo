@@ -1,25 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-/*@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-     @@@@@  HYPERLANE  @@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-@@@@@@@@@       @@@@@@@@*/
-
-// ============ Internal Imports ============
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
-
-// ============ External Imports ============
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 /**
  * @title Hyperlane ERC4626 Token Collateral with deposits collateral to a vault
@@ -32,13 +17,9 @@ contract HypERC4626Collateral is HypERC20Collateral {
 
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
-    // Precision for the exchange rate
     uint256 public constant PRECISION = 1e10;
-    // Null recipient for rebase transfer
     bytes32 public constant NULL_RECIPIENT =
         0x0000000000000000000000000000000000000000000000000000000000000001;
-    // Nonce for the rate update, to ensure sequential updates
-    uint32 public rateUpdateNonce;
 
     constructor(
         ERC4626 _vault,
@@ -66,13 +47,12 @@ contract HypERC4626Collateral is HypERC20Collateral {
         // Can't override _transferFromSender only because we need to pass shares in the token message
         _transferFromSender(_amount);
         uint256 _shares = _depositIntoVault(_amount);
-        uint256 _exchangeRate = vault.convertToAssets(PRECISION);
-
-        rateUpdateNonce++;
-        bytes memory _tokenMetadata = abi.encode(
-            _exchangeRate,
-            rateUpdateNonce
+        uint256 _exchangeRate = PRECISION.mulDiv(
+            vault.totalAssets(),
+            vault.totalSupply(),
+            Math.Rounding.Down
         );
+        bytes memory _tokenMetadata = abi.encode(_exchangeRate);
 
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
@@ -117,19 +97,15 @@ contract HypERC4626Collateral is HypERC20Collateral {
      * @dev Update the exchange rate on the synthetic token by accounting for additional yield accrued to the underlying vault
      * @param _destinationDomain domain of the vault
      */
-    function rebase(
-        uint32 _destinationDomain,
-        bytes calldata _hookMetadata,
-        address _hook
-    ) public payable {
+    function rebase(uint32 _destinationDomain) public payable {
         // force a rebase with an empty transfer to 0x1
         _transferRemote(
             _destinationDomain,
             NULL_RECIPIENT,
             0,
             msg.value,
-            _hookMetadata,
-            _hook
+            bytes(""),
+            address(0)
         );
     }
 }

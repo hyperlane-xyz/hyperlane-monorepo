@@ -33,7 +33,6 @@ import {
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
-  isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './schemas.js';
 import { TokenMetadata, WarpRouteDeployConfig } from './types.js';
@@ -47,13 +46,11 @@ abstract class TokenDeployer<
     loggerName: string,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
-    concurrentDeploy = false,
   ) {
     super(multiProvider, factories, {
       logger: rootLogger.child({ module: loggerName }),
       ismFactory,
       contractVerifier,
-      concurrentDeploy,
     }); // factories not used in deploy
   }
 
@@ -65,11 +62,6 @@ abstract class TokenDeployer<
     } else if (isSyntheticConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, config.mailbox];
-    } else if (isSyntheticRebaseConfig(config)) {
-      const collateralDomain = this.multiProvider.getDomainId(
-        config.collateralChainName,
-      );
-      return [config.decimals, config.mailbox, collateralDomain];
     } else {
       throw new Error('Unknown token type when constructing arguments');
     }
@@ -90,8 +82,6 @@ abstract class TokenDeployer<
       return defaultArgs;
     } else if (isSyntheticConfig(config)) {
       return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
-    } else if (isSyntheticRebaseConfig(config)) {
-      return [0, config.name, config.symbol, ...defaultArgs];
     } else {
       throw new Error('Unknown collateral type when initializing arguments');
     }
@@ -194,7 +184,6 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     multiProvider: MultiProvider,
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
-    concurrentDeploy = false,
   ) {
     super(
       multiProvider,
@@ -202,7 +191,6 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
       'HypERC20Deployer',
       ismFactory,
       contractVerifier,
-      concurrentDeploy,
     );
   }
 

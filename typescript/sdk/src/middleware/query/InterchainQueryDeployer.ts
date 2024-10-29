@@ -22,11 +22,9 @@ export class InterchainQueryDeployer extends ProxiedRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
-    concurrentDeploy = false,
   ) {
     super(multiProvider, interchainQueryFactories, {
       contractVerifier,
-      concurrentDeploy,
     });
   }
 

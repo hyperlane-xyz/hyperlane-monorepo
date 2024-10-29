@@ -11,7 +11,7 @@ no-spl-noop = []
 serde = ["dep:serde"]
 
 [dependencies]
-hyperlane-core = { path = "../../../main/hyperlane-core" }
+hyperlane-core = { path = "../../../hyperlane-core" }
 access-control = { path = "../../libraries/access-control" }
 account-utils = { path = "../../libraries/account-utils" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
@@ -27,3 +27,6 @@ serde = { workspace = true, optional = true }
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

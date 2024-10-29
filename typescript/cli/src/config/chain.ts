@@ -5,7 +5,6 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   ChainMetadata,
   ChainMetadataSchema,
-  EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ZChainName,
 } from '@hyperlane-xyz/sdk';
@@ -169,13 +168,6 @@ async function addBlockOrGasConfig(metadata: ChainMetadata): Promise<void> {
 }
 
 async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
-  const parseReorgPeriod = (
-    value: string,
-  ): number | EthJsonRpcBlockParameterTag => {
-    const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? (value as EthJsonRpcBlockParameterTag) : parsed;
-  };
-
   const wantBlockConfig = await confirm({
     message: 'Do you want to add block config for this chain',
   });
@@ -187,16 +179,8 @@ async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
     });
     const blockReorgPeriod = await input({
       message:
-        'Enter no. of blocks before a transaction has a near-zero chance of reverting (0-500) or block tag (earliest, latest, safe, finalized, pending):',
-      validate: (value) => {
-        const parsedInt = parseInt(value, 10);
-        return (
-          Object.values(EthJsonRpcBlockParameterTag).includes(
-            value as EthJsonRpcBlockParameterTag,
-          ) ||
-          (!isNaN(parsedInt) && parsedInt >= 0 && parsedInt <= 500)
-        );
-      },
+        'Enter no. of blocks before a transaction has a near-zero chance of reverting (0-500):',
+      validate: (value) => parseInt(value) >= 0 && parseInt(value) <= 500,
     });
     const blockTimeEstimate = await input({
       message: 'Enter the rough estimate of time per block in seconds (0-20):',
@@ -204,7 +188,7 @@ async function addBlockConfig(metadata: ChainMetadata): Promise<void> {
     });
     metadata.blocks = {
       confirmations: parseInt(blockConfirmation, 10),
-      reorgPeriod: parseReorgPeriod(blockReorgPeriod),
+      reorgPeriod: parseInt(blockReorgPeriod, 10),
       estimateBlockTime: parseInt(blockTimeEstimate, 10),
     };
   }

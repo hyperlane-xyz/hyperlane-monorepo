@@ -57,9 +57,5 @@ export const errorRed = (...args: any) => logColor('error', chalk.red, ...args);
 export const logDebug = (msg: string, ...args: any) =>
   logger.debug(msg, ...args);
 
-export const logCommandHeader = (msg: string) => {
-  logGray(`${msg}\n${'_'.repeat(msg.length)}`);
-};
-
 // No support for table in pino so print directly to console
 export const logTable = (...args: any) => console.table(...args);

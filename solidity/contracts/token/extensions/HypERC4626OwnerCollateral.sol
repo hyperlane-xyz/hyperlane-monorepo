@@ -1,23 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-/*@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-     @@@@@  HYPERLANE  @@@@@@@
-    @@@@@@@@@@@@@@@@@@@@@@@@@
-   @@@@@@@@@       @@@@@@@@@
-  @@@@@@@@@       @@@@@@@@@
- @@@@@@@@@       @@@@@@@@@
-@@@@@@@@@       @@@@@@@@*/
-
-// ============ Internal Imports ============
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {HypERC20Collateral} from "../HypERC20Collateral.sol";
-
-// ============ External Imports ============
-import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 /**
  * @title Hyperlane ERC20 Token Collateral with deposits collateral to a vault, the yield goes to the owner
@@ -26,12 +11,9 @@ import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.so
 contract HypERC4626OwnerCollateral is HypERC20Collateral {
     // Address of the ERC4626 compatible vault
     ERC4626 public immutable vault;
-    // standby precision for exchange rate
-    uint256 public constant PRECISION = 1e10;
+
     // Internal balance of total asset deposited
     uint256 public assetDeposited;
-    // Nonce for the rate update, to ensure sequential updates (not necessary for Owner variant but for compatibility with HypERC4626)
-    uint32 public rateUpdateNonce;
 
     event ExcessSharesSwept(uint256 amount, uint256 assetsRedeemed);
 
@@ -58,11 +40,8 @@ contract HypERC4626OwnerCollateral is HypERC20Collateral {
     function _transferFromSender(
         uint256 _amount
     ) internal override returns (bytes memory metadata) {
-        super._transferFromSender(_amount);
+        metadata = super._transferFromSender(_amount);
         _depositIntoVault(_amount);
-        rateUpdateNonce++;
-
-        return abi.encode(PRECISION, rateUpdateNonce);
     }
 
     /**

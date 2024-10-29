@@ -11,7 +11,7 @@ use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
 
-use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, protocol_fee::ProtocolFee};
+use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
 
 /// The Inbox account.
 pub type InboxAccount = AccountData<Inbox>;
@@ -100,10 +100,6 @@ pub struct Outbox {
     pub owner: Option<Pubkey>,
     /// The merkle tree of dispatched messages.
     pub tree: MerkleTree,
-    /// Max protocol fee that can be set.
-    pub max_protocol_fee: u64,
-    /// The protocol fee configuration.
-    pub protocol_fee: ProtocolFee,
 }
 
 impl SizedData for Outbox {
@@ -112,9 +108,7 @@ impl SizedData for Outbox {
         // 1 byte outbox_bump_seed
         // 33 byte owner (1 byte enum variant, 32 byte pubkey)
         // 1032 byte tree (32 * 32 = 1024 byte branch, 8 byte count)
-        // 8 byte max_protocol_fee
-        // 40 byte protocol_fee (8 byte fee, 32 byte beneficiary)
-        4 + 1 + 33 + 1032 + 8 + 40
+        4 + 1 + 33 + 1032
     }
 }
 
@@ -334,11 +328,6 @@ mod test {
             outbox_bump_seed: 69,
             owner: Some(Pubkey::new_unique()),
             tree: MerkleTree::default(),
-            max_protocol_fee: 100000000,
-            protocol_fee: ProtocolFee {
-                fee: 69696969,
-                beneficiary: Pubkey::new_unique(),
-            },
         };
 
         let mut serialized = vec![];

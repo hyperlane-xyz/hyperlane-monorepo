@@ -22,7 +22,7 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 > {
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkDomainOwnership(chain);
-    await this.checkProxiedContracts(chain, this.configMap[chain].owner);
+    await this.checkProxiedContracts(chain);
     await this.checkBytecodes(chain);
     await this.checkOverheadInterchainGasPaymaster(chain);
     await this.checkInterchainGasPaymaster(chain);

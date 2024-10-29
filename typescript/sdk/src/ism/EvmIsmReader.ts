@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import {
   ArbL2ToL1Ism__factory,
@@ -21,7 +21,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
-import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -67,7 +66,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
-    protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
   }
@@ -114,7 +112,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
       }
     } catch (e: any) {
-      const errorMessage = `Failed to derive ISM module type ${moduleType} on ${this.chain} (${address}) :\n\t${e}`;
+      const errorMessage = `Failed to derive ISM module type ${moduleType} (${address}):\n\t${e}`;
       this.logger.debug(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -131,14 +129,11 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       this.provider,
     );
-
     const owner = await ism.owner();
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
 
-    const domainIds = this.messageContext
-      ? [BigNumber.from(this.messageContext.parsed.origin)]
-      : await ism.domains();
     const domains: RoutingIsmConfig['domains'] = {};
+    const domainIds = await ism.domains();
 
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
       const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());
@@ -148,9 +143,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         );
         return;
       }
-      const module = this.messageContext
-        ? await ism.route(this.messageContext.message)
-        : await ism.module(domainId);
+      const module = await ism.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
     });
 

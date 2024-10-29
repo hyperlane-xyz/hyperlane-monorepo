@@ -54,13 +54,6 @@ export const keyCommandOption: Options = {
   defaultDescription: 'process.env.HYP_KEY',
 };
 
-export const disableProxyCommandOption: Options = {
-  type: 'boolean',
-  description:
-    'Disable routing of Github API requests through the Hyperlane registry proxy.',
-  default: false,
-};
-
 /* Command-specific options */
 
 export const coreTargetsCommandOption: Options = {
@@ -91,16 +84,11 @@ export const hookCommandOption: Options = {
     'A path to a JSON or YAML file with Hook configs (for every chain)',
 };
 
-export const DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH =
-  './configs/warp-route-deployment.yaml';
-
-export const DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH = './configs/core-config.yaml';
-
 export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
-  default: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+  default: './configs/warp-route-deployment.yaml',
   alias: 'wd',
 };
 
@@ -139,23 +127,12 @@ export const outputFileCommandOption = (
   demandOption,
 });
 
-interface InputFileCommandOptionConfig
-  extends Pick<Options, 'demandOption' | 'alias' | 'description'> {
-  defaultPath?: string;
-}
-
-export const inputFileCommandOption = ({
-  defaultPath,
-  demandOption = true,
-  description = 'Input file path',
-  alias = 'i',
-}: InputFileCommandOptionConfig = {}): Options => ({
+export const inputFileCommandOption: Options = {
   type: 'string',
-  description,
-  default: defaultPath,
-  alias,
-  demandOption,
-});
+  description: 'Input file path',
+  alias: 'i',
+  demandOption: true,
+};
 
 export const fromAddressCommandOption: Options = {
   type: 'string',

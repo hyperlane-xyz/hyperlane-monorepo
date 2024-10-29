@@ -15,9 +15,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   Address,
   ProtocolType,
-  addBufferToGasLimit,
   eqAddress,
-  isZeroishAddress,
   rootLogger,
   runWithTimeout,
 } from '@hyperlane-xyz/utils';
@@ -73,11 +71,10 @@ export abstract class HyperlaneDeployer<
   public verificationInputs: ChainMap<ContractVerificationInput[]> = {};
   public cachedAddresses: HyperlaneAddressesMap<any> = {};
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
-
-  protected cachingEnabled = true;
+  public startingBlockNumbers: ChainMap<number | undefined> = {};
 
   protected logger: Logger;
-  chainTimeoutMs: number;
+  protected chainTimeoutMs: number;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -88,6 +85,7 @@ export abstract class HyperlaneDeployer<
   ) {
     this.logger = options?.logger ?? rootLogger.child({ module: 'deployer' });
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 15 * 60 * 1000; // 15 minute timeout per chain
+    this.options.ismFactory?.setDeployer(this);
     if (Object.keys(icaAddresses).length > 0) {
       this.options.icaApp = InterchainAccount.fromAddressesMap(
         icaAddresses,
@@ -138,41 +136,40 @@ export abstract class HyperlaneDeployer<
 
     this.logger.debug(`Start deploy to ${targetChains}`);
 
-    const failedChains: ChainName[] = [];
-    const deployChain = async (chain: ChainName) => {
+    const deployPromises = [];
+    for (const chain of targetChains) {
       const signerUrl = await this.multiProvider.tryGetExplorerAddressUrl(
         chain,
       );
       const signerAddress = await this.multiProvider.getSignerAddress(chain);
       const fromString = signerUrl || signerAddress;
       this.logger.info(`Deploying to ${chain} from ${fromString}`);
+      this.startingBlockNumbers[chain] = await this.multiProvider
+        .getProvider(chain)
+        .getBlockNumber();
 
-      return runWithTimeout(this.chainTimeoutMs, async () => {
+      const deployPromise = runWithTimeout(this.chainTimeoutMs, async () => {
         const contracts = await this.deployContracts(chain, configMap[chain]);
         this.addDeployedContracts(chain, contracts);
-      })
-        .then(() => {
-          this.logger.info(`Successfully deployed contracts on ${chain}`);
-        })
-        .catch((error) => {
-          failedChains.push(chain);
-          this.logger.error(`Deployment failed on ${chain}. Error: ${error}`);
-          throw error;
-        });
-    };
-
-    if (this.options.concurrentDeploy) {
-      await Promise.allSettled(targetChains.map(deployChain));
-    } else {
-      for (const chain of targetChains) {
-        await deployChain(chain);
+        this.logger.info(`Successfully deployed contracts on ${chain}`);
+      });
+      if (this.options.concurrentDeploy) {
+        deployPromises.push(deployPromise);
+      } else {
+        await deployPromise;
       }
     }
 
-    if (failedChains.length > 0) {
-      throw new Error(
-        `Deployment failed on chains: ${failedChains.join(', ')}`,
-      );
+    // Await all deploy promises. If concurrent deploy is not enabled, this will be a no-op.
+    const deployResults = await Promise.allSettled(deployPromises);
+    for (const [i, result] of deployResults.entries()) {
+      if (result.status === 'rejected') {
+        this.logger.error(
+          { chain: targetChains[i], error: result.reason },
+          'Deployment failed',
+        );
+        throw result.reason;
+      }
     }
 
     return this.deployedContracts;
@@ -375,7 +372,7 @@ export abstract class HyperlaneDeployer<
     shouldRecover = true,
     implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
-    if (this.cachingEnabled && shouldRecover) {
+    if (shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
       if (cachedContract) {
         if (this.recoverVerificationInputs) {
@@ -417,18 +414,8 @@ export abstract class HyperlaneDeployer<
         this.logger.debug(
           `Initializing ${contractName} (${contract.address}) on ${chain}...`,
         );
-
-        // Estimate gas for the initialize transaction
-        const estimatedGas = await contract.estimateGas.initialize(
-          ...initializeArgs,
-        );
-
-        // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
-        const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        });
+        const initTx = await contract.initialize(...initializeArgs, overrides);
         const receipt = await this.multiProvider.handleTx(chain, initTx);
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
@@ -650,15 +637,19 @@ export abstract class HyperlaneDeployer<
     contractName: string,
   ): Awaited<ReturnType<F['deploy']>> | undefined {
     const cachedAddress = this.cachedAddresses[chain]?.[contractName];
-    if (cachedAddress && !isZeroishAddress(cachedAddress)) {
+    const hit =
+      !!cachedAddress && cachedAddress !== ethers.constants.AddressZero;
+    const contractAddress = hit ? cachedAddress : ethers.constants.AddressZero;
+    const contract = factory
+      .attach(contractAddress)
+      .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
+      ReturnType<F['deploy']>
+    >;
+    if (hit) {
       this.logger.debug(
-        `Recovered ${contractName} on ${chain}: ${cachedAddress}`,
+        `Recovered ${contractName.toString()} on ${chain} ${cachedAddress}`,
       );
-      return factory
-        .attach(cachedAddress)
-        .connect(this.multiProvider.getSignerOrProvider(chain)) as Awaited<
-        ReturnType<F['deploy']>
-      >;
+      return contract;
     }
     return undefined;
   }

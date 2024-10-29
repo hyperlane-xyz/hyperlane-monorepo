@@ -87,7 +87,7 @@ async function getStartBlocks(
   chainAddresses: ChainMap<ChainAddresses>,
   core: HyperlaneCore,
   chainMetadata: any,
-): Promise<ChainMap<number | undefined>> {
+) {
   return promiseObjAll(
     objMap(chainAddresses, async (chain, _) => {
       const indexFrom = chainMetadata[chain].index?.from;
@@ -103,7 +103,6 @@ async function getStartBlocks(
         errorRed(
           `❌ Failed to get deployed block to set an index for ${chain}, this is potentially an issue with rpc provider or a misconfiguration`,
         );
-        return undefined;
       }
     }),
   );
