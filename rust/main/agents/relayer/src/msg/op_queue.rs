@@ -84,8 +84,6 @@ impl OpQueue {
         let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()
             .map(|Reverse(mut op)| {
-                // Can check for equality here because of the PartialEq implementation for MessageRetryRequest,
-                // but can't use `contains` because the types are different
                 if message_retry_requests.iter().any(|r| r.op_matches(&op)) {
                     info!(
                         operation = %op,
