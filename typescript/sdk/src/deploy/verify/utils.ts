@@ -1,3 +1,4 @@
+import { Interface } from '@ethersproject/abi';
 import { ethers, utils } from 'ethers';
 
 import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
@@ -90,9 +91,10 @@ export async function getContractVerificationInputForZKSync({
   );
 }
 
-export async function encodeArguments(abi: any, constructorArgs: any[]) {
-  const { Interface } = await import('@ethersproject/abi');
-
+export async function encodeArguments(
+  abi: any,
+  constructorArgs: any[],
+): Promise<string> {
   const contractInterface = new Interface(abi);
   let deployArgumentsEncoded;
   try {
@@ -102,7 +104,6 @@ export async function encodeArguments(abi: any, constructorArgs: any[]) {
   } catch (error: any) {
     throw new Error('Cant encode constructor args');
   }
-
   return deployArgumentsEncoded;
 }
 

@@ -49,7 +49,7 @@ export class ZKSyncContractVerifier {
       compilerZksolcVersion,
       optimizationUsed: true,
     };
-    this.createContractSourceMapFromBuildArtifacts();
+    void this.createContractSourceMapFromBuildArtifacts();
   }
 
   /**
@@ -179,9 +179,7 @@ export class ZKSyncContractVerifier {
       'Sending request to explorer...',
     );
 
-    let response: Response;
-
-    response = await fetch(url.toString(), {
+    const response = await fetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),

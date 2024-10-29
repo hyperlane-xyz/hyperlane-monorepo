@@ -96,7 +96,7 @@ export class ZKDeployer {
     });
     deployTx.from = this.zkWallet.address;
 
-    return await this.zkWallet.provider.estimateGas(deployTx);
+    return this.zkWallet.provider.estimateGas(deployTx);
   }
 
   /**
@@ -157,7 +157,7 @@ export class ZKDeployer {
     const visited = new Set<string>();
 
     visited.add(`${artifact.sourceName}:${artifact.contractName}`);
-    return await this.extractFactoryDepsRecursive(artifact, visited);
+    return this.extractFactoryDepsRecursive(artifact, visited);
   }
 
   private async extractFactoryDepsRecursive(
@@ -168,16 +168,25 @@ export class ZKDeployer {
     // We transform it into an array of bytecodes.
     const factoryDeps: string[] = [];
     for (const dependencyHash in artifact.factoryDeps) {
-      const dependencyContract = artifact.factoryDeps[dependencyHash];
-      if (!visited.has(dependencyContract)) {
-        const dependencyArtifact = await this.loadArtifact(dependencyContract);
-        factoryDeps.push(dependencyArtifact.bytecode);
-        visited.add(dependencyContract);
-        const transitiveDeps = await this.extractFactoryDepsRecursive(
-          dependencyArtifact,
-          visited,
-        );
-        factoryDeps.push(...transitiveDeps);
+      if (
+        Object.prototype.hasOwnProperty.call(
+          artifact.factoryDeps,
+          dependencyHash,
+        )
+      ) {
+        const dependencyContract = artifact.factoryDeps[dependencyHash];
+        if (!visited.has(dependencyContract)) {
+          const dependencyArtifact = await this.loadArtifact(
+            dependencyContract,
+          );
+          factoryDeps.push(dependencyArtifact.bytecode);
+          visited.add(dependencyContract);
+          const transitiveDeps = await this.extractFactoryDepsRecursive(
+            dependencyArtifact,
+            visited,
+          );
+          factoryDeps.push(...transitiveDeps);
+        }
       }
     }
 

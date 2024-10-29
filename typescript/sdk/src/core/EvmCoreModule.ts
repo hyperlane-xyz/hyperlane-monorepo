@@ -471,7 +471,7 @@ export class EvmCoreModule extends HyperlaneModule<
       return createDefaultProxyFactoryFactories();
     } else {
       // Otherwise, deploy ISM factories
-      return await EvmCoreModule.deployIsmFactories(params);
+      return EvmCoreModule.deployIsmFactories(params);
     }
   }
 }
