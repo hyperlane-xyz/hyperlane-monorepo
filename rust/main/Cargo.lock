@@ -4742,14 +4742,8 @@ name = "hyperlane-test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "axum",
  "hyperlane-core",
  "mockall",
- "prometheus",
- "serde",
- "serde_json",
- "tokio",
- "typetag",
 ]
 
 [[package]]

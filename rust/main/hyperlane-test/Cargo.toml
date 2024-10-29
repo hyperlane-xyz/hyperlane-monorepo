@@ -10,11 +10,5 @@ version.workspace = true
 [dependencies]
 async-trait.workspace = true
 mockall.workspace = true
-typetag.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-prometheus.workspace = true
-tokio.workspace = true
-axum.workspace = true
 
 hyperlane-core = { path = "../hyperlane-core" }
