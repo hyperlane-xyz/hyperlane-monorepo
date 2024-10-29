@@ -7,19 +7,13 @@
     ]
   },
   "arbitrumsepolia": {
-    "validators": [
-      "0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"
-    ]
+    "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
   "basesepolia": {
-    "validators": [
-      "0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"
-    ]
+    "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
   },
   "berabartio": {
-    "validators": [
-      "0x541dd3cb282cf869d72883557badae245b63e1fd"
-    ]
+    "validators": ["0x541dd3cb282cf869d72883557badae245b63e1fd"]
   },
   "bsctestnet": {
     "validators": [
@@ -29,29 +23,19 @@
     ]
   },
   "camptestnet": {
-    "validators": [
-      "0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"
-    ]
+    "validators": ["0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"]
   },
   "citreatestnet": {
-    "validators": [
-      "0x60d7380a41eb95c49be18f141efd2fde5e3dba20"
-    ]
+    "validators": ["0x60d7380a41eb95c49be18f141efd2fde5e3dba20"]
   },
   "connextsepolia": {
-    "validators": [
-      "0xffbbec8c499585d80ef69eb613db624d27e089ab"
-    ]
+    "validators": ["0xffbbec8c499585d80ef69eb613db624d27e089ab"]
   },
   "ecotestnet": {
-    "validators": [
-      "0xb3191420d463c2af8bd9b4a395e100ec5c05915a"
-    ]
+    "validators": ["0xb3191420d463c2af8bd9b4a395e100ec5c05915a"]
   },
   "formtestnet": {
-    "validators": [
-      "0x72ad7fddf16d17ff902d788441151982fa31a7bc"
-    ]
+    "validators": ["0x72ad7fddf16d17ff902d788441151982fa31a7bc"]
   },
   "fuji": {
     "validators": [
@@ -61,24 +45,16 @@
     ]
   },
   "holesky": {
-    "validators": [
-      "0x7ab28ad88bb45867137ea823af88e2cb02359c03"
-    ]
+    "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
   },
   "odysseytestnet": {
-    "validators": [
-      "0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3"
-    ]
+    "validators": ["0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3"]
   },
   "optimismsepolia": {
-    "validators": [
-      "0x03efe4d0632ee15685d7e8f46dea0a874304aa29"
-    ]
+    "validators": ["0x03efe4d0632ee15685d7e8f46dea0a874304aa29"]
   },
   "polygonamoy": {
-    "validators": [
-      "0xf0290b06e446b320bd4e9c4a519420354d7ddccd"
-    ]
+    "validators": ["0xf0290b06e446b320bd4e9c4a519420354d7ddccd"]
   },
   "scrollsepolia": {
     "validators": [
@@ -95,28 +71,18 @@
     ]
   },
   "soneiumtestnet": {
-    "validators": [
-      "0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"
-    ]
+    "validators": ["0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"]
   },
   "sonictestnet": {
-    "validators": [
-      "0x62e6591d00daec3fb658c3d19403828b4e9ddbb3"
-    ]
+    "validators": ["0x62e6591d00daec3fb658c3d19403828b4e9ddbb3"]
   },
   "suavetoliman": {
-    "validators": [
-      "0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"
-    ]
+    "validators": ["0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"]
   },
   "superpositiontestnet": {
-    "validators": [
-      "0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"
-    ]
+    "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
   },
   "unichaintestnet": {
-    "validators": [
-      "0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"
-    ]
+    "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
   }
 }
