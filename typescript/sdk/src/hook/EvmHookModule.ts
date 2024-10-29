@@ -871,7 +871,7 @@ export class EvmHookModule extends HyperlaneModule<
         this.multiProvider.getDomainId(config.destinationChain),
         addressToBytes32(arbL2ToL1IsmAddress),
         config.arbSys,
-        BigNumber.from(200_000), // 2x estimate of executeTransaction call overhead
+        '200000', // 2x estimate of executeTransaction call overhead
       ],
     );
     // set authorized hook on arbL2ToL1 ism
