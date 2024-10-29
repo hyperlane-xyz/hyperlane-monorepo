@@ -37,6 +37,7 @@ abstract contract AbstractMessageIdAuthHook is
     using Address for address payable;
     using StandardHookMetadata for bytes;
     using Message for bytes;
+    using TypeCasts for bytes32;
 
     // ============ Constants ============
 
@@ -91,7 +92,9 @@ abstract contract AbstractMessageIdAuthHook is
 
         uint256 _overpayment = msg.value - _quoteDispatch(metadata, message);
         if (_overpayment > 0) {
-            address _refundAddress = metadata.refundAddress(msg.sender);
+            address _refundAddress = metadata.refundAddress(
+                message.sender().bytes32ToAddress()
+            );
             require(
                 _refundAddress != address(0),
                 "AbstractPostDispatchHook: no refund address"
