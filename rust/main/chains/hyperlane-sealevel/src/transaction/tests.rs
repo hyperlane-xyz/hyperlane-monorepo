@@ -1,6 +1,6 @@
 use solana_transaction_status::EncodedTransactionWithStatusMeta;
 
-use crate::transaction::search_transaction;
+use crate::transaction::search_transactions;
 use crate::utils::decode_pubkey;
 
 #[test]
@@ -13,7 +13,7 @@ pub fn test() {
     let transactions = vec![transaction];
 
     // when
-    let transaction_hashes = search_transaction(
+    let transaction_hashes = search_transactions(
         &mailbox_program_id,
         &dispatched_message_pda_account,
         transactions,
