@@ -73,7 +73,7 @@ function findContractFile(
   suffix: keyof typeof CONFIG.SUFFIXES,
 ): string {
   assertValidContractName(name);
-  const mainPath = `${TARGET_DEV_PATH}/${name}${CONFIG.SUFFIXES[suffix]}`;
+  const mainPath = `${TARGET_DEV_PATH}/contracts_${name}${CONFIG.SUFFIXES[suffix]}`;
 
   if (!existsSync(mainPath)) {
     throw new ContractError(
