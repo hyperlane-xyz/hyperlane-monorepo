@@ -17,62 +17,15 @@ contract HypNativeScaled is HypNative {
         scale = _scale;
     }
 
-    /**
-     * @inheritdoc HypNative
-     * @dev Sends scaled `msg.value` (divided by `scale`) to `_recipient`.
-     */
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
+    function _outboundAmount(
         uint256 _amount
-    ) external payable override returns (bytes32 messageId) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 _hookPayment = msg.value - _amount;
-        uint256 _scaledAmount = _amount / scale;
-        return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _scaledAmount,
-                _hookPayment
-            );
+    ) internal view override returns (uint256) {
+        return _amount / scale;
     }
 
-    /**
-     * @inheritdoc TokenRouter
-     * @dev uses (`msg.value` - `_amount`) as hook payment.
-     */
-    function transferRemote(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount,
-        bytes calldata _hookMetadata,
-        address _hook
-    ) external payable override returns (bytes32 messageId) {
-        require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 _hookPayment = msg.value - _amount;
-        uint256 _scaledAmount = _amount / scale;
-        return
-            _transferRemote(
-                _destination,
-                _recipient,
-                _scaledAmount,
-                _hookPayment,
-                _hookMetadata,
-                _hook
-            );
-    }
-
-    /**
-     * @dev Sends scaled `_amount` (multiplied by `scale`) to `_recipient`.
-     * @inheritdoc TokenRouter
-     */
-    function _transferTo(
-        address _recipient,
-        uint256 _amount,
-        bytes calldata metadata // no metadata
-    ) internal override {
-        uint256 scaledAmount = _amount * scale;
-        HypNative._transferTo(_recipient, scaledAmount, metadata);
+    function _inboundAmount(
+        uint256 _amount
+    ) internal view override returns (uint256) {
+        return _amount * scale;
     }
 }

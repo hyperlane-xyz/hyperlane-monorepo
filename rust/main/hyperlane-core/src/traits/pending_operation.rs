@@ -13,6 +13,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use num::CheckedDiv;
+use prometheus::IntGauge;
 use strum::Display;
 use tracing::warn;
 
@@ -63,12 +64,41 @@ pub trait PendingOperation: Send + Sync + Debug + TryBatchAs<HyperlaneMessage> {
     /// Label to use for metrics granularity.
     fn app_context(&self) -> Option<String>;
 
+    /// Get the metric associated with this operation.
+    fn get_metric(&self) -> Option<Arc<IntGauge>>;
+
+    /// Decrement the metric associated with this operation if it exists.
+    fn decrement_metric_if_exists(&self) {
+        if let Some(metric) = self.get_metric() {
+            metric.dec();
+        }
+    }
+
+    /// Set the metric associated with this operation.
+    fn set_metric(&mut self, metric: Arc<IntGauge>);
+
     /// The status of the operation, which should explain why it is in the
     /// queue.
     fn status(&self) -> PendingOperationStatus;
 
     /// Set the status of the operation.
     fn set_status(&mut self, status: PendingOperationStatus);
+
+    /// Set the status of the operation and update the metrics.
+    fn set_status_and_update_metrics(
+        &mut self,
+        status: Option<PendingOperationStatus>,
+        new_metric: Arc<IntGauge>,
+    ) {
+        if let Some(status) = status {
+            self.set_status(status);
+        }
+        if let Some(old_metric) = self.get_metric() {
+            old_metric.dec();
+        }
+        new_metric.inc();
+        self.set_metric(new_metric);
+    }
 
     /// Get tuple of labels for metrics.
     fn get_operation_labels(&self) -> (String, String) {

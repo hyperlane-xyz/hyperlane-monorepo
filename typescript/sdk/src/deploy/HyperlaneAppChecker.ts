@@ -12,6 +12,7 @@ import {
   eqAddress,
   objMap,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
@@ -82,6 +83,10 @@ export abstract class HyperlaneAppChecker<
   }
 
   addViolation(violation: CheckerViolation): void {
+    if (violation.type === ViolationType.BytecodeMismatch) {
+      rootLogger.warn({ violation }, `Found bytecode mismatch. Ignoring...`);
+      return;
+    }
     this.violations.push(violation);
   }
 
@@ -139,7 +144,7 @@ export abstract class HyperlaneAppChecker<
                 type: ViolationType.Owner,
                 actual: actualProxyAdminOwner,
                 expected: expectedOwner,
-                contract,
+                contract: actualProxyAdminContract,
               };
               this.addViolation(violation);
             }
@@ -208,7 +213,7 @@ export abstract class HyperlaneAppChecker<
     return bytecode.substring(0, bytecode.length - 90);
   }
 
-  private getOwner(
+  protected getOwner(
     owner: Address,
     contractName: string,
     ownableOverrides?: Record<string, Address>,

@@ -116,9 +116,11 @@ abstract contract TokenRouter is GasRouter {
         address _hook
     ) internal virtual returns (bytes32 messageId) {
         bytes memory _tokenMetadata = _transferFromSender(_amountOrId);
+
+        uint256 outboundAmount = _outboundAmount(_amountOrId);
         bytes memory _tokenMessage = TokenMessage.format(
             _recipient,
-            _amountOrId,
+            outboundAmount,
             _tokenMetadata
         );
 
@@ -130,7 +132,29 @@ abstract contract TokenRouter is GasRouter {
             _hook
         );
 
-        emit SentTransferRemote(_destination, _recipient, _amountOrId);
+        emit SentTransferRemote(_destination, _recipient, outboundAmount);
+    }
+
+    /**
+     * @dev Should return the amount of tokens to be encoded in the message amount (eg for scaling `_localAmount`).
+     * @param _localAmount The amount of tokens transferred on this chain in local denomination.
+     * @return _messageAmount The amount of tokens to be encoded in the message body.
+     */
+    function _outboundAmount(
+        uint256 _localAmount
+    ) internal view virtual returns (uint256 _messageAmount) {
+        _messageAmount = _localAmount;
+    }
+
+    /**
+     * @dev Should return the amount of tokens to be decoded from the message amount.
+     * @param _messageAmount The amount of tokens received in the message body.
+     * @return _localAmount The amount of tokens to be transferred on this chain in local denomination.
+     */
+    function _inboundAmount(
+        uint256 _messageAmount
+    ) internal view virtual returns (uint256 _localAmount) {
+        _localAmount = _messageAmount;
     }
 
     /**
@@ -163,7 +187,11 @@ abstract contract TokenRouter is GasRouter {
         bytes32 recipient = _message.recipient();
         uint256 amount = _message.amount();
         bytes calldata metadata = _message.metadata();
-        _transferTo(recipient.bytes32ToAddress(), amount, metadata);
+        _transferTo(
+            recipient.bytes32ToAddress(),
+            _inboundAmount(amount),
+            metadata
+        );
         emit ReceivedTransferRemote(_origin, recipient, amount);
     }
 
