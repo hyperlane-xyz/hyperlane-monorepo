@@ -675,8 +675,6 @@ impl SealevelMailboxIndexer {
                 self.dispatched_message_account(&account)
             })?;
 
-        info!(?valid_message_storage_pda_pubkey);
-
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
         let account = self
             .rpc()
@@ -696,8 +694,6 @@ impl SealevelMailboxIndexer {
             .get_block(dispatched_message_account.slot)
             .await?;
         let block_hash = decode_h256(&block.blockhash)?;
-
-        info!(?block_hash, slot = ?dispatched_message_account.slot, "block with dispatch message transaction");
 
         let transactions =
             block.transactions.ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any transaction".to_owned()))?;
