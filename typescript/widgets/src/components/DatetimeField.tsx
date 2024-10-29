@@ -1,12 +1,13 @@
 import React, { ChangeEvent } from 'react';
 
 interface Props {
+  className?: string;
   timestamp: number | null;
   onChange: (t: number | null) => void;
   name?: string;
 }
 
-export function DatetimeField({ timestamp, onChange, name }: Props) {
+export function DatetimeField({ className, timestamp, onChange, name }: Props) {
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target['validity'].valid) {
       onChange(null);
@@ -23,7 +24,7 @@ export function DatetimeField({ timestamp, onChange, name }: Props) {
       value={toShortIsoString(timestamp)}
       onChange={handleChange}
       name={name}
-      className="htw--ml-px"
+      className={className}
     />
   );
 }

@@ -1,6 +1,5 @@
 import { Meta, StoryObj } from '@storybook/react';
 import React from 'react';
-import { Tooltip } from 'react-tooltip';
 
 import * as Hyperlane from '../index';
 
@@ -10,7 +9,6 @@ interface StoryIconProps {
   color?: string;
   direction?: 'n' | 'e' | 's' | 'w';
   rounded?: boolean;
-  text?: string;
 }
 
 const iconList = Object.entries(Hyperlane)
@@ -51,7 +49,6 @@ function IconList({
               color={color}
               direction={direction}
               rounded={roundedWideChevron}
-              text="Help Icon Tooltip Text"
             />
           </IconContainer>
         ))}
@@ -60,7 +57,6 @@ function IconList({
           <Hyperlane.Circle size={width} bgColorSeed={bgColorSeed} />
         </IconContainer>
       </div>
-      <Tooltip id="root-tooltip" className="z-50" />
     </>
   );
 }
