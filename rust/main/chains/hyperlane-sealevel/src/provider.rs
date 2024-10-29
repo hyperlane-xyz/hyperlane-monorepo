@@ -74,8 +74,9 @@ impl HyperlaneProvider for SealevelProvider {
 
         let ui_transaction = match transaction.transaction.transaction {
             EncodedTransaction::Json(t) => t,
-            t => Err(HyperlaneSealevelError::UnsupportedTransactionEncoding(t))
-                .map_err(Into::<ChainCommunicationError>::into)?,
+            t => Err(Into::<ChainCommunicationError>::into(
+                HyperlaneSealevelError::UnsupportedTransactionEncoding(t),
+            ))?,
         };
 
         let received_signature = ui_transaction
@@ -85,11 +86,12 @@ impl HyperlaneProvider for SealevelProvider {
         let received_hash = decode_h512(received_signature)?;
 
         if &received_hash != hash {
-            Err(HyperlaneSealevelError::IncorrectTransaction(
-                *hash,
-                received_hash,
-            ))
-            .map_err(Into::<ChainCommunicationError>::into)?;
+            Err(Into::<ChainCommunicationError>::into(
+                HyperlaneSealevelError::IncorrectTransaction(
+                    Box::new(*hash),
+                    Box::new(received_hash),
+                ),
+            ))?;
         }
 
         let receipt = TxnReceiptInfo {

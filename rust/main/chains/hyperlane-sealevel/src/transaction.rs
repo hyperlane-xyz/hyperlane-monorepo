@@ -47,7 +47,7 @@ pub fn search_transactions(
                 None => return None, // if transaction is not signed, we continue the search
             };
 
-            let transaction_hash = match decode_h512(&transaction_hash) {
+            let transaction_hash = match decode_h512(transaction_hash) {
                 Ok(h) => h,
                 Err(_) => return None, // if we cannot parse transaction hash, we continue the search
             };
@@ -61,8 +61,7 @@ pub fn search_transactions(
             let instructions = match m.inner_instructions {
                 OptionSerializer::Some(ii) => ii
                     .into_iter()
-                    .map(|iii| iii.instructions)
-                    .flatten()
+                    .flat_map(|iii| iii.instructions)
                     .flat_map(|ii| match ii {
                         UiInstruction::Compiled(ci) => Some(ci),
                         _ => None,
@@ -96,8 +95,7 @@ pub fn search_transactions(
 
             let mailbox_program_maybe = instructions
                 .into_iter()
-                .filter(|instruction| instruction.program_id_index == mailbox_program_index)
-                .next();
+                .find(|instruction| instruction.program_id_index == mailbox_program_index);
 
             let mailbox_program = match mailbox_program_maybe {
                 Some(p) => p,

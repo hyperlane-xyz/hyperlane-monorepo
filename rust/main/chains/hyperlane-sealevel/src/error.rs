@@ -32,7 +32,7 @@ pub enum HyperlaneSealevelError {
     UnsignedTransaction(H512),
     /// Incorrect transaction
     #[error("received incorrect transaction, expected hash: {0:?}, received hash: {1:?}")]
-    IncorrectTransaction(H512, H512),
+    IncorrectTransaction(Box<H512>, Box<H512>),
 }
 
 impl From<HyperlaneSealevelError> for ChainCommunicationError {
