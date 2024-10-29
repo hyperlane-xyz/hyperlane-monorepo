@@ -714,8 +714,6 @@ impl SealevelMailboxIndexer {
             .next()
             .ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any after filtering".to_owned()))?;
 
-        // info!(?block, "confirmed_block");
-
         Ok((
             hyperlane_message.into(),
             LogMeta {
