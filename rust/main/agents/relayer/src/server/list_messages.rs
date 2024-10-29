@@ -81,10 +81,9 @@ impl ListOperationsApi {
 
 #[cfg(test)]
 mod tests {
-    use crate::msg::op_queue::OpQueue;
-    use hyperlane_test::{
-        mocks::MockPendingOperation,
-        setup::{dummy_metrics_and_label, spawn_server},
+    use crate::msg::op_queue::{
+        test::{dummy_metrics_and_label, MockPendingOperation},
+        OpQueue,
     };
 
     use super::*;
@@ -109,7 +108,13 @@ mod tests {
         let list_operations_api = ListOperationsApi::new(op_queues_map);
         let (path, router) = list_operations_api.get_route();
 
-        let addr = spawn_server(path, router);
+        let app = Router::new().nest(path, router);
+
+        // Running the app in the background using a test server
+        let server =
+            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
+        let addr = server.local_addr();
+        tokio::spawn(server);
 
         (addr, op_queue.queue.clone())
     }

@@ -36,12 +36,11 @@ impl MessageRetryApi {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::ENDPOINT_MESSAGES_QUEUE_SIZE;
+    use crate::{msg::op_queue::test::MockPendingOperation, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
 
     use super::*;
     use axum::http::StatusCode;
     use hyperlane_core::{HyperlaneMessage, QueueOperation};
-    use hyperlane_test::{mocks::MockPendingOperation, setup::spawn_server};
     use serde_json::json;
     use std::net::SocketAddr;
     use tokio::sync::broadcast::{Receiver, Sender};
@@ -51,7 +50,13 @@ mod tests {
         let message_retry_api = MessageRetryApi::new(broadcast_tx.clone());
         let (path, retry_router) = message_retry_api.get_route();
 
-        let addr = spawn_server(path, retry_router);
+        let app = Router::new().nest(path, retry_router);
+
+        // Running the app in the background using a test server
+        let server =
+            axum::Server::bind(&"127.0.0.1:0".parse().unwrap()).serve(app.into_make_service());
+        let addr = server.local_addr();
+        tokio::spawn(server);
 
         (addr, broadcast_tx.subscribe())
     }

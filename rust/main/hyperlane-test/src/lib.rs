@@ -7,5 +7,3 @@
 
 /// Mock contracts
 pub mod mocks;
-/// Setup utils
-pub mod setup;
