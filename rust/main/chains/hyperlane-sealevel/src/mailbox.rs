@@ -59,7 +59,7 @@ use solana_transaction_status::{
 use tracing::{debug, info, instrument, warn};
 
 use crate::error::HyperlaneSealevelError;
-use crate::transaction::search_transactions;
+use crate::transaction::search_dispatched_message_transactions;
 use crate::utils::{decode_h256, decode_h512, from_base58};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
@@ -698,7 +698,7 @@ impl SealevelMailboxIndexer {
         let transactions =
             block.transactions.ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any transaction".to_owned()))?;
 
-        let transaction_hashes = search_transactions(
+        let transaction_hashes = search_dispatched_message_transactions(
             &self.mailbox.program_id,
             &valid_message_storage_pda_pubkey,
             transactions,

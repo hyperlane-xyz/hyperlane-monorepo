@@ -28,7 +28,7 @@ use crate::utils::{decode_h512, from_base58};
 /// * `mailbox_program_id` - Identifier of Mailbox program
 /// * `message_storage_pda_pubkey` - Identifier for dispatch message store PDA
 /// * `transactions` - List of transactions
-pub fn search_transactions(
+pub fn search_dispatched_message_transactions(
     mailbox_program_id: &Pubkey,
     message_storage_pda_pubkey: &Pubkey,
     transactions: Vec<EncodedTransactionWithStatusMeta>,
