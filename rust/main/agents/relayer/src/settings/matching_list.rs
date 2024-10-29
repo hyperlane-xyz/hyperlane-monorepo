@@ -362,7 +362,6 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 
 #[cfg(test)]
 mod test {
-    // TODO run through
     use hyperlane_core::{H160, H256};
 
     use super::{Filter::*, MatchingList};
