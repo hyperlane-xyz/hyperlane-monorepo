@@ -12,6 +12,7 @@ import {
   HyperlaneDeploymentArtifacts,
   MultiProvider,
   buildAgentConfig,
+  getCosmosChainGasPrice,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -26,7 +27,6 @@ import {
   DeployEnvironment,
   envNameToAgentEnv,
 } from '../../src/config/environment.js';
-import { getCosmosChainGasPrice } from '../../src/config/gas-oracle.js';
 import {
   chainIsProtocol,
   filterRemoteDomainMetadata,
@@ -125,7 +125,7 @@ export async function writeAgentConfig(
         .map(async (chain) => [
           chain,
           {
-            gasPrice: await getCosmosChainGasPrice(chain),
+            gasPrice: await getCosmosChainGasPrice(chain, multiProvider),
           },
         ]),
     ),

@@ -69,4 +69,4 @@ function _WideChevron({
   }
 }
 
-export const WideChevron = memo(_WideChevron);
+export const WideChevronIcon = memo(_WideChevron);
