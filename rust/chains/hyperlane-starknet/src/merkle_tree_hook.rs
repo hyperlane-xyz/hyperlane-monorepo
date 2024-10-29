@@ -6,7 +6,6 @@ use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use cainome::cairo_serde::{CairoSerde, U256 as StarknetU256};
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
@@ -167,7 +166,7 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
 
         Ok(IncrementalMerkle {
             branch: branch.try_into().unwrap(),
-            count: StarknetU256::cairo_serialized_size(&tree.count),
+            count: tree.count.low.try_into().unwrap(),
         })
     }
 
