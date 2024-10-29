@@ -2,7 +2,8 @@
 export const testnet4SupportedChainNames = [
   'alfajores',
   'arbitrumsepolia',
-  'arcadiatestnet',
+  // Disabling arcadiatestnet on Oct 29, 2024: chain reset and needs to be redeployed
+  // 'arcadiatestnet',
   'basesepolia',
   'berabartio',
   'bsctestnet',
