@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::EncodedTransaction;
+use solana_transaction_status::{EncodedTransaction, UiMessage};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
@@ -76,16 +76,32 @@ impl HyperlaneProvider for SealevelProvider {
     /// for all chains, not only Ethereum-like chains.
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let signature = Signature::new(hash.as_bytes());
-        let transaction = self.rpc_client.get_transaction(&signature).await?;
 
-        let ui_transaction = match transaction.transaction.transaction {
+        let txn_confirmed = self.rpc_client.get_transaction(&signature).await?;
+        let txn_with_meta = txn_confirmed.transaction;
+
+        let txn = match txn_with_meta.transaction {
             EncodedTransaction::Json(t) => t,
             t => Err(Into::<ChainCommunicationError>::into(
                 HyperlaneSealevelError::UnsupportedTransactionEncoding(t),
             ))?,
         };
 
-        let received_signature = ui_transaction
+        let message = match txn.message {
+            UiMessage::Parsed(m) => m,
+            m => Err(Into::<ChainCommunicationError>::into(
+                HyperlaneSealevelError::UnsupportedMessageEncoding(m),
+            ))?,
+        };
+
+        let signer = message
+            .account_keys
+            .first()
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+        let pubkey = decode_pubkey(&signer.pubkey)?;
+        let sender = H256::from_slice(&pubkey.to_bytes());
+
+        let received_signature = txn
             .signatures
             .first()
             .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
@@ -113,7 +129,7 @@ impl HyperlaneProvider for SealevelProvider {
             max_fee_per_gas: None,
             gas_price: None,
             nonce: 0,
-            sender: Default::default(),
+            sender,
             recipient: None,
             receipt: Some(receipt),
             raw_input_data: None,

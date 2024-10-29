@@ -1,7 +1,7 @@
 use hyperlane_core::{ChainCommunicationError, H512};
 use solana_client::client_error::ClientError;
 use solana_sdk::pubkey::ParsePubkeyError;
-use solana_transaction_status::EncodedTransaction;
+use solana_transaction_status::{EncodedTransaction, UiMessage};
 
 /// Errors from the crates specific to the hyperlane-sealevel
 /// implementation.
@@ -27,6 +27,9 @@ pub enum HyperlaneSealevelError {
     /// Unsupported transaction encoding
     #[error("{0:?}")]
     UnsupportedTransactionEncoding(EncodedTransaction),
+    /// Unsupported message encoding
+    #[error("{0:?}")]
+    UnsupportedMessageEncoding(UiMessage),
     /// Unsigned transaction
     #[error("{0}")]
     UnsignedTransaction(H512),
