@@ -25,18 +25,20 @@ contract RateLimitedIsmTest is Test {
     function setUp() external {
         localMailbox = new TestMailbox(ORIGIN);
 
+        testRecipient = new TestRecipient();
         rateLimitedIsm = new RateLimitedIsm(
             address(localMailbox),
-            MAX_CAPACITY
+            MAX_CAPACITY,
+            address(testRecipient)
         );
-        testRecipient = new TestRecipient();
 
         testRecipient.setInterchainSecurityModule(address(rateLimitedIsm));
     }
 
     function testRateLimitedIsm_revertsIDeliveredFalse(
-        bytes calldata _message
+        uint256 _amount
     ) external {
+        bytes memory _message = _encodeTestMessage(_amount);
         vm.prank(address(localMailbox));
         vm.expectRevert("InvalidDeliveredMessage");
         rateLimitedIsm.verify(bytes(""), _message);
@@ -60,6 +62,21 @@ contract RateLimitedIsmTest is Test {
 
         vm.expectRevert("MessageAlreadyValidated");
         rateLimitedIsm.verify(bytes(""), encodedMessage);
+    }
+
+    function test_verifyOnlyRecipient(uint128 _amount) external {
+        bytes memory _message = MessageUtils.formatMessage(
+            uint8(3),
+            uint32(1),
+            ORIGIN,
+            WARP_ROUTE_ADDR.addressToBytes32(),
+            ORIGIN,
+            ~address(testRecipient).addressToBytes32(), // bad recipient
+            TokenMessage.format(bytes32(""), _amount, bytes(""))
+        );
+
+        vm.expectRevert("TypeCasts: bytes32ToAddress overflow");
+        rateLimitedIsm.verify(bytes(""), _message);
     }
 
     function _encodeTestMessage(

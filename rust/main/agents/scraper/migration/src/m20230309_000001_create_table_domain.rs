@@ -439,6 +439,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "stride",
+        token: "STRD",
+        domain: 745,
+        chain_id: 745,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "cosmostest99990",
         token: "OSMO",
         domain: 99990,

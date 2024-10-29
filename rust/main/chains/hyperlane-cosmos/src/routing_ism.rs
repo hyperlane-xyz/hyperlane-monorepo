@@ -8,13 +8,12 @@ use hyperlane_core::{
 };
 
 use crate::{
-    address::CosmosAddress,
     grpc::WasmProvider,
     payloads::ism_routes::{
         IsmRouteRequest, IsmRouteRequestInner, IsmRouteRespnose, QueryRoutingIsmGeneralRequest,
     },
     signers::Signer,
-    ConnectionConf, CosmosProvider,
+    ConnectionConf, CosmosAddress, CosmosProvider,
 };
 
 /// A reference to a RoutingIsm contract on some Cosmos chain

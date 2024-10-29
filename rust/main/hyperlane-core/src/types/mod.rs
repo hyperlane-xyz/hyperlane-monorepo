@@ -1,29 +1,39 @@
-use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::io::{Read, Write};
 use std::ops::Add;
 
+use serde::{Deserialize, Serialize};
+
 pub use self::primitive_types::*;
 #[cfg(feature = "ethers")]
 pub use ::primitive_types as ethers_core_types;
+pub use account_address_type::AccountAddressType;
 pub use announcement::*;
+pub use block_id::BlockId;
 pub use chain_data::*;
 pub use checkpoint::*;
+pub use conversions::*;
 pub use indexing::*;
 pub use log_metadata::*;
 pub use merkle_tree::*;
 pub use message::*;
+pub use reorg::*;
 pub use transaction::*;
 
 use crate::{Decode, Encode, HyperlaneProtocolError};
 
+/// This module contains enum for account address type
+mod account_address_type;
 mod announcement;
+mod block_id;
 mod chain_data;
 mod checkpoint;
+mod conversions;
 mod indexing;
 mod log_metadata;
 mod merkle_tree;
 mod message;
+mod reorg;
 mod serialize;
 mod transaction;
 

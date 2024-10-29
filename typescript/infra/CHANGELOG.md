@@ -1,5 +1,71 @@
 # @hyperlane-xyz/infra
 
+## 5.6.2
+
+### Patch Changes
+
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/sdk@5.6.2
+  - @hyperlane-xyz/helloworld@5.6.2
+
+## 5.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@5.6.1
+- @hyperlane-xyz/sdk@5.6.1
+- @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- b3495b205: Updates the warpIds for Renzo's latest deployment to Sei and Taiko to be used by the Checker
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+
+### Patch Changes
+
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [02a5b92ba]
+- Updated dependencies [29341950e]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [32d0a67c2]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [e89f9e35d]
+- Updated dependencies [d41aa6928]
+- Updated dependencies [c3e9268f1]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [7f3e0669d]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+  - @hyperlane-xyz/helloworld@5.6.0
+
+## 5.5.0
+
+### Patch Changes
+
+- Updated dependencies [2afc484a2]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/sdk@5.5.0
+  - @hyperlane-xyz/utils@5.5.0
+  - @hyperlane-xyz/helloworld@5.5.0
+
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+  - @hyperlane-xyz/sdk@5.4.0
+  - @hyperlane-xyz/helloworld@5.4.0
+
 ## 5.3.0
 
 ### Patch Changes

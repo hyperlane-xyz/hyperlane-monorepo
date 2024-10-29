@@ -26,6 +26,8 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
+import { getSafeAndService, updateSafeOwner } from '../utils/safe.js';
+
 import {
   ManualMultiSend,
   MultiSend,
@@ -159,7 +161,28 @@ export abstract class HyperlaneAppGovernor<
       submissionType: SubmissionType,
       multiSend: MultiSend,
     ) => {
-      const callsForSubmissionType = filterCalls(submissionType) || [];
+      const callsForSubmissionType = [];
+      const filteredCalls = filterCalls(submissionType);
+
+      // If calls are being submitted via a safe, we need to check for any safe owner changes first
+      if (submissionType === SubmissionType.SAFE) {
+        try {
+          const { safeSdk } = await getSafeAndService(
+            chain,
+            this.checker.multiProvider,
+            (multiSend as SafeMultiSend).safeAddress,
+          );
+          const updateOwnerCalls = await updateSafeOwner(safeSdk);
+          callsForSubmissionType.push(...updateOwnerCalls);
+        } catch (error) {
+          // Catch but don't throw because we want to try submitting any remaining calls
+          console.error(`Error updating safe owner: ${error}`);
+        }
+      }
+
+      // Add the filtered calls to the calls for submission type
+      callsForSubmissionType.push(...filteredCalls);
+
       if (callsForSubmissionType.length > 0) {
         this.printSeparator();
         const confirmed = await summarizeCalls(
@@ -257,7 +280,6 @@ export abstract class HyperlaneAppGovernor<
 
   protected async inferCallSubmissionTypes() {
     const newCalls: ChainMap<AnnotatedCallData[]> = {};
-
     const pushNewCall = (inferredCall: InferredCall) => {
       newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
       newCalls[inferredCall.chain].push({
@@ -267,20 +289,29 @@ export abstract class HyperlaneAppGovernor<
       });
     };
 
-    for (const chain of Object.keys(this.calls)) {
-      try {
-        for (const call of this.calls[chain]) {
-          const inferredCall = await this.inferCallSubmissionType(chain, call);
-          pushNewCall(inferredCall);
+    const results: ChainMap<InferredCall[]> = {};
+    await Promise.all(
+      Object.keys(this.calls).map(async (chain) => {
+        try {
+          results[chain] = await Promise.all(
+            this.calls[chain].map((call) =>
+              this.inferCallSubmissionType(chain, call),
+            ),
+          );
+        } catch (error) {
+          console.error(
+            chalk.red(
+              `Error inferring call submission types for chain ${chain}: ${error}`,
+            ),
+          );
+          results[chain] = [];
         }
-      } catch (error) {
-        console.error(
-          chalk.red(
-            `Error inferring call submission types for chain ${chain}: ${error}`,
-          ),
-        );
-      }
-    }
+      }),
+    );
+
+    Object.entries(results).forEach(([_, inferredCalls]) => {
+      inferredCalls.forEach(pushNewCall);
+    });
 
     this.calls = newCalls;
   }

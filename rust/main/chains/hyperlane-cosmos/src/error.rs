@@ -1,6 +1,9 @@
-use cosmrs::proto::prost;
-use hyperlane_core::ChainCommunicationError;
 use std::fmt::Debug;
+
+use cosmrs::proto::prost;
+
+use crypto::PublicKeyError;
+use hyperlane_core::ChainCommunicationError;
 
 /// Errors from the crates specific to the hyperlane-cosmos
 /// implementation.
@@ -50,13 +53,34 @@ pub enum HyperlaneCosmosError {
     /// Public key error
     #[error("{0}")]
     PublicKeyError(String),
+    /// Address error
+    #[error("{0}")]
+    AddressError(String),
     /// Signer info error
     #[error("{0}")]
     SignerInfoError(String),
+    /// Serde error
+    #[error("{0}")]
+    SerdeError(#[from] serde_json::Error),
+    /// Empty error
+    #[error("{0}")]
+    UnparsableEmptyField(String),
+    /// Parsing error
+    #[error("{0}")]
+    ParsingFailed(String),
+    /// Parsing attempt failed
+    #[error("Parsing attempt failed. (Errors: {0:?})")]
+    ParsingAttemptsFailed(Vec<HyperlaneCosmosError>),
 }
 
 impl From<HyperlaneCosmosError> for ChainCommunicationError {
     fn from(value: HyperlaneCosmosError) -> Self {
         ChainCommunicationError::from_other(value)
+    }
+}
+
+impl From<PublicKeyError> for HyperlaneCosmosError {
+    fn from(value: PublicKeyError) -> Self {
+        HyperlaneCosmosError::PublicKeyError(value.to_string())
     }
 }

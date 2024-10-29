@@ -1,5 +1,67 @@
 # @hyperlane-xyz/widgets
 
+## 5.6.2
+
+### Patch Changes
+
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/sdk@5.6.2
+
+## 5.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@5.6.1
+- @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Patch Changes
+
+- e89f9e35d: Update registry to v4.7.0
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [02a5b92ba]
+- Updated dependencies [29341950e]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [32d0a67c2]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [d41aa6928]
+- Updated dependencies [c3e9268f1]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [7f3e0669d]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+
+## 5.5.0
+
+### Minor Changes
+
+- 2afc484a2: Create ChainSearchMenu and ChainDetailsMenu components
+  Add required icon and button components
+  Add persisted zustand store and hooks
+  Add clipboard utility functions
+
+### Patch Changes
+
+- Updated dependencies [2afc484a2]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/sdk@5.5.0
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/sdk@5.4.0
+
 ## 5.3.0
 
 ### Minor Changes

@@ -463,6 +463,12 @@ fn run_locally() {
         .unwrap()
     );
 
+    // count all the dispatched messages
+    let mut dispatched_messages = 0;
+
+    // dispatch the first batch of messages (before agents start)
+    dispatched_messages += dispatch(&osmosisd, linker, &nodes);
+
     let config_dir = tempdir().unwrap();
 
     // export agent config
@@ -525,54 +531,8 @@ fn run_locally() {
 
     let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
 
-    // dispatch messages
-    let mut dispatched_messages = 0;
-
-    for node in nodes.iter() {
-        let targets = nodes
-            .iter()
-            .filter(|v| v.domain != node.domain)
-            .collect::<Vec<_>>();
-
-        if !targets.is_empty() {
-            println!(
-                "DISPATCHING MAILBOX: {} -> {:?}",
-                node.domain,
-                targets.iter().map(|v| v.domain).collect::<Vec<_>>()
-            );
-        }
-
-        for target in targets {
-            dispatched_messages += 1;
-            let cli = OsmosisCLI::new(
-                osmosisd.clone(),
-                node.launch_resp.home_path.to_str().unwrap(),
-            );
-
-            let msg_body: &[u8; 5] = b"hello";
-
-            cli.wasm_execute(
-                &node.launch_resp.endpoint,
-                linker,
-                &node.deployments.mailbox,
-                MockDispatch {
-                    dispatch: MockDispatchInner {
-                        dest_domain: target.domain,
-                        recipient_addr: hex::encode(
-                            bech32_decode(&target.deployments.mock_receiver).unwrap(),
-                        ),
-                        msg_body: hex::encode(msg_body),
-                        hook: None,
-                        metadata: "".to_string(),
-                    },
-                },
-                vec![RawCosmosAmount {
-                    denom: "uosmo".to_string(),
-                    amount: 25_000_000.to_string(),
-                }],
-            );
-        }
-    }
+    // dispatch the second batch of messages (after agents start)
+    dispatched_messages += dispatch(&osmosisd, linker, &nodes);
 
     let _stack = CosmosHyperlaneStack {
         validators: hpl_val.into_iter().map(|v| v.join()).collect(),
@@ -612,6 +572,57 @@ fn run_locally() {
     } else {
         log!("E2E tests passed");
     }
+}
+
+fn dispatch(osmosisd: &Path, linker: &str, nodes: &[CosmosNetwork]) -> u32 {
+    let mut dispatched_messages = 0;
+    for node in nodes.iter() {
+        let targets = nodes
+            .iter()
+            .filter(|v| v.domain != node.domain)
+            .collect::<Vec<_>>();
+
+        if !targets.is_empty() {
+            println!(
+                "DISPATCHING MAILBOX: {} -> {:?}",
+                node.domain,
+                targets.iter().map(|v| v.domain).collect::<Vec<_>>()
+            );
+        }
+
+        for target in targets {
+            dispatched_messages += 1;
+            let cli = OsmosisCLI::new(
+                osmosisd.to_path_buf(),
+                node.launch_resp.home_path.to_str().unwrap(),
+            );
+
+            let msg_body: &[u8; 5] = b"hello";
+
+            cli.wasm_execute(
+                &node.launch_resp.endpoint,
+                linker,
+                &node.deployments.mailbox,
+                MockDispatch {
+                    dispatch: MockDispatchInner {
+                        dest_domain: target.domain,
+                        recipient_addr: hex::encode(
+                            bech32_decode(&target.deployments.mock_receiver).unwrap(),
+                        ),
+                        msg_body: hex::encode(msg_body),
+                        hook: None,
+                        metadata: "".to_string(),
+                    },
+                },
+                vec![RawCosmosAmount {
+                    denom: "uosmo".to_string(),
+                    amount: 25_000_000.to_string(),
+                }],
+            );
+        }
+    }
+
+    dispatched_messages
 }
 
 fn termination_invariants_met(

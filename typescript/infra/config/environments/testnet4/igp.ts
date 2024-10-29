@@ -1,12 +1,18 @@
-import { ChainMap, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  HookType,
+  IgpConfig,
+  getTokenExchangeRateFromValues,
+} from '@hyperlane-xyz/sdk';
 import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
+  EXCHANGE_RATE_MARGIN_PCT,
   getAllStorageGasOracleConfigs,
   getOverhead,
-  getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
+import { mustGetChainNativeToken } from '../../../src/utils/utils.js';
 
 import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
@@ -21,9 +27,16 @@ export const storageGasOracleConfig: AllStorageGasOracleConfigs =
     supportedChainNames,
     gasPrices,
     (local, remote) =>
-      getTokenExchangeRateFromValues(local, remote, tokenPrices),
-    (local) => parseFloat(tokenPrices[local]),
-    (local, remote) => getOverhead(local, remote, ethereumChainNames),
+      getTokenExchangeRateFromValues({
+        local,
+        remote,
+        tokenPrices,
+        exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
+        decimals: {
+          local: mustGetChainNativeToken(local).decimals,
+          remote: mustGetChainNativeToken(remote).decimals,
+        },
+      }),
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(

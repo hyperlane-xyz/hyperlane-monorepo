@@ -23,6 +23,10 @@ import { indentYamlOrJson } from '../utils/files.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
+export const WarpSendLogs = {
+  SUCCESS: 'Transfer was self-relayed!',
+};
+
 export async function sendTestTransfer({
   context,
   warpCoreConfig,
@@ -183,7 +187,7 @@ async function executeDelivery({
 
     log('Attempting self-relay of transfer...');
     await relayer.relayMessage(transferTxReceipt, messageIndex, message);
-    logGreen('Transfer was self-relayed!');
+    logGreen(WarpSendLogs.SUCCESS);
     return;
   }
 

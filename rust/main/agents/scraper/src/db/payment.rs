@@ -3,10 +3,10 @@ use itertools::Itertools;
 use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
 use tracing::{debug, instrument, trace};
 
-use hyperlane_core::{InterchainGasPayment, LogMeta};
+use hyperlane_core::{h256_to_bytes, InterchainGasPayment, LogMeta};
 use migration::OnConflict;
 
-use crate::conversions::{h256_to_bytes, u256_to_decimal};
+use crate::conversions::u256_to_decimal;
 use crate::date_time;
 use crate::db::ScraperDb;
 
@@ -42,8 +42,12 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        debug_assert!(!models.is_empty());
         trace!(?models, "Writing gas payments to database");
+
+        if models.is_empty() {
+            debug!("Wrote zero new gas payments to database");
+            return Ok(0);
+        }
 
         Insert::many(models)
             .on_conflict(
@@ -67,12 +71,10 @@ impl ScraperDb {
             .payments_count_since_id(domain, latest_id_before)
             .await?;
 
-        if new_payments_count > 0 {
-            debug!(
-                payments = new_payments_count,
-                "Wrote new gas payments to database"
-            );
-        }
+        debug!(
+            payments = new_payments_count,
+            "Wrote new gas payments to database"
+        );
         Ok(new_payments_count)
     }
 

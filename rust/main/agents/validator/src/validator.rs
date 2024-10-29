@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use crate::server as validator_server;
 use async_trait::async_trait;
@@ -10,7 +10,7 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use hyperlane_base::{
-    db::{HyperlaneRocksDB, DB},
+    db::{HyperlaneDb, HyperlaneRocksDB, DB},
     metrics::AgentMetrics,
     settings::ChainConf,
     AgentMetadata, BaseAgent, ChainMetrics, CheckpointSyncer, ContractSyncMetrics, ContractSyncer,
@@ -19,8 +19,8 @@ use hyperlane_base::{
 
 use hyperlane_core::{
     Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce,
-    H256, U256,
+    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 
@@ -44,7 +44,7 @@ pub struct Validator {
     signer: SingletonSignerHandle,
     // temporary holder until `run` is called
     signer_instance: Option<Box<SingletonSigner>>,
-    reorg_period: u64,
+    reorg_period: ReorgPeriod,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     core_metrics: Arc<CoreMetrics>,
@@ -77,7 +77,11 @@ impl BaseAgent for Validator {
         let (signer_instance, signer) = SingletonSigner::new(settings.validator.build().await?);
 
         let core = settings.build_hyperlane_core(metrics.clone());
-        let checkpoint_syncer = settings.checkpoint_syncer.build(None).await?.into();
+        let checkpoint_syncer = settings
+            .checkpoint_syncer
+            .build_and_validate(None)
+            .await?
+            .into();
 
         let mailbox = settings
             .build_mailbox(&settings.origin_chain, &metrics)
@@ -180,12 +184,10 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        let reorg_period = NonZeroU64::new(self.reorg_period);
-
         // Ensure that the merkle tree hook has count > 0 before we begin indexing
         // messages or submitting checkpoints.
         loop {
-            match self.merkle_tree_hook.count(reorg_period).await {
+            match self.merkle_tree_hook.count(&self.reorg_period).await {
                 Ok(0) => {
                     info!("Waiting for first message in merkle tree hook");
                     sleep(self.interval).await;
@@ -237,18 +239,17 @@ impl Validator {
     async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<()>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
-            self.reorg_period,
+            self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
-            self.db.clone(),
+            Arc::new(self.db.clone()) as Arc<dyn HyperlaneDb>,
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        let reorg_period = NonZeroU64::new(self.reorg_period);
         let tip_tree = self
             .merkle_tree_hook
-            .tree(reorg_period)
+            .tree(&self.reorg_period)
             .await
             .expect("failed to get merkle tree");
         // This function is only called after we have already checked that the
