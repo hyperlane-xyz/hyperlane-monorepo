@@ -979,7 +979,7 @@ async fn test_process_errors_if_message_already_processed() {
     .unwrap();
 
     // there's a race condition that isn't fixed by setting `CommitmentLevel::Confirmed`
-    // just wait a bit to ensure the account is created
+    // just wait a bit to ensure the message is processed
     sleep(std::time::Duration::from_secs(1));
 
     let result = process(
