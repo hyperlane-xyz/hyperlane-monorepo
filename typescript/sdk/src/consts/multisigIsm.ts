@@ -467,7 +467,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 4,
     validators: [
       '0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5',
-      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tesselated (superlane)
+      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tessellated (superlane)
       '0x3DA4ee2801Ec6CC5faD73DBb94B10A203ADb3d9e', // enigma (superlane)
       '0x4df6e8878992c300e7bfe98cac6bf7d3408b9cbf', // imperator (superlane)
       '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3', // bware (superlane)
@@ -555,7 +555,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 4,
     validators: [
       '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
-      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tesselated (superlane)
+      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tessellated (superlane)
       '0x65C140e3a05F33192384AffEF985696Fe3cDDE42', // enigma (superlane)
       '0x20eade18ea2af6dfd54d72b3b5366b40fcb47f4b', // imperator (superlane)
       '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3', // bware (superlane)
@@ -622,7 +622,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     threshold: 4,
     validators: [
       '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
-      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tesselated (superlane)
+      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tessellated (superlane)
       '0xd8c1cCbfF28413CE6c6ebe11A3e29B0D8384eDbB', // enigma (superlane)
       '0x1b9e5f36c4bfdb0e3f0df525ef5c888a4459ef99', // imperator (superlane)
       '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3', // bware (superlane)
