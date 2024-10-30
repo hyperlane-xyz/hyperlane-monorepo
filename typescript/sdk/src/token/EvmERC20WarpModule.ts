@@ -19,11 +19,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { EvmModuleDeployer } from '../deploy/EvmModuleDeployer.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -277,12 +277,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    return EvmModuleDeployer.createTransferOwnershipTx({
-      actualOwner: actualConfig.owner,
-      expectedOwner: expectedConfig.owner,
-      deployedAddress: this.args.addresses.deployedTokenRoute,
-      chainId: this.domainId,
-    });
+    return transferOwnershipTransactions(
+      this.multiProvider.getDomainId(this.args.chain),
+      this.args.addresses.deployedTokenRoute,
+      actualConfig,
+      expectedConfig,
+      `${expectedConfig.type} Warp Route`,
+    );
   }
 
   /**

@@ -91,7 +91,8 @@ impl TryFrom<&CosmosAddress> for H256 {
     type Error = ChainCommunicationError;
 
     fn try_from(cosmos_address: &CosmosAddress) -> Result<Self, Self::Error> {
-        CosmosAccountId::new(&cosmos_address.account_id).try_into()
+        H256::try_from(CosmosAccountId::new(&cosmos_address.account_id))
+            .map_err(Into::<ChainCommunicationError>::into)
     }
 }
 

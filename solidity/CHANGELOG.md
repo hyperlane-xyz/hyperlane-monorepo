@@ -1,5 +1,40 @@
 # @hyperlane-xyz/core
 
+## 5.6.1
+
+### Patch Changes
+
+- a42616ff3: Added overrides for transferFrom, totalSupply to reflect the internal share based accounting for the 4626 mirror asset
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+
+## 5.6.0
+
+### Minor Changes
+
+- c55257cf5: Minor token related changes like adding custom hook to 4626 collateral, checking for ERC20 as valid contract in HypERC20Collateral, etc.
+- 8cc0d9a4a: Added WHypERC4626 as a wrapper for rebasing HypERC4626
+
+### Patch Changes
+
+- 8cc0d9a4a: Add wrapped HypERC4626 for easy defi use
+  - @hyperlane-xyz/utils@5.6.1
+
+## 5.5.0
+
+### Minor Changes
+
+- 72c23c0d6: Added PRECISION and rateUpdateNonce to ensure compatibility of HypERC4626
+
+### Patch Changes
+
+- c9085afd9: Patched OPL2ToL1Ism to check for correct messageId for external call in verify
+- ec6b874b1: Added nonce to HypERC4626
+- Updated dependencies [f1712deb7]
+- Updated dependencies [29341950e]
+  - @hyperlane-xyz/utils@5.6.0
+
 ## 5.4.1
 
 ### Patch Changes

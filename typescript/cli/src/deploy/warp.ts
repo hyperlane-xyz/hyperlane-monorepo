@@ -903,11 +903,6 @@ async function submitWarpApplyTransactions(
               `Transactions receipts successfully written to ${receiptPath}`,
             );
           }
-
-          logGreen(
-            `✅ Warp route update success with ${submitter.txSubmitterType} on ${chain}:\n\n`,
-            indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 0),
-          );
         },
         5, // attempts
         100, // baseRetryMs

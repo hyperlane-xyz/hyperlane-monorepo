@@ -196,6 +196,7 @@ export {
 export {
   BlockExplorer,
   BlockExplorerSchema,
+  EthJsonRpcBlockParameterTag,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
@@ -488,7 +489,7 @@ export {
   setFork,
   stopImpersonatingAccount,
 } from './utils/fork.js';
-export { multisigIsmVerificationCost } from './utils/ism.js';
+export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export {
   SealevelAccountDataWrapper,
@@ -513,9 +514,11 @@ export {
   NativeConfig,
   TokenRouterConfigSchema,
   WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigSchemaErrors,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
+  isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './token/schemas.js';
 export { isCompliant } from './utils/schemas.js';
@@ -537,3 +540,13 @@ export {
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export {
+  GasPriceConfig,
+  NativeTokenPriceConfig,
+  ChainGasOracleParams,
+  getCoingeckoTokenPrices,
+  getCosmosChainGasPrice,
+  getGasPrice,
+  getLocalStorageGasOracleConfig,
+  getTokenExchangeRateFromValues,
+} from './gas/utils.js';

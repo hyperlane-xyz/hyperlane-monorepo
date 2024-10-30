@@ -32,7 +32,7 @@ use hyperlane_core::{
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::server::MessageRetryRequest;
+use crate::settings::matching_list::MatchingList;
 
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
@@ -105,7 +105,7 @@ impl SerialSubmitter {
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
-        retry_op_transmitter: Sender<MessageRetryRequest>,
+        retry_op_transmitter: Sender<MatchingList>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
         task_monitor: TaskMonitor,
@@ -293,6 +293,7 @@ async fn prepare_task(
                 }
                 PendingOperationResult::Drop => {
                     metrics.ops_dropped.inc();
+                    op.decrement_metric_if_exists();
                 }
                 PendingOperationResult::Confirm(reason) => {
                     debug!(?op, "Pushing operation to confirm queue");
@@ -341,7 +342,7 @@ async fn submit_task(
     }
 }
 
-#[instrument(skip(confirm_queue, metrics), ret, level = "debug")]
+#[instrument(skip(prepare_queue, confirm_queue, metrics), ret, level = "debug")]
 async fn submit_single_operation(
     mut op: QueueOperation,
     prepare_queue: &mut OpQueue,
@@ -369,6 +370,7 @@ async fn submit_single_operation(
         }
         PendingOperationResult::Drop => {
             // Not expected to hit this case in `submit`, but it's here for completeness
+            op.decrement_metric_if_exists();
         }
         PendingOperationResult::Success | PendingOperationResult::Confirm(_) => {
             confirm_op(op, confirm_queue, metrics).await
@@ -457,6 +459,7 @@ async fn confirm_operation(
         PendingOperationResult::Success => {
             debug!(?op, "Operation confirmed");
             metrics.ops_confirmed.inc();
+            op.decrement_metric_if_exists();
         }
         PendingOperationResult::NotReady => {
             confirm_queue.push(op, None).await;
@@ -475,6 +478,7 @@ async fn confirm_operation(
         }
         PendingOperationResult::Drop => {
             metrics.ops_dropped.inc();
+            op.decrement_metric_if_exists();
         }
     }
     operation_result

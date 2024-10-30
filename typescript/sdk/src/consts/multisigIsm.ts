@@ -4,8 +4,12 @@ import { ChainMap } from '../types.js';
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   alephzeroevm: {
-    threshold: 1,
-    validators: ['0xcae8fab142adc4e434bb7409e40dd932cc3851aa'],
+    threshold: 2,
+    validators: [
+      '0xcae8fab142adc4e434bb7409e40dd932cc3851aa',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   alfajores: {
@@ -26,6 +30,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  apechain: {
+    threshold: 1,
+    validators: ['0x773d7fe6ffb1ba4de814c28044ff9a2d83a48221'],
+  },
+
   arbitrum: {
     threshold: 3,
     validators: [
@@ -35,6 +44,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
       '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
     ],
+  },
+
+  arbitrumnova: {
+    threshold: 1,
+    validators: ['0xd2a5e9123308d187383c87053811a2c21bd8af1f'],
   },
 
   arbitrumsepolia: {
@@ -72,6 +86,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x402e0f8c6e4210d408b6ac00d197d4a099fcd25a', // dsrv
       '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
     ],
+  },
+
+  b3: {
+    threshold: 1,
+    validators: ['0xd77b516730a836fc41934e7d5864e72c165b934e'],
   },
 
   base: {
@@ -175,8 +194,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   chiliz: {
-    threshold: 1,
-    validators: ['0x82d024f453b1a3f3f6606226f06b038da27596f3'],
+    threshold: 2,
+    validators: [
+      '0x82d024f453b1a3f3f6606226f06b038da27596f3',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   citreatestnet: {
@@ -276,11 +299,25 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  fantom: {
+    threshold: 1,
+    validators: ['0xa779572028e634e16f26af5dfd4fa685f619457d'],
+  },
+
   flare: {
     threshold: 2,
     validators: [
       '0xb65e52be342dba3ab2c088ceeb4290c744809134',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
+  },
+
+  flow: {
+    threshold: 2,
+    validators: [
+      '0x3aee1090318e9c54d1d23194dcd0f2bee00ddc97',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
@@ -327,6 +364,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  gravity: {
+    threshold: 1,
+    validators: ['0x23d549bf757a02a6f6068e9363196ecd958c974e'],
+  },
+
+  harmony: {
+    threshold: 1,
+    validators: ['0xd677803a67651974b1c264171b5d7ca8838db8d5'],
+  },
+
   holesky: {
     threshold: 1,
     validators: ['0x7ab28ad88bb45867137ea823af88e2cb02359c03'], // TODO
@@ -338,8 +385,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   immutablezkevm: {
-    threshold: 1,
-    validators: ['0xa787c2952a4d22f776ee6e87e828e6f75de24330'],
+    threshold: 2,
+    validators: [
+      '0xa787c2952a4d22f776ee6e87e828e6f75de24330',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   inevm: {
@@ -358,6 +409,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x6B1d09A97b813D53e9D4b7523DA36604C0B52242', // caldera
       '0x9e551b6694bbd295d7d6e6a2540c7d41ce70a3b9', // imperator
     ],
+  },
+
+  kaia: {
+    threshold: 1,
+    validators: ['0x9de0b3abb221d19719882fa4d61f769fdc2be9a4'],
   },
 
   kroma: {
@@ -397,8 +453,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   lumia: {
-    threshold: 1,
-    validators: ['0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f'],
+    threshold: 2,
+    validators: [
+      '0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   mantapacific: {
@@ -428,6 +488,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
+  },
+
+  metall2: {
+    threshold: 2,
+    validators: [
+      '0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
   },
@@ -479,6 +548,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  morph: {
+    threshold: 1,
+    validators: ['0x4884535f393151ec419add872100d352f71af380'],
+  },
+
   neutron: {
     threshold: 4,
     validators: [
@@ -522,6 +596,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x03efe4d0632ee15685d7e8f46dea0a874304aa29'],
   },
 
+  orderly: {
+    threshold: 1,
+    validators: ['0xec3dc91f9fa2ad35edf5842aa764d5573b778bb6'],
+  },
+
   osmosis: {
     threshold: 1,
     validators: ['0xea483af11c19fa41b16c31d1534c2a486a92bcac'],
@@ -556,6 +635,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  polynomial: {
+    threshold: 2,
+    validators: [
+      '0xa63ad0891e921ad5947d57e05831fabb9816eca7',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
+  },
+
   proofofplay: {
     threshold: 2,
     validators: [
@@ -566,8 +654,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   rari: {
-    threshold: 1,
-    validators: ['0x989d6862e09de21337078efbd86843a3eb1133e3'],
+    threshold: 2,
+    validators: [
+      '0x989d6862e09de21337078efbd86843a3eb1133e3',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   real: {
@@ -589,8 +681,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   rootstock: {
-    threshold: 1,
-    validators: ['0xcb8e3a72cf427feff27416d0e2ec375a052eaaee'],
+    threshold: 2,
+    validators: [
+      '0xcb8e3a72cf427feff27416d0e2ec375a052eaaee',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   sanko: {
@@ -647,6 +743,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
+  },
+
+  snaxchain: {
+    threshold: 1,
+    validators: ['0x2c25829ae32a772d2a49f6c4b34f8b01fd03ef9e'],
   },
 
   solanadevnet: {
@@ -706,8 +807,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   superposition: {
-    threshold: 1,
-    validators: ['0x5978d0e6afa9270ddb87cff43a8fa7a763a5dfc4'],
+    threshold: 2,
+    validators: [
+      '0x5978d0e6afa9270ddb87cff43a8fa7a763a5dfc4',
+      '0xCF0211faFBb91FD9D06D7E306B30032DC3A1934f', // merkly
+      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+    ],
   },
 
   superpositiontestnet: {
@@ -775,6 +880,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  zeronetwork: {
+    threshold: 1,
+    validators: ['0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87'],
+  },
+
   zetachain: {
     threshold: 3,
     validators: [
@@ -793,6 +903,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x0180444c9342BD672867Df1432eb3dA354413a6E', // hashkey cloud
       '0x1da9176C2CE5cC7115340496fa7D1800a98911CE', // renzo
     ],
+  },
+
+  zksync: {
+    threshold: 1,
+    validators: ['0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a'],
   },
 
   zoramainnet: {

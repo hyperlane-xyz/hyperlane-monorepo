@@ -111,7 +111,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a collateral config', async () => {
-    const config = {
+    const config: TokenRouterConfig = {
       ...baseConfig,
       type: TokenType.collateral,
       token: token.address,
@@ -139,7 +139,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       TOKEN_NAME,
       TOKEN_NAME,
     );
-    const config = {
+    const config: TokenRouterConfig = {
       type: TokenType.collateralVault,
       token: vault.address,
       hook: hookAddress,
@@ -172,9 +172,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a synthetic config', async () => {
-    const config = {
+    const config: TokenRouterConfig = {
       type: TokenType.synthetic,
-      token: token.address,
       hook: hookAddress,
       name: TOKEN_NAME,
       symbol: TOKEN_NAME,

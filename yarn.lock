@@ -7824,17 +7824,22 @@ __metadata:
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
     "@hyperlane-xyz/registry": "npm:4.7.0"
-    "@hyperlane-xyz/sdk": "npm:5.5.0"
-    "@hyperlane-xyz/utils": "npm:5.5.0"
+    "@hyperlane-xyz/sdk": "npm:5.6.2"
+    "@hyperlane-xyz/utils": "npm:5.6.2"
+    "@inquirer/core": "npm:9.0.10"
+    "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:^3.0.0"
+    "@types/chai-as-promised": "npm:^8"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^18.14.5"
     "@types/yargs": "npm:^17.0.24"
     "@typescript-eslint/eslint-plugin": "npm:^7.4.0"
     "@typescript-eslint/parser": "npm:^7.4.0"
+    ansi-escapes: "npm:^7.0.0"
     asn1.js: "npm:^5.4.1"
     bignumber.js: "npm:^9.1.1"
-    chai: "npm:4.5.0"
+    chai: "npm:^4.5.0"
+    chai-as-promised: "npm:^8.0.0"
     chalk: "npm:^5.3.0"
     eslint: "npm:^8.57.0"
     eslint-config-prettier: "npm:^9.1.0"
@@ -7855,13 +7860,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:5.4.1, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:5.6.1, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:5.5.0"
+    "@hyperlane-xyz/utils": "npm:5.6.2"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -7912,13 +7917,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:5.5.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:5.6.2, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
-    "@hyperlane-xyz/core": "npm:5.4.1"
+    "@hyperlane-xyz/core": "npm:5.6.1"
     "@hyperlane-xyz/registry": "npm:4.7.0"
-    "@hyperlane-xyz/sdk": "npm:5.5.0"
+    "@hyperlane-xyz/sdk": "npm:5.6.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -7965,10 +7970,10 @@ __metadata:
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:^5.7.2"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/helloworld": "npm:5.5.0"
-    "@hyperlane-xyz/registry": "npm:4.7.0"
-    "@hyperlane-xyz/sdk": "npm:5.5.0"
-    "@hyperlane-xyz/utils": "npm:5.5.0"
+    "@hyperlane-xyz/helloworld": "npm:5.6.2"
+    "@hyperlane-xyz/registry": "npm:4.10.0"
+    "@hyperlane-xyz/sdk": "npm:5.6.2"
+    "@hyperlane-xyz/utils": "npm:5.6.2"
     "@inquirer/prompts": "npm:^5.3.8"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
@@ -8024,6 +8029,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/registry@npm:4.10.0":
+  version: 4.10.0
+  resolution: "@hyperlane-xyz/registry@npm:4.10.0"
+  dependencies:
+    yaml: "npm:2.4.5"
+    zod: "npm:^3.21.2"
+  checksum: 22bb18f426cbada8b97db0894fe5d0980dfc08ecbd5174c978b7aeb6d8df9706f93d7e9cf0630644d2455ad05feee714dc2a38ec515a717b0b257184637902fb
+  languageName: node
+  linkType: hard
+
 "@hyperlane-xyz/registry@npm:4.7.0":
   version: 4.7.0
   resolution: "@hyperlane-xyz/registry@npm:4.7.0"
@@ -8034,7 +8049,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:5.5.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:5.6.2, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -8042,8 +8057,8 @@ __metadata:
     "@aws-sdk/client-s3": "npm:^3.74.0"
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
-    "@hyperlane-xyz/core": "npm:5.4.1"
-    "@hyperlane-xyz/utils": "npm:5.5.0"
+    "@hyperlane-xyz/core": "npm:5.6.1"
+    "@hyperlane-xyz/utils": "npm:5.6.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -8084,7 +8099,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@npm:5.5.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:5.6.2, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -8092,6 +8107,8 @@ __metadata:
     "@solana/web3.js": "npm:^1.78.0"
     "@types/lodash-es": "npm:^4.17.12"
     "@types/mocha": "npm:^10.0.1"
+    "@types/sinon": "npm:^17.0.1"
+    "@types/sinon-chai": "npm:^3.2.12"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:4.5.0"
     ethers: "npm:^5.7.2"
@@ -8099,6 +8116,7 @@ __metadata:
     mocha: "npm:^10.2.0"
     pino: "npm:^8.19.0"
     prettier: "npm:^2.8.8"
+    sinon: "npm:^13.0.2"
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
   languageName: unknown
@@ -8110,8 +8128,8 @@ __metadata:
   dependencies:
     "@headlessui/react": "npm:^2.1.8"
     "@hyperlane-xyz/registry": "npm:4.7.0"
-    "@hyperlane-xyz/sdk": "npm:5.5.0"
-    "@hyperlane-xyz/utils": "npm:5.5.0"
+    "@hyperlane-xyz/sdk": "npm:5.6.2"
+    "@hyperlane-xyz/utils": "npm:5.6.2"
     "@storybook/addon-essentials": "npm:^7.6.14"
     "@storybook/addon-interactions": "npm:^7.6.14"
     "@storybook/addon-links": "npm:^7.6.14"
@@ -8194,6 +8212,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@inquirer/core@npm:9.0.10, @inquirer/core@npm:^9.0.10":
+  version: 9.0.10
+  resolution: "@inquirer/core@npm:9.0.10"
+  dependencies:
+    "@inquirer/figures": "npm:^1.0.5"
+    "@inquirer/type": "npm:^1.5.2"
+    "@types/mute-stream": "npm:^0.0.4"
+    "@types/node": "npm:^22.1.0"
+    "@types/wrap-ansi": "npm:^3.0.0"
+    ansi-escapes: "npm:^4.3.2"
+    cli-spinners: "npm:^2.9.2"
+    cli-width: "npm:^4.1.0"
+    mute-stream: "npm:^1.0.0"
+    signal-exit: "npm:^4.1.0"
+    strip-ansi: "npm:^6.0.1"
+    wrap-ansi: "npm:^6.2.0"
+    yoctocolors-cjs: "npm:^2.1.2"
+  checksum: 1bcb1deb7393d78f2dac5b8774d10692ad50b70e3ebc24684d13259d0c6c863dd1bce8ab4d4a806a6e90d5a2517aa8f9981993b1a256c9be68d9ef5e748481c6
+  languageName: node
+  linkType: hard
+
 "@inquirer/core@npm:^3.0.0":
   version: 3.0.0
   resolution: "@inquirer/core@npm:3.0.0"
@@ -8213,27 +8252,6 @@ __metadata:
     strip-ansi: "npm:^6.0.1"
     wrap-ansi: "npm:^6.0.1"
   checksum: 7524c15d004e1686c5b66086fe70b50ab50983dd6f887a90fa765cc4f9ae2ba7e063dbf0cb740233d55ee1c8b60f10a7b957245bee95223e755e9632c77a9ca4
-  languageName: node
-  linkType: hard
-
-"@inquirer/core@npm:^9.0.10":
-  version: 9.0.10
-  resolution: "@inquirer/core@npm:9.0.10"
-  dependencies:
-    "@inquirer/figures": "npm:^1.0.5"
-    "@inquirer/type": "npm:^1.5.2"
-    "@types/mute-stream": "npm:^0.0.4"
-    "@types/node": "npm:^22.1.0"
-    "@types/wrap-ansi": "npm:^3.0.0"
-    ansi-escapes: "npm:^4.3.2"
-    cli-spinners: "npm:^2.9.2"
-    cli-width: "npm:^4.1.0"
-    mute-stream: "npm:^1.0.0"
-    signal-exit: "npm:^4.1.0"
-    strip-ansi: "npm:^6.0.1"
-    wrap-ansi: "npm:^6.2.0"
-    yoctocolors-cjs: "npm:^2.1.2"
-  checksum: 1bcb1deb7393d78f2dac5b8774d10692ad50b70e3ebc24684d13259d0c6c863dd1bce8ab4d4a806a6e90d5a2517aa8f9981993b1a256c9be68d9ef5e748481c6
   languageName: node
   linkType: hard
 
@@ -8283,7 +8301,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@inquirer/figures@npm:^1.0.5":
+"@inquirer/figures@npm:1.0.5, @inquirer/figures@npm:^1.0.5":
   version: 1.0.5
   resolution: "@inquirer/figures@npm:1.0.5"
   checksum: 60a51b2cdef03c89be25071c23d8c4ae427c56d8ac1b00bf054ca7be446674adc4edd66c15465fe6a81ff0726b024bf37f8a2903a8387ef968d33058da3e7a15
@@ -13119,6 +13137,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/chai-as-promised@npm:^8":
+  version: 8.0.0
+  resolution: "@types/chai-as-promised@npm:8.0.0"
+  dependencies:
+    "@types/chai": "npm:*"
+  checksum: f6db5698e4f28fd6e3914740810f356269b7f4e93a0650b38a9b01a1bae030593487c80bc57a0e69dd0bfb069a61d3dd285bfcfba6d1daf66ef3939577b68169
+  languageName: node
+  linkType: hard
+
 "@types/chai@npm:*, @types/chai@npm:^4.2.21":
   version: 4.3.1
   resolution: "@types/chai@npm:4.3.1"
@@ -14701,6 +14728,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ansi-escapes@npm:^7.0.0":
+  version: 7.0.0
+  resolution: "ansi-escapes@npm:7.0.0"
+  dependencies:
+    environment: "npm:^1.0.0"
+  checksum: 2d0e2345087bd7ae6bf122b9cc05ee35560d40dcc061146edcdc02bc2d7c7c50143cd12a22e69a0b5c0f62b948b7bc9a4539ee888b80f5bd33cdfd82d01a70ab
+  languageName: node
+  linkType: hard
+
 "ansi-regex@npm:^2.0.0":
   version: 2.1.1
   resolution: "ansi-regex@npm:2.1.1"
@@ -16218,7 +16254,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"chai@npm:4.5.0, chai@npm:^4.3.10, chai@npm:^4.3.7":
+"chai-as-promised@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "chai-as-promised@npm:8.0.0"
+  dependencies:
+    check-error: "npm:^2.0.0"
+  peerDependencies:
+    chai: ">= 2.1.2 < 6"
+  checksum: 91d6a49caac7965440b8f8af421ebe6f060a3b5523599ae143816d08fc19d9a971ea2bc5401f82ce88d15d8bc7b64d356bf3e53542ace9e2f25cc454164d3247
+  languageName: node
+  linkType: hard
+
+"chai@npm:4.5.0, chai@npm:^4.3.10, chai@npm:^4.3.7, chai@npm:^4.5.0":
   version: 4.5.0
   resolution: "chai@npm:4.5.0"
   dependencies:
@@ -16335,6 +16382,13 @@ __metadata:
   dependencies:
     get-func-name: "npm:^2.0.2"
   checksum: e2131025cf059b21080f4813e55b3c480419256914601750b0fee3bd9b2b8315b531e551ef12560419b8b6d92a3636511322752b1ce905703239e7cc451b6399
+  languageName: node
+  linkType: hard
+
+"check-error@npm:^2.0.0":
+  version: 2.1.1
+  resolution: "check-error@npm:2.1.1"
+  checksum: d785ed17b1d4a4796b6e75c765a9a290098cf52ff9728ce0756e8ffd4293d2e419dd30c67200aee34202463b474306913f2fcfaf1890641026d9fc6966fea27a
   languageName: node
   linkType: hard
 
@@ -18061,6 +18115,13 @@ __metadata:
   bin:
     envinfo: dist/cli.js
   checksum: 450c962053880f46852119cf89f4412cabd6d465ff5b74cf64e74e9da3a27ebd9e901944a5c4b0bf62950ad25025552282cbde6c00a5a9af0980dd001720fcbb
+  languageName: node
+  linkType: hard
+
+"environment@npm:^1.0.0":
+  version: 1.1.0
+  resolution: "environment@npm:1.1.0"
+  checksum: dd3c1b9825e7f71f1e72b03c2344799ac73f2e9ef81b78ea8b373e55db021786c6b9f3858ea43a436a2c4611052670ec0afe85bc029c384cc71165feee2f4ba6
   languageName: node
   linkType: hard
 
