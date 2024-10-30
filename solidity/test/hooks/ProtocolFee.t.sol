@@ -73,6 +73,7 @@ contract ProtocolFeeTest is Test {
     }
 
     function testSetBeneficiary(address beneficiary) public {
+        vm.assume(beneficiary != address(0));
         vm.expectEmit(true, true, true, true);
         emit ProtocolFee.BeneficiarySet(beneficiary);
         fees.setBeneficiary(beneficiary);
