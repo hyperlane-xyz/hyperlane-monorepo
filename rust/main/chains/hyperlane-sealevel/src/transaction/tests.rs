@@ -4,7 +4,7 @@ use crate::transaction::search_dispatched_message_transactions;
 use crate::utils::decode_pubkey;
 
 #[test]
-pub fn test() {
+pub fn test_search_dispatched_message_transaction() {
     // given
     let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
     let dispatched_message_pda_account =
