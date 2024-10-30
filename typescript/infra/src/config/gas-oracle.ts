@@ -81,7 +81,11 @@ function getLocalStorageGasOracleConfigOverride(
     // If we have access to these, let's use the USD prices to apply some minimum
     // typical USD payment heuristics.
     if (getTokenUsdPrice && getOverhead) {
-      const typicalRemoteGasAmount = getOverhead(local, remote) + 50_000;
+      const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
+        local,
+        remote,
+        getOverhead,
+      );
       const typicalIgpQuoteUsd = getUsdQuote(
         local,
         gasPriceBn,
@@ -110,6 +114,15 @@ function getLocalStorageGasOracleConfigOverride(
       },
     };
   }, {});
+}
+
+export function getTypicalRemoteGasAmount(
+  local: ChainName,
+  remote: ChainName,
+  getOverhead: (local: ChainName, remote: ChainName) => number,
+): number {
+  const handleGasUsage = 50_000;
+  return getOverhead(local, remote) + handleGasUsage;
 }
 
 function getMinUsdCost(local: ChainName, remote: ChainName): number {
