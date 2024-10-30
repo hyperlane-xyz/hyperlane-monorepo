@@ -8066,7 +8066,6 @@ __metadata:
     "@safe-global/safe-deployments": "npm:1.37.8"
     "@solana/spl-token": "npm:^0.3.8"
     "@solana/web3.js": "npm:^1.78.0"
-    "@types/coingecko-api": "npm:^1.0.10"
     "@types/mocha": "npm:^10.0.1"
     "@types/node": "npm:^16.9.1"
     "@types/sinon": "npm:^17.0.1"
@@ -8075,7 +8074,7 @@ __metadata:
     "@wagmi/chains": "npm:^1.8.0"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:4.5.0"
-    coingecko-api: "npm:^1.0.10"
+    coingecko-api-v3: "npm:^0.0.29"
     cosmjs-types: "npm:^0.9.0"
     cross-fetch: "npm:^3.1.5"
     dotenv: "npm:^10.0.0"
@@ -13160,13 +13159,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/coingecko-api@npm:^1.0.10":
-  version: 1.0.10
-  resolution: "@types/coingecko-api@npm:1.0.10"
-  checksum: 2523f946e6d293c2ee94a0abee624f53c34b4643f8df685d0164509aba66e8234276e5d8c202c514551024757f0987f7062daa7428ccaf6673bad9a5c55779a2
-  languageName: node
-  linkType: hard
-
 "@types/concat-stream@npm:^1.6.0":
   version: 1.6.1
   resolution: "@types/concat-stream@npm:1.6.1"
@@ -16754,10 +16746,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"coingecko-api@npm:^1.0.10":
-  version: 1.0.10
-  resolution: "coingecko-api@npm:1.0.10"
-  checksum: e0000df5aebbeee508f25824485fe8e4be57cd07825b3cfbf2dc3c51b646200eefd336c833e81747d4a209bf10c32019baef1070fb2bfbcdbae099420954d1fa
+"coingecko-api-v3@npm:^0.0.29":
+  version: 0.0.29
+  resolution: "coingecko-api-v3@npm:0.0.29"
+  dependencies:
+    https: "npm:^1.0.0"
+  checksum: e60a0996472419232a144ec77028c060bd9c289f799dd40d46dbb7229cff3d868a3e35bf88724059dc25767b8136d794789e4dd31711592fa73a7be1ca2fcbc7
   languageName: node
   linkType: hard
 
@@ -21648,6 +21642,13 @@ __metadata:
     agent-base: "npm:^7.0.2"
     debug: "npm:4"
   checksum: 405fe582bba461bfe5c7e2f8d752b384036854488b828ae6df6a587c654299cbb2c50df38c4b6ab303502c3c5e029a793fbaac965d1e86ee0be03faceb554d63
+  languageName: node
+  linkType: hard
+
+"https@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "https@npm:1.0.0"
+  checksum: ccea8a8363a018d4b241db7748cff3a85c9f5b71bf80639e9c37dc6823f590f35dda098b80b726930e9f945387c8bfd6b1461df25cab5bf65a31903d81875b5d
   languageName: node
   linkType: hard
 

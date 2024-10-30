@@ -32,6 +32,8 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { DeployEnvironment } from '../../src/config/environment.js';
+import { fetchGCPSecret } from '../../src/utils/gcloud.js';
 import { startMetricsServer } from '../../src/utils/metrics.js';
 import { readYaml } from '../../src/utils/utils.js';
 import { getArgs } from '../agent-utils.js';
@@ -636,8 +638,10 @@ async function checkWarpRouteMetrics(
   tokenConfig: WarpRouteConfig,
   chainMetadata: ChainMap<ChainMetadata>,
 ) {
-  const tokenPriceGetter =
-    CoinGeckoTokenPriceGetter.withDefaultCoinGecko(chainMetadata);
+  const tokenPriceGetter = CoinGeckoTokenPriceGetter.withDefaultCoinGecko(
+    chainMetadata,
+    await getCoinGeckoApiKey(),
+  );
 
   setInterval(async () => {
     try {
@@ -670,6 +674,24 @@ async function checkWarpRouteMetrics(
       }
     }
   }, checkFrequency);
+}
+
+async function getCoinGeckoApiKey(): Promise<string | undefined> {
+  const environment: DeployEnvironment = 'mainnet3';
+  let apiKey: string | undefined;
+  try {
+    apiKey = (await fetchGCPSecret(
+      CoinGeckoTokenPriceGetter.getSecretName(environment),
+      false,
+    )) as string;
+  } catch (e) {
+    logger.error(
+      'Error fetching CoinGecko API key, proceeding with public tier',
+      e,
+    );
+  }
+
+  return apiKey;
 }
 
 main().then(logger.info).catch(logger.error);
