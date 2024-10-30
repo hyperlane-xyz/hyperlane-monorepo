@@ -134,7 +134,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         tracing::debug!(accounts=?accounts, "Fetched program accounts");
 
         let valid_payment_pda_pubkey = search_and_validate_account(accounts, |account| {
-            self.interchain_payment_account(&account)
+            self.interchain_payment_account(account)
         })?;
 
         // Now that we have the valid gas payment PDA pubkey, we can get the full account data.
