@@ -182,7 +182,15 @@ impl Mailbox for FuelMailbox {
             })
             .any(|result| matches!(result, ScriptExecutionResult::Success));
 
-        let tx_id = H512::from(call_res.tx_id.unwrap().into_h256());
+        let tx_id = match call_res.tx_id {
+            Some(tx_id) => H512::from(tx_id.into_h256()),
+            None => {
+                return Err(ChainCommunicationError::from_other_str(
+                    "Transaction ID not found",
+                ))
+            }
+        };
+
         Ok(TxOutcome {
             transaction_id: tx_id,
             executed: success,
@@ -199,24 +207,25 @@ impl Mailbox for FuelMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        // The tolerance to go over the exact gas esimated is
-        // quite high due to the SDK reporting innacurate gas estimates
-        let tolerance = Some(1.0);
+        let gas_price = self.provider.get_gas_price().await?;
 
-        let call_res = self
+        let simulate_call = self
             .contract
             .methods()
             .process(
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
-            .estimate_transaction_cost(tolerance, None)
+            .determine_missing_contracts(Some(3))
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .simulate(Execution::Realistic)
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(TxCostEstimate {
-            gas_limit: call_res.gas_used.into(),
-            gas_price: call_res.gas_price.into(),
+            gas_limit: simulate_call.gas_used.into(),
+            gas_price: gas_price.into(),
             l2_gas_limit: None,
         })
     }
