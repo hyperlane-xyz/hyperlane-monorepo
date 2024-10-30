@@ -187,9 +187,8 @@ export function withProtocol<T>(args: Argv<T>) {
 
 export function withAgentRole<T>(args: Argv<T>) {
   return args
-    .describe('role', 'agent roles')
-    .array('role')
-    .coerce('role', (role: string[]): Role[] => role.map(assertRole))
+    .describe('role', 'agent role')
+    .coerce('role', (role: string): Role => assertRole(role))
     .demandOption('role')
     .alias('r', 'role');
 }
