@@ -147,10 +147,7 @@ export abstract class BaseContractVerifier {
     );
     const filteredSources: SolidityStandardJsonInput['sources'] = {};
     const sourceFiles: string[] = Object.keys(input.sources);
-    const contractFile: string = this.getContractFile(
-      contractName,
-      sourceFiles,
-    );
+    const contractFile: string = this.contractSourceMap[contractName];
     const queue: string[] = [contractFile];
     const processed = new Set<string>();
 
@@ -177,19 +174,6 @@ export abstract class BaseContractVerifier {
       ...input,
       sources: filteredSources,
     };
-  }
-
-  protected getContractFile(
-    contractName: string,
-    sourceFiles: string[],
-  ): string {
-    const contractFile = sourceFiles.find((file) =>
-      file.endsWith(`/${contractName}.sol`),
-    );
-    if (!contractFile) {
-      throw new Error(`Contract ${contractName} not found in sources.`);
-    }
-    return contractFile;
   }
 
   protected getAllImportStatements(content: string): string[] {
