@@ -26,6 +26,7 @@ use std::{
 };
 use tracing::{instrument, warn};
 
+const GAS_ESTIMATE_MULTIPLIER: f64 = 1.3;
 /// A reference to a Mailbox contract on some Fuel chain
 pub struct FuelMailbox {
     contract: FuelMailboxContract<WalletUnlocked>,
@@ -224,7 +225,7 @@ impl Mailbox for FuelMailbox {
             .map_err(ChainCommunicationError::from_other)?;
 
         Ok(TxCostEstimate {
-            gas_limit: simulate_call.gas_used.into(),
+            gas_limit: ((simulate_call.gas_used as f64 * GAS_ESTIMATE_MULTIPLIER) as u64).into(),
             gas_price: gas_price.into(),
             l2_gas_limit: None,
         })
