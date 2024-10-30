@@ -1,10 +1,9 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
-import { isEthereumProtocolChain } from '../src/utils/utils.js';
-
-import { getArgs as getEnvArgs, withChains } from './agent-utils.js';
-import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
+import { isEthereumProtocolChain } from '../../src/utils/utils.js';
+import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 function getArgs() {
   return withChains(getEnvArgs())
