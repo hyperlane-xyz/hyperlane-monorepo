@@ -726,12 +726,10 @@ impl SealevelMailboxIndexer {
             LogMeta {
                 address: self.mailbox.program_id.to_bytes().into(),
                 block_number: dispatched_message_account.slot,
-                // TODO: get these when building out scraper support.
-                // It's inconvenient to get these :|
                 block_hash,
                 transaction_id: transaction_hash,
                 transaction_index: transaction_index as u64,
-                log_index: U256::zero(),
+                log_index: U256::from(nonce),
             },
         ))
     }
