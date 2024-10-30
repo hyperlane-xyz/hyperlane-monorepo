@@ -22,6 +22,10 @@ export type AllStorageGasOracleConfigs = ChainMap<
 // Overcharge by 50% to account for market making risk
 export const EXCHANGE_RATE_MARGIN_PCT = 50;
 
+// Arbitrarily chosen as a typical amount of gas used in a message's handle function.
+// Used for determining typical gas costs for a message.
+export const TYPICAL_HANDLE_GAS_USAGE = 50_000;
+
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
 // Accommodates small non-integer gas prices by scaling up the gas price
 // and scaling down the exchange rate by the same factor.
@@ -81,7 +85,11 @@ function getLocalStorageGasOracleConfigOverride(
     // If we have access to these, let's use the USD prices to apply some minimum
     // typical USD payment heuristics.
     if (getTokenUsdPrice && getOverhead) {
-      const typicalRemoteGasAmount = getOverhead(local, remote) + 50_000;
+      const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
+        local,
+        remote,
+        getOverhead,
+      );
       const typicalIgpQuoteUsd = getUsdQuote(
         local,
         gasPriceBn,
@@ -110,6 +118,14 @@ function getLocalStorageGasOracleConfigOverride(
       },
     };
   }, {});
+}
+
+export function getTypicalRemoteGasAmount(
+  local: ChainName,
+  remote: ChainName,
+  getOverhead: (local: ChainName, remote: ChainName) => number,
+): number {
+  return getOverhead(local, remote) + TYPICAL_HANDLE_GAS_USAGE;
 }
 
 function getMinUsdCost(local: ChainName, remote: ChainName): number {
