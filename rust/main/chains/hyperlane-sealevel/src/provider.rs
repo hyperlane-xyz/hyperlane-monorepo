@@ -68,6 +68,12 @@ impl HyperlaneProvider for SealevelProvider {
         Ok(block_info)
     }
 
+    /// TODO This method is superfluous for Solana.
+    /// Since we have to request full block to find transaction hash and transaction index
+    /// for Solana, we have all the data about transaction mach earlier before this
+    /// method is invoked.
+    /// We can refactor abstractions so that our chain-agnostic code is more suitable
+    /// for all chains, not only Ethereum-like chains.
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let signature = Signature::new(hash.as_bytes());
         let transaction = self.rpc_client.get_transaction(&signature).await?;
