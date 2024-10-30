@@ -52,6 +52,8 @@ async function main() {
     origin: ownerChain,
     owner: originOwner,
   };
+  const ownerChainInterchainAccountRouter =
+    ica.contractsMap[ownerChain].interchainAccountRouter.address;
 
   const getOwnerIcaChains = (
     chains?.length ? chains : config.supportedChainNames
@@ -61,11 +63,19 @@ async function main() {
   const settledResults = await Promise.allSettled(
     getOwnerIcaChains.map(async (chain) => {
       try {
-        const account = await ica.getAccount(chain, ownerConfig);
+        const account = await ica.getAccount(
+          chain,
+          ownerConfig,
+          ownerChainInterchainAccountRouter,
+        );
         const result: { ICA: Address; Deployed?: string } = { ICA: account };
 
         if (deploy) {
-          const deployedAccount = await ica.deployAccount(chain, ownerConfig);
+          const deployedAccount = await ica.deployAccount(
+            chain,
+            ownerConfig,
+            ownerChainInterchainAccountRouter,
+          );
           result.Deployed = eqAddress(account, deployedAccount) ? '✅' : '❌';
           if (result.Deployed === '❌') {
             console.warn(
@@ -96,6 +106,7 @@ async function main() {
   });
 
   console.table(results);
+  process.exit(0);
 }
 
 main()
