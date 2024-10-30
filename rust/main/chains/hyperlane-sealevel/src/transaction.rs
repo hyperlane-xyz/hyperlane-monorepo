@@ -116,29 +116,22 @@ fn filter_by_validity(
     tx: UiTransaction,
     meta: UiTransactionStatusMeta,
 ) -> Option<(H512, Vec<String>, Vec<UiCompiledInstruction>)> {
-    let transaction_hash = match tx.signatures.first() {
-        Some(h) => h,
-        None => {
-            warn!(transaction = ?tx, "transaction does not have any signatures");
-            return None;
-        } // if transaction is not signed, we continue the search
+    let Some(transaction_hash) = tx
+        .signatures
+        .first()
+        .map(|signature| decode_h512(signature))
+        .and_then(|r| r.ok())
+    else {
+        warn!(
+            transaction = ?tx,
+            "transaction does not have any signatures or signatures cannot be decoded",
+        );
+        return None;
     };
 
-    let transaction_hash = match decode_h512(transaction_hash) {
-        Ok(h) => h,
-        Err(e) => {
-            warn!(?transaction_hash, ?e, "cannot decode transaction hash");
-            return None;
-        } // if we cannot parse transaction hash, we continue the search
-    };
-
-    // We support only Raw messages initially
-    let message = match tx.message {
-        UiMessage::Raw(m) => m,
-        m => {
-            warn!(message = ?m, "we expect messages in Raw format");
-            return None;
-        }
+    let UiMessage::Raw(message) = tx.message else {
+        warn!(message = ?tx.message, "we expect messages in Raw format");
+        return None;
     };
 
     let instructions = instructions(message.instructions, meta);
