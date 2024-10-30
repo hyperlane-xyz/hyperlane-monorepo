@@ -24,8 +24,6 @@ import {
 export class ZKSyncContractVerifier extends BaseContractVerifier {
   protected logger = rootLogger.child({ module: 'ZKSyncContractVerifier' });
 
-  protected contractSourceMap: { [contractName: string]: string } = {};
-
   protected readonly standardInputJson: SolidityStandardJsonInput;
   protected readonly compilerOptions: ZKSyncCompilerOptions;
 

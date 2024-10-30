@@ -32,7 +32,10 @@ import { HookConfig } from '../hook/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
-import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
+import {
+  ChainTechnicalStack,
+  ExplorerFamily,
+} from '../metadata/chainMetadataTypes.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
@@ -413,7 +416,9 @@ export abstract class HyperlaneDeployer<
       )})...`,
     );
 
+    const { family } = this.multiProvider.getExplorerApi(chain);
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
+    const isZKSyncExplorer = family === ExplorerFamily.zksync;
     const isZKSyncChain = technicalStack === ChainTechnicalStack.ZKSync;
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKArtifactByContractName(contractName);
@@ -486,10 +491,9 @@ export abstract class HyperlaneDeployer<
 
     // try verifying contract
     try {
-      await this[isZKSyncChain ? 'verifyContractForZKSync' : 'verifyContract'](
-        chain,
-        verificationInput,
-      );
+      await this[
+        isZKSyncExplorer ? 'verifyContractForZKSync' : 'verifyContract'
+      ](chain, verificationInput);
     } catch (error) {
       // log error but keep deploying, can also verify post-deployment if needed
       this.logger.debug(`Error verifying contract: ${error}`);

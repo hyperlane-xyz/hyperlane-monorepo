@@ -1,6 +1,7 @@
 import fetch from 'cross-fetch';
 import { Logger } from 'pino';
 
+import { buildArtifact as zksyncBuildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
 import { rootLogger, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
@@ -21,7 +22,6 @@ import {
 
 export class ContractVerifier extends BaseContractVerifier {
   protected logger = rootLogger.child({ module: 'ContractVerifier' });
-  protected contractSourceMap: { [contractName: string]: string } = {};
   protected readonly compilerOptions: CompilerOptions;
 
   constructor(
@@ -42,6 +42,8 @@ export class ContractVerifier extends BaseContractVerifier {
       compilerversion,
       licenseType,
     };
+    if (zksyncBuildArtifact?.zk_version)
+      this.compilerOptions.zksolcversion = `v${zksyncBuildArtifact.zk_version}`;
   }
 
   protected async verify(
@@ -49,6 +51,8 @@ export class ContractVerifier extends BaseContractVerifier {
     input: ContractVerificationInput,
     verificationLogger: Logger,
   ): Promise<void> {
+    //Todo: read from explorer config
+    await sleep(40000);
     const contractType: string = input.isProxy ? 'proxy' : 'implementation';
 
     verificationLogger.debug(`📝 Verifying ${contractType}...`);
@@ -155,7 +159,6 @@ export class ContractVerifier extends BaseContractVerifier {
       apiKey = this.apiKeys[chain],
     } = this.multiProvider.getExplorerApi(chain);
     const params = new URLSearchParams();
-
     params.set('module', 'contract');
     params.set('action', action);
     if (apiKey) params.set('apikey', apiKey);
