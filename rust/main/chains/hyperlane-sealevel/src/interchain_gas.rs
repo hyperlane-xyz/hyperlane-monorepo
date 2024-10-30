@@ -120,14 +120,14 @@ impl SealevelInterchainGasPaymasterIndexer {
     ) -> ChainResult<SealevelGasPayment> {
         let discriminator = hyperlane_sealevel_igp::accounts::GAS_PAYMENT_DISCRIMINATOR;
         let sequence_number_bytes = sequence_number.to_le_bytes();
-        let length = 32; // the length of the `unique_gas_payment_pubkey` field
+        let unique_gas_payment_pubkey_length = 32; // the length of the `unique_gas_payment_pubkey` field
         let accounts = search_accounts_by_discriminator(
             &self.rpc_client,
             &self.igp.program_id,
             discriminator,
             &sequence_number_bytes,
             UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET,
-            length,
+            unique_gas_payment_pubkey_length,
         )
         .await?;
 

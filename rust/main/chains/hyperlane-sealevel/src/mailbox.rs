@@ -4,21 +4,13 @@ use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromS
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
-    ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
-    Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
-    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
-    H256, H512, U256,
-};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{
         DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessage,
-        ProcessedMessageAccount,
+        ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
     },
     instruction,
     instruction::InboxProcess,
@@ -57,6 +49,15 @@ use solana_transaction_status::{
     UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
 };
 use tracing::{debug, info, instrument, warn};
+
+use hyperlane_core::{
+    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
+    ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
+    Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
+    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
+    H256, H512, U256,
+};
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
 use crate::error::HyperlaneSealevelError;
@@ -664,17 +665,16 @@ impl SealevelMailboxIndexer {
         &self,
         nonce: u32,
     ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
-        let discriminator = hyperlane_sealevel_mailbox::accounts::DISPATCHED_MESSAGE_DISCRIMINATOR;
         let nonce_bytes = nonce.to_le_bytes();
-        let offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
-        let length = 32; // the length of the `unique_message_pubkey` field
+        let unique_dispatched_message_pubkey_offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
+        let unique_dispatch_message_pubkey_length = 32; // the length of the `unique_message_pubkey` field
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
-            &discriminator,
+            &DISPATCHED_MESSAGE_DISCRIMINATOR,
             &nonce_bytes,
-            offset,
-            length,
+            unique_dispatched_message_pubkey_offset,
+            unique_dispatch_message_pubkey_length,
         )
         .await?;
 
@@ -752,17 +752,16 @@ impl SealevelMailboxIndexer {
         &self,
         nonce: u32,
     ) -> ChainResult<(Indexed<H256>, LogMeta)> {
-        let discriminator = hyperlane_sealevel_mailbox::accounts::PROCESSED_MESSAGE_DISCRIMINATOR;
         let nonce_bytes = nonce.to_le_bytes();
-        let offset = 1 + 8 + 8; // the offset to get the `message_id` field
-        let length = 32;
+        let delivered_message_id_offset = 1 + 8 + 8; // the offset to get the `message_id` field
+        let delivered_message_id_length = 32;
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
-            &discriminator,
+            &PROCESSED_MESSAGE_DISCRIMINATOR,
             &nonce_bytes,
-            offset,
-            length,
+            delivered_message_id_offset,
+            delivered_message_id_length,
         )
         .await?;
 
