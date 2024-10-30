@@ -97,6 +97,21 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         type: HookType.ARB_L2_TO_L1,
         arbSys: mockArbSys.address,
         destinationChain: destination,
+        childHook: {
+          type: HookType.INTERCHAIN_GAS_PAYMASTER,
+          beneficiary: relayer.address,
+          owner: relayer.address,
+          oracleKey: relayer.address,
+          overhead: {
+            [destination]: 200000,
+          },
+          oracleConfig: {
+            [destination]: {
+              gasPrice: '20',
+              tokenExchangeRate: '10000000000',
+            },
+          },
+        },
       },
     };
 
