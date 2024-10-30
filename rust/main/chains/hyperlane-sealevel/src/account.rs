@@ -55,18 +55,14 @@ pub fn search_and_validate_account<F>(
 where
     F: Fn(&Account) -> ChainResult<Pubkey>,
 {
-    let mut valid_storage_pda_pubkey = Option::<Pubkey>::None;
-
     for (pubkey, account) in accounts {
         let expected_pubkey = message_account(&account)?;
         if expected_pubkey == pubkey {
-            valid_storage_pda_pubkey = Some(pubkey);
-            break;
+            return Ok(pubkey);
         }
     }
 
-    let valid_storage_pda_pubkey = valid_storage_pda_pubkey.ok_or_else(|| {
-        ChainCommunicationError::from_other_str("Could not find valid storage PDA pubkey")
-    })?;
-    Ok(valid_storage_pda_pubkey)
+    Err(ChainCommunicationError::from_other_str(
+        "Could not find valid storage PDA pubkey",
+    ))
 }
