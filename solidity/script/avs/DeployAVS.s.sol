@@ -3,7 +3,8 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Script.sol";
 
-import {IStrategy} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IStrategy, IStrategyFactory} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
 import {IAVSDirectory} from "../../contracts/interfaces/avs/vendored/IAVSDirectory.sol";
 import {IPaymentCoordinator} from "../../contracts/interfaces/avs/vendored/IPaymentCoordinator.sol";
 import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
@@ -225,5 +226,59 @@ contract DeployAVS is Script {
         for (uint256 i = 0; i < strategies.length; i++) {
             require(strategies[i] != address(0), "Strategy address is 0");
         }
+    }
+
+    function addREZStrategy() external {
+        IERC20 rezToken = IERC20(0x3B50805453023a91a8bf641e279401a0b23FA6F9);
+        IStrategyFactory strategyFactory = IStrategyFactory(
+            0x5e4C39Ad7A3E881585e383dB9827EB4811f6F647
+        );
+        // IStrategy strategy = strategyFactory.deployNewStrategy(rezToken);
+        console.log("address(this): ", msg.sender);
+
+        IStrategy strategy = strategyFactory.deployedStrategies(rezToken);
+
+        ECDSAStakeRegistry stakeRegistry = ECDSAStakeRegistry(
+            0x272CF0BB70D3B4f79414E0823B426d2EaFd48910
+        );
+
+        // get current quorum
+        Quorum memory currentQuorum = stakeRegistry.quorum();
+        Quorum memory newQuorum;
+        newQuorum.strategies = new StrategyParams[](
+            currentQuorum.strategies.length + 1
+        );
+
+        uint256 totalStrategies = newQuorum.strategies.length;
+        uint96 baseMultiplier = uint96(10000 / totalStrategies);
+
+        uint96 remainder = 10000 % uint96(totalStrategies);
+        console.log("Base Multiplier: ", totalStrategies, remainder);
+
+        for (uint256 i = 0; i < currentQuorum.strategies.length; i++) {
+            newQuorum.strategies[i] = currentQuorum.strategies[i];
+            newQuorum.strategies[i].multiplier = baseMultiplier;
+
+            console.log(
+                "Existing Strategy: ",
+                address(currentQuorum.strategies[i].strategy)
+            );
+            console.log("Multiplier: ", newQuorum.strategies[i].multiplier);
+        }
+
+        newQuorum.strategies[newQuorum.strategies.length - 1] = StrategyParams({
+            strategy: strategy,
+            multiplier: baseMultiplier + remainder
+        });
+
+        console.log("New REZ Strategy: ", address(strategy));
+        console.log(
+            "New REZ Strategy Multiplier: ",
+            baseMultiplier + remainder
+        );
+
+        // add strategy to quorum
+
+        stakeRegistry.updateQuorumConfig(newQuorum, new address[](0));
     }
 }
