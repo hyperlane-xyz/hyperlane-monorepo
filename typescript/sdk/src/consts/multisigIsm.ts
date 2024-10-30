@@ -845,7 +845,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0x87460dcEd16a75AECdBffD4189111d30B099f5b0', // enigma
       '0xf54982134e52Eb7253236943FBffE0886C5bde0C', // L5
       '0x5937b7cE1029C3Ec4bD8e1AaCc0C0f9422654D7d', // stakecito
-      '0x3a446ed2923c08445af06e53f0acb558c0e0413c', // staked
+      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
     ],
   },
 
