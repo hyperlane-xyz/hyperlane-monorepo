@@ -71,10 +71,6 @@ async function main() {
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
-  // TODO: remove once zksync PR is merged into main
-  delete envConfig.core.zksync;
-  delete envConfig.core.zeronetwork;
-
   let multiProvider = await envConfig.getMultiProvider(
     context,
     Role.Deployer,
