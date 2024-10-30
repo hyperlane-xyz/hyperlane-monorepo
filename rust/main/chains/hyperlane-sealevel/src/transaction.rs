@@ -59,7 +59,7 @@ pub fn search_dispatched_message_transactions(
                 _ => return None,
             };
 
-            let instructions = match meta.inner_instructions {
+            let inner_instructions = match meta.inner_instructions {
                 OptionSerializer::Some(ii) => ii
                     .into_iter()
                     .flat_map(|ii| ii.instructions)
@@ -71,11 +71,12 @@ pub fn search_dispatched_message_transactions(
                 OptionSerializer::None | OptionSerializer::Skip => return None,
             };
 
-            Some((index, transaction_hash, message, instructions))
+            let instructions = vec![message.instructions, inner_instructions].concat();
+
+            Some((index, transaction_hash, message.account_keys, instructions))
         })
-        .filter_map(|(index, hash, message, instructions)| {
-            let account_keys = message
-                .account_keys
+        .filter_map(|(index, hash, account_keys, instructions)| {
+            let account_keys = account_keys
                 .into_iter()
                 .enumerate()
                 .map(|(index, key)| (key, index))
