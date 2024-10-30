@@ -6,6 +6,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
+  ChainName,
   ContractVerifier,
   ExplorerLicenseType,
   HypERC20Deployer,
@@ -70,10 +71,6 @@ async function main() {
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
-
-  // TODO: remove once zksync PR is merged into main
-  delete envConfig.core.zksync;
-  delete envConfig.core.zeronetwork;
 
   let multiProvider = await envConfig.getMultiProvider(
     context,
@@ -287,13 +284,39 @@ async function main() {
     }
   }
 
+  const targetNetworks =
+    chains && chains.length > 0 ? chains : !fork ? [] : [fork];
+
+  // Temporarily skip some chains
+  const chainsToRemove: ChainName[] = [
+    // TODO: remove once zksync PR is merged into main
+    'zksync',
+    'zeronetwork',
+
+    // Oct 16 batch
+    'immutablezkevm',
+    'rari',
+    'rootstock',
+    'alephzeroevm',
+    'chiliz',
+    'lumia',
+    'superposition',
+    'flow',
+    'metall2',
+    'polynomial',
+  ];
+  const filteredTargetNetworks = targetNetworks.filter(
+    (chain) => !chainsToRemove.includes(chain),
+  );
+  chainsToRemove.forEach((chain) => delete config[chain]);
+
   await deployWithArtifacts({
     configMap: config as ChainMap<unknown>, // TODO: fix this typing
     deployer,
     cache,
     // Use chains if provided, otherwise deploy to all chains
     // If fork is provided, deploy to fork only
-    targetNetworks: chains && chains.length > 0 ? chains : !fork ? [] : [fork],
+    targetNetworks: filteredTargetNetworks,
     module,
     multiProvider,
     concurrentDeploy,
