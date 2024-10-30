@@ -124,7 +124,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         let accounts = search_accounts_by_discriminator(
             &self.rpc_client,
             &self.igp.program_id,
-            &discriminator,
+            discriminator,
             &sequence_number_bytes,
             UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET,
             length,

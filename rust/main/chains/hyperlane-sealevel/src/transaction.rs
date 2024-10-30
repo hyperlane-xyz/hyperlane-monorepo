@@ -71,7 +71,7 @@ pub fn search_dispatched_message_transactions(
                 OptionSerializer::None | OptionSerializer::Skip => return None,
             };
 
-            let instructions = vec![message.instructions, inner_instructions].concat();
+            let instructions = [message.instructions, inner_instructions].concat();
 
             Some((index, transaction_hash, message.account_keys, instructions))
         })

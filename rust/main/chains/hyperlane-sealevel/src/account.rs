@@ -18,7 +18,7 @@ pub async fn search_accounts_by_discriminator(
     offset: usize,
     length: usize,
 ) -> ChainResult<Vec<(Pubkey, Account)>> {
-    let target_message_account_bytes = &[&discriminator[..], &nonce_bytes[..]].concat();
+    let target_message_account_bytes = &[discriminator, nonce_bytes].concat();
     let target_message_account_bytes = Base64.encode(target_message_account_bytes);
 
     // First, find all accounts with the matching account data.
