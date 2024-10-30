@@ -6,7 +6,6 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
-  ChainName,
   ContractVerifier,
   ExplorerLicenseType,
   HypERC20Deployer,
@@ -28,6 +27,7 @@ import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
+import { chainsToSkip } from '../src/config/chain.js';
 import { DeployCache, deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
@@ -287,28 +287,10 @@ async function main() {
   const targetNetworks =
     chains && chains.length > 0 ? chains : !fork ? [] : [fork];
 
-  // Temporarily skip some chains
-  const chainsToRemove: ChainName[] = [
-    // TODO: remove once zksync PR is merged into main
-    'zksync',
-    'zeronetwork',
-
-    // Oct 16 batch
-    'immutablezkevm',
-    'rari',
-    'rootstock',
-    'alephzeroevm',
-    'chiliz',
-    'lumia',
-    'superposition',
-    'flow',
-    'metall2',
-    'polynomial',
-  ];
   const filteredTargetNetworks = targetNetworks.filter(
-    (chain) => !chainsToRemove.includes(chain),
+    (chain) => !chainsToSkip.includes(chain),
   );
-  chainsToRemove.forEach((chain) => delete config[chain]);
+  chainsToSkip.forEach((chain) => delete config[chain]);
 
   await deployWithArtifacts({
     configMap: config as ChainMap<unknown>, // TODO: fix this typing
@@ -321,6 +303,8 @@ async function main() {
     multiProvider,
     concurrentDeploy,
   });
+
+  process.exit(0);
 }
 
 main()

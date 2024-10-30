@@ -70,6 +70,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     confirmations: 3,
   //   },
   // },
+  // taiko: {
+  //   transactionOverrides: {
+  //     gasPrice: 1 * 10 ** 9, // 1 gwei
+  //   },
+  // },
 };
 
 export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
