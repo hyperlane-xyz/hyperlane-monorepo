@@ -1,4 +1,5 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
+import { stringifyObject } from '@hyperlane-xyz/utils';
 
 import { getOverheadWithOverrides } from '../config/environments/mainnet3/igp.js';
 import { getTypicalRemoteGasAmount } from '../src/config/gas-oracle.js';
@@ -39,7 +40,7 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify(amounts, null, 2));
+  console.log(stringifyObject(amounts, 'json', 2));
 }
 
 main().catch((err) => {
