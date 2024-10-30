@@ -193,6 +193,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       '0x478fb53c6860ae8fc35235ba0d38d49b13128226',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
+      '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
     ],
   },
 
@@ -714,11 +715,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   redstone: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0x1400b9737007f7978d8b4bbafb4a69c83f0641a7',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+      '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
     ],
   },
 
