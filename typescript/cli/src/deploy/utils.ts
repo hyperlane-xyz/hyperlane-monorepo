@@ -23,7 +23,6 @@ import {
   logGray,
   logGreen,
   logPink,
-  logRed,
   logTable,
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
@@ -199,21 +198,18 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
  * @param {CoreConfig} params.config - The core configuration to check.
  * @returns {boolean} True if the configuration is compatible, false otherwise.
  */
-export function checkTechStackCoreConfigCompatibility({
+export function isIsmCompatible({
   chainTechnicalStack,
   config,
 }: {
   chainTechnicalStack: ChainTechnicalStack | undefined;
   config: CoreConfig;
 }): boolean {
+  if (shouldSkipStaticDeployment(chainTechnicalStack)) return true;
+
   // Static deployment is not available on certain chains (e.g., ZKSync) for aggregation ISMs.
-  if (
-    shouldSkipStaticDeployment(chainTechnicalStack) &&
+  return (
     typeof config.defaultIsm !== 'string' &&
     config.defaultIsm.type === IsmType.AGGREGATION
-  ) {
-    logRed('⛔ Static contract deployment not available on ZKSync!');
-    return false;
-  }
-  return true;
+  );
 }

@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
-import * as zk from 'zksync-ethers';
+import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
-type Provider = ethers.providers.Provider | zk.Provider;
+type Provider = ethers.providers.Provider | ZKSyncProvider;
 
 export type UpgradeConfig = {
   timelock: {

@@ -228,7 +228,9 @@ contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {
         mailbox = new TestMailbox(ORIGIN);
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         noopHook = new TestPostDispatchHook();
-        factory = new StaticMerkleRootMultisigIsmFactory();
+        factory = IThresholdAddressFactory(
+            address(new StaticMerkleRootMultisigIsmFactory())
+        );
         mailbox.setDefaultHook(address(merkleTreeHook));
         mailbox.setRequiredHook(address(noopHook));
     }
@@ -285,7 +287,9 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
         merkleTreeHook = new TestMerkleTreeHook(address(mailbox));
         noopHook = new TestPostDispatchHook();
 
-        factory = new StaticMessageIdMultisigIsmFactory();
+        factory = IThresholdAddressFactory(
+            address(new StaticMessageIdMultisigIsmFactory())
+        );
         mailbox.setDefaultHook(address(merkleTreeHook));
         mailbox.setRequiredHook(address(noopHook));
     }

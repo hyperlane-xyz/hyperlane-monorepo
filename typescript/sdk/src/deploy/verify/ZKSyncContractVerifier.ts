@@ -56,7 +56,7 @@ export class ZKSyncContractVerifier {
    * @notice Creates a mapping of contract names to source names from build artifacts
    * @dev This method processes the input to create a mapping required for constructing fully qualified contract names
    */
-  private async createContractSourceMapFromBuildArtifacts() {
+  private createContractSourceMapFromBuildArtifacts() {
     const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
     Object.entries((buildArtifact as BuildArtifact).input.sources).forEach(
       ([sourceName, { content }]) => {
@@ -179,9 +179,7 @@ export class ZKSyncContractVerifier {
       'Sending request to explorer...',
     );
 
-    let response: Response;
-
-    response = await fetch(url.toString(), {
+    const response = await fetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),

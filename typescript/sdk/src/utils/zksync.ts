@@ -16,7 +16,7 @@ export const getZKArtifactByContractName = async (
 
   // Find the artifact that matches the contract name or qualified name
   const artifact = Object.values(allArtifacts).find(
-    ({ contractName, sourceName }) => {
+    ({ contractName, sourceName }: ZkSyncArtifact) => {
       const lowerCaseContractName = contractName.toLowerCase();
       const lowerCaseName = name.toLowerCase();
 

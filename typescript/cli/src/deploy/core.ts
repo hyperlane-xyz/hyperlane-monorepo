@@ -19,8 +19,8 @@ import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
 import {
-  checkTechStackCoreConfigCompatibility,
   completeDeploy,
+  isIsmCompatible,
   prepareDeploy,
   runDeployPlanStep,
   runPreflightChecksForChains,
@@ -85,7 +85,7 @@ export async function runCoreDeploy(params: DeployParams) {
   const { technicalStack: chainTechnicalStack } =
     context.multiProvider.getChainMetadata(chain);
 
-  if (!checkTechStackCoreConfigCompatibility({ chainTechnicalStack, config })) {
+  if (!isIsmCompatible({ chainTechnicalStack, config })) {
     logRed(
       'ERROR: CoreConfig is not compatible with the selected Chain Technical Stack!',
     );
