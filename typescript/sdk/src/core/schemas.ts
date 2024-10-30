@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
 import { HookConfigSchema } from '../hook/schemas.js';
+import { DerivedIcaRouterConfigSchema } from '../ica/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
 
@@ -13,6 +14,12 @@ export const CoreConfigSchema = OwnableSchema.extend({
   // did not have it and we want to maintain backward compatibility
   proxyAdmin: DeployedOwnableSchema.optional(),
 });
+
+export const DerivedCoreConfigSchema = CoreConfigSchema.merge(
+  z.object({
+    interchainAccountRouter: DerivedIcaRouterConfigSchema,
+  }),
+);
 
 export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
   mailbox: z.string(),

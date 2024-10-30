@@ -70,6 +70,7 @@ export {
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export {
   CoreConfigSchema,
+  DerivedCoreConfigSchema,
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
 } from './core/schemas.js';
@@ -81,6 +82,7 @@ export {
 } from './core/TestRecipientDeployer.js';
 export {
   CoreConfig,
+  DerivedCoreConfig,
   CoreViolationType,
   DispatchedMessage,
   MailboxMultisigIsmViolation,
@@ -541,3 +543,6 @@ export {
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+
+export { EvmIcaRouterReader } from './ica/EvmIcaReader.js';
+export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';
