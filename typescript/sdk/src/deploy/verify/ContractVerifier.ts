@@ -200,7 +200,7 @@ export class ContractVerifier {
         } (${response.status || 'UNKNOWN STATUS'})`,
       );
     }
-
+    console.log('responseJson ', responseJson);
     if (responseJson.message !== 'OK') {
       let errorMessage;
 
@@ -279,7 +279,7 @@ export class ContractVerifier {
         verificationLogger,
         data,
       );
-
+      console.log('guid', guid);
       verificationLogger.trace(
         { guid },
         `Retrieved guid from verified ${contractType}.`,

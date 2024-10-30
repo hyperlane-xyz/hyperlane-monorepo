@@ -28,7 +28,7 @@ import {
   CommandContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
-import { logGray } from '../logger.js';
+import { logBlue, logGray, logGreen } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
@@ -52,6 +52,10 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
     },
   },
   handler: async ({ context, symbol, buildArtifact: buildArtifactPath }) => {
+    const apiKeys = {
+      // TODO figure where to reliably fetch these
+    };
+    const buildArtifact: BuildArtifact = readYamlOrJson(buildArtifactPath);
     const warpCoreConfig = await selectRegistryWarpRoute(
       context.registry,
       symbol,
@@ -60,6 +64,15 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
     const verificationInputs: ChainMap<VerificationInput> = {};
     for (const token of warpCoreConfig.tokens) {
       const { chainName } = token;
+
+      // Zircuit does not have an external API: https://docs.zircuit.com/dev-tools/block-explorer
+      if (chainName === 'zircuit') {
+        logBlue(
+          `Skipping verification for ${chainName} due to unsupported chain.`,
+        );
+        continue;
+      }
+
       const provider = context.multiProvider.getProvider(chainName);
 
       verificationInputs[chainName] = [];
@@ -67,6 +80,9 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
       assert(token.addressOrDenom, 'Invalid addressOrDenom');
       const isProxyContract = await isProxy(provider, token.addressOrDenom);
 
+      logGray(
+        `Getting explorer constructor args for ${chainName} using explorer API`,
+      );
       if (isProxyContract) {
         const { proxyAdminInput, transparentUpgradeableProxyInput } =
           await getProxyAndAdminInput({
@@ -92,10 +108,9 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
       verificationInputs[chainName].push(implementationInput);
     }
 
-    const apiKeys = {
-      // TODO figure where to reliably fetch these
-    };
-    const buildArtifact: BuildArtifact = readYamlOrJson(buildArtifactPath);
+    logBlue(
+      `All explorer constructor args successfully retrieved. Verifying...`,
+    );
     const verifier = new PostDeploymentContractVerifier(
       verificationInputs,
       context.multiProvider,
@@ -104,22 +119,9 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
       ExplorerLicenseType.MIT,
     );
 
-    // TODO: below this is from infra scripts. CLEAN THIS UP.
-    // verify all the things
-    const failedResults = (await verifier.verify()).filter(
-      (result) => result.status === 'rejected',
-    );
+    await verifier.verify();
 
-    // only log the failed verifications to console
-    if (failedResults.length > 0) {
-      console.error(
-        'Verification failed for the following contracts:',
-        failedResults.map((result) => result),
-      );
-      process.exit(1);
-    }
-
-    process.exit(0);
+    logGreen(`Finished contract verification`);
   },
 };
 
@@ -137,7 +139,6 @@ async function getProxyAndAdminInput({
 }> {
   const provider = context.multiProvider.getProvider(chainName);
 
-  logGray(`Getting constructor args for ProxyAdmin on chain ${chainName}`);
   const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
   const proxyAdminConstructorArgs = await getConstructorArgs({
     context,
@@ -151,9 +152,6 @@ async function getProxyAndAdminInput({
     proxyAdminConstructorArgs,
   );
 
-  logGray(
-    `Getting constructor args for TransparentUpgradeableProxy on chain ${chainName}`,
-  );
   const proxyConstructorArgs = await getConstructorArgs({
     context,
     chainName,
@@ -242,6 +240,7 @@ async function getConstructorArgs({
 
   let constructorArgs: string;
   switch (family) {
+    case ExplorerFamily.Routescan:
     case ExplorerFamily.Etherscan:
       constructorArgs = await getEtherscanConstructorArgs({
         context,
@@ -335,3 +334,23 @@ async function getBlockScoutConstructorArgs({
 
   return (await smartContractResp.json()).constructor_args;
 }
+
+// async function getRouteScanConstructorArgs({
+
+// }) {
+//   const { apiUrl: blockExplorerApiUrl } =
+//     context.multiProvider.getExplorerApi(chainName);
+
+//   const url = new URL(
+//     `/v2/network/${'mainnet'}/evm/1/etherscan/api`,
+//     blockExplorerApiUrl,
+//   );
+
+//   const smartContractResp = await fetch(url, {
+//     headers: {
+//       'Content-Type': 'application/json',
+//     },
+//   });
+
+//   return (await smartContractResp.json()).constructor_args;
+// }
