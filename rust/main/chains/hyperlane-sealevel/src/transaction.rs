@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
+use hyperlane_sealevel_mailbox::instruction::Instruction;
 use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::option_serializer::OptionSerializer;
 use solana_transaction_status::{
     EncodedTransaction, EncodedTransactionWithStatusMeta, UiCompiledInstruction, UiInstruction,
     UiMessage,
 };
+use tracing::warn;
 
 use hyperlane_core::H512;
-use hyperlane_sealevel_mailbox::instruction::Instruction;
 
 use crate::utils::{decode_h512, from_base58};
 
@@ -40,23 +41,38 @@ pub fn search_dispatched_message_transactions(
             // We support only transactions encoded as JSON
             // We need none-empty metadata as well
             (EncodedTransaction::Json(t), Some(m)) => Some((index, t, m)),
-            _ => None,
+            t => {
+                warn!(
+                    ?t,
+                    "transaction is not encoded as json or metadata is empty"
+                );
+                None
+            }
         })
         .filter_map(|(index, tx, meta)| {
             let transaction_hash = match tx.signatures.first() {
                 Some(h) => h,
-                None => return None, // if transaction is not signed, we continue the search
+                None => {
+                    warn!("transaction does not have any signatures");
+                    return None;
+                } // if transaction is not signed, we continue the search
             };
 
             let transaction_hash = match decode_h512(transaction_hash) {
                 Ok(h) => h,
-                Err(_) => return None, // if we cannot parse transaction hash, we continue the search
+                Err(_) => {
+                    warn!(?transaction_hash, "cannot decode transaction hash");
+                    return None;
+                } // if we cannot parse transaction hash, we continue the search
             };
 
             // We support only Raw messages initially
             let message = match tx.message {
                 UiMessage::Raw(m) => m,
-                _ => return None,
+                _ => {
+                    warn!("we expect messages in Raw format");
+                    return None;
+                }
             };
 
             let inner_instructions = match meta.inner_instructions {
