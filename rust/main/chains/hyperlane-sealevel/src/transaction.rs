@@ -42,8 +42,8 @@ pub fn search_dispatched_message_transactions(
             (EncodedTransaction::Json(t), Some(m)) => Some((index, t, m)),
             _ => None,
         })
-        .filter_map(|(index, t, m)| {
-            let transaction_hash = match t.signatures.first() {
+        .filter_map(|(index, tx, meta)| {
+            let transaction_hash = match tx.signatures.first() {
                 Some(h) => h,
                 None => return None, // if transaction is not signed, we continue the search
             };
@@ -54,15 +54,15 @@ pub fn search_dispatched_message_transactions(
             };
 
             // We support only Raw messages initially
-            let message = match t.message {
+            let message = match tx.message {
                 UiMessage::Raw(m) => m,
                 _ => return None,
             };
 
-            let instructions = match m.inner_instructions {
+            let instructions = match meta.inner_instructions {
                 OptionSerializer::Some(ii) => ii
                     .into_iter()
-                    .flat_map(|iii| iii.instructions)
+                    .flat_map(|ii| ii.instructions)
                     .flat_map(|ii| match ii {
                         UiInstruction::Compiled(ci) => Some(ci),
                         _ => None,
