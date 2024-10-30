@@ -1,7 +1,6 @@
 use std::{collections::HashMap, ops::Deref};
 
 use async_trait::async_trait;
-
 use fuels::{
     client::{FuelClient, PageDirection, PaginationRequest},
     prelude::Provider,
@@ -13,13 +12,14 @@ use fuels::{
         transaction::{Transaction, TransactionType},
         transaction_response::TransactionResponse,
         tx_status::TxStatus,
-        Address, Bytes32, ContractId,
+        Address, BlockHeight, Bytes32, ContractId,
     },
 };
 use futures::future::join_all;
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexed, LogMeta, TxnInfo, H256, H512, U256,
+    HyperlaneMessage, HyperlaneProvider, HyperlaneProviderError, Indexed, LogMeta, TxnInfo, H256,
+    H512, U256,
 };
 
 use crate::{make_client, make_provider, prelude::FuelIntoH256, ConnectionConf};
@@ -285,19 +285,30 @@ impl HyperlaneChain for FuelProvider {
 impl HyperlaneProvider for FuelProvider {
     /// Used by scraper
     #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        let block_res = self.provider.block(&hash.0.into()).await.map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to get block: {}", e))
-        })?;
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let block_res = self
+            .provider
+            .block_by_height(BlockHeight::new(height as u32))
+            .await
+            .map_err(|e| HyperlaneProviderError::CouldNotFindBlockByHeight(height))?;
 
-        match block_res {
-            Some(block) => Ok(BlockInfo {
+        let block_info = match block_res {
+            Some(block) => BlockInfo {
                 hash: H256::from_slice(block.id.as_slice()),
-                number: block.header.height.into(),
                 timestamp: block.header.time.map_or(0, |t| t.timestamp() as u64),
-            }),
-            None => Err(ChainCommunicationError::BlockNotFound(hash.clone())),
+                number: block.header.height.into(),
+            },
+            None => Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height))?,
+        };
+
+        if block_info.number != height {
+            Err(HyperlaneProviderError::IncorrectBlockByHeight(
+                height,
+                block_info.number,
+            ))?;
         }
+
+        Ok(block_info)
     }
 
     /// Used by scraper

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 function cleanup() {
-  set +e 
+  set +e
   pkill -f anvil
   rm -rf /tmp/anvil2
   rm -rf /tmp/anvil3
@@ -16,13 +16,13 @@ function cleanup() {
 
 cleanup
 
-echo "Starting anvil2 and anvil3 chain"
+echo "Starting anvil2 and anvil3 chain for E2E tests"
 anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/null &
 anvil --chain-id 31347 -p 8600 --state /tmp/anvil3/state --gas-price 1 > /dev/null &
 
-echo "Running all tests"
-yarn mocha --config .mocharc.json
+echo "Running E2E tests"
+yarn mocha --config .mocharc-e2e.json
 
 cleanup
 
-echo "Done all tests"
+echo "Completed E2E tests"

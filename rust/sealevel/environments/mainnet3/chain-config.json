@@ -11,7 +11,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 888888888,
     "deployer": {
@@ -35,7 +35,50 @@
         "http": "https://rpc.ancient8.gg"
       }
     ],
-    "technicalStack": "other"
+    "technicalStack": "opstack"
+  },
+  "alephzeroevm": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://evm-explorer.alephzero.org/api",
+        "family": "blockscout",
+        "name": "Aleph Zero Explorer",
+        "url": "https://evm-explorer.alephzero.org"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 5
+    },
+    "chainId": 41455,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Aleph Zero EVM",
+    "displayNameShort": "Aleph Zero EVM",
+    "domainId": 41455,
+    "gasCurrencyCoinGeckoId": "aleph-zero",
+    "index": {
+      "from": 3421962
+    },
+    "name": "alephzeroevm",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "AZERO",
+      "symbol": "AZERO"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.alephzero.raas.gelato.cloud"
+      },
+      {
+        "http": "https://alephzero.drpc.org"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
   },
   "arbitrum": {
     "blockExplorers": [
@@ -49,7 +92,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 42161,
     "deployer": {
@@ -95,7 +138,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 13,
-      "reorgPeriod": 0
+      "reorgPeriod": 32
     },
     "chainId": 592,
     "deployer": {
@@ -116,7 +159,8 @@
       {
         "http": "https://evm.astar.network"
       }
-    ]
+    ],
+    "technicalStack": "polkadotsubstrate"
   },
   "astarzkevm": {
     "blockExplorers": [
@@ -130,7 +174,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 3776,
     "deployer": {
@@ -154,7 +198,8 @@
       {
         "http": "https://astar-zkevm-rpc.dwellir.com"
       }
-    ]
+    ],
+    "technicalStack": "polygoncdk"
   },
   "avalanche": {
     "blockExplorers": [
@@ -197,7 +242,8 @@
           "minBlockNumber": 6765067
         }
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "base": {
     "blockExplorers": [
@@ -211,7 +257,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "reorgPeriod": 10
     },
     "chainId": 8453,
     "deployer": {
@@ -239,7 +285,8 @@
       {
         "http": "https://base.blockpi.network/v1/rpc/public"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "bitlayer": {
     "blockExplorers": [
@@ -253,7 +300,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 0
+      "reorgPeriod": 20
     },
     "chainId": 200901,
     "deployer": {
@@ -280,7 +327,8 @@
       {
         "http": "https://rpc.ankr.com/bitlayer"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "blast": {
     "blockExplorers": [
@@ -294,7 +342,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 81457,
     "deployer": {
@@ -320,7 +368,7 @@
         "http": "https://rpc.ankr.com/blast"
       }
     ],
-    "technicalStack": "other"
+    "technicalStack": "opstack"
   },
   "bob": {
     "blockExplorers": [
@@ -334,7 +382,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 60808,
     "deployer": {
@@ -357,7 +405,7 @@
         "http": "https://rpc.gobob.xyz"
       }
     ],
-    "technicalStack": "other"
+    "technicalStack": "opstack"
   },
   "bsc": {
     "blockExplorers": [
@@ -401,6 +449,7 @@
         "http": "https://bscrpc.com"
       }
     ],
+    "technicalStack": "other",
     "transactionOverrides": {
       "gasPrice": 3000000000
     }
@@ -445,21 +494,22 @@
       {
         "http": "https://forno.celo.org"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "cheesechain": {
     "blockExplorers": [
       {
-        "apiUrl": "https://fetascan.io/api",
+        "apiUrl": "https://fetascan.xyz/api",
         "family": "blockscout",
         "name": "Fetascan",
-        "url": "https://fetascan.io"
+        "url": "https://fetascan.xyz"
       }
     ],
     "blocks": {
       "confirmations": 1,
-      "estimateBlockTime": 90,
-      "reorgPeriod": 0
+      "estimateBlockTime": 30,
+      "reorgPeriod": 1
     },
     "chainId": 383353,
     "deployer": {
@@ -487,6 +537,48 @@
     ],
     "technicalStack": "arbitrumnitro"
   },
+  "chiliz": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://api.routescan.io/v2/network/mainnet/evm/88888/etherscan/api",
+        "family": "routescan",
+        "name": "Chiliscan",
+        "url": "https://chiliscan.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 3,
+      "reorgPeriod": 9
+    },
+    "chainId": 88888,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Chiliz",
+    "domainId": 88888,
+    "gasCurrencyCoinGeckoId": "chiliz",
+    "name": "chiliz",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Chiliz",
+      "symbol": "CHZ"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.ankr.com/chiliz"
+      },
+      {
+        "http": "https://chiliz.publicnode.com"
+      }
+    ],
+    "technicalStack": "other",
+    "transactionOverrides": {
+      "maxPriorityFeePerGas": 1000000000
+    }
+  },
   "coredao": {
     "blockExplorers": [
       {
@@ -499,7 +591,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 0
+      "reorgPeriod": 21
     },
     "chainId": 1116,
     "deployer": {
@@ -532,7 +624,8 @@
       {
         "http": "https://rpc-core.icecreamswap.com"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "cyber": {
     "blockExplorers": [
@@ -546,7 +639,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 7560,
     "deployer": {
@@ -570,7 +663,8 @@
       {
         "http": "https://cyber.alt.technology"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "degenchain": {
     "blockExplorers": [
@@ -584,7 +678,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 10,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 666666666,
     "deployer": {
@@ -623,7 +717,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 2000,
     "deployer": {
@@ -644,7 +738,8 @@
       {
         "http": "https://rpc.dogechain.dog"
       }
-    ]
+    ],
+    "technicalStack": "polygoncdk"
   },
   "eclipsemainnet": {
     "blockExplorers": [
@@ -679,7 +774,8 @@
       {
         "http": "https://mainnetbeta-rpc.eclipse.xyz"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "endurance": {
     "blockExplorers": [
@@ -693,7 +789,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 12,
-      "reorgPeriod": 14
+      "reorgPeriod": 15
     },
     "chainId": 648,
     "deployer": {
@@ -715,7 +811,8 @@
       {
         "http": "https://rpc-endurance.fusionist.io"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "ethereum": {
     "blockExplorers": [
@@ -733,9 +830,9 @@
       }
     ],
     "blocks": {
-      "confirmations": 3,
+      "confirmations": 2,
       "estimateBlockTime": 13,
-      "reorgPeriod": 14
+      "reorgPeriod": 15
     },
     "chainId": 1,
     "deployer": {
@@ -761,24 +858,21 @@
         "http": "https://cloudflare-eth.com"
       }
     ],
-    "transactionOverrides": {
-      "maxFeePerGas": 150000000000,
-      "maxPriorityFeePerGas": 5000000000
-    }
+    "technicalStack": "other"
   },
   "everclear": {
     "blockExplorers": [
       {
-        "apiUrl": "https://everclear.cloud.blockscout.com/api",
+        "apiUrl": "https://scan.everclear.org/api",
         "family": "blockscout",
         "name": "Everclear Explorer",
-        "url": "https://everclear.cloud.blockscout.com"
+        "url": "https://scan.everclear.org"
       }
     ],
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 2
     },
     "chainId": 25327,
     "deployer": {
@@ -817,7 +911,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 3
     },
     "chainId": 14,
     "deployer": {
@@ -847,7 +941,48 @@
       {
         "http": "https://rpc.ankr.com/flare"
       }
-    ]
+    ],
+    "technicalStack": "other"
+  },
+  "flow": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://evm.flowscan.io/api",
+        "family": "blockscout",
+        "name": "EVM on Flow Explorer",
+        "url": "https://evm.flowscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 1,
+      "reorgPeriod": 25
+    },
+    "chainId": 747,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "EVM on Flow",
+    "domainId": 747,
+    "gasCurrencyCoinGeckoId": "flow",
+    "isTestnet": false,
+    "name": "flow",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Flow",
+      "symbol": "FLOW"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet.evm.nodes.onflow.org"
+      }
+    ],
+    "technicalStack": "other",
+    "transactionOverrides": {
+      "gasPrice": 100000000
+    }
   },
   "fraxtal": {
     "blockExplorers": [
@@ -861,7 +996,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 252,
     "deployer": {
@@ -886,7 +1021,8 @@
       {
         "http": "https://fraxtal.drpc.org"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "fusemainnet": {
     "blockExplorers": [
@@ -900,7 +1036,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 5,
-      "reorgPeriod": 1
+      "reorgPeriod": 19
     },
     "chainId": 122,
     "deployer": {
@@ -931,7 +1067,8 @@
       {
         "http": "https://fuse-pokt.nodies.app"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "gnosis": {
     "blockExplorers": [
@@ -945,7 +1082,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 5,
-      "reorgPeriod": 14
+      "reorgPeriod": 5
     },
     "chainId": 100,
     "deployer": {
@@ -971,7 +1108,51 @@
           "minBlockNumber": 25997478
         }
       }
-    ]
+    ],
+    "technicalStack": "other"
+  },
+  "immutablezkevm": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.immutable.com/api/eth-rpc",
+        "family": "blockscout",
+        "name": "Immutable Explorer",
+        "url": "https://explorer.immutable.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 20
+    },
+    "chainId": 13371,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Immutable zkEVM",
+    "domainId": 13371,
+    "gasCurrencyCoinGeckoId": "immutable-x",
+    "name": "immutablezkevm",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Immutable",
+      "symbol": "IMX"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.immutable.com"
+      },
+      {
+        "http": "https://immutable.gateway.tenderly.co"
+      }
+    ],
+    "technicalStack": "other",
+    "transactionOverrides": {
+      "maxFeePerGas": 100000000000,
+      "maxPriorityFeePerGas": 100000000000
+    }
   },
   "inevm": {
     "blockExplorers": [
@@ -985,7 +1166,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 0
+      "reorgPeriod": 3
     },
     "chainId": 2525,
     "deployer": {
@@ -1055,7 +1236,8 @@
         "http": "https://sentry.tm.injective.network:443"
       }
     ],
-    "slip44": 118
+    "slip44": 118,
+    "technicalStack": "other"
   },
   "kroma": {
     "blockExplorers": [
@@ -1069,7 +1251,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 255,
     "deployer": {
@@ -1096,7 +1278,8 @@
       {
         "http": "https://1rpc.io/kroma"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "linea": {
     "blockExplorers": [
@@ -1110,7 +1293,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 59144,
     "deployer": {
@@ -1141,7 +1324,8 @@
       {
         "http": "https://linea.drpc.org"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "lisk": {
     "blockExplorers": [
@@ -1155,7 +1339,7 @@
     "blocks": {
       "confirmations": 3,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 1135,
     "deployer": {
@@ -1176,7 +1360,8 @@
       {
         "http": "https://rpc.api.lisk.com"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "lukso": {
     "blockExplorers": [
@@ -1190,7 +1375,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 12,
-      "reorgPeriod": 14
+      "reorgPeriod": 15
     },
     "chainId": 42,
     "deployer": {
@@ -1217,7 +1402,47 @@
       {
         "http": "https://42.rpc.thirdweb.com"
       }
-    ]
+    ],
+    "technicalStack": "other"
+  },
+  "lumia": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.lumia.org/api/eth-rpc",
+        "family": "blockscout",
+        "name": "Lumia Prism Explorer",
+        "url": "https://explorer.lumia.org"
+      }
+    ],
+    "blocks": {
+      "confirmations": 3,
+      "estimateBlockTime": 4,
+      "reorgPeriod": 5
+    },
+    "chainId": 994873017,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Lumia Prism",
+    "domainId": 994873017,
+    "gasCurrencyCoinGeckoId": "orion-protocol",
+    "name": "lumia",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Lumia",
+      "symbol": "LUMIA"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://994873017.rpc.thirdweb.com"
+      },
+      {
+        "http": "https://mainnet-rpc.lumia.org"
+      }
+    ],
+    "technicalStack": "polygoncdk"
   },
   "mantapacific": {
     "blockExplorers": [
@@ -1231,7 +1456,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 169,
     "deployer": {
@@ -1258,7 +1483,8 @@
       {
         "http": "https://manta.nirvanalabs.xyz/mantapublic"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "mantle": {
     "blockExplorers": [
@@ -1272,7 +1498,7 @@
     "blocks": {
       "confirmations": 3,
       "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "reorgPeriod": 2
     },
     "chainId": 5000,
     "deployer": {
@@ -1295,7 +1521,7 @@
         "http": "https://rpc.mantle.xyz"
       }
     ],
-    "technicalStack": "other"
+    "technicalStack": "opstack"
   },
   "merlin": {
     "blockExplorers": [
@@ -1309,7 +1535,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 4200,
     "deployer": {
@@ -1333,7 +1559,45 @@
       {
         "http": "https://merlin.blockpi.network/v1/rpc/public"
       }
-    ]
+    ],
+    "technicalStack": "polygoncdk"
+  },
+  "metall2": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.metall2.com/api",
+        "family": "blockscout",
+        "name": "Metal L2 Explorer",
+        "url": "https://explorer.metall2.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 5
+    },
+    "chainId": 1750,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Metal L2",
+    "domainId": 1750,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "isTestnet": false,
+    "name": "metall2",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ether",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.metall2.com"
+      }
+    ],
+    "technicalStack": "opstack"
   },
   "metis": {
     "blockExplorers": [
@@ -1347,7 +1611,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 5,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 1088,
     "deployer": {
@@ -1372,7 +1636,7 @@
         "http": "https://andromeda.metis.io/?owner=1088"
       }
     ],
-    "technicalStack": "arbitrumnitro"
+    "technicalStack": "opstack"
   },
   "mint": {
     "blockExplorers": [
@@ -1386,7 +1650,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 185,
     "deployer": {
@@ -1408,7 +1672,8 @@
       {
         "http": "https://rpc.mintchain.io"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "mode": {
     "blockExplorers": [
@@ -1422,7 +1687,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 34443,
     "deployer": {
@@ -1448,7 +1713,7 @@
         "http": "https://mode.drpc.org"
       }
     ],
-    "technicalStack": "other"
+    "technicalStack": "opstack"
   },
   "molten": {
     "blockExplorers": [
@@ -1461,7 +1726,7 @@
     ],
     "blocks": {
       "confirmations": 1,
-      "estimateBlockTime": 1,
+      "estimateBlockTime": 30,
       "reorgPeriod": 0
     },
     "chainId": 360,
@@ -1501,7 +1766,7 @@
     "blocks": {
       "confirmations": 2,
       "estimateBlockTime": 12,
-      "reorgPeriod": 2
+      "reorgPeriod": 10
     },
     "chainId": 1284,
     "deployer": {
@@ -1524,6 +1789,7 @@
         "http": "https://rpc.api.moonbeam.network"
       }
     ],
+    "technicalStack": "polkadotsubstrate",
     "transactionOverrides": {
       "maxFeePerGas": 350000000000,
       "maxPriorityFeePerGas": 50000000000
@@ -1580,6 +1846,7 @@
       }
     ],
     "slip44": 118,
+    "technicalStack": "other",
     "transactionOverrides": {
       "gasPrice": "0.0075"
     }
@@ -1617,7 +1884,8 @@
       {
         "http": "https://mainnet-rpc.oortech.com"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "optimism": {
     "blockExplorers": [
@@ -1631,7 +1899,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 0
+      "reorgPeriod": 10
     },
     "chainId": 10,
     "deployer": {
@@ -1653,7 +1921,8 @@
       {
         "http": "https://mainnet.optimism.io"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "osmosis": {
     "bech32Prefix": "osmo",
@@ -1703,6 +1972,7 @@
       }
     ],
     "slip44": 118,
+    "technicalStack": "other",
     "transactionOverrides": {
       "gasPrice": "0.025"
     }
@@ -1748,8 +2018,9 @@
         "http": "https://rpc.ankr.com/polygon"
       }
     ],
+    "technicalStack": "other",
     "transactionOverrides": {
-      "maxFeePerGas": 550000000000,
+      "maxFeePerGas": 800000000000,
       "maxPriorityFeePerGas": 50000000000
     }
   },
@@ -1765,7 +2036,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 10,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 1101,
     "deployer": {
@@ -1792,9 +2063,46 @@
         "http": "https://rpc.ankr.com/polygon_zkevm"
       }
     ],
+    "technicalStack": "polygoncdk",
     "transactionOverrides": {
       "gasPrice": 1000000000
     }
+  },
+  "polynomial": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://polynomialscan.io/api",
+        "family": "routescan",
+        "name": "Polynomial Explorer",
+        "url": "https://polynomialscan.io"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 2,
+      "reorgPeriod": 5
+    },
+    "chainId": 8008,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Polynomial",
+    "domainId": 8008,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "name": "polynomial",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ethereum",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.polynomial.fi"
+      }
+    ],
+    "technicalStack": "opstack"
   },
   "proofofplay": {
     "blockExplorers": [
@@ -1808,7 +2116,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 1,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 70700,
     "deployer": {
@@ -1835,6 +2143,45 @@
     ],
     "technicalStack": "arbitrumnitro"
   },
+  "rari": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://mainnet.explorer.rarichain.org/api",
+        "family": "blockscout",
+        "name": "Rari Mainnet Explorer",
+        "url": "https://mainnet.explorer.rarichain.org"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 30,
+      "reorgPeriod": 0
+    },
+    "chainId": 1380012617,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "RARI Chain",
+    "domainId": 1380012617,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "index": {
+      "from": 541753
+    },
+    "name": "rari",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ethereum",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://mainnet.rpc.rarichain.org/http"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
+  },
   "real": {
     "blockExplorers": [
       {
@@ -1846,7 +2193,7 @@
     ],
     "blocks": {
       "confirmations": 1,
-      "estimateBlockTime": 4,
+      "estimateBlockTime": 30,
       "reorgPeriod": 0
     },
     "chainId": 111188,
@@ -1886,7 +2233,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 690,
     "deployer": {
@@ -1908,7 +2255,53 @@
       {
         "http": "https://rpc.redstonechain.com"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
+  },
+  "rootstock": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://rootstock.blockscout.com/api",
+        "family": "blockscout",
+        "name": "Blockscout",
+        "url": "https://rootstock.blockscout.com"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 30,
+      "reorgPeriod": 4
+    },
+    "chainId": 30,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Rootstock",
+    "domainId": 30,
+    "gasCurrencyCoinGeckoId": "rootstock",
+    "name": "rootstock",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Rootstock Smart Bitcoin",
+      "symbol": "RBTC"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.mainnet.rootstock.io/kXhXHf6TnnfW1POvr4UT0YUvujmuju-M"
+      },
+      {
+        "http": "https://public-node.rsk.co"
+      },
+      {
+        "http": "https://mycrypto.rsk.co"
+      }
+    ],
+    "technicalStack": "other",
+    "transactionOverrides": {
+      "gasPrice": 70000000
+    }
   },
   "sanko": {
     "blockExplorers": [
@@ -1921,8 +2314,8 @@
     ],
     "blocks": {
       "confirmations": 1,
-      "estimateBlockTime": 10,
-      "reorgPeriod": 0
+      "estimateBlockTime": 15,
+      "reorgPeriod": 1
     },
     "chainId": 1996,
     "deployer": {
@@ -1961,7 +2354,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 3,
-      "reorgPeriod": 30
+      "reorgPeriod": 17
     },
     "chainId": 534352,
     "deployer": {
@@ -1984,8 +2377,9 @@
         "http": "https://scroll.blockpi.network/v1/rpc/public"
       }
     ],
+    "technicalStack": "other",
     "transactionOverrides": {
-      "gasPrice": 2000000000
+      "gasPrice": 200000000
     }
   },
   "sei": {
@@ -2023,6 +2417,7 @@
         "http": "https://evm-rpc.sei-apis.com"
       }
     ],
+    "technicalStack": "other",
     "transactionOverrides": {
       "gasPrice": 101000000000
     }
@@ -2039,7 +2434,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 5,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 109,
     "deployer": {
@@ -2063,15 +2458,16 @@
       {
         "http": "https://rpc.shibrpc.com"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "solanamainnet": {
     "blockExplorers": [
       {
-        "apiUrl": "https://explorer.solana.com?cluster=mainnet-beta",
+        "apiUrl": "https://solscan.io",
         "family": "other",
         "name": "Solana Explorer",
-        "url": "https://explorer.solana.com?cluster=mainnet-beta"
+        "url": "https://solscan.io"
       }
     ],
     "blocks": {
@@ -2098,7 +2494,99 @@
       {
         "http": "https://api.mainnet-beta.solana.com"
       }
-    ]
+    ],
+    "technicalStack": "other"
+  },
+  "stride": {
+    "bech32Prefix": "stride",
+    "blockExplorers": [
+      {
+        "apiUrl": "https://www.mintscan.io/stride",
+        "family": "other",
+        "name": "Mintscan",
+        "url": "https://www.mintscan.io/stride"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 5,
+      "reorgPeriod": 1
+    },
+    "chainId": "stride-1",
+    "deployer": {
+      "name": "Stride Labs",
+      "url": "https://www.stride.zone"
+    },
+    "displayName": "Stride",
+    "domainId": 745,
+    "gasCurrencyCoinGeckoId": "stride",
+    "grpcUrls": [
+      {
+        "http": "stride-grpc.polkachu.com:12290"
+      }
+    ],
+    "isTestnet": false,
+    "name": "stride",
+    "nativeToken": {
+      "decimals": 6,
+      "denom": "ustrd",
+      "name": "Stride",
+      "symbol": "STRD"
+    },
+    "protocol": "cosmos",
+    "restUrls": [
+      {
+        "http": "https://stride-api.polkachu.com"
+      }
+    ],
+    "rpcUrls": [
+      {
+        "http": "https://stride-rpc.polkachu.com"
+      }
+    ],
+    "slip44": 118,
+    "transactionOverrides": {
+      "gasPrice": "0.0025"
+    }
+  },
+  "superposition": {
+    "blockExplorers": [
+      {
+        "apiUrl": "https://explorer.superposition.so/api",
+        "family": "blockscout",
+        "name": "Superposition Explorer",
+        "url": "https://explorer.superposition.so/"
+      }
+    ],
+    "blocks": {
+      "confirmations": 1,
+      "estimateBlockTime": 60,
+      "reorgPeriod": 0
+    },
+    "chainId": 55244,
+    "deployer": {
+      "name": "Abacus Works",
+      "url": "https://www.hyperlane.xyz"
+    },
+    "displayName": "Superposition",
+    "domainId": 55244,
+    "gasCurrencyCoinGeckoId": "ethereum",
+    "index": {
+      "from": 1201
+    },
+    "name": "superposition",
+    "nativeToken": {
+      "decimals": 18,
+      "name": "Ethereum",
+      "symbol": "ETH"
+    },
+    "protocol": "ethereum",
+    "rpcUrls": [
+      {
+        "http": "https://rpc.superposition.so"
+      }
+    ],
+    "technicalStack": "arbitrumnitro"
   },
   "taiko": {
     "blockExplorers": [
@@ -2112,7 +2600,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 12,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 167000,
     "deployer": {
@@ -2149,7 +2637,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 6,
-      "reorgPeriod": 0
+      "reorgPeriod": 10
     },
     "chainId": 5845,
     "deployer": {
@@ -2171,7 +2659,8 @@
       {
         "http": "https://rpc.tangle.tools"
       }
-    ]
+    ],
+    "technicalStack": "polkadotsubstrate"
   },
   "viction": {
     "blockExplorers": [
@@ -2185,7 +2674,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 3
     },
     "chainId": 88,
     "deployer": {
@@ -2209,7 +2698,8 @@
       {
         "http": "https://viction.blockpi.network/v1/rpc/public"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "worldchain": {
     "blockExplorers": [
@@ -2223,7 +2713,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 480,
     "deployer": {
@@ -2244,7 +2734,8 @@
       {
         "http": "https://raas-backend.alchemy.com/rpc/worldchain-mainnet/rollup"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "xai": {
     "blockExplorers": [
@@ -2258,7 +2749,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 1,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 660279,
     "deployer": {
@@ -2297,7 +2788,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 10,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 196,
     "deployer": {
@@ -2323,7 +2814,8 @@
       {
         "http": "https://rpc.xlayer.tech"
       }
-    ]
+    ],
+    "technicalStack": "polygoncdk"
   },
   "zetachain": {
     "blockExplorers": [
@@ -2362,7 +2854,8 @@
       {
         "http": "https://zetachain-mainnet.g.allthatnode.com/archive/evm"
       }
-    ]
+    ],
+    "technicalStack": "other"
   },
   "zircuit": {
     "blockExplorers": [
@@ -2376,7 +2869,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 0
+      "reorgPeriod": 5
     },
     "chainId": 48900,
     "deployer": {
@@ -2404,7 +2897,8 @@
       {
         "http": "https://zircuit-mainnet.drpc.org"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   },
   "zoramainnet": {
     "blockExplorers": [
@@ -2418,7 +2912,7 @@
     "blocks": {
       "confirmations": 1,
       "estimateBlockTime": 2,
-      "reorgPeriod": 1
+      "reorgPeriod": 5
     },
     "chainId": 7777777,
     "deployer": {
@@ -2440,6 +2934,7 @@
       {
         "http": "https://rpc.zora.energy"
       }
-    ]
+    ],
+    "technicalStack": "opstack"
   }
 }
