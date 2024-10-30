@@ -956,11 +956,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   zksync: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+      '0x75237d42ce8ea27349a0254ada265db94157e0c1', // imperator
     ],
   },
 
