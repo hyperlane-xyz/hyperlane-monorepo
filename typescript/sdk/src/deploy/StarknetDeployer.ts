@@ -1,5 +1,3 @@
-import fs from 'fs';
-import path from 'path';
 import { Logger } from 'pino';
 import {
   Account,
@@ -34,18 +32,15 @@ export interface StarknetDeployerOptions {
 
 export class StarknetDeployer {
   private readonly logger: Logger;
-  private readonly deploymentsDir: string;
-  private readonly configsDir: string;
   private readonly deployedContracts: Record<string, string> = {};
 
   constructor(
     private readonly account: Account,
+    private readonly config: StarknetDeployConfig,
     private readonly options: StarknetDeployerOptions = {},
   ) {
     this.logger =
       options.logger ?? rootLogger.child({ module: 'starknet-deployer' });
-    this.deploymentsDir = options.deploymentsDir ?? 'deployments';
-    this.configsDir = options.configsDir ?? 'configs';
   }
 
   private processConstructorArgs(
@@ -72,39 +67,6 @@ export class StarknetDeployer {
       }
       return acc;
     }, {} as any);
-  }
-
-  private ensureNetworkDirectory(network: string): string {
-    if (!network) {
-      throw new Error('Network must be specified');
-    }
-
-    const networkDir = path.join(this.deploymentsDir, network);
-    if (!fs.existsSync(this.deploymentsDir)) {
-      fs.mkdirSync(this.deploymentsDir);
-    }
-    if (!fs.existsSync(networkDir)) {
-      fs.mkdirSync(networkDir);
-    }
-
-    return networkDir;
-  }
-
-  private getConfigPath(network: string): string {
-    if (!network) {
-      throw new Error('Network must be specified');
-    }
-
-    const configFileName = `${network.toLowerCase()}.json`;
-    const configPath = path.join(this.configsDir, configFileName);
-
-    if (!fs.existsSync(configPath)) {
-      throw new Error(
-        `Config file not found for network ${network} at ${configPath}`,
-      );
-    }
-
-    return configPath;
   }
 
   async deployContract(
@@ -141,20 +103,12 @@ export class StarknetDeployer {
     return address;
   }
 
-  async deploy(network: string): Promise<Record<string, string>> {
+  async deploy(): Promise<Record<string, string>> {
     try {
-      const configPath = this.getConfigPath(network);
-      const config: StarknetDeployConfig = JSON.parse(
-        fs.readFileSync(configPath, 'utf-8'),
-      );
-
-      const networkDir = this.ensureNetworkDirectory(network);
-      const deploymentsFile = path.join(networkDir, 'deployments.json');
-
-      for (const contractName of config.deploymentOrder) {
+      for (const contractName of this.config.deploymentOrder) {
         await this.deployContract(
           contractName,
-          config.contracts[contractName].constructor,
+          this.config.contracts[contractName].constructor,
         );
       }
 
@@ -162,13 +116,6 @@ export class StarknetDeployer {
         'All contracts deployed successfully:',
         this.deployedContracts,
       );
-
-      // Write deployments to network-specific file
-      fs.writeFileSync(
-        deploymentsFile,
-        JSON.stringify(this.deployedContracts, null, 2),
-      );
-      this.logger.info(`Deployed contracts saved to ${deploymentsFile}`);
 
       return this.deployedContracts;
     } catch (error) {
