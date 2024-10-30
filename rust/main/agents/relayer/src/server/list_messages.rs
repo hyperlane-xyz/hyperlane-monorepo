@@ -79,8 +79,6 @@ impl ListOperationsApi {
     }
 }
 
-// TODO: there's some duplication between the setup for these tests and the one in `message_retry.rs`,
-// which should be refactored into a common test setup.
 #[cfg(test)]
 mod tests {
     use crate::msg::op_queue::{
@@ -91,7 +89,7 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
     use hyperlane_core::KnownHyperlaneDomain;
-    use std::{cmp::Reverse, net::SocketAddr, str::FromStr, sync::Arc};
+    use std::{cmp::Reverse, net::SocketAddr, sync::Arc};
     use tokio::sync::{self, Mutex};
 
     const DUMMY_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
@@ -109,6 +107,7 @@ mod tests {
 
         let list_operations_api = ListOperationsApi::new(op_queues_map);
         let (path, router) = list_operations_api.get_route();
+
         let app = Router::new().nest(path, router);
 
         // Running the app in the background using a test server
@@ -125,13 +124,20 @@ mod tests {
         let (addr, op_queue) = setup_test_server();
         let id_1 = "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b";
         let id_2 = "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914";
+        let sender_address = "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
+        let recipient_address =
+            "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08";
         let dummy_operation_1 = Box::new(
             MockPendingOperation::new(1, DUMMY_DOMAIN.into())
-                .with_id(H256::from_str(id_1).unwrap()),
+                .with_id(id_1)
+                .with_sender_address(sender_address)
+                .with_recipient_address(recipient_address),
         ) as QueueOperation;
         let dummy_operation_2 = Box::new(
             MockPendingOperation::new(2, DUMMY_DOMAIN.into())
-                .with_id(H256::from_str(id_2).unwrap()),
+                .with_id(id_2)
+                .with_sender_address(sender_address)
+                .with_recipient_address(recipient_address),
         ) as QueueOperation;
 
         // The reason there already is an id inside `operation` here is because it's a field on `MockPendingOperation` - that field is
@@ -143,8 +149,12 @@ mod tests {
       "destination_domain": {
         "Known": "Arbitrum"
       },
+      "destination_domain_id": 42161,
       "id": "0x1acbee9798118b11ebef0d94b0a2936eafd58e3bfab91b05da875825c4a1c39b",
+      "origin_domain_id": 0,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "seconds_to_next_attempt": 1,
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
     }
   },
@@ -154,8 +164,12 @@ mod tests {
       "destination_domain": {
         "Known": "Arbitrum"
       },
+      "destination_domain_id": 42161,
       "id": "0x51e7be221ce90a49dee46ca0d0270c48d338a7b9d85c2a89d83fac0816571914",
+      "origin_domain_id": 0,
+      "recipient_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "seconds_to_next_attempt": 2,
+      "sender_address": "0x586d41b02fb35df0f84ecb2b73e076b40c929ee3e1ceeada9a078aa7b46d3b08",
       "type": "MockPendingOperation"
     }
   }
@@ -173,6 +187,8 @@ mod tests {
 
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.text().await.unwrap(), expected_response);
+
+        let response_text = response.text().await.unwrap();
+        assert_eq!(response_text, expected_response);
     }
 }
