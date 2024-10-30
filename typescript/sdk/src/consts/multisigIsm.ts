@@ -463,11 +463,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   lisk: {
-    threshold: 2,
+    threshold: 4,
     validators: [
       '0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5',
-      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
-      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tesselated (superlane)
+      '0x3DA4ee2801Ec6CC5faD73DBb94B10A203ADb3d9e', // enigma (superlane)
+      '0x4df6e8878992c300e7bfe98cac6bf7d3408b9cbf', // imperator (superlane)
+      '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3', // bware (superlane)
+      '0xf0da628f3fb71652d48260bad4691054045832ce', // luganodes (superlane)
     ],
   },
 
@@ -548,12 +551,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   mode: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
-      '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
-      '0x7e29608c6e5792bbf9128599ca309be0728af7b4', // renzo
-      '0x101cE77261245140A0871f9407d6233C8230Ec47', // blockhunters
+      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tesselated (superlane)
+      '0x65C140e3a05F33192384AffEF985696Fe3cDDE42', // enigma (superlane)
+      '0x20eade18ea2af6dfd54d72b3b5366b40fcb47f4b', // imperator (superlane)
+      '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3', // bware (superlane)
+      '0x485a4f0009d9afbbf44521016f9b8cdd718e36ea', // luganodes (superlane)
     ],
   },
 
@@ -613,13 +618,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   optimism: {
-    threshold: 3,
+    threshold: 4,
     validators: [
       '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
-      '0x5b7d47b76c69740462432f6a5a0ca5005e014157', // dsrv
-      '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8', // everstake
-      '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b', // staked
-      '0x5450447aee7b544c462c9352bef7cad049b0c2dc', // zeeprime
+      '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4', // tesselated (superlane)
+      '0xd8c1cCbfF28413CE6c6ebe11A3e29B0D8384eDbB', // enigma (superlane)
+      '0x1b9e5f36c4bfdb0e3f0df525ef5c888a4459ef99', // imperator (superlane)
+      '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3', // bware (superlane)
+      '0xf9dfaa5c20ae1d84da4b2696b8dc80c919e48b12', // luganodes (superlane)
     ],
   },
 
