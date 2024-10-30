@@ -233,10 +233,8 @@ contract DeployAVS is Script {
         IStrategyFactory strategyFactory = IStrategyFactory(
             0x5e4C39Ad7A3E881585e383dB9827EB4811f6F647
         );
-        // IStrategy strategy = strategyFactory.deployNewStrategy(rezToken);
-        console.log("address(this): ", msg.sender);
 
-        IStrategy strategy = strategyFactory.deployedStrategies(rezToken);
+        IStrategy rezStrategy = strategyFactory.deployedStrategies(rezToken);
 
         ECDSAStakeRegistry stakeRegistry = ECDSAStakeRegistry(
             0x272CF0BB70D3B4f79414E0823B426d2EaFd48910
@@ -253,32 +251,31 @@ contract DeployAVS is Script {
         uint96 baseMultiplier = uint96(10000 / totalStrategies);
 
         uint96 remainder = 10000 % uint96(totalStrategies);
-        console.log("Base Multiplier: ", totalStrategies, remainder);
 
         for (uint256 i = 0; i < currentQuorum.strategies.length; i++) {
             newQuorum.strategies[i] = currentQuorum.strategies[i];
             newQuorum.strategies[i].multiplier = baseMultiplier;
-
-            console.log(
-                "Existing Strategy: ",
-                address(currentQuorum.strategies[i].strategy)
-            );
-            console.log("Multiplier: ", newQuorum.strategies[i].multiplier);
         }
 
         newQuorum.strategies[newQuorum.strategies.length - 1] = StrategyParams({
-            strategy: strategy,
+            strategy: rezStrategy,
             multiplier: baseMultiplier + remainder
         });
 
-        console.log("New REZ Strategy: ", address(strategy));
+        console.log("New REZ Strategy: ", address(rezStrategy));
         console.log(
             "New REZ Strategy Multiplier: ",
             baseMultiplier + remainder
         );
 
         // add strategy to quorum
+        bytes memory encodedCall = abi.encodeWithSelector(
+            stakeRegistry.updateQuorumConfig.selector,
+            newQuorum,
+            new address[](0)
+        );
 
-        stakeRegistry.updateQuorumConfig(newQuorum, new address[](0));
+        console.log("Encoded call: ");
+        console.logBytes(encodedCall);
     }
 }

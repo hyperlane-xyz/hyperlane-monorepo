@@ -37,6 +37,7 @@ contract REZAdditionTest is Test {
     function test_addREZStrategy() external {
         vm.startPrank(AW_SAFE);
 
+        // STEP 1: update the stakeRegistry quorum with the new REZ strategy and adjust the weights accordingly to sum up to 10_000
         IStrategy rezStrategy = strategyFactory.deployedStrategies(rezToken);
         require(address(rezStrategy).code.length > 0, "Strategy not deployed");
         _setQuorum(rezStrategy);
