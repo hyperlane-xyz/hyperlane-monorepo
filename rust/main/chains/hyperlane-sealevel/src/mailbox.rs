@@ -709,7 +709,7 @@ impl SealevelMailboxIndexer {
             Err(HyperlaneSealevelError::TooManyTransactions("Block contains more than one dispatch message transaction operating on the same dispatch message store PDA".to_owned()))?
         }
 
-        let transaction_hash = transaction_hashes
+        let (transaction_index, transaction_hash) = transaction_hashes
             .into_iter()
             .next()
             .ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any after filtering".to_owned()))?;
@@ -723,7 +723,7 @@ impl SealevelMailboxIndexer {
                 // It's inconvenient to get these :|
                 block_hash,
                 transaction_id: transaction_hash,
-                transaction_index: 0,
+                transaction_index: transaction_index as u64,
                 log_index: U256::zero(),
             },
         ))

@@ -32,16 +32,17 @@ pub fn search_dispatched_message_transactions(
     mailbox_program_id: &Pubkey,
     message_storage_pda_pubkey: &Pubkey,
     transactions: Vec<EncodedTransactionWithStatusMeta>,
-) -> Vec<H512> {
+) -> Vec<(usize, H512)> {
     transactions
         .into_iter()
-        .filter_map(|tx| match (tx.transaction, tx.meta) {
+        .enumerate()
+        .filter_map(|(index, tx)| match (tx.transaction, tx.meta) {
             // We support only transactions encoded as JSON
             // We need none-empty metadata as well
-            (EncodedTransaction::Json(t), Some(m)) => Some((t, m)),
+            (EncodedTransaction::Json(t), Some(m)) => Some((index, t, m)),
             _ => None,
         })
-        .filter_map(|(t, m)| {
+        .filter_map(|(index, t, m)| {
             let transaction_hash = match t.signatures.first() {
                 Some(h) => h,
                 None => return None, // if transaction is not signed, we continue the search
@@ -70,9 +71,9 @@ pub fn search_dispatched_message_transactions(
                 OptionSerializer::None | OptionSerializer::Skip => return None,
             };
 
-            Some((transaction_hash, message, instructions))
+            Some((index, transaction_hash, message, instructions))
         })
-        .filter_map(|(hash, message, instructions)| {
+        .filter_map(|(index, hash, message, instructions)| {
             let account_keys = message
                 .account_keys
                 .into_iter()
@@ -125,9 +126,9 @@ pub fn search_dispatched_message_transactions(
                 return None;
             }
 
-            Some(hash)
+            Some((index, hash))
         })
-        .collect::<Vec<H512>>()
+        .collect::<Vec<(usize, H512)>>()
 }
 
 #[cfg(test)]
