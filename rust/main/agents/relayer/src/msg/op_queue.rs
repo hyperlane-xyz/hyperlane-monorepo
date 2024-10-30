@@ -6,7 +6,7 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
 
-use crate::server::MessageRetryRequest;
+use crate::settings::matching_list::MatchingList;
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
@@ -16,7 +16,7 @@ pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
+    retry_rx: Arc<Mutex<Receiver<MatchingList>>>,
     #[new(default)]
     pub queue: OperationPriorityQueue,
 }
@@ -84,9 +84,7 @@ impl OpQueue {
         let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()
             .map(|Reverse(mut op)| {
-                // Can check for equality here because of the PartialEq implementation for MessageRetryRequest,
-                // but can't use `contains` because the types are different
-                if message_retry_requests.iter().any(|r| r == op) {
+                if message_retry_requests.iter().any(|r| r.op_matches(&op)) {
                     info!(
                         operation = %op,
                         queue_label = %self.queue_metrics_label,
@@ -116,12 +114,14 @@ impl OpQueue {
 pub mod test {
     use super::*;
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
+        HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
+        HyperlaneDomainType, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
         TryBatchAs, TxOutcome, H256, U256,
     };
     use serde::Serialize;
     use std::{
         collections::VecDeque,
+        str::FromStr,
         time::{Duration, Instant},
     };
     use tokio::sync;
@@ -129,6 +129,10 @@ pub mod test {
     #[derive(Debug, Clone, Serialize)]
     pub struct MockPendingOperation {
         id: H256,
+        sender_address: H256,
+        origin_domain_id: u32,
+        destination_domain_id: u32,
+        recipient_address: H256,
         seconds_to_next_attempt: u64,
         destination_domain: HyperlaneDomain,
     }
@@ -138,12 +142,51 @@ pub mod test {
             Self {
                 id: H256::random(),
                 seconds_to_next_attempt,
+                destination_domain_id: destination_domain.id(),
                 destination_domain,
+                sender_address: H256::random(),
+                recipient_address: H256::random(),
+                origin_domain_id: 0,
             }
         }
 
-        pub fn with_id(self, id: H256) -> Self {
-            Self { id, ..self }
+        pub fn with_message_data(message: HyperlaneMessage) -> Self {
+            Self {
+                id: message.id(),
+                sender_address: message.sender,
+                recipient_address: message.recipient,
+                origin_domain_id: message.origin,
+                destination_domain_id: message.destination,
+                seconds_to_next_attempt: 0,
+                destination_domain: HyperlaneDomain::Unknown {
+                    domain_id: message.destination,
+                    domain_name: "test".to_string(),
+                    domain_type: HyperlaneDomainType::Unknown,
+                    domain_protocol: HyperlaneDomainProtocol::Ethereum,
+                    domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+                },
+            }
+        }
+
+        pub fn with_id(self, id: &str) -> Self {
+            Self {
+                id: H256::from_str(id).unwrap(),
+                ..self
+            }
+        }
+
+        pub fn with_sender_address(self, sender_address: &str) -> Self {
+            Self {
+                sender_address: H256::from_str(sender_address).unwrap(),
+                ..self
+            }
+        }
+
+        pub fn with_recipient_address(self, recipient_address: &str) -> Self {
+            Self {
+                recipient_address: H256::from_str(recipient_address).unwrap(),
+                ..self
+            }
         }
     }
 
@@ -166,6 +209,20 @@ pub mod test {
             self.seconds_to_next_attempt = 0;
         }
 
+        fn sender_address(&self) -> &H256 {
+            &self.sender_address
+        }
+
+        fn recipient_address(&self) -> &H256 {
+            &self.recipient_address
+        }
+
+        fn get_metric(&self) -> Option<Arc<IntGauge>> {
+            None
+        }
+
+        fn set_metric(&mut self, _metric: Arc<IntGauge>) {}
+
         fn priority(&self) -> u32 {
             todo!()
         }
@@ -179,7 +236,7 @@ pub mod test {
         }
 
         fn origin_domain_id(&self) -> u32 {
-            todo!()
+            self.origin_domain_id
         }
 
         fn destination_domain(&self) -> &HyperlaneDomain {
@@ -238,12 +295,6 @@ pub mod test {
         fn set_retries(&mut self, _retries: u32) {
             todo!()
         }
-
-        fn get_metric(&self) -> Option<Arc<IntGauge>> {
-            None
-        }
-
-        fn set_metric(&mut self, _metric: Arc<IntGauge>) {}
     }
 
     pub fn dummy_metrics_and_label() -> (IntGaugeVec, String) {
@@ -312,10 +363,10 @@ pub mod test {
 
         // Retry by message ids
         broadcaster
-            .send(MessageRetryRequest::MessageId(op_ids[1]))
+            .send(MatchingList::with_message_id(op_ids[1]))
             .unwrap();
         broadcaster
-            .send(MessageRetryRequest::MessageId(op_ids[2]))
+            .send(MatchingList::with_message_id(op_ids[2]))
             .unwrap();
 
         // Pop elements from queue 1
@@ -373,7 +424,7 @@ pub mod test {
 
         // Retry by domain
         broadcaster
-            .send(MessageRetryRequest::DestinationDomain(
+            .send(MatchingList::with_destination_domain(
                 destination_domain_2.id(),
             ))
             .unwrap();
