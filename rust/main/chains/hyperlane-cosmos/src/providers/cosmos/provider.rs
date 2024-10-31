@@ -441,6 +441,7 @@ impl HyperlaneProvider for CosmosProvider {
                 cumulative_gas_used: U256::from(response.tx_result.gas_used),
                 effective_gas_price: Some(gas_price),
             }),
+            raw_input_data: None,
         };
 
         Ok(tx_info)

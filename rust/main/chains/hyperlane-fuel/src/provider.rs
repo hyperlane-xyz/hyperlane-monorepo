@@ -381,6 +381,7 @@ impl HyperlaneProvider for FuelProvider {
                     gas_price: Some(gas_price.into()),
                     recipient,
                     receipt: None,
+                    raw_input_data: None,
                 })
             }
             None => Err(ChainCommunicationError::CustomError(format!(
