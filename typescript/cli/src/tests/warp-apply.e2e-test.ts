@@ -259,4 +259,60 @@ describe('WarpApply e2e tests', async function () {
     expect(remoteRouterKeys2).to.include(chain3Id);
     expect(remoteRouterKeys3).to.include(chain2Id);
   });
+
+  it('should extend an existing warp route and update all destination domains', async () => {
+    // Read existing config into a file
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+    warpDeployConfig[CHAIN_NAME_2].gas = 7777;
+
+    // Extend with new config
+    const GAS = 694200;
+    const extendedConfig: TokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain2Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(ANVIL_KEY).address,
+      symbol: 'ETH',
+      totalSupply: 0,
+      type: TokenType.native,
+      gas: GAS,
+    };
+    warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
+    writeYamlOrJson(warpConfigPath, warpDeployConfig);
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
+
+    // Check that chain2 is enrolled in chain1
+    const updatedWarpDeployConfig_2 = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+
+    const chain2Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
+    const chain3Id = await getChainId(CHAIN_NAME_3, ANVIL_KEY);
+
+    // Destination gas should be set in the existing chain (chain2) to include the extended chain (chain3)
+    const destinationGas_2 =
+      updatedWarpDeployConfig_2[CHAIN_NAME_2].destinationGas!;
+    expect(Object.keys(destinationGas_2)).to.include(chain3Id);
+    expect(destinationGas_2[chain3Id]).to.equal(GAS.toString());
+
+    // Destination gas should be set for the extended chain (chain3)
+    const updatedWarpDeployConfig_3 = await readWarpConfig(
+      CHAIN_NAME_3,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+    const destinationGas_3 =
+      updatedWarpDeployConfig_3[CHAIN_NAME_3].destinationGas!;
+    expect(Object.keys(destinationGas_3)).to.include(chain2Id);
+    expect(destinationGas_3[chain2Id]).to.equal('7777');
+  });
 });

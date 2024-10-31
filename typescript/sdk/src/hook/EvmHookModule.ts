@@ -862,6 +862,8 @@ export class EvmHookModule extends HyperlaneModule<
       this.multiProvider.getSignerOrProvider(config.destinationChain),
     );
 
+    const childHook = await this.deploy({ config: config.childHook });
+
     // deploy arbL1ToL1 hook
     const hook = await this.deployer.deployContract(
       chain,
@@ -871,7 +873,7 @@ export class EvmHookModule extends HyperlaneModule<
         this.multiProvider.getDomainId(config.destinationChain),
         addressToBytes32(arbL2ToL1IsmAddress),
         config.arbSys,
-        BigNumber.from(200_000), // 2x estimate of executeTransaction call overhead
+        childHook.address,
       ],
     );
     // set authorized hook on arbL2ToL1 ism

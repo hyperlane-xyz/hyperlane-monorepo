@@ -23,13 +23,13 @@ import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
-const getOverheadWithOverrides = (local: ChainName, remote: ChainName) => {
+export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote, ethereumChainNames);
   if (remote === 'moonbeam') {
     overhead *= 4;
   }
   return overhead;
-};
+}
 
 const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(

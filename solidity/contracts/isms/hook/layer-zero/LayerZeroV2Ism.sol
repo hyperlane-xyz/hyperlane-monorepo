@@ -57,7 +57,7 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
     /**
      * @notice Entry point for receiving msg/packet from the LayerZero endpoint.
      * @param _lzMessage The payload of the received message.
-     * @dev Authorization verification is done within verifyMessageId() -> _isAuthorized()
+     * @dev Authorization verification is done within preVerifyMessage() -> _isAuthorized()
      */
     function lzReceive(
         Origin calldata,
@@ -66,25 +66,36 @@ contract LayerZeroV2Ism is AbstractMessageIdAuthorizedIsm {
         address,
         bytes calldata
     ) external payable {
-        verifyMessageId(_messageId(_lzMessage));
+        preVerifyMessage(_messageId(_lzMessage), _msgValue(_lzMessage));
     }
 
     // ============ Internal function ============
 
     /**
      * @notice Slices the messageId from the message delivered from LayerZeroV2Hook
-     * @dev message is created as abi.encodeCall(AbstractMessageIdAuthorizedIsm.verifyMessageId, id)
+     * @dev message is created as abi.encodeCall(AbstractMessageIdAuthorizedIsm.preVerifyMessage, id)
      * @dev _message will be 36 bytes (4 bytes for function selector, and 32 bytes for messageId)
      */
     function _messageId(
         bytes calldata _message
     ) internal pure returns (bytes32) {
-        return bytes32(_message[FUNC_SELECTOR_OFFSET:]);
+        return bytes32(_message[FUNC_SELECTOR_OFFSET:ORIGIN_SENDER_OFFSET]);
+    }
+
+    /**
+     * @notice Slices the msgValue from the message delivered from LayerZeroV2Hook
+     * @dev message is created as abi.encodeCall(AbstractMessageIdAuthorizedIsm.preVerifyMessage, (id,msgValue))
+     * @dev _message will be 68 bytes (4 bytes for function selector, and 32 bytes for messageId, another 32 for msgValue)
+     */
+    function _msgValue(
+        bytes calldata _message
+    ) internal pure returns (uint256) {
+        return uint256(bytes32(_message[ORIGIN_SENDER_OFFSET:]));
     }
 
     /**
      * @notice Validates criteria to verify a message
-     * @dev this is called by AbstractMessageIdAuthorizedIsm.verifyMessageId
+     * @dev this is called by AbstractMessageIdAuthorizedIsm.preVerifyMessage
      * @dev parses msg.value to get parameters from lzReceive()
      */
     function _isAuthorized() internal view override returns (bool) {
