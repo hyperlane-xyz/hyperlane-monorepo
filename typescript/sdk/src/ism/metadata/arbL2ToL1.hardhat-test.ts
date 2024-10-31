@@ -41,7 +41,7 @@ import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 import { MetadataContext } from './builder.js';
 
 describe('ArbL2ToL1MetadataBuilder', () => {
-  const origin: ChainName = 'test1';
+  const origin: ChainName = 'test4';
   const destination: ChainName = 'test2';
   let core: HyperlaneCore;
   let ismFactory: HyperlaneIsmFactory;
@@ -93,7 +93,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       [],
     );
     hookConfig = {
-      test1: {
+      test4: {
         type: HookType.ARB_L2_TO_L1,
         arbSys: mockArbSys.address,
         destinationChain: destination,
@@ -115,7 +115,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       },
     };
 
-    factoryContracts = contractsMap.test1;
+    factoryContracts = contractsMap.test4;
     proxyFactoryAddresses = Object.keys(factoryContracts).reduce((acc, key) => {
       acc[key] =
         contractsMap[origin][key as keyof ProxyFactoryFactories].address;
@@ -126,11 +126,11 @@ describe('ArbL2ToL1MetadataBuilder', () => {
       new MockArbBridge__factory(),
       [],
     );
-    hookConfig.test1.bridge = arbBridge.address;
+    hookConfig.test4.bridge = arbBridge.address;
 
     const hookModule = await EvmHookModule.create({
       chain: origin,
-      config: hookConfig.test1,
+      config: hookConfig.test4,
       proxyFactoryFactories: proxyFactoryAddresses,
       coreAddresses: core.getAddresses(origin),
       multiProvider,
