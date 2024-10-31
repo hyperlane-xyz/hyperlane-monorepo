@@ -1,8 +1,10 @@
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { Domain, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
+import { proxyAdminOwnershipUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -23,6 +25,8 @@ export class EvmIcaModule extends HyperlaneModule<
   HyperlaneAddresses<InterchainAccountFactories>
 > {
   protected logger = rootLogger.child({ module: 'EvmIcaModule' });
+  protected icaRouterReader: EvmIcaRouterReader;
+  public readonly domainId: Domain;
 
   protected constructor(
     protected readonly multiProvider: MultiProvider,
@@ -32,6 +36,10 @@ export class EvmIcaModule extends HyperlaneModule<
     >,
   ) {
     super(args);
+    this.icaRouterReader = new EvmIcaRouterReader(
+      multiProvider.getProvider(this.args.chain),
+    );
+    this.domainId = multiProvider.getDomainId(args.chain);
   }
 
   public async read(): Promise<InterchainAccountConfig> {
@@ -39,9 +47,19 @@ export class EvmIcaModule extends HyperlaneModule<
   }
 
   public async update(
-    _config: InterchainAccountConfig,
+    expectedConfig: InterchainAccountConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
-    throw new Error('Method not implemented.');
+    const actualConfig = await this.read();
+
+    const transactions: AnnotatedEV5Transaction[] = [
+      ...proxyAdminOwnershipUpdateTxs(
+        actualConfig,
+        expectedConfig,
+        this.domainId,
+      ),
+    ];
+
+    return transactions;
   }
 
   /**
