@@ -200,6 +200,7 @@ export class ContractVerifier {
         } (${response.status || 'UNKNOWN STATUS'})`,
       );
     }
+
     if (responseJson.message !== 'OK') {
       let errorMessage;
 
