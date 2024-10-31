@@ -99,12 +99,11 @@ export function SearchMenu<
     [data, searchQuery, sortState, filterState, searchFn],
   );
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter' && results.length === 1) {
-        const item = results[0];
-        isEditMode ? onClickEditItem(item) : onClickItem(item);
-      }
+  const handleSubmit = useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const item = results[0];
+      isEditMode ? onClickEditItem(item) : onClickItem(item);
     },
     [results, isEditMode],
   );
@@ -115,13 +114,14 @@ export function SearchMenu<
 
   return (
     <div className="htw-flex htw-flex-col htw-gap-2">
-      <SearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder={placeholder}
-        onKeyDown={handleKeyDown}
-        ref={inputRef}
-      />
+      <form onSubmit={handleSubmit}>
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={placeholder}
+          ref={inputRef}
+        />
+      </form>
       <div className="htw-flex htw-items-center htw-justify-between">
         <div className="htw-flex htw-items-center htw-gap-5">
           <SortDropdown
@@ -198,7 +198,7 @@ const SearchBar = React.forwardRef(function SearchBar(
         value={value}
         ref={ref}
         {...props}
-        className="htw-bg-transparent focus:htw-bg-transparent htw-border htw-border-gray-200 focus:htw-border-gray-400 htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
+        className="htw-bg-inherit focus:htw-bg-inherit htw-border htw-border-gray-200 focus:htw-border-gray-400 htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
       />
       {value && onChange && (
         <IconButton

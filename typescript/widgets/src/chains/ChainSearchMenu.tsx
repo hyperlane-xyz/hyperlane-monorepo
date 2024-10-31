@@ -313,7 +313,7 @@ function useCustomizedListItems(
       ...(customListItemField ? [customListItemField.header] : []),
       ...Object.values(ChainSortByOption),
     ],
-    [defaultSortField],
+    [customListItemField],
   ) as ChainSortByOption[];
 
   // Sort by defaultSortField initially, if value is "custom", sort using custom field by default
