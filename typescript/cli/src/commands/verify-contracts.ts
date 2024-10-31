@@ -64,17 +64,14 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
         );
         continue;
       }
-
-      const provider = context.multiProvider.getProvider(chainName);
+      assert(token.addressOrDenom, 'Invalid addressOrDenom');
 
       verificationInputs[chainName] = [];
 
-      assert(token.addressOrDenom, 'Invalid addressOrDenom');
+      const provider = context.multiProvider.getProvider(chainName);
       const isProxyContract = await isProxy(provider, token.addressOrDenom);
 
-      logGray(
-        `Getting explorer constructor args for ${chainName} using explorer API`,
-      );
+      logGray(`Getting constructor args for ${chainName} using explorer API`);
 
       // Verify Implementation first because Proxy won't verify without it.
       const deployedContractAddress = isProxyContract
@@ -115,7 +112,7 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
 
     await verifier.verify();
 
-    logGreen(`Finished contract verification`);
+    logGreen('Finished contract verification');
   },
 };
 
