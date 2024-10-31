@@ -7,7 +7,7 @@ pragma solidity >=0.8.0;
  */
 library OPL2ToL1Metadata {
     // bottom offset to the start of message id in the metadata
-    uint256 private constant MESSAGE_ID_OFFSET = 88;
+    uint256 private constant MESSAGE_ID_OFFSET = 120;
     // from IOptimismPortal.WithdrawalTransaction
     // Σ {
     //      nonce                          = 32 bytes
@@ -20,7 +20,7 @@ library OPL2ToL1Metadata {
     //          LENGTH                      = 32 bytes
     // } = 252 bytes
     uint256 private constant FIXED_METADATA_LENGTH = 252;
-    // metadata here is double encoded call relayMessage(..., verifyMessageId)
+    // metadata here is double encoded call relayMessage(..., preVerifyMessage)
     // Σ {
     //      _selector                       =  4 bytes
     //      _nonce                          = 32 bytes
@@ -31,9 +31,9 @@ library OPL2ToL1Metadata {
     //      _data
     //          OFFSET                      = 32 bytes
     //          LENGTH                      = 32 bytes
-    //          PADDING + verifyMessageId   = 64 bytes
-    // } = 292 bytes
-    uint256 private constant MESSENGER_CALLDATA_LENGTH = 292;
+    //          PADDING + preVerifyMessage   = 96 bytes
+    // } = 324 bytes
+    uint256 private constant MESSENGER_CALLDATA_LENGTH = 324;
 
     /**
      * @notice Returns the message ID.

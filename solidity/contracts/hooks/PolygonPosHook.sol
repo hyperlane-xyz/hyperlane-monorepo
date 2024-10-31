@@ -76,8 +76,8 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
         require(msg.value == 0, "PolygonPosHook: does not support msgValue");
 
         bytes memory payload = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            message.id()
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (message.id(), metadata.msgValue(0))
         );
         _sendMessageToChild(payload);
     }
