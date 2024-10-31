@@ -32,9 +32,10 @@ export class EvmIcaRouterReader {
       proxyAddress,
       this.provider,
     );
-    const [proxyAdminOwner, knownDomains] = await Promise.all([
+    const [proxyAdminOwner, knownDomains, mailboxAddress] = await Promise.all([
       proxyAdminInstance.owner(),
       icaRouterInstance.domains(),
+      icaRouterInstance.mailbox(),
     ]);
 
     const remoteRouters = await this._deriveRemoteRoutersConfig(
@@ -45,6 +46,7 @@ export class EvmIcaRouterReader {
     const rawConfig: DerivedIcaRouterConfig = {
       owner,
       address,
+      mailbox: mailboxAddress,
       proxyAdmin: {
         address: proxyAddress,
         owner: proxyAdminOwner,
