@@ -569,25 +569,14 @@ export abstract class HyperlaneAppGovernor<
         );
         this.canPropose[chain].set(safeAddress, canPropose);
       } catch (error) {
-        if (!(error instanceof Error)) {
-          console.error(
-            chalk.red(
-              `Failed to determine if signer can propose safe transactions on ${chain}. Error: ${error}`,
-            ),
-          );
-          return false;
-        }
-
-        const errorMessage = error.message.toLowerCase();
+        const errorMessage = (error as Error).message.toLowerCase();
 
         // Handle invalid MultiSend contract errors
         if (
           errorMessage.includes('invalid multisend contract address') ||
           errorMessage.includes('invalid multisendcallonly contract address')
         ) {
-          console.warn(
-            chalk.yellow(`${error.message}: Setting submission type to MANUAL`),
-          );
+          console.warn(chalk.yellow(`Invalid contract: ${errorMessage}.`));
           return false;
         }
 
@@ -598,7 +587,7 @@ export abstract class HyperlaneAppGovernor<
         ) {
           console.warn(
             chalk.yellow(
-              `Safe service error for ${safeAddress} on ${chain}: ${error.message}. ${retries} retries left.`,
+              `Safe service error for ${safeAddress} on ${chain}: ${errorMessage}. ${retries} retries left.`,
             ),
           );
 
