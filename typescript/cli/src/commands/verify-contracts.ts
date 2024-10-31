@@ -83,6 +83,20 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
       logGray(
         `Getting explorer constructor args for ${chainName} using explorer API`,
       );
+
+      // Verify Implementation first because Proxy won't verify without it.
+      const deployedContractAddress = isProxyContract
+        ? await proxyImplementation(provider, token.addressOrDenom)
+        : token.addressOrDenom;
+
+      const implementationInput = await getImplementationInput({
+        context,
+        chainName,
+        implementationAddress: deployedContractAddress,
+      });
+      verificationInputs[chainName].push(implementationInput);
+
+      // Verify Proxy and ProxyAdmin
       if (isProxyContract) {
         const { proxyAdminInput, transparentUpgradeableProxyInput } =
           await getProxyAndAdminInput({
@@ -94,18 +108,6 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
         verificationInputs[chainName].push(proxyAdminInput);
         verificationInputs[chainName].push(transparentUpgradeableProxyInput);
       }
-
-      // Implementation
-      const deployedContractAddress = isProxyContract
-        ? await proxyImplementation(provider, token.addressOrDenom)
-        : token.addressOrDenom;
-
-      const implementationInput = await getImplementationInput({
-        context,
-        chainName,
-        implementationAddress: deployedContractAddress,
-      });
-      verificationInputs[chainName].push(implementationInput);
     }
 
     logBlue(
@@ -222,8 +224,9 @@ async function getWarpRouteFactory(
 
   return { factory, tokenType };
 }
+
 /**
- * Retrieves the constructor args using the Explorer and/or RPC (eth_getTransactionByHash)
+ * Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
  */
 async function getConstructorArgs({
   context,
