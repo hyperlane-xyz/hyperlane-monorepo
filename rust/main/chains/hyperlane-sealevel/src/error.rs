@@ -36,6 +36,12 @@ pub enum HyperlaneSealevelError {
     /// Incorrect transaction
     #[error("received incorrect transaction, expected hash: {0:?}, received hash: {1:?}")]
     IncorrectTransaction(Box<H512>, Box<H512>),
+    /// Empty metadata
+    #[error("received empty metadata in transaction")]
+    EmptyMetadata,
+    /// Empty compute units consumed
+    #[error("received empty compute units consumed in transaction")]
+    EmptyComputeUnitsConsumed,
 }
 
 impl From<HyperlaneSealevelError> for ChainCommunicationError {

@@ -2,22 +2,30 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::{EncodedTransaction, UiMessage};
+use solana_transaction_status::{
+    option_serializer::OptionSerializer, EncodedTransaction, EncodedTransactionWithStatusMeta,
+    UiMessage, UiTransaction,
+};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
+    HyperlaneProvider, HyperlaneProviderError, NativeToken, TxnInfo, TxnReceiptInfo, H256, H512,
+    U256,
 };
 
 use crate::error::HyperlaneSealevelError;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 use crate::{ConnectionConf, SealevelRpcClient};
 
+/// Exponent value for atto units (10^-18).
+const ATTO_EXPONENT: u32 = 18;
+
 /// A wrapper around a Sealevel provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct SealevelProvider {
     domain: HyperlaneDomain,
     rpc_client: Arc<SealevelRpcClient>,
+    native_token: NativeToken,
 }
 
 impl SealevelProvider {
@@ -25,13 +33,82 @@ impl SealevelProvider {
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         // Set the `processed` commitment at rpc level
         let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
+        let native_token = conf.native_token.clone();
 
-        SealevelProvider { domain, rpc_client }
+        SealevelProvider {
+            domain,
+            rpc_client,
+            native_token,
+        }
     }
 
     /// Get an rpc client
     pub fn rpc(&self) -> &SealevelRpcClient {
         &self.rpc_client
+    }
+
+    fn validate_transaction(hash: &H512, txn: &UiTransaction) -> ChainResult<()> {
+        let received_signature = txn
+            .signatures
+            .first()
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+        let received_hash = decode_h512(received_signature)?;
+
+        if &received_hash != hash {
+            Err(Into::<ChainCommunicationError>::into(
+                HyperlaneSealevelError::IncorrectTransaction(
+                    Box::new(*hash),
+                    Box::new(received_hash),
+                ),
+            ))?;
+        }
+        Ok(())
+    }
+
+    fn extract_sender(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
+        let message = match &txn.message {
+            UiMessage::Parsed(m) => m,
+            m => Err(Into::<ChainCommunicationError>::into(
+                HyperlaneSealevelError::UnsupportedMessageEncoding(m.clone()),
+            ))?,
+        };
+
+        let signer = message
+            .account_keys
+            .first()
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+        let pubkey = decode_pubkey(&signer.pubkey)?;
+        let sender = H256::from_slice(&pubkey.to_bytes());
+        Ok(sender)
+    }
+
+    fn gas(txn: &EncodedTransactionWithStatusMeta) -> ChainResult<u64> {
+        let meta = txn
+            .meta
+            .as_ref()
+            .ok_or(HyperlaneSealevelError::EmptyMetadata)?;
+
+        let OptionSerializer::Some(gas) = meta.compute_units_consumed else {
+            Err(HyperlaneSealevelError::EmptyComputeUnitsConsumed)?
+        };
+
+        Ok(gas)
+    }
+
+    fn fee(&self, txn: &EncodedTransactionWithStatusMeta) -> ChainResult<U256> {
+        let meta = txn
+            .meta
+            .as_ref()
+            .ok_or(HyperlaneSealevelError::EmptyMetadata)?;
+
+        let fee = meta.fee;
+
+        let exponent = ATTO_EXPONENT - self.native_token.decimals;
+        let coefficient = U256::from(10u128.pow(exponent));
+
+        let amount_in_native_denom = U256::from(fee);
+
+        Ok(amount_in_native_denom * coefficient)
     }
 }
 
@@ -44,6 +121,7 @@ impl HyperlaneChain for SealevelProvider {
         Box::new(SealevelProvider {
             domain: self.domain.clone(),
             rpc_client: self.rpc_client.clone(),
+            native_token: self.native_token.clone(),
         })
     }
 }
@@ -78,56 +156,33 @@ impl HyperlaneProvider for SealevelProvider {
         let signature = Signature::new(hash.as_bytes());
 
         let txn_confirmed = self.rpc_client.get_transaction(&signature).await?;
-        let txn_with_meta = txn_confirmed.transaction;
+        let txn_with_meta = &txn_confirmed.transaction;
 
-        let txn = match txn_with_meta.transaction {
+        let txn = match &txn_with_meta.transaction {
             EncodedTransaction::Json(t) => t,
             t => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedTransactionEncoding(t),
+                HyperlaneSealevelError::UnsupportedTransactionEncoding(t.clone()),
             ))?,
         };
 
-        let message = match txn.message {
-            UiMessage::Parsed(m) => m,
-            m => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedMessageEncoding(m),
-            ))?,
-        };
-
-        let signer = message
-            .account_keys
-            .first()
-            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
-        let pubkey = decode_pubkey(&signer.pubkey)?;
-        let sender = H256::from_slice(&pubkey.to_bytes());
-
-        let received_signature = txn
-            .signatures
-            .first()
-            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
-        let received_hash = decode_h512(received_signature)?;
-
-        if &received_hash != hash {
-            Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::IncorrectTransaction(
-                    Box::new(*hash),
-                    Box::new(received_hash),
-                ),
-            ))?;
-        }
+        Self::validate_transaction(hash, &txn)?;
+        let sender = Self::extract_sender(hash, txn)?;
+        let gas_used = U256::from(Self::gas(&txn_with_meta)?);
+        let fee = self.fee(&txn_with_meta)?;
+        let gas_price = Some(fee / gas_used);
 
         let receipt = TxnReceiptInfo {
-            gas_used: Default::default(),
-            cumulative_gas_used: Default::default(),
-            effective_gas_price: None,
+            gas_used,
+            cumulative_gas_used: gas_used,
+            effective_gas_price: gas_price,
         };
 
         Ok(TxnInfo {
             hash: *hash,
-            gas_limit: Default::default(),
+            gas_limit: gas_used,
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
-            gas_price: None,
+            gas_price,
             nonce: 0,
             sender,
             recipient: None,

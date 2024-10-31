@@ -2,9 +2,9 @@ use eyre::eyre;
 use url::Url;
 
 use h_eth::TransactionOverrides;
+
 use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
-use hyperlane_cosmos::NativeToken;
+use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
@@ -137,6 +137,41 @@ pub fn build_cosmos_connection_conf(
         .parse_u64()
         .end();
 
+    let native_token = parse_native_token(chain, err);
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
+            grpcs,
+            rpcs.to_owned(),
+            chain_id.unwrap().to_string(),
+            prefix.unwrap().to_string(),
+            canonical_asset.unwrap(),
+            gas_price.unwrap(),
+            contract_address_bytes.unwrap().try_into().unwrap(),
+            operation_batch,
+            native_token,
+        )))
+    }
+}
+
+fn build_sealevel_connection_conf(
+    url: &Url,
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OperationBatchConfig,
+) -> h_sealevel::ConnectionConf {
+    let native_token = parse_native_token(chain, err);
+    h_sealevel::ConnectionConf {
+        url: url.clone(),
+        operation_batch,
+        native_token,
+    }
+}
+
+fn parse_native_token(chain: &ValueParser, err: &mut ConfigParsingError) -> NativeToken {
     let native_token_decimals = chain
         .chain(err)
         .get_key("nativeToken")
@@ -155,23 +190,7 @@ pub fn build_cosmos_connection_conf(
         decimals: native_token_decimals,
         denom: native_token_denom.to_owned(),
     };
-
-    if !local_err.is_ok() {
-        err.merge(local_err);
-        None
-    } else {
-        Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
-            grpcs,
-            rpcs.to_owned(),
-            chain_id.unwrap().to_string(),
-            prefix.unwrap().to_string(),
-            canonical_asset.unwrap(),
-            gas_price.unwrap(),
-            contract_address_bytes.unwrap().try_into().unwrap(),
-            operation_batch,
-            native_token,
-        )))
-    }
+    native_token
 }
 
 pub fn build_connection_conf(
@@ -195,10 +214,12 @@ pub fn build_connection_conf(
             .next()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
         HyperlaneDomainProtocol::Sealevel => rpcs.iter().next().map(|url| {
-            ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-                url: url.clone(),
+            ChainConnectionConf::Sealevel(build_sealevel_connection_conf(
+                url,
+                chain,
+                err,
                 operation_batch,
-            })
+            ))
         }),
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)

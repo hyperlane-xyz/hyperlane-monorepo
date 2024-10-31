@@ -17,6 +17,7 @@ pub use indexing::*;
 pub use log_metadata::*;
 pub use merkle_tree::*;
 pub use message::*;
+pub use native_token::NativeToken;
 pub use reorg::*;
 pub use transaction::*;
 
@@ -33,6 +34,7 @@ mod indexing;
 mod log_metadata;
 mod merkle_tree;
 mod message;
+mod native_token;
 mod reorg;
 mod serialize;
 mod transaction;
