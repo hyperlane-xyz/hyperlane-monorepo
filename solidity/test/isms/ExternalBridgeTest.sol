@@ -18,6 +18,7 @@ abstract contract ExternalBridgeTest is Test {
     uint8 internal constant HYPERLANE_VERSION = 1;
     uint32 internal constant ORIGIN_DOMAIN = 1;
     uint32 internal constant DESTINATION_DOMAIN = 2;
+    uint256 internal constant MSG_VALUE = 1 ether;
     uint256 internal constant MAX_MSG_VALUE = 2 ** 255 - 1;
     uint256 internal GAS_QUOTE;
 
@@ -53,7 +54,8 @@ abstract contract ExternalBridgeTest is Test {
         originMailbox.updateLatestDispatchedId(messageId);
         _expectOriginExternalBridgeCall(encodedHookData);
 
-        hook.postDispatch{value: GAS_QUOTE}(testMetadata, encodedMessage);
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+        hook.postDispatch{value: quote}(testMetadata, encodedMessage);
     }
 
     function test_postDispatch_revertWhen_chainIDNotSupported() public {
@@ -89,6 +91,37 @@ abstract contract ExternalBridgeTest is Test {
         hook.postDispatch(excessValueMetadata, encodedMessage);
     }
 
+    function testFuzz_postDispatch_refundsExtraValue(
+        uint256 extraValue
+    ) public virtual {
+        vm.assume(extraValue < MAX_MSG_VALUE);
+        vm.deal(address(this), address(this).balance + extraValue);
+        uint256 valueBefore = address(this).balance;
+
+        bytes memory encodedHookData = _encodeHookData(messageId);
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(encodedHookData);
+
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+        hook.postDispatch{value: quote + extraValue}(
+            testMetadata,
+            encodedMessage
+        );
+
+        assertEq(address(this).balance, valueBefore - quote);
+    }
+
+    function test_postDispatch_revertWhen_insufficientValue() public {
+        bytes memory encodedHookData = _encodeHookData(messageId);
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(encodedHookData);
+
+        uint256 quote = hook.quoteDispatch(testMetadata, encodedMessage);
+
+        vm.expectRevert(); //arithmetic underflow
+        hook.postDispatch{value: quote - 1}(testMetadata, encodedMessage);
+    }
+
     /* ============ ISM.verifyMessageId ============ */
 
     function test_verifyMessageId_asyncCall() public {
@@ -122,17 +155,17 @@ abstract contract ExternalBridgeTest is Test {
 
     function test_verify_msgValue_asyncCall() public virtual {
         bytes memory encodedHookData = _encodeHookData(messageId);
-        _externalBridgeDestinationCall(encodedHookData, 1 ether);
+        _externalBridgeDestinationCall(encodedHookData, MSG_VALUE);
 
         assertTrue(ism.verify(new bytes(0), encodedMessage));
-        assertEq(address(testRecipient).balance, 1 ether);
+        assertEq(address(testRecipient).balance, MSG_VALUE);
     }
 
     function test_verify_msgValue_externalBridgeCall() public virtual {
         bytes memory externalCalldata = _encodeExternalDestinationBridgeCall(
             address(hook),
             address(ism),
-            1 ether,
+            MSG_VALUE,
             messageId
         );
         assertTrue(ism.verify(externalCalldata, encodedMessage));
@@ -279,6 +312,8 @@ abstract contract ExternalBridgeTest is Test {
         address _sender
     ) internal virtual returns (bytes memory) {}
 
-    // meant to mock an arbitrary successful call made by the external bridge
+    receive() external payable {}
+
+    // meant to be mock an arbitrary successful call made by the external bridge
     function verifyMessageId(bytes32 /*messageId*/) public payable {}
 }
