@@ -34,7 +34,7 @@ contract REZAdditionTest is Test {
         vm.createSelectFork(MAINNET_RPC_URL, FORK_BLOCK_NUMBER);
     }
 
-    function test_addREZStrategy() external {
+    function testFork_addREZStrategy() external {
         vm.startPrank(AW_SAFE);
 
         // STEP 1: update the stakeRegistry quorum with the new REZ strategy and adjust the weights accordingly to sum up to 10_000
@@ -70,7 +70,7 @@ contract REZAdditionTest is Test {
         address[] memory operatorStrategies1 = serviceManager
             .getOperatorRestakedStrategies(PIER2);
 
-        // directly update the operator shares instead of calling
+        // directly update the operator shares instead of calling delegationManager.delegateTo()
         bytes32 operatorSharesSlot = keccak256(
             abi.encode(
                 address(rezStrategy),
