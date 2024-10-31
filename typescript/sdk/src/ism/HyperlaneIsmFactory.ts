@@ -46,6 +46,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getZKArtifactByContractName } from '../utils/zksync.js';
@@ -89,25 +90,33 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
     public readonly multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
   ) {
     super(
       contractsMap,
       multiProvider,
       rootLogger.child({ module: 'ismFactoryApp' }),
     );
-    this.deployer = new IsmDeployer(multiProvider, ismFactories);
+    this.deployer = new IsmDeployer(multiProvider, ismFactories, {
+      contractVerifier,
+    });
   }
 
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
   ): HyperlaneIsmFactory {
     const helper = appFromAddressesMapHelper(
       addressesMap,
       proxyFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(helper.contractsMap, multiProvider);
+    return new HyperlaneIsmFactory(
+      helper.contractsMap,
+      multiProvider,
+      contractVerifier,
+    );
   }
 
   async deploy<C extends IsmConfig>(params: {
