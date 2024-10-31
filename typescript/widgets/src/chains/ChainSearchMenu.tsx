@@ -328,7 +328,7 @@ function useCustomizedListItems(
             sortOrder: SortOrderOption.Desc,
           }
         : undefined,
-    [defaultSortField],
+    [defaultSortField, customListItemField],
   ) as SortState<ChainSortByOption> | undefined;
 
   return { ListComponent, searchFn, sortOptions, defaultSortState };
