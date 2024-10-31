@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
 import { HookConfigSchema } from '../hook/schemas.js';
-import { DerivedIcaRouterConfigSchema } from '../ica/schemas.js';
+import {
+  DerivedIcaRouterConfigSchema,
+  IcaRouterConfigSchema,
+} from '../ica/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
 
@@ -13,6 +16,7 @@ export const CoreConfigSchema = OwnableSchema.extend({
   // This field is set as optional because the old core config
   // did not have it and we want to maintain backward compatibility
   proxyAdmin: DeployedOwnableSchema.optional(),
+  interchainAccountRouter: IcaRouterConfigSchema.optional(),
 });
 
 export const DerivedCoreConfigSchema = CoreConfigSchema.merge(

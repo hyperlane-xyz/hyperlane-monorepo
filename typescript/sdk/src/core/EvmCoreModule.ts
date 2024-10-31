@@ -21,7 +21,7 @@ import {
   HyperlaneContractsMap,
 } from '../contracts/types.js';
 import { DeployedCoreAddresses } from '../core/schemas.js';
-import { CoreConfig } from '../core/types.js';
+import { CoreConfig, DerivedCoreConfig } from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
   ProxyFactoryFactories,
@@ -55,6 +55,7 @@ export class EvmCoreModule extends HyperlaneModule<
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
+  protected evmIcaModule?: EvmIcaModule;
   public readonly chainName: string;
 
   // We use domainId here because MultiProvider.getDomainId() will always
@@ -69,14 +70,26 @@ export class EvmCoreModule extends HyperlaneModule<
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
     this.chainName = this.multiProvider.getChainName(this.args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+
+    if (args.config.interchainAccountRouter) {
+      this.evmIcaModule = new EvmIcaModule(multiProvider, {
+        chain: args.chain,
+        // @ts-ignore
+        addresses: args.addresses,
+        config: args.config.interchainAccountRouter,
+      });
+    }
   }
 
   /**
    * Reads the core configuration from the mailbox address specified in the SDK arguments.
    * @returns The core config.
    */
-  public async read(): Promise<CoreConfig> {
-    return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
+  public async read(): Promise<DerivedCoreConfig> {
+    return this.coreReader.deriveCoreConfig({
+      mailbox: this.args.addresses.mailbox,
+      interchainAccountRouter: this.args.addresses.interchainAccountRouter,
+    });
   }
 
   /**
@@ -91,6 +104,8 @@ export class EvmCoreModule extends HyperlaneModule<
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
+    expectedConfig.interchainAccountRouter;
+
     const transactions: AnnotatedEV5Transaction[] = [];
 
     transactions.push(
@@ -103,6 +118,14 @@ export class EvmCoreModule extends HyperlaneModule<
       ),
     );
 
+    if (expectedConfig.interchainAccountRouter) {
+      transactions.push(
+        ...((await this.evmIcaModule?.update(
+          expectedConfig.interchainAccountRouter,
+        )) ?? []),
+      );
+    }
+
     return transactions;
   }
 
@@ -114,7 +137,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns Transaction that need to be executed to update the ISM configuration.
    */
   async createDefaultIsmUpdateTxs(
-    actualConfig: CoreConfig,
+    actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -209,7 +232,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
   createMailboxOwnerUpdateTxs(
-    actualConfig: CoreConfig,
+    actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
     return transferOwnershipTransactions(

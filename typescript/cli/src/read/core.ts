@@ -8,13 +8,15 @@ export async function executeCoreRead({
   context,
   chain,
   mailbox,
+  interchainAccountRouter,
 }: {
   context: CommandContext;
   chain: ChainName;
   mailbox?: Address;
+  interchainAccountRouter?: Address;
 }): Promise<CoreConfig> {
+  const addresses = await context.registry.getChainAddresses(chain);
   if (!mailbox) {
-    const addresses = await context.registry.getChainAddresses(chain);
     mailbox = addresses?.mailbox;
 
     assert(
@@ -23,9 +25,18 @@ export async function executeCoreRead({
     );
   }
 
+  if (!interchainAccountRouter) {
+    interchainAccountRouter = addresses?.interchainAccountRouter;
+
+    assert(
+      interchainAccountRouter,
+      `${chain} interchainAccountRouter not provided and none found in registry.`,
+    );
+  }
+
   const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);
   try {
-    return evmCoreReader.deriveCoreConfig(mailbox);
+    return evmCoreReader.deriveCoreConfig({ mailbox, interchainAccountRouter });
   } catch (e: any) {
     errorRed(
       `❌ Failed to read core config for mailbox ${mailbox} on ${chain}:`,

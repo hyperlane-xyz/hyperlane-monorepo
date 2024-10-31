@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 import { ZHash } from '../metadata/customZodTypes.js';
-import { RemoteRoutersSchema } from '../router/schemas.js';
 import { DerivedOwnableSchema } from '../schemas.js';
 
 export const RemoteIcaRouterConfigSchema = z.record(
@@ -14,11 +13,12 @@ export const RemoteIcaRouterConfigSchema = z.record(
 
 export const IcaRouterConfigSchema = z.object({
   owner: ZHash,
+  mailbox: ZHash,
   proxyAdmin: z.object({
     address: ZHash.optional(),
     owner: ZHash,
   }),
-  remoteIcaRouters: RemoteRoutersSchema,
+  remoteIcaRouters: RemoteIcaRouterConfigSchema,
 });
 
 export const DerivedRemoteIcaRouterConfigSchema = z.record(

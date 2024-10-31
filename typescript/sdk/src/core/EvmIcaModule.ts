@@ -1,10 +1,20 @@
-import { Domain, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ethers } from 'ethers';
+
+import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
+import {
+  Domain,
+  ProtocolType,
+  addressToBytes32,
+  rootLogger,
+  symmetricDifference,
+} from '@hyperlane-xyz/utils';
 
 import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import { proxyAdminOwnershipUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
+import { DerivedIcaRouterConfig } from '../ica/types.js';
 import { InterchainAccountDeployer } from '../middleware/account/InterchainAccountDeployer.js';
 import { InterchainAccountFactories } from '../middleware/account/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -17,7 +27,8 @@ import {
   HyperlaneModuleParams,
 } from './AbstractHyperlaneModule.js';
 
-export type InterchainAccountConfig = ProxiedRouterConfig;
+export type InterchainAccountConfig = ProxiedRouterConfig &
+  Partial<Pick<DerivedIcaRouterConfig, 'remoteIcaRouters'>>;
 
 export class EvmIcaModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -28,7 +39,7 @@ export class EvmIcaModule extends HyperlaneModule<
   protected icaRouterReader: EvmIcaRouterReader;
   public readonly domainId: Domain;
 
-  protected constructor(
+  constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<
       InterchainAccountConfig,
@@ -42,8 +53,10 @@ export class EvmIcaModule extends HyperlaneModule<
     this.domainId = multiProvider.getDomainId(args.chain);
   }
 
-  public async read(): Promise<InterchainAccountConfig> {
-    throw new Error('Method not implemented.');
+  public async read(): Promise<DerivedIcaRouterConfig> {
+    return this.icaRouterReader.deriveConfig(
+      this.args.addresses.interchainAccountRouter,
+    );
   }
 
   public async update(
@@ -52,12 +65,54 @@ export class EvmIcaModule extends HyperlaneModule<
     const actualConfig = await this.read();
 
     const transactions: AnnotatedEV5Transaction[] = [
+      ...(await this._updateRemoteRoutersEnrollment(
+        actualConfig.remoteIcaRouters,
+        expectedConfig.remoteIcaRouters,
+      )),
       ...proxyAdminOwnershipUpdateTxs(
         actualConfig,
         expectedConfig,
         this.domainId,
       ),
     ];
+
+    return transactions;
+  }
+
+  private async _updateRemoteRoutersEnrollment(
+    actualConfig: DerivedIcaRouterConfig['remoteIcaRouters'],
+    expectedConfig: InterchainAccountConfig['remoteIcaRouters'] = {},
+  ): Promise<AnnotatedEV5Transaction[]> {
+    const transactions: AnnotatedEV5Transaction[] = [];
+
+    const routesToEnroll = symmetricDifference(
+      new Set(Object.keys(expectedConfig)),
+      new Set(Object.keys(actualConfig)),
+    );
+
+    const domainsToEnroll: string[] = [];
+    const remoteDomainIca: string[] = [];
+    const remoteIsm: string[] = [];
+
+    for (const domainId of routesToEnroll) {
+      domainsToEnroll.push(domainId);
+      remoteDomainIca.push(addressToBytes32(expectedConfig[domainId].address));
+      remoteIsm.push(
+        expectedConfig[domainId].interchainSecurityModule
+          ? addressToBytes32(expectedConfig[domainId].interchainSecurityModule!)
+          : ethers.utils.hexZeroPad('0x', 32),
+      );
+    }
+
+    transactions.push({
+      annotation: 'Enroll routes on the remote chain',
+      chainId: this.domainId,
+      to: this.args.addresses.interchainAccountRouter,
+      data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
+        'enrollRemoteRouterAndIsms(uint32[],bytes32[],bytes32[])',
+        [domainsToEnroll, remoteDomainIca, remoteIsm],
+      ),
+    });
 
     return transactions;
   }
