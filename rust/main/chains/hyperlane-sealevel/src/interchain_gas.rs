@@ -1,25 +1,22 @@
+use std::ops::RangeInclusive;
+
 use async_trait::async_trait;
+use derive_new::new;
+use hyperlane_sealevel_igp::{
+    accounts::{GasPaymentAccount, ProgramDataAccount},
+    igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
+};
+use solana_sdk::{account::Account, pubkey::Pubkey};
+use tracing::{info, instrument};
+
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
     InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
 };
-use hyperlane_sealevel_igp::{
-    accounts::{GasPaymentAccount, ProgramDataAccount},
-    igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
-};
-use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
-use solana_client::{
-    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
-    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
-};
-use std::ops::RangeInclusive;
-use tracing::{info, instrument};
 
+use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
-
-use derive_new::new;
 
 /// The offset to get the `unique_gas_payment_pubkey` field from the serialized GasPaymentData.
 /// The account data includes prefixes that are accounted for here: a 1 byte initialized flag
@@ -121,70 +118,23 @@ impl SealevelInterchainGasPaymasterIndexer {
         &self,
         sequence_number: u64,
     ) -> ChainResult<SealevelGasPayment> {
-        let payment_bytes = &[
-            &hyperlane_sealevel_igp::accounts::GAS_PAYMENT_DISCRIMINATOR[..],
-            &sequence_number.to_le_bytes()[..],
-        ]
-        .concat();
-        #[allow(deprecated)]
-        let payment_bytes: String = base64::encode(payment_bytes);
-
-        // First, find all accounts with the matching gas payment data.
-        // To keep responses small in case there is ever more than 1
-        // match, we don't request the full account data, and just request
-        // the `unique_gas_payment_pubkey` field.
-        #[allow(deprecated)]
-        let memcmp = RpcFilterType::Memcmp(Memcmp {
-            // Ignore the first byte, which is the `initialized` bool flag.
-            offset: 1,
-            bytes: MemcmpEncodedBytes::Base64(payment_bytes),
-            encoding: None,
-        });
-        let config = RpcProgramAccountsConfig {
-            filters: Some(vec![memcmp]),
-            account_config: RpcAccountInfoConfig {
-                encoding: Some(UiAccountEncoding::Base64),
-                // Don't return any data
-                data_slice: Some(UiDataSliceConfig {
-                    offset: UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET,
-                    length: 32, // the length of the `unique_gas_payment_pubkey` field
-                }),
-                commitment: Some(CommitmentConfig::finalized()),
-                min_context_slot: None,
-            },
-            with_context: Some(false),
-        };
-        tracing::debug!(config=?config, "Fetching program accounts");
-        let accounts = self
-            .rpc_client
-            .get_program_accounts_with_config(&self.igp.program_id, config)
-            .await?;
+        let discriminator = hyperlane_sealevel_igp::accounts::GAS_PAYMENT_DISCRIMINATOR;
+        let sequence_number_bytes = sequence_number.to_le_bytes();
+        let unique_gas_payment_pubkey_length = 32; // the length of the `unique_gas_payment_pubkey` field
+        let accounts = search_accounts_by_discriminator(
+            &self.rpc_client,
+            &self.igp.program_id,
+            discriminator,
+            &sequence_number_bytes,
+            UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET,
+            unique_gas_payment_pubkey_length,
+        )
+        .await?;
 
         tracing::debug!(accounts=?accounts, "Fetched program accounts");
 
-        // Now loop through matching accounts and find the one with a valid account pubkey
-        // that proves it's an actual gas payment PDA.
-        let mut valid_payment_pda_pubkey = Option::<Pubkey>::None;
-
-        for (pubkey, account) in accounts {
-            let unique_gas_payment_pubkey = Pubkey::new(&account.data);
-            let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
-                igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),
-                &self.igp.program_id,
-            )
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find program address for unique_gas_payment_pubkey",
-                )
-            })?;
-            if expected_pubkey == pubkey {
-                valid_payment_pda_pubkey = Some(pubkey);
-                break;
-            }
-        }
-
-        let valid_payment_pda_pubkey = valid_payment_pda_pubkey.ok_or_else(|| {
-            ChainCommunicationError::from_other_str("Could not find valid gas payment PDA pubkey")
+        let valid_payment_pda_pubkey = search_and_validate_account(accounts, |account| {
+            self.interchain_payment_account(account)
         })?;
 
         // Now that we have the valid gas payment PDA pubkey, we can get the full account data.
@@ -223,6 +173,20 @@ impl SealevelInterchainGasPaymasterIndexer {
             },
             H256::from(gas_payment_account.igp.to_bytes()),
         ))
+    }
+
+    fn interchain_payment_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        let unique_gas_payment_pubkey = Pubkey::new(&account.data);
+        let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+            igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),
+            &self.igp.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Could not find program address for unique_gas_payment_pubkey",
+            )
+        })?;
+        Ok(expected_pubkey)
     }
 }
 

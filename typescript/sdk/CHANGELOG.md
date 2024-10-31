@@ -1,5 +1,16 @@
 # @hyperlane-xyz/sdk
 
+## 5.6.2
+
+### Patch Changes
+
+- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+- Updated dependencies [a42616ff3]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/core@5.6.1
+
 ## 5.6.1
 
 ### Patch Changes

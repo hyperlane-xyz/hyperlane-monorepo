@@ -5,8 +5,8 @@ import { ethersBigNumberSerializer } from './logging.js';
 import { isNullish } from './typeof.js';
 import { assert } from './validation.js';
 
-export function isObject(item: any) {
-  return item && typeof item === 'object' && !Array.isArray(item);
+export function isObject(item: any): boolean {
+  return !!item && typeof item === 'object' && !Array.isArray(item);
 }
 
 export function deepEquals(v1: any, v2: any) {
@@ -192,7 +192,9 @@ export function objOmit<T extends Record<string, any> = any>(
 
 export function invertKeysAndValues(data: any) {
   return Object.fromEntries(
-    Object.entries(data).map(([key, value]) => [value, key]),
+    Object.entries(data)
+      .filter(([_, value]) => value !== undefined && value !== null) // Filter out undefined and null values
+      .map(([key, value]) => [value, key]),
   );
 }
 

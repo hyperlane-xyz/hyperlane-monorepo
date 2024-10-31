@@ -6,6 +6,8 @@ export enum WarpRouteIds {
   ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
   EclipseSolanaSOL = 'SOL/eclipsemainnet-solanamainnet',
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
+  EclipseStrideSTTIA = 'stTIA/eclipse-stride',
+  EclipseStrideTIA = 'TIA/eclipse-stride',
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
   EthereumEclipseTETH = 'tETH/eclipsemainnet-ethereum',
@@ -15,6 +17,7 @@ export enum WarpRouteIds {
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   EthereumZircuitPZETH = 'PZETH/ethereum-zircuit',
+  EthereumBscLumiaLUMIA = 'LUMIA/bsc-ethereum-lumia',
   InevmInjectiveINJ = 'INJ/inevm-injective',
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
 }

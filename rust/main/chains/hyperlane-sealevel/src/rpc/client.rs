@@ -1,10 +1,9 @@
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
     nonblocking::rpc_client::RpcClient, rpc_config::RpcBlockConfig,
-    rpc_config::RpcProgramAccountsConfig, rpc_response::Response,
+    rpc_config::RpcProgramAccountsConfig, rpc_config::RpcTransactionConfig, rpc_response::Response,
 };
 use solana_sdk::{
     account::Account,
@@ -17,8 +16,11 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{
-    TransactionStatus, UiConfirmedBlock, UiReturnDataEncoding, UiTransactionReturnData,
+    EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
+    UiReturnDataEncoding, UiTransactionReturnData,
 };
+
+use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 
 use crate::error::HyperlaneSealevelError;
 
@@ -99,6 +101,17 @@ impl SealevelRpcClient {
         Ok(account)
     }
 
+    pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
+        let balance = self
+            .0
+            .get_balance(pubkey)
+            .await
+            .map_err(Into::<HyperlaneSealevelError>::into)
+            .map_err(ChainCommunicationError::from)?;
+
+        Ok(balance.into())
+    }
+
     pub async fn get_block(&self, height: u64) -> ChainResult<UiConfirmedBlock> {
         let config = RpcBlockConfig {
             commitment: Some(CommitmentConfig::finalized()),
@@ -170,15 +183,19 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
-        let balance = self
-            .0
-            .get_balance(pubkey)
+    pub async fn get_transaction(
+        &self,
+        signature: &Signature,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        let config = RpcTransactionConfig {
+            commitment: Some(CommitmentConfig::finalized()),
+            ..Default::default()
+        };
+        self.0
+            .get_transaction_with_config(signature, config)
             .await
-            .map_err(Into::<HyperlaneSealevelError>::into)
-            .map_err(ChainCommunicationError::from)?;
-
-        Ok(balance.into())
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
     }
 
     pub async fn is_blockhash_valid(&self, hash: &Hash) -> ChainResult<bool> {

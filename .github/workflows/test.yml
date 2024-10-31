@@ -187,10 +187,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
+        uses: dtolnay/rust-toolchain@stable
 
       - name: rust cache
         uses: Swatinem/rust-cache@v2

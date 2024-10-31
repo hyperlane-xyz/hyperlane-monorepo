@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
@@ -36,7 +37,10 @@ import {
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
-import { HyperlaneAddressesMap } from '../contracts/types.js';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContractsMap,
+} from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
@@ -59,15 +63,39 @@ import {
 } from './types.js';
 import { routingModuleDelta } from './utils.js';
 
+const ismFactories = {
+  [IsmType.PAUSABLE]: new PausableIsm__factory(),
+  [IsmType.TRUSTED_RELAYER]: new TrustedRelayerIsm__factory(),
+  [IsmType.TEST_ISM]: new TestIsm__factory(),
+  [IsmType.OP_STACK]: new OPStackIsm__factory(),
+  [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
+};
+
+class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
+  protected readonly cachingEnabled = false;
+
+  deployContracts(_chain: ChainName, _config: any): Promise<any> {
+    throw new Error('Method not implemented.');
+  }
+}
+
 export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // The shape of this object is `ChainMap<Address | ChainMap<Address>`,
   // although `any` is use here because that type breaks a lot of signatures.
   // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
+  protected readonly deployer: IsmDeployer;
 
-  protected deployer?: HyperlaneDeployer<any, any>;
-  setDeployer(deployer: HyperlaneDeployer<any, any>): void {
-    this.deployer = deployer;
+  constructor(
+    contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
+    public readonly multiProvider: MultiProvider,
+  ) {
+    super(
+      contractsMap,
+      multiProvider,
+      rootLogger.child({ module: 'ismFactoryApp' }),
+    );
+    this.deployer = new IsmDeployer(multiProvider, ismFactories);
   }
 
   static fromAddressesMap(
@@ -79,11 +107,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       proxyFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(
-      helper.contractsMap,
-      multiProvider,
-      rootLogger.child({ module: 'ismFactoryApp' }),
-    );
+    return new HyperlaneIsmFactory(helper.contractsMap, multiProvider);
   }
 
   async deploy<C extends IsmConfig>(params: {
@@ -148,56 +172,50 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.OP_STACK:
-        assert(
-          this.deployer,
-          `HyperlaneDeployer must be set to deploy ${ismType}`,
-        );
-        contract = await this.deployer.deployContractFromFactory(
-          destination,
-          new OPStackIsm__factory(),
-          IsmType.OP_STACK,
-          [config.nativeBridge],
-        );
+        contract = await this.deployer.deployContract(destination, ismType, [
+          config.nativeBridge,
+        ]);
         break;
       case IsmType.PAUSABLE:
-        assert(
-          this.deployer,
-          `HyperlaneDeployer must be set to deploy ${ismType}`,
-        );
-        contract = await this.deployer.deployContractFromFactory(
+        contract = await this.deployer.deployContract(
           destination,
-          new PausableIsm__factory(),
           IsmType.PAUSABLE,
           [config.owner],
         );
-        await this.deployer.transferOwnershipOfContracts(destination, config, {
-          [IsmType.PAUSABLE]: contract,
-        });
         break;
       case IsmType.TRUSTED_RELAYER:
-        assert(
-          this.deployer,
-          `HyperlaneDeployer must be set to deploy ${ismType}`,
-        );
         assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
-        contract = await this.deployer.deployContractFromFactory(
+        contract = await this.deployer.deployContract(
           destination,
-          new TrustedRelayerIsm__factory(),
           IsmType.TRUSTED_RELAYER,
           [mailbox, config.relayer],
         );
         break;
       case IsmType.TEST_ISM:
-        if (!this.deployer) {
-          throw new Error(`HyperlaneDeployer must be set to deploy ${ismType}`);
-        }
-        contract = await this.deployer.deployContractFromFactory(
+        contract = await this.deployer.deployContract(
           destination,
-          new TestIsm__factory(),
           IsmType.TEST_ISM,
           [],
         );
         break;
+      case IsmType.ARB_L2_TO_L1:
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.ARB_L2_TO_L1,
+          [config.bridge],
+        );
+        break;
+
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+        assert(
+          this.deployer,
+          `HyperlaneDeployer must be set to deploy ${ismType}`,
+        );
+        return this.deployStorageMultisigIsm({
+          destination,
+          config,
+        });
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
@@ -218,6 +236,30 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
 
     return contract;
+  }
+
+  protected async deployStorageMultisigIsm({
+    destination,
+    config,
+  }: {
+    destination: ChainName;
+    config: MultisigIsmConfig;
+  }): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(destination);
+
+    const factory =
+      config.type === IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+        ? new StorageMerkleRootMultisigIsm__factory()
+        : new StorageMessageIdMultisigIsm__factory();
+
+    const contract = await this.deployer!.deployContractFromFactory(
+      destination,
+      factory,
+      config.type,
+      [config.validators, config.threshold],
+    );
+
+    return IMultisigIsm__factory.connect(contract.address, signer);
   }
 
   protected async deployMultisigIsm(
