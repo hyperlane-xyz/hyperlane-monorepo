@@ -9,3 +9,4 @@ Update widgets with components from explorer and warp ui
 - Add components: DatetimeField and SelectField
 - New stories: IconList and Fade
 - Add "Icon" suffix for icons that did not have it
+- Update ChainSearchMenu with improvements
