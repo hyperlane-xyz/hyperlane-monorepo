@@ -11,7 +11,7 @@ import {
   IsmType,
   MultisigConfig,
   getLocalProvider,
-  shouldSkipStaticDeployment,
+  isStaticDeploymentSupported,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -205,11 +205,11 @@ export function isIsmCompatible({
   chainTechnicalStack: ChainTechnicalStack | undefined;
   config: CoreConfig;
 }): boolean {
-  if (shouldSkipStaticDeployment(chainTechnicalStack)) return true;
+  const isStaticIsm =
+    typeof config.defaultIsm !== 'string' &&
+    config.defaultIsm.type === IsmType.AGGREGATION;
 
   // Static deployment is not available on certain chains (e.g., ZKSync) for aggregation ISMs.
-  return (
-    typeof config.defaultIsm !== 'string' &&
-    config.defaultIsm.type === IsmType.AGGREGATION
-  );
+  if (!isStaticIsm) return true;
+  return isStaticDeploymentSupported(chainTechnicalStack);
 }

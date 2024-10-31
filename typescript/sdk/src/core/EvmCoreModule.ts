@@ -23,7 +23,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { shouldSkipStaticDeployment } from '../deploy/protocolDeploymentConfig.js';
+import { isStaticDeploymentSupported } from '../deploy/protocolDeploymentConfig.js';
 import { createDefaultProxyFactoryFactories } from '../deploy/proxyFactoryUtils.js';
 import { ProxyFactoryFactoriesAddresses } from '../deploy/schemas.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -467,7 +467,7 @@ export class EvmCoreModule extends HyperlaneModule<
     },
   ): Promise<ProxyFactoryFactoriesAddresses> {
     // Check if we should skip static address set deployment
-    if (shouldSkipStaticDeployment(technicalStack)) {
+    if (!isStaticDeploymentSupported(technicalStack)) {
       return createDefaultProxyFactoryFactories();
     }
     return EvmCoreModule.deployIsmFactories(params);
