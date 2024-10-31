@@ -1,5 +1,12 @@
 import clsx from 'clsx';
-import React, { ComponentType, useCallback, useMemo, useState } from 'react';
+import React, {
+  ComponentType,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { deepEquals, isObject, toTitleCase } from '@hyperlane-xyz/utils';
 
@@ -79,6 +86,7 @@ export function SearchMenu<
   );
   const [filterState, setFilterState] =
     useState<FilterState>(defaultFilterState);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(
     () =>
@@ -96,10 +104,14 @@ export function SearchMenu<
       if (e.key === 'Enter' && results.length === 1) {
         const item = results[0];
         isEditMode ? onClickEditItem(item) : onClickItem(item);
-      } else if (e.key === 'Escape') setSearchQuery('');
+      }
     },
     [results, isEditMode],
   );
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   return (
     <div className="htw-flex htw-flex-col htw-gap-2">
@@ -108,7 +120,7 @@ export function SearchMenu<
         onChange={setSearchQuery}
         placeholder={placeholder}
         onKeyDown={handleKeyDown}
-        autoFocus
+        ref={inputRef}
       />
       <div className="htw-flex htw-items-center htw-justify-between">
         <div className="htw-flex htw-items-center htw-gap-5">
@@ -169,7 +181,10 @@ export function SearchMenu<
   );
 }
 
-function SearchBar({ onChange, value, ...props }: InputProps) {
+const SearchBar = React.forwardRef(function SearchBar(
+  { onChange, value, ...props }: InputProps,
+  ref: React.Ref<HTMLInputElement>,
+) {
   return (
     <div className="htw-relative">
       <SearchIcon
@@ -181,6 +196,7 @@ function SearchBar({ onChange, value, ...props }: InputProps) {
       <TextInput
         onChange={onChange}
         value={value}
+        ref={ref}
         {...props}
         className="htw-bg-transparent focus:htw-bg-transparent htw-border htw-border-gray-200 focus:htw-border-gray-400 htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
       />
@@ -194,7 +210,7 @@ function SearchBar({ onChange, value, ...props }: InputProps) {
       )}
     </div>
   );
-}
+});
 
 function SortDropdown<SortBy extends string>({
   options,

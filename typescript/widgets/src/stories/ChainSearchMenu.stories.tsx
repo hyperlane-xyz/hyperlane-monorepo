@@ -39,6 +39,15 @@ export const WithCustomField = {
   },
 } satisfies Story;
 
+export const WithCustomFieldAsNull = {
+  args: {
+    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
+    onChangeOverrideMetadata: () => {},
+    customListItemField: null,
+    showAddChainButton: true,
+  },
+} satisfies Story;
+
 export const WithDefaultSortField = {
   args: {
     chainMetadata: chainMetadata,
@@ -62,15 +71,6 @@ export const WithDefaultSortFieldAsCustom = {
       },
     },
     defaultSortField: 'custom',
-  },
-} satisfies Story;
-
-export const WithoutCustomField = {
-  args: {
-    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
-    onChangeOverrideMetadata: () => {},
-    customListItemField: null,
-    showAddChainButton: true,
   },
 } satisfies Story;
 

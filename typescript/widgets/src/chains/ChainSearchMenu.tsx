@@ -316,7 +316,7 @@ function useCustomizedListItems(
     [defaultSortField],
   ) as ChainSortByOption[];
 
-  // Sort by defaultSortField initially, if value is "custom", sort by custom field by default
+  // Sort by defaultSortField initially, if value is "custom", sort using custom field by default
   const defaultSortState = useMemo(
     () =>
       defaultSortField
