@@ -46,6 +46,10 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
+import {
+  isIsmStatic,
+  isStaticDeploymentSupported,
+} from '../deploy/protocolDeploymentConfig.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -144,12 +148,18 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }`,
     );
 
+    const { technicalStack } = this.multiProvider.getChainMetadata(destination);
+
+    // For static ISM types it checks whether the technical stack supports static contract deployment
+    assert(
+      !isIsmStatic[ismType] || isStaticDeploymentSupported(technicalStack),
+      `Technical stack ${technicalStack} is not compatible with ${ismType}`,
+    );
+
     let contract: DeployedIsmType[typeof ismType];
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:
-      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
-      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         contract = await this.deployMultisigIsm(destination, config, logger);
         break;
       case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
@@ -214,7 +224,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.bridge],
         );
         break;
-
       case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
       case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         assert(

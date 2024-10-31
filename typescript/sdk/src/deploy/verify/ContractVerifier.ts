@@ -147,6 +147,13 @@ export class ContractVerifier extends BaseContractVerifier {
     };
   }
 
+  /**
+   * @notice Submits the verification form to the explorer API
+   * @param chain The name of the chain where the contract is deployed
+   * @param verificationLogger A logger instance for verification-specific logging
+   * @param options Additional options for the API request
+   * @returns The response from the explorer API
+   */
   private async submitForm(
     chain: ChainName,
     action: ExplorerApiActions,

@@ -1,3 +1,4 @@
+import { IsmType } from '../ism/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 
 /**
@@ -6,6 +7,24 @@ import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 export const skipStaticDeployment: ChainTechnicalStack[] = [
   ChainTechnicalStack.ZKSync,
 ];
+
+export const isIsmStatic: Record<IsmType, boolean> = {
+  [IsmType.CUSTOM]: false,
+  [IsmType.OP_STACK]: true,
+  [IsmType.ROUTING]: true,
+  [IsmType.FALLBACK_ROUTING]: true,
+  [IsmType.AGGREGATION]: true,
+  [IsmType.MERKLE_ROOT_MULTISIG]: true,
+  [IsmType.MESSAGE_ID_MULTISIG]: true,
+  [IsmType.STORAGE_MERKLE_ROOT_MULTISIG]: false,
+  [IsmType.STORAGE_MESSAGE_ID_MULTISIG]: false,
+  [IsmType.TEST_ISM]: false,
+  [IsmType.PAUSABLE]: false,
+  [IsmType.TRUSTED_RELAYER]: false,
+  [IsmType.ARB_L2_TO_L1]: false,
+  [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: true,
+  [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: true,
+} as const;
 
 /**
  * @notice Checks if a static deployment is supported for a given chain technical stack.
