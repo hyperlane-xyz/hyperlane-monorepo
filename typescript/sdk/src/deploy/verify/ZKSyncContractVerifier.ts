@@ -47,7 +47,6 @@ export class ZKSyncContractVerifier extends BaseContractVerifier {
       compilerZksolcVersion,
       optimizationUsed: true,
     };
-    this.createContractSourceMapFromBuildArtifacts();
   }
 
   /**

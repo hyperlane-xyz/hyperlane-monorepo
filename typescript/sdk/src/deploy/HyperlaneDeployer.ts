@@ -468,8 +468,9 @@ export abstract class HyperlaneDeployer<
     let verificationInput: ContractVerificationInput;
     if (isZKSyncChain) {
       if (!artifact) {
-        // TODO: ARTIFACT NOT FOUND ERROR
-        throw Error('Artifact not found');
+        throw new Error(
+          `No ZKSync artifact found for contract: ${contractName}`,
+        );
       }
       verificationInput = await getContractVerificationInputForZKSync({
         name: contractName,
