@@ -1,5 +1,9 @@
+// eslint-disable-next-line
+import fs from 'fs';
+
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  AgentConfig,
   ChainMap,
   ChainTechnicalStack,
   CoreFactories,
@@ -8,11 +12,13 @@ import {
   HyperlaneDeploymentArtifacts,
   MultiProvider,
   buildAgentConfig,
+  getCosmosChainGasPrice,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
   objFilter,
   objMap,
+  objMerge,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
@@ -21,12 +27,12 @@ import {
   DeployEnvironment,
   envNameToAgentEnv,
 } from '../../src/config/environment.js';
-import { getCosmosChainGasPrice } from '../../src/config/gas-oracle.js';
 import {
   chainIsProtocol,
   filterRemoteDomainMetadata,
   isEthereumProtocolChain,
-  writeMergedJSONAtPath,
+  readJSONAtPath,
+  writeJsonAtPath,
 } from '../../src/utils/utils.js';
 import {
   Modules,
@@ -101,7 +107,7 @@ export async function writeAgentConfig(
             'Error:',
             err,
           );
-          return 0;
+          return undefined;
         }
       },
     ),
@@ -119,7 +125,7 @@ export async function writeAgentConfig(
         .map(async (chain) => [
           chain,
           {
-            gasPrice: await getCosmosChainGasPrice(chain),
+            gasPrice: await getCosmosChainGasPrice(chain, multiProvider),
           },
         ]),
     ),
@@ -138,10 +144,18 @@ export async function writeAgentConfig(
     additionalConfig,
   );
 
-  writeMergedJSONAtPath(
-    getAgentConfigJsonPath(envNameToAgentEnv[environment]),
-    agentConfig,
-  );
+  const filepath = getAgentConfigJsonPath(envNameToAgentEnv[environment]);
+  if (fs.existsSync(filepath)) {
+    const currentAgentConfig: AgentConfig = readJSONAtPath(filepath);
+    // Remove transactionOverrides from each chain in the agent config
+    // To ensure all overrides are configured in infra code or the registry, and not in JSON
+    for (const chainConfig of Object.values(currentAgentConfig.chains)) {
+      delete chainConfig.transactionOverrides;
+    }
+    writeJsonAtPath(filepath, objMerge(currentAgentConfig, agentConfig));
+  } else {
+    writeJsonAtPath(filepath, agentConfig);
+  }
 }
 
 main()

@@ -169,16 +169,26 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       }),
     );
 
-    return allSanctionedAddresses.flat().filter((address) => {
-      if (!isValidAddressEvm(address)) {
-        this.logger.debug(
-          { address },
-          'Invalid sanctioned address, throwing out',
-        );
-        return false;
-      }
-      return true;
-    });
+    const sanctionedEthereumAdresses = allSanctionedAddresses
+      .flat()
+      .filter((address) => {
+        if (!isValidAddressEvm(address)) {
+          this.logger.debug(
+            { address },
+            'Invalid sanctioned address, throwing out',
+          );
+          return false;
+        }
+        return true;
+      });
+
+    const radiantExploiter = [
+      '0xA0e768A68ba1BFffb9F4366dfC8D9195EE7217d1',
+      '0x0629b1048298AE9deff0F4100A31967Fb3f98962',
+      '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
+    ];
+
+    return [...sanctionedEthereumAdresses, ...radiantExploiter];
   }
 
   // Returns whether the relayer requires AWS credentials

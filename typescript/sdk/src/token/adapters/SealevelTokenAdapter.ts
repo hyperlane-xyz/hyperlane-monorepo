@@ -21,6 +21,7 @@ import {
   addressToBytes,
   eqAddress,
   median,
+  padBytesToLength,
 } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
@@ -119,7 +120,7 @@ export class SealevelTokenAdapter
   extends BaseSealevelAdapter
   implements ITokenAdapter<Transaction>
 {
-  public readonly tokenProgramPubKey: PublicKey;
+  public readonly tokenMintPubKey: PublicKey;
 
   constructor(
     public readonly chainName: ChainName,
@@ -128,7 +129,7 @@ export class SealevelTokenAdapter
     public readonly isSpl2022: boolean = false,
   ) {
     super(chainName, multiProvider, addresses);
-    this.tokenProgramPubKey = new PublicKey(addresses.token);
+    this.tokenMintPubKey = new PublicKey(addresses.token);
   }
 
   async getBalance(owner: Address): Promise<bigint> {
@@ -183,7 +184,7 @@ export class SealevelTokenAdapter
 
   deriveAssociatedTokenAccount(owner: PublicKey): PublicKey {
     return getAssociatedTokenAddressSync(
-      this.tokenProgramPubKey,
+      this.tokenMintPubKey,
       owner,
       true,
       this.getTokenProgramId(),
@@ -295,7 +296,7 @@ export abstract class SealevelHypTokenAdapter
       instruction: SealevelHypTokenInstruction.TransferRemote,
       data: new SealevelTransferRemoteInstruction({
         destination_domain: destination,
-        recipient: addressToBytes(recipient),
+        recipient: padBytesToLength(addressToBytes(recipient), 32),
         amount_or_id: BigInt(weiAmountOrId),
       }),
     });
@@ -639,7 +640,7 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
       /// 9.   [executable] The SPL token program for the mint.
       { pubkey: this.getTokenProgramId(), isSigner: false, isWritable: false },
       /// 10.  [writeable] The mint.
-      { pubkey: this.tokenProgramPubKey, isSigner: false, isWritable: true },
+      { pubkey: this.tokenMintPubKey, isSigner: false, isWritable: true },
       /// 11.  [writeable] The token sender's associated token account, from which tokens will be sent.
       {
         pubkey: this.deriveAssociatedTokenAccount(params.sender),
@@ -694,6 +695,13 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
       throw error;
     }
+  }
+
+  async getTotalSupply(): Promise<bigint> {
+    const response = await this.getProvider().getTokenSupply(
+      this.tokenMintPubKey,
+    );
+    return BigInt(response.value.amount);
   }
 
   deriveMintAuthorityAccount(): PublicKey {

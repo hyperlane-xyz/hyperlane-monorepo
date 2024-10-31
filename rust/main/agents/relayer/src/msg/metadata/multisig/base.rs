@@ -126,11 +126,11 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .await
             .context(CTX)?
         {
-            debug!(?message, ?metadata.checkpoint, "Found checkpoint with quorum");
+            debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
             Ok(Some(self.format_metadata(metadata)?))
         } else {
             info!(
-                ?message, ?validators, threshold, ism=%multisig_ism.address(),
+                hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),
                 "Could not fetch metadata: Unable to reach quorum"
             );
             Ok(None)

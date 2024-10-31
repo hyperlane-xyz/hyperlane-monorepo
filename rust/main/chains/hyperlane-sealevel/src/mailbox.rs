@@ -4,21 +4,15 @@ use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromS
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use jsonrpc_core::futures_util::TryFutureExt;
-use tracing::{debug, info, instrument, warn};
-
-use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError, ChainResult,
-    Checkpoint, ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
-    Indexed, Indexer, KnownHyperlaneDomain, LogMeta, Mailbox, MerkleTreeHook, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H256, H512, U256,
-};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
 use hyperlane_sealevel_mailbox::{
-    accounts::{DispatchedMessageAccount, InboxAccount, OutboxAccount},
+    accounts::{
+        DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessage,
+        ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
+    },
+    instruction,
     instruction::InboxProcess,
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
@@ -26,6 +20,7 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
+use jsonrpc_core::futures_util::TryFutureExt;
 use serializable_account_meta::SimulationReturnData;
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
@@ -33,6 +28,7 @@ use solana_client::{
     rpc_client::SerializableTransaction,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
+    rpc_response::Response,
 };
 use solana_sdk::{
     account::Account,
@@ -48,16 +44,26 @@ use solana_sdk::{
     transaction::{Transaction, VersionedTransaction},
 };
 use solana_transaction_status::{
-    EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta,
-    UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiReturnDataEncoding,
-    UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
+    EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta, TransactionStatus,
+    UiCompiledInstruction, UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction,
+    UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
+};
+use tracing::{debug, info, instrument, warn};
+
+use hyperlane_core::{
+    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
+    ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
+    Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
+    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
+    H256, H512, U256,
 };
 
-use crate::RpcClientWithDebug;
-use crate::{
-    utils::{get_account_metas, get_finalized_block_number, simulate_instruction},
-    ConnectionConf, SealevelProvider,
-};
+use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
+use crate::error::HyperlaneSealevelError;
+use crate::transaction::search_dispatched_message_transactions;
+use crate::utils::{decode_h256, decode_h512, from_base58};
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
@@ -127,7 +133,7 @@ impl SealevelMailbox {
         self.outbox
     }
 
-    pub fn rpc(&self) -> &RpcClientWithDebug {
+    pub fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
 
@@ -139,14 +145,14 @@ impl SealevelMailbox {
         &self,
         instruction: Instruction,
     ) -> ChainResult<Option<T>> {
-        simulate_instruction(
-            &self.rpc(),
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await
+        self.rpc()
+            .simulate_instruction(
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
+            )
+            .await
     }
 
     /// Simulates an Instruction that will return a list of AccountMetas.
@@ -154,14 +160,14 @@ impl SealevelMailbox {
         &self,
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
-        get_account_metas(
-            &self.rpc(),
-            self.payer
-                .as_ref()
-                .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
-            instruction,
-        )
-        .await
+        self.rpc()
+            .get_account_metas(
+                self.payer
+                    .as_ref()
+                    .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?,
+                instruction,
+            )
+            .await
     }
 
     /// Gets the recipient ISM given a recipient program id and the ISM getter account metas.
@@ -292,7 +298,6 @@ impl SealevelMailbox {
                 .rpc()
                 .send_and_confirm_transaction(transaction)
                 .await
-                .map_err(ChainCommunicationError::from_other)
         }
     }
 
@@ -342,34 +347,29 @@ impl SealevelMailbox {
             );
 
             let recent_blockhash = if transaction.uses_durable_nonce() {
-                let (recent_blockhash, ..) = self
-                    .provider
+                self.provider
                     .rpc()
                     .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-                    .await
-                    .map_err(ChainCommunicationError::from_other)?;
-                recent_blockhash
+                    .await?
             } else {
                 *transaction.get_recent_blockhash()
             };
 
             for status_retry in 0..GET_STATUS_RETRIES {
-                match self
+                let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
                     .provider
                     .rpc()
-                    .get_signature_status(&signature)
-                    .await
-                    .map_err(ChainCommunicationError::from_other)?
-                {
-                    Some(Ok(_)) => return Ok(*signature),
-                    Some(Err(e)) => return Err(ChainCommunicationError::from_other(e)),
+                    .get_signature_statuses(&[*signature])
+                    .await?;
+                let signature_status = signature_statuses.value.first().cloned().flatten();
+                match signature_status {
+                    Some(_) => return Ok(*signature),
                     None => {
                         if !self
                             .provider
                             .rpc()
-                            .is_blockhash_valid(&recent_blockhash, CommitmentConfig::processed())
-                            .await
-                            .map_err(ChainCommunicationError::from_other)?
+                            .is_blockhash_valid(&recent_blockhash)
+                            .await?
                         {
                             // Block hash is not found by some reason
                             break 'sending;
@@ -424,8 +424,8 @@ impl std::fmt::Debug for SealevelMailbox {
 #[async_trait]
 impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
-    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        <Self as MerkleTreeHook>::count(self, _maybe_lag).await
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        <Self as MerkleTreeHook>::count(self, reorg_period).await
     }
 
     #[instrument(err, ret, skip(self))]
@@ -438,23 +438,15 @@ impl Mailbox for SealevelMailbox {
 
         let account = self
             .rpc()
-            .get_account_with_commitment(
-                &processed_message_account_key,
-                CommitmentConfig::finalized(),
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .get_account_option_with_finalized_commitment(&processed_message_account_key)
+            .await?;
 
-        Ok(account.value.is_some())
+        Ok(account.is_some())
     }
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        let inbox_account = self
-            .rpc()
-            .get_account(&self.inbox.0)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+        let inbox_account = self.rpc().get_account(&self.inbox.0).await?;
         let inbox = InboxAccount::fetch(&mut inbox_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
@@ -590,11 +582,10 @@ impl Mailbox for SealevelMailbox {
             accounts,
         };
         instructions.push(inbox_instruction);
-        let (recent_blockhash, _) = self
+        let recent_blockhash = self
             .rpc()
             .get_latest_blockhash_with_commitment(commitment)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .await?;
 
         let txn = Transaction::new_signed_with_payer(
             &instructions,
@@ -614,7 +605,6 @@ impl Mailbox for SealevelMailbox {
             .confirm_transaction_with_commitment(&signature, commitment)
             .await
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))
-            .map(|ctx| ctx.value)
             .unwrap_or(false);
         let txid = signature.into();
 
@@ -663,104 +653,40 @@ impl SealevelMailboxIndexer {
         })
     }
 
-    fn rpc(&self) -> &RpcClientWithDebug {
+    fn rpc(&self) -> &SealevelRpcClient {
         &self.mailbox.rpc()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let height = self
-            .rpc()
-            .get_block_height()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .try_into()
-            // FIXME solana block height is u64...
-            .expect("sealevel block height exceeds u32::MAX");
-        Ok(height)
+        self.rpc().get_block_height().await
     }
 
-    async fn get_message_with_nonce(
+    async fn get_dispatched_message_with_nonce(
         &self,
         nonce: u32,
     ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
-        let target_message_account_bytes = &[
-            &hyperlane_sealevel_mailbox::accounts::DISPATCHED_MESSAGE_DISCRIMINATOR[..],
-            &nonce.to_le_bytes()[..],
-        ]
-        .concat();
-        let target_message_account_bytes = base64::encode(target_message_account_bytes);
+        let nonce_bytes = nonce.to_le_bytes();
+        let unique_dispatched_message_pubkey_offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
+        let unique_dispatch_message_pubkey_length = 32; // the length of the `unique_message_pubkey` field
+        let accounts = search_accounts_by_discriminator(
+            self.rpc(),
+            &self.program_id,
+            &DISPATCHED_MESSAGE_DISCRIMINATOR,
+            &nonce_bytes,
+            unique_dispatched_message_pubkey_offset,
+            unique_dispatch_message_pubkey_length,
+        )
+        .await?;
 
-        // First, find all accounts with the matching account data.
-        // To keep responses small in case there is ever more than 1
-        // match, we don't request the full account data, and just request
-        // the `unique_message_pubkey` field.
-        let memcmp = RpcFilterType::Memcmp(Memcmp {
-            // Ignore the first byte, which is the `initialized` bool flag.
-            offset: 1,
-            bytes: MemcmpEncodedBytes::Base64(target_message_account_bytes),
-            encoding: None,
-        });
-        let config = RpcProgramAccountsConfig {
-            filters: Some(vec![memcmp]),
-            account_config: RpcAccountInfoConfig {
-                encoding: Some(UiAccountEncoding::Base64),
-                // Don't return any data
-                data_slice: Some(UiDataSliceConfig {
-                    offset: 1 + 8 + 4 + 8, // the offset to get the `unique_message_pubkey` field
-                    length: 32,            // the length of the `unique_message_pubkey` field
-                }),
-                commitment: Some(CommitmentConfig::finalized()),
-                min_context_slot: None,
-            },
-            with_context: Some(false),
-        };
-        let accounts = self
-            .rpc()
-            .get_program_accounts_with_config(&self.mailbox.program_id, config)
-            .await
-            .map_err(ChainCommunicationError::from_other)?;
-
-        // Now loop through matching accounts and find the one with a valid account pubkey
-        // that proves it's an actual message storage PDA.
-        let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
-
-        for (pubkey, account) in accounts {
-            let unique_message_pubkey = Pubkey::new(&account.data);
-            let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
-                mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
-                &self.mailbox.program_id,
-            )
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find program address for unique_message_pubkey",
-                )
-            })?;
-            if expected_pubkey == pubkey {
-                valid_message_storage_pda_pubkey = Some(pubkey);
-                break;
-            }
-        }
-
-        let valid_message_storage_pda_pubkey =
-            valid_message_storage_pda_pubkey.ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find valid message storage PDA pubkey",
-                )
-            })?;
+        let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
+            self.dispatched_message_account(&account)
+        })?;
 
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
         let account = self
             .rpc()
-            .get_account_with_commitment(
-                &valid_message_storage_pda_pubkey,
-                CommitmentConfig::finalized(),
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("Could not find account data")
-            })?;
+            .get_account_with_finalized_commitment(&valid_message_storage_pda_pubkey)
+            .await?;
         let dispatched_message_account =
             DispatchedMessageAccount::fetch(&mut account.data.as_ref())
                 .map_err(ChainCommunicationError::from_other)?
@@ -768,11 +694,99 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
+        let block = self
+            .mailbox
+            .provider
+            .rpc()
+            .get_block(dispatched_message_account.slot)
+            .await?;
+        let block_hash = decode_h256(&block.blockhash)?;
+
+        let transactions =
+            block.transactions.ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any transaction".to_owned()))?;
+
+        let transaction_hashes = search_dispatched_message_transactions(
+            &self.mailbox.program_id,
+            &valid_message_storage_pda_pubkey,
+            transactions,
+        );
+
+        // We expect to see that there is only one message dispatch transaction
+        if transaction_hashes.len() > 1 {
+            Err(HyperlaneSealevelError::TooManyTransactions("Block contains more than one dispatch message transaction operating on the same dispatch message store PDA".to_owned()))?
+        }
+
+        let (transaction_index, transaction_hash) = transaction_hashes
+            .into_iter()
+            .next()
+            .ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any after filtering".to_owned()))?;
+
         Ok((
             hyperlane_message.into(),
             LogMeta {
                 address: self.mailbox.program_id.to_bytes().into(),
                 block_number: dispatched_message_account.slot,
+                block_hash,
+                transaction_id: transaction_hash,
+                transaction_index: transaction_index as u64,
+                log_index: U256::from(nonce),
+            },
+        ))
+    }
+
+    fn dispatched_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        let unique_message_pubkey = Pubkey::new(&account.data);
+        let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+            mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
+            &self.mailbox.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Could not find program address for unique message pubkey",
+            )
+        })?;
+        Ok(expected_pubkey)
+    }
+
+    async fn get_delivered_message_with_nonce(
+        &self,
+        nonce: u32,
+    ) -> ChainResult<(Indexed<H256>, LogMeta)> {
+        let nonce_bytes = nonce.to_le_bytes();
+        let delivered_message_id_offset = 1 + 8 + 8; // the offset to get the `message_id` field
+        let delivered_message_id_length = 32;
+        let accounts = search_accounts_by_discriminator(
+            self.rpc(),
+            &self.program_id,
+            &PROCESSED_MESSAGE_DISCRIMINATOR,
+            &nonce_bytes,
+            delivered_message_id_offset,
+            delivered_message_id_length,
+        )
+        .await?;
+
+        debug!(account_len = ?accounts.len(), "Found accounts with processed message discriminator");
+
+        let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
+            self.delivered_message_account(&account)
+        })?;
+
+        // Now that we have the valid delivered message storage PDA pubkey,
+        // we can get the full account data.
+        let account = self
+            .rpc()
+            .get_account_with_finalized_commitment(&valid_message_storage_pda_pubkey)
+            .await?;
+        let delivered_message_account = ProcessedMessageAccount::fetch(&mut account.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        let message_id = delivered_message_account.message_id;
+
+        Ok((
+            message_id.into(),
+            LogMeta {
+                address: self.mailbox.program_id.to_bytes().into(),
+                block_number: delivered_message_account.slot,
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
                 block_hash: H256::zero(),
@@ -782,6 +796,18 @@ impl SealevelMailboxIndexer {
             },
         ))
     }
+
+    fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        let message_id = H256::from_slice(&account.data);
+        let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+            mailbox_processed_message_pda_seeds!(message_id),
+            &self.mailbox.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str("Could not find program address for message id")
+        })?;
+        Ok(expected_pubkey)
+    }
 }
 
 #[async_trait]
@@ -790,7 +816,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, None).await?;
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
         Ok((Some(count), tip))
     }
 }
@@ -809,13 +835,13 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
         let message_capacity = range.end().saturating_sub(*range.start());
         let mut messages = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
-            messages.push(self.get_message_with_nonce(nonce).await?);
+            messages.push(self.get_dispatched_message_with_nonce(nonce).await?);
         }
         Ok(messages)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        get_finalized_block_number(&self.rpc()).await
+        self.get_finalized_block_number().await
     }
 }
 
@@ -823,9 +849,19 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 impl Indexer<H256> for SealevelMailboxIndexer {
     async fn fetch_logs_in_range(
         &self,
-        _range: RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        todo!()
+        info!(
+            ?range,
+            "Fetching SealevelMailboxIndexer HyperlaneMessage Delivery logs"
+        );
+
+        let message_capacity = range.end().saturating_sub(*range.start());
+        let mut message_ids = Vec::with_capacity(message_capacity as usize);
+        for nonce in range {
+            message_ids.push(self.get_delivered_message_with_nonce(nonce).await?);
+        }
+        Ok(message_ids)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {

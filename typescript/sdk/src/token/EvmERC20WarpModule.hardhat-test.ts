@@ -111,7 +111,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a collateral config', async () => {
-    const config = {
+    const config: TokenRouterConfig = {
       ...baseConfig,
       type: TokenType.collateral,
       token: token.address,
@@ -139,7 +139,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       TOKEN_NAME,
       TOKEN_NAME,
     );
-    const config = {
+    const config: TokenRouterConfig = {
       type: TokenType.collateralVault,
       token: vault.address,
       hook: hookAddress,
@@ -172,9 +172,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a synthetic config', async () => {
-    const config = {
+    const config: TokenRouterConfig = {
       type: TokenType.synthetic,
-      token: token.address,
       hook: hookAddress,
       name: TOKEN_NAME,
       symbol: TOKEN_NAME,
@@ -518,6 +517,40 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         owner: newOwner,
       });
       expect(txs.length).to.equal(0);
+    });
+
+    it('should update the destination gas', async () => {
+      const domain = 3;
+      const config: TokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        ismFactoryAddresses,
+        remoteRouters: {
+          [domain]: randomAddress(),
+        },
+      };
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+        },
+        multiProvider,
+      });
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          destinationGas: {
+            [domain]: '5000',
+          },
+        }),
+      );
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(Object.keys(updatedConfig.destinationGas!).length).to.be.equal(1);
+      expect(updatedConfig.destinationGas![domain]).to.equal('5000');
     });
   });
 });

@@ -15,17 +15,15 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Message} from "../libs/Message.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
 
 // ============ External Imports ============
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ArbSys} from "@arbitrum/nitro-contracts/src/precompiles/ArbSys.sol";
 
 /**
@@ -43,7 +41,7 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     // precompile contract on L2 for sending messages to L1
     ArbSys public immutable arbSys;
     // child hook to call first
-    AbstractPostDispatchHook public immutable childHook;
+    IPostDispatchHook public immutable childHook;
 
     // ============ Constructor ============
 

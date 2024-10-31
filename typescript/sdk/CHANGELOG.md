@@ -1,5 +1,83 @@
 # @hyperlane-xyz/sdk
 
+## 5.6.2
+
+### Patch Changes
+
+- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+- Updated dependencies [a42616ff3]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/core@5.6.1
+
+## 5.6.1
+
+### Patch Changes
+
+- Updated dependencies [8cc0d9a4a]
+- Updated dependencies [c55257cf5]
+- Updated dependencies [8cc0d9a4a]
+  - @hyperlane-xyz/core@5.6.0
+  - @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 46044a2e9: Deploy to odysseytestnet
+- 02a5b92ba: Enroll new validators. Add tx overrides when deploying ICA accounts. Core checker now surfaces owner violations for defaultHook and requiredHook. App checker temporarily ignores bytecode mismatch violations.
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+- 8001bbbd6: Add override to some transactions to fix warp apply
+- 32d0a67c2: Adds the warp check command to compare warp routes config files with on chain warp route deployments
+- b1ff48bd1: Add rebasing yield route support into CLI/SDK
+- d41aa6928: Add `EthJsonRpcBlockParameterTag` enum for validating reorgPeriod
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+- 7d7bcc1a3: Add deployments for mainnets: flow, metall2, polynomial
+
+### Patch Changes
+
+- 7f3e0669d: Fix filtering non-evm addresses in appFromAddressesMapHelper
+- 2317eca3c: Set transaction overrides and add 10% gas limit buffer when sending message through HyperlaneCore.
+- Updated dependencies [f1712deb7]
+- Updated dependencies [29341950e]
+- Updated dependencies [c9085afd9]
+- Updated dependencies [ec6b874b1]
+- Updated dependencies [72c23c0d6]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/core@5.5.0
+
+## 5.5.0
+
+### Minor Changes
+
+- 2afc484a2: Break out BlockExplorerSchema and export separately
+  Migrate RPC + Explorer health tests back to SDK from registry
+- 3254472e0: Add deployments for chains: immutablezkevm, rari, rootstock, alephzeroevm, chiliz, lumia, and superposition
+- 6176c9861: Add opstack, polygoncdk, polkadotsubstrate and zksync to ChainTechnicalStack enum
+
+### Patch Changes
+
+- fcfe91113: Reuse SDK transaction typings in tx submitters
+- Updated dependencies [92c86cca6]
+- Updated dependencies [2afc484a2]
+  - @hyperlane-xyz/core@5.4.1
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
+### Patch Changes
+
+- Updated dependencies [bb75eba74]
+- Updated dependencies [4415ac224]
+- Updated dependencies [c5c217f8e]
+  - @hyperlane-xyz/core@5.4.0
+  - @hyperlane-xyz/utils@5.4.0
+
 ## 5.3.0
 
 ### Patch Changes

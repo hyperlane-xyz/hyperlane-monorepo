@@ -7,14 +7,15 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
+use itertools::Itertools;
+use tracing::{trace, warn};
+
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
-    unwrap_or_none_result, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
+    unwrap_or_none_result, BlockId, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, HyperlaneProvider, HyperlaneSequenceAwareIndexerStoreReader,
-    HyperlaneWatermarkedLogStore, Indexed, InterchainGasPayment, LogMeta, H256,
+    HyperlaneWatermarkedLogStore, Indexed, InterchainGasPayment, LogMeta, H256, H512,
 };
-use itertools::Itertools;
-use tracing::trace;
 
 use crate::db::{
     BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorablePayment,
@@ -78,13 +79,11 @@ impl HyperlaneSqlDb {
         &self,
         log_meta: impl Iterator<Item = &LogMeta>,
     ) -> Result<impl Iterator<Item = TxnWithId>> {
-        let block_hash_by_txn_hash: HashMap<H256, H256> = log_meta
+        let block_id_by_txn_hash: HashMap<H512, BlockId> = log_meta
             .map(|meta| {
                 (
-                    meta.transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                    meta.block_hash,
+                    meta.transaction_id,
+                    BlockId::new(meta.block_hash, meta.block_number),
                 )
             })
             .collect();
@@ -92,24 +91,18 @@ impl HyperlaneSqlDb {
         // all blocks we care about
         // hash of block maps to the block id and timestamp
         let blocks: HashMap<_, _> = self
-            .ensure_blocks(block_hash_by_txn_hash.values().copied())
+            .ensure_blocks(block_id_by_txn_hash.values().copied())
             .await?
             .map(|block| (block.hash, block))
             .collect();
         trace!(?blocks, "Ensured blocks");
 
-        // all txns we care about
-        let txns_with_ids =
-            self.ensure_txns(block_hash_by_txn_hash.into_iter().map(
-                move |(txn_hash, block_hash)| {
-                    let block_info = *blocks.get(&block_hash).as_ref().unwrap();
-                    TxnWithBlockId {
-                        txn_hash,
-                        block_id: block_info.id,
-                    }
-                },
-            ))
-            .await?;
+        // We ensure transactions only from blocks which are inserted into database
+        let txn_hash_with_block_ids = block_id_by_txn_hash
+            .into_iter()
+            .filter_map(move |(txn, block)| blocks.get(&block.hash).map(|b| (txn, b.id)))
+            .map(|(txn_hash, block_id)| TxnWithBlockId { txn_hash, block_id });
+        let txns_with_ids = self.ensure_txns(txn_hash_with_block_ids).await?;
 
         Ok(txns_with_ids.map(move |TxnWithId { hash, id: txn_id }| TxnWithId { hash, id: txn_id }))
     }
@@ -118,14 +111,16 @@ impl HyperlaneSqlDb {
     /// in. if it is in the database already:
     ///     Fetches its associated database id
     /// if it is not in the database already:
-    ///     Looks up its data with ethers and then returns the database id after
+    ///     Looks up its data with the chain and then returns the database id after
     ///     inserting it into the database.
+    /// if it cannot fetch and parse transaction, the transaction will be skipped and not returned
+    /// from this method.
     async fn ensure_txns(
         &self,
         txns: impl Iterator<Item = TxnWithBlockId>,
     ) -> Result<impl Iterator<Item = TxnWithId>> {
         // mapping of txn hash to (txn_id, block_id).
-        let mut txns: HashMap<H256, (Option<i64>, i64)> = txns
+        let mut txns: HashMap<H512, (Option<i64>, i64)> = txns
             .map(|TxnWithBlockId { txn_hash, block_id }| (txn_hash, (None, block_id)))
             .collect();
 
@@ -149,11 +144,17 @@ impl HyperlaneSqlDb {
         let mut txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
 
         let mut txns_to_insert: Vec<StorableTxn> = Vec::with_capacity(CHUNK_SIZE);
-        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
+        let mut hashes_to_insert: Vec<&H512> = Vec::with_capacity(CHUNK_SIZE);
 
-        for mut chunk in as_chunks::<(&H256, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
+        for mut chunk in as_chunks::<(&H512, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
             for (hash, (_, block_id)) in chunk.iter() {
-                let info = self.provider.get_txn_by_hash(hash).await?;
+                let info = match self.provider.get_txn_by_hash(hash).await {
+                    Ok(info) => info,
+                    Err(e) => {
+                        warn!(?hash, ?e, "error fetching and parsing transaction");
+                        continue;
+                    }
+                };
                 hashes_to_insert.push(*hash);
                 txns_to_insert.push(StorableTxn {
                     info,
@@ -161,37 +162,49 @@ impl HyperlaneSqlDb {
                 });
             }
 
+            // If we have no transactions to insert, we don't need to store them and update
+            // database transaction ids.
+            if txns_to_insert.is_empty() {
+                continue;
+            }
+
             self.db.store_txns(txns_to_insert.drain(..)).await?;
             let ids = self.db.get_txn_ids(hashes_to_insert.drain(..)).await?;
 
             for (hash, (txn_id, _block_id)) in chunk.iter_mut() {
-                let _ = txn_id.insert(ids[hash]);
+                *txn_id = ids.get(hash).copied();
             }
         }
 
-        Ok(txns
+        let ensured_txns = txns
             .into_iter()
-            .map(|(hash, (txn_id, _block_id))| TxnWithId {
-                hash,
-                id: txn_id.unwrap(),
-            }))
+            .filter_map(|(hash, (txn_id, _))| txn_id.map(|id| (hash, id)))
+            .map(|(hash, id)| TxnWithId { hash, id });
+
+        Ok(ensured_txns)
     }
 
     /// Takes a list of block hashes for each block
     /// if it is in the database already:
     ///     Fetches its associated database id
     /// if it is not in the database already:
-    ///     Looks up its data with ethers and then returns the database id after
+    ///     Looks up its data with the chain and then returns the database id after
     ///     inserting it into the database.
+    /// if it cannot fetch and parse block, the block will be skipped and not returned from
+    /// this method.
     async fn ensure_blocks(
         &self,
-        block_hashes: impl Iterator<Item = H256>,
+        block_ids: impl Iterator<Item = BlockId>,
     ) -> Result<impl Iterator<Item = BasicBlock>> {
-        // mapping of block hash to the database id and block timestamp. Optionals are
-        // in place because we will find the timestamp first if the block was not
-        // already in the db.
-        let mut blocks: HashMap<H256, Option<BasicBlock>> =
-            block_hashes.map(|b| (b, None)).collect();
+        // Mapping from block hash to block ids (hash and height)
+        let block_hash_to_block_id_map: HashMap<H256, BlockId> =
+            block_ids.map(|b| (b.hash, b)).collect();
+
+        // Mapping of block hash to `BasicBlock` which contains database block id and block hash.
+        let mut blocks: HashMap<H256, Option<BasicBlock>> = block_hash_to_block_id_map
+            .keys()
+            .map(|hash| (*hash, None))
+            .collect();
 
         let db_blocks: Vec<BasicBlock> = if !blocks.is_empty() {
             // check database to see which blocks we already know and fetch their IDs
@@ -222,13 +235,29 @@ impl HyperlaneSqlDb {
         for chunk in as_chunks(blocks_to_fetch, CHUNK_SIZE) {
             debug_assert!(!chunk.is_empty());
             for (hash, block_info) in chunk {
-                let info = self.provider.get_block_by_hash(hash).await?;
+                // We should have block_id in this map for every hashes
+                let block_id = block_hash_to_block_id_map[hash];
+                let block_height = block_id.height;
+
+                let info = match self.provider.get_block_by_height(block_height).await {
+                    Ok(info) => info,
+                    Err(e) => {
+                        warn!(block_hash = ?hash, ?block_height, ?e, "error fetching and parsing block");
+                        continue;
+                    }
+                };
                 let basic_info_ref = block_info.insert(BasicBlock {
                     id: -1,
                     hash: *hash,
                 });
                 blocks_to_insert.push((basic_info_ref, Some(info)));
                 hashes_to_insert.push(hash);
+            }
+
+            // If we have no blocks to insert, we don't store them and we don't update
+            // database block ids.
+            if blocks_to_insert.is_empty() {
+                continue;
             }
 
             self.db
@@ -249,51 +278,41 @@ impl HyperlaneSqlDb {
                 .collect::<HashMap<_, _>>();
 
             for (block_ref, _) in blocks_to_insert.drain(..) {
-                block_ref.id = hashes[&block_ref.hash];
+                if let Some(id) = hashes.get(&block_ref.hash) {
+                    block_ref.id = *id;
+                }
             }
         }
 
-        // ensure we have updated all the block ids and that we have info for all of
-        // them.
-        #[cfg(debug_assertions)]
-        for (hash, block) in blocks.iter() {
-            let block = block.as_ref().unwrap();
-            assert_eq!(hash, &block.hash);
-            assert!(block.id > 0);
-        }
-
-        Ok(blocks
+        let ensured_blocks = blocks
             .into_iter()
-            .map(|(hash, block_info)| block_info.unwrap()))
+            .filter_map(|(hash, block_info)| block_info.filter(|b| b.id != -1));
+
+        Ok(ensured_blocks)
     }
 }
 
 #[async_trait]
 impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
-    /// Store messages from the origin mailbox into the database.
+    /// Store dispatched messages from the origin mailbox into the database.
+    /// We store only messages from blocks and transaction which we could successfully insert
+    /// into database.
     async fn store_logs(&self, messages: &[(Indexed<HyperlaneMessage>, LogMeta)]) -> Result<u32> {
         if messages.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H256, TxnWithId> = self
+        let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
             .collect();
-        let storable = messages.iter().map(|m| {
-            let txn = txns
-                .get(
-                    &m.1.transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .unwrap();
-            StorableMessage {
-                msg: m.0.inner().clone(),
-                meta: &m.1,
-                txn_id: txn.id,
-            }
-        });
+        let storable = messages
+            .iter()
+            .filter_map(|(message, meta)| {
+                txns.get(&meta.transaction_id)
+                    .map(|t| (message.inner().clone(), meta, t.id))
+            })
+            .map(|(msg, meta, txn_id)| StorableMessage { msg, meta, txn_id });
         let stored = self
             .db
             .store_dispatched_messages(self.domain().id(), &self.mailbox_address, storable)
@@ -304,31 +323,29 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
 
 #[async_trait]
 impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
+    /// Store delivered message ids from the destination mailbox into the database.
+    /// We store only delivered messages ids from blocks and transaction which we could successfully
+    /// insert into database.
     async fn store_logs(&self, deliveries: &[(Indexed<Delivery>, LogMeta)]) -> Result<u32> {
         if deliveries.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<Delivery, TxnWithId> = self
+        let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(deliveries.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
             .collect();
-        let storable = deliveries.iter().map(|(message_id, meta)| {
-            let txn_id = txns
-                .get(
-                    &meta
-                        .transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .unwrap()
-                .id;
-            StorableDelivery {
-                message_id: *message_id.inner(),
+        let storable = deliveries
+            .iter()
+            .filter_map(|(message_id, meta)| {
+                txns.get(&meta.transaction_id)
+                    .map(|txn| (*message_id.inner(), meta, txn.id))
+            })
+            .map(|(message_id, meta, txn_id)| StorableDelivery {
+                message_id,
                 meta,
                 txn_id,
-            }
-        });
+            });
 
         let stored = self
             .db
@@ -340,6 +357,9 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
 
 #[async_trait]
 impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
+    /// Store interchain gas payments into the database.
+    /// We store only interchain gas payments from blocks and transaction which we could
+    /// successfully insert into database.
     async fn store_logs(
         &self,
         payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
@@ -347,27 +367,22 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
         if payments.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H256, TxnWithId> = self
+        let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
             .collect();
-        let storable = payments.iter().map(|(payment, meta)| {
-            let txn_id = txns
-                .get(
-                    &meta
-                        .transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .unwrap()
-                .id;
-            StorablePayment {
-                payment: payment.inner(),
+        let storable = payments
+            .iter()
+            .filter_map(|(payment, meta)| {
+                txns.get(&meta.transaction_id)
+                    .map(|txn| (payment.inner(), meta, txn.id))
+            })
+            .map(|(payment, meta, txn_id)| StorablePayment {
+                payment,
                 meta,
                 txn_id,
-            }
-        });
+            });
 
         let stored = self.db.store_payments(self.domain().id(), storable).await?;
         Ok(stored as u32)
@@ -415,13 +430,13 @@ where
 
 #[derive(Debug, Clone)]
 struct TxnWithId {
-    hash: H256,
+    hash: H512,
     id: i64,
 }
 
 #[derive(Debug, Clone)]
 struct TxnWithBlockId {
-    txn_hash: H256,
+    txn_hash: H512,
     block_id: i64,
 }
 
