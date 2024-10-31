@@ -1,14 +1,13 @@
 import fetch from 'cross-fetch';
-import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact-zksync.js';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainName } from '../../types.js';
 
+import { BaseContractVerifier } from './BaseContractVerifier.js';
 import {
   BuildArtifact,
   ContractVerificationInput,
@@ -22,10 +21,8 @@ import {
  * @dev This class manages the process of verifying ZKSync contracts, including
  * preparing verification data and submitting it to the appropriate explorer API
  */
-export class ZKSyncContractVerifier {
+export class ZKSyncContractVerifier extends BaseContractVerifier {
   protected logger = rootLogger.child({ module: 'ZKSyncContractVerifier' });
-
-  protected contractSourceMap: { [contractName: string]: string } = {};
 
   protected readonly standardInputJson: SolidityStandardJsonInput;
   protected readonly compilerOptions: ZKSyncCompilerOptions;
@@ -35,6 +32,7 @@ export class ZKSyncContractVerifier {
    * @param multiProvider An instance of MultiProvider for interacting with multiple chains
    */
   constructor(protected readonly multiProvider: MultiProvider) {
+    super(multiProvider, buildArtifact);
     this.standardInputJson = (buildArtifact as BuildArtifact).input;
 
     const compilerZksolcVersion = `v${
@@ -49,26 +47,6 @@ export class ZKSyncContractVerifier {
       compilerZksolcVersion,
       optimizationUsed: true,
     };
-    this.createContractSourceMapFromBuildArtifacts();
-  }
-
-  /**
-   * @notice Creates a mapping of contract names to source names from build artifacts
-   * @dev This method processes the input to create a mapping required for constructing fully qualified contract names
-   */
-  private createContractSourceMapFromBuildArtifacts() {
-    const contractRegex = /contract\s+([A-Z][a-zA-Z0-9]*)/g;
-    Object.entries((buildArtifact as BuildArtifact).input.sources).forEach(
-      ([sourceName, { content }]) => {
-        const matches = content.matchAll(contractRegex);
-        for (const match of matches) {
-          const contractName = match[1];
-          if (contractName) {
-            this.contractSourceMap[contractName] = sourceName;
-          }
-        }
-      },
-    );
   }
 
   /**
@@ -77,7 +55,7 @@ export class ZKSyncContractVerifier {
    * @param input The contract verification input data
    * @param verificationLogger A logger instance for verification-specific logging
    */
-  private async verify(
+  protected async verify(
     chain: ChainName,
     input: ContractVerificationInput,
     verificationLogger: Logger,
@@ -108,55 +86,18 @@ export class ZKSyncContractVerifier {
     }
   }
 
-  /**
-   * @notice Verifies a contract on the specified chain
-   * @param chain The name of the chain where the contract is deployed
-   * @param input The contract verification input data
-   * @param logger An optional logger instance (defaults to the class logger)
-   */
-  public async verifyContract(
-    chain: ChainName,
+  protected prepareImplementationData(
+    sourceName: string,
     input: ContractVerificationInput,
-    logger = this.logger,
-  ): Promise<void> {
-    const verificationLogger = logger.child({
-      chain,
-      name: input.name,
-      address: input.address,
-    });
-
-    const metadata = this.multiProvider.tryGetChainMetadata(chain);
-    const rpcUrl = metadata?.rpcUrls[0].http ?? '';
-    if (rpcUrl.includes('localhost') || rpcUrl.includes('127.0.0.1')) {
-      verificationLogger.debug('Skipping verification for local endpoints');
-      return;
-    }
-
-    const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
-    if (!explorerApi) {
-      verificationLogger.debug('No explorer API set, skipping');
-      return;
-    }
-
-    if (!explorerApi.family) {
-      verificationLogger.debug(`No explorer family set, skipping`);
-      return;
-    }
-
-    if (explorerApi.family === ExplorerFamily.Other) {
-      verificationLogger.debug(`Unsupported explorer family, skipping`);
-      return;
-    }
-
-    if (input.address === ethers.constants.AddressZero) return;
-    if (Array.isArray(input.constructorArguments)) {
-      verificationLogger.debug(
-        'Constructor arguments in legacy format, skipping',
-      );
-      return;
-    }
-
-    await this.verify(chain, input, verificationLogger);
+    filteredStandardInputJson: SolidityStandardJsonInput,
+  ) {
+    return {
+      sourceCode: filteredStandardInputJson,
+      contractName: `${sourceName}:${input.name}`,
+      contractAddress: input.address,
+      constructorArguments: `0x${input.constructorArguments || ''}`,
+      ...this.compilerOptions,
+    };
   }
 
   /**
@@ -179,7 +120,9 @@ export class ZKSyncContractVerifier {
       'Sending request to explorer...',
     );
 
-    const response = await fetch(url.toString(), {
+    let response: Response;
+
+    response = await fetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),
@@ -210,122 +153,5 @@ export class ZKSyncContractVerifier {
     }
 
     return responseJson;
-  }
-
-  /**
-   * @notice Prepares the implementation data for contract verification
-   * @param chain The name of the chain where the contract is deployed
-   * @param input The contract verification input data
-   * @param verificationLogger A logger instance for verification-specific logging
-   * @returns The prepared implementation data
-   */
-  private getImplementationData(
-    chain: ChainName,
-    input: ContractVerificationInput,
-    verificationLogger: Logger,
-  ) {
-    const sourceName = this.contractSourceMap[input.name];
-    if (!sourceName) {
-      const errorMessage = `Contract '${input.name}' not found in provided build artifact`;
-      verificationLogger.error(errorMessage);
-      throw new Error(`[${chain}] ${errorMessage}`);
-    }
-
-    const filteredStandardInputJson =
-      this.filterStandardInputJsonByContractName(
-        input.name,
-        this.standardInputJson,
-        verificationLogger,
-      );
-
-    return {
-      sourceCode: filteredStandardInputJson,
-      contractName: `${sourceName}:${input.name}`,
-      contractAddress: input.address,
-      constructorArguments: `0x${input.constructorArguments || ''}`,
-      ...this.compilerOptions,
-    };
-  }
-
-  /**
-   * @notice Filters the solidity standard input for a specific contract name
-   * @dev This is a BFS implementation to traverse the source input dependency graph
-   * @param contractName The name of the contract to filter for
-   * @param input The full solidity standard input
-   * @param verificationLogger A logger instance for verification-specific logging
-   * @returns The filtered solidity standard input
-   */
-  private filterStandardInputJsonByContractName(
-    contractName: string,
-    input: SolidityStandardJsonInput,
-    verificationLogger: Logger,
-  ): SolidityStandardJsonInput {
-    verificationLogger.trace(
-      { contractName },
-      'Filtering unused contracts from solidity standard input JSON....',
-    );
-    const filteredSources: SolidityStandardJsonInput['sources'] = {};
-    const sourceFiles: string[] = Object.keys(input.sources);
-    const contractFile: string = this.contractSourceMap[contractName];
-    const queue: string[] = [contractFile];
-    const processed = new Set<string>();
-
-    while (queue.length > 0) {
-      const file = queue.shift()!;
-      if (processed.has(file)) continue;
-      processed.add(file);
-
-      filteredSources[file] = input.sources[file];
-
-      const content = input.sources[file].content;
-      const importStatements = this.getAllImportStatements(content);
-
-      importStatements.forEach((importStatement) => {
-        const importPath = importStatement.match(/["']([^"']+)["']/)?.[1];
-        if (importPath) {
-          const resolvedPath = this.resolveImportPath(file, importPath);
-          if (sourceFiles.includes(resolvedPath)) queue.push(resolvedPath);
-        }
-      });
-    }
-
-    return {
-      ...input,
-      sources: filteredSources,
-    };
-  }
-
-  /**
-   * @notice Extracts all import statements from a given content string
-   * @param content The content string to search for import statements
-   * @returns An array of import statements found in the content
-   */
-  private getAllImportStatements(content: string) {
-    const importRegex =
-      /import\s+(?:(?:(?:"[^"]+"|'[^']+')\s*;)|(?:{[^}]+}\s+from\s+(?:"[^"]+"|'[^']+')\s*;)|(?:\s*(?:"[^"]+"|'[^']+')\s*;))/g;
-    return content.match(importRegex) || [];
-  }
-
-  /**
-   * @notice Resolves an import path relative to the current file
-   * @param currentFile The path of the current file
-   * @param importPath The import path to resolve
-   * @returns The resolved import path
-   */
-  private resolveImportPath(currentFile: string, importPath: string): string {
-    /* Use as-is for external dependencies and absolute imports */
-    if (importPath.startsWith('@') || importPath.startsWith('http')) {
-      return importPath;
-    }
-    const currentDir = currentFile.split('/').slice(0, -1).join('/');
-    const resolvedPath = importPath.split('/').reduce((acc, part) => {
-      if (part === '..') {
-        acc.pop();
-      } else if (part !== '.') {
-        acc.push(part);
-      }
-      return acc;
-    }, currentDir.split('/'));
-    return resolvedPath.join('/');
   }
 }
