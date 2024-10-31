@@ -1,13 +1,8 @@
 import { ContractFactory } from 'ethers';
 
-import {
-  ProxyAdmin__factory,
-  TransparentUpgradeableProxy__factory,
-} from '@hyperlane-xyz/core';
 import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   ChainMap,
-  ContractVerificationInput,
   EvmERC20WarpRouteReader,
   ExplorerLicenseType,
   MultiProvider,
@@ -18,7 +13,6 @@ import {
   hypERC20contracts,
   hypERC20factories,
   isProxy,
-  proxyAdmin,
   proxyImplementation,
   verificationUtils, // verificationUtils,
 } from '@hyperlane-xyz/sdk';
@@ -61,9 +55,17 @@ export async function runVerifyWarpRoute({
       ? await proxyImplementation(provider, token.addressOrDenom)
       : token.addressOrDenom;
 
-    const implementationInput = await getImplementationInput({
-      context,
+    const { factory, tokenType } = await getWarpRouteFactory(
+      context.multiProvider,
       chainName,
+      deployedContractAddress,
+    );
+    const contractName = hypERC20contracts[tokenType];
+    const implementationInput = await verificationUtils.getImplementationInput({
+      multiProvider: context.multiProvider,
+      chainName,
+      bytecode: factory.bytecode,
+      contractName,
       implementationAddress: deployedContractAddress,
     });
     verificationInputs[chainName].push(implementationInput);
@@ -71,9 +73,9 @@ export async function runVerifyWarpRoute({
     // Verify Proxy and ProxyAdmin
     if (isProxyContract) {
       const { proxyAdminInput, transparentUpgradeableProxyInput } =
-        await getProxyAndAdminInput({
-          context,
+        await verificationUtils.getProxyAndAdminInput({
           chainName,
+          multiProvider: context.multiProvider,
           proxyAddress: token.addressOrDenom,
         });
 
@@ -94,83 +96,6 @@ export async function runVerifyWarpRoute({
   await verifier.verify();
 
   logGreen('Finished contract verification');
-}
-
-async function getProxyAndAdminInput({
-  context,
-  chainName,
-  proxyAddress,
-}: {
-  context: CommandContext;
-  chainName: string;
-  proxyAddress: Address;
-}): Promise<{
-  proxyAdminInput: ContractVerificationInput;
-  transparentUpgradeableProxyInput: ContractVerificationInput;
-}> {
-  const provider = context.multiProvider.getProvider(chainName);
-
-  const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
-  const proxyAdminConstructorArgs =
-    await verificationUtils.getConstructorArgumentsApi({
-      multiProvider: context.multiProvider,
-      chainName,
-      bytecode: ProxyAdmin__factory.bytecode,
-      contractAddress: proxyAdminAddress,
-    });
-  const proxyAdminInput = verificationUtils.buildVerificationInput(
-    'ProxyAdmin',
-    proxyAdminAddress,
-    proxyAdminConstructorArgs,
-  );
-
-  const proxyConstructorArgs =
-    await verificationUtils.getConstructorArgumentsApi({
-      multiProvider: context.multiProvider,
-      chainName,
-      contractAddress: proxyAddress,
-      bytecode: TransparentUpgradeableProxy__factory.bytecode,
-    });
-  const transparentUpgradeableProxyInput =
-    verificationUtils.buildVerificationInput(
-      'TransparentUpgradeableProxy',
-      proxyAddress,
-      proxyConstructorArgs,
-      true,
-      await proxyImplementation(provider, proxyAddress),
-    );
-
-  return { proxyAdminInput, transparentUpgradeableProxyInput };
-}
-
-async function getImplementationInput({
-  context,
-  chainName,
-  implementationAddress,
-}: {
-  context: CommandContext;
-  chainName: string;
-  implementationAddress: Address;
-}) {
-  const { factory, tokenType } = await getWarpRouteFactory(
-    context.multiProvider,
-    chainName,
-    implementationAddress,
-  );
-  const contractName = hypERC20contracts[tokenType];
-
-  const implementationConstructorArgs =
-    await verificationUtils.getConstructorArgumentsApi({
-      multiProvider: context.multiProvider,
-      chainName,
-      bytecode: factory.bytecode,
-      contractAddress: implementationAddress,
-    });
-  return verificationUtils.buildVerificationInput(
-    contractName,
-    implementationAddress,
-    implementationConstructorArgs,
-  );
 }
 
 async function getWarpRouteFactory(

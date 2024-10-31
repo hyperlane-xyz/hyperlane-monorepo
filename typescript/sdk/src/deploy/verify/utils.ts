@@ -1,10 +1,15 @@
 import { ethers, utils } from 'ethers';
 
+import {
+  ProxyAdmin__factory,
+  TransparentUpgradeableProxy__factory,
+} from '@hyperlane-xyz/core';
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../../types.js';
+import { proxyAdmin, proxyImplementation } from '../proxy.js';
 
 import { ContractVerificationInput } from './types.js';
 
@@ -201,4 +206,74 @@ export async function getBlockScoutConstructorArgs({
   });
 
   return (await smartContractResp.json()).constructor_args;
+}
+
+export async function getProxyAndAdminInput({
+  multiProvider,
+  chainName,
+  proxyAddress,
+}: {
+  multiProvider: MultiProvider;
+  chainName: string;
+  proxyAddress: Address;
+}): Promise<{
+  proxyAdminInput: ContractVerificationInput;
+  transparentUpgradeableProxyInput: ContractVerificationInput;
+}> {
+  const provider = multiProvider.getProvider(chainName);
+
+  const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
+  const proxyAdminConstructorArgs = await getConstructorArgumentsApi({
+    multiProvider: multiProvider,
+    chainName,
+    bytecode: ProxyAdmin__factory.bytecode,
+    contractAddress: proxyAdminAddress,
+  });
+  const proxyAdminInput = buildVerificationInput(
+    'ProxyAdmin',
+    proxyAdminAddress,
+    proxyAdminConstructorArgs,
+  );
+
+  const proxyConstructorArgs = await getConstructorArgumentsApi({
+    multiProvider: multiProvider,
+    chainName,
+    contractAddress: proxyAddress,
+    bytecode: TransparentUpgradeableProxy__factory.bytecode,
+  });
+  const transparentUpgradeableProxyInput = buildVerificationInput(
+    'TransparentUpgradeableProxy',
+    proxyAddress,
+    proxyConstructorArgs,
+    true,
+    await proxyImplementation(provider, proxyAddress),
+  );
+
+  return { proxyAdminInput, transparentUpgradeableProxyInput };
+}
+
+export async function getImplementationInput({
+  multiProvider,
+  chainName,
+  bytecode,
+  contractName,
+  implementationAddress,
+}: {
+  multiProvider: MultiProvider;
+  chainName: string;
+  bytecode: string;
+  contractName: string;
+  implementationAddress: Address;
+}): Promise<ContractVerificationInput> {
+  const implementationConstructorArgs = await getConstructorArgumentsApi({
+    multiProvider: multiProvider,
+    chainName,
+    bytecode,
+    contractAddress: implementationAddress,
+  });
+  return buildVerificationInput(
+    contractName,
+    implementationAddress,
+    implementationConstructorArgs,
+  );
 }
