@@ -102,8 +102,10 @@ export function SearchMenu<
   const handleSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      const item = results[0];
-      isEditMode ? onClickEditItem(item) : onClickItem(item);
+      if (results.length === 1) {
+        const item = results[0];
+        isEditMode ? onClickEditItem(item) : onClickItem(item);
+      }
     },
     [results, isEditMode],
   );
