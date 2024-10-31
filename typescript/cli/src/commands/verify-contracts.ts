@@ -4,8 +4,8 @@ import {
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
+import { buildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  BuildArtifact,
   ChainMap,
   ContractVerificationInput,
   EvmERC20WarpRouteReader,
@@ -29,14 +29,12 @@ import {
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { logBlue, logGray, logGreen } from '../logger.js';
-import { readYamlOrJson } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
 import { symbolCommandOption } from './options.js';
 
 export const verifyContractsCommand: CommandModuleWithWriteContext<{
   symbol: string;
-  buildArtifact: string;
 }> = {
   command: 'verify-contract',
   describe: 'Verify deployed contracts on explorers',
@@ -45,17 +43,11 @@ export const verifyContractsCommand: CommandModuleWithWriteContext<{
       ...symbolCommandOption,
       demandOption: false,
     },
-    buildArtifact: {
-      type: 'string',
-      description: 'Build Artifacts', // TODO better desc
-      alias: 'b',
-    },
   },
-  handler: async ({ context, symbol, buildArtifact: buildArtifactPath }) => {
+  handler: async ({ context, symbol }) => {
     const apiKeys = {
       // TODO figure where to reliably fetch these
     };
-    const buildArtifact: BuildArtifact = readYamlOrJson(buildArtifactPath);
     const warpCoreConfig = await selectRegistryWarpRoute(
       context.registry,
       symbol,
