@@ -162,7 +162,7 @@ pub fn build_cosmos_connection_conf(
     } else {
         Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
             grpcs,
-            rpcs.first().unwrap().to_string(),
+            rpcs.to_owned(),
             chain_id.unwrap().to_string(),
             prefix.unwrap().to_string(),
             canonical_asset.unwrap(),

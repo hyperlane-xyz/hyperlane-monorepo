@@ -1,10 +1,9 @@
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig,
-    rpc_response::Response,
+    nonblocking::rpc_client::RpcClient, rpc_config::RpcBlockConfig,
+    rpc_config::RpcProgramAccountsConfig, rpc_config::RpcTransactionConfig, rpc_response::Response,
 };
 use solana_sdk::{
     account::Account,
@@ -16,7 +15,12 @@ use solana_sdk::{
     signature::{Keypair, Signature, Signer},
     transaction::Transaction,
 };
-use solana_transaction_status::{TransactionStatus, UiReturnDataEncoding, UiTransactionReturnData};
+use solana_transaction_status::{
+    EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
+    UiReturnDataEncoding, UiTransactionReturnData,
+};
+
+use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 
 use crate::error::HyperlaneSealevelError;
 
@@ -79,12 +83,12 @@ impl SealevelRpcClient {
         &self,
         pubkey: &Pubkey,
     ) -> ChainResult<Account> {
-        self.get_possible_account_with_finalized_commitment(pubkey)
+        self.get_account_option_with_finalized_commitment(pubkey)
             .await?
             .ok_or_else(|| ChainCommunicationError::from_other_str("Could not find account data"))
     }
 
-    pub async fn get_possible_account_with_finalized_commitment(
+    pub async fn get_account_option_with_finalized_commitment(
         &self,
         pubkey: &Pubkey,
     ) -> ChainResult<Option<Account>> {
@@ -95,6 +99,30 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)?
             .value;
         Ok(account)
+    }
+
+    pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
+        let balance = self
+            .0
+            .get_balance(pubkey)
+            .await
+            .map_err(Into::<HyperlaneSealevelError>::into)
+            .map_err(ChainCommunicationError::from)?;
+
+        Ok(balance.into())
+    }
+
+    pub async fn get_block(&self, height: u64) -> ChainResult<UiConfirmedBlock> {
+        let config = RpcBlockConfig {
+            commitment: Some(CommitmentConfig::finalized()),
+            max_supported_transaction_version: Some(0),
+            ..Default::default()
+        };
+        self.0
+            .get_block_with_config(height, config)
+            .await
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
     }
 
     pub async fn get_block_height(&self) -> ChainResult<u32> {
@@ -155,15 +183,19 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
-        let balance = self
-            .0
-            .get_balance(pubkey)
+    pub async fn get_transaction(
+        &self,
+        signature: &Signature,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        let config = RpcTransactionConfig {
+            commitment: Some(CommitmentConfig::finalized()),
+            ..Default::default()
+        };
+        self.0
+            .get_transaction_with_config(signature, config)
             .await
-            .map_err(Into::<HyperlaneSealevelError>::into)
-            .map_err(ChainCommunicationError::from)?;
-
-        Ok(balance.into())
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
     }
 
     pub async fn is_blockhash_valid(&self, hash: &Hash) -> ChainResult<bool> {

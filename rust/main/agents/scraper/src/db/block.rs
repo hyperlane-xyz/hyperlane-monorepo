@@ -5,10 +5,9 @@ use sea_orm::{
 };
 use tracing::{debug, trace};
 
-use hyperlane_core::{BlockInfo, H256};
+use hyperlane_core::{address_to_bytes, h256_to_bytes, BlockInfo, H256};
 use migration::OnConflict;
 
-use crate::conversions::{address_to_bytes, h256_to_bytes};
 use crate::date_time;
 use crate::db::ScraperDb;
 
