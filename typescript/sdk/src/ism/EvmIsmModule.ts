@@ -24,8 +24,6 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
-import { findMatchingLogEvents } from '../utils/logUtils.js';
-import { getZKArtifactByContractName } from '../utils/zksync.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
