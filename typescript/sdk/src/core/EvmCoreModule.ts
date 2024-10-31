@@ -14,6 +14,7 @@ import {
 import {
   attachContractsMap,
   serializeContractsMap,
+  transferOwnershipTransactions,
 } from '../contracts/contracts.js';
 import {
   HyperlaneAddresses,
@@ -21,7 +22,6 @@ import {
 } from '../contracts/types.js';
 import { DeployedCoreAddresses } from '../core/schemas.js';
 import { CoreConfig } from '../core/types.js';
-import { EvmModuleDeployer } from '../deploy/EvmModuleDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
   ProxyFactoryFactories,
@@ -212,12 +212,13 @@ export class EvmCoreModule extends HyperlaneModule<
     actualConfig: CoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
-    return EvmModuleDeployer.createTransferOwnershipTx({
-      actualOwner: actualConfig.owner,
-      expectedOwner: expectedConfig.owner,
-      deployedAddress: this.args.addresses.mailbox,
-      chainId: this.domainId,
-    });
+    return transferOwnershipTransactions(
+      this.domainId,
+      this.args.addresses.mailbox,
+      actualConfig,
+      expectedConfig,
+      'Mailbox',
+    );
   }
 
   /**

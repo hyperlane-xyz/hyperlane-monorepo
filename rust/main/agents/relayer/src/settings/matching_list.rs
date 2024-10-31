@@ -8,7 +8,9 @@ use std::{
     marker::PhantomData,
 };
 
-use hyperlane_core::{config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, H256};
+use hyperlane_core::{
+    config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, QueueOperation, H256,
+};
 use serde::{
     de::{Error, SeqAccess, Visitor},
     Deserialize, Deserializer,
@@ -223,6 +225,8 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
 struct ListElement {
+    #[serde(default, rename = "messageid")]
+    message_id: Filter<H256>,
     #[serde(default, rename = "origindomain")]
     origin_domain: Filter<u32>,
     #[serde(default, rename = "senderaddress")]
@@ -237,7 +241,8 @@ impl Display for ListElement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{{originDomain: {}, senderAddress: {}, destinationDomain: {}, recipientAddress: {}}}",
+            "{{messageId: {}, originDomain: {}, senderAddress: {}, destinationDomain: {}, recipientAddress: {}}}",
+            self.message_id,
             self.origin_domain,
             self.sender_address,
             self.destination_domain,
@@ -248,6 +253,7 @@ impl Display for ListElement {
 
 #[derive(Copy, Clone, Debug)]
 struct MatchInfo<'a> {
+    src_msg_id: H256,
     src_domain: u32,
     src_addr: &'a H256,
     dst_domain: u32,
@@ -257,6 +263,7 @@ struct MatchInfo<'a> {
 impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
     fn from(msg: &'a HyperlaneMessage) -> Self {
         Self {
+            src_msg_id: msg.id(),
             src_domain: msg.origin,
             src_addr: &msg.sender,
             dst_domain: msg.destination,
@@ -265,11 +272,49 @@ impl<'a> From<&'a HyperlaneMessage> for MatchInfo<'a> {
     }
 }
 
+impl<'a> From<&'a QueueOperation> for MatchInfo<'a> {
+    fn from(op: &'a QueueOperation) -> Self {
+        Self {
+            src_msg_id: op.id(),
+            src_domain: op.origin_domain_id(),
+            src_addr: op.sender_address(),
+            dst_domain: op.destination_domain().id(),
+            dst_addr: op.recipient_address(),
+        }
+    }
+}
+
 impl MatchingList {
+    pub fn with_message_id(message_id: H256) -> Self {
+        Self(Some(vec![ListElement {
+            message_id: Filter::Enumerated(vec![message_id]),
+            origin_domain: Default::default(),
+            sender_address: Default::default(),
+            destination_domain: Default::default(),
+            recipient_address: Default::default(),
+        }]))
+    }
+
+    pub fn with_destination_domain(destination_domain: u32) -> Self {
+        Self(Some(vec![ListElement {
+            message_id: Default::default(),
+            origin_domain: Default::default(),
+            sender_address: Default::default(),
+            destination_domain: Filter::Enumerated(vec![destination_domain]),
+            recipient_address: Default::default(),
+        }]))
+    }
+
     /// Check if a message matches any of the rules.
     /// - `default`: What to return if the matching list is empty.
     pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
         self.matches(msg.into(), default)
+    }
+
+    /// Check if queue operation matches any of the rules.
+    /// If the matching list is empty, we assume the queue operation does not match.
+    pub fn op_matches(&self, op: &QueueOperation) -> bool {
+        self.matches(op.into(), false)
     }
 
     /// Check if a message matches any of the rules.
@@ -285,7 +330,8 @@ impl MatchingList {
 
 fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
     rules.any(|rule| {
-        rule.origin_domain.matches(&info.src_domain)
+        rule.message_id.matches(&info.src_msg_id)
+            && rule.origin_domain.matches(&info.src_domain)
             && rule.sender_address.matches(info.src_addr)
             && rule.destination_domain.matches(&info.dst_domain)
             && rule.recipient_address.matches(info.dst_addr)
@@ -323,23 +369,26 @@ mod test {
 
     #[test]
     fn basic_config() {
-        let list: MatchingList = serde_json::from_str(r#"[{"origindomain": "*", "senderaddress": "*", "destinationdomain": "*", "recipientaddress": "*"}, {}]"#).unwrap();
+        let list: MatchingList = serde_json::from_str(r#"[{"messageid": "*", "origindomain": "*", "senderaddress": "*", "destinationdomain": "*", "recipientaddress": "*"}, {}]"#).unwrap();
         assert!(list.0.is_some());
         assert_eq!(list.0.as_ref().unwrap().len(), 2);
         let elem = &list.0.as_ref().unwrap()[0];
         assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.message_id, Wildcard);
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
 
         let elem = &list.0.as_ref().unwrap()[1];
         assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.message_id, Wildcard);
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
 
         assert!(list.matches(
             MatchInfo {
+                src_msg_id: H256::random(),
                 src_domain: 0,
                 src_addr: &H256::default(),
                 dst_domain: 0,
@@ -350,6 +399,7 @@ mod test {
 
         assert!(list.matches(
             MatchInfo {
+                src_msg_id: H256::random(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
                     .parse::<H160>()
@@ -369,6 +419,7 @@ mod test {
         assert_eq!(list.0.as_ref().unwrap().len(), 1);
         let elem = &list.0.as_ref().unwrap()[0];
         assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.message_id, Wildcard);
         assert_eq!(
             elem.recipient_address,
             Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -387,6 +438,7 @@ mod test {
 
         assert!(list.matches(
             MatchInfo {
+                src_msg_id: H256::default(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
                     .parse::<H160>()
@@ -403,6 +455,7 @@ mod test {
 
         assert!(!list.matches(
             MatchInfo {
+                src_msg_id: H256::default(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
                     .parse::<H160>()
@@ -423,6 +476,7 @@ mod test {
         assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
         let elem = &whitelist.0.as_ref().unwrap()[0];
         assert_eq!(elem.destination_domain, Enumerated(vec![9913372, 9913373]));
+        assert_eq!(elem.message_id, Wildcard);
         assert_eq!(elem.recipient_address, Wildcard);
         assert_eq!(elem.origin_domain, Wildcard);
         assert_eq!(elem.sender_address, Wildcard);
@@ -437,6 +491,7 @@ mod test {
     #[test]
     fn matches_empty_list() {
         let info = MatchInfo {
+            src_msg_id: H256::default(),
             src_domain: 0,
             src_addr: &H256::default(),
             dst_domain: 0,
@@ -451,7 +506,7 @@ mod test {
     #[test]
     fn supports_base58() {
         serde_json::from_str::<MatchingList>(
-            r#"[{"origindomain":1399811151,"senderaddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationdomain":11155111,"recipientaddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
+            r#"[{"messageid": "*", "origindomain":1399811151,"senderaddress":"DdTMkk9nuqH5LnD56HLkPiKMV3yB3BNEYSQfgmJHa5i7","destinationdomain":11155111,"recipientaddress":"0x6AD4DEBA8A147d000C09de6465267a9047d1c217"}]"#,
         ).unwrap();
     }
 

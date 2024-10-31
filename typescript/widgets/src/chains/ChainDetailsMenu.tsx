@@ -30,7 +30,7 @@ import { CheckmarkIcon } from '../icons/Checkmark.js';
 import { ChevronIcon } from '../icons/Chevron.js';
 import { Circle } from '../icons/Circle.js';
 import { PlusCircleIcon } from '../icons/PlusCircle.js';
-import { Spinner } from '../icons/Spinner.js';
+import { SpinnerIcon } from '../icons/Spinner.js';
 import { XIcon } from '../icons/X.js';
 import { useConnectionHealthTest } from '../utils/useChainConnectionTest.js';
 
@@ -450,7 +450,7 @@ function ConnectionRow({
   return (
     <div className="htw-flex htw-items-center htw-gap-3">
       {isNullish(isHealthy) && type == ChainConnectionType.RPC && (
-        <Spinner width={14} height={14} />
+        <SpinnerIcon width={14} height={14} />
       )}
       {isNullish(isHealthy) && type == ChainConnectionType.Explorer && (
         <Circle size={14} className="htw-bg-gray-400" />

@@ -2,9 +2,9 @@ import { ethers } from 'ethers';
 
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
-import { EvmModuleDeployer } from './EvmModuleDeployer.js';
 import { DeployedOwnableConfig } from './types.js';
 
 export type UpgradeConfig = {
@@ -95,12 +95,12 @@ export function proxyAdminOwnershipUpdateTxs(
   transactions.push(
     // Internally the createTransferOwnershipTx method already checks if the
     // two owner values are the same and produces an empty tx batch if they are
-    ...EvmModuleDeployer.createTransferOwnershipTx({
-      actualOwner: actualProxyAdmin.owner,
-      expectedOwner: expectedConfig.proxyAdmin.owner,
-      deployedAddress: actualProxyAdmin.address!,
-      chainId: chainId,
-    }),
+    ...transferOwnershipTransactions(
+      chainId,
+      actualProxyAdmin.address!,
+      actualProxyAdmin,
+      expectedConfig.proxyAdmin,
+    ),
   );
 
   return transactions;

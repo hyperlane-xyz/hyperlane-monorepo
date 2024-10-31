@@ -1,12 +1,24 @@
 import { expect } from 'chai';
 
 import {
+  arrayToObject,
   deepCopy,
   deepEquals,
+  deepFind,
   diffObjMerge,
+  invertKeysAndValues,
+  isObjEmpty,
   isObject,
+  objFilter,
+  objKeys,
+  objLength,
+  objMap,
+  objMapEntries,
   objMerge,
   objOmit,
+  pick,
+  promiseObjAll,
+  stringifyObject,
 } from './objects.js';
 
 describe('Object utilities', () => {
@@ -81,6 +93,124 @@ describe('Object utilities', () => {
     expect(isObject(null)).to.be.false;
     expect(isObject(undefined)).to.be.false;
     expect(isObject(42)).to.be.false;
+  });
+
+  it('objKeys', () => {
+    const obj = { a: 1, b: 2 };
+    expect(objKeys(obj)).to.eql(['a', 'b']);
+  });
+
+  it('objLength', () => {
+    const obj = { a: 1, b: 2 };
+    expect(objLength(obj)).to.equal(2);
+  });
+
+  it('isObjEmpty', () => {
+    expect(isObjEmpty({})).to.be.true;
+    expect(isObjEmpty({ a: 1 })).to.be.false;
+  });
+
+  it('objMapEntries', () => {
+    const obj = { a: 1, b: 2 };
+    const result = objMapEntries(obj, (k, v) => v * 2);
+    expect(result).to.eql([
+      ['a', 2],
+      ['b', 4],
+    ]);
+  });
+
+  it('objMap', () => {
+    const obj = { a: 1, b: 2 };
+    const result = objMap(obj, (k, v) => v * 2);
+    expect(result).to.eql({ a: 2, b: 4 });
+  });
+
+  it('objFilter', () => {
+    const obj = { a: 1, b: 2, c: 3 };
+    const result = objFilter(obj, (k: string, v: number): v is number => v > 1);
+    expect(result).to.eql({ b: 2, c: 3 });
+  });
+
+  it('deepFind should find nested object', () => {
+    const obj = { a: { b: { c: 3 } } };
+    const result = deepFind(
+      obj,
+      (v: any): v is { c: number } => v && v.c === 3,
+    );
+    expect(result).to.eql({ c: 3 });
+  });
+
+  it('deepFind should return undefined if object is not found', () => {
+    const obj = { a: { b: { c: 3 } } };
+    const result = deepFind(
+      obj,
+      (v: any): v is { c: number } => v && v.c === 4,
+    );
+    expect(result).to.be.undefined;
+  });
+
+  it('promiseObjAll', async () => {
+    const obj = { a: Promise.resolve(1), b: Promise.resolve(2) };
+    const result = await promiseObjAll(obj);
+    expect(result).to.eql({ a: 1, b: 2 });
+  });
+
+  it('pick should return a subset of the object', () => {
+    const obj = { a: 1, b: 2, c: 3 };
+    const result = pick(obj, ['a', 'c']);
+    expect(result).to.eql({ a: 1, c: 3 });
+  });
+
+  it('pick should return an empty object if no keys are provided', () => {
+    const obj = { a: 1, b: 2, c: 3 };
+    const result = pick(obj, []);
+    expect(result).to.eql({});
+  });
+
+  it("pick should return an empty object if the object doesn't contain the keys", () => {
+    const obj = { c: 4, d: 5 };
+    const result = pick(obj as any, ['a', 'b']);
+    expect(result).to.eql({});
+  });
+
+  describe('invertKeysAndValues', () => {
+    it('invertKeysAndValues should invert the keys and values', () => {
+      const obj = { a: '1', b: '2' };
+      const result = invertKeysAndValues(obj);
+      expect(result).to.eql({ '1': 'a', '2': 'b' });
+    });
+
+    it('invertKeysAndValues should return an empty object if the object is empty', () => {
+      const obj = {};
+      const result = invertKeysAndValues(obj);
+      expect(result).to.eql({});
+    });
+
+    it('invertKeysAndValues should return an object if the object has duplicate values', () => {
+      const obj = { a: '1', b: '1' };
+      const result = invertKeysAndValues(obj);
+      expect(result).to.eql({ '1': 'b' });
+    });
+
+    it('invertKeysAndValues should return an object if the object has undefined/null values', () => {
+      const obj = { a: '1', b: '2', c: undefined, d: null, e: 0 };
+      const result = invertKeysAndValues(obj);
+      expect(result).to.eql({ '1': 'a', '2': 'b', '0': 'e' });
+    });
+  });
+
+  it('arrayToObject', () => {
+    const keys = ['a', 'b'];
+    const result = arrayToObject(keys);
+    expect(result).to.eql({ a: true, b: true });
+  });
+
+  it('stringifyObject', () => {
+    const obj = { a: 1, b: 2 };
+    const jsonResult = stringifyObject(obj, 'json');
+    expect(jsonResult).to.equal('{"a":1,"b":2}');
+    const yamlResult = stringifyObject(obj, 'yaml');
+    expect(yamlResult).to.include('a: 1\nb: 2');
   });
 
   describe('diffObjMerge', () => {

@@ -26,7 +26,6 @@ export {
   testCosmosChain,
   testSealevelChain,
 } from './consts/testChains.js';
-export { randomAddress } from './test/testUtils.js';
 export {
   attachAndConnectContracts,
   attachContracts,
@@ -70,9 +69,9 @@ export {
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export {
   CoreConfigSchema,
-  DerivedCoreConfigSchema,
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
+  DerivedCoreConfigSchema,
 } from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
@@ -82,8 +81,8 @@ export {
 } from './core/TestRecipientDeployer.js';
 export {
   CoreConfig,
-  DerivedCoreConfig,
   CoreViolationType,
+  DerivedCoreConfig,
   DispatchedMessage,
   MailboxMultisigIsmViolation,
   MailboxViolation,
@@ -98,8 +97,8 @@ export {
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
   CheckerViolation,
-  OwnableConfig,
   DeployedOwnableConfig,
+  OwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
   ViolationType,
@@ -200,11 +199,11 @@ export {
 export {
   BlockExplorer,
   BlockExplorerSchema,
-  EthJsonRpcBlockParameterTag,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
   ChainTechnicalStack,
+  EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ExplorerFamilyValue,
   NativeToken,
@@ -331,6 +330,7 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData } from './providers/transactions/types.js';
+export { randomAddress } from './test/testUtils.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -393,6 +393,7 @@ export {
   MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
   ClientViolationType as ConnectionClientViolationType,
+  DestinationGas,
   GasRouterConfig,
   MailboxClientConfig,
   ProxiedFactories,
@@ -544,5 +545,15 @@ export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 
+export {
+  ChainGasOracleParams,
+  GasPriceConfig,
+  NativeTokenPriceConfig,
+  getCoingeckoTokenPrices,
+  getCosmosChainGasPrice,
+  getGasPrice,
+  getLocalStorageGasOracleConfig,
+  getTokenExchangeRateFromValues,
+} from './gas/utils.js';
 export { EvmIcaRouterReader } from './ica/EvmIcaReader.js';
 export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';

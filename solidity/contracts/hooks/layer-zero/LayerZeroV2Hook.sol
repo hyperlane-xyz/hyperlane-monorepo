@@ -18,6 +18,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {Indexed} from "../../libs/Indexed.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractMessageIdAuthHook} from "../libs/AbstractMessageIdAuthHook.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 
 struct LayerZeroV2Metadata {
@@ -55,8 +56,13 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes memory payload
+        bytes calldata message
     ) internal override {
+        bytes memory payload = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (message.id(), metadata.msgValue(0))
+        );
+
         bytes calldata lZMetadata = metadata.getCustomMetadata();
         (
             uint32 eid,
@@ -72,7 +78,9 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
             options,
             false // payInLzToken
         );
-        lZEndpoint.send{value: msg.value}(msgParams, refundAddress);
+
+        uint256 quote = _quoteDispatch(metadata, message);
+        lZEndpoint.send{value: quote}(msgParams, refundAddress);
     }
 
     /// @dev payInZRO is hardcoded to false because zro tokens should not be directly accepted
@@ -96,7 +104,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
             message.senderAddress()
         );
 
-        return msgFee.nativeFee;
+        return metadata.msgValue(0) + msgFee.nativeFee;
     }
 
     /**
