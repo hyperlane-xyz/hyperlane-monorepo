@@ -245,7 +245,7 @@ jobs:
           fi
 
       - name: agent tests (EVM and Sealevel)
-        run: cargo run --release --bin run-locally --features test-utils
+        run: cargo test --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'non-cosmwasm'
         working-directory: ./rust/main
         env:

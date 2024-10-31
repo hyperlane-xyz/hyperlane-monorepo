@@ -144,7 +144,7 @@ impl Drop for State {
     }
 }
 
-fn main() -> ExitCode {
+fn run_test() -> Result<(), Box<dyn std::error::Error>> {
     // on sigint we want to trigger things to stop running
     ctrlc::set_handler(|| {
         log!("Terminating...");
@@ -476,7 +476,7 @@ fn main() -> ExitCode {
 
     if !post_startup_invariants(&checkpoints_dirs) {
         log!("Failure: Post startup invariants are not met");
-        return report_test_result(true);
+        return Err("Post startup invariants are not met".into());
     } else {
         log!("Success: Post startup invariants are met");
     }
@@ -526,15 +526,23 @@ fn main() -> ExitCode {
         sleep(Duration::from_secs(5));
     }
 
-    report_test_result(failure_occurred)
-}
-
-fn report_test_result(failure_occurred: bool) -> ExitCode {
     if failure_occurred {
         log!("E2E tests failed");
-        ExitCode::FAILURE
+        Err("E2E tests failed".into())
     } else {
         log!("E2E tests passed");
-        ExitCode::SUCCESS
+        Ok(())
+    }
+}
+
+fn main() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_run() {
+        run_test().expect("run_test failed");
     }
 }
