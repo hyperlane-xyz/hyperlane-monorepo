@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { ComponentType, useMemo, useState } from 'react';
+import React, { ComponentType, useCallback, useMemo, useState } from 'react';
 
 import { deepEquals, isObject, toTitleCase } from '@hyperlane-xyz/utils';
 
@@ -91,12 +91,24 @@ export function SearchMenu<
     [data, searchQuery, sortState, filterState, searchFn],
   );
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && results.length === 1) {
+        const item = results[0];
+        isEditMode ? onClickEditItem(item) : onClickItem(item);
+      } else if (e.key === 'Escape') setSearchQuery('');
+    },
+    [results, isEditMode],
+  );
+
   return (
     <div className="htw-flex htw-flex-col htw-gap-2">
       <SearchBar
         value={searchQuery}
         onChange={setSearchQuery}
         placeholder={placeholder}
+        onKeyDown={handleKeyDown}
+        autoFocus
       />
       <div className="htw-flex htw-items-center htw-justify-between">
         <div className="htw-flex htw-items-center htw-gap-5">
@@ -157,7 +169,7 @@ export function SearchMenu<
   );
 }
 
-function SearchBar(props: InputProps) {
+function SearchBar({ onChange, value, ...props }: InputProps) {
   return (
     <div className="htw-relative">
       <SearchIcon
@@ -165,10 +177,21 @@ function SearchBar(props: InputProps) {
         height={18}
         className="htw-absolute htw-left-4 htw-top-1/2 -htw-translate-y-1/2 htw-opacity-50"
       />
+
       <TextInput
+        onChange={onChange}
+        value={value}
         {...props}
-        className="htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
+        className="htw-bg-transparent focus:htw-bg-transparent htw-border htw-border-gray-200 focus:htw-border-gray-400 htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
       />
+      {value && onChange && (
+        <IconButton
+          className="htw-absolute htw-right-4 htw-top-1/3 htw-opacity-50"
+          onClick={() => onChange('')}
+        >
+          <XIcon width={14} height={14} />
+        </IconButton>
+      )}
     </div>
   );
 }
