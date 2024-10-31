@@ -3,7 +3,7 @@ import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 import { createPublicClient, http } from 'viem';
-import * as zk from 'zksync-ethers';
+import { Provider as ZKProvider } from 'zksync-ethers';
 
 import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 
@@ -117,7 +117,7 @@ export function defaultZKSyncProviderBuilder(
 ): ZKSyncProvider {
   if (!rpcUrls.length) throw new Error('No RPC URLs provided');
   const url = rpcUrls[0].http;
-  const provider = new zk.Provider(url, network);
+  const provider = new ZKProvider(url, network);
   return { type: ProviderType.ZKSync, provider };
 }
 
@@ -132,7 +132,7 @@ export function defaultProviderBuilder(
 export function defaultZKProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
-): zk.Provider {
+): ZKProvider {
   return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
 }
 

@@ -1,5 +1,12 @@
-import * as ethers from 'ethers';
-import * as zk from 'zksync-ethers';
+import assert from 'assert';
+import { BigNumber, BytesLike, Overrides, utils } from 'ethers';
+import {
+  Contract,
+  ContractFactory,
+  Provider,
+  Wallet,
+  types as zksyncTypes,
+} from 'zksync-ethers';
 
 import {
   ZkSyncArtifact,
@@ -9,23 +16,22 @@ import {
 /**
  * An entity capable of deploying contracts to the zkSync network.
  */
-export class ZKDeployer {
-  public zkWallet: zk.Wallet;
-  public deploymentType?: zk.types.DeploymentType;
+export class ZKSyncDeployer {
+  public zkWallet: Wallet;
+  public deploymentType?: zksyncTypes.DeploymentType;
 
-  constructor(zkWallet: zk.Wallet, deploymentType?: zk.types.DeploymentType) {
+  constructor(zkWallet: Wallet, deploymentType?: zksyncTypes.DeploymentType) {
     this.deploymentType = deploymentType;
-    let l2Provider: zk.Provider;
 
-    const zkWeb3Provider = new zk.Provider('http://127.0.0.1:8011', 260);
+    const zkWeb3Provider = new Provider('http://127.0.0.1:8011', 260);
 
-    l2Provider =
+    const l2Provider =
       zkWallet.provider === null ? zkWeb3Provider : zkWallet.provider;
 
     this.zkWallet = zkWallet.connect(l2Provider);
   }
 
-  public async loadArtifact(contractTitle: string): Promise<any> {
+  public async loadArtifact(contractTitle: string): Promise<ZkSyncArtifact> {
     const zksyncArtifacts = await loadAllZkArtifacts();
     const artifact = (Object.values(zksyncArtifacts) as ZkSyncArtifact[]).find(
       ({ contractName, sourceName }) => {
@@ -42,11 +48,7 @@ export class ZKDeployer {
       },
     );
 
-    if (!artifact) {
-      throw new Error(
-        `No ZKSync artifact for contract ${contractTitle} found!`,
-      );
-    }
+    assert(artifact, `No ZKSync artifact for contract ${contractTitle} found!`);
 
     return artifact as any;
   }
@@ -62,7 +64,7 @@ export class ZKDeployer {
   public async estimateDeployFee(
     artifact: ZkSyncArtifact,
     constructorArguments: any[],
-  ): Promise<ethers.BigNumber> {
+  ): Promise<BigNumber> {
     const gas = await this.estimateDeployGas(artifact, constructorArguments);
     const gasPrice = await this.zkWallet.provider.getGasPrice();
     return gas.mul(gasPrice);
@@ -79,10 +81,10 @@ export class ZKDeployer {
   public async estimateDeployGas(
     artifact: ZkSyncArtifact,
     constructorArguments: any[],
-  ): Promise<ethers.BigNumber> {
+  ): Promise<BigNumber> {
     const factoryDeps = await this.extractFactoryDeps(artifact);
 
-    const factory = new zk.ContractFactory(
+    const factory = new ContractFactory(
       artifact.abi,
       artifact.bytecode,
       this.zkWallet,
@@ -97,7 +99,7 @@ export class ZKDeployer {
     });
     deployTx.from = this.zkWallet.address;
 
-    return await this.zkWallet.provider.estimateGas(deployTx);
+    return this.zkWallet.provider.estimateGas(deployTx);
   }
 
   /**
@@ -115,16 +117,16 @@ export class ZKDeployer {
   public async deploy(
     artifact: ZkSyncArtifact,
     constructorArguments: any[] = [],
-    overrides?: ethers.Overrides,
-    additionalFactoryDeps?: ethers.BytesLike[],
-  ): Promise<zk.Contract> {
+    overrides?: Overrides,
+    additionalFactoryDeps?: BytesLike[],
+  ): Promise<Contract> {
     const baseDeps = await this.extractFactoryDeps(artifact);
     const additionalDeps = additionalFactoryDeps
-      ? additionalFactoryDeps.map((val) => ethers.utils.hexlify(val))
+      ? additionalFactoryDeps.map((val) => utils.hexlify(val))
       : [];
     const factoryDeps = [...baseDeps, ...additionalDeps];
 
-    const factory = new zk.ContractFactory(
+    const factory = new ContractFactory(
       artifact.abi,
       artifact.bytecode,
       this.zkWallet,
@@ -158,7 +160,7 @@ export class ZKDeployer {
     const visited = new Set<string>();
 
     visited.add(`${artifact.sourceName}:${artifact.contractName}`);
-    return await this.extractFactoryDepsRecursive(artifact, visited);
+    return this.extractFactoryDepsRecursive(artifact, visited);
   }
 
   private async extractFactoryDepsRecursive(
@@ -169,16 +171,25 @@ export class ZKDeployer {
     // We transform it into an array of bytecodes.
     const factoryDeps: string[] = [];
     for (const dependencyHash in artifact.factoryDeps) {
-      const dependencyContract = artifact.factoryDeps[dependencyHash];
-      if (!visited.has(dependencyContract)) {
-        const dependencyArtifact = await this.loadArtifact(dependencyContract);
-        factoryDeps.push(dependencyArtifact.bytecode);
-        visited.add(dependencyContract);
-        const transitiveDeps = await this.extractFactoryDepsRecursive(
-          dependencyArtifact,
-          visited,
-        );
-        factoryDeps.push(...transitiveDeps);
+      if (
+        Object.prototype.hasOwnProperty.call(
+          artifact.factoryDeps,
+          dependencyHash,
+        )
+      ) {
+        const dependencyContract = artifact.factoryDeps[dependencyHash];
+        if (!visited.has(dependencyContract)) {
+          const dependencyArtifact = await this.loadArtifact(
+            dependencyContract,
+          );
+          factoryDeps.push(dependencyArtifact.bytecode);
+          visited.add(dependencyContract);
+          const transitiveDeps = await this.extractFactoryDepsRecursive(
+            dependencyArtifact,
+            visited,
+          );
+          factoryDeps.push(...transitiveDeps);
+        }
       }
     }
 
