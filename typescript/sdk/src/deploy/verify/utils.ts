@@ -1,7 +1,9 @@
 import { ethers, utils } from 'ethers';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
+import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 import { ContractVerificationInput } from './types.js';
@@ -83,4 +85,120 @@ export function shouldAddVerificationInput(
       existingArtifact.constructorArguments === artifact.constructorArguments &&
       existingArtifact.isProxy === artifact.isProxy,
   );
+}
+
+/**
+ * Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
+ */
+export async function getConstructorArgumentsApi({
+  multiProvider,
+  chainName,
+  bytecode,
+  contractAddress,
+}: {
+  multiProvider: MultiProvider;
+
+  chainName: string;
+  bytecode: string;
+  contractAddress: string;
+}): Promise<string> {
+  const { family } = multiProvider.getExplorerApi(chainName);
+
+  let constructorArgs: string;
+  switch (family) {
+    case ExplorerFamily.Routescan:
+    case ExplorerFamily.Etherscan:
+      constructorArgs = await getEtherscanConstructorArgs({
+        multiProvider,
+        chainName,
+        contractAddress,
+        bytecode,
+      });
+      break;
+    case ExplorerFamily.Blockscout:
+      constructorArgs = await getBlockScoutConstructorArgs({
+        multiProvider,
+        chainName,
+        contractAddress,
+      });
+      break;
+    default:
+      throw new Error(`Explorer Family ${family} unsupported`);
+  }
+
+  return constructorArgs;
+}
+
+export async function getEtherscanConstructorArgs({
+  multiProvider,
+  chainName,
+  contractAddress,
+  bytecode,
+}: {
+  multiProvider: MultiProvider;
+  chainName: string;
+  contractAddress: Address;
+  bytecode: string;
+}): Promise<string> {
+  const { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey } =
+    multiProvider.getExplorerApi(chainName);
+  const url = new URL(blockExplorerApiUrl);
+  url.searchParams.append('module', 'contract');
+  url.searchParams.append('action', 'getcontractcreation');
+  url.searchParams.append('contractaddresses', contractAddress);
+
+  if (blockExplorerApiKey)
+    // TODO figure out how to get API keys. Maybe use the existing prompt??
+    url.searchParams.append('apikey', blockExplorerApiKey);
+
+  const explorerResp = await fetch(url);
+  const creationTx = (await explorerResp.json()).result[0].txHash;
+
+  // Fetch deployment bytecode (includes constructor args)
+  assert(creationTx, 'Contract creation transaction not found!');
+  const metadata = multiProvider.getChainMetadata(chainName);
+  const rpcUrl = metadata.rpcUrls[0].http;
+
+  const creationTxResp = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      method: 'eth_getTransactionByHash',
+      params: [creationTx],
+      id: 1,
+      jsonrpc: '2.0',
+    }),
+  });
+
+  // Truncate the deployment bytecode
+  const creationInput: string = (await creationTxResp.json()).result.input;
+  return creationInput.substring(bytecode.length);
+}
+
+export async function getBlockScoutConstructorArgs({
+  multiProvider,
+  chainName,
+  contractAddress,
+}: {
+  multiProvider: MultiProvider;
+  chainName: string;
+  contractAddress: Address;
+}): Promise<string> {
+  const { apiUrl: blockExplorerApiUrl } =
+    multiProvider.getExplorerApi(chainName);
+
+  const url = new URL(
+    `/api/v2/smart-contracts/${contractAddress}`,
+    blockExplorerApiUrl,
+  );
+
+  const smartContractResp = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  return (await smartContractResp.json()).constructor_args;
 }
