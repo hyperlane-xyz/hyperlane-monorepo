@@ -8,6 +8,6 @@ nativeToken:
   decimals: 18
   name: Ether
   symbol: ETH
-protocol: zksync
+protocol: ethereum
 rpcUrls:
   - http: http://127.0.0.1:8011

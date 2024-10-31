@@ -7,6 +7,8 @@ import { ChainMap, ChainName } from '../../types.js';
 
 import { ContractVerificationInput } from './types.js';
 
+const { Interface } = await import('@ethersproject/abi');
+
 export function formatFunctionArguments(
   fragment: utils.Fragment,
   args: any[],
@@ -90,9 +92,7 @@ export async function getContractVerificationInputForZKSync({
   );
 }
 
-export async function encodeArguments(abi: any, constructorArgs: any[]) {
-  const { Interface } = await import('@ethersproject/abi');
-
+export function encodeArguments(abi: any, constructorArgs: any[]): string {
   const contractInterface = new Interface(abi);
   let deployArgumentsEncoded;
   try {

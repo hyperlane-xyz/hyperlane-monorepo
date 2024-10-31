@@ -469,9 +469,7 @@ export class EvmCoreModule extends HyperlaneModule<
     // Check if we should skip static address set deployment
     if (shouldSkipStaticDeployment(technicalStack)) {
       return createDefaultProxyFactoryFactories();
-    } else {
-      // Otherwise, deploy ISM factories
-      return await EvmCoreModule.deployIsmFactories(params);
     }
+    return EvmCoreModule.deployIsmFactories(params);
   }
 }

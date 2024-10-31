@@ -30,9 +30,9 @@ const currentDirectory = path.dirname(currentFilePath);
  * @param directory The directory to read artifact files from.
  * @return An array of artifact file names that end with '.js'.
  */
-const getArtifactFiles = (directory: string): string[] => {
+function getArtifactFiles(directory: string): string[] {
   return readdirSync(directory).filter((file) => file.endsWith('.js')); // Filter for .js files
-};
+}
 
 /**
  * @dev Exports the list of artifact names without the .js extension.
@@ -47,18 +47,18 @@ export const zksyncArtifactNames = getArtifactFiles(
  * @param name The name of the artifact to check.
  * @return True if the artifact exists, false otherwise.
  */
-export const artifactExists = (name: string): boolean => {
+export function artifactExists(name: string): boolean {
   return zksyncArtifactNames.includes(`${name}.js`); // Check if the artifact file exists
-};
+}
 
 /**
  * @dev Loads a ZkSync artifact by its name.
  * @param name The name of the artifact to load.
  * @return The loaded ZkSyncArtifact or undefined if it cannot be loaded.
  */
-const loadZkArtifact = async (
+export async function loadZkArtifact(
   name: string,
-): Promise<ZkSyncArtifact | undefined> => {
+): Promise<ZkSyncArtifact | undefined> {
   try {
     const artifactModule = await import(
       join(currentDirectory, 'output', `${name}.js`)
@@ -68,13 +68,13 @@ const loadZkArtifact = async (
     console.error(`Error loading artifact: ${name}`, error);
     return undefined;
   }
-};
+}
 
 /**
  * @dev Loads all ZkSync artifacts into a map.
  * @return A map of artifact names to their corresponding ZkSync artifacts.
  */
-export const loadAllZkArtifacts = async (): Promise<ArtifactMap> => {
+export async function loadAllZkArtifacts(): Promise<ArtifactMap> {
   const zkSyncArtifactMap: ArtifactMap = {};
 
   // Load all artifacts concurrently
@@ -88,15 +88,15 @@ export const loadAllZkArtifacts = async (): Promise<ArtifactMap> => {
   await Promise.all(loadPromises);
 
   return zkSyncArtifactMap; // Return the populated artifact map
-};
+}
 
 /**
  * @dev Retrieves a specific ZkSync artifact by its file name.
  * @param name The name of the artifact to retrieve.
  * @return The loaded ZkSyncArtifact or undefined if it cannot be loaded.
  */
-export const getZkArtifactByName = async (
+export async function getZkArtifactByName(
   name: string,
-): Promise<ZkSyncArtifact | undefined> => {
+): Promise<ZkSyncArtifact | undefined> {
   return loadZkArtifact(name);
-};
+}
