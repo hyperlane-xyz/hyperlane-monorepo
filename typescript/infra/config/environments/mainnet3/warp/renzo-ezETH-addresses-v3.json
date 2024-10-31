@@ -2,9 +2,6 @@
   "arbitrum": {
     "xERC20": "0xB26bBfC6d1F469C821Ea25099017862e7368F4E8"
   },
-  "optimism": {
-    "xERC20": "0xacEB607CdF59EB8022Cc0699eEF3eCF246d149e2"
-  },
   "base": {
     "xERC20": "0x2552516453368e42705D791F674b312b8b87CD9e"
   },
@@ -14,17 +11,26 @@
   "bsc": {
     "xERC20": "0xE00C6185a5c19219F1FFeD213b4406a254968c26"
   },
-  "mode": {
-    "xERC20": "0xC59336D8edDa9722B4f1Ec104007191Ec16f7087"
-  },
-  "linea": {
-    "xERC20": "0xC59336D8edDa9722B4f1Ec104007191Ec16f7087"
-  },
   "ethereum": {
     "xERC20Lockbox": "0xC59336D8edDa9722B4f1Ec104007191Ec16f7087"
   },
   "fraxtal": {
     "xERC20": "0x3aE8635A4D581d40a6Edfb3f2ED480f9532994F5"
+  },
+  "linea": {
+    "xERC20": "0xC59336D8edDa9722B4f1Ec104007191Ec16f7087"
+  },
+  "mode": {
+    "xERC20": "0xC59336D8edDa9722B4f1Ec104007191Ec16f7087"
+  },
+  "optimism": {
+    "xERC20": "0xacEB607CdF59EB8022Cc0699eEF3eCF246d149e2"
+  },
+  "sei": {
+    "xERC20": "0xE5163F148C82a0818545d5D34e30BC1EDA870cB9"
+  },
+  "taiko": {
+    "xERC20": "0x5eAFB1D4b5BDFaFE81715EeBcC7713e418C80E78"
   },
   "zircuit": {
     "xERC20": "0x2552516453368e42705D791F674b312b8b87CD9e"

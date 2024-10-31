@@ -1,7 +1,12 @@
 import { Provider } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 
-import { ChainMap, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  GasPriceConfig,
+  MultiProtocolProvider,
+  getCosmosChainGasPrice,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 // Intentionally circumvent `mainnet3/index.ts` and `getEnvironmentConfig('mainnet3')`
@@ -12,10 +17,6 @@ import { supportedChainNames as mainnet3SupportedChainNames } from '../config/en
 import { getRegistry as getTestnet4Registry } from '../config/environments/testnet4/chains.js';
 import testnet4GasPrices from '../config/environments/testnet4/gasPrices.json' assert { type: 'json' };
 import { supportedChainNames as testnet4SupportedChainNames } from '../config/environments/testnet4/supportedChainNames.js';
-import {
-  GasPriceConfig,
-  getCosmosChainGasPrice,
-} from '../src/config/gas-oracle.js';
 
 import { getArgs } from './agent-utils.js';
 
@@ -69,8 +70,7 @@ async function getGasPrice(
       };
     }
     case ProtocolType.Cosmos: {
-      const { amount } = await getCosmosChainGasPrice(chain);
-
+      const { amount } = await getCosmosChainGasPrice(chain, mpp);
       return {
         amount,
         decimals: 1,

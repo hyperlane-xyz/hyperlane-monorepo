@@ -26,6 +26,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -96,6 +97,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
   }
@@ -363,11 +365,14 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
+    const childHookAddress = await hook.childHook();
+    const childHookConfig = await this.deriveHookConfig(childHookAddress);
     const config: WithAddress<ArbL2ToL1HookConfig> = {
       address,
       type: HookType.ARB_L2_TO_L1,
       destinationChain: destinationChainName,
       arbSys,
+      childHook: childHookConfig,
     };
 
     this._cache.set(address, config);
@@ -379,6 +384,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
+
     this.assertHookType(await hook.hookType(), OnchainHookType.ROUTING);
 
     const owner = await hook.owner();
@@ -403,6 +409,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       this.provider,
     );
+
     this.assertHookType(
       await hook.hookType(),
       OnchainHookType.FALLBACK_ROUTING,
@@ -430,7 +437,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   private async fetchDomainHooks(
     hook: DomainRoutingHook | FallbackDomainRoutingHook,
   ): Promise<RoutingHookConfig['domains']> {
-    const domainIds = this.multiProvider.getKnownDomainIds();
+    const domainIds = this.messageContext
+      ? [this.messageContext.parsed.destination]
+      : this.multiProvider.getKnownDomainIds();
 
     const domainHooks: RoutingHookConfig['domains'] = {};
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {

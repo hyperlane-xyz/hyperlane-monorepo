@@ -4,22 +4,33 @@ import { ethers } from 'ethers';
 import { z } from 'zod';
 
 import {
+  ChainGasOracleParams,
   ChainMap,
+  ChainMetadata,
   ChainName,
   HookConfig,
   HookConfigSchema,
   HookType,
+  IgpHookConfig,
+  MultiProtocolProvider,
+  getCoingeckoTokenPrices,
+  getGasPrice,
+  getLocalStorageGasOracleConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   normalizeAddressEvm,
+  objFilter,
   objMap,
   toWei,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, logRed } from '../logger.js';
-import { runMultiChainSelectionStep } from '../utils/chains.js';
+import {
+  runMultiChainSelectionStep,
+  runSingleChainSelectionStep,
+} from '../utils/chains.js';
 import { readYamlOrJson } from '../utils/files.js';
 import { detectAndConfirmOrPrompt, inputWithInfo } from '../utils/input.js';
 
@@ -96,6 +107,11 @@ export async function createHookConfig({
         name: HookType.PROTOCOL_FEE,
         description: 'Charge fees for each message dispatch from this chain',
       },
+      {
+        value: HookType.INTERCHAIN_GAS_PAYMASTER,
+        name: HookType.INTERCHAIN_GAS_PAYMASTER,
+        description: 'Pay for gas on remote chains',
+      },
     ],
     pageSize: 10,
   });
@@ -107,6 +123,8 @@ export async function createHookConfig({
       return createMerkleTreeConfig();
     case HookType.PROTOCOL_FEE:
       return createProtocolFeeConfig(context, advanced);
+    case HookType.INTERCHAIN_GAS_PAYMASTER:
+      return createIGPConfig(context, advanced);
     default:
       throw new Error(`Invalid hook type: ${hookType}`);
   }
@@ -124,30 +142,13 @@ export const createProtocolFeeConfig = callWithConfigCreationLogs(
     context: CommandContext,
     advanced: boolean = false,
   ): Promise<HookConfig> => {
-    const unnormalizedOwner =
-      !advanced && context.signer
-        ? await context.signer.getAddress()
-        : await detectAndConfirmOrPrompt(
-            async () => context.signer?.getAddress(),
-            'For protocol fee hook, enter',
-            'owner address',
-            'signer',
-          );
-    const owner = normalizeAddressEvm(unnormalizedOwner);
-    let beneficiary = owner;
+    // Get owner and beneficiary
+    const { owner, beneficiary } = await getOwnerAndBeneficiary(
+      'Protocol Fee Hook',
+      context,
+      advanced,
+    );
 
-    const isBeneficiarySameAsOwner = advanced
-      ? await confirm({
-          message: `Use this same address (${owner}) for the beneficiary?`,
-        })
-      : true;
-
-    if (!isBeneficiarySameAsOwner) {
-      const unnormalizedBeneficiary = await input({
-        message: 'Enter beneficiary address for protocol fee hook:',
-      });
-      beneficiary = normalizeAddressEvm(unnormalizedBeneficiary);
-    }
     // TODO: input in gwei, wei, etc
     const maxProtocolFee = advanced
       ? toWei(
@@ -182,50 +183,166 @@ export const createProtocolFeeConfig = callWithConfigCreationLogs(
   HookType.PROTOCOL_FEE,
 );
 
-// TODO: make this usable
 export const createIGPConfig = callWithConfigCreationLogs(
-  async (remotes: ChainName[]): Promise<HookConfig> => {
-    const unnormalizedOwner = await input({
-      message: 'Enter owner address for IGP hook',
-    });
-    const owner = normalizeAddressEvm(unnormalizedOwner);
-    let beneficiary = owner;
-    let oracleKey = owner;
+  async (
+    context: CommandContext,
+    advanced: boolean = false,
+  ): Promise<IgpHookConfig> => {
+    // Get owner and beneficiary
+    const { owner, beneficiary } = await getOwnerAndBeneficiary(
+      'Interchain Gas Paymaster',
+      context,
+      advanced,
+    );
 
-    const beneficiarySameAsOwner = await confirm({
-      message: 'Use this same address for the beneficiary and gasOracleKey?',
+    // Determine local and remote chains
+    const { localChain, remoteChains } = await selectIgpChains(context);
+
+    // Get overhead, defaulting to 75000
+    const overhead = await getIgpOverheads(remoteChains);
+
+    // Only get prices for local and remote chains
+    const filteredMetadata = objFilter(
+      context.chainMetadata,
+      (_, metadata): metadata is ChainMetadata =>
+        remoteChains.includes(metadata.name) || metadata.name === localChain,
+    );
+    const prices = await getIgpTokenPrices(context, filteredMetadata);
+
+    // Get exchange rate margin percentage, defaulting to 10
+    const exchangeRateMarginPct = parseInt(
+      await input({
+        message: `Enter IGP margin percentage (e.g. 10 for 10%)`,
+        default: '10',
+      }),
+      10,
+    );
+
+    // Calculate storage gas oracle config
+    const oracleConfig = getLocalStorageGasOracleConfig({
+      local: localChain,
+      gasOracleParams: prices,
+      exchangeRateMarginPct,
     });
 
-    if (!beneficiarySameAsOwner) {
-      const unnormalizedBeneficiary = await input({
-        message: 'Enter beneficiary address for IGP hook',
-      });
-      beneficiary = normalizeAddressEvm(unnormalizedBeneficiary);
-      const unnormalizedOracleKey = await input({
-        message: 'Enter gasOracleKey address for IGP hook',
-      });
-      oracleKey = normalizeAddressEvm(unnormalizedOracleKey);
-    }
-    const overheads: ChainMap<number> = {};
-    for (const chain of remotes) {
-      const overhead = parseInt(
-        await input({
-          message: `Enter overhead for ${chain} (eg 75000) for IGP hook`,
-        }),
-      );
-      overheads[chain] = overhead;
-    }
     return {
       type: HookType.INTERCHAIN_GAS_PAYMASTER,
       beneficiary,
       owner,
-      oracleKey,
-      overhead: overheads,
-      oracleConfig: {},
+      oracleKey: owner,
+      overhead,
+      oracleConfig,
     };
   },
   HookType.INTERCHAIN_GAS_PAYMASTER,
 );
+
+async function getOwnerAndBeneficiary(
+  module: string,
+  context: CommandContext,
+  advanced: boolean,
+) {
+  const unnormalizedOwner =
+    !advanced && context.signer
+      ? await context.signer.getAddress()
+      : await detectAndConfirmOrPrompt(
+          async () => context.signer?.getAddress(),
+          `For ${module}, enter`,
+          'owner address',
+          'signer',
+        );
+  const owner = normalizeAddressEvm(unnormalizedOwner);
+
+  let beneficiary = owner;
+  const beneficiarySameAsOwner = await confirm({
+    message: `Use this same address (${owner}) for the beneficiary?`,
+  });
+  if (!beneficiarySameAsOwner) {
+    const unnormalizedBeneficiary = await input({
+      message: `Enter beneficiary address for ${module}`,
+    });
+    beneficiary = normalizeAddressEvm(unnormalizedBeneficiary);
+  }
+
+  return { owner, beneficiary };
+}
+
+async function selectIgpChains(context: CommandContext) {
+  const localChain = await runSingleChainSelectionStep(
+    context.chainMetadata,
+    'Select local chain for IGP hook',
+  );
+  const isTestnet = context.chainMetadata[localChain].isTestnet;
+  const remoteChains = await runMultiChainSelectionStep({
+    chainMetadata: objFilter(
+      context.chainMetadata,
+      (_, metadata): metadata is ChainMetadata => metadata.name !== localChain,
+    ),
+    message: 'Select remote destination chains for IGP hook',
+    requireNumber: 1,
+    networkType: isTestnet ? 'testnet' : 'mainnet',
+  });
+
+  return { localChain, remoteChains };
+}
+
+async function getIgpOverheads(remoteChains: ChainName[]) {
+  const overhead: ChainMap<number> = {};
+  for (const chain of remoteChains) {
+    overhead[chain] = parseInt(
+      await input({
+        message: `Enter overhead for ${chain} (e.g., 75000) for IGP hook`,
+        default: '75000',
+      }),
+    );
+  }
+  return overhead;
+}
+
+async function getIgpTokenPrices(
+  context: CommandContext,
+  filteredMetadata: ChainMap<ChainMetadata>,
+) {
+  const isTestnet =
+    context.chainMetadata[Object.keys(filteredMetadata)[0]].isTestnet;
+  const fetchedPrices = isTestnet
+    ? objMap(filteredMetadata, () => '10')
+    : await getCoingeckoTokenPrices(filteredMetadata);
+
+  logBlue(
+    isTestnet
+      ? `Hardcoding all gas token prices to 10 USD for testnet...`
+      : `Getting gas token prices for all chains from Coingecko...`,
+  );
+
+  const mpp = new MultiProtocolProvider(context.chainMetadata);
+  const prices: ChainMap<ChainGasOracleParams> = {};
+
+  for (const chain of Object.keys(filteredMetadata)) {
+    const gasPrice = await getGasPrice(mpp, chain);
+    logBlue(`Gas price for ${chain} is ${gasPrice.amount}`);
+
+    let tokenPrice = fetchedPrices[chain];
+    if (!tokenPrice) {
+      tokenPrice = await input({
+        message: `Enter the price of ${chain}'s token in USD`,
+      });
+    } else {
+      logBlue(`Gas token price for ${chain} is $${tokenPrice}`);
+    }
+
+    const decimals = context.chainMetadata[chain].nativeToken?.decimals;
+    if (!decimals) {
+      throw new Error(`No decimals found in metadata for ${chain}`);
+    }
+    prices[chain] = {
+      gasPrice,
+      nativeToken: { price: tokenPrice, decimals },
+    };
+  }
+
+  return prices;
+}
 
 export const createAggregationConfig = callWithConfigCreationLogs(
   async (

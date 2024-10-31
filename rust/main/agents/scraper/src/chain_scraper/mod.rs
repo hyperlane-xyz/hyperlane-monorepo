@@ -7,14 +7,15 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use eyre::Result;
+use itertools::Itertools;
+use tracing::{trace, warn};
+
 use hyperlane_base::settings::IndexSettings;
 use hyperlane_core::{
     unwrap_or_none_result, BlockId, BlockInfo, Delivery, HyperlaneDomain, HyperlaneLogStore,
     HyperlaneMessage, HyperlaneProvider, HyperlaneSequenceAwareIndexerStoreReader,
-    HyperlaneWatermarkedLogStore, Indexed, InterchainGasPayment, LogMeta, H256,
+    HyperlaneWatermarkedLogStore, Indexed, InterchainGasPayment, LogMeta, H256, H512,
 };
-use itertools::Itertools;
-use tracing::{trace, warn};
 
 use crate::db::{
     BasicBlock, BlockCursor, ScraperDb, StorableDelivery, StorableMessage, StorablePayment,
@@ -78,12 +79,10 @@ impl HyperlaneSqlDb {
         &self,
         log_meta: impl Iterator<Item = &LogMeta>,
     ) -> Result<impl Iterator<Item = TxnWithId>> {
-        let block_id_by_txn_hash: HashMap<H256, BlockId> = log_meta
+        let block_id_by_txn_hash: HashMap<H512, BlockId> = log_meta
             .map(|meta| {
                 (
-                    meta.transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
+                    meta.transaction_id,
                     BlockId::new(meta.block_hash, meta.block_number),
                 )
             })
@@ -121,7 +120,7 @@ impl HyperlaneSqlDb {
         txns: impl Iterator<Item = TxnWithBlockId>,
     ) -> Result<impl Iterator<Item = TxnWithId>> {
         // mapping of txn hash to (txn_id, block_id).
-        let mut txns: HashMap<H256, (Option<i64>, i64)> = txns
+        let mut txns: HashMap<H512, (Option<i64>, i64)> = txns
             .map(|TxnWithBlockId { txn_hash, block_id }| (txn_hash, (None, block_id)))
             .collect();
 
@@ -145,9 +144,9 @@ impl HyperlaneSqlDb {
         let mut txns_to_fetch = txns.iter_mut().filter(|(_, id)| id.0.is_none());
 
         let mut txns_to_insert: Vec<StorableTxn> = Vec::with_capacity(CHUNK_SIZE);
-        let mut hashes_to_insert: Vec<&H256> = Vec::with_capacity(CHUNK_SIZE);
+        let mut hashes_to_insert: Vec<&H512> = Vec::with_capacity(CHUNK_SIZE);
 
-        for mut chunk in as_chunks::<(&H256, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
+        for mut chunk in as_chunks::<(&H512, &mut (Option<i64>, i64))>(txns_to_fetch, CHUNK_SIZE) {
             for (hash, (_, block_id)) in chunk.iter() {
                 let info = match self.provider.get_txn_by_hash(hash).await {
                     Ok(info) => info,
@@ -302,7 +301,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
         if messages.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H256, TxnWithId> = self
+        let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
@@ -310,13 +309,8 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneSqlDb {
         let storable = messages
             .iter()
             .filter_map(|(message, meta)| {
-                txns.get(
-                    &meta
-                        .transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .map(|t| (message.inner().clone(), meta, t.id))
+                txns.get(&meta.transaction_id)
+                    .map(|t| (message.inner().clone(), meta, t.id))
             })
             .map(|(msg, meta, txn_id)| StorableMessage { msg, meta, txn_id });
         let stored = self
@@ -336,7 +330,7 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
         if deliveries.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<Delivery, TxnWithId> = self
+        let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(deliveries.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
@@ -344,13 +338,8 @@ impl HyperlaneLogStore<Delivery> for HyperlaneSqlDb {
         let storable = deliveries
             .iter()
             .filter_map(|(message_id, meta)| {
-                txns.get(
-                    &meta
-                        .transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .map(|txn| (*message_id.inner(), meta, txn.id))
+                txns.get(&meta.transaction_id)
+                    .map(|txn| (*message_id.inner(), meta, txn.id))
             })
             .map(|(message_id, meta, txn_id)| StorableDelivery {
                 message_id,
@@ -378,7 +367,7 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
         if payments.is_empty() {
             return Ok(0);
         }
-        let txns: HashMap<H256, TxnWithId> = self
+        let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(payments.iter().map(|r| &r.1))
             .await?
             .map(|t| (t.hash, t))
@@ -386,13 +375,8 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneSqlDb {
         let storable = payments
             .iter()
             .filter_map(|(payment, meta)| {
-                txns.get(
-                    &meta
-                        .transaction_id
-                        .try_into()
-                        .expect("256-bit transaction ids are the maximum supported at this time"),
-                )
-                .map(|txn| (payment.inner(), meta, txn.id))
+                txns.get(&meta.transaction_id)
+                    .map(|txn| (payment.inner(), meta, txn.id))
             })
             .map(|(payment, meta, txn_id)| StorablePayment {
                 payment,
@@ -446,13 +430,13 @@ where
 
 #[derive(Debug, Clone)]
 struct TxnWithId {
-    hash: H256,
+    hash: H512,
     id: i64,
 }
 
 #[derive(Debug, Clone)]
 struct TxnWithBlockId {
-    txn_hash: H256,
+    txn_hash: H512,
     block_id: i64,
 }
 
