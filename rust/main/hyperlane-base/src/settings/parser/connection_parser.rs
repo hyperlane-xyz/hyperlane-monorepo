@@ -186,11 +186,10 @@ fn parse_native_token(chain: &ValueParser, err: &mut ConfigParsingError) -> Nati
         .parse_string()
         .unwrap_or("");
 
-    let native_token = NativeToken {
+    NativeToken {
         decimals: native_token_decimals,
         denom: native_token_denom.to_owned(),
-    };
-    native_token
+    }
 }
 
 pub fn build_connection_conf(

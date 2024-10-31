@@ -165,10 +165,10 @@ impl HyperlaneProvider for SealevelProvider {
             ))?,
         };
 
-        Self::validate_transaction(hash, &txn)?;
+        Self::validate_transaction(hash, txn)?;
         let sender = Self::extract_sender(hash, txn)?;
-        let gas_used = U256::from(Self::gas(&txn_with_meta)?);
-        let fee = self.fee(&txn_with_meta)?;
+        let gas_used = U256::from(Self::gas(txn_with_meta)?);
+        let fee = self.fee(txn_with_meta)?;
         let gas_price = Some(fee / gas_used);
 
         let receipt = TxnReceiptInfo {
