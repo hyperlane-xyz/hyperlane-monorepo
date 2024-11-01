@@ -260,6 +260,15 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .alias('r', 'rpcUrls');
 }
 
+export function withTxHashes<T>(args: Argv<T>) {
+  return args
+    .describe('txHashes', 'transaction hash')
+    .string('txHashes')
+    .array('txHashes')
+    .demandOption('txHashes')
+    .alias('t', 'txHashes');
+}
+
 // not requiring to build coreConfig to get agentConfig
 export async function getAgentConfigsBasedOnArgs(argv?: {
   environment: DeployEnvironment;

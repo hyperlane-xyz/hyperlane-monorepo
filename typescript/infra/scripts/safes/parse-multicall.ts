@@ -1,13 +1,23 @@
+import { BigNumber } from 'ethers';
+
+import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
 import { stringifyObject } from '@hyperlane-xyz/utils';
 
 import { TransactionReader } from '../../src/tx/transaction-reader.js';
-import { getArgs } from '../agent-utils.js';
+import { getSafeTx } from '../../src/utils/safe.js';
+import {
+  getArgs,
+  withChainRequired,
+  withChainsRequired,
+  withTxHashes,
+} from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
-import tx from './ethereum-safe-tx-oct-30.json';
-
 async function main() {
-  const { environment } = await getArgs().argv;
+  const { environment, chains, txHashes } = await withTxHashes(
+    withChainsRequired(getArgs()),
+  ).argv;
+
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
@@ -15,13 +25,29 @@ async function main() {
   const reader = new TransactionReader(
     environment,
     multiProvider,
-    'ethereum',
     chainAddresses,
     config.core,
   );
-  const results = await reader.read('ethereum', tx);
 
-  console.log(stringifyObject(results, 'yaml', 2));
+  const chainResultEntries = await Promise.all(
+    chains.map(async (chain, chainIndex) => {
+      const txHash = txHashes[chainIndex];
+      console.log(`Reading tx ${txHash} on ${chain}`);
+      const safeTx = await getSafeTx(chain, multiProvider, txHash);
+      const tx: AnnotatedEV5Transaction = {
+        to: safeTx.to,
+        data: safeTx.data,
+        value: BigNumber.from(safeTx.value),
+      };
+
+      const results = await reader.read(chain, tx);
+      console.log(`Completed tx ${txHash} on ${chain}`);
+      return [chain, results];
+    }),
+  );
+
+  const chainResults = Object.fromEntries(chainResultEntries);
+  console.log(stringifyObject(chainResults, 'yaml', 2));
 
   if (reader.errors.length) {
     console.error('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌');

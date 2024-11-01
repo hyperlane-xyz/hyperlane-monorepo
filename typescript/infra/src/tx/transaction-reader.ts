@@ -12,7 +12,6 @@ import {
   ChainName,
   CoreConfig,
   EvmIsmReader,
-  HyperlaneReader,
   InterchainAccount,
   MultiProvider,
   coreFactories,
@@ -35,18 +34,15 @@ import {
 import { DeployEnvironment } from '../config/environment.js';
 import { getSafeAndService } from '../utils/safe.js';
 
-export class TransactionReader extends HyperlaneReader {
+export class TransactionReader {
   errors: any[] = [];
 
   constructor(
     readonly environment: DeployEnvironment,
     readonly multiProvider: MultiProvider,
-    readonly chain: ChainName,
     readonly chainAddresses: ChainMap<Record<string, string>>,
     readonly coreConfig: ChainMap<CoreConfig>,
-  ) {
-    super(multiProvider, chain);
-  }
+  ) {}
 
   async read(chain: ChainName, tx: AnnotatedEV5Transaction): Promise<any> {
     try {
@@ -412,7 +408,7 @@ export class TransactionReader extends HyperlaneReader {
     }
 
     const { safeSdk } = await retryAsync(() =>
-      getSafeAndService(this.chain, this.multiProvider, safe),
+      getSafeAndService(chain, this.multiProvider, safe),
     );
 
     this.multiSendCallOnlyAddressCache[chain] =
