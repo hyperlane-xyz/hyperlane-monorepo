@@ -1,7 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { DeployedCoreAddresses, IsmType } from '@hyperlane-xyz/sdk';
+import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
   ChainName,
@@ -10,11 +10,12 @@ import {
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { getOrRequestApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGray, logGreen, logRed } from '../logger.js';
+import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
@@ -85,16 +86,14 @@ export async function runCoreDeploy(params: DeployParams) {
   const { technicalStack: chainTechnicalStack } =
     context.multiProvider.getChainMetadata(chain);
 
-  const ismType =
-    typeof config.defaultIsm === 'string'
-      ? (config.defaultIsm as IsmType)
-      : config.defaultIsm?.type;
-
-  if (!isIsmCompatible({ chainTechnicalStack, ismType })) {
-    logRed(
-      `ERROR: Selected ISM of type ${ismType} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack}!`,
+  if (typeof config.defaultIsm !== 'string') {
+    assert(
+      isIsmCompatible({
+        chainTechnicalStack,
+        ismType: config.defaultIsm?.type,
+      }),
+      `ERROR: Selected ISM of type ${config.defaultIsm?.type} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack}!`,
     );
-    return;
   }
 
   const initialBalances = await prepareDeploy(context, userAddress, [chain]);

@@ -18,8 +18,8 @@ import {
   LegacyMultisigIsm,
   TestMailbox,
   TestMerkleTreeHook,
-} from '../../types';
-import { DispatchEvent } from '../../types/contracts/Mailbox';
+} from '../../dist/evm/types';
+import { DispatchEvent } from '../../dist/evm/types/contracts/Mailbox';
 
 export type MessageAndProof = {
   proof: MerkleProof;
