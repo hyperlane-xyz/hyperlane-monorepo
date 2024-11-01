@@ -18,7 +18,7 @@ export const IcaRouterConfigSchema = z.object({
     address: ZHash.optional(),
     owner: ZHash,
   }),
-  remoteIcaRouters: RemoteIcaRouterConfigSchema,
+  remoteIcaRouters: RemoteIcaRouterConfigSchema.optional(),
 });
 
 export const DerivedRemoteIcaRouterConfigSchema = z.record(
