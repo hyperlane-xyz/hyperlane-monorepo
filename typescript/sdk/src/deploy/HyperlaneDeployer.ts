@@ -292,10 +292,10 @@ export abstract class HyperlaneDeployer<
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
-        await this.multiProvider.sendTransaction(
+        await this.multiProvider.sendTransaction(chain, {
           chain,
-          setIsm(contract, targetIsm),
-        );
+          ...(await setIsm(contract, targetIsm)),
+        });
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
@@ -320,10 +320,10 @@ export abstract class HyperlaneDeployer<
         this.logger.debug(
           `Set hook on ${chain} to ${config}, currently is ${configuredHook}`,
         );
-        await this.multiProvider.sendTransaction(
+        await this.multiProvider.sendTransaction(chain, {
           chain,
-          setHook(contract, config),
-        );
+          ...(await setHook(contract, config)),
+        });
         const actualHook = await getHook(contract);
         if (!eqAddress(config, actualHook)) {
           throw new Error(

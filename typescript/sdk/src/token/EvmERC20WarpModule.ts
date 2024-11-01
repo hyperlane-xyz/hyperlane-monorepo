@@ -30,7 +30,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrDomain } from '../types.js';
+import { ChainName, ChainNameOrDomain } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
@@ -48,6 +48,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     module: 'EvmERC20WarpModule',
   });
   reader: EvmERC20WarpRouteReader;
+  public readonly chainName: ChainName;
   public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
 
@@ -63,6 +64,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   ) {
     super(args);
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
+    this.chainName = this.multiProvider.getChainName(args.chain);
     this.chainId = multiProvider.getEvmChainId(args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
     this.contractVerifier ??= new ContractVerifier(
@@ -150,6 +152,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       );
 
       updateTransactions.push({
+        chain: this.chainName,
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         chainId: this.chainId,
         to: contractToUpdate.address,
@@ -206,6 +209,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       });
 
       updateTransactions.push({
+        chain: this.chainName,
         annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         chainId: this.chainId,
         to: contractToUpdate.address,
@@ -255,6 +259,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           this.multiProvider.getProvider(this.domainId),
         );
         updateTransactions.push({
+          chain: this.chainName,
           annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
           chainId: this.chainId,
           to: contractToUpdate.address,
@@ -281,7 +286,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     return transferOwnershipTransactions(
-      this.multiProvider.getDomainId(this.args.chain),
+      this.multiProvider.getChainName(this.args.chain),
+      this.multiProvider.getEvmChainId(this.args.chain),
       this.args.addresses.deployedTokenRoute,
       actualConfig,
       expectedConfig,

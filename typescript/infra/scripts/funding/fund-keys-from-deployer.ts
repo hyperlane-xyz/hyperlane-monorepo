@@ -5,7 +5,6 @@ import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { eclipsemainnet } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -658,10 +657,10 @@ class ContextFunder {
 
     if (igpBalance.gt(igpClaimThreshold)) {
       logger.info({ chain }, 'IGP balance exceeds claim threshold, claiming');
-      await this.multiProvider.sendTransaction(
+      await this.multiProvider.sendTransaction(chain, {
         chain,
-        await igp.populateTransaction.claim(),
-      );
+        ...(await igp.populateTransaction.claim()),
+      });
     } else {
       logger.info(
         { chain },
@@ -755,6 +754,7 @@ class ContextFunder {
     }
 
     const tx = await this.multiProvider.sendTransaction(chain, {
+      chain,
       to: key.address,
       value: fundingAmount,
     });

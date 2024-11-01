@@ -133,6 +133,7 @@ export class EvmCoreModule extends HyperlaneModule<
         this.multiProvider.getProvider(this.domainId),
       );
       updateTransactions.push({
+        chain: this.chainName,
         annotation: `Setting default ISM for Mailbox ${mailbox} to ${deployedIsm}`,
         chainId: this.chainId,
         to: contractToUpdate.address,
@@ -204,6 +205,7 @@ export class EvmCoreModule extends HyperlaneModule<
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
     return transferOwnershipTransactions(
+      this.chainName,
       this.chainId,
       this.args.addresses.mailbox,
       actualConfig,

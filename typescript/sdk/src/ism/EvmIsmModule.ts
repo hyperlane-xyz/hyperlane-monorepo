@@ -170,6 +170,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // Lastly, check if the resolved owner is different from the current owner
     updateTxs.push(
       ...transferOwnershipTransactions(
+        this.chain,
         this.chainId,
         this.args.addresses.deployedIsm,
         currentConfig,
@@ -253,6 +254,7 @@ export class EvmIsmModule extends HyperlaneModule<
       const domainId = this.multiProvider.getDomainId(origin);
       const tx = await contract.populateTransaction.set(domainId, ism.address);
       updateTxs.push({
+        chain: this.chain,
         annotation: `Setting new ISM for origin ${origin}...`,
         ...tx,
         chainId: this.chainId,
@@ -269,6 +271,7 @@ export class EvmIsmModule extends HyperlaneModule<
       const domainId = this.multiProvider.getDomainId(origin);
       const tx = await contract.populateTransaction.remove(domainId);
       updateTxs.push({
+        chain: this.chain,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         ...tx,
         chainId: this.chainId,

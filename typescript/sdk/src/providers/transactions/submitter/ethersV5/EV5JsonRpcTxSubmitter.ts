@@ -25,7 +25,7 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     const receipts: TransactionReceipt[] = [];
     for (const tx of txs) {
       assert(tx.chainId, 'Invalid PopulatedTransaction: Missing chainId field');
-      const txChain = this.multiProvider.getChainName(tx.chainId);
+      const txChain = this.multiProvider.getChainName(tx.chain);
       const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
         txChain,
         tx,

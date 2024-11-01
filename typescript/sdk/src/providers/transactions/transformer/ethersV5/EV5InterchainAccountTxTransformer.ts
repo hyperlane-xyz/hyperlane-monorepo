@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import { assert, objMap, rootLogger } from '@hyperlane-xyz/utils';
@@ -37,18 +36,16 @@ export class EV5InterchainAccountTxTransformer
 
   public async transform(
     ...txs: AnnotatedEV5Transaction[]
-  ): Promise<ethers.PopulatedTransaction[]> {
+  ): Promise<AnnotatedEV5Transaction[]> {
     const txChainsToInnerCalls: Record<ChainName, CallData[]> = txs.reduce(
       (
         txChainToInnerCalls: Record<ChainName, CallData[]>,
-        { to, data, chainId }: AnnotatedEV5Transaction,
+        { to, data, chain }: AnnotatedEV5Transaction,
       ) => {
-        assert(chainId, 'Invalid PopulatedTransaction: chainId is required');
-        assert(to, 'Invalid PopulatedTransaction: to is required');
-        assert(data, 'Invalid PopulatedTransaction: data is required');
-        const txChain = this.multiProvider.getChainName(chainId);
-        txChainToInnerCalls[txChain] ||= [];
-        txChainToInnerCalls[txChain].push({ to, data });
+        assert(to, 'Invalid AnnotatedEV5Transaction: "to" is required');
+        assert(data, 'Invalid AnnotatedEV5Transaction: "data" is required');
+        txChainToInnerCalls[chain] ||= [];
+        txChainToInnerCalls[chain].push({ to, data });
         return txChainToInnerCalls;
       },
       {},
@@ -60,7 +57,7 @@ export class EV5InterchainAccountTxTransformer
       this.props.config,
     );
 
-    const transformedTxs: ethers.PopulatedTransaction[] = [];
+    const transformedTxs: AnnotatedEV5Transaction[] = [];
     objMap(txChainsToInnerCalls, async (destination, innerCalls) => {
       transformedTxs.push(
         await interchainAccountApp.getCallRemote({

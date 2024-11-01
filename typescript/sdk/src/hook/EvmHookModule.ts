@@ -218,6 +218,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Return an ownership transfer transaction if required
     if (!eqAddress(targetConfig.owner, owner)) {
       updateTxs.push({
+        chain: this.chain,
         annotation: 'Transferring ownership of ownable Hook...',
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
@@ -320,6 +321,7 @@ export class EvmHookModule extends HyperlaneModule<
         : pausableInterface.encodeFunctionData('unpause');
 
       updateTxs.push({
+        chain: this.chain,
         annotation: `Updating paused state to ${targetConfig.paused}`,
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
@@ -343,6 +345,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Update beneficiary if changed
     if (!eqAddress(currentConfig.beneficiary, targetConfig.beneficiary)) {
       updateTxs.push({
+        chain: this.chain,
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
@@ -442,6 +445,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     return [
       {
+        chain: this.chain,
         annotation: `Updating overhead for domains ${Object.keys(
           targetOverheads,
         ).join(', ')}...`,
@@ -508,6 +512,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     return [
       {
+        chain: this.chain,
         annotation: `Updating gas oracle config for domains ${Object.keys(
           targetOracleConfig,
         ).join(', ')}...`,
@@ -541,6 +546,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Update protocol fee if changed
     if (currentConfig.protocolFee !== targetConfig.protocolFee) {
       updateTxs.push({
+        chain: this.chain,
         annotation: `Updating protocol fee from ${currentConfig.protocolFee} to ${targetConfig.protocolFee}`,
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
@@ -554,6 +560,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Update beneficiary if changed
     if (currentConfig.beneficiary !== targetConfig.beneficiary) {
       updateTxs.push({
+        chain: this.chain,
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
@@ -602,6 +609,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Create tx for setting hooks
     return [
       {
+        chain: this.chain,
         annotation: 'Updating routing hooks...',
         chainId: this.chainId,
         to: this.args.addresses.deployedHook,
