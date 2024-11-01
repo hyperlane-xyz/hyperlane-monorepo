@@ -218,6 +218,8 @@ export async function getOrRequestApiKeys(
         `${chain} api key`,
         `${chain} metadata blockExplorers config`,
       );
+
+      // TODO: Store API key into the Registry
     }
   }
 
