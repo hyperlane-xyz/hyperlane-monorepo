@@ -16,6 +16,25 @@ import { inCIMode } from '../utils/utils.js';
 
 import { DeployEnvironment } from './environment.js';
 
+// Temporarily skip some chains
+export const chainsToSkip: ChainName[] = [
+  // TODO: remove once zksync PR is merged into main
+  'zksync',
+  'zeronetwork',
+
+  // Oct 16 batch
+  'immutablezkevm',
+  'rari',
+  'rootstock',
+  'alephzeroevm',
+  'chiliz',
+  'lumia',
+  'superposition',
+  'flow',
+  'metall2',
+  'polynomial',
+];
+
 export const defaultRetry: ProviderRetryOptions = {
   maxRetries: 6,
   baseRetryDelayMs: 50,

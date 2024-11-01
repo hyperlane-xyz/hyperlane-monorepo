@@ -27,6 +27,7 @@ import { Contexts } from '../config/contexts.js';
 import { core as coreConfig } from '../config/environments/mainnet3/core.js';
 import { getEnvAddresses } from '../config/registry.js';
 import { getWarpConfig } from '../config/warp.js';
+import { chainsToSkip } from '../src/config/chain.js';
 import { DeployCache, deployWithArtifacts } from '../src/deployment/deploy.js';
 import { TestQuerySenderDeployer } from '../src/deployment/testcontracts/testquerysender.js';
 import {
@@ -70,10 +71,6 @@ async function main() {
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
-
-  // TODO: remove once zksync PR is merged into main
-  delete envConfig.core.zksync;
-  delete envConfig.core.zeronetwork;
 
   let multiProvider = await envConfig.getMultiProvider(
     context,
@@ -287,13 +284,21 @@ async function main() {
     }
   }
 
+  const targetNetworks =
+    chains && chains.length > 0 ? chains : !fork ? [] : [fork];
+
+  const filteredTargetNetworks = targetNetworks.filter(
+    (chain) => !chainsToSkip.includes(chain),
+  );
+  chainsToSkip.forEach((chain) => delete config[chain]);
+
   await deployWithArtifacts({
     configMap: config as ChainMap<unknown>, // TODO: fix this typing
     deployer,
     cache,
     // Use chains if provided, otherwise deploy to all chains
     // If fork is provided, deploy to fork only
-    targetNetworks: chains && chains.length > 0 ? chains : !fork ? [] : [fork],
+    targetNetworks: filteredTargetNetworks,
     module,
     multiProvider,
     concurrentDeploy,
