@@ -25,7 +25,6 @@ import {
   deepEquals,
   eqAddress,
   retryAsync,
-  sleep,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -395,7 +394,6 @@ export class TransactionReader extends HyperlaneReader {
       return false;
     }
 
-    // why call only? if we do delegatecall
     return eqAddress(multiSendCallOnlyAddress, tx.to);
   }
 
@@ -417,7 +415,6 @@ export class TransactionReader extends HyperlaneReader {
       getSafeAndService(this.chain, this.multiProvider, safe),
     );
 
-    // why call only? if we do delegatecall
     this.multiSendCallOnlyAddressCache[chain] =
       safeSdk.getMultiSendCallOnlyAddress();
     return this.multiSendCallOnlyAddressCache[chain];
