@@ -4,20 +4,26 @@ import {
   MetaTransactionData,
   OperationType,
 } from '@safe-global/safe-core-sdk-types';
+import { deepEqual } from 'assert';
 import { BigNumber, ethers } from 'ethers';
 
 import {
   AnnotatedEV5Transaction,
   ChainMap,
   ChainName,
+  CoreConfig,
+  EvmIsmReader,
   HyperlaneReader,
   InterchainAccount,
   MultiProvider,
+  coreFactories,
   interchainAccountFactories,
+  normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 import {
   addressToBytes32,
   bytes32ToAddress,
+  deepEquals,
   eqAddress,
   retryAsync,
   sleep,
@@ -60,6 +66,7 @@ export class TransactionReader extends HyperlaneReader {
     readonly multiProvider: MultiProvider,
     readonly chain: ChainName,
     readonly chainAddresses: ChainMap<Record<string, string>>,
+    readonly coreConfig: ChainMap<CoreConfig>,
   ) {
     super(multiProvider, chain);
   }
@@ -74,9 +81,14 @@ export class TransactionReader extends HyperlaneReader {
   }
 
   async doRead(chain: ChainName, tx: AnnotatedEV5Transaction): Promise<any> {
-    // If it's an ICA
+    // If it's to an ICA
     if (this.isIcaTransaction(chain, tx)) {
       return this.readIcaTransaction(chain, tx);
+    }
+
+    // If it's to a Mailbox
+    if (this.isMailboxTransaction(chain, tx)) {
+      return this.readMailboxTransaction(chain, tx);
     }
 
     if (await this.isMultisendTransaction(chain, tx)) {
@@ -161,6 +173,88 @@ export class TransactionReader extends HyperlaneReader {
         insight,
       };
     });
+  }
+
+  private async readMailboxTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<any> {
+    if (!tx.data) {
+      console.log('No data in mailbox transaction');
+      return undefined;
+    }
+    const { symbol } = await this.multiProvider.getNativeToken(chain);
+    const decoded = coreFactories.mailbox.interface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+    let prettyArgs = args;
+    if (decoded.functionFragment.name === 'setDefaultIsm') {
+      prettyArgs = await this.formatMailboxSetDefaultIsm(chain, args);
+    }
+
+    return {
+      signature: decoded.signature,
+      args: prettyArgs,
+    };
+  }
+
+  ismDerivationsInProgress: ChainMap<boolean> = {};
+
+  private async formatMailboxSetDefaultIsm(
+    chain: ChainName,
+    args: Record<string, any>,
+  ): Promise<any> {
+    const { _module: module } = args;
+
+    const reader = new EvmIsmReader(this.multiProvider, chain);
+    const startTime = Date.now();
+    console.log('Deriving ISM config...', chain);
+    this.ismDerivationsInProgress[chain] = true;
+    const derivedConfig = await reader.deriveIsmConfig(module);
+    delete this.ismDerivationsInProgress[chain];
+    console.log(
+      'Finished deriving ISM config',
+      chain,
+      'in',
+      (Date.now() - startTime) / (1000 * 60),
+      'mins',
+    );
+    const remainingInProgress = Object.keys(this.ismDerivationsInProgress);
+    console.log(
+      'Remaining derivations in progress:',
+      remainingInProgress.length,
+      'chains',
+      remainingInProgress,
+    );
+    const expectedIsmConfig = this.coreConfig[chain].defaultIsm;
+
+    let insight = '✅ matches expected ISM config';
+    if (
+      !deepEquals(
+        normalizeConfig(derivedConfig),
+        normalizeConfig(expectedIsmConfig),
+      )
+    ) {
+      this.errors.push({
+        chain: chain,
+        module,
+        derivedConfig,
+        expectedIsmConfig,
+        info: 'Incorrect default ISM being set',
+      });
+      insight = `❌ fatal mismatch of ISM config`;
+    }
+
+    return {
+      module,
+      insight,
+    };
   }
 
   private async readIcaCall(
@@ -334,6 +428,13 @@ export class TransactionReader extends HyperlaneReader {
     );
   }
 
+  isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
+    return (
+      tx.to !== undefined &&
+      eqAddress(tx.to, this.chainAddresses[chain].mailbox)
+    );
+  }
+
   async isMultisendTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
@@ -362,8 +463,7 @@ export class TransactionReader extends HyperlaneReader {
     }
 
     const safe = safes[chain];
-
-    if (safe) {
+    if (!safe) {
       return undefined;
     }
 
