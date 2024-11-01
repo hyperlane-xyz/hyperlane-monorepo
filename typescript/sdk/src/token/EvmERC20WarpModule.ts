@@ -309,12 +309,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     transactions.push(
       // Internally the createTransferOwnershipTx method already checks if the
       // two owner values are the same and produces an empty tx batch if they are
-      ...EvmModuleDeployer.createTransferOwnershipTx({
-        actualOwner: actualProxyAdmin.owner,
-        expectedOwner: expectedConfig.proxyAdmin.owner,
-        deployedAddress: actualProxyAdmin.address!,
-        chainId: this.domainId,
-      }),
+      ...transferOwnershipTransactions(
+        this.domainId,
+        actualProxyAdmin.address!,
+        actualProxyAdmin,
+        expectedConfig.proxyAdmin,
+      ),
     );
 
     return transactions;
