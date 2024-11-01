@@ -303,8 +303,6 @@ async function main() {
     multiProvider,
     concurrentDeploy,
   });
-
-  process.exit(0);
 }
 
 main()
