@@ -18,7 +18,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
-import { getOrRequestApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/context.js';
 import { CommandContext } from '../context/types.js';
 import { logBlue, logGray, logGreen } from '../logger.js';
 
@@ -32,21 +32,20 @@ export async function runVerifyWarpRoute({
   context: CommandContext;
   warpCoreConfig: WarpCoreConfig;
 }) {
-  const { multiProvider, chainMetadata, skipConfirmation } = context;
+  const { multiProvider, chainMetadata, registry, skipConfirmation } = context;
 
   const verificationInputs: ChainMap<VerificationInput> = {};
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys(
+    apiKeys = await requestAndSaveApiKeys(
       warpCoreConfig.tokens.map((t) => t.chainName),
       chainMetadata,
+      registry,
     );
 
   for (const token of warpCoreConfig.tokens) {
     const { chainName } = token;
-    const { apiUrl: blockExplorerApiUrl } =
-      multiProvider.getExplorerApi(chainName);
     verificationInputs[chainName] = [];
 
     if (UNSUPPORTED_CHAINS.includes(chainName)) {
@@ -75,8 +74,6 @@ export async function runVerifyWarpRoute({
       chainName,
       contractName,
       multiProvider,
-      blockExplorerApiUrl,
-      blockExplorerApiKey: apiKeys[chainName],
       bytecode: factory.bytecode,
       implementationAddress: deployedContractAddress,
     });
@@ -88,8 +85,6 @@ export async function runVerifyWarpRoute({
         await verificationUtils.getProxyAndAdminInput({
           chainName,
           multiProvider,
-          blockExplorerApiUrl,
-          blockExplorerApiKey: apiKeys[chainName],
           proxyAddress: token.addressOrDenom,
         });
 
