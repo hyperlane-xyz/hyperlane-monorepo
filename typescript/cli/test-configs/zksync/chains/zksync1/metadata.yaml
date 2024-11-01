@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../schema.json
 chainId: 260
-displayName: Zksync1
+displayName: zksync1
 domainId: 260
 isTestnet: true
 name: zksync1
