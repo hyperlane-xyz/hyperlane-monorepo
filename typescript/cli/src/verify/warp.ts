@@ -18,33 +18,40 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
+import { getOrRequestApiKeys } from '../context/context.js';
 import { CommandContext } from '../context/types.js';
 import { logBlue, logGray, logGreen } from '../logger.js';
 
 export async function runVerifyWarpRoute({
   context,
   warpCoreConfig,
-  apiKeys,
 }: {
   context: CommandContext;
   warpCoreConfig: WarpCoreConfig;
-  apiKeys: any;
 }) {
+  const { multiProvider, chainMetadata, skipConfirmation } = context;
+
   const verificationInputs: ChainMap<VerificationInput> = {};
+
+  let apiKeys: ChainMap<string> = {};
+  if (!skipConfirmation)
+    apiKeys = await getOrRequestApiKeys(
+      warpCoreConfig.tokens.map((t) => t.chainName),
+      chainMetadata,
+    );
+
   for (const token of warpCoreConfig.tokens) {
     const { chainName } = token;
     verificationInputs[chainName] = [];
 
     // Zircuit does not have an external API: https://docs.zircuit.com/dev-tools/block-explorer
     if (chainName === 'zircuit') {
-      logBlue(
-        `Skipping verification for ${chainName} due to unsupported chain.`,
-      );
+      logBlue(`Unsupported chain ${chainName}. Skipping.`);
       continue;
     }
     assert(token.addressOrDenom, 'Invalid addressOrDenom');
 
-    const provider = context.multiProvider.getProvider(chainName);
+    const provider = multiProvider.getProvider(chainName);
     const isProxyContract = await isProxy(provider, token.addressOrDenom);
 
     logGray(`Getting constructor args for ${chainName} using explorer API`);
@@ -55,7 +62,7 @@ export async function runVerifyWarpRoute({
       : token.addressOrDenom;
 
     const { factory, tokenType } = await getWarpRouteFactory(
-      context.multiProvider,
+      multiProvider,
       chainName,
       deployedContractAddress,
     );
@@ -63,8 +70,8 @@ export async function runVerifyWarpRoute({
     const implementationInput = await verificationUtils.getImplementationInput({
       chainName,
       contractName,
+      multiProvider,
       bytecode: factory.bytecode,
-      multiProvider: context.multiProvider,
       implementationAddress: deployedContractAddress,
     });
     verificationInputs[chainName].push(implementationInput);
@@ -74,7 +81,7 @@ export async function runVerifyWarpRoute({
       const { proxyAdminInput, transparentUpgradeableProxyInput } =
         await verificationUtils.getProxyAndAdminInput({
           chainName,
-          multiProvider: context.multiProvider,
+          multiProvider,
           proxyAddress: token.addressOrDenom,
         });
 

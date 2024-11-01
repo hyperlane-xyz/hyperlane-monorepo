@@ -96,10 +96,10 @@ export function shouldAddVerificationInput(
  * Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
  */
 export async function getConstructorArgumentsApi({
-  multiProvider,
   chainName,
-  bytecode,
   contractAddress,
+  bytecode,
+  multiProvider,
 }: {
   multiProvider: MultiProvider;
 
@@ -135,10 +135,10 @@ export async function getConstructorArgumentsApi({
 }
 
 export async function getEtherscanConstructorArgs({
-  multiProvider,
+  bytecode,
   chainName,
   contractAddress,
-  bytecode,
+  multiProvider,
 }: {
   multiProvider: MultiProvider;
   chainName: string;
@@ -183,9 +183,9 @@ export async function getEtherscanConstructorArgs({
 }
 
 export async function getBlockScoutConstructorArgs({
-  multiProvider,
   chainName,
   contractAddress,
+  multiProvider,
 }: {
   multiProvider: MultiProvider;
   chainName: string;
@@ -209,8 +209,8 @@ export async function getBlockScoutConstructorArgs({
 }
 
 export async function getProxyAndAdminInput({
-  multiProvider,
   chainName,
+  multiProvider,
   proxyAddress,
 }: {
   multiProvider: MultiProvider;
@@ -253,11 +253,11 @@ export async function getProxyAndAdminInput({
 }
 
 export async function getImplementationInput({
-  multiProvider,
-  chainName,
   bytecode,
+  chainName,
   contractName,
   implementationAddress,
+  multiProvider,
 }: {
   multiProvider: MultiProvider;
   chainName: string;

@@ -351,14 +351,11 @@ export const verify: CommandModuleWithWriteContext<{
   },
   handler: async ({ context, symbol }) => {
     logCommandHeader('Hyperlane Warp Verify');
-    const apiKeys = {
-      // TODO figure where to reliably fetch these
-    };
     const warpCoreConfig = await selectRegistryWarpRoute(
       context.registry,
       symbol,
     );
 
-    await runVerifyWarpRoute({ context, warpCoreConfig, apiKeys });
+    return runVerifyWarpRoute({ context, warpCoreConfig });
   },
 };
