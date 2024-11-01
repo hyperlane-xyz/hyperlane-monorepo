@@ -5,7 +5,7 @@ import { providers } from 'ethers';
 import { createPublicClient, http } from 'viem';
 import { Provider as ZKProvider } from 'zksync-ethers';
 
-import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
 
@@ -115,7 +115,7 @@ export function defaultZKSyncProviderBuilder(
   rpcUrls: RpcUrl[],
   network: providers.Networkish,
 ): ZKSyncProvider {
-  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  assert(rpcUrls.length, 'No RPC URLs provided');
   const url = rpcUrls[0].http;
   const provider = new ZKProvider(url, network);
   return { type: ProviderType.ZKSync, provider };
