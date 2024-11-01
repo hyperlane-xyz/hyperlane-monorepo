@@ -22,6 +22,9 @@ import { getOrRequestApiKeys } from '../context/context.js';
 import { CommandContext } from '../context/types.js';
 import { logBlue, logGray, logGreen } from '../logger.js';
 
+// Zircuit does not have an external API: https://docs.zircuit.com/dev-tools/block-explorer
+const UNSUPPORTED_CHAINS = ['zircuit'];
+
 export async function runVerifyWarpRoute({
   context,
   warpCoreConfig,
@@ -44,8 +47,7 @@ export async function runVerifyWarpRoute({
     const { chainName } = token;
     verificationInputs[chainName] = [];
 
-    // Zircuit does not have an external API: https://docs.zircuit.com/dev-tools/block-explorer
-    if (chainName === 'zircuit') {
+    if (UNSUPPORTED_CHAINS.includes(chainName)) {
       logBlue(`Unsupported chain ${chainName}. Skipping.`);
       continue;
     }
