@@ -31,7 +31,7 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainNameOrDomain } from '../types.js';
 
 import {
   HyperlaneModule,
@@ -217,7 +217,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns The created EvmCoreModule instance.
    */
   public static async create(params: {
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
     config: CoreConfig;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
@@ -247,7 +247,7 @@ export class EvmCoreModule extends HyperlaneModule<
   static async deploy(params: {
     config: CoreConfig;
     multiProvider: MultiProvider;
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
     contractVerifier?: ContractVerifier;
   }): Promise<DeployedCoreAddresses> {
     const { config, multiProvider, chain, contractVerifier } = params;
@@ -380,7 +380,7 @@ export class EvmCoreModule extends HyperlaneModule<
     proxyAdmin: Address;
     coreDeployer: HyperlaneCoreDeployer;
     multiProvider: MultiProvider;
-    chain: ChainNameOrId;
+    chain: ChainNameOrDomain;
   }): Promise<Mailbox> {
     const {
       config,

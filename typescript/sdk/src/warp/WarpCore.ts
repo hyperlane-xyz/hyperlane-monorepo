@@ -29,7 +29,7 @@ import {
 } from '../token/TokenStandard.js';
 import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
-import { ChainName, ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrDomain } from '../types.js';
 
 import {
   FeeConstantConfig,
@@ -125,7 +125,7 @@ export class WarpCore {
     destination,
   }: {
     originToken: IToken;
-    destination: ChainNameOrId;
+    destination: ChainNameOrDomain;
   }): Promise<TokenAmount> {
     this.logger.debug(`Fetching interchain transfer quote to ${destination}`);
     const { chainName: originName } = originToken;
@@ -183,7 +183,7 @@ export class WarpCore {
     interchainFee,
   }: {
     originToken: IToken;
-    destination: ChainNameOrId;
+    destination: ChainNameOrDomain;
     sender: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
@@ -223,7 +223,7 @@ export class WarpCore {
     if (txs.length === 1) {
       try {
         return this.multiProvider.estimateTransactionFee({
-          chainNameOrId: originMetadata.name,
+          ChainNameOrDomain: originMetadata.name,
           transaction: txs[0],
           sender,
           senderPubKey,
@@ -270,7 +270,7 @@ export class WarpCore {
     interchainFee,
   }: {
     originToken: IToken;
-    destination: ChainNameOrId;
+    destination: ChainNameOrDomain;
     sender: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
@@ -312,7 +312,7 @@ export class WarpCore {
     interchainFee,
   }: {
     originTokenAmount: TokenAmount;
-    destination: ChainNameOrId;
+    destination: ChainNameOrDomain;
     sender: Address;
     recipient: Address;
     interchainFee?: TokenAmount;
@@ -380,7 +380,7 @@ export class WarpCore {
     senderPubKey,
   }: {
     originToken: IToken;
-    destination: ChainNameOrId;
+    destination: ChainNameOrDomain;
     sender: Address;
     senderPubKey?: HexString;
   }): Promise<WarpCoreFeeEstimate> {
@@ -420,7 +420,7 @@ export class WarpCore {
     feeEstimate,
   }: {
     balance: TokenAmount;
-    destination: ChainNameOrId;
+    destination: ChainNameOrDomain;
     sender: Address;
     senderPubKey?: HexString;
     feeEstimate?: WarpCoreFeeEstimate;
@@ -458,7 +458,7 @@ export class WarpCore {
     destination,
   }: {
     originTokenAmount: TokenAmount;
-    destination: ChainNameOrId;
+    destination: ChainNameOrDomain;
   }): Promise<boolean> {
     const { token: originToken, amount } = originTokenAmount;
     const destinationName = this.multiProvider.getChainName(destination);
@@ -547,7 +547,7 @@ export class WarpCore {
     senderPubKey,
   }: {
     originTokenAmount: TokenAmount;
-    destination: ChainNameOrId;
+    destination: ChainNameOrDomain;
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
@@ -590,8 +590,8 @@ export class WarpCore {
    * Ensure the origin and destination chains are valid and known by this WarpCore
    */
   protected validateChains(
-    origin: ChainNameOrId,
-    destination: ChainNameOrId,
+    origin: ChainNameOrDomain,
+    destination: ChainNameOrDomain,
   ): Record<string, string> | null {
     if (!origin) return { origin: 'Origin chain required' };
     if (!destination) return { destination: 'Destination chain required' };
@@ -618,7 +618,7 @@ export class WarpCore {
    */
   protected validateRecipient(
     recipient: Address,
-    destination: ChainNameOrId,
+    destination: ChainNameOrDomain,
   ): Record<string, string> | null {
     const destinationMetadata =
       this.multiProvider.getChainMetadata(destination);
@@ -658,7 +658,7 @@ export class WarpCore {
    */
   protected async validateTokenBalances(
     originTokenAmount: TokenAmount,
-    destination: ChainNameOrId,
+    destination: ChainNameOrDomain,
     sender: Address,
     senderPubKey?: HexString,
   ): Promise<Record<string, string> | null> {
@@ -722,7 +722,7 @@ export class WarpCore {
    */
   protected async validateDestinationCollateral(
     originTokenAmount: TokenAmount,
-    destination: ChainNameOrId,
+    destination: ChainNameOrDomain,
   ): Promise<Record<string, string> | null> {
     const valid = await this.isDestinationCollateralSufficient({
       originTokenAmount,
