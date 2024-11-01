@@ -83,6 +83,20 @@ export class EvmIcaModule extends HyperlaneModule<
     actualConfig: DerivedIcaRouterConfig['remoteIcaRouters'],
     expectedConfig: InterchainAccountConfig['remoteIcaRouters'] = {},
   ): Promise<AnnotatedEV5Transaction[]> {
+    const transactions: AnnotatedEV5Transaction[] = [
+      ...(await this._getEnrollRemoteIcaRoutersTxs(
+        actualConfig,
+        expectedConfig,
+      )),
+    ];
+
+    return transactions;
+  }
+
+  private async _getEnrollRemoteIcaRoutersTxs(
+    actualConfig: Readonly<DerivedIcaRouterConfig['remoteIcaRouters']>,
+    expectedConfig: Readonly<InterchainAccountConfig['remoteIcaRouters']> = {},
+  ): Promise<AnnotatedEV5Transaction[]> {
     const transactions: AnnotatedEV5Transaction[] = [];
 
     const routesToEnroll = symmetricDifference(
