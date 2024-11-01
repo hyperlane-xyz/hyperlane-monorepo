@@ -33,6 +33,7 @@ export async function runVerifyWarpRoute({
   const verificationInputs: ChainMap<VerificationInput> = {};
   for (const token of warpCoreConfig.tokens) {
     const { chainName } = token;
+    verificationInputs[chainName] = [];
 
     // Zircuit does not have an external API: https://docs.zircuit.com/dev-tools/block-explorer
     if (chainName === 'zircuit') {
@@ -42,8 +43,6 @@ export async function runVerifyWarpRoute({
       continue;
     }
     assert(token.addressOrDenom, 'Invalid addressOrDenom');
-
-    verificationInputs[chainName] = [];
 
     const provider = context.multiProvider.getProvider(chainName);
     const isProxyContract = await isProxy(provider, token.addressOrDenom);
@@ -62,10 +61,10 @@ export async function runVerifyWarpRoute({
     );
     const contractName = hypERC20contracts[tokenType];
     const implementationInput = await verificationUtils.getImplementationInput({
-      multiProvider: context.multiProvider,
       chainName,
-      bytecode: factory.bytecode,
       contractName,
+      bytecode: factory.bytecode,
+      multiProvider: context.multiProvider,
       implementationAddress: deployedContractAddress,
     });
     verificationInputs[chainName].push(implementationInput);
@@ -95,7 +94,7 @@ export async function runVerifyWarpRoute({
 
   await verifier.verify();
 
-  logGreen('Finished contract verification');
+  return logGreen('Finished contract verification');
 }
 
 async function getWarpRouteFactory(
