@@ -14,7 +14,7 @@ import {
   hypERC20factories,
   isProxy,
   proxyImplementation,
-  verificationUtils, // verificationUtils,
+  verificationUtils,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
