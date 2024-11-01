@@ -62,7 +62,7 @@ export interface ChainSearchMenuProps {
   showAddChainMenu?: boolean;
   // Include add button above list
   showAddChainButton?: boolean;
-  // Use this field to sort by default
+  // Field by which data will be sorted by default
   defaultSortField?: DefaultSortField;
 }
 
