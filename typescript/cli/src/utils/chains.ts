@@ -90,7 +90,7 @@ export async function runMultiChainSelectionStep({
           ? { ...choice, checked: true }
           : choice,
       ),
-      instructions: `Use TAB key to select at least ${requireNumber} chains, then press ENTER to proceed. Type to search for a specific chain.`,
+      instructions: `Use the TAB or the SPACE key to select at least ${requireNumber} chains, then press ENTER to proceed. Type to search for a specific chain.`,
       theme: {
         style: {
           // The leading space is needed because the help tip will be tightly close to the message header
