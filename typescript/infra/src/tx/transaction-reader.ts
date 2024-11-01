@@ -11,6 +11,7 @@ import {
   ChainMap,
   ChainName,
   HyperlaneReader,
+  InterchainAccount,
   MultiProvider,
   interchainAccountFactories,
 } from '@hyperlane-xyz/sdk';
@@ -18,8 +19,15 @@ import {
   addressToBytes32,
   bytes32ToAddress,
   eqAddress,
+  retryAsync,
+  sleep,
 } from '@hyperlane-xyz/utils';
 
+import {
+  icaOwnerChain,
+  icas,
+  safes,
+} from '../../config/environments/mainnet3/owners.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { getSafeAndService } from '../utils/safe.js';
 
@@ -45,6 +53,8 @@ import { getSafeAndService } from '../utils/safe.js';
 // }
 
 export class TransactionReader extends HyperlaneReader {
+  errors: any[] = [];
+
   constructor(
     readonly environment: DeployEnvironment,
     readonly multiProvider: MultiProvider,
@@ -104,6 +114,8 @@ export class TransactionReader extends HyperlaneReader {
         'interchainAccountRouter',
         args,
       );
+    } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
+      prettyArgs = await this.readIcaCall(chain, args);
     }
 
     return {
@@ -128,15 +140,160 @@ export class TransactionReader extends HyperlaneReader {
         // Poor man's check that the 12 byte padding is all zeroes
         addressToBytes32(bytes32ToAddress(routerToBeEnrolled)) ===
           routerToBeEnrolled;
+
+      let insight = '✅ matches expected router from artifacts';
+      if (!matchesExpectedRouter) {
+        insight = `❌ fatal mismatch, expected ${expectedRouter}`;
+        this.errors.push({
+          chain: chain,
+          remoteDomain: domain,
+          remoteChain: remoteChainName,
+          router: routerToBeEnrolled,
+          expected: expectedRouter,
+          info: 'Incorrect router getting enrolled',
+        });
+      }
+
       return {
         domain: domain,
         chainName: remoteChainName,
         router: routerToBeEnrolled,
-        'good?': matchesExpectedRouter
-          ? '✅ matches expected router from artifacts'
-          : `❌ fatal mismatch, expected ${expectedRouter}`,
+        insight,
       };
     });
+  }
+
+  private async readIcaCall(
+    chain: ChainName,
+    args: Record<string, any>,
+  ): Promise<any> {
+    const {
+      _destination: destination,
+      _router: router,
+      _ism: ism,
+      _calls: calls,
+    } = args;
+    const remoteChainName = this.multiProvider.getChainName(destination);
+
+    const expectedRouter =
+      this.chainAddresses[remoteChainName].interchainAccountRouter;
+    const matchesExpectedRouter =
+      eqAddress(expectedRouter, bytes32ToAddress(router)) &&
+      // Poor man's check that the 12 byte padding is all zeroes
+      addressToBytes32(bytes32ToAddress(router)) === router;
+    let routerInsight = '✅ matches expected router from artifacts';
+    if (!matchesExpectedRouter) {
+      this.errors.push({
+        chain: chain,
+        remoteDomain: destination,
+        remoteChain: remoteChainName,
+        router: router,
+        expected: expectedRouter,
+        info: 'Incorrect router in ICA call',
+      });
+      routerInsight = `❌ fatal mismatch, expected ${expectedRouter}`;
+    }
+
+    let ismInsight = '✅ matches expected ISM';
+    if (ism !== ethers.constants.HashZero) {
+      this.errors.push({
+        chain: chain,
+        remoteDomain: destination,
+        remoteChain: remoteChainName,
+        ism,
+        info: 'Incorrect ISM in ICA call, expected zero hash',
+      });
+      ismInsight = `❌ fatal mismatch, expected zero hash`;
+    }
+
+    const remoteIcaAddress = await InterchainAccount.fromAddressesMap(
+      this.chainAddresses,
+      this.multiProvider,
+    ).getAccount(remoteChainName, {
+      owner: safes[icaOwnerChain],
+      origin: icaOwnerChain,
+      routerOverride: router,
+      ismOverride: ism,
+    });
+    const expectedRemoteIcaAddress = icas[remoteChainName as keyof typeof icas];
+    let remoteIcaInsight = '✅ matches expected ICA';
+    if (
+      !expectedRemoteIcaAddress ||
+      !eqAddress(remoteIcaAddress, expectedRemoteIcaAddress)
+    ) {
+      this.errors.push({
+        chain: chain,
+        remoteDomain: destination,
+        remoteChain: remoteChainName,
+        ica: remoteIcaAddress,
+        expected: expectedRemoteIcaAddress,
+        info: 'Incorrect destination ICA in ICA call',
+      });
+      remoteIcaInsight = `❌ fatal mismatch, expected ${remoteIcaAddress}`;
+    }
+
+    const decodedCalls = await Promise.all(
+      calls.map((call: any) => {
+        const icaCallAsTx = {
+          to: bytes32ToAddress(call[0]),
+          value: BigNumber.from(call[1]),
+          data: call[2],
+        };
+        console.log('call', call, 'icaCallAsTx', icaCallAsTx);
+        return this.read(remoteChainName, icaCallAsTx);
+      }),
+    );
+
+    return {
+      destination: {
+        domain: destination,
+        chainName: remoteChainName,
+      },
+      router: {
+        address: router,
+        insight: routerInsight,
+      },
+      ism: {
+        address: ism,
+        insight: ismInsight,
+      },
+      destinationIca: {
+        address: remoteIcaAddress,
+        insight: remoteIcaInsight,
+      },
+      calls: decodedCalls,
+    };
+
+    // if (!tx.data) {
+    //   console.log('No data in ICA transaction');
+    //   return undefined;
+    // }
+    // const { symbol } = await this.multiProvider.getNativeToken(chain);
+    // const decoded =
+    //   interchainAccountFactories.interchainAccountRouter.interface.parseTransaction(
+    //     {
+    //       data: tx.data,
+    //       value: tx.value,
+    //     },
+    //   );
+
+    // const args = formatFunctionFragmentArgs(
+    //   decoded.args,
+    //   decoded.functionFragment,
+    // );
+    // let prettyArgs = args;
+    // if (decoded.functionFragment.name === 'enrollRemoteRouters') {
+    //   prettyArgs = await this.formatRouterEnrollments(
+    //     chain,
+    //     'interchainAccountRouter',
+    //     args,
+    //   );
+    // } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
+    //   const remoteChainName = this.multiProvider.getChainName(args._domain);
+    //   const remoteRouter = this.chainAddresses[remoteChainName].interchainAccountRouter;
+    //   const matchesExpectedRouter =
+    //     eqAddress(remoteRouter, bytes32ToAddress(args._router)) &&
+    //     // Poor
   }
 
   private async readMultisendTransaction(
@@ -150,6 +307,9 @@ export class TransactionReader extends HyperlaneReader {
     const multisends = decodeMultiSendData(tx.data);
 
     const { symbol } = await this.multiProvider.getNativeToken(chain);
+
+    // TODO rm
+    // const truncated = multisends.slice(0, 5);
 
     return Promise.all(
       multisends.map(async (multisend, index) => {
@@ -181,14 +341,40 @@ export class TransactionReader extends HyperlaneReader {
     if (tx.to === undefined) {
       return false;
     }
-    const { safeSdk } = await getSafeAndService(
-      this.chain,
-      this.multiProvider,
-      '0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6',
+    const multiSendCallOnlyAddress = await this.getMultiSendCallOnlyAddress(
+      chain,
+    );
+    if (!multiSendCallOnlyAddress) {
+      return false;
+    }
+
+    // why call only? if we do delegatecall
+    return eqAddress(multiSendCallOnlyAddress, tx.to);
+  }
+
+  multiSendCallOnlyAddressCache: ChainMap<string> = {};
+
+  async getMultiSendCallOnlyAddress(
+    chain: ChainName,
+  ): Promise<string | undefined> {
+    if (this.multiSendCallOnlyAddressCache[chain]) {
+      return this.multiSendCallOnlyAddressCache[chain];
+    }
+
+    const safe = safes[chain];
+
+    if (safe) {
+      return undefined;
+    }
+
+    const { safeSdk } = await retryAsync(() =>
+      getSafeAndService(this.chain, this.multiProvider, safe),
     );
 
     // why call only? if we do delegatecall
-    return eqAddress(safeSdk.getMultiSendCallOnlyAddress(), tx.to);
+    this.multiSendCallOnlyAddressCache[chain] =
+      safeSdk.getMultiSendCallOnlyAddress();
+    return this.multiSendCallOnlyAddressCache[chain];
   }
 }
 
