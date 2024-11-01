@@ -28,7 +28,7 @@ export const keyFunderConfig: KeyFunderConfig<
   desiredBalancePerChain: {
     alfajores: '5',
     arbitrumsepolia: '0.1',
-    arcadiatestnet: '0.1',
+    // arcadiatestnet: '0.1',
     basesepolia: '0.1',
     berabartio: '0.1',
     bsctestnet: '5',

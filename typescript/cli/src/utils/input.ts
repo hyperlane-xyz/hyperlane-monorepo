@@ -19,14 +19,16 @@ import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { ChainName, DeployedOwnableConfig } from '@hyperlane-xyz/sdk';
-import { WarpCoreConfig } from '@hyperlane-xyz/sdk';
-import { Address, isAddress } from '@hyperlane-xyz/utils';
+import {
+  ChainName,
+  DeployedOwnableConfig,
+  WarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
+import { Address, isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { readWarpCoreConfig } from '../config/warp.js';
 import { CommandContext } from '../context/types.js';
-import { logGray } from '../logger.js';
-import { logRed } from '../logger.js';
+import { logGray, logRed } from '../logger.js';
 
 import { indentYamlOrJson } from './files.js';
 import { selectRegistryWarpRoute } from './tokens.js';
@@ -124,6 +126,10 @@ export async function setProxyAdminConfig(
       owner: ownerAddress,
     };
   } catch (error) {
+    rootLogger.error(
+      `Failed to read owner address from ProxyAdmin contract at ${proxy.address} on chain ${chain}.`,
+      error,
+    );
     throw new Error(
       `Failed to read owner address from ProxyAdmin contract at ${proxy.address}. Are you sure this is a ProxyAdmin contract?`,
     );

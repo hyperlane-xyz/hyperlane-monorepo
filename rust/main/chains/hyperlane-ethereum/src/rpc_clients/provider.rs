@@ -106,7 +106,7 @@ where
             })
             .transpose()?;
 
-        Ok(TxnInfo {
+        let txn_info = TxnInfo {
             hash: *hash,
             max_fee_per_gas: txn.max_fee_per_gas.map(Into::into),
             max_priority_fee_per_gas: txn.max_priority_fee_per_gas.map(Into::into),
@@ -116,7 +116,10 @@ where
             sender: txn.from.into(),
             recipient: txn.to.map(Into::into),
             receipt,
-        })
+            raw_input_data: Some(txn.input.to_vec()),
+        };
+
+        Ok(txn_info)
     }
 
     #[instrument(err, skip(self))]

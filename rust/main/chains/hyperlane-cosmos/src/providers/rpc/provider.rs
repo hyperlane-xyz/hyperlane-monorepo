@@ -4,13 +4,14 @@ use async_trait::async_trait;
 use cosmrs::cosmwasm::MsgExecuteContract;
 use cosmrs::rpc::client::Client;
 use futures::StreamExt;
+use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
 use sha256::digest;
 use tendermint::abci::{Event, EventAttribute};
 use tendermint::hash::Algorithm;
 use tendermint::Hash;
 use tendermint_rpc::client::CompatMode;
 use tendermint_rpc::endpoint::block::Response as BlockResponse;
-use tendermint_rpc::endpoint::block_results::Response as BlockResultsResponse;
+use tendermint_rpc::endpoint::block_results::{self, Response as BlockResultsResponse};
 use tendermint_rpc::endpoint::tx;
 use tendermint_rpc::HttpClient;
 use time::OffsetDateTime;
@@ -21,6 +22,7 @@ use hyperlane_core::{
 };
 
 use crate::rpc::CosmosRpcClient;
+use crate::rpc_clients::CosmosFallbackProvider;
 use crate::{ConnectionConf, CosmosAddress, CosmosProvider, HyperlaneCosmosError};
 
 #[async_trait]
@@ -79,7 +81,7 @@ pub struct CosmosWasmRpcProvider {
     contract_address: CosmosAddress,
     target_event_kind: String,
     reorg_period: u32,
-    rpc_client: CosmosRpcClient,
+    rpc_client: CosmosFallbackProvider<CosmosRpcClient>,
 }
 
 impl CosmosWasmRpcProvider {
@@ -92,7 +94,15 @@ impl CosmosWasmRpcProvider {
         event_type: String,
         reorg_period: u32,
     ) -> ChainResult<Self> {
-        let rpc_client = CosmosRpcClient::new(&conf)?;
+        let providers = conf
+            .get_rpc_urls()
+            .iter()
+            .map(CosmosRpcClient::new)
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut builder = FallbackProvider::builder();
+        builder = builder.add_providers(providers);
+        let fallback_provider = builder.build();
+        let provider = CosmosFallbackProvider::new(fallback_provider);
 
         Ok(Self {
             domain: locator.domain.clone(),
@@ -103,8 +113,14 @@ impl CosmosWasmRpcProvider {
             )?,
             target_event_kind: format!("{}-{}", Self::WASM_TYPE, event_type),
             reorg_period,
-            rpc_client,
+            rpc_client: provider,
         })
+    }
+
+    async fn get_block(&self, height: u32) -> ChainResult<BlockResponse> {
+        self.rpc_client
+            .call(|provider| Box::pin(async move { provider.get_block(height).await }))
+            .await
     }
 }
 
@@ -222,7 +238,10 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
     #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let latest_block = self.rpc_client.get_latest_block().await?;
+        let latest_block = self
+            .rpc_client
+            .call(|provider| Box::pin(async move { provider.get_latest_block().await }))
+            .await?;
         let latest_height: u32 = latest_block
             .block
             .header
@@ -244,15 +263,16 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
     where
         T: Send + Sync + PartialEq + Debug + 'static,
     {
-        debug!(?block_number, cursor_label, domain=?self.domain, "Getting logs in block");
-
         // The two calls below could be made in parallel, but on cosmos rate limiting is a bigger problem
         // than indexing latency, so we do them sequentially.
-        let block = self.rpc_client.get_block(block_number).await?;
-
+        let block = self.get_block(block_number).await?;
         debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in block with hash");
-
-        let block_results = self.rpc_client.get_block_results(block_number).await?;
+        let block_results = self
+            .rpc_client
+            .call(|provider| {
+                Box::pin(async move { provider.get_block_results(block_number).await })
+            })
+            .await?;
 
         Ok(self.handle_txs(block, block_results, parser, cursor_label))
     }
@@ -268,16 +288,15 @@ impl WasmRpcProvider for CosmosWasmRpcProvider {
     where
         T: Send + Sync + PartialEq + Debug + 'static,
     {
-        debug!(?hash, cursor_label, domain=?self.domain, "Getting logs in transaction");
-
-        let tx = self.rpc_client.get_tx_by_hash(hash).await?;
-
+        let tx = self
+            .rpc_client
+            .call(|provider| Box::pin(async move { provider.get_tx_by_hash(hash).await }))
+            .await?;
         let block_number = tx.height.value() as u32;
-        let block = self.rpc_client.get_block(block_number).await?;
+        let block = self.get_block(block_number).await?;
+        let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
 
         debug!(?block_number, block_hash = ?block.block_id.hash, cursor_label, domain=?self.domain, "Getting logs in transaction: block info");
-
-        let block_hash = H256::from_slice(block.block_id.hash.as_bytes());
 
         Ok(self.handle_tx(tx, block_hash, parser).collect())
     }

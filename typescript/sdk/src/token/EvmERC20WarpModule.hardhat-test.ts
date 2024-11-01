@@ -564,5 +564,39 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const txs = await evmERC20WarpModule.update(updatedWarpCoreConfig);
       expect(txs.length).to.equal(0);
     });
+
+    it('should update the destination gas', async () => {
+      const domain = 3;
+      const config: TokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        ismFactoryAddresses,
+        remoteRouters: {
+          [domain]: randomAddress(),
+        },
+      };
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+        },
+        multiProvider,
+      });
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          destinationGas: {
+            [domain]: '5000',
+          },
+        }),
+      );
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(Object.keys(updatedConfig.destinationGas!).length).to.be.equal(1);
+      expect(updatedConfig.destinationGas![domain]).to.equal('5000');
+    });
   });
 });
