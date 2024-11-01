@@ -454,8 +454,8 @@ export abstract class HyperlaneDeployer<
           .estimateGas.initialize(...initializeArgs);
 
         const initTx = await contract.initialize(...initializeArgs, {
-          ...overrides,
           gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
         });
         this.logger.info(`Contract ${contractName} initialized`);
         const receipt = await this.multiProvider.handleTx(chain, initTx);
