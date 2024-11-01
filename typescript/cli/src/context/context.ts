@@ -230,7 +230,7 @@ export async function requestAndSaveApiKeys(
       chainMetadata[chain].blockExplorers![0].apiKey = apiKeys[chain];
       await registry.updateChain({
         chainName: chain,
-        metadata: { ...chainMetadata[chain] },
+        metadata: chainMetadata[chain],
       });
     }
   }
