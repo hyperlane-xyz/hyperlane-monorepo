@@ -6,6 +6,7 @@ import {
   HypERC4626Collateral__factory,
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
+  ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -22,6 +23,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { DeployedOwnableConfig } from '../deploy/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -29,6 +31,7 @@ import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
+import { proxyAdmin } from './../deploy/proxy.js';
 import { CollateralExtensions } from './config.js';
 import { TokenMetadata } from './types.js';
 
@@ -64,12 +67,14 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
     const tokenMetadata = await this.fetchTokenMetadata(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
+    const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     return {
       ...baseMetadata,
       ...tokenMetadata,
       remoteRouters,
+      proxyAdmin,
       destinationGas,
       type,
     } as TokenRouterConfig;
@@ -246,6 +251,21 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         }),
       ),
     );
+  }
+
+  async fetchProxyAdminConfig(
+    tokenAddress: Address,
+  ): Promise<DeployedOwnableConfig> {
+    const proxyAdminAddress = await proxyAdmin(this.provider, tokenAddress);
+    const proxyAdminInstance = ProxyAdmin__factory.connect(
+      proxyAdminAddress,
+      this.provider,
+    );
+
+    return {
+      address: proxyAdminAddress,
+      owner: await proxyAdminInstance.owner(),
+    };
   }
 
   async fetchDestinationGas(
