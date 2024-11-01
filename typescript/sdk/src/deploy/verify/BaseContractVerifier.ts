@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -12,6 +12,7 @@ import {
   ContractVerificationInput,
   SolidityStandardJsonInput,
 } from './types.js';
+import { FamilyVerificationDelay } from './utils.js';
 
 export abstract class BaseContractVerifier {
   protected logger = rootLogger.child({ module: this.constructor.name });
@@ -56,6 +57,13 @@ export abstract class BaseContractVerifier {
       return;
     }
 
+    const explorerApi = this.multiProvider.tryGetExplorerApi(chain);
+
+    await sleep(
+      FamilyVerificationDelay[
+        explorerApi?.family as keyof typeof FamilyVerificationDelay
+      ] ?? 0,
+    );
     await this.verify(chain, input, verificationLogger);
   }
 

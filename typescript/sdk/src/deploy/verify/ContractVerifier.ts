@@ -51,8 +51,6 @@ export class ContractVerifier extends BaseContractVerifier {
     input: ContractVerificationInput,
     verificationLogger: Logger,
   ): Promise<void> {
-    //Todo: read from explorer config
-    await sleep(40000);
     const contractType: string = input.isProxy ? 'proxy' : 'implementation';
 
     verificationLogger.debug(`📝 Verifying ${contractType}...`);

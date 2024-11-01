@@ -3,6 +3,7 @@ import { ethers, utils } from 'ethers';
 import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
+import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 import { ContractVerificationInput } from './types.js';
@@ -126,3 +127,11 @@ export function shouldAddVerificationInput(
       existingArtifact.isProxy === artifact.isProxy,
   );
 }
+
+/**
+ * @notice Defines verification delay times for different blockchain explorer families.
+ * @dev This constant object associates explorer families with specific delay times (in milliseconds)
+ */
+export const FamilyVerificationDelay = {
+  [ExplorerFamily.Etherscan]: 40000,
+} as const;
