@@ -54,7 +54,7 @@ fn provider(address: &str) -> WasmGrpcProvider {
         domain.clone(),
         ConnectionConf::new(
             vec![Url::parse("http://grpc-kralum.neutron-1.neutron.org:80").unwrap()],
-            "https://rpc-kralum.neutron-1.neutron.org".to_owned(),
+            vec![Url::parse("https://rpc-kralum.neutron-1.neutron.org").unwrap()],
             "neutron-1".to_owned(),
             "neutron".to_owned(),
             "untrn".to_owned(),

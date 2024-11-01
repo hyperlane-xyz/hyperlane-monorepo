@@ -27,7 +27,7 @@ import { DeployedOwnableConfig } from '../deploy/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { RemoteRouters } from '../router/types.js';
+import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
@@ -68,12 +68,14 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const tokenMetadata = await this.fetchTokenMetadata(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
     const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
+    const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     return {
       ...baseMetadata,
       ...tokenMetadata,
       remoteRouters,
       proxyAdmin,
+      destinationGas,
       type,
     } as TokenRouterConfig;
   }
@@ -264,5 +266,29 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       address: proxyAdminAddress,
       owner: await proxyAdminInstance.owner(),
     };
+  }
+
+  async fetchDestinationGas(
+    warpRouteAddress: Address,
+  ): Promise<DestinationGas> {
+    const warpRoute = TokenRouter__factory.connect(
+      warpRouteAddress,
+      this.provider,
+    );
+
+    /**
+     * @remark
+     * Router.domains() is used to enumerate the destination gas because GasRouter.destinationGas is not EnumerableMapExtended type
+     * This means that if a domain is removed, then we cannot read the destinationGas for it. This may impact updates.
+     */
+    const domains = await warpRoute.domains();
+
+    return Object.fromEntries(
+      await Promise.all(
+        domains.map(async (domain) => {
+          return [domain, (await warpRoute.destinationGas(domain)).toString()];
+        }),
+      ),
+    );
   }
 }
