@@ -11,6 +11,7 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
+  eqAddress,
   isObjEmpty,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -238,7 +239,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     const actualProxyAdmin = actualConfig.proxyAdmin!;
     assert(
-      actualProxyAdmin.address === expectedConfig.proxyAdmin.address,
+      eqAddress(actualProxyAdmin.address!, expectedConfig.proxyAdmin.address!),
       `ProxyAdmin contract addresses do not match. Expected ${expectedConfig.proxyAdmin.address}, got ${actualProxyAdmin.address}`,
     );
 
