@@ -1,7 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
+import { DeployedCoreAddresses, IsmType } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
   ChainName,
@@ -85,9 +85,14 @@ export async function runCoreDeploy(params: DeployParams) {
   const { technicalStack: chainTechnicalStack } =
     context.multiProvider.getChainMetadata(chain);
 
-  if (!isIsmCompatible({ chainTechnicalStack, config })) {
+  const ismType =
+    typeof config.defaultIsm === 'string'
+      ? (config.defaultIsm as IsmType)
+      : config.defaultIsm?.type;
+
+  if (!isIsmCompatible({ chainTechnicalStack, ismType })) {
     logRed(
-      'ERROR: CoreConfig is not compatible with the selected Chain Technical Stack!',
+      `ERROR: Selected ISM of type ${ismType} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack}!`,
     );
     return;
   }

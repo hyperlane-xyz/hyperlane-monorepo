@@ -10,9 +10,9 @@ export const skipStaticDeployment: ChainTechnicalStack[] = [
 
 export const isIsmStatic: Record<IsmType, boolean> = {
   [IsmType.CUSTOM]: false,
-  [IsmType.OP_STACK]: true,
-  [IsmType.ROUTING]: true,
-  [IsmType.FALLBACK_ROUTING]: true,
+  [IsmType.OP_STACK]: false,
+  [IsmType.ROUTING]: false,
+  [IsmType.FALLBACK_ROUTING]: false,
   [IsmType.AGGREGATION]: true,
   [IsmType.MERKLE_ROOT_MULTISIG]: true,
   [IsmType.MESSAGE_ID_MULTISIG]: true,
