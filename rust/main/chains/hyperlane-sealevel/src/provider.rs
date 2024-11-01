@@ -116,6 +116,7 @@ impl HyperlaneProvider for SealevelProvider {
             sender: Default::default(),
             recipient: None,
             receipt: Some(receipt),
+            raw_input_data: None,
         })
     }
 
