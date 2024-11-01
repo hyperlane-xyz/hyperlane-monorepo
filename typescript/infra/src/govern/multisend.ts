@@ -1,9 +1,15 @@
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
+import chalk from 'chalk';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  CallData,
+  addBufferToGasLimit,
+  eqAddress,
+} from '@hyperlane-xyz/utils';
 
 import {
   createSafeTransaction,
@@ -28,10 +34,10 @@ export class SignerMultiSend extends MultiSend {
     for (const call of calls) {
       const estimate = await this.multiProvider.estimateGas(this.chain, call);
       const receipt = await this.multiProvider.sendTransaction(this.chain, {
-        gasLimit: estimate.mul(11).div(10), // 10% buffer
+        gasLimit: addBufferToGasLimit(estimate),
         ...call,
       });
-      console.log(`confirmed tx ${receipt.transactionHash}`);
+      console.log(chalk.green(`Confirmed tx ${receipt.transactionHash}`));
     }
   }
 }
@@ -69,8 +75,10 @@ export class SafeMultiSend extends MultiSend {
     // If the multiSend address is the same as the safe address, we need to
     // propose the transactions individually. See: gnosisSafe.js in the SDK.
     if (eqAddress(safeSdk.getMultiSendAddress(), this.safeAddress)) {
-      console.log(
-        `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
+      console.info(
+        chalk.gray(
+          `MultiSend contract not deployed on ${this.chain}. Proposing transactions individually.`,
+        ),
       );
       await this.proposeIndividualTransactions(calls, safeSdk, safeService);
     } else {
@@ -110,6 +118,7 @@ export class SafeMultiSend extends MultiSend {
       safeService,
       this.safeAddress,
       safeTransactionData,
+      true,
     );
     await this.proposeSafeTransaction(safeSdk, safeService, safeTransaction);
   }

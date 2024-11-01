@@ -1,4 +1,7 @@
+import { BigNumberish } from 'ethers';
+
 import {
+  GasRouter__factory,
   MailboxClient__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -12,10 +15,11 @@ import {
   assert,
   deepEquals,
   isObjEmpty,
-  normalizeConfig,
+  objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
@@ -25,6 +29,7 @@ import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainNameOrId } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -92,9 +97,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     const transactions = [];
 
+    /**
+     * @remark
+     * The order of operations matter
+     * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
+     * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     */
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...this.createRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
     );
 
@@ -146,6 +158,57 @@ export class EvmERC20WarpModule extends HyperlaneModule<
               addressToBytes32(a),
             ),
           ],
+        ),
+      });
+    }
+    return updateTransactions;
+  }
+
+  /**
+   * Create a transaction to update the remote routers for the Warp Route contract.
+   *
+   * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
+   */
+  createSetDestinationGasUpdateTxs(
+    actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!expectedConfig.destinationGas) {
+      return [];
+    }
+
+    assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
+    assert(expectedConfig.destinationGas, 'actualDestinationGas is undefined');
+
+    const { destinationGas: actualDestinationGas } = actualConfig;
+    const { destinationGas: expectedDestinationGas } = expectedConfig;
+
+    if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
+      const contractToUpdate = GasRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
+      );
+
+      // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
+      const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
+        [];
+      objMap(expectedDestinationGas, (domain: string, gas: string) => {
+        gasRouterConfigs.push({
+          domain,
+          gas,
+        });
+      });
+
+      updateTransactions.push({
+        annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+        chainId: this.domainId,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'setDestinationGas((uint32,uint256)[])',
+          [gasRouterConfigs],
         ),
       });
     }
@@ -214,12 +277,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    return EvmERC20WarpModule.createTransferOwnershipTx({
-      actualOwner: actualConfig.owner,
-      expectedOwner: expectedConfig.owner,
-      deployedAddress: this.args.addresses.deployedTokenRoute,
-      chainId: this.domainId,
-    });
+    return transferOwnershipTransactions(
+      this.multiProvider.getDomainId(this.args.chain),
+      this.args.addresses.deployedTokenRoute,
+      actualConfig,
+      expectedConfig,
+      `${expectedConfig.type} Warp Route`,
+    );
   }
 
   /**

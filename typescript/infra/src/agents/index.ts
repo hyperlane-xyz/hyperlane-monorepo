@@ -35,7 +35,7 @@ import { AgentGCPKey } from './gcp.js';
 
 const HELM_CHART_PATH = join(
   getInfraPath(),
-  '/../../rust/helm/hyperlane-agent/',
+  '/../../rust/main/helm/hyperlane-agent/',
 );
 
 if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
@@ -163,6 +163,19 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       name,
       signer: signers[name],
     }));
+
+    if (!values.tolerations) {
+      values.tolerations = [];
+    }
+
+    // Relayer pods should only be scheduled on nodes with the component label set to relayer.
+    // NoSchedule was chosen so that some daemonsets (like the prometheus node exporter) would not be evicted.
+    values.tolerations.push({
+      key: 'component',
+      operator: 'Equal',
+      value: 'relayer',
+      effect: 'NoSchedule',
+    });
 
     return values;
   }

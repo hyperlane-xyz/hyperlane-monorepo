@@ -20,7 +20,9 @@ contract OwnableMulticall {
         _;
     }
 
-    function multicall(CallLib.Call[] calldata calls) external onlyOwner {
+    function multicall(
+        CallLib.Call[] calldata calls
+    ) external payable onlyOwner {
         return CallLib.multicall(calls);
     }
 

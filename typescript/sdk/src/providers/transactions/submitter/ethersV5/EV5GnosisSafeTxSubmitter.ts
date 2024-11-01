@@ -1,3 +1,4 @@
+import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 import { Logger } from 'pino';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -6,7 +7,7 @@ import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 // @ts-ignore
 import { canProposeSafeTransactions, getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
-import { PopulatedTransaction, PopulatedTransactions } from '../../types.js';
+import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
@@ -62,25 +63,44 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
   }
 
-  public async submit(...txs: PopulatedTransactions): Promise<void> {
+  public async createSafeTransaction({
+    to,
+    data,
+    value,
+    chainId,
+  }: AnnotatedEV5Transaction): Promise<SafeTransaction> {
     const nextNonce: number = await this.safeService.getNextNonce(
       this.props.safeAddress,
     );
-    const safeTransactionBatch: any[] = txs.map(
-      ({ to, data, value, chainId }: PopulatedTransaction) => {
-        const txChain = this.multiProvider.getChainName(chainId);
-        assert(
-          txChain === this.props.chain,
-          `Invalid PopulatedTransaction: Cannot submit ${txChain} tx to ${this.props.chain} submitter.`,
-        );
-        return { to, data, value: value?.toString() ?? '0' };
-      },
+    assert(chainId, 'Invalid PopulatedTransaction: chainId is required');
+    const txChain = this.multiProvider.getChainName(chainId);
+    assert(
+      txChain === this.props.chain,
+      `Invalid PopulatedTransaction: Cannot submit ${txChain} tx to ${this.props.chain} submitter.`,
     );
-    const safeTransaction = await this.safe.createTransaction({
-      safeTransactionData: safeTransactionBatch,
+    return this.safe.createTransaction({
+      safeTransactionData: [{ to, data, value: value?.toString() ?? '0' }],
       options: { nonce: nextNonce },
     });
-    const safeTransactionData: any = safeTransaction.data;
+  }
+
+  public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
+    return this.proposeIndividualTransactions(txs);
+  }
+
+  private async proposeIndividualTransactions(txs: AnnotatedEV5Transaction[]) {
+    const safeTransactions: SafeTransaction[] = [];
+    for (const tx of txs) {
+      const safeTransaction = await this.createSafeTransaction(tx);
+      await this.proposeSafeTransaction(safeTransaction);
+      safeTransactions.push(safeTransaction);
+    }
+    return safeTransactions;
+  }
+
+  private async proposeSafeTransaction(
+    safeTransaction: SafeTransaction,
+  ): Promise<void> {
     const safeTxHash: string = await this.safe.getTransactionHash(
       safeTransaction,
     );
@@ -96,7 +116,7 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
 
     return this.safeService.proposeTransaction({
       safeAddress: this.props.safeAddress,
-      safeTransactionData,
+      safeTransactionData: safeTransaction.data,
       safeTxHash,
       senderAddress,
       senderSignature,

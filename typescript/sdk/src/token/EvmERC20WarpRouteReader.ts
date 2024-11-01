@@ -4,6 +4,8 @@ import {
   HypERC20Collateral__factory,
   HypERC20__factory,
   HypERC4626Collateral__factory,
+  HypERC4626OwnerCollateral__factory,
+  HypERC4626__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -23,7 +25,7 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { RemoteRouters } from '../router/types.js';
+import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
@@ -62,11 +64,13 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
     const tokenMetadata = await this.fetchTokenMetadata(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
+    const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     return {
       ...baseMetadata,
       ...tokenMetadata,
       remoteRouters,
+      destinationGas,
       type,
     } as TokenRouterConfig;
   }
@@ -81,15 +85,23 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const contractTypes: Partial<
       Record<TokenType, { factory: any; method: string }>
     > = {
-      collateralVault: {
+      [TokenType.collateralVaultRebase]: {
         factory: HypERC4626Collateral__factory,
+        method: 'NULL_RECIPIENT',
+      },
+      [TokenType.collateralVault]: {
+        factory: HypERC4626OwnerCollateral__factory,
         method: 'vault',
       },
-      collateral: {
+      [TokenType.collateral]: {
         factory: HypERC20Collateral__factory,
         method: 'wrappedToken',
       },
-      synthetic: {
+      [TokenType.syntheticRebase]: {
+        factory: HypERC4626__factory,
+        method: 'collateralDomain',
+      },
+      [TokenType.synthetic]: {
         factory: HypERC20__factory,
         method: 'decimals',
       },
@@ -106,11 +118,11 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       try {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
-
-        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
         return tokenType as TokenType;
       } catch (e) {
         continue;
+      } finally {
+        this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
       }
     }
 
@@ -186,7 +198,10 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         await this.fetchERC20Metadata(token);
 
       return { name, symbol, decimals, totalSupply, token };
-    } else if (type === TokenType.synthetic) {
+    } else if (
+      type === TokenType.synthetic ||
+      type === TokenType.syntheticRebase
+    ) {
       return this.fetchERC20Metadata(tokenAddress);
     } else if (type === TokenType.native) {
       const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
@@ -228,6 +243,30 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       await Promise.all(
         domains.map(async (domain) => {
           return [domain, bytes32ToAddress(await warpRoute.routers(domain))];
+        }),
+      ),
+    );
+  }
+
+  async fetchDestinationGas(
+    warpRouteAddress: Address,
+  ): Promise<DestinationGas> {
+    const warpRoute = TokenRouter__factory.connect(
+      warpRouteAddress,
+      this.provider,
+    );
+
+    /**
+     * @remark
+     * Router.domains() is used to enumerate the destination gas because GasRouter.destinationGas is not EnumerableMapExtended type
+     * This means that if a domain is removed, then we cannot read the destinationGas for it. This may impact updates.
+     */
+    const domains = await warpRoute.domains();
+
+    return Object.fromEntries(
+      await Promise.all(
+        domains.map(async (domain) => {
+          return [domain, (await warpRoute.destinationGas(domain)).toString()];
         }),
       ),
     );

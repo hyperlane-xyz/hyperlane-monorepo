@@ -1,0 +1,50 @@
+
+[package]
+name = "validator"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+axum.workspace = true
+chrono.workspace = true
+config.workspace = true
+console-subscriber.workspace = true
+derive_more.workspace = true
+derive-new.workspace = true
+ethers.workspace = true
+eyre.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+prometheus.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
+tracing-futures.workspace = true
+tracing.workspace = true
+
+hyperlane-core = { path = "../../hyperlane-core", features = [
+    "agent",
+    "async",
+] }
+hyperlane-base = { path = "../../hyperlane-base" }
+hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+
+[dev-dependencies]
+mockall.workspace = true
+tokio-test.workspace = true
+reqwest.workspace = true
+hyperlane-test = { path = "../../hyperlane-test" }
+k256.workspace = true
+hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum", features = ["test-utils"] }
+
+[features]
+default = ["color-eyre", "oneline-errors"]
+oneline-errors = ["hyperlane-base/oneline-errors"]
+color-eyre = ["hyperlane-base/color-eyre"]

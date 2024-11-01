@@ -11,7 +11,6 @@ export async function hyperlaneCoreDeploy(
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
-        --overrides " " \
         --config ${coreInputPath} \
         --chain ${chain} \
         --key ${ANVIL_KEY} \

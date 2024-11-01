@@ -12,4 +12,3 @@ spl-type-length-value.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
-

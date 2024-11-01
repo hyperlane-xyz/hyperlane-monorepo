@@ -1,10 +1,12 @@
 import { ethers, utils as ethersUtils } from 'ethers';
 
-import { assert, eqAddress } from '@hyperlane-xyz/utils';
+import { Ownable__factory } from '@hyperlane-xyz/core';
+import { assert, eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { BytecodeHash } from '../consts/bytecode.js';
 import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
 import { proxyImplementation } from '../deploy/proxy.js';
+import { OwnerViolation, ViolationType } from '../deploy/types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { collectValidators, moduleMatchesConfig } from '../ism/utils.js';
@@ -36,6 +38,12 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
 
   async checkChain(chain: ChainName): Promise<void> {
     const config = this.configMap[chain];
+
+    if (!config) {
+      rootLogger.warn(`No config for chain ${chain}`);
+      return;
+    }
+
     // skip chains that are configured to be removed
     if (config.remove) {
       return;
@@ -60,6 +68,31 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     return this.checkOwnership(chain, config.owner, config.ownerOverrides);
   }
 
+  async checkHook(
+    chain: ChainName,
+    hookName: string,
+    hookAddress: string,
+    expectedHookOwner: string,
+  ): Promise<void> {
+    const hook = Ownable__factory.connect(
+      hookAddress,
+      this.multiProvider.getProvider(chain),
+    );
+    const hookOwner = await hook.owner();
+
+    if (!eqAddress(hookOwner, expectedHookOwner)) {
+      const violation: OwnerViolation = {
+        type: ViolationType.Owner,
+        chain,
+        name: hookName,
+        actual: hookOwner,
+        expected: expectedHookOwner,
+        contract: hook,
+      };
+      this.addViolation(violation);
+    }
+  }
+
   async checkMailbox(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox;
@@ -71,9 +104,27 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
       )} for ${chain}`,
     );
 
-    const actualIsmAddress = await mailbox.defaultIsm();
-
     const config = this.configMap[chain];
+    const expectedHookOwner = this.getOwner(
+      config.owner,
+      'fallbackRoutingHook',
+      config.ownerOverrides,
+    );
+
+    await this.checkHook(
+      chain,
+      'defaultHook',
+      await mailbox.defaultHook(),
+      expectedHookOwner,
+    );
+    await this.checkHook(
+      chain,
+      'requiredHook',
+      await mailbox.requiredHook(),
+      expectedHookOwner,
+    );
+
+    const actualIsmAddress = await mailbox.defaultIsm();
     const matches = await moduleMatchesConfig(
       chain,
       actualIsmAddress,

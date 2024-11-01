@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT or Apache-2.0
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
-
 import {LibBit} from "../../contracts/libs/LibBit.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {MessageUtils} from "./IsmTestUtils.sol";
@@ -17,8 +15,9 @@ import {ERC5164Ism} from "../../contracts/isms/hook/ERC5164Ism.sol";
 import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {MockMessageDispatcher, MockMessageExecutor} from "../../contracts/mock/MockERC5164.sol";
+import {ExternalBridgeTest} from "./ExternalBridgeTest.sol";
 
-contract ERC5164IsmTest is Test {
+contract ERC5164IsmTest is ExternalBridgeTest {
     using LibBit for uint256;
     using TypeCasts for address;
     using Message for bytes;
@@ -27,22 +26,7 @@ contract ERC5164IsmTest is Test {
     IMessageDispatcher internal dispatcher;
     MockMessageExecutor internal executor;
 
-    ERC5164Hook internal hook;
-    ERC5164Ism internal ism;
-    TestMailbox internal originMailbox;
-    TestRecipient internal testRecipient;
-
-    uint32 internal constant TEST1_DOMAIN = 1;
-    uint32 internal constant TEST2_DOMAIN = 2;
-
-    uint8 internal constant VERSION = 0;
-    bytes internal testMessage =
-        abi.encodePacked("Hello from the other chain!");
     address internal alice = address(0x1);
-
-    // req for most tests
-    bytes encodedMessage = _encodeTestMessage(0, address(testRecipient));
-    bytes32 messageId = encodedMessage.id();
 
     event MessageDispatched(
         bytes32 indexed messageId,
@@ -56,19 +40,19 @@ contract ERC5164IsmTest is Test {
     ///                            SETUP                            ///
     ///////////////////////////////////////////////////////////////////
 
-    function setUp() public {
+    function setUp() public override {
         dispatcher = new MockMessageDispatcher();
         executor = new MockMessageExecutor();
-        testRecipient = new TestRecipient();
-        originMailbox = new TestMailbox(TEST1_DOMAIN);
+        originMailbox = new TestMailbox(ORIGIN_DOMAIN);
         ism = new ERC5164Ism(address(executor));
         hook = new ERC5164Hook(
             address(originMailbox),
-            TEST2_DOMAIN,
+            DESTINATION_DOMAIN,
             address(ism).addressToBytes32(),
             address(dispatcher)
         );
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
+        super.setUp();
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -100,7 +84,7 @@ contract ERC5164IsmTest is Test {
         vm.expectRevert("AbstractMessageIdAuthHook: invalid ISM");
         hook = new ERC5164Hook(
             address(originMailbox),
-            TEST2_DOMAIN,
+            DESTINATION_DOMAIN,
             address(0).addressToBytes32(),
             address(dispatcher)
         );
@@ -108,125 +92,89 @@ contract ERC5164IsmTest is Test {
         vm.expectRevert("ERC5164Hook: invalid dispatcher");
         hook = new ERC5164Hook(
             address(originMailbox),
-            TEST2_DOMAIN,
+            DESTINATION_DOMAIN,
             address(ism).addressToBytes32(),
             address(0)
         );
     }
 
-    function test_postDispatch() public {
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-        originMailbox.updateLatestDispatchedId(messageId);
-
-        // note: not checking for messageId since this is implementation dependent on each vendor
-        vm.expectEmit(false, true, true, true, address(dispatcher));
-        emit MessageDispatched(
-            messageId,
-            address(hook),
-            TEST2_DOMAIN,
-            address(ism),
-            encodedHookData
-        );
-
-        hook.postDispatch(bytes(""), encodedMessage);
-    }
-
-    function testTypes() public {
+    function testTypes() public view {
         assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.ID_AUTH_ISM));
         assertEq(ism.moduleType(), uint8(IInterchainSecurityModule.Types.NULL));
     }
 
-    function test_postDispatch_RevertWhen_ChainIDNotSupported() public {
-        encodedMessage = MessageUtils.formatMessage(
-            VERSION,
-            0,
-            TEST1_DOMAIN,
-            TypeCasts.addressToBytes32(address(this)),
-            3, // unsupported chain id
-            TypeCasts.addressToBytes32(address(testRecipient)),
-            testMessage
+    function _expectOriginExternalBridgeCall(
+        bytes memory _encodedHookData
+    ) internal override {
+        vm.expectEmit(false, true, true, true, address(dispatcher));
+        emit MessageDispatched(
+            messageId,
+            address(hook),
+            DESTINATION_DOMAIN,
+            address(ism),
+            _encodedHookData
         );
-        originMailbox.updateLatestDispatchedId(Message.id(encodedMessage));
-
-        vm.expectRevert(
-            "AbstractMessageIdAuthHook: invalid destination domain"
-        );
-        hook.postDispatch(bytes(""), encodedMessage);
     }
 
-    function test_postDispatch_RevertWhen_msgValueNotAllowed() public payable {
+    function test_verify_revertWhen_invalidMetadata() public override {
+        assertFalse(ism.verify(new bytes(0), encodedMessage));
+    }
+
+    function test_postDispatch_revertWhen_msgValueNotAllowed() public payable {
         originMailbox.updateLatestDispatchedId(messageId);
 
         vm.expectRevert("ERC5164Hook: no value allowed");
         hook.postDispatch{value: 1}(bytes(""), encodedMessage);
     }
 
-    /* ============ ISM.verifyMessageId ============ */
+    // override to omit direct external bridge call
+    function test_verify_revertsWhen_notAuthorizedHook() public override {
+        vm.prank(alice);
 
-    function test_verifyMessageId() public {
-        vm.startPrank(address(executor));
-
-        ism.verifyMessageId(messageId);
-        assertTrue(ism.verifiedMessages(messageId).isBitSet(255));
-
-        vm.stopPrank();
-    }
-
-    function test_verifyMessageId_RevertWhen_NotAuthorized() public {
-        vm.startPrank(alice);
-
-        // needs to be called by the authorized hook contract on Ethereum
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        ism.verifyMessageId(messageId);
-
-        vm.stopPrank();
+        ism.preVerifyMessage(messageId, 0);
+        assertFalse(ism.isVerified(encodedMessage));
     }
 
-    /* ============ ISM.verify ============ */
+    // SKIP - duplicate of test_verify_revertWhen_invalidMetadata
+    function test_verify_revertsWhen_incorrectMessageId() public override {}
 
-    function test_verify() public {
-        vm.startPrank(address(executor));
+    function test_verify_revertsWhen_invalidIsm() public override {}
 
-        ism.verifyMessageId(messageId);
+    // SKIP - 5164 ism does not support msg.value
+    function test_verify_msgValue_asyncCall() public override {}
 
-        bool verified = ism.verify(new bytes(0), encodedMessage);
-        assertTrue(verified);
+    function test_verify_msgValue_externalBridgeCall() public override {}
 
-        vm.stopPrank();
-    }
+    function test_verify_valueAlreadyClaimed(uint256) public override {}
 
-    function test_verify_RevertWhen_InvalidMessage() public {
-        vm.startPrank(address(executor));
+    function test_verify_override_msgValue() public override {}
 
-        ism.verifyMessageId(messageId);
+    function testFuzz_postDispatch_refundsExtraValue(uint256) public override {}
 
-        bytes memory invalidMessage = _encodeTestMessage(0, address(this));
-        bool verified = ism.verify(new bytes(0), invalidMessage);
-        assertFalse(verified);
-
-        vm.stopPrank();
-    }
+    function test_verify_false_arbitraryCall() public override {}
 
     /* ============ helper functions ============ */
 
-    function _encodeTestMessage(
-        uint32 _msgCount,
-        address _receipient
-    ) internal view returns (bytes memory) {
-        return
-            MessageUtils.formatMessage(
-                VERSION,
-                _msgCount,
-                TEST1_DOMAIN,
-                TypeCasts.addressToBytes32(address(this)),
-                TEST2_DOMAIN,
-                TypeCasts.addressToBytes32(_receipient),
-                testMessage
-            );
+    function _externalBridgeDestinationCall(
+        bytes memory _encodedHookData,
+        uint256 _msgValue
+    ) internal override {
+        vm.prank(address(executor));
+        ism.preVerifyMessage(messageId, 0);
+    }
+
+    function _encodeExternalDestinationBridgeCall(
+        address _from,
+        address _to,
+        uint256 _msgValue,
+        bytes32 _messageId
+    ) internal override returns (bytes memory) {
+        if (_from == address(hook)) {
+            vm.prank(address(executor));
+            ism.preVerifyMessage{value: _msgValue}(messageId, 0);
+        }
     }
 }
