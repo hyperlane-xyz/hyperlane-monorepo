@@ -17,6 +17,7 @@ export const ProtocolSmallestUnit = {
 
 /********* BASIC TYPES *********/
 export type Domain = number;
+export type EvmChainId = number;
 export type ChainId = string | number;
 export type Address = string;
 export type AddressBytes32 = string;
@@ -113,5 +114,7 @@ export type ParsedLegacyMultisigIsmMetadata = {
 };
 
 export type Annotated<T> = T & {
+  // TODO: Change to ChainName after moving `ChainName` to SDK from Utils
+  // chain: string;
   annotation?: string;
 };

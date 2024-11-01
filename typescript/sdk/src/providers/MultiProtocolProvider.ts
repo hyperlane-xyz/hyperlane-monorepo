@@ -226,18 +226,18 @@ export class MultiProtocolProvider<
   }
 
   estimateTransactionFee({
-    ChainNameOrDomain,
+    chainNameOrDomain,
     transaction,
     sender,
     senderPubKey,
   }: {
-    ChainNameOrDomain: ChainNameOrDomain;
+    chainNameOrDomain: ChainNameOrDomain;
     transaction: TypedTransaction;
     sender: Address;
     senderPubKey?: HexString;
   }): Promise<TransactionFeeEstimate> {
-    const provider = this.getProvider(ChainNameOrDomain, transaction.type);
-    const chainMetadata = this.getChainMetadata(ChainNameOrDomain);
+    const provider = this.getProvider(chainNameOrDomain, transaction.type);
+    const chainMetadata = this.getChainMetadata(chainNameOrDomain);
     return estimateTransactionFee({
       transaction,
       provider,

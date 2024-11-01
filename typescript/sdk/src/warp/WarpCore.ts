@@ -223,7 +223,7 @@ export class WarpCore {
     if (txs.length === 1) {
       try {
         return this.multiProvider.estimateTransactionFee({
-          ChainNameOrDomain: originMetadata.name,
+          chainNameOrDomain: originMetadata.name,
           transaction: txs[0],
           sender,
           senderPubKey,
