@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedTransaction, EncodedTransactionWithStatusMeta,
-    UiMessage, UiTransaction,
+    UiMessage, UiTransaction, UiTransactionStatusMeta,
 };
 
 use hyperlane_core::{
@@ -65,7 +65,7 @@ impl SealevelProvider {
         Ok(())
     }
 
-    fn extract_sender(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
+    fn sender(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
         let message = match &txn.message {
             UiMessage::Parsed(m) => m,
             m => Err(Into::<ChainCommunicationError>::into(
@@ -82,33 +82,29 @@ impl SealevelProvider {
         Ok(sender)
     }
 
-    fn gas(txn: &EncodedTransactionWithStatusMeta) -> ChainResult<u64> {
-        let meta = txn
-            .meta
-            .as_ref()
-            .ok_or(HyperlaneSealevelError::EmptyMetadata)?;
-
+    fn gas(meta: &UiTransactionStatusMeta) -> ChainResult<U256> {
         let OptionSerializer::Some(gas) = meta.compute_units_consumed else {
             Err(HyperlaneSealevelError::EmptyComputeUnitsConsumed)?
         };
 
-        Ok(gas)
+        Ok(U256::from(gas))
     }
 
-    fn fee(&self, txn: &EncodedTransactionWithStatusMeta) -> ChainResult<U256> {
+    fn fee(&self, meta: &UiTransactionStatusMeta) -> ChainResult<U256> {
+        let exponent = ATTO_EXPONENT - self.native_token.decimals;
+        let coefficient = U256::from(10u128.pow(exponent));
+
+        let amount_in_native_denom = U256::from(meta.fee);
+
+        Ok(amount_in_native_denom * coefficient)
+    }
+
+    fn meta(txn: &EncodedTransactionWithStatusMeta) -> ChainResult<&UiTransactionStatusMeta> {
         let meta = txn
             .meta
             .as_ref()
             .ok_or(HyperlaneSealevelError::EmptyMetadata)?;
-
-        let fee = meta.fee;
-
-        let exponent = ATTO_EXPONENT - self.native_token.decimals;
-        let coefficient = U256::from(10u128.pow(exponent));
-
-        let amount_in_native_denom = U256::from(fee);
-
-        Ok(amount_in_native_denom * coefficient)
+        Ok(meta)
     }
 }
 
@@ -166,9 +162,10 @@ impl HyperlaneProvider for SealevelProvider {
         };
 
         Self::validate_transaction(hash, txn)?;
-        let sender = Self::extract_sender(hash, txn)?;
-        let gas_used = U256::from(Self::gas(txn_with_meta)?);
-        let fee = self.fee(txn_with_meta)?;
+        let sender = Self::sender(hash, txn)?;
+        let meta = Self::meta(txn_with_meta)?;
+        let gas_used = Self::gas(meta)?;
+        let fee = self.fee(meta)?;
         let gas_price = Some(fee / gas_used);
 
         let receipt = TxnReceiptInfo {
