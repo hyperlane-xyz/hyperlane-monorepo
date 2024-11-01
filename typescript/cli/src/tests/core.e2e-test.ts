@@ -17,7 +17,7 @@ import {
 } from './commands/core.js';
 import { ANVIL_KEY } from './commands/helpers.js';
 
-const CHAIN_NAME = 'anvil1';
+const CHAIN_NAME = 'anvil2';
 
 const EXAMPLES_PATH = './examples';
 const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;

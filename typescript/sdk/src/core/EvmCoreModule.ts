@@ -348,7 +348,7 @@ export class EvmCoreModule extends HyperlaneModule<
     const currentProxyOwner = await proxyAdmin.owner();
     if (
       config?.proxyAdmin?.owner &&
-      config.proxyAdmin.owner !== currentProxyOwner
+      !eqAddress(config.proxyAdmin.owner, currentProxyOwner)
     ) {
       await multiProvider.sendTransaction(chainName, {
         annotation: `Transferring ownership of ProxyAdmin to the configured address ${config.proxyAdmin.owner}`,

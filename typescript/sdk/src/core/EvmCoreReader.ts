@@ -64,7 +64,7 @@ export class EvmCoreReader implements CoreReader {
           defaultIsm: this.evmIsmReader.deriveIsmConfig(defaultIsm),
           defaultHook: this.evmHookReader.deriveHookConfig(defaultHook),
           requiredHook: this.evmHookReader.deriveHookConfig(requiredHook),
-          proxyAdmin: this._getProxyAdminConfig(mailboxProxyAdmin),
+          proxyAdmin: this.getProxyAdminConfig(mailboxProxyAdmin),
         },
         async (_, readerCall) => {
           try {
@@ -83,7 +83,7 @@ export class EvmCoreReader implements CoreReader {
     return results as CoreConfig;
   }
 
-  private async _getProxyAdminConfig(
+  private async getProxyAdminConfig(
     proxyAdminAddress: Address,
   ): Promise<DeployedOwnableConfig> {
     const instance = ProxyAdmin__factory.connect(
