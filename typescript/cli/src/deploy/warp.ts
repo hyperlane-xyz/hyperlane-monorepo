@@ -64,7 +64,7 @@ import {
 
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import { getOrRequestApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
@@ -100,7 +100,7 @@ export async function runWarpRouteDeploy({
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
 }) {
-  const { signer, skipConfirmation, chainMetadata } = context;
+  const { signer, skipConfirmation, chainMetadata, registry } = context;
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -127,7 +127,7 @@ export async function runWarpRouteDeploy({
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+    apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
 
   const deploymentParams = {
     context,
@@ -446,7 +446,11 @@ export async function runWarpRouteApply(
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+    apiKeys = await requestAndSaveApiKeys(
+      chains,
+      chainMetadata,
+      context.registry,
+    );
 
   const transactions: AnnotatedEV5Transaction[] = [
     ...(await extendWarpRoute(

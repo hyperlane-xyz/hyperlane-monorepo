@@ -448,6 +448,7 @@ export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
   HypERC20Factories,
+  hypERC20contracts,
   HypERC721Factories,
   TokenFactories,
   hypERC20factories,
@@ -533,7 +534,12 @@ export {
 } from './utils/gnosisSafe.js';
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
-export { proxyAdmin } from './deploy/proxy.js';
+export {
+  proxyAdmin,
+  isProxy,
+  proxyConstructorArgs,
+  proxyImplementation,
+} from './deploy/proxy.js';
 export {
   ProxyFactoryFactoriesAddresses,
   ProxyFactoryFactoriesSchema,
