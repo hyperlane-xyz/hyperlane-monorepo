@@ -1,0 +1,23 @@
+# Configs and artifacts for the deployment of Hyperlane Warp Routes
+description: Hyperlane Warp Route artifacts
+timestamp: '2024-09-19T16:00:00.000Z'
+deployer: Abacus Works (Hyperlane)
+data:
+  config:
+    ethereum:
+      protocolType: ethereum
+      type: collateral
+      hypAddress: '0x5B4e223DE74ef8c3218e66EEcC541003CAB3121A'
+      tokenAddress: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599'
+      name: WBTC
+      symbol: WBTC
+      decimals: 8
+    eclipsemainnet:
+      protocolType: sealevel
+      type: synthetic
+      hypAddress: 'A7EGCDYFw5R7Jfm6cYtKvY8dmkrYMgwRCJFkyQwpHTYu'
+      tokenAddress: '7UTjr1VC6Z9DPsWD6mh5wPzNtufN17VnzpKS3ASpfAji'
+      isSpl2022: true
+      name: WBTC
+      symbol: WBTC
+      decimals: 8
