@@ -4,7 +4,6 @@ import {
   MetaTransactionData,
   OperationType,
 } from '@safe-global/safe-core-sdk-types';
-import { deepEqual } from 'assert';
 import { BigNumber, ethers } from 'ethers';
 
 import {
@@ -36,27 +35,6 @@ import {
 } from '../../config/environments/mainnet3/owners.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { getSafeAndService } from '../utils/safe.js';
-
-// export abstract class TransactionReader {
-//   async read(chain: ChainName, tx: any): Promise<any> {
-//     throw new Error('Not implemented');
-//   }
-// }
-
-// export class GnosisMultisendReader extends TransactionReader {
-//   constructor(multiProvider: MultiProvider) {
-//     super();
-//   }
-
-//   async read(chain: ChainName, tx: AnnotatedEV5Transaction): Promise<any> {
-//     if (!tx.data) {
-//       return undefined;
-//     }
-//     const multisends = decodeMultiSendData(tx.data);
-
-//     return multisends;
-//   }
-// }
 
 export class TransactionReader extends HyperlaneReader {
   errors: any[] = [];
@@ -235,12 +213,9 @@ export class TransactionReader extends HyperlaneReader {
     const expectedIsmConfig = this.coreConfig[chain].defaultIsm;
 
     let insight = '✅ matches expected ISM config';
-    if (
-      !deepEquals(
-        normalizeConfig(derivedConfig),
-        normalizeConfig(expectedIsmConfig),
-      )
-    ) {
+    const normalizedDerived = normalizeConfig(derivedConfig);
+    const normalizedExpected = normalizeConfig(expectedIsmConfig);
+    if (!deepEquals(normalizedDerived, normalizedExpected)) {
       this.errors.push({
         chain: chain,
         module,
@@ -249,6 +224,12 @@ export class TransactionReader extends HyperlaneReader {
         info: 'Incorrect default ISM being set',
       });
       insight = `❌ fatal mismatch of ISM config`;
+      console.log(
+        'Mismatch of ISM config',
+        chain,
+        JSON.stringify(normalizedDerived),
+        JSON.stringify(normalizedExpected),
+      );
     }
 
     return {
@@ -333,7 +314,6 @@ export class TransactionReader extends HyperlaneReader {
           value: BigNumber.from(call[1]),
           data: call[2],
         };
-        console.log('call', call, 'icaCallAsTx', icaCallAsTx);
         return this.read(remoteChainName, icaCallAsTx);
       }),
     );
@@ -357,37 +337,6 @@ export class TransactionReader extends HyperlaneReader {
       },
       calls: decodedCalls,
     };
-
-    // if (!tx.data) {
-    //   console.log('No data in ICA transaction');
-    //   return undefined;
-    // }
-    // const { symbol } = await this.multiProvider.getNativeToken(chain);
-    // const decoded =
-    //   interchainAccountFactories.interchainAccountRouter.interface.parseTransaction(
-    //     {
-    //       data: tx.data,
-    //       value: tx.value,
-    //     },
-    //   );
-
-    // const args = formatFunctionFragmentArgs(
-    //   decoded.args,
-    //   decoded.functionFragment,
-    // );
-    // let prettyArgs = args;
-    // if (decoded.functionFragment.name === 'enrollRemoteRouters') {
-    //   prettyArgs = await this.formatRouterEnrollments(
-    //     chain,
-    //     'interchainAccountRouter',
-    //     args,
-    //   );
-    // } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
-    //   const remoteChainName = this.multiProvider.getChainName(args._domain);
-    //   const remoteRouter = this.chainAddresses[remoteChainName].interchainAccountRouter;
-    //   const matchesExpectedRouter =
-    //     eqAddress(remoteRouter, bytes32ToAddress(args._router)) &&
-    //     // Poor
   }
 
   private async readMultisendTransaction(
@@ -401,9 +350,6 @@ export class TransactionReader extends HyperlaneReader {
     const multisends = decodeMultiSendData(tx.data);
 
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-
-    // TODO rm
-    // const truncated = multisends.slice(0, 5);
 
     return Promise.all(
       multisends.map(async (multisend, index) => {
