@@ -419,7 +419,7 @@ export abstract class HyperlaneDeployer<
 
     const { family } = this.multiProvider.getExplorerApi(chain);
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
-    const isZKSyncExplorer = family === ExplorerFamily.zksync;
+    const isZKSyncExplorer = family === ExplorerFamily.ZKSync;
     const isZKSyncChain = technicalStack === ChainTechnicalStack.ZKSync;
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKArtifactByContractName(contractName);
