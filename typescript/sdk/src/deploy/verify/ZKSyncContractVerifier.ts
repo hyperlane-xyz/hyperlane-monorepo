@@ -120,9 +120,7 @@ export class ZKSyncContractVerifier extends BaseContractVerifier {
       'Sending request to explorer...',
     );
 
-    let response: Response;
-
-    response = await fetch(url.toString(), {
+    const response = await fetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),
