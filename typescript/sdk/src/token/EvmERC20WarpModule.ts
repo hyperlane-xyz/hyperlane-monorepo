@@ -14,7 +14,6 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
-  eqAddress,
   isObjEmpty,
   objMap,
   rootLogger,
@@ -115,7 +114,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         expectedConfig,
         this.domainId,
       ),
-      ...this.updateProxyAdminOwnershipTxs(actualConfig, expectedConfig),
     );
 
     return transactions;
@@ -292,38 +290,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       expectedConfig,
       `${expectedConfig.type} Warp Route`,
     );
-  }
-
-  updateProxyAdminOwnershipTxs(
-    actualConfig: Readonly<TokenRouterConfig>,
-    expectedConfig: Readonly<TokenRouterConfig>,
-  ): AnnotatedEV5Transaction[] {
-    const transactions: AnnotatedEV5Transaction[] = [];
-
-    // Return early because old warp config files did not have the
-    // proxyAdmin property
-    if (!expectedConfig.proxyAdmin) {
-      return transactions;
-    }
-
-    const actualProxyAdmin = actualConfig.proxyAdmin!;
-    assert(
-      eqAddress(actualProxyAdmin.address!, expectedConfig.proxyAdmin.address!),
-      `ProxyAdmin contract addresses do not match. Expected ${expectedConfig.proxyAdmin.address}, got ${actualProxyAdmin.address}`,
-    );
-
-    transactions.push(
-      // Internally the createTransferOwnershipTx method already checks if the
-      // two owner values are the same and produces an empty tx batch if they are
-      ...transferOwnershipTransactions(
-        this.domainId,
-        actualProxyAdmin.address!,
-        actualProxyAdmin,
-        expectedConfig.proxyAdmin,
-      ),
-    );
-
-    return transactions;
   }
 
   /**
