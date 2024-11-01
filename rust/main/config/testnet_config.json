@@ -361,6 +361,7 @@
       "name": "eclipsetestnet",
       "nativeToken": {
         "decimals": 9,
+        "denom": "gwei",
         "name": "Ether",
         "symbol": "ETH"
       },
@@ -953,6 +954,7 @@
       "name": "solanatestnet",
       "nativeToken": {
         "decimals": 9,
+        "denom": "lamport",
         "name": "Solana",
         "symbol": "SOL"
       },

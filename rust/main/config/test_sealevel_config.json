@@ -21,6 +21,12 @@
       "index": {
         "from": 1,
         "mode": "sequence"
+      },
+      "nativeToken": {
+        "decimals": 9,
+        "denom": "lamport",
+        "name": "Solana",
+        "symbol": "SOL"
       }
     },
     "sealeveltest2": {
@@ -44,6 +50,12 @@
       "index": {
         "from": 1,
         "mode": "sequence"
+      },
+      "nativeToken": {
+        "decimals": 9,
+        "denom": "lamport",
+        "name": "Solana",
+        "symbol": "SOL"
       }
     }
   }
