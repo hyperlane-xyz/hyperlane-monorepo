@@ -45,6 +45,8 @@ export async function runVerifyWarpRoute({
 
   for (const token of warpCoreConfig.tokens) {
     const { chainName } = token;
+    const { apiUrl: blockExplorerApiUrl } =
+      multiProvider.getExplorerApi(chainName);
     verificationInputs[chainName] = [];
 
     if (UNSUPPORTED_CHAINS.includes(chainName)) {
@@ -73,6 +75,8 @@ export async function runVerifyWarpRoute({
       chainName,
       contractName,
       multiProvider,
+      blockExplorerApiUrl,
+      blockExplorerApiKey: apiKeys[chainName],
       bytecode: factory.bytecode,
       implementationAddress: deployedContractAddress,
     });
@@ -84,6 +88,8 @@ export async function runVerifyWarpRoute({
         await verificationUtils.getProxyAndAdminInput({
           chainName,
           multiProvider,
+          blockExplorerApiUrl,
+          blockExplorerApiKey: apiKeys[chainName],
           proxyAddress: token.addressOrDenom,
         });
 

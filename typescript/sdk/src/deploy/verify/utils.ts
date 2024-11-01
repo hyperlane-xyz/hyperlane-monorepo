@@ -96,16 +96,19 @@ export function shouldAddVerificationInput(
  * Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
  */
 export async function getConstructorArgumentsApi({
+  blockExplorerApiKey,
+  blockExplorerApiUrl,
   chainName,
   contractAddress,
   bytecode,
   multiProvider,
 }: {
-  multiProvider: MultiProvider;
-
-  chainName: string;
+  blockExplorerApiKey: string | undefined;
+  blockExplorerApiUrl: string;
   bytecode: string;
+  chainName: string;
   contractAddress: string;
+  multiProvider: MultiProvider;
 }): Promise<string> {
   const { family } = multiProvider.getExplorerApi(chainName);
 
@@ -114,16 +117,17 @@ export async function getConstructorArgumentsApi({
     case ExplorerFamily.Routescan:
     case ExplorerFamily.Etherscan:
       constructorArgs = await getEtherscanConstructorArgs({
-        multiProvider,
+        blockExplorerApiKey,
+        blockExplorerApiUrl,
         chainName,
         contractAddress,
         bytecode,
+        multiProvider,
       });
       break;
     case ExplorerFamily.Blockscout:
       constructorArgs = await getBlockScoutConstructorArgs({
-        multiProvider,
-        chainName,
+        blockExplorerApiUrl,
         contractAddress,
       });
       break;
@@ -135,25 +139,26 @@ export async function getConstructorArgumentsApi({
 }
 
 export async function getEtherscanConstructorArgs({
+  blockExplorerApiKey,
+  blockExplorerApiUrl,
   bytecode,
   chainName,
   contractAddress,
   multiProvider,
 }: {
-  multiProvider: MultiProvider;
+  blockExplorerApiKey: string | undefined;
+  blockExplorerApiUrl: string;
+  bytecode: string;
   chainName: string;
   contractAddress: Address;
-  bytecode: string;
+  multiProvider: MultiProvider;
 }): Promise<string> {
-  const { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey } =
-    multiProvider.getExplorerApi(chainName);
   const url = new URL(blockExplorerApiUrl);
   url.searchParams.append('module', 'contract');
   url.searchParams.append('action', 'getcontractcreation');
   url.searchParams.append('contractaddresses', contractAddress);
 
   if (blockExplorerApiKey)
-    // TODO figure out how to get API keys. Maybe use the existing prompt??
     url.searchParams.append('apikey', blockExplorerApiKey);
 
   const explorerResp = await fetch(url);
@@ -183,17 +188,12 @@ export async function getEtherscanConstructorArgs({
 }
 
 export async function getBlockScoutConstructorArgs({
-  chainName,
+  blockExplorerApiUrl,
   contractAddress,
-  multiProvider,
 }: {
-  multiProvider: MultiProvider;
-  chainName: string;
+  blockExplorerApiUrl: string;
   contractAddress: Address;
 }): Promise<string> {
-  const { apiUrl: blockExplorerApiUrl } =
-    multiProvider.getExplorerApi(chainName);
-
   const url = new URL(
     `/api/v2/smart-contracts/${contractAddress}`,
     blockExplorerApiUrl,
@@ -209,12 +209,16 @@ export async function getBlockScoutConstructorArgs({
 }
 
 export async function getProxyAndAdminInput({
+  blockExplorerApiKey,
+  blockExplorerApiUrl,
   chainName,
   multiProvider,
   proxyAddress,
 }: {
-  multiProvider: MultiProvider;
+  blockExplorerApiKey: string | undefined;
+  blockExplorerApiUrl: string;
   chainName: string;
+  multiProvider: MultiProvider;
   proxyAddress: Address;
 }): Promise<{
   proxyAdminInput: ContractVerificationInput;
@@ -224,8 +228,10 @@ export async function getProxyAndAdminInput({
 
   const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
   const proxyAdminConstructorArgs = await getConstructorArgumentsApi({
-    multiProvider: multiProvider,
+    blockExplorerApiKey,
+    blockExplorerApiUrl,
     chainName,
+    multiProvider,
     bytecode: ProxyAdmin__factory.bytecode,
     contractAddress: proxyAdminAddress,
   });
@@ -236,8 +242,10 @@ export async function getProxyAndAdminInput({
   );
 
   const proxyConstructorArgs = await getConstructorArgumentsApi({
-    multiProvider: multiProvider,
+    blockExplorerApiKey,
+    blockExplorerApiUrl,
     chainName,
+    multiProvider,
     contractAddress: proxyAddress,
     bytecode: TransparentUpgradeableProxy__factory.bytecode,
   });
@@ -253,22 +261,29 @@ export async function getProxyAndAdminInput({
 }
 
 export async function getImplementationInput({
+  blockExplorerApiKey,
+  blockExplorerApiUrl,
   bytecode,
   chainName,
   contractName,
   implementationAddress,
   multiProvider,
 }: {
-  multiProvider: MultiProvider;
-  chainName: string;
+  blockExplorerApiKey: string | undefined;
+  blockExplorerApiUrl: string;
   bytecode: string;
+  chainName: string;
   contractName: string;
   implementationAddress: Address;
+  multiProvider: MultiProvider;
 }): Promise<ContractVerificationInput> {
   const implementationConstructorArgs = await getConstructorArgumentsApi({
-    multiProvider: multiProvider,
-    chainName,
+    blockExplorerApiKey,
+    blockExplorerApiUrl,
     bytecode,
+    chainName,
+    multiProvider,
+
     contractAddress: implementationAddress,
   });
   return buildVerificationInput(
