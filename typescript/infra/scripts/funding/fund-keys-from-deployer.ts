@@ -116,6 +116,16 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
       pubkey: new PublicKey('A1XtL9mAzkNEpBPinrCpDRrPqVAFjgaxDk4ATFVoQVyc'),
       walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
     },
+    {
+      // USDT warp route ATA payer
+      pubkey: new PublicKey('9i3kYQqMtkm4sw1w5SQ8ebKMmh4LPVYKZRMPaZeRfn37'),
+      walletName: 'USDT/eclipsemainnet-ethereum-solanamainnet/ata-payer',
+    },
+    {
+      // ORCA warp route ATA payer
+      pubkey: new PublicKey('HqAVwQA6rh1TGdyUHi2XqmCtBSyG3DZjjsCLRXWqyNuU'),
+      walletName: 'ORCA/eclipsemainnet-solanamainnet/ata-payer',
+    },
   ],
   eclipsemainnet: [
     {
@@ -147,6 +157,21 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
       // TIA warp route ATA payer
       pubkey: new PublicKey('AZs4Rw6H6YwJBKoHBCfChCitHnHvQcVGgrJwGh4bKmAf'),
       walletName: 'TIA/eclipsemainnet-stride/ata-payer',
+    },
+    {
+      // USDT warp route ATA payer
+      pubkey: new PublicKey('78s5TD48q89EZqHNC2bfsswQXn6n3sn1ecGgqXgJe4hL'),
+      walletName: 'USDT/eclipsemainnet-ethereum-solanamainnet/ata-payer',
+    },
+    {
+      // ORCA warp route ATA payer
+      pubkey: new PublicKey('3ZyZHoDRzfYg4ug6Tx4Zywe6M5Vt19vPZFx9Ag8qqnXu'),
+      walletName: 'ORCA/eclipsemainnet-solanamainnet/ata-payer',
+    },
+    {
+      // WBTC warp route ATA payer
+      pubkey: new PublicKey('BH9VfgYaCWbwuupzsTfSy67yR4dwuCbXmFRrm6aAH2NQ'),
+      walletName: 'WBTC/eclipsemainnet-ethereum/ata-payer',
     },
   ],
 };
