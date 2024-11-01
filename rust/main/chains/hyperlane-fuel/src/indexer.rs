@@ -260,6 +260,7 @@ impl FuelIndexer {
 
         match log_data_receipts.len() {
             DISPATCH_LOG_DATA_REC_AMOUNT => true,
+            4 => true,
             _ => false,
         }
     }

@@ -18,12 +18,14 @@ use hyperlane_core::{
     Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, SequenceAwareIndexer, TxCostEstimate,
     TxOutcome, H256, H512, U256,
 };
+
 use std::{
     collections::HashMap,
     fmt::{Debug, Formatter},
     num::NonZeroU64,
     ops::RangeInclusive,
 };
+
 use tracing::{instrument, warn};
 
 const GAS_ESTIMATE_MULTIPLIER: f64 = 1.3;
@@ -166,7 +168,7 @@ impl Mailbox for FuelMailbox {
                 Bytes(RawHyperlaneMessage::from(message)),
             )
             .with_tx_policies(tx_policies)
-            .determine_missing_contracts(Some(3))
+            .determine_missing_contracts(Some(10))
             .await
             .map_err(ChainCommunicationError::from_other)?
             .call()
@@ -217,7 +219,7 @@ impl Mailbox for FuelMailbox {
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
-            .determine_missing_contracts(Some(3))
+            .determine_missing_contracts(Some(10))
             .await
             .map_err(ChainCommunicationError::from_other)?
             .simulate(Execution::Realistic)
@@ -286,8 +288,9 @@ impl FuelMailboxIndexer {
                         match rec {
                             Receipt::LogData { .. }
                                 if rec
-                                    .data()
-                                    .is_some_and(|data| data.len() > NON_DISPATCH_LOG_LEN) =>
+                                    .data() // TODO fix this
+                                    // .is_some_and(|data| data.len() > NON_DISPATCH_LOG_LEN) =>
+                                    .is_some_and(|data| data.len() > 80) =>
                             {
                                 let data = rec.data().map(|data| data.to_owned());
 
