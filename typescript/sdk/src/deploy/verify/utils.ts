@@ -96,15 +96,11 @@ export function shouldAddVerificationInput(
  * Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
  */
 export async function getConstructorArgumentsApi({
-  blockExplorerApiKey,
-  blockExplorerApiUrl,
   chainName,
   contractAddress,
   bytecode,
   multiProvider,
 }: {
-  blockExplorerApiKey: string | undefined;
-  blockExplorerApiUrl: string;
   bytecode: string;
   chainName: string;
   contractAddress: string;
@@ -117,8 +113,6 @@ export async function getConstructorArgumentsApi({
     case ExplorerFamily.Routescan:
     case ExplorerFamily.Etherscan:
       constructorArgs = await getEtherscanConstructorArgs({
-        blockExplorerApiKey,
-        blockExplorerApiUrl,
         chainName,
         contractAddress,
         bytecode,
@@ -127,8 +121,9 @@ export async function getConstructorArgumentsApi({
       break;
     case ExplorerFamily.Blockscout:
       constructorArgs = await getBlockScoutConstructorArgs({
-        blockExplorerApiUrl,
+        chainName,
         contractAddress,
+        multiProvider,
       });
       break;
     default:
@@ -139,20 +134,19 @@ export async function getConstructorArgumentsApi({
 }
 
 export async function getEtherscanConstructorArgs({
-  blockExplorerApiKey,
-  blockExplorerApiUrl,
   bytecode,
   chainName,
   contractAddress,
   multiProvider,
 }: {
-  blockExplorerApiKey: string | undefined;
-  blockExplorerApiUrl: string;
   bytecode: string;
   chainName: string;
   contractAddress: Address;
   multiProvider: MultiProvider;
 }): Promise<string> {
+  const { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey } =
+    multiProvider.getExplorerApi(chainName);
+
   const url = new URL(blockExplorerApiUrl);
   url.searchParams.append('module', 'contract');
   url.searchParams.append('action', 'getcontractcreation');
@@ -188,12 +182,16 @@ export async function getEtherscanConstructorArgs({
 }
 
 export async function getBlockScoutConstructorArgs({
-  blockExplorerApiUrl,
+  chainName,
   contractAddress,
+  multiProvider,
 }: {
-  blockExplorerApiUrl: string;
+  chainName: string;
   contractAddress: Address;
+  multiProvider: MultiProvider;
 }): Promise<string> {
+  const { apiUrl: blockExplorerApiUrl } =
+    multiProvider.getExplorerApi(chainName);
   const url = new URL(
     `/api/v2/smart-contracts/${contractAddress}`,
     blockExplorerApiUrl,
@@ -209,14 +207,10 @@ export async function getBlockScoutConstructorArgs({
 }
 
 export async function getProxyAndAdminInput({
-  blockExplorerApiKey,
-  blockExplorerApiUrl,
   chainName,
   multiProvider,
   proxyAddress,
 }: {
-  blockExplorerApiKey: string | undefined;
-  blockExplorerApiUrl: string;
   chainName: string;
   multiProvider: MultiProvider;
   proxyAddress: Address;
@@ -228,8 +222,6 @@ export async function getProxyAndAdminInput({
 
   const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
   const proxyAdminConstructorArgs = await getConstructorArgumentsApi({
-    blockExplorerApiKey,
-    blockExplorerApiUrl,
     chainName,
     multiProvider,
     bytecode: ProxyAdmin__factory.bytecode,
@@ -242,8 +234,6 @@ export async function getProxyAndAdminInput({
   );
 
   const proxyConstructorArgs = await getConstructorArgumentsApi({
-    blockExplorerApiKey,
-    blockExplorerApiUrl,
     chainName,
     multiProvider,
     contractAddress: proxyAddress,
@@ -261,16 +251,12 @@ export async function getProxyAndAdminInput({
 }
 
 export async function getImplementationInput({
-  blockExplorerApiKey,
-  blockExplorerApiUrl,
   bytecode,
   chainName,
   contractName,
   implementationAddress,
   multiProvider,
 }: {
-  blockExplorerApiKey: string | undefined;
-  blockExplorerApiUrl: string;
   bytecode: string;
   chainName: string;
   contractName: string;
@@ -278,12 +264,9 @@ export async function getImplementationInput({
   multiProvider: MultiProvider;
 }): Promise<ContractVerificationInput> {
   const implementationConstructorArgs = await getConstructorArgumentsApi({
-    blockExplorerApiKey,
-    blockExplorerApiUrl,
     bytecode,
     chainName,
     multiProvider,
-
     contractAddress: implementationAddress,
   });
   return buildVerificationInput(
