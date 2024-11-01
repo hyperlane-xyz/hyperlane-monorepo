@@ -490,6 +490,7 @@ export {
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
+export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export {
   SealevelAccountDataWrapper,
