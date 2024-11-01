@@ -1025,7 +1025,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     // Set the gas params for each remote
     for (const tx of configureTxs) {
-      await this.multiProvider.sendTransaction(this.chain, tx);
+      await this.multiProvider.sendTransaction(tx);
     }
 
     // Transfer igp to the configured owner
@@ -1059,7 +1059,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     // Set the gas params for each remote
     for (const tx of configureTxs) {
-      await this.multiProvider.sendTransaction(this.chain, tx);
+      await this.multiProvider.sendTransaction(tx);
     }
 
     // Transfer gas oracle to the configured owner

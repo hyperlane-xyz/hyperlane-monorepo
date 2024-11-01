@@ -214,7 +214,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     hookMetadata,
   }: GetCallRemoteSettings): Promise<void> {
     await this.multiProvider.sendTransaction(
-      chain,
       this.getCallRemote({
         chain,
         destination,

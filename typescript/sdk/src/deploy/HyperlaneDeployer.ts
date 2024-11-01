@@ -292,7 +292,7 @@ export abstract class HyperlaneDeployer<
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
-        await this.multiProvider.sendTransaction(chain, {
+        await this.multiProvider.sendTransaction({
           chain,
           ...(await setIsm(contract, targetIsm)),
         });
@@ -320,7 +320,7 @@ export abstract class HyperlaneDeployer<
         this.logger.debug(
           `Set hook on ${chain} to ${config}, currently is ${configuredHook}`,
         );
-        await this.multiProvider.sendTransaction(chain, {
+        await this.multiProvider.sendTransaction({
           chain,
           ...(await setHook(contract, config)),
         });
