@@ -1,5 +1,5 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
@@ -54,6 +54,11 @@ async function main() {
   };
   const ownerChainInterchainAccountRouter =
     ica.contractsMap[ownerChain].interchainAccountRouter.address;
+
+  if (isZeroishAddress(ownerChainInterchainAccountRouter)) {
+    console.error(`Interchain account router address is zero`);
+    process.exit(1);
+  }
 
   const getOwnerIcaChains = (
     chains?.length ? chains : config.supportedChainNames
