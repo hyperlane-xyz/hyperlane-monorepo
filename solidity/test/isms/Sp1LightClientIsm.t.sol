@@ -10,6 +10,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MessageUtils} from "../isms/IsmTestUtils.sol";
 import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
 import {SP1LightClientIsm} from "../../contracts/isms/ccip-read/SP1LightClientIsm.sol";
+import {StorageProofIsm} from "../../contracts/isms/ccip-read/StorageProofIsm.sol";
 import {DispatchedHook} from "../../contracts/hooks/DispatchedHook.sol";
 import {ICcipReadIsm} from "../../contracts/interfaces/isms/ICcipReadIsm.sol";
 import {StateProofHelpersTest} from "../lib/StateProofHelpers.t.sol";
@@ -48,7 +49,7 @@ contract SP1LightClientIsmTest is StateProofHelpersTest {
         hook = DispatchedHook(HOOK_ADDR);
 
         sp1LightClientIsm.initialize({
-            _destinationMailbox: address(mailbox),
+            _mailbox: address(mailbox),
             _dispatchedHook: address(hook),
             _lightClient: address(lightClient),
             _dispatchedSlot: DISPATCHED_SLOT,
@@ -130,9 +131,9 @@ contract SP1LightClientIsmTest is StateProofHelpersTest {
                 ISuccinctProofsService.getProofs.selector,
                 address(HOOK_ADDR),
                 sp1LightClientIsm.dispatchedSlotKey(_messageNonce),
-                sp1LightClientIsm.getHeadStateRoot()
+                sp1LightClientIsm.getHeadStateSlot()
             ),
-            SP1LightClientIsm.process.selector,
+            StorageProofIsm.process.selector,
             encodedMessage
         );
         vm.expectRevert(offChainLookupError);
