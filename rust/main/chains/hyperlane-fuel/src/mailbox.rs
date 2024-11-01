@@ -8,8 +8,8 @@ use fuels::{
     programs::calls::Execution,
     tx::{Receipt, ScriptExecutionResult},
     types::{
-        transaction::TxPolicies, transaction_response::TransactionResponse, tx_status::TxStatus,
-        Bytes, Bytes32,
+        transaction::TxPolicies, transaction_builders::VariableOutputPolicy,
+        transaction_response::TransactionResponse, tx_status::TxStatus, Bytes, Bytes32,
     },
 };
 use hyperlane_core::{
@@ -167,6 +167,7 @@ impl Mailbox for FuelMailbox {
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
+            .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
             .with_tx_policies(tx_policies)
             .determine_missing_contracts(Some(10))
             .await
@@ -219,6 +220,7 @@ impl Mailbox for FuelMailbox {
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
+            .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
             .determine_missing_contracts(Some(10))
             .await
             .map_err(ChainCommunicationError::from_other)?
