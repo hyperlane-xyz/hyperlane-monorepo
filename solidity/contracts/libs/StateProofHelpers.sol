@@ -5,7 +5,6 @@ import {RLPReader} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPRe
 import {RLPWriter} from "@eth-optimism/contracts-bedrock/src/libraries/rlp/RLPWriter.sol";
 import {MerkleTrie} from "@eth-optimism/contracts-bedrock/src/libraries/trie/MerkleTrie.sol";
 
-/// @notice Storage Proof library inspired by Succinct (https://github.com/succinctlabs)
 library StorageProof {
     using RLPReader for RLPReader.RLPItem;
     using RLPReader for bytes;

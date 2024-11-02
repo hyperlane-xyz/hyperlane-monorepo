@@ -146,18 +146,6 @@ abstract contract StorageProofIsm is AbstractCcipReadIsm, OwnableUpgradeable {
     function getHeadStateSlot() public view virtual returns (uint256);
 
     /**
-     * @notice Reverts with the data needed to query for header proofs
-     * @dev See https://eips.ethereum.org/EIPS/eip-3668 for more information
-     * @param _message encoded Message that will be included in offchain query
-     *
-     * @dev In the future, check if fees have been paid before request a proof from.
-     * For now this feature is not complete according to the team.
-     */
-    function getOffchainVerifyInfo(
-        bytes calldata _message
-    ) external view virtual;
-
-    /**
      * @notice Calculates storage key of the source chain DispatchedHook.dispatched mapping
      * @param _messageNonce message nonce
      *

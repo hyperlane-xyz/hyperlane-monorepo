@@ -7,6 +7,7 @@ import {ICcipReadIsm} from "../../interfaces/isms/ICcipReadIsm.sol";
 import {IMailbox} from "../../interfaces/IMailbox.sol";
 import {Message} from "../../libs/Message.sol";
 import {AbstractMultisigIsm} from "../multisig/AbstractMultisigIsm.sol";
+import {PackageVersioned} from "contracts/PackageVersioned.sol";
 
 /**
  * @title AbstractCcipReadIsm
@@ -23,7 +24,7 @@ import {AbstractMultisigIsm} from "../multisig/AbstractMultisigIsm.sol";
  *    message. This functions selector should be provided as the `callbackFunction` payload
  *    for the OffchainLookup error
  */
-abstract contract AbstractCcipReadIsm is ICcipReadIsm {
+abstract contract AbstractCcipReadIsm is ICcipReadIsm, PackageVersioned {
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase
