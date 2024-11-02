@@ -116,7 +116,7 @@ abstract contract StorageProofIsm is AbstractCcipReadIsm, OwnableUpgradeable {
         bytes32 _dispatchedSlotKey
     ) public view returns (bytes memory) {
         // Get the slot value as bytes
-        bytes[][] memory proofs = abi.decode(_proofs, (bytes[][]));
+        bytes[][2] memory proofs = abi.decode(_proofs, (bytes[][2]));
         bytes[] memory accountProof = proofs[0];
         bytes[] memory storageProof = proofs[1];
 

@@ -100,7 +100,7 @@ contract SP1LightClientIsmTest is StateProofHelpersTest {
     }
 
     function _encodeProofs() internal view returns (bytes memory) {
-        return abi.encode(accountProof, storageProof);
+        return abi.encode([accountProof, storageProof]);
     }
 
     function testSP1LightClientIsm_setOffchainUrls_revertsWithNonOwner(
