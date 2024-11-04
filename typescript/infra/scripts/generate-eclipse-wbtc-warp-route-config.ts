@@ -8,7 +8,7 @@ import { getEclipseEthereumWBTCWarpConfig } from '../config/environments/mainnet
 import { getRouterConfig } from './warp-routes/utils.js';
 
 async function main() {
-  let routerConfig = await getRouterConfig();
+  const routerConfig = await getRouterConfig();
   const tokenConfig = await getEclipseEthereumWBTCWarpConfig(routerConfig);
   const parsed = WarpRouteDeployConfigSchema.safeParse(tokenConfig);
 
