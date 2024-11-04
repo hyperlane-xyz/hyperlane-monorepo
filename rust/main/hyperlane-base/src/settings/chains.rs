@@ -10,8 +10,8 @@ use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
-    ValidatorAnnounce, H256,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, OnchainCheckpointStorage, RoutingIsm,
+    SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
@@ -660,6 +660,35 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(_) => {
                 Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
             }
+        }
+        .context(ctx)
+    }
+
+    /// Try to convert the chain setting into a CheckpointStorage contract
+    pub async fn build_onchain_checkpoint_storage(
+        &self,
+        address: H256,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn OnchainCheckpointStorage>> {
+        let ctx = "Building OnchainCheckpointStorage";
+        let locator = ContractLocator {
+            domain: &self.domain,
+            address,
+        };
+
+        match &self.connection {
+            ChainConnectionConf::Ethereum(conf) => {
+                self.build_ethereum(
+                    conf,
+                    &locator,
+                    metrics,
+                    h_eth::EthereumCheckpointStorageBuilder {},
+                )
+                .await
+            }
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(_) => todo!(),
+            ChainConnectionConf::Cosmos(_) => todo!(),
         }
         .context(ctx)
     }

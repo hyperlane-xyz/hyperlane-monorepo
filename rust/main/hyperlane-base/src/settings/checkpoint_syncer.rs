@@ -1,12 +1,13 @@
 use crate::{
-    types::OnChainStorage, CheckpointSyncer, GcsStorageClientBuilder, LocalStorage, S3Storage,
-    GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
+    settings::base::Settings, CheckpointSyncer, CoreMetrics, GcsStorageClientBuilder, LocalStorage,
+    OnchainStorageClient, S3Storage, GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
 };
 use core::str::FromStr;
 use eyre::{eyre, Context, Report, Result};
+use hyperlane_core::{HyperlaneDomain, H256};
 use prometheus::IntGauge;
 use rusoto_core::Region;
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, sync::Arc};
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 /// Checkpoint Syncer types
@@ -40,7 +41,7 @@ pub enum CheckpointSyncerConf {
     },
     OnChain {
         chain_name: String,
-        contract_address: String,
+        contract_address: H256,
     },
 }
 
@@ -103,10 +104,10 @@ impl FromStr for CheckpointSyncerConf {
                 if parts.len() != 2 {
                     return Err(eyre!("Invalid onchain checkpoint syncer format"));
                 }
-                let chain_name = parts[0].to_string();
-                let contract_address = parts[1].to_string();
-                todo!()
-                /* Ok(Box::new(OnChainStorage::new(chain_name, contract_address))) */
+                Ok(CheckpointSyncerConf::OnChain {
+                    chain_name: parts[0].to_string(),
+                    contract_address: parts[1].parse()?,
+                })
             }
             _ => Err(eyre!("Unknown storage location prefix `{prefix}`")),
         }
@@ -118,6 +119,8 @@ impl CheckpointSyncerConf {
     pub async fn build(
         &self,
         latest_index_gauge: Option<IntGauge>,
+        settings: Option<&Settings>,
+        metrics: Option<&CoreMetrics>,
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         Ok(match self {
             CheckpointSyncerConf::LocalStorage { path } => {
@@ -158,8 +161,21 @@ impl CheckpointSyncerConf {
                 chain_name,
                 contract_address,
             } => {
-                todo!()
-                /* Box::new(OnChainStorage::new(chain_name, contract_address, provider, chain_signer)) */
+                // Build the onchain checkpoint storage contract interface
+                let domain = if let Some(settings) = settings {
+                    settings.lookup_domain(chain_name)
+                } else {
+                    Err(eyre!("Missing settings or chain name"))
+                }?;
+                let onchain_checkpoint_storage = settings
+                    .unwrap()
+                    .build_onchain_checkpoint_storage(
+                        contract_address.to_owned(),
+                        &domain,
+                        metrics.unwrap(),
+                    )
+                    .await?;
+                Box::new(OnchainStorageClient::new(onchain_checkpoint_storage))
             }
         })
     }

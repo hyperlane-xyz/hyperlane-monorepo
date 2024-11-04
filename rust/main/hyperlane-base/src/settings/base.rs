@@ -5,7 +5,8 @@ use futures_util::future::try_join_all;
 use hyperlane_core::{
     HyperlaneChain, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
-    Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
+    Mailbox, MerkleTreeHook, MultisigIsm, OnchainCheckpointStorage, SequenceAwareIndexer,
+    ValidatorAnnounce, H256,
 };
 
 use crate::{
@@ -247,5 +248,17 @@ impl Settings {
             .into_iter()
             .map(|i| Ok((i.domain().clone(), i)))
             .collect()
+    }
+
+    pub async fn build_onchain_checkpoint_storage(
+        &self,
+        checkpoint_address: H256,
+        domain: &HyperlaneDomain,
+        metrics: &CoreMetrics,
+    ) -> Result<Box<dyn OnchainCheckpointStorage>> {
+        let setup = self.chain_setup(domain)?;
+        setup
+            .build_onchain_checkpoint_storage(checkpoint_address, metrics)
+            .await
     }
 }

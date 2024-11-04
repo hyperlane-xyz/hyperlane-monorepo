@@ -1,95 +1,56 @@
-use crate::settings::ChainSigner;
 use crate::{AgentMetadata, CheckpointSyncer};
 use async_trait::async_trait;
-use eyre::{Context, Result};
-use hyperlane_core::{
-    HyperlaneChain, HyperlaneDomainProtocol, HyperlaneProvider, OnchainCheckpointStorage,
-    SignedAnnouncement, SignedCheckpointWithMessageId,
-};
-use serde_json;
-use std::fmt::Debug;
-/* use solana_sdk::signer::Signer;
-use solana_client::rpc_client::RpcClient;
-use cosmrs::tx::{SignDoc, SignerOptions};
-use cosmrs::AccountId;
- */
+use derive_new::new;
+use eyre::Result;
+use hyperlane_core::{OnchainCheckpointStorage, SignedAnnouncement, SignedCheckpointWithMessageId};
+use std::fmt;
 
-#[derive(Debug)]
-pub struct OnChainStorage {
-    // <S: ChainSigner>
-    chain: HyperlaneDomainProtocol,
+#[derive(new)]
+/// Onchain storage client
+pub struct OnchainStorageClient {
     storage: Box<dyn OnchainCheckpointStorage>,
 }
 
-impl OnChainStorage {
-    /* pub fn new(chain: HyperlaneDomainProtocol, contract_address: String, signer: S) -> Result<Self> {
-        let storage: Box<dyn OnchainCheckpointStorage> = Box::new(chain.create_checkpoint_storage(&contract_address)?);
-
-        Ok(Self {
-            chain,
-            contract_address,
-            storage,
-            signer,
-        });
-    } */
-
-    async fn write_to_contract(&self, key: &str, data: &[u8]) -> Result<()> {
-        self.storage.write_to_contract(key, data).await
-    }
-
-    async fn read_from_contract(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        self.storage.read_from_contract(key).await
+// required by `CheckpointSyncer`
+impl fmt::Debug for OnchainStorageClient {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OnchainStorage")
+            .field("storage", &self.storage)
+            .finish()
     }
 }
 
 #[async_trait]
-impl CheckpointSyncer for OnChainStorage {
+impl CheckpointSyncer for OnchainStorageClient {
     async fn latest_index(&self) -> Result<Option<u32>> {
-        let data = self.read_from_contract("latest_index").await?;
-        data.map(|d| serde_json::from_slice(&d).context("Deserializing latest index"))
-            .transpose()
+        self.fetch_latest_index().await
     }
 
     async fn write_latest_index(&self, index: u32) -> Result<()> {
-        let serialized_index = serde_json::to_vec(&index)?;
-        self.write_to_contract("latest_index", &serialized_index)
-            .await
+        self.write_latest_index(index).await
     }
 
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpointWithMessageId>> {
-        let key = format!("checkpoint_{}", index);
-        let data = self.read_from_contract(&key).await?;
-        data.map(|d| serde_json::from_slice(&d).context("Deserializing checkpoint"))
-            .transpose()
+        self.fetch_checkpoint(index).await
     }
 
     async fn write_checkpoint(
         &self,
         signed_checkpoint: &SignedCheckpointWithMessageId,
     ) -> Result<()> {
-        // FIXME reference this CheckpointWithMessageId { checkpoint: Checkpoint { in mod.rs
-        let key = format!("checkpoint_{}", signed_checkpoint.value.index);
-        let serialized_checkpoint = serde_json::to_vec(signed_checkpoint)?;
-        self.storage
-            .write_to_contract(&key, &serialized_checkpoint)
-            .await
+        self.write_checkpoint(signed_checkpoint).await
     }
 
     async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
-        let serialized_metadata = serde_json::to_vec(metadata)?;
-        self.write_to_contract("metadata", &serialized_metadata)
-            .await
+        self.write_metadata(metadata).await
     }
 
     async fn write_announcement(&self, signed_announcement: &SignedAnnouncement) -> Result<()> {
-        let serialized_announcement = serde_json::to_vec(signed_announcement)?;
-        self.write_to_contract("announcement", &serialized_announcement)
-            .await
+        self.write_announcement(signed_announcement).await
     }
 
     fn announcement_location(&self) -> String {
-        todo!()
-        /* format!("onchain://{}/{}", self.chain, self.contract_address) */
+        self.storage.announcement_location()
     }
 }
 
