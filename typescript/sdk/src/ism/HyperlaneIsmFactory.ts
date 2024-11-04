@@ -281,19 +281,16 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       this.getContracts(destination).domainRoutingIsmFactory;
     let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
-    config.domains = objFilter(
-      config.domains,
-      (domain, config): config is IsmConfig => {
-        const domainId = this.multiProvider.tryGetDomainId(domain);
-        if (domainId === null) {
-          logger.warn(
-            `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
-          );
-        }
-        return domainId !== null;
-      },
-    );
-    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
+    config.domains = objFilter(config.domains, (domain, _): _ is IsmConfig => {
+      const domainId = this.multiProvider.tryGetDomainId(domain);
+      if (domainId === null) {
+        logger.warn(
+          `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
+        );
+      }
+      return domainId !== null;
+    });
+    const filteredConfigDomainIds = Object.keys(config.domains).map((domain) =>
       this.multiProvider.getDomainId(domain),
     );
     const delta: RoutingIsmDelta = existingIsmAddress
@@ -307,7 +304,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         )
       : {
           domainsToUnenroll: [],
-          domainsToEnroll: safeConfigDomains,
+          domainsToEnroll: filteredConfigDomainIds,
         };
 
     const signer = this.multiProvider.getSigner(destination);
@@ -393,7 +390,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
             config.owner,
-            safeConfigDomains,
+            filteredConfigDomainIds,
             submoduleAddresses,
             overrides,
           ),
@@ -404,14 +401,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         // estimate gas
         const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
           owner,
-          safeConfigDomains,
+          filteredConfigDomainIds,
           submoduleAddresses,
           overrides,
         );
         // add gas buffer
         const tx = await domainRoutingIsmFactory.deploy(
           owner,
-          safeConfigDomains,
+          filteredConfigDomainIds,
           submoduleAddresses,
           {
             gasLimit: addBufferToGasLimit(estimatedGas),

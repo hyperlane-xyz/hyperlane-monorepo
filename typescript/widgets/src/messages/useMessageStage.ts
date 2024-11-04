@@ -100,11 +100,11 @@ async function fetchMessageState(
   const destTimestamp = destination?.timestamp;
 
   const relayEstimate = Math.floor(
-    (await getBlockTimeEst(destinationDomainId, multiProvider)) * 1.5,
+    getBlockTimeEst(destinationDomainId, multiProvider) * 1.5,
   );
-  const finalityBlocks = await getFinalityBlocks(originDomainId, multiProvider);
+  const finalityBlocks = getFinalityBlocks(originDomainId, multiProvider);
   const finalityEstimate =
-    finalityBlocks * (await getBlockTimeEst(originDomainId, multiProvider));
+    finalityBlocks * getBlockTimeEst(originDomainId, multiProvider);
 
   if (status === MessageStatus.Delivered && destTimestamp) {
     // For delivered messages, just to rough estimates for stages
@@ -172,17 +172,15 @@ async function fetchMessageState(
   };
 }
 
-async function getFinalityBlocks(
-  domainId: number,
-  multiProvider: MultiProvider,
-) {
-  const metadata = await multiProvider.getChainMetadata(domainId);
-  if (metadata?.blocks?.confirmations) return metadata.blocks.confirmations;
-  else return DEFAULT_FINALITY_BLOCKS;
+function getFinalityBlocks(domainId: number, multiProvider: MultiProvider) {
+  const metadata = multiProvider.getChainMetadata(domainId);
+  return metadata?.blocks?.confirmations !== undefined
+    ? metadata.blocks.confirmations
+    : DEFAULT_FINALITY_BLOCKS;
 }
 
-async function getBlockTimeEst(domainId: number, multiProvider: MultiProvider) {
-  const metadata = await multiProvider.getChainMetadata(domainId);
+function getBlockTimeEst(domainId: number, multiProvider: MultiProvider) {
+  const metadata = multiProvider.getChainMetadata(domainId);
   return metadata?.blocks?.estimateBlockTime || DEFAULT_BLOCK_TIME_EST;
 }
 

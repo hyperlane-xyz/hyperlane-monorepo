@@ -413,7 +413,7 @@ export async function routingModuleDelta(
     domain.toNumber(),
   );
   // config.domains is already filtered to only include domains in the multiprovider
-  const safeConfigDomains = objMap(config.domains, (chainName) =>
+  const filteredConfigDomainIds = objMap(config.domains, (chainName) =>
     multiProvider.getDomainId(chainName),
   );
 
@@ -433,11 +433,11 @@ export async function routingModuleDelta(
   }
   // check for exclusion of domains in the config
   delta.domainsToUnenroll = deployedDomains.filter(
-    (domain) => !Object.values(safeConfigDomains).includes(domain),
+    (domain) => !Object.values(filteredConfigDomainIds).includes(domain),
   );
   // check for inclusion of domains in the config
   for (const [origin, subConfig] of Object.entries(config.domains)) {
-    const originDomain = safeConfigDomains[origin];
+    const originDomain = filteredConfigDomainIds[origin];
     if (!deployedDomains.includes(originDomain)) {
       delta.domainsToEnroll.push(originDomain);
     } else {
