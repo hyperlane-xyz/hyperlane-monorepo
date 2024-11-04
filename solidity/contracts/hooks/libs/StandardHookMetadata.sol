@@ -165,4 +165,17 @@ library StandardHookMetadata {
     ) internal pure returns (bytes memory) {
         return formatMetadata(uint256(0), uint256(0), _refundAddress, "");
     }
+
+    function overrideMsgValue(
+        bytes calldata _metadata,
+        uint256 _msgValue
+    ) internal view returns (bytes memory) {
+        return
+            formatMetadata(
+                _msgValue,
+                gasLimit(_metadata, 0),
+                refundAddress(_metadata, msg.sender),
+                getCustomMetadata(_metadata)
+            );
+    }
 }
