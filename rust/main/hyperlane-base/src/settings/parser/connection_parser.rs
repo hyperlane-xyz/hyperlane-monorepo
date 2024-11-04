@@ -137,7 +137,7 @@ pub fn build_cosmos_connection_conf(
         .parse_u64()
         .end();
 
-    let native_token = parse_native_token(chain, err);
+    let native_token = parse_native_token(chain, err, 18);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -163,7 +163,7 @@ fn build_sealevel_connection_conf(
     err: &mut ConfigParsingError,
     operation_batch: OperationBatchConfig,
 ) -> h_sealevel::ConnectionConf {
-    let native_token = parse_native_token(chain, err);
+    let native_token = parse_native_token(chain, err, 9);
     h_sealevel::ConnectionConf {
         url: url.clone(),
         operation_batch,
@@ -171,18 +171,22 @@ fn build_sealevel_connection_conf(
     }
 }
 
-fn parse_native_token(chain: &ValueParser, err: &mut ConfigParsingError) -> NativeToken {
+fn parse_native_token(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    default_decimals: u32,
+) -> NativeToken {
     let native_token_decimals = chain
         .chain(err)
-        .get_key("nativeToken")
-        .get_key("decimals")
+        .get_opt_key("nativeToken")
+        .get_opt_key("decimals")
         .parse_u32()
-        .unwrap_or(18);
+        .unwrap_or(default_decimals);
 
     let native_token_denom = chain
         .chain(err)
-        .get_key("nativeToken")
-        .get_key("denom")
+        .get_opt_key("nativeToken")
+        .get_opt_key("denom")
         .parse_string()
         .unwrap_or("");
 

@@ -793,7 +793,6 @@
       "name": "eclipsemainnet",
       "nativeToken": {
         "decimals": 9,
-        "denom": "gwei",
         "name": "Ether",
         "symbol": "ETH"
       },
@@ -2822,7 +2821,6 @@
       "name": "solanamainnet",
       "nativeToken": {
         "decimals": 9,
-        "denom": "lamport",
         "name": "Solana",
         "symbol": "SOL"
       },
