@@ -222,6 +222,24 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 user_secrets,
             })
         }
+        Some("onChain") => {
+            let chain_name = syncer
+                .chain(&mut err)
+                .get_key("originChainName")
+                .parse_string()
+                .end();
+            let contract_address = syncer
+                .chain(&mut err)
+                .get_key("contractAddress")
+                .parse_address_hash()
+                .end()
+                .map(str::to_owned);
+            cfg_unwrap_all!(&syncer.cwp, err: [chain_name, contract_address]);
+            err.into_result(CheckpointSyncerConf::OnChain {
+                chain_name: chain_name.unwrap().to_string(),
+                contract_address,
+            })
+        }
         Some(_) => {
             Err(eyre!("Unknown checkpoint syncer type")).into_config_result(|| &syncer.cwp + "type")
         }
