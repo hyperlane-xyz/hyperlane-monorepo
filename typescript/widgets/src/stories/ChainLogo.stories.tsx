@@ -3,7 +3,7 @@ import React from 'react';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
 
-import { ChainLogo } from '../icons/ChainLogo.js';
+import { ChainLogo } from '../chains/ChainLogo.js';
 
 export default {
   title: 'ChainLogo',
@@ -15,6 +15,7 @@ const Template: ComponentStory<typeof ChainLogo> = (args) => (
 );
 
 const registry = new GithubRegistry();
+await registry.getMetadata();
 
 export const ChainNoBackground = Template.bind({});
 ChainNoBackground.args = {
@@ -54,5 +55,13 @@ JustChainName.args = {
 export const FakeChainName = Template.bind({});
 FakeChainName.args = {
   chainName: 'myfakechain',
+  registry,
+};
+
+export const SpecificLogoUri = Template.bind({});
+SpecificLogoUri.args = {
+  chainName: 'myfakechain',
+  logoUri:
+    'https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/chains/arbitrum/logo.svg',
   registry,
 };

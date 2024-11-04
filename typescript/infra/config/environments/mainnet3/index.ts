@@ -1,3 +1,5 @@
+import { ChainName } from '@hyperlane-xyz/sdk';
+
 import {
   getKeysForRole,
   getMultiProtocolProvider,
@@ -17,6 +19,7 @@ import { infrastructure } from './infrastructure.js';
 import { bridgeAdapterConfigs, relayerConfig } from './liquidityLayer.js';
 import { ethereumChainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
+import { checkWarpDeployConfig } from './warp/checkWarpDeploy.js';
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
@@ -28,9 +31,11 @@ export const environment: EnvironmentConfig = {
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
     useSecrets?: boolean,
+    chains?: ChainName[],
   ) =>
     getMultiProviderForRole(
       environmentName,
+      chains && chains.length > 0 ? chains : supportedChainNames,
       await getRegistry(useSecrets),
       context,
       role,
@@ -47,6 +52,7 @@ export const environment: EnvironmentConfig = {
   infra: infrastructure,
   helloWorld,
   keyFunderConfig,
+  checkWarpDeployConfig,
   liquidityLayerConfig: {
     bridgeAdapters: bridgeAdapterConfigs,
     relayer: relayerConfig,

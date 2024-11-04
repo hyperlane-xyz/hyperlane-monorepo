@@ -24,7 +24,6 @@ import {
   TestChainName,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
-import { normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -36,6 +35,7 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters } from '../router/types.js';
 import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
+import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
 import { TokenType } from './config.js';
@@ -111,7 +111,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a collateral config', async () => {
-    const config = {
+    const config: TokenRouterConfig = {
       ...baseConfig,
       type: TokenType.collateral,
       token: token.address,
@@ -139,7 +139,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       TOKEN_NAME,
       TOKEN_NAME,
     );
-    const config = {
+    const config: TokenRouterConfig = {
       type: TokenType.collateralVault,
       token: vault.address,
       hook: hookAddress,
@@ -172,9 +172,8 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   it('should create with a synthetic config', async () => {
-    const config = {
+    const config: TokenRouterConfig = {
       type: TokenType.synthetic,
-      token: token.address,
       hook: hookAddress,
       name: TOKEN_NAME,
       symbol: TOKEN_NAME,
@@ -272,6 +271,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         paused: false,
       },
     ];
+
     it('should deploy and set a new Ism', async () => {
       const config = {
         ...baseConfig,
@@ -490,7 +490,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         ismFactoryAddresses,
       } as TokenRouterConfig;
 
-      const owner = randomAddress();
+      const owner = signer.address.toLowerCase();
       const evmERC20WarpModule = await EvmERC20WarpModule.create({
         chain,
         config: {
@@ -499,7 +499,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         },
         multiProvider,
       });
-      expect(owner).to.equal(owner);
+
+      const currentConfig = await evmERC20WarpModule.read();
+      expect(currentConfig.owner.toLowerCase()).to.equal(owner);
 
       const newOwner = randomAddress();
       await sendTxs(
@@ -518,6 +520,83 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         owner: newOwner,
       });
       expect(txs.length).to.equal(0);
+    });
+
+    it('should update the ProxyAdmin owner only if they are different', async () => {
+      const config: TokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        ismFactoryAddresses,
+      };
+
+      const owner = signer.address.toLowerCase();
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+          interchainSecurityModule: ismAddress,
+        },
+        multiProvider,
+      });
+
+      const currentConfig = await evmERC20WarpModule.read();
+      expect(currentConfig.proxyAdmin?.owner.toLowerCase()).to.equal(owner);
+
+      const newOwner = randomAddress();
+      const updatedWarpCoreConfig: TokenRouterConfig = {
+        ...config,
+        proxyAdmin: {
+          address: currentConfig.proxyAdmin!.address,
+          owner: newOwner,
+        },
+      };
+      await sendTxs(await evmERC20WarpModule.update(updatedWarpCoreConfig));
+
+      const latestConfig: TokenRouterConfig = normalizeConfig(
+        await evmERC20WarpModule.read(),
+      );
+      expect(latestConfig.proxyAdmin?.owner).to.equal(newOwner);
+      // Sanity check to be sure that the owner of the warp route token has not been updated if not changed
+      expect(latestConfig.owner).to.equal(owner);
+
+      // No op if the same owner
+      const txs = await evmERC20WarpModule.update(updatedWarpCoreConfig);
+      expect(txs.length).to.equal(0);
+    });
+
+    it('should update the destination gas', async () => {
+      const domain = 3;
+      const config: TokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        ismFactoryAddresses,
+        remoteRouters: {
+          [domain]: randomAddress(),
+        },
+      };
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+        },
+        multiProvider,
+      });
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          destinationGas: {
+            [domain]: '5000',
+          },
+        }),
+      );
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      expect(Object.keys(updatedConfig.destinationGas!).length).to.be.equal(1);
+      expect(updatedConfig.destinationGas![domain]).to.equal('5000');
     });
   });
 });

@@ -1,18 +1,34 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 import {IMailbox} from "../interfaces/IMailbox.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../libs/Message.sol";
+import {PackageVersioned} from "../PackageVersioned.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-abstract contract MailboxClient is OwnableUpgradeable {
+abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
     using Message for bytes;
+
+    event HookSet(address _hook);
+    event IsmSet(address _ism);
 
     IMailbox public immutable mailbox;
 
@@ -62,8 +78,11 @@ abstract contract MailboxClient is OwnableUpgradeable {
      * @notice Sets the address of the application's custom hook.
      * @param _hook The address of the hook contract.
      */
-    function setHook(address _hook) public onlyContractOrNull(_hook) onlyOwner {
+    function setHook(
+        address _hook
+    ) public virtual onlyContractOrNull(_hook) onlyOwner {
         hook = IPostDispatchHook(_hook);
+        emit HookSet(_hook);
     }
 
     /**
@@ -74,6 +93,7 @@ abstract contract MailboxClient is OwnableUpgradeable {
         address _module
     ) public onlyContractOrNull(_module) onlyOwner {
         interchainSecurityModule = IInterchainSecurityModule(_module);
+        emit IsmSet(_module);
     }
 
     // ======== Initializer =========

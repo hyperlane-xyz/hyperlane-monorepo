@@ -6,7 +6,6 @@ import {
   EventArgs,
 } from '@arbitrum/sdk';
 import { L2ToL1TxEvent } from '@arbitrum/sdk/dist/lib/abi/ArbSys.js';
-import { assert } from 'console';
 import { BigNumber, BytesLike, providers, utils } from 'ethers';
 
 import {
@@ -14,7 +13,7 @@ import {
   ArbSys__factory,
   IOutbox__factory,
 } from '@hyperlane-xyz/core';
-import { WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { ArbL2ToL1HookConfig } from '../../hook/types.js';
@@ -26,7 +25,7 @@ import { MetadataBuilder, MetadataContext } from './builder.js';
 export type NitroChildToParentTransactionEvent = EventArgs<L2ToL1TxEvent>;
 export type ArbL2ToL1Metadata = Omit<
   NitroChildToParentTransactionEvent,
-  'hash' | 'callvalue'
+  'hash'
 > & {
   proof: BytesLike[]; // bytes32[16]
 };
@@ -227,9 +226,9 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       outboxInterface.functions[
         'executeTransaction(bytes32[],uint256,address,address,uint256,uint256,uint256,uint256,bytes)'
       ].inputs;
-    const executeTransactionTypes = executeTransactionInputs
-      .map((input) => input.type)
-      .filter((_, index, array) => index !== array.length - 2); // remove callvalue from types (because the ArbL2ToL1Ism doesn't allow it)
+    const executeTransactionTypes = executeTransactionInputs.map(
+      (input) => input.type,
+    );
     return abiCoder.encode(executeTransactionTypes, [
       metadata.proof,
       metadata.position,
@@ -238,6 +237,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       metadata.arbBlockNum,
       metadata.ethBlockNum,
       metadata.timestamp,
+      metadata.callvalue,
       metadata.data,
     ]);
   }

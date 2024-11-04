@@ -27,8 +27,9 @@ import {
   SmartProviderOptions,
 } from './types.js';
 
-export const getSmartProviderErrorMessage = (errorMsg: string) =>
-  `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+export function getSmartProviderErrorMessage(errorMsg: string): string {
+  return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+}
 
 // This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
 const RPC_SERVER_ERRORS = [
@@ -337,12 +338,14 @@ export class HyperlaneSmartProvider
         } else if (result.status === ProviderStatus.Timeout) {
           this.throwCombinedProviderErrors(
             [result, ...providerResultErrors],
-            `All providers timed out for method ${method}`,
+            `All providers timed out on chain ${this._network.name} for method ${method}`,
           );
         } else if (result.status === ProviderStatus.Error) {
           this.throwCombinedProviderErrors(
             [result.error, ...providerResultErrors],
-            `All providers failed for method ${method} and params ${JSON.stringify(
+            `All providers failed on chain ${
+              this._network.name
+            } for method ${method} and params ${JSON.stringify(
               params,
               null,
               2,
@@ -356,11 +359,9 @@ export class HyperlaneSmartProvider
       } else {
         this.throwCombinedProviderErrors(
           providerResultErrors,
-          `All providers failed for method ${method} and params ${JSON.stringify(
-            params,
-            null,
-            2,
-          )}`,
+          `All providers failed on chain ${
+            this._network.name
+          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
       }
     }
@@ -429,7 +430,7 @@ export class HyperlaneSmartProvider
     errors: any[],
     fallbackMsg: string,
   ): void {
-    this.logger.error(fallbackMsg);
+    this.logger.debug(fallbackMsg);
     if (errors.length === 0) throw new Error(fallbackMsg);
 
     const rpcServerError = errors.find((e) =>

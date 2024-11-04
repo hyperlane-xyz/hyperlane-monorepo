@@ -6,6 +6,7 @@ import {
   IInterchainSecurityModule,
   IMultisigIsm,
   IRoutingIsm,
+  IStaticWeightedMultisigIsm,
   OPStackIsm,
   PausableIsm,
   TestIsm,
@@ -24,6 +25,7 @@ import {
   PausableIsmConfigSchema,
   TestIsmConfigSchema,
   TrustedRelayerIsmConfigSchema,
+  WeightedMultisigIsmConfigSchema,
 } from './schemas.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
@@ -38,6 +40,8 @@ export enum ModuleType {
   NULL,
   CCIP_READ,
   ARB_L2_TO_L1,
+  WEIGHTED_MERKLE_ROOT_MULTISIG,
+  WEIGHTED_MESSAGE_ID_MULTISIG,
 }
 
 // this enum can be adjusted as per deployments necessary
@@ -54,6 +58,8 @@ export enum IsmType {
   PAUSABLE = 'pausableIsm',
   TRUSTED_RELAYER = 'trustedRelayerIsm',
   ARB_L2_TO_L1 = 'arbL2ToL1Ism',
+  WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
+  WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
 }
 
 // ISM types that can be updated in-place
@@ -84,6 +90,10 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
+    case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
+      return ModuleType.WEIGHTED_MERKLE_ROOT_MULTISIG;
+    case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+      return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
   }
 }
 
@@ -93,6 +103,9 @@ export type MultisigConfig = {
 };
 
 export type MultisigIsmConfig = z.infer<typeof MultisigIsmConfigSchema>;
+export type WeightedMultisigIsmConfig = z.infer<
+  typeof WeightedMultisigIsmConfigSchema
+>;
 export type TestIsmConfig = z.infer<typeof TestIsmConfigSchema>;
 export type PausableIsmConfig = z.infer<typeof PausableIsmConfigSchema>;
 export type OpStackIsmConfig = z.infer<typeof OpStackIsmConfigSchema>;
@@ -132,6 +145,8 @@ export type DeployedIsmType = {
   [IsmType.PAUSABLE]: PausableIsm;
   [IsmType.TRUSTED_RELAYER]: TrustedRelayerIsm;
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
+  [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
+  [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;

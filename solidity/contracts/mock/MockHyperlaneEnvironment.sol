@@ -8,8 +8,8 @@ import "../test/TestIsm.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 
 contract MockHyperlaneEnvironment {
-    uint32 originDomain;
-    uint32 destinationDomain;
+    uint32 public originDomain;
+    uint32 public destinationDomain;
 
     mapping(uint32 => MockMailbox) public mailboxes;
     mapping(uint32 => TestInterchainGasPaymaster) public igps;
@@ -38,8 +38,10 @@ contract MockHyperlaneEnvironment {
         mailboxes[_destinationDomain] = destinationMailbox;
     }
 
-    function processNextPendingMessage() public {
-        mailboxes[destinationDomain].processNextInboundMessage();
+    function processNextPendingMessage() public payable {
+        mailboxes[destinationDomain].processNextInboundMessage{
+            value: msg.value
+        }();
     }
 
     function processNextPendingMessageFromDestination() public {

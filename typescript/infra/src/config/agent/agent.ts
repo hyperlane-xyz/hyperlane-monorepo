@@ -30,15 +30,16 @@ export type DeepPartial<T> = T extends object
     }
   : T;
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+// See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is the root object in the values file.
 export interface HelmRootAgentValues {
   image: HelmImageValues;
   hyperlane: HelmHyperlaneValues;
   nameOverride?: string;
+  tolerations?: KubernetesToleration[];
 }
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+// See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane` in the values file.
 interface HelmHyperlaneValues {
   runEnv: DeployEnvironment;
@@ -54,7 +55,7 @@ interface HelmHyperlaneValues {
   scraper?: HelmScraperValues;
 }
 
-// See rust/helm/values.yaml for the full list of options and their defaults.
+// See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.chains` in the values file.
 export interface HelmAgentChainOverride
   extends DeepPartial<AgentChainMetadata> {
@@ -130,6 +131,13 @@ export interface KubernetesResources {
 export interface KubernetesComputeResources {
   cpu: string;
   memory: string;
+}
+
+export interface KubernetesToleration {
+  key: string;
+  operator: string;
+  value: string;
+  effect: string;
 }
 
 export class RootAgentConfigHelper implements AgentContextConfig {
