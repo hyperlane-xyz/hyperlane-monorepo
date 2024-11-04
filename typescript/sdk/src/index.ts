@@ -92,6 +92,7 @@ export {
   DeployerOptions,
   HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer.js';
+export { StarknetDeployer } from './deploy/StarknetDeployer.js';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
   CheckerViolation,

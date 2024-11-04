@@ -4,6 +4,7 @@ import {
   CallData,
   ContractFactory,
   ContractFactoryParams,
+  RawArgs,
 } from 'starknet';
 
 import {
@@ -22,7 +23,7 @@ export class StarknetDeployer {
 
   async deployContract(
     contractName: string,
-    constructorArgs: Record<string, { type: string; value: string | string[] }>,
+    constructorArgs: RawArgs,
   ): Promise<string> {
     this.logger.info(`Deploying contract ${contractName}...`);
 
