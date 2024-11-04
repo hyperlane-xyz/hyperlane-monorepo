@@ -352,7 +352,7 @@ contract HypERC20Test is HypTokenTest {
         assertEq(erc20Token.balanceOf(BOB), 100e18);
     }
 
-    function testRemoteTransfer() public {
+    function testRemoteTransfer() public virtual {
         remoteToken.enrollRemoteRouter(
             ORIGIN,
             address(localToken).addressToBytes32()
@@ -413,7 +413,7 @@ contract HypERC20CollateralTest is HypTokenTest {
 
     function testInitialize_revert_ifAlreadyInitialized() public {}
 
-    function testRemoteTransfer() public {
+    function testRemoteTransfer() public virtual {
         uint256 balanceBefore = localToken.balanceOf(ALICE);
 
         vm.prank(ALICE);

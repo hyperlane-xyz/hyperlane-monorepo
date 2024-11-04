@@ -28,7 +28,7 @@ contract HypValue is TokenRouter {
         bytes32 _recipient,
         uint256 _amount,
         bytes calldata _hookMetadata,
-        address _hook
+        address /*_hook*/
     ) public payable virtual override returns (bytes32 messageId) {
         _checkSufficientValue(_destination, _amount);
 
@@ -44,7 +44,7 @@ contract HypValue is TokenRouter {
                 _amount,
                 _amount,
                 hookMetadata,
-                _hook
+                address(hook)
             );
     }
 
