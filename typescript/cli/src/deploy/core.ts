@@ -1,3 +1,4 @@
+import { Account, RpcProvider } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -9,7 +10,9 @@ import {
   CoreConfig,
   EvmCoreModule,
   ExplorerLicenseType,
+  StarknetCoreModule,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
@@ -60,6 +63,22 @@ export async function runCoreDeploy(params: DeployParams) {
       chainMetadata,
       'Select chain to connect:',
     );
+  }
+
+  if (multiProvider.tryGetProtocol(chain) === ProtocolType.Starknet) {
+    const provider = new RpcProvider({
+      nodeUrl: 'http://127.0.0.1:5050',
+    });
+    const account = new Account(
+      provider,
+      '0x4acc9b79dae485fb71f309f5b62501a1329789f4418bb4c25353ad5617be4d4',
+      '0x000000000000000000000000000000002f663fafebbee32e0698f7e13f886c73',
+    );
+    const starknetCoreModule = new StarknetCoreModule(account);
+    const deployments = await starknetCoreModule.deploy();
+    console.log(deployments);
+    logGreen('✅ Core contract deployments complete:\n');
+    return;
   }
 
   let apiKeys: ChainMap<string> = {};

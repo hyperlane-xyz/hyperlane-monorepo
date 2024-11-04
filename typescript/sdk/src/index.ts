@@ -535,6 +535,7 @@ export {
 } from './utils/gnosisSafe.js';
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
+export { StarknetCoreModule } from './core/StarknetCoreModule.js';
 export {
   proxyAdmin,
   isProxy,
