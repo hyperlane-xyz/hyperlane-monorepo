@@ -1,4 +1,7 @@
+import { BigNumberish } from 'ethers';
+
 import {
+  GasRouter__factory,
   MailboxClient__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -11,15 +14,17 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
+  eqAddress,
   isObjEmpty,
+  objMap,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { EvmModuleDeployer } from '../deploy/EvmModuleDeployer.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -93,10 +98,18 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     const transactions = [];
 
+    /**
+     * @remark
+     * The order of operations matter
+     * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
+     * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     */
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...this.createRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
+      ...this.updateProxyAdminOwnershipTxs(actualConfig, expectedConfig),
     );
 
     return transactions;
@@ -147,6 +160,57 @@ export class EvmERC20WarpModule extends HyperlaneModule<
               addressToBytes32(a),
             ),
           ],
+        ),
+      });
+    }
+    return updateTransactions;
+  }
+
+  /**
+   * Create a transaction to update the remote routers for the Warp Route contract.
+   *
+   * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
+   */
+  createSetDestinationGasUpdateTxs(
+    actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!expectedConfig.destinationGas) {
+      return [];
+    }
+
+    assert(actualConfig.destinationGas, 'actualDestinationGas is undefined');
+    assert(expectedConfig.destinationGas, 'actualDestinationGas is undefined');
+
+    const { destinationGas: actualDestinationGas } = actualConfig;
+    const { destinationGas: expectedDestinationGas } = expectedConfig;
+
+    if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
+      const contractToUpdate = GasRouter__factory.connect(
+        this.args.addresses.deployedTokenRoute,
+        this.multiProvider.getProvider(this.domainId),
+      );
+
+      // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
+      const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
+        [];
+      objMap(expectedDestinationGas, (domain: string, gas: string) => {
+        gasRouterConfigs.push({
+          domain,
+          gas,
+        });
+      });
+
+      updateTransactions.push({
+        annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+        chainId: this.domainId,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'setDestinationGas((uint32,uint256)[])',
+          [gasRouterConfigs],
         ),
       });
     }
@@ -215,12 +279,45 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    return EvmModuleDeployer.createTransferOwnershipTx({
-      actualOwner: actualConfig.owner,
-      expectedOwner: expectedConfig.owner,
-      deployedAddress: this.args.addresses.deployedTokenRoute,
-      chainId: this.domainId,
-    });
+    return transferOwnershipTransactions(
+      this.multiProvider.getDomainId(this.args.chain),
+      this.args.addresses.deployedTokenRoute,
+      actualConfig,
+      expectedConfig,
+      `${expectedConfig.type} Warp Route`,
+    );
+  }
+
+  updateProxyAdminOwnershipTxs(
+    actualConfig: Readonly<TokenRouterConfig>,
+    expectedConfig: Readonly<TokenRouterConfig>,
+  ): AnnotatedEV5Transaction[] {
+    const transactions: AnnotatedEV5Transaction[] = [];
+
+    // Return early because old warp config files did not have the
+    // proxyAdmin property
+    if (!expectedConfig.proxyAdmin) {
+      return transactions;
+    }
+
+    const actualProxyAdmin = actualConfig.proxyAdmin!;
+    assert(
+      eqAddress(actualProxyAdmin.address!, expectedConfig.proxyAdmin.address!),
+      `ProxyAdmin contract addresses do not match. Expected ${expectedConfig.proxyAdmin.address}, got ${actualProxyAdmin.address}`,
+    );
+
+    transactions.push(
+      // Internally the createTransferOwnershipTx method already checks if the
+      // two owner values are the same and produces an empty tx batch if they are
+      ...transferOwnershipTransactions(
+        this.domainId,
+        actualProxyAdmin.address!,
+        actualProxyAdmin,
+        expectedConfig.proxyAdmin,
+      ),
+    );
+
+    return transactions;
   }
 
   /**

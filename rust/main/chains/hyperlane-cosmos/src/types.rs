@@ -1,5 +1,6 @@
-use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+use cosmrs::proto::{cosmos::base::abci::v1beta1::TxResponse, tendermint::Error};
 use hyperlane_core::{ChainResult, ModuleType, TxOutcome, H256, U256};
+use url::Url;
 
 pub struct IsmType(pub hyperlane_cosmwasm_interface::ism::IsmType);
 

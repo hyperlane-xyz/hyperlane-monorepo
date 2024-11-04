@@ -36,6 +36,7 @@ export interface HelmRootAgentValues {
   image: HelmImageValues;
   hyperlane: HelmHyperlaneValues;
   nameOverride?: string;
+  tolerations?: KubernetesToleration[];
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -130,6 +131,13 @@ export interface KubernetesResources {
 export interface KubernetesComputeResources {
   cpu: string;
   memory: string;
+}
+
+export interface KubernetesToleration {
+  key: string;
+  operator: string;
+  value: string;
+  effect: string;
 }
 
 export class RootAgentConfigHelper implements AgentContextConfig {

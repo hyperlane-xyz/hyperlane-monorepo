@@ -49,6 +49,8 @@ pub struct TxnInfo {
     /// If the txn has been processed, we can also report some additional
     /// information.
     pub receipt: Option<TxnReceiptInfo>,
+    /// Raw input data of a transaction
+    pub raw_input_data: Option<Vec<u8>>,
 }
 
 /// Information about the execution of a transaction.

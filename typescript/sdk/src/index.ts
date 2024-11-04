@@ -96,6 +96,7 @@ export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDep
 export {
   CheckerViolation,
   OwnableConfig,
+  DeployedOwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
   ViolationType,
@@ -394,6 +395,7 @@ export {
   ProxiedFactories,
   ProxiedRouterConfig,
   RemoteRouters,
+  DestinationGas,
   RouterAddress,
   RouterConfig,
   RouterViolation,
@@ -446,6 +448,7 @@ export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
   HypERC20Factories,
+  hypERC20contracts,
   HypERC721Factories,
   TokenFactories,
   hypERC20factories,
@@ -531,7 +534,12 @@ export {
 } from './utils/gnosisSafe.js';
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
-export { proxyAdmin } from './deploy/proxy.js';
+export {
+  proxyAdmin,
+  isProxy,
+  proxyConstructorArgs,
+  proxyImplementation,
+} from './deploy/proxy.js';
 export {
   ProxyFactoryFactoriesAddresses,
   ProxyFactoryFactoriesSchema,
@@ -539,3 +547,13 @@ export {
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export {
+  GasPriceConfig,
+  NativeTokenPriceConfig,
+  ChainGasOracleParams,
+  getCoingeckoTokenPrices,
+  getCosmosChainGasPrice,
+  getGasPrice,
+  getLocalStorageGasOracleConfig,
+  getTokenExchangeRateFromValues,
+} from './gas/utils.js';

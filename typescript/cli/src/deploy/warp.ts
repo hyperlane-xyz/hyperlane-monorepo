@@ -12,6 +12,7 @@ import {
   ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
   ContractVerifier,
+  DestinationGas,
   EvmERC20WarpModule,
   EvmERC20WarpRouteReader,
   EvmIsmModule,
@@ -54,7 +55,6 @@ import {
   Address,
   ProtocolType,
   assert,
-  isObjEmpty,
   objFilter,
   objKeys,
   objMap,
@@ -64,7 +64,7 @@ import {
 
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import { getOrRequestApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
@@ -100,7 +100,7 @@ export async function runWarpRouteDeploy({
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
 }) {
-  const { signer, skipConfirmation, chainMetadata } = context;
+  const { signer, skipConfirmation, chainMetadata, registry } = context;
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -127,7 +127,7 @@ export async function runWarpRouteDeploy({
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+    apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
 
   const deploymentParams = {
     context,
@@ -446,7 +446,11 @@ export async function runWarpRouteApply(
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+    apiKeys = await requestAndSaveApiKeys(
+      chains,
+      chainMetadata,
+      context.registry,
+    );
 
   const transactions: AnnotatedEV5Transaction[] = [
     ...(await extendWarpRoute(
@@ -474,7 +478,6 @@ async function extendWarpRoute(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
 ) {
-  logBlue('Extending Warp Route');
   const { multiProvider } = params.context;
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
@@ -489,7 +492,10 @@ async function extendWarpRoute(
     (chain, _config): _config is any => !warpCoreChains.includes(chain),
   );
 
-  if (isObjEmpty(extendedConfigs)) return [];
+  const extendedChains = Object.keys(extendedConfigs);
+  if (extendedChains.length === 0) return [];
+
+  logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
 
   extendedConfigs = await deriveMetadataFromExisting(
     multiProvider,
@@ -536,28 +542,33 @@ async function updateExistingWarpRoute(
     ExplorerLicenseType.MIT,
   );
   const transactions: AnnotatedEV5Transaction[] = [];
+
   await promiseObjAll(
     objMap(warpDeployConfig, async (chain, config) => {
-      const deployedConfig = warpCoreConfigByChain[chain];
-      if (!deployedConfig)
-        return logGray(
-          `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
-        );
-      config.ismFactoryAddresses = addresses[
-        chain
-      ] as ProxyFactoryFactoriesAddresses;
-      const evmERC20WarpModule = new EvmERC20WarpModule(
-        multiProvider,
-        {
-          config,
-          chain,
-          addresses: {
-            deployedTokenRoute: deployedConfig.addressOrDenom!,
+      await retryAsync(async () => {
+        logGray(`Update existing warp route for chain ${chain}`);
+        const deployedConfig = warpCoreConfigByChain[chain];
+        if (!deployedConfig)
+          return logGray(
+            `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
+          );
+
+        config.ismFactoryAddresses = addresses[
+          chain
+        ] as ProxyFactoryFactoriesAddresses;
+        const evmERC20WarpModule = new EvmERC20WarpModule(
+          multiProvider,
+          {
+            config,
+            chain,
+            addresses: {
+              deployedTokenRoute: deployedConfig.addressOrDenom!,
+            },
           },
-        },
-        contractVerifier,
-      );
-      transactions.push(...(await evmERC20WarpModule.update(config)));
+          contractVerifier,
+        );
+        transactions.push(...(await evmERC20WarpModule.update(config)));
+      });
     }),
   );
   return transactions;
@@ -636,11 +647,17 @@ async function enrollRemoteRouters(
 ): Promise<AnnotatedEV5Transaction[]> {
   logBlue(`Enrolling deployed routers with each other...`);
   const { multiProvider } = params.context;
-  const deployedRouters: ChainMap<Address> = objMap(
+  const deployedRoutersAddresses: ChainMap<Address> = objMap(
     deployedContractsMap,
     (_, contracts) => getRouter(contracts).address,
   );
-  const allChains = Object.keys(deployedRouters);
+  const deployedDestinationGas: DestinationGas = await populateDestinationGas(
+    multiProvider,
+    params.warpDeployConfig,
+    deployedContractsMap,
+  );
+
+  const deployedChains = Object.keys(deployedRoutersAddresses);
   const transactions: AnnotatedEV5Transaction[] = [];
   await promiseObjAll(
     objMap(deployedContractsMap, async (chain, contracts) => {
@@ -662,14 +679,23 @@ async function enrollRemoteRouters(
 
         const otherChains = multiProvider
           .getRemoteChains(chain)
-          .filter((c) => allChains.includes(c));
+          .filter((c) => deployedChains.includes(c));
 
         mutatedWarpRouteConfig.remoteRouters =
-          otherChains.reduce<RemoteRouters>((remoteRouters, chain) => {
-            remoteRouters[multiProvider.getDomainId(chain)] =
-              deployedRouters[chain];
+          otherChains.reduce<RemoteRouters>((remoteRouters, otherChain) => {
+            remoteRouters[multiProvider.getDomainId(otherChain)] =
+              deployedRoutersAddresses[otherChain];
             return remoteRouters;
           }, {});
+
+        mutatedWarpRouteConfig.destinationGas =
+          otherChains.reduce<DestinationGas>((destinationGas, otherChain) => {
+            const otherChainDomain = multiProvider.getDomainId(otherChain);
+            destinationGas[otherChainDomain] =
+              deployedDestinationGas[otherChainDomain];
+            return destinationGas;
+          }, {});
+
         const mutatedConfigTxs: AnnotatedEV5Transaction[] =
           await evmERC20WarpModule.update(mutatedWarpRouteConfig);
 
@@ -683,6 +709,38 @@ async function enrollRemoteRouters(
   );
 
   return transactions;
+}
+
+/**
+ * Populates the destination gas amounts for each chain using warpConfig.gas OR querying other router's destinationGas
+ */
+async function populateDestinationGas(
+  multiProvider: MultiProvider,
+  warpDeployConfig: WarpRouteDeployConfig,
+  deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
+): Promise<DestinationGas> {
+  const destinationGas: DestinationGas = {};
+  const deployedChains = Object.keys(deployedContractsMap);
+  await promiseObjAll(
+    objMap(deployedContractsMap, async (chain, contracts) => {
+      await retryAsync(async () => {
+        const router = getRouter(contracts);
+
+        const otherChains = multiProvider
+          .getRemoteChains(chain)
+          .filter((c) => deployedChains.includes(c));
+
+        for (const otherChain of otherChains) {
+          const otherDomain = multiProvider.getDomainId(otherChain);
+          if (!destinationGas[otherDomain])
+            destinationGas[otherDomain] =
+              warpDeployConfig[otherChain].gas?.toString() ||
+              (await router.destinationGas(otherDomain)).toString();
+        }
+      });
+    }),
+  );
+  return destinationGas;
 }
 
 function getRouter(contracts: HyperlaneContracts<HypERC20Factories>) {
@@ -830,24 +888,29 @@ async function submitWarpApplyTransactions(
   const { multiProvider } = params.context;
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
-      const chain = multiProvider.getChainName(chainId);
-      const submitter: TxSubmitterBuilder<ProtocolType> =
-        await getWarpApplySubmitter({
-          chain,
-          context: params.context,
-          strategyUrl: params.strategyUrl,
-        });
-
-      const transactionReceipts = await submitter.submit(...transactions);
-      if (transactionReceipts) {
-        const receiptPath = `${params.receiptsDir}/${chain}-${
-          submitter.txSubmitterType
-        }-${Date.now()}-receipts.json`;
-        writeYamlOrJson(receiptPath, transactionReceipts);
-        logGreen(
-          `Transactions receipts successfully written to ${receiptPath}`,
-        );
-      }
+      await retryAsync(
+        async () => {
+          const chain = multiProvider.getChainName(chainId);
+          const submitter: TxSubmitterBuilder<ProtocolType> =
+            await getWarpApplySubmitter({
+              chain,
+              context: params.context,
+              strategyUrl: params.strategyUrl,
+            });
+          const transactionReceipts = await submitter.submit(...transactions);
+          if (transactionReceipts) {
+            const receiptPath = `${params.receiptsDir}/${chain}-${
+              submitter.txSubmitterType
+            }-${Date.now()}-receipts.json`;
+            writeYamlOrJson(receiptPath, transactionReceipts);
+            logGreen(
+              `Transactions receipts successfully written to ${receiptPath}`,
+            );
+          }
+        },
+        5, // attempts
+        100, // baseRetryMs
+      );
     }),
   );
 }
