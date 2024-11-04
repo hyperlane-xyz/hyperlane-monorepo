@@ -419,10 +419,13 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .cursor(index_settings)
-            .await
-            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
+        let cursor = match contract_sync.cursor(index_settings).await {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                error!(?err, origin=?origin, "Error building cursor for origin");
+                return tokio::spawn(async {}).instrument(info_span!("MessageSync"));
+            }
+        };
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -444,10 +447,13 @@ impl Relayer {
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync
-            .cursor(index_settings)
-            .await
-            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
+        let cursor = match contract_sync.cursor(index_settings).await {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                error!(?err, origin=?origin, "Error building cursor for origin");
+                return tokio::spawn(async {}).instrument(info_span!("IgpSync"));
+            }
+        };
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -468,10 +474,13 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .cursor(index_settings)
-            .await
-            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
+        let cursor = match contract_sync.cursor(index_settings).await {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                error!(?err, origin=?origin, "Error building cursor for origin");
+                return tokio::spawn(async {}).instrument(info_span!("MerkleTreeHookSync"));
+            }
+        };
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
