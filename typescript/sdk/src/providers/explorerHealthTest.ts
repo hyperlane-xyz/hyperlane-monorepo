@@ -11,6 +11,8 @@ const PROTOCOL_TO_ADDRESS: Record<ProtocolType, Address> = {
   [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000000',
   [ProtocolType.Sealevel]: '11111111111111111111111111111111',
   [ProtocolType.Cosmos]: 'cosmos100000000000000000000000000000000000000',
+  [ProtocolType.Starknet]:
+    '0x4d98390d383cfafe1f13f516783b32e988a95505ee85a390d2170c7297e565b',
 };
 
 const PROTOCOL_TO_TX_HASH: Partial<Record<ProtocolType, Address>> = {
