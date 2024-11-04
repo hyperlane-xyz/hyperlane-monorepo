@@ -153,8 +153,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
       updateTransactions.push({
         chain: this.chainName,
-        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         chainId: this.chainId,
+        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData(
           'enrollRemoteRouters',
@@ -210,8 +210,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
       updateTransactions.push({
         chain: this.chainName,
-        annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         chainId: this.chainId,
+        annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData(
           'setDestinationGas((uint32,uint256)[])',
@@ -260,8 +260,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         );
         updateTransactions.push({
           chain: this.chainName,
-          annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
           chainId: this.chainId,
+          annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
           to: contractToUpdate.address,
           data: contractToUpdate.interface.encodeFunctionData(
             'setInterchainSecurityModule',
@@ -317,7 +317,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       // Internally the createTransferOwnershipTx method already checks if the
       // two owner values are the same and produces an empty tx batch if they are
       ...transferOwnershipTransactions(
-        this.domainId,
+        this.chainName,
+        this.chainId,
         actualProxyAdmin.address!,
         actualProxyAdmin,
         expectedConfig.proxyAdmin,

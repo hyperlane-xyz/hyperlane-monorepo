@@ -498,6 +498,7 @@ export {
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
+export { getChainFromTxs } from './utils/transactions.js';
 export { chainMetadataToWagmiChain } from './utils/wagmi.js';
 export {
   FeeConstantConfig,
