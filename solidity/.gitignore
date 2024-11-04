@@ -1,6 +1,6 @@
 node_modules/
 cache/
-.artifacts/
+artifacts/
 types/
 dist/
 coverage/
@@ -25,3 +25,4 @@ core-utils/zksync/artifacts/output
 
 .zksolc-libraries-cache/
 typechain-types/
+typechain/

@@ -1,4 +1,3 @@
-import assert from 'assert';
 import { BigNumber, BytesLike, Overrides, utils } from 'ethers';
 import {
   Contract,
@@ -8,10 +7,8 @@ import {
   types as zksyncTypes,
 } from 'zksync-ethers';
 
-import {
-  ZkSyncArtifact,
-  loadAllZkArtifacts,
-} from '@hyperlane-xyz/core/zksync-artifacts';
+import { ZKSyncArtifact, loadAllZKSyncArtifacts } from '@hyperlane-xyz/core';
+import { assert } from '@hyperlane-xyz/utils';
 
 /**
  * An entity capable of deploying contracts to the zkSync network.
@@ -31,9 +28,9 @@ export class ZKSyncDeployer {
     this.zkWallet = zkWallet.connect(l2Provider);
   }
 
-  public async loadArtifact(contractTitle: string): Promise<ZkSyncArtifact> {
-    const zksyncArtifacts = await loadAllZkArtifacts();
-    const artifact = (Object.values(zksyncArtifacts) as ZkSyncArtifact[]).find(
+  public async loadArtifact(contractTitle: string): Promise<ZKSyncArtifact> {
+    const zksyncArtifacts = await loadAllZKSyncArtifacts();
+    const artifact = (Object.values(zksyncArtifacts) as ZKSyncArtifact[]).find(
       ({ contractName, sourceName }) => {
         if (contractName === contractTitle) {
           return true;
@@ -62,7 +59,7 @@ export class ZKSyncDeployer {
    * @returns Calculated fee in ETH wei
    */
   public async estimateDeployFee(
-    artifact: ZkSyncArtifact,
+    artifact: ZKSyncArtifact,
     constructorArguments: any[],
   ): Promise<BigNumber> {
     const gas = await this.estimateDeployGas(artifact, constructorArguments);
@@ -79,7 +76,7 @@ export class ZKSyncDeployer {
    * @returns Calculated amount of gas.
    */
   public async estimateDeployGas(
-    artifact: ZkSyncArtifact,
+    artifact: ZKSyncArtifact,
     constructorArguments: any[],
   ): Promise<BigNumber> {
     const factoryDeps = await this.extractFactoryDeps(artifact);
@@ -115,7 +112,7 @@ export class ZKSyncDeployer {
    * @returns A contract object.
    */
   public async deploy(
-    artifact: ZkSyncArtifact,
+    artifact: ZKSyncArtifact,
     constructorArguments: any[] = [],
     overrides?: Overrides,
     additionalFactoryDeps?: BytesLike[],
@@ -156,7 +153,7 @@ export class ZKSyncDeployer {
    *
    * @returns Factory dependencies in the format expected by SDK.
    */
-  async extractFactoryDeps(artifact: ZkSyncArtifact): Promise<string[]> {
+  async extractFactoryDeps(artifact: ZKSyncArtifact): Promise<string[]> {
     const visited = new Set<string>();
 
     visited.add(`${artifact.sourceName}:${artifact.contractName}`);
@@ -164,7 +161,7 @@ export class ZKSyncDeployer {
   }
 
   private async extractFactoryDepsRecursive(
-    artifact: ZkSyncArtifact,
+    artifact: ZKSyncArtifact,
     visited: Set<string>,
   ): Promise<string[]> {
     // Load all the dependency bytecodes.

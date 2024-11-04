@@ -6,9 +6,9 @@ cd "$(dirname "$0")"
 # Define the artifacts directory
 artifactsDir="./artifacts/build-info"
 # Define the output file
-outputFileJson="./dist/evm/buildArtifact.json"
-outputFileJs="./dist/evm/buildArtifact.js"
-outputFileTsd="./dist/evm/buildArtifact.d.ts"
+outputFileJson="./dist/buildArtifact.json"
+outputFileJs="./dist/buildArtifact.js"
+outputFileTsd="./dist/buildArtifact.d.ts"
 
 # log that we're in the script
 echo 'Finding and processing hardhat build EVM artifact...'

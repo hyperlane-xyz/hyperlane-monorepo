@@ -5,6 +5,9 @@ import { fileURLToPath } from 'url';
 
 const cwd = process.cwd();
 
+/**
+ * @dev Only includes primary JSON artifacts & excludes debug files and build-info directory
+ */
 const zksyncArtifacts = glob(cwd, [
   `!./artifacts-zk/!(build-info)/**/*.dbg.json`,
   `./artifacts-zk/!(build-info)/**/+([a-zA-Z0-9_]).json`,
@@ -13,44 +16,24 @@ const zksyncArtifacts = glob(cwd, [
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Directory to store individual artifact files
-const srcOutputDir = join(__dirname, 'core-utils/zksync/artifacts/output');
+const srcOutputDir = join(__dirname, 'core-utils/zksync/artifacts');
 
-// Ensure the output directory exists
 if (!existsSync(srcOutputDir)) {
   mkdirSync(srcOutputDir, { recursive: true });
 }
 
-const zkSyncFileNames = new Set();
-let zkSyncArtifactMap = {};
-
-// Process each artifact file
+/**
+ * @dev Reads each artifact file and writes it to srcOutputDir
+ */
 zksyncArtifacts.forEach((file) => {
   const fileContent = readFileSync(file, 'utf-8');
-  const jsonObject = JSON.parse(fileContent);
-  const contractName = jsonObject.contractName;
   let fileName = `${basename(file, '.json')}`;
 
-  if (zkSyncFileNames.has(fileName)) {
-    return;
-  }
-  zkSyncFileNames.add(fileName);
+  const outputFile = join(srcOutputDir, `${fileName}.json`);
 
-  // Add to artifact map
-  zkSyncArtifactMap[contractName] = fileName;
-
-  // Create a TypeScript object export statement
-  const fileContentEx = `export const ${fileName} = ${JSON.stringify(
-    jsonObject,
-    null,
-    2,
-  )} as const;`;
-
-  // Write individual file
-  const outputFile = join(srcOutputDir, `${fileName}.ts`);
-  writeFileSync(outputFile, fileContentEx);
+  writeFileSync(outputFile, fileContent);
 });
 
 console.log(
-  `Generated ${zksyncArtifacts.length} individual TypeScript files in ${srcOutputDir}`,
+  `Generated ${zksyncArtifacts.length} individual JSON Artifacts in ${srcOutputDir}`,
 );

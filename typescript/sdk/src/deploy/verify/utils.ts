@@ -1,6 +1,6 @@
 import { ethers, utils } from 'ethers';
 
-import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
+import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import { Address, eqAddress } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
@@ -79,11 +79,11 @@ export async function getContractVerificationInputForZKSync({
   name: string;
   contract: ethers.Contract;
   constructorArgs: any[];
-  artifact: ZkSyncArtifact;
+  artifact: ZKSyncArtifact;
   isProxy?: boolean;
   expectedimplementation?: Address;
 }): Promise<ContractVerificationInput> {
-  const args = await encodeArguments(artifact.abi, constructorArgs);
+  const args = encodeArguments(artifact.abi, constructorArgs);
   return buildVerificationInput(
     name,
     contract.address,

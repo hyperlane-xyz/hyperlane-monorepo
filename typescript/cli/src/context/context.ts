@@ -1,6 +1,5 @@
 import { confirm } from '@inquirer/prompts';
 import { Signer } from 'ethers';
-import { Wallet } from 'zksync-ethers';
 
 import {
   DEFAULT_GITHUB_REGISTRY,
@@ -67,7 +66,7 @@ export async function getContext({
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
-  let signer: Signer | Wallet | undefined = undefined;
+  let signer: Signer | undefined = undefined;
   if (key || requiresKey) {
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
   }
@@ -181,7 +180,7 @@ function isCanonicalRepoUrl(url: string) {
  * @param customChains Custom chains specified by the user
  * @returns a new MultiProvider
  */
-async function getMultiProvider(registry: IRegistry, signer?: Signer | Wallet) {
+async function getMultiProvider(registry: IRegistry, signer?: Signer) {
   const chainMetadata = await registry.getMetadata();
   const multiProvider = new MultiProvider(chainMetadata);
 

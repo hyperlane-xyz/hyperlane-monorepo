@@ -14,10 +14,10 @@ export const ZK_REGISTRY_PATH = `${TEST_CONFIGS_PATH}/zksync`;
 
 const EXAMPLES_PATH = './examples';
 const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config-zksync.yaml`;
-const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment-zksync.yaml`;
+const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 
 const TEMP_PATH = '/tmp'; // temp gets removed at the end of all-test.sh
-const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/zksync/warp-route-deployment-zksync.yaml`;
+const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/zksync/warp-route-deployment.yaml`;
 const WARP_CORE_CONFIG_PATH_2 = `${ZK_REGISTRY_PATH}/deployments/warp_routes/ETH/${CHAIN_NAME_ZK_2}-config.yaml`;
 
 const TEST_TIMEOUT = 180_000; // Long timeout since these tests can take a while
@@ -36,7 +36,7 @@ describe.skip('WarpRead ZKSync e2e tests', async function () {
     const exampleWarpConfig: WarpRouteDeployConfig = readYamlOrJson(
       WARP_CONFIG_PATH_EXAMPLE,
     );
-    zksync2WarpConfig = { zksync2: { ...exampleWarpConfig.zksync1 } };
+    zksync2WarpConfig = { zksync2: { ...exampleWarpConfig.anvil1 } };
     writeYamlOrJson(WARP_CONFIG_PATH_2, zksync2WarpConfig);
   });
 

@@ -7900,6 +7900,7 @@ __metadata:
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
+    zksync-ethers: "npm:^5.10.0"
     zod: "npm:^3.21.2"
     zod-validation-error: "npm:^3.3.0"
     zx: "npm:^8.1.4"
@@ -7945,7 +7946,7 @@ __metadata:
     tsx: "npm:^4.19.1"
     typechain: "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
     typescript: "npm:5.3.3"
-    zksync-ethers: "npm:^5"
+    zksync-ethers: "npm:^5.10.0"
   peerDependencies:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
@@ -8077,7 +8078,6 @@ __metadata:
     lint-staged: "npm:^12.4.3"
     prettier: "npm:^2.8.8"
     tsx: "npm:^4.7.1"
-    zksync-ethers: "npm:^5"
   languageName: unknown
   linkType: soft
 
@@ -8144,6 +8144,7 @@ __metadata:
     typescript: "npm:5.3.3"
     viem: "npm:^1.20.0"
     yaml: "npm:2.4.5"
+    zksync-ethers: "npm:^5.10.0"
     zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"
@@ -33200,14 +33201,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zksync-ethers@npm:^5":
-  version: 5.9.2
-  resolution: "zksync-ethers@npm:5.9.2"
+"zksync-ethers@npm:^5.10.0":
+  version: 5.10.0
+  resolution: "zksync-ethers@npm:5.10.0"
   dependencies:
     ethers: "npm:~5.7.0"
   peerDependencies:
     ethers: ~5.7.0
-  checksum: c765fe5828df4ceaba3477f227125da5783a5907e915ffb2ef67246d7154c8ac1745551f4cec88df5ec23f24d21332a7438b8034278ba8d03d32a36424c500d3
+  checksum: 826719e2e40731e1104cf8a0c16c758526de6ca9e907d0483eb5bd80b635f02e3cce012115b75d68976a8dd746d63d4f83d576cc3bddc18a02a49d2bc023347f
   languageName: node
   linkType: hard
 

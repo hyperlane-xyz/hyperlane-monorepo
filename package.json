@@ -12,8 +12,7 @@
     "husky": "^8.0.0",
     "lint-staged": "^12.4.3",
     "prettier": "^2.8.8",
-    "tsx": "^4.7.1",
-    "zksync-ethers": "^5"
+    "tsx": "^4.7.1"
   },
   "dependencies": {
     "@changesets/cli": "^2.26.2"

@@ -14,7 +14,7 @@ import {
   Wallet as ZKSyncWallet,
 } from 'zksync-ethers';
 
-import { ZkSyncArtifact } from '@hyperlane-xyz/core/zksync-artifacts';
+import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
   addBufferToGasLimit,
@@ -175,7 +175,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (signer.provider) return signer;
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
-    return provider ? signer.connect(provider as any) : signer;
+    if (!provider) return signer;
+
+    // Handle ZKSync provider separately
+    if (signer instanceof ZKSyncWallet) {
+      return signer.connect(provider as ZKSyncProvider);
+    }
+    return signer.connect(provider);
   }
 
   /**
@@ -332,7 +338,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     factory: F,
     params: Parameters<F['deploy']>,
-    artifact?: ZkSyncArtifact,
+    artifact?: ZKSyncArtifact,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) {
@@ -455,9 +461,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
 
-    const response = await signer.sendTransaction({
-      ...txReq,
-    });
+    const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
   }

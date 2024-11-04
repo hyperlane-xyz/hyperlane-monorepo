@@ -36,12 +36,6 @@ module.exports = {
   gasReporter: {
     currency: 'USD',
   },
-  typechain: {
-    outDir: './core-utils/zksync/types',
-    target: 'ethers-v5',
-    alwaysGenerateOverloads: true,
-    node16Modules: true,
-  },
   mocha: {
     bail: true,
     import: 'tsx',
