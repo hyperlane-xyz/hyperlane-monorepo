@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.0696",
+    "amount": "0.119",
     "decimals": 9
   },
   "avalanche": {
@@ -44,7 +44,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.004639802",
+    "amount": "0.004069265",
     "decimals": 9
   },
   "bob": {
@@ -92,7 +92,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "9.379005838",
+    "amount": "15.468343175",
     "decimals": 9
   },
   "everclear": {
@@ -104,7 +104,7 @@
     "decimals": 9
   },
   "flare": {
-    "amount": "26.179282546",
+    "amount": "38.052815213",
     "decimals": 9
   },
   "flow": {
@@ -152,7 +152,7 @@
     "decimals": 9
   },
   "linea": {
-    "amount": "0.312253183",
+    "amount": "0.381023276",
     "decimals": 9
   },
   "lisk": {
@@ -168,7 +168,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.001001418",
+    "amount": "0.001003562",
     "decimals": 9
   },
   "mantle": {
@@ -184,7 +184,7 @@
     "decimals": 9
   },
   "metis": {
-    "amount": "1.077971462",
+    "amount": "1.280562502",
     "decimals": 9
   },
   "mint": {
@@ -192,7 +192,7 @@
     "decimals": 9
   },
   "mode": {
-    "amount": "0.001000265",
+    "amount": "0.001000252",
     "decimals": 9
   },
   "molten": {
@@ -204,7 +204,7 @@
     "decimals": 9
   },
   "morph": {
-    "amount": "0.0041472",
+    "amount": "0.01",
     "decimals": 9
   },
   "neutron": {
@@ -216,7 +216,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.001001064",
+    "amount": "0.001000604",
     "decimals": 9
   },
   "orderly": {
@@ -264,7 +264,7 @@
     "decimals": 9
   },
   "scroll": {
-    "amount": "0.041113999",
+    "amount": "0.049509194",
     "decimals": 9
   },
   "sei": {
@@ -304,15 +304,15 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001000298",
+    "amount": "0.001000315",
     "decimals": 9
   },
   "xai": {
-    "amount": "0.10081",
+    "amount": "0.73774",
     "decimals": 9
   },
   "xlayer": {
-    "amount": "5.882081",
+    "amount": "10.44609375",
     "decimals": 9
   },
   "zeronetwork": {
@@ -332,7 +332,7 @@
     "decimals": 9
   },
   "zoramainnet": {
-    "amount": "0.001000255",
+    "amount": "0.001000267",
     "decimals": 9
   }
 }

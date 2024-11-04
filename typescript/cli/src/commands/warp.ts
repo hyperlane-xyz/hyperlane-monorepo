@@ -24,6 +24,8 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/input.js';
+import { selectRegistryWarpRoute } from '../utils/tokens.js';
+import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
   DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
@@ -54,6 +56,7 @@ export const warpCommand: CommandModule = {
       .command(init)
       .command(read)
       .command(send)
+      .command(verify)
       .version(false)
       .demandCommand(),
 
@@ -332,5 +335,27 @@ export const check: CommandModuleWithContext<{
     });
 
     process.exit(0);
+  },
+};
+
+export const verify: CommandModuleWithWriteContext<{
+  symbol: string;
+}> = {
+  command: 'verify',
+  describe: 'Verify deployed contracts on explorers',
+  builder: {
+    symbol: {
+      ...symbolCommandOption,
+      demandOption: false,
+    },
+  },
+  handler: async ({ context, symbol }) => {
+    logCommandHeader('Hyperlane Warp Verify');
+    const warpCoreConfig = await selectRegistryWarpRoute(
+      context.registry,
+      symbol,
+    );
+
+    return runVerifyWarpRoute({ context, warpCoreConfig });
   },
 };
