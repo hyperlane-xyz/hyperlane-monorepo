@@ -4,7 +4,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use hyperlane_core::{
     BlockInfo, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo,
-    TxnReceiptInfo, H256, U256,
+    TxnReceiptInfo, H256, H512, U256,
 };
 use starknet::core::types::{
     BlockId, BlockTag, FieldElement, FunctionCall, MaybePendingBlockWithTxHashes,
@@ -60,13 +60,10 @@ impl HyperlaneChain for StarknetProvider {
 #[async_trait]
 impl HyperlaneProvider for StarknetProvider {
     #[instrument(err, skip(self))]
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let block = self
             .rpc_client()
-            .get_block_with_tx_hashes(BlockId::Hash(
-                FieldElement::from_bytes_be(hash.as_fixed_bytes())
-                    .map_err(Into::<HyperlaneStarknetError>::into)?,
-            ))
+            .get_block_with_tx_hashes(BlockId::Number(height))
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
         match block {
@@ -80,11 +77,11 @@ impl HyperlaneProvider for StarknetProvider {
     }
 
     #[instrument(err, skip(self))]
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let tx = self
             .rpc_client()
             .get_transaction_by_hash(
-                FieldElement::from_bytes_be(hash.as_fixed_bytes())
+                FieldElement::from_byte_slice_be(hash.as_bytes())
                     .map_err(Into::<HyperlaneStarknetError>::into)?,
             )
             .await
@@ -99,7 +96,7 @@ impl HyperlaneProvider for StarknetProvider {
         match receipt {
             MaybePendingTransactionReceipt::Receipt(tx_receipt) => match tx_receipt {
                 TransactionReceipt::Invoke(invoke_receipt) => Ok(TxnInfo {
-                    hash: H256::from_slice(tx.transaction_hash().to_bytes_be().as_slice()),
+                    hash: H512::from_slice(tx.transaction_hash().to_bytes_be().as_slice()),
                     gas_limit: U256::one(),
                     max_priority_fee_per_gas: None,
                     max_fee_per_gas: None,
@@ -107,6 +104,7 @@ impl HyperlaneProvider for StarknetProvider {
                     nonce: 0,
                     sender: H256::zero(),
                     recipient: None,
+                    raw_input_data: None,
                     receipt: Some(TxnReceiptInfo {
                         gas_used: U256::from_big_endian(
                             invoke_receipt.actual_fee.amount.to_bytes_be().as_slice(),

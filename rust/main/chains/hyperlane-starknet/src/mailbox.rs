@@ -2,12 +2,12 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use byteorder::{BigEndian, ByteOrder};
 
 use async_trait::async_trait;
+use hyperlane_core::ReorgPeriod;
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
@@ -17,7 +17,7 @@ use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::{
     FieldElement, MaybePendingTransactionReceipt, PendingTransactionReceipt, TransactionReceipt,
 };
-use starknet::providers::{AnyProvider, Provider};
+use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
@@ -25,7 +25,8 @@ use crate::contracts::mailbox::{Mailbox as StarknetMailboxInternal, Message as S
 use crate::error::HyperlaneStarknetError;
 use crate::utils::to_mailbox_bytes;
 use crate::{
-    build_single_owner_account, get_transaction_receipt, ConnectionConf, Signer, StarknetProvider,
+    build_single_owner_account, get_block_height_for_reorg_period, get_transaction_receipt,
+    ConnectionConf, Signer, StarknetProvider,
 };
 use cainome::cairo_serde::U256 as StarknetU256;
 
@@ -140,21 +141,15 @@ impl HyperlaneContract for StarknetMailbox {
 #[async_trait]
 impl Mailbox for StarknetMailbox {
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let current_block = self
-            .provider
-            .rpc_client()
-            .block_number()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let block_number =
+            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
 
-        let nonce = match maybe_lag {
-            Some(lag) => self
+        let nonce = match block_number {
+            Some(b) => self
                 .contract
                 .nonce()
-                .block_id(starknet::core::types::BlockId::Number(
-                    current_block - lag.get(),
-                ))
+                .block_id(starknet::core::types::BlockId::Number(b))
                 .call()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?,

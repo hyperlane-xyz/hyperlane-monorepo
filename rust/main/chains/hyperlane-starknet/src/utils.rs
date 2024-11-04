@@ -1,7 +1,9 @@
-use std::future::Future;
+use std::{future::Future, sync::Arc};
 
 use cainome::cairo_serde::CairoSerde;
-use hyperlane_core::{ChainResult, HyperlaneMessage, ModuleType};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod,
+};
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
@@ -237,6 +239,33 @@ pub fn string_to_cairo_long_string(
     }
 
     Ok(chunks)
+}
+
+/// Given a `reorg_period`, returns the block height at the moment.
+/// If the `reorg_period` is None, a block height of None is given,
+/// indicating that the tip directly can be used.
+pub(crate) async fn get_block_height_for_reorg_period(
+    provider: &Arc<AnyProvider>,
+    reorg_period: &ReorgPeriod,
+) -> ChainResult<Option<u64>> {
+    let block_height = match reorg_period {
+        ReorgPeriod::Blocks(blocks) => {
+            let tip = provider
+                .block_number()
+                .await
+                .map_err(Into::<HyperlaneStarknetError>::into)?;
+            let block_height = tip - blocks.get() as u64;
+            Some(block_height)
+        }
+        ReorgPeriod::None => None,
+        ReorgPeriod::Tag(_) => {
+            return Err(ChainCommunicationError::InvalidReorgPeriod(
+                reorg_period.clone(),
+            ))
+        }
+    };
+
+    Ok(block_height)
 }
 
 #[cfg(test)]

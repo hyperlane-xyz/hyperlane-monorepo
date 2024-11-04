@@ -328,7 +328,7 @@ impl KnownHyperlaneDomain {
                 DegenChain, EclipseMainnet, Endurance, Ethereum, Fraxtal, FuseMainnet, Gnosis,
                 InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
-                ReAl, Redstone, Sanko, Sei, Solana, StarknetMainnet, Taiko, Tangle, Viction, Worldchain, Xai,
+                ReAl, Redstone, Sanko, Sei, SolanaMainnet, StarknetMainnet, Taiko, Tangle, Viction, Worldchain, Xai,
                 Xlayer, Zetachain, Zircuit, ZoraMainnet,
             ],
             Testnet: [

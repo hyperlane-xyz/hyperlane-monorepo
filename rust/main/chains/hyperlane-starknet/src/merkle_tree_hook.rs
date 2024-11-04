@@ -2,7 +2,6 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::num::NonZeroU64;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -10,16 +9,19 @@ use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::accumulator::TREE_DEPTH;
 use hyperlane_core::{
     ChainResult, Checkpoint, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, MerkleTreeHook, H256,
+    HyperlaneDomain, HyperlaneProvider, MerkleTreeHook, ReorgPeriod, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
-use starknet::providers::{AnyProvider, Provider};
+use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
 use crate::contracts::merkle_tree_hook::MerkleTreeHook as StarknetMerkleTreeHookInternal;
 use crate::error::HyperlaneStarknetError;
-use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
+use crate::{
+    build_single_owner_account, get_block_height_for_reorg_period, ConnectionConf, Signer,
+    StarknetProvider,
+};
 
 impl<A> std::fmt::Display for StarknetMerkleTreeHookInternal<A>
 where
@@ -97,21 +99,15 @@ impl HyperlaneContract for StarknetMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for StarknetMerkleTreeHook {
     #[instrument(skip(self))]
-    async fn latest_checkpoint(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        let current_block = self
-            .provider
-            .rpc_client()
-            .block_number()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
+    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+        let block_number =
+            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
 
-        let (root, index) = match maybe_lag {
-            Some(lag) => self
+        let (root, index) = match block_number {
+            Some(b) => self
                 .contract
                 .latest_checkpoint()
-                .block_id(starknet::core::types::BlockId::Number(
-                    current_block - lag.get(),
-                ))
+                .block_id(starknet::core::types::BlockId::Number(b))
                 .call()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?,
@@ -133,19 +129,15 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
 
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
-    async fn tree(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let tree = match maybe_lag {
-            Some(lag) => self
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+        let block_number =
+            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
+
+        let tree = match block_number {
+            Some(b) => self
                 .contract
                 .tree()
-                .block_id(starknet::core::types::BlockId::Number(
-                    self.provider
-                        .rpc_client()
-                        .block_number()
-                        .await
-                        .map_err(Into::<HyperlaneStarknetError>::into)?
-                        - lag.get(),
-                ))
+                .block_id(starknet::core::types::BlockId::Number(b))
                 .call()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?,
@@ -171,19 +163,15 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
     }
 
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let count = match maybe_lag {
-            Some(lag) => self
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let block_number =
+            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
+
+        let count = match block_number {
+            Some(b) => self
                 .contract
                 .count()
-                .block_id(starknet::core::types::BlockId::Number(
-                    self.provider
-                        .rpc_client()
-                        .block_number()
-                        .await
-                        .map_err(Into::<HyperlaneStarknetError>::into)?
-                        - lag.get(),
-                ))
+                .block_id(starknet::core::types::BlockId::Number(b))
                 .call()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?,
