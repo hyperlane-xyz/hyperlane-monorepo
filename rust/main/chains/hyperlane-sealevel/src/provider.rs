@@ -24,19 +24,21 @@ pub struct SealevelProvider {
     domain: HyperlaneDomain,
     rpc_client: Arc<SealevelRpcClient>,
     native_token: NativeToken,
+    contract_address: H256,
 }
 
 impl SealevelProvider {
     /// Create a new Sealevel provider.
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
+    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf, contract_address: H256) -> Self {
         // Set the `processed` commitment at rpc level
         let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
         let native_token = conf.native_token.clone();
 
-        SealevelProvider {
+        Self {
             domain,
             rpc_client,
             native_token,
+            contract_address,
         }
     }
 
@@ -120,6 +122,7 @@ impl HyperlaneChain for SealevelProvider {
             domain: self.domain.clone(),
             rpc_client: self.rpc_client.clone(),
             native_token: self.native_token.clone(),
+            contract_address: self.contract_address,
         })
     }
 }
@@ -189,7 +192,7 @@ impl HyperlaneProvider for SealevelProvider {
             gas_price,
             nonce: 0,
             sender,
-            recipient: None,
+            recipient: Some(self.contract_address),
             receipt: Some(receipt),
             raw_input_data: None,
         })

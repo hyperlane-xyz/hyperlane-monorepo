@@ -183,6 +183,7 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => Ok(Box::new(h_sealevel::SealevelProvider::new(
                 locator.domain.clone(),
                 conf,
+                self.addresses.mailbox,
             )) as Box<dyn HyperlaneProvider>),
             ChainConnectionConf::Cosmos(conf) => {
                 let provider = CosmosProvider::new(
