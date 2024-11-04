@@ -5,6 +5,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  ChainId,
   Domain,
   ProtocolType,
   eqAddress,
@@ -27,7 +28,7 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { proxyAdminOwnershipUpdateTxs } from '../deploy/proxy.js';
+import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -61,6 +62,8 @@ export class EvmCoreModule extends HyperlaneModule<
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
 
+  public readonly chainId: ChainId;
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<CoreConfig, DeployedCoreAddresses>,
@@ -69,6 +72,7 @@ export class EvmCoreModule extends HyperlaneModule<
     this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
     this.chainName = this.multiProvider.getChainName(this.args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainId = multiProvider.getChainId(args.chain);
   }
 
   /**
@@ -96,10 +100,11 @@ export class EvmCoreModule extends HyperlaneModule<
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
-      ...proxyAdminOwnershipUpdateTxs(
+      ...proxyAdminUpdateTxs(
+        this.chainId,
+        this.args.addresses.mailbox,
         actualConfig,
         expectedConfig,
-        this.domainId,
       ),
     );
 

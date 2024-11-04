@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -73,10 +74,11 @@ export async function isProxy(
   return !eqAddress(admin, ethers.constants.AddressZero);
 }
 
-export function proxyAdminOwnershipUpdateTxs(
+export function proxyAdminUpdateTxs(
+  chainId: ChainId,
+  proxyAddress: Address,
   actualConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
   expectedConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
-  chainId: number,
 ): AnnotatedEV5Transaction[] {
   const transactions: AnnotatedEV5Transaction[] = [];
 
@@ -87,21 +89,34 @@ export function proxyAdminOwnershipUpdateTxs(
   }
 
   const actualProxyAdmin = actualConfig.proxyAdmin!;
-  assert(
-    eqAddress(actualProxyAdmin.address!, expectedConfig.proxyAdmin.address),
-    `ProxyAdmin contract addresses do not match. Expected ${expectedConfig.proxyAdmin.address}, got ${actualProxyAdmin.address}`,
-  );
+  const parsedChainId =
+    typeof chainId === 'string' ? parseInt(chainId) : chainId;
 
-  transactions.push(
-    // Internally the createTransferOwnershipTx method already checks if the
-    // two owner values are the same and produces an empty tx batch if they are
-    ...transferOwnershipTransactions(
-      chainId,
-      actualProxyAdmin.address!,
-      actualProxyAdmin,
-      expectedConfig.proxyAdmin,
-    ),
-  );
+  if (
+    actualProxyAdmin.address &&
+    actualProxyAdmin.address !== expectedConfig.proxyAdmin.address
+  ) {
+    transactions.push({
+      chainId: parsedChainId,
+      annotation: `Updating ProxyAdmin for proxy at "${proxyAddress}" from "${actualProxyAdmin.address}" to "${expectedConfig.proxyAdmin.address}"`,
+      to: actualProxyAdmin.address,
+      data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+        'changeProxyAdmin(address,address)',
+        [proxyAddress, expectedConfig.proxyAdmin.address],
+      ),
+    });
+  } else {
+    transactions.push(
+      // Internally the createTransferOwnershipTx method already checks if the
+      // two owner values are the same and produces an empty tx batch if they are
+      ...transferOwnershipTransactions(
+        parsedChainId,
+        actualProxyAdmin.address!,
+        actualProxyAdmin,
+        expectedConfig.proxyAdmin,
+      ),
+    );
+  }
 
   return transactions;
 }
