@@ -6,19 +6,17 @@ use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedTransaction, EncodedTransactionWithStatusMeta,
     UiMessage, UiTransaction, UiTransactionStatusMeta,
 };
+use tracing::warn;
 
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneProvider, HyperlaneProviderError, NativeToken, TxnInfo, TxnReceiptInfo, H256, H512,
-    U256,
+    utils::to_atto, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, NativeToken, TxnInfo,
+    TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::error::HyperlaneSealevelError;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 use crate::{ConnectionConf, SealevelRpcClient};
-
-/// Exponent value for atto units (10^-18).
-const ATTO_EXPONENT: u32 = 18;
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
 #[derive(Debug)]
@@ -91,12 +89,11 @@ impl SealevelProvider {
     }
 
     fn fee(&self, meta: &UiTransactionStatusMeta) -> ChainResult<U256> {
-        let exponent = ATTO_EXPONENT - self.native_token.decimals;
-        let coefficient = U256::from(10u128.pow(exponent));
-
         let amount_in_native_denom = U256::from(meta.fee);
 
-        Ok(amount_in_native_denom * coefficient)
+        to_atto(amount_in_native_denom, self.native_token.decimals).ok_or(
+            ChainCommunicationError::CustomError("Overflow in calculating fees".to_owned()),
+        )
     }
 
     fn meta(txn: &EncodedTransactionWithStatusMeta) -> ChainResult<&UiTransactionStatusMeta> {
@@ -166,6 +163,11 @@ impl HyperlaneProvider for SealevelProvider {
         let meta = Self::meta(txn_with_meta)?;
         let gas_used = Self::gas(meta)?;
         let fee = self.fee(meta)?;
+
+        if fee < gas_used {
+            warn!(tx_hash = ?hash, ?fee, ?gas_used, "calculated fee is less than gas used. it will result in zero gas price");
+        }
+
         let gas_price = Some(fee / gas_used);
 
         let receipt = TxnReceiptInfo {
