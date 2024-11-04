@@ -88,6 +88,11 @@ impl SealevelProvider {
         Ok(U256::from(gas))
     }
 
+    /// Extracts and converts fees into atto (10^-18) units.
+    ///
+    /// We convert fees into atto units since otherwise a compute unit price (gas price)
+    /// becomes smaller than 1 lamport (or 1 unit of native token) and the price is rounded
+    /// to zero. We normalise the gas price for all the chain to be expressed in atto units.
     fn fee(&self, meta: &UiTransactionStatusMeta) -> ChainResult<U256> {
         let amount_in_native_denom = U256::from(meta.fee);
 
