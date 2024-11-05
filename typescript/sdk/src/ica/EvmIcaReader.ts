@@ -5,12 +5,7 @@ import {
   InterchainAccountRouter__factory,
   Ownable__factory,
 } from '@hyperlane-xyz/core';
-import {
-  Address,
-  Domain,
-  bytes32ToAddress,
-  isZeroishAddress,
-} from '@hyperlane-xyz/utils';
+import { Address, Domain, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import { proxyAdmin } from '../deploy/proxy.js';
 
@@ -38,7 +33,7 @@ export class EvmIcaRouterReader {
       icaRouterInstance.mailbox(),
     ]);
 
-    const remoteRouters = await this._deriveRemoteRoutersConfig(
+    const remoteRouters = await this.deriveRemoteRoutersConfig(
       icaRouterInstance,
       knownDomains,
     );
@@ -57,11 +52,10 @@ export class EvmIcaRouterReader {
     return DerivedIcaRouterConfigSchema.parse(rawConfig);
   }
 
-  private async _deriveRemoteRoutersConfig(
+  private async deriveRemoteRoutersConfig(
     icaRouterInstance: InterchainAccountRouter,
     knownDomains: ReadonlyArray<Domain>,
   ): Promise<DerivedIcaRouterConfig['remoteIcaRouters']> {
-    // TODO: improve this with the already existing utils
     const remoteIcaRoutersConfig = await Promise.all(
       knownDomains.map((domainId: Domain) => {
         return Promise.all([
@@ -72,12 +66,12 @@ export class EvmIcaRouterReader {
     );
 
     const res: DerivedIcaRouterConfig['remoteIcaRouters'] = {};
-
     return knownDomains.reduce((acc, curr, idx) => {
-      const ism = bytes32ToAddress(remoteIcaRoutersConfig[idx][1]);
+      const remoteRouter = remoteIcaRoutersConfig[idx][0];
+      const ism = remoteIcaRoutersConfig[idx][1];
 
       acc[curr.toString()] = {
-        address: bytes32ToAddress(remoteIcaRoutersConfig[idx][0]),
+        address: remoteRouter,
         interchainSecurityModule: isZeroishAddress(ism) ? undefined : ism,
       };
 

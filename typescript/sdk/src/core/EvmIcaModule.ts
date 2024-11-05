@@ -6,6 +6,7 @@ import {
   Domain,
   ProtocolType,
   addressToBytes32,
+  bytes32ToAddress,
   difference,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -193,7 +194,7 @@ export class EvmIcaModule extends HyperlaneModule<
       (domainId) => ({
         annotation: `Removing InterchainAccountRouter on domain ${this.domainId} from InterchainAccountRouter at ${actualConfig[domainId].address} on domain ${domainId}`,
         chainId: parseInt(domainId),
-        to: actualConfig[domainId].address,
+        to: bytes32ToAddress(actualConfig[domainId].address),
         data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
           'unenrollRemoteRouter(uint32)',
           [this.domainId],

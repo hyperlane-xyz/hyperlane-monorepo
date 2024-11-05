@@ -555,5 +555,4 @@ export {
   getLocalStorageGasOracleConfig,
   getTokenExchangeRateFromValues,
 } from './gas/utils.js';
-export { EvmIcaRouterReader } from './ica/EvmIcaReader.js';
 export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';

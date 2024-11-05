@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import hre from 'hardhat';
 
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, isAddressEvm } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { EvmCoreModule } from '../core/EvmCoreModule.js';
@@ -13,7 +13,6 @@ import { EvmIcaRouterReader } from './EvmIcaReader.js';
 
 describe(EvmIcaRouterReader.name, async () => {
   const CHAIN = TestChainName.test4;
-  const DELAY = 1892391283182;
   let interchainAccountRouterAddress: Address;
   let interchainAccountRouterReader: EvmIcaRouterReader;
   let signerAddress: Address;
@@ -24,15 +23,6 @@ describe(EvmIcaRouterReader.name, async () => {
     const config: CoreConfig = {
       ...testCoreConfig([CHAIN])[CHAIN],
       owner: signer.address,
-      upgrade: {
-        timelock: {
-          delay: DELAY,
-          roles: {
-            executor: signer.address,
-            proposer: signer.address,
-          },
-        },
-      },
     };
 
     const addresses = await EvmCoreModule.deploy({
@@ -49,7 +39,7 @@ describe(EvmIcaRouterReader.name, async () => {
   });
 
   describe(EvmIcaRouterReader.prototype.deriveConfig.name, async () => {
-    it('should deploy ISM factories', async () => {
+    it('should read the ICA router config', async () => {
       const res = await interchainAccountRouterReader.deriveConfig(
         interchainAccountRouterAddress,
       );
@@ -58,6 +48,7 @@ describe(EvmIcaRouterReader.name, async () => {
       expect(res.owner).to.equal(signerAddress);
       // Proxy admin checks
       expect(res.proxyAdmin.address).to.exist;
+      expect(isAddressEvm(res.proxyAdmin.address)).to.be.true;
       expect(res.proxyAdmin.owner).to.equal(signerAddress);
       // Remote ICA Routers
       expect(res.remoteIcaRouters).to.exist;

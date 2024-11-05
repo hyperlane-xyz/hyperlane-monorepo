@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   Mailbox,
   Mailbox__factory,
@@ -78,8 +80,14 @@ export class EvmCoreModule extends HyperlaneModule<
     if (args.config.interchainAccountRouter) {
       this.evmIcaModule = new EvmIcaModule(multiProvider, {
         chain: args.chain,
-        // @ts-ignore
-        addresses: args.addresses,
+        addresses: {
+          interchainAccountIsm: args.addresses.interchainAccountIsm,
+          interchainAccountRouter: args.addresses.interchainAccountRouter,
+          // TODO: fix this even though is not used at the moment internally
+          proxyAdmin: ethers.constants.AddressZero,
+          timelockController:
+            args.addresses.timelockController ?? ethers.constants.AddressZero,
+        },
         config: args.config.interchainAccountRouter,
       });
     }
@@ -108,10 +116,7 @@ export class EvmCoreModule extends HyperlaneModule<
     CoreConfigSchema.parse(expectedConfig);
     const actualConfig = await this.read();
 
-    expectedConfig.interchainAccountRouter;
-
     const transactions: AnnotatedEV5Transaction[] = [];
-
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
@@ -123,11 +128,11 @@ export class EvmCoreModule extends HyperlaneModule<
       ),
     );
 
-    if (expectedConfig.interchainAccountRouter) {
+    if (expectedConfig.interchainAccountRouter && this.evmIcaModule) {
       transactions.push(
-        ...((await this.evmIcaModule?.update(
+        ...(await this.evmIcaModule.update(
           expectedConfig.interchainAccountRouter,
-        )) ?? []),
+        )),
       );
     }
 

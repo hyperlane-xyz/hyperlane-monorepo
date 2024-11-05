@@ -171,6 +171,7 @@ export const read: CommandModuleWithContext<{
   chain: string;
   config: string;
   mailbox?: string;
+  interchainAccountRouter?: string;
 }> = {
   command: 'read',
   describe: 'Reads onchain Core configuration for a given mailbox address',
@@ -183,16 +184,31 @@ export const read: CommandModuleWithContext<{
       type: 'string',
       description: 'Mailbox address used to derive the core config',
     },
+    interchainAccountRouter: {
+      type: 'string',
+      description: 'InterchainAccountRouter address used to derive its config',
+    },
     config: outputFileCommandOption(
       DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
       false,
       'The path to output a Core Config JSON or YAML file.',
     ),
   },
-  handler: async ({ context, chain, mailbox, config: configFilePath }) => {
+  handler: async ({
+    context,
+    chain,
+    mailbox,
+    config: configFilePath,
+    interchainAccountRouter,
+  }) => {
     logCommandHeader('Hyperlane Core Read');
 
-    const coreConfig = await executeCoreRead({ context, chain, mailbox });
+    const coreConfig = await executeCoreRead({
+      context,
+      chain,
+      mailbox,
+      interchainAccountRouter,
+    });
 
     writeYamlOrJson(configFilePath, coreConfig, 'yaml');
     logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);
