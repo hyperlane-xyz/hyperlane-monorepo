@@ -23,13 +23,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: yarn-4.5.1.-cache
+      - name: yarn-4.5.1-cache
         uses: buildjet/cache@v4
         with:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-4.5.1.-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-4.5.1.-cache-
 
