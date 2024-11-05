@@ -11,11 +11,11 @@ import {MinimalProxy} from "../../libs/MinimalProxy.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 
 // ============ External Imports ============
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
 abstract contract AbstractStorageMultisigIsm is
     AbstractMultisigIsm,
-    OwnableUpgradeable
+    Ownable2StepUpgradeable
 {
     address[] public validators;
     uint8 public threshold;
@@ -25,7 +25,7 @@ abstract contract AbstractStorageMultisigIsm is
     constructor(
         address[] memory _validators,
         uint8 _threshold
-    ) OwnableUpgradeable() {
+    ) Ownable2StepUpgradeable() {
         validators = _validators;
         threshold = _threshold;
         _disableInitializers();
@@ -36,9 +36,9 @@ abstract contract AbstractStorageMultisigIsm is
         address[] memory _validators,
         uint8 _threshold
     ) external initializer {
-        __Ownable_init();
+        __Ownable2Step_init();
         setValidatorsAndThreshold(_validators, _threshold);
-        transferOwnership(_owner);
+        _transferOwnership(_owner);
     }
 
     function setValidatorsAndThreshold(

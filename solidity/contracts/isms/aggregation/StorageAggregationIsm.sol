@@ -9,9 +9,12 @@ import {MinimalProxy} from "../../libs/MinimalProxy.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 
 // ============ External Imports ============
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
-contract StorageAggregationIsm is AbstractAggregationIsm, OwnableUpgradeable {
+contract StorageAggregationIsm is
+    AbstractAggregationIsm,
+    Ownable2StepUpgradeable
+{
     address[] public modules;
     uint8 public threshold;
 
@@ -20,7 +23,7 @@ contract StorageAggregationIsm is AbstractAggregationIsm, OwnableUpgradeable {
     constructor(
         address[] memory _modules,
         uint8 _threshold
-    ) OwnableUpgradeable() {
+    ) Ownable2StepUpgradeable() {
         modules = _modules;
         threshold = _threshold;
         _disableInitializers();
@@ -31,9 +34,9 @@ contract StorageAggregationIsm is AbstractAggregationIsm, OwnableUpgradeable {
         address[] memory _modules,
         uint8 _threshold
     ) external initializer {
-        __Ownable_init();
+        __Ownable2Step_init();
         setModulesAndThreshold(_modules, _threshold);
-        transferOwnership(_owner);
+        _transferOwnership(_owner);
     }
 
     function setModulesAndThreshold(
