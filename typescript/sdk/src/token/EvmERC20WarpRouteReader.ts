@@ -230,7 +230,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       if (chainMetadata.nativeToken) {
         const { name, symbol, decimals } = chainMetadata.nativeToken;
         return {
-          type: TokenType.native,
+          type,
           name,
           symbol,
           decimals,
