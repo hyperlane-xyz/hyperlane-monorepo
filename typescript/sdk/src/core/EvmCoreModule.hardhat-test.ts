@@ -36,7 +36,7 @@ describe('EvmCoreModule', async () => {
   let timelockControllerContract: any;
   async function sendTxs(txs: AnnotatedEV5Transaction[]) {
     for (const tx of txs) {
-      await multiProvider.sendTransaction(tx);
+      await multiProvider.sendTransaction(CHAIN, tx);
     }
   }
   before(async () => {

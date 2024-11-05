@@ -18,7 +18,7 @@ import { OwnableConfig } from '../deploy/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainMap, ChainName, Connection } from '../types.js';
+import { ChainMap, Connection } from '../types.js';
 
 import {
   HyperlaneAddresses,
@@ -263,7 +263,6 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 }
 
 export function transferOwnershipTransactions(
-  chain: ChainName,
   chainId: EvmChainId,
   contract: Address,
   actual: OwnableConfig,
@@ -276,7 +275,6 @@ export function transferOwnershipTransactions(
 
   return [
     {
-      chain,
       chainId,
       annotation: `Transferring ownership of ${label ?? contract} from ${
         actual.owner

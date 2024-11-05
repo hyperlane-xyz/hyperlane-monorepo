@@ -79,7 +79,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
   async function sendTxs(txs: AnnotatedEV5Transaction[]) {
     for (const tx of txs) {
-      await multiProvider.sendTransaction(tx);
+      await multiProvider.sendTransaction(chain, tx);
     }
   }
 

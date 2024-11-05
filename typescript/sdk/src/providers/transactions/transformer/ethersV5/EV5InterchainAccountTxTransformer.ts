@@ -40,12 +40,13 @@ export class EV5InterchainAccountTxTransformer
     const txChainsToInnerCalls: Record<ChainName, CallData[]> = txs.reduce(
       (
         txChainToInnerCalls: Record<ChainName, CallData[]>,
-        { to, data, chain }: AnnotatedEV5Transaction,
+        { to, data, chainId }: AnnotatedEV5Transaction,
       ) => {
-        assert(to, 'Invalid AnnotatedEV5Transaction: "to" is required');
-        assert(data, 'Invalid AnnotatedEV5Transaction: "data" is required');
-        txChainToInnerCalls[chain] ||= [];
-        txChainToInnerCalls[chain].push({ to, data });
+        assert(chainId, 'Invalid PopulatedTransaction: "chainId" is required');
+        assert(to, 'Invalid PopulatedTransaction: "to" is required');
+        assert(data, 'Invalid PopulatedTransaction: "data" is required');
+        txChainToInnerCalls[chainId] ||= [];
+        txChainToInnerCalls[chainId].push({ to, data });
         return txChainToInnerCalls;
       },
       {},

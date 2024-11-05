@@ -9,6 +9,7 @@ import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
+import { EV5JsonRpcTxSubmitterProps } from './types.js';
 
 export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType = TxSubmitterType.JSON_RPC;
@@ -17,7 +18,10 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     module: 'json-rpc-submitter',
   });
 
-  constructor(public readonly multiProvider: MultiProvider) {}
+  constructor(
+    public readonly multiProvider: MultiProvider,
+    public readonly props: EV5JsonRpcTxSubmitterProps,
+  ) {}
 
   public async submit(
     ...txs: AnnotatedEV5Transaction[]
@@ -26,10 +30,11 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     for (const tx of txs) {
       assert(tx.chainId, 'Invalid PopulatedTransaction: Missing chainId field');
       const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
+        this.props.chain,
         tx,
       );
       this.logger.debug(
-        `Submitted PopulatedTransaction on ${tx.chain}: ${receipt.transactionHash}`,
+        `Submitted PopulatedTransaction on ${this.props.chain}: ${receipt.transactionHash}`,
       );
       receipts.push(receipt);
     }

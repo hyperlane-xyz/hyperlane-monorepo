@@ -5,7 +5,6 @@ import { assert } from '@hyperlane-xyz/utils';
 // prettier-ignore
 // @ts-ignore
 import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
-import { getChainFromTxs } from '../../../../utils/transactions.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -60,8 +59,7 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
    * @param txs - An array of populated transactions
    */
   public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
-    const chain = getChainFromTxs(txs);
-    const chainId = this.multiProvider.getChainId(chain);
+    const chainId = this.multiProvider.getChainId(this.props.chain);
     const transactions: SafeTransactionData[] = await Promise.all(
       txs.map(
         async (tx: AnnotatedEV5Transaction) =>

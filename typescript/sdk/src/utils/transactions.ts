@@ -1,23 +1,26 @@
-import { assert } from '@hyperlane-xyz/utils';
+import { EvmChainId, assert } from '@hyperlane-xyz/utils';
 
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName } from '../types.js';
 
 /**
- * Retrieves the chain name from transactions[0].
+ * Retrieves the chain ID from the first transaction and verifies all transactions
+ * are for the same chain.
  *
- * @param multiProvider - The MultiProvider instance to use for chain name lookup.
  * @param transactions - The list of populated transactions.
- * @returns The name of the chain that the transactions are submitted on.
- * @throws If the transactions are not all on the same chain or chain is not found
+ * @returns The EVM chain ID that the transactions are for.
+ * @throws If the transactions are not all for the same chain ID or if chain ID is missing
  */
-export function getChainFromTxs(
+export function getChainIdFromTxs(
   transactions: AnnotatedEV5Transaction[],
-): ChainName {
+): EvmChainId {
   const firstTransaction = transactions[0];
   const sameChainIds = transactions.every(
-    (t: AnnotatedEV5Transaction) => t.chain === firstTransaction.chain,
+    (t: AnnotatedEV5Transaction) => t.chainId === firstTransaction.chainId,
   );
   assert(sameChainIds, 'Transactions must be submitted on the same chains');
-  return firstTransaction.chain;
+  assert(
+    firstTransaction.chainId,
+    'Invalid PopulatedTransaction: "chainId" is required',
+  );
+  return firstTransaction.chainId;
 }

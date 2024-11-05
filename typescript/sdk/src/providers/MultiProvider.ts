@@ -417,17 +417,18 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * @throws if chain's metadata or signer has not been set or tx fails
    */
   async sendTransaction(
+    chainNameOrDomain: ChainNameOrDomain,
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
   ): Promise<ContractReceipt> {
-    const { annotation, chain, ...tx } = await txProm;
+    const { annotation, ...tx } = await txProm;
     if (annotation) {
       this.logger.info(annotation);
     }
-    const txReq = await this.prepareTx(chain, tx);
-    const signer = this.getSigner(chain);
+    const txReq = await this.prepareTx(chainNameOrDomain, tx);
+    const signer = this.getSigner(chainNameOrDomain);
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
-    return this.handleTx(chain, response);
+    return this.handleTx(chainNameOrDomain, response);
   }
 
   /**

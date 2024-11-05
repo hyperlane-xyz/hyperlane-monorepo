@@ -152,7 +152,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       );
 
       updateTransactions.push({
-        chain: this.chainName,
         chainId: this.chainId,
         annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         to: contractToUpdate.address,
@@ -209,7 +208,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       });
 
       updateTransactions.push({
-        chain: this.chainName,
         chainId: this.chainId,
         annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         to: contractToUpdate.address,
@@ -259,7 +257,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           this.multiProvider.getProvider(this.domainId),
         );
         updateTransactions.push({
-          chain: this.chainName,
           chainId: this.chainId,
           annotation: `Setting ISM for Warp Route to ${expectedDeployedIsm}`,
           to: contractToUpdate.address,
@@ -286,7 +283,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
     return transferOwnershipTransactions(
-      this.multiProvider.getChainName(this.args.chain),
       this.multiProvider.getEvmChainId(this.args.chain),
       this.args.addresses.deployedTokenRoute,
       actualConfig,
@@ -317,7 +313,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       // Internally the createTransferOwnershipTx method already checks if the
       // two owner values are the same and produces an empty tx batch if they are
       ...transferOwnershipTransactions(
-        this.chainName,
         this.chainId,
         actualProxyAdmin.address!,
         actualProxyAdmin,
@@ -409,7 +404,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     if (config.remoteRouters && !isObjEmpty(config.remoteRouters)) {
       const enrollRemoteTxs = await warpModule.update(config); // @TODO Remove when EvmERC20WarpModule.create can be used
       const onlyTxIndex = 0;
-      await multiProvider.sendTransaction(enrollRemoteTxs[onlyTxIndex]);
+      await multiProvider.sendTransaction(chain, enrollRemoteTxs[onlyTxIndex]);
     }
 
     return warpModule;

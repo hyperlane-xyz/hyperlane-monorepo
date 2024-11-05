@@ -114,7 +114,5 @@ export type ParsedLegacyMultisigIsmMetadata = {
 };
 
 export type Annotated<T> = T & {
-  // TODO: Change to ChainName after moving `ChainName` to SDK from Utils
-  chain: string;
   annotation?: string;
 };

@@ -3,7 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   AnnotatedEV5Transaction,
   SubmissionStrategy,
-  getChainFromTxs,
+  getChainIdFromTxs,
 } from '@hyperlane-xyz/sdk';
 import { assert, errorToString } from '@hyperlane-xyz/utils';
 
@@ -34,9 +34,9 @@ export async function runSubmit({
     'Submission strategy required to submit transactions.\nPlease create a submission strategy. See examples in cli/examples/submit/strategy/*.',
   );
   const transactions = getTransactions(transactionsFilepath);
-  const chain = getChainFromTxs(transactions);
+  const chainId = getChainIdFromTxs(transactions);
 
-  const protocol = chainMetadata[chain].protocol;
+  const protocol = chainMetadata[chainId].protocol;
   const submitterBuilder = await getSubmitterBuilder<typeof protocol>({
     submissionStrategy,
     multiProvider,

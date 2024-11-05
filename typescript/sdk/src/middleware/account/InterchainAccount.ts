@@ -183,10 +183,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       hookMetadata ?? '0x',
       { value: quote },
     );
-    return {
-      ...callEncoded,
-      chain,
-    };
+    return callEncoded;
   }
 
   async getAccountConfig(
@@ -214,6 +211,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     hookMetadata,
   }: GetCallRemoteSettings): Promise<void> {
     await this.multiProvider.sendTransaction(
+      chain,
       this.getCallRemote({
         chain,
         destination,

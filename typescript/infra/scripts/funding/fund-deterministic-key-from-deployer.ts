@@ -79,8 +79,7 @@ async function main() {
         logger.info(
           `Funding ${address} on chain '${chain}' with ${value} native tokens`,
         );
-        await multiProvider.sendTransaction({
-          chain,
+        await multiProvider.sendTransaction(chain, {
           to: address,
           value,
         });

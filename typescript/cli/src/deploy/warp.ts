@@ -934,6 +934,7 @@ async function getWarpApplySubmitter({
     : {
         submitter: {
           type: TxSubmitterType.JSON_RPC,
+          chain,
         },
       };
 
