@@ -13,6 +13,7 @@ use crate::{
         GetAnnounceStorageLocationsRequestInner,
     },
     signers::Signer,
+    types::tx_response_to_outcome,
     ConnectionConf, CosmosProvider,
 };
 
@@ -107,7 +108,7 @@ impl ValidatorAnnounce for CosmosValidatorAnnounce {
             .wasm_send(announce_request, None)
             .await?;
 
-        Ok(response.try_into()?)
+        Ok(tx_response_to_outcome(response)?)
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {

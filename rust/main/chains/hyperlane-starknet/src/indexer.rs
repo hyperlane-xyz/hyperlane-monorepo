@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainResult, ContractLocator, HyperlaneMessage, Indexed, Indexer, InterchainGasPayment,
-    LogMeta, MerkleTreeInsertion, SequenceAwareIndexer, H256, U256,
+    LogMeta, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, U256,
 };
 use starknet::core::types::{
     BlockId, BlockTag, EventFilter, FieldElement, MaybePendingBlockWithTxHashes,
@@ -45,7 +45,7 @@ impl<T: PartialEq> ParsedEvent<T> {
 /// Starknet RPC Provider
 pub struct StarknetMailboxIndexer {
     contract: Arc<StarknetMailboxReader<AnyProvider>>,
-    reorg_period: u32,
+    reorg_period: ReorgPeriod,
 }
 
 impl StarknetMailboxIndexer {
@@ -53,7 +53,7 @@ impl StarknetMailboxIndexer {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        reorg_period: u32,
+        reorg_period: &ReorgPeriod,
     ) -> ChainResult<Self> {
         let rpc_client =
             AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
@@ -64,7 +64,7 @@ impl StarknetMailboxIndexer {
 
         Ok(Self {
             contract: Arc::new(contract),
-            reorg_period,
+            reorg_period: reorg_period.clone(),
         })
     }
 
@@ -100,16 +100,32 @@ impl StarknetMailboxIndexer {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(
-            self.contract
-                .provider
-                .block_number()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?
-                .saturating_sub(self.reorg_period as u64)
-                .try_into()
-                .unwrap(), // TODO: check if safe
-        )
+        match self.reorg_period {
+            ReorgPeriod::None => Ok(
+                self.contract
+                    .provider
+                    .block_number()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)?
+                    .try_into()
+                    .unwrap(), // TODO: check if safe
+            ),
+            ReorgPeriod::Blocks(reorg_period) => Ok(
+                self.contract
+                    .provider
+                    .block_number()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)?
+                    .saturating_sub(reorg_period.get() as u64)
+                    .try_into()
+                    .unwrap(), // TODO: check if safe
+            ),
+            ReorgPeriod::Tag(_) => {
+                Err(hyperlane_core::ChainCommunicationError::InvalidReorgPeriod(
+                    self.reorg_period.clone(),
+                ))
+            }
+        }
     }
 }
 
@@ -263,7 +279,7 @@ impl SequenceAwareIndexer<H256> for StarknetMailboxIndexer {
 /// Starknet RPC Provider
 pub struct StarknetMerkleTreeHookIndexer {
     contract: Arc<StarknetMerkleTreeHookReader<AnyProvider>>,
-    reorg_period: u32,
+    reorg_period: ReorgPeriod,
 }
 
 impl StarknetMerkleTreeHookIndexer {
@@ -271,7 +287,7 @@ impl StarknetMerkleTreeHookIndexer {
     pub fn new(
         conf: ConnectionConf,
         locator: ContractLocator,
-        reorg_period: u32,
+        reorg_period: &ReorgPeriod,
     ) -> ChainResult<Self> {
         let rpc_client =
             AnyProvider::JsonRpcHttp(JsonRpcClient::new(HttpTransport::new(conf.url.clone())));
@@ -282,7 +298,7 @@ impl StarknetMerkleTreeHookIndexer {
 
         Ok(Self {
             contract: Arc::new(contract),
-            reorg_period,
+            reorg_period: reorg_period.clone(),
         })
     }
 }
@@ -347,16 +363,32 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(
-            self.contract
-                .provider
-                .block_number()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?
-                .saturating_sub(self.reorg_period as u64)
-                .try_into()
-                .unwrap(), // TODO: check if safe
-        )
+        match self.reorg_period {
+            ReorgPeriod::None => Ok(
+                self.contract
+                    .provider
+                    .block_number()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)?
+                    .try_into()
+                    .unwrap(), // TODO: check if safe
+            ),
+            ReorgPeriod::Blocks(reorg_period) => Ok(
+                self.contract
+                    .provider
+                    .block_number()
+                    .await
+                    .map_err(Into::<HyperlaneStarknetError>::into)?
+                    .saturating_sub(reorg_period.get() as u64)
+                    .try_into()
+                    .unwrap(), // TODO: check if safe
+            ),
+            ReorgPeriod::Tag(_) => {
+                Err(hyperlane_core::ChainCommunicationError::InvalidReorgPeriod(
+                    self.reorg_period.clone(),
+                ))
+            }
+        }
     }
 }
 

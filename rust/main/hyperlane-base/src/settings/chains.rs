@@ -323,7 +323,7 @@ impl ChainConf {
                 let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
                     conf.clone(),
                     locator,
-                    self.reorg_period,
+                    &self.reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
@@ -371,7 +371,7 @@ impl ChainConf {
                 let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
                     conf.clone(),
                     locator,
-                    self.reorg_period,
+                    &self.reorg_period,
                 )?);
 
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
@@ -517,7 +517,7 @@ impl ChainConf {
                 let indexer = Box::new(h_starknet::StarknetMerkleTreeHookIndexer::new(
                     conf.clone(),
                     locator,
-                    self.reorg_period,
+                    &self.reorg_period,
                 )?);
 
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
