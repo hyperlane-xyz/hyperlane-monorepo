@@ -34,7 +34,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: yarn-4.5.1-cache
+      - name: yarn-cache
         uses: buildjet/cache@v4
         with:
           path: |
@@ -64,7 +64,7 @@ jobs:
           # check out full history
           fetch-depth: 0
 
-      - name: yarn-4.5.1-cache
+      - name: yarn-cache
         uses: buildjet/cache@v4
         with:
           path: |

@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: 18
 
-      - name: yarn-4.5.1-cache
+      - name: yarn-cache
         uses: buildjet/cache@v4
         with:
           path: |
