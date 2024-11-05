@@ -1,5 +1,13 @@
 # @hyperlane-xyz/utils
 
+## 5.7.0-zksyncbeta.0
+
+### Patch Changes
+
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 04108155d: fix median utils func + add test
+- 39a9b2038: Filter undefined/null values in invertKeysAndValues function
+
 ## 5.6.2
 
 ### Patch Changes

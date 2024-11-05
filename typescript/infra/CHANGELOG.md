@@ -1,5 +1,22 @@
 # @hyperlane-xyz/infra
 
+## 5.7.0-zksyncbeta.0
+
+### Patch Changes
+
+- Updated dependencies [5dabdf388]
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [d9505ab58]
+- Updated dependencies [04108155d]
+- Updated dependencies [7e9e248be]
+- Updated dependencies [56328e6e1]
+- Updated dependencies [956ff752a]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/sdk@5.7.0-zksyncbeta.0
+  - @hyperlane-xyz/utils@5.7.0-zksyncbeta.0
+  - @hyperlane-xyz/helloworld@5.7.0-zksyncbeta.0
+
 ## 5.6.2
 
 ### Patch Changes
