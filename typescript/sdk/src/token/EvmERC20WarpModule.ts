@@ -9,6 +9,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import { ContractVerifier, ExplorerLicenseType } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  ChainId,
   Domain,
   ProtocolType,
   addressToBytes32,
@@ -24,7 +25,7 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
-import { proxyAdminOwnershipUpdateTxs } from '../deploy/proxy.js';
+import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -51,6 +52,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   // return a number, and EVM the domainId and chainId are the same.
   public readonly domainId: Domain;
 
+  public readonly chainId: ChainId;
+
   constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<
@@ -64,6 +67,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     super(args);
     this.reader = new EvmERC20WarpRouteReader(multiProvider, args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainId = multiProvider.getChainId(args.chain);
     this.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
@@ -109,10 +113,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ...this.createRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
-      ...proxyAdminOwnershipUpdateTxs(
+      ...proxyAdminUpdateTxs(
+        this.chainId,
+        this.args.addresses.deployedTokenRoute,
         actualConfig,
         expectedConfig,
-        this.domainId,
       ),
     );
 

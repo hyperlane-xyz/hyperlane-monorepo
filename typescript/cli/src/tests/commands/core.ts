@@ -45,6 +45,7 @@ export async function hyperlaneCoreApply(
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \
+        --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
 }

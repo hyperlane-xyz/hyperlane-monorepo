@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 
 import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import {
+  ChainId,
   Domain,
   ProtocolType,
   addressToBytes32,
@@ -11,7 +12,7 @@ import {
 
 import { serializeContracts } from '../contracts/contracts.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
-import { proxyAdminOwnershipUpdateTxs } from '../deploy/proxy.js';
+import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { DerivedIcaRouterConfig } from '../ica/types.js';
@@ -38,6 +39,7 @@ export class EvmIcaModule extends HyperlaneModule<
   protected logger = rootLogger.child({ module: 'EvmIcaModule' });
   protected icaRouterReader: EvmIcaRouterReader;
   public readonly domainId: Domain;
+  public readonly chainId: ChainId;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -51,6 +53,7 @@ export class EvmIcaModule extends HyperlaneModule<
       multiProvider.getProvider(this.args.chain),
     );
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainId = multiProvider.getChainId(args.chain);
   }
 
   public async read(): Promise<DerivedIcaRouterConfig> {
@@ -69,10 +72,11 @@ export class EvmIcaModule extends HyperlaneModule<
         actualConfig.remoteIcaRouters,
         expectedConfig.remoteIcaRouters,
       )),
-      ...proxyAdminOwnershipUpdateTxs(
+      ...proxyAdminUpdateTxs(
+        this.chainId,
+        this.args.addresses.interchainAccountIsm,
         actualConfig,
         expectedConfig,
-        this.domainId,
       ),
     ];
 
