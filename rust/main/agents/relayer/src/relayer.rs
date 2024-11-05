@@ -6,7 +6,7 @@ use std::{
 
 use async_trait::async_trait;
 use derive_more::AsRef;
-use eyre::Result;
+use eyre::{Report, Result};
 use futures_util::future::try_join_all;
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
@@ -49,6 +49,8 @@ use crate::{
     processor::ProcessorExt,
 };
 use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
+
+const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -412,6 +414,11 @@ impl BaseAgent for Relayer {
 }
 
 impl Relayer {
+    fn record_critical_error(&self, origin: &HyperlaneDomain, err: Report, message: &str) {
+        error!(?err, origin=?origin, "{message}");
+        self.chain_metrics.set_critical_error(origin.name(), true);
+    }
+
     async fn run_message_sync(
         &self,
         origin: &HyperlaneDomain,
@@ -422,7 +429,7 @@ impl Relayer {
         let cursor = match contract_sync.cursor(index_settings).await {
             Ok(cursor) => cursor,
             Err(err) => {
-                error!(?err, origin=?origin, "Error building cursor for origin");
+                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
                 return tokio::spawn(async {}).instrument(info_span!("MessageSync"));
             }
         };
@@ -450,7 +457,7 @@ impl Relayer {
         let cursor = match contract_sync.cursor(index_settings).await {
             Ok(cursor) => cursor,
             Err(err) => {
-                error!(?err, origin=?origin, "Error building cursor for origin");
+                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
                 return tokio::spawn(async {}).instrument(info_span!("IgpSync"));
             }
         };
@@ -477,7 +484,7 @@ impl Relayer {
         let cursor = match contract_sync.cursor(index_settings).await {
             Ok(cursor) => cursor,
             Err(err) => {
-                error!(?err, origin=?origin, "Error building cursor for origin");
+                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
                 return tokio::spawn(async {}).instrument(info_span!("MerkleTreeHookSync"));
             }
         };
