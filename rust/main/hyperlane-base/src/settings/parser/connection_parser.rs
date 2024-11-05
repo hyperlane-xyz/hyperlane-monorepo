@@ -2,9 +2,9 @@ use eyre::eyre;
 use url::Url;
 
 use h_eth::TransactionOverrides;
+
 use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
-use hyperlane_cosmos::NativeToken;
+use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
@@ -137,24 +137,7 @@ pub fn build_cosmos_connection_conf(
         .parse_u64()
         .end();
 
-    let native_token_decimals = chain
-        .chain(err)
-        .get_key("nativeToken")
-        .get_key("decimals")
-        .parse_u32()
-        .unwrap_or(18);
-
-    let native_token_denom = chain
-        .chain(err)
-        .get_key("nativeToken")
-        .get_key("denom")
-        .parse_string()
-        .unwrap_or("");
-
-    let native_token = NativeToken {
-        decimals: native_token_decimals,
-        denom: native_token_denom.to_owned(),
-    };
+    let native_token = parse_native_token(chain, err, 18);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -171,6 +154,45 @@ pub fn build_cosmos_connection_conf(
             operation_batch,
             native_token,
         )))
+    }
+}
+
+fn build_sealevel_connection_conf(
+    url: &Url,
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OperationBatchConfig,
+) -> h_sealevel::ConnectionConf {
+    let native_token = parse_native_token(chain, err, 9);
+    h_sealevel::ConnectionConf {
+        url: url.clone(),
+        operation_batch,
+        native_token,
+    }
+}
+
+fn parse_native_token(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    default_decimals: u32,
+) -> NativeToken {
+    let native_token_decimals = chain
+        .chain(err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("decimals")
+        .parse_u32()
+        .unwrap_or(default_decimals);
+
+    let native_token_denom = chain
+        .chain(err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("denom")
+        .parse_string()
+        .unwrap_or("");
+
+    NativeToken {
+        decimals: native_token_decimals,
+        denom: native_token_denom.to_owned(),
     }
 }
 
@@ -195,10 +217,12 @@ pub fn build_connection_conf(
             .next()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
         HyperlaneDomainProtocol::Sealevel => rpcs.iter().next().map(|url| {
-            ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-                url: url.clone(),
+            ChainConnectionConf::Sealevel(build_sealevel_connection_conf(
+                url,
+                chain,
+                err,
                 operation_batch,
-            })
+            ))
         }),
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
