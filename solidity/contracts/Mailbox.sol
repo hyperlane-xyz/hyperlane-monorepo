@@ -10,7 +10,7 @@ import {IInterchainSecurityModule, ISpecifiesInterchainSecurityModule} from "./i
 import {IPostDispatchHook} from "./interfaces/hooks/IPostDispatchHook.sol";
 import {IMessageRecipient} from "./interfaces/IMessageRecipient.sol";
 import {IMailbox} from "./interfaces/IMailbox.sol";
-import {PackageVersioned} from "contracts/PackageVersioned.sol";
+import {PackageVersioned} from "./PackageVersioned.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -56,6 +56,7 @@ contract Mailbox is
         address processor;
         uint48 blockNumber;
     }
+
     mapping(bytes32 => Delivery) internal deliveries;
 
     // ============ Events ============

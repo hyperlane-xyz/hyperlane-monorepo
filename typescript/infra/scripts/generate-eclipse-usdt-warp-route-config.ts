@@ -5,10 +5,12 @@ import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 
 import { getEclipseEthereumUSDTWarpConfig } from '../config/environments/mainnet3/warp/configGetters/getEclipseEthereumUSDTWarpConfig.js';
 
+import { getRouterConfig } from './warp-routes/utils.js';
+
 async function main() {
-  // remove the argument in the function definition to call
-  // const tokenConfig = await getEclipseEthereumUSDTWarpConfig();
-  const parsed = WarpRouteDeployConfigSchema.safeParse('');
+  const routerConfig = await getRouterConfig();
+  const tokenConfig = await getEclipseEthereumUSDTWarpConfig(routerConfig);
+  const parsed = WarpRouteDeployConfigSchema.safeParse(tokenConfig);
 
   if (!parsed.success) {
     console.dir(parsed.error.format(), { depth: null });

@@ -1,4 +1,4 @@
-import CoinGecko from 'coingecko-api';
+import { CoinGeckoClient, SimplePriceResponse } from 'coingecko-api-v3';
 
 import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
@@ -10,12 +10,11 @@ export interface TokenPriceGetter {
   getTokenExchangeRate(base: ChainName, quote: ChainName): Promise<number>;
 }
 
-export type CoinGeckoInterface = Pick<CoinGecko, 'simple'>;
-export type CoinGeckoSimpleInterface = CoinGecko['simple'];
-export type CoinGeckoSimplePriceParams = Parameters<
-  CoinGeckoSimpleInterface['price']
->[0];
-export type CoinGeckoResponse = ReturnType<CoinGeckoSimpleInterface['price']>;
+export type CoinGeckoInterface = Pick<CoinGeckoClient, 'simplePrice'>;
+export type CoinGeckoSimplePriceInterface = CoinGeckoClient['simplePrice'];
+export type CoinGeckoSimplePriceParams =
+  Parameters<CoinGeckoSimplePriceInterface>[0];
+export type CoinGeckoResponse = ReturnType<CoinGeckoSimplePriceInterface>;
 
 type TokenPriceCacheEntry = {
   price: number;
@@ -85,10 +84,11 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
 
   static withDefaultCoinGecko(
     chainMetadata: ChainMap<ChainMetadata>,
+    apiKey?: string,
     expirySeconds?: number,
     sleepMsBetweenRequests = 5000,
   ): CoinGeckoTokenPriceGetter {
-    const coinGecko = new CoinGecko();
+    const coinGecko = new CoinGeckoClient(undefined, apiKey);
     return new CoinGeckoTokenPriceGetter(
       coinGecko,
       chainMetadata,
@@ -153,20 +153,14 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     await sleep(this.sleepMsBetweenRequests);
 
     if (toQuery.length > 0) {
-      let response: any;
+      let response: SimplePriceResponse;
       try {
-        response = await this.coinGecko.simple.price({
-          ids: toQuery,
-          vs_currencies: [currency],
+        response = await this.coinGecko.simplePrice({
+          ids: toQuery.join(','),
+          vs_currencies: currency,
         });
-
-        if (response.success === true) {
-          const prices = toQuery.map((id) => response.data[id][currency]);
-          toQuery.map((id, i) => this.cache.put(id, prices[i]));
-        } else {
-          rootLogger.warn('Failed to query token prices', response.message);
-          return undefined;
-        }
+        const prices = toQuery.map((id) => response[id][currency]);
+        toQuery.map((id, i) => this.cache.put(id, prices[i]));
       } catch (e) {
         rootLogger.warn('Error when querying token prices', e);
         return undefined;
