@@ -183,6 +183,8 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => Ok(Box::new(h_sealevel::SealevelProvider::new(
                 locator.domain.clone(),
                 conf,
+                // We pass Mailbox address from configuration since it is hard to identify the recipient of transaction
+                // when Scraper stores transaction into database
                 self.addresses.mailbox,
             )) as Box<dyn HyperlaneProvider>),
             ChainConnectionConf::Cosmos(conf) => {

@@ -29,6 +29,9 @@ pub struct SealevelProvider {
 
 impl SealevelProvider {
     /// Create a new Sealevel provider.
+    ///
+    /// We pass contract address since it is hard to identify the recipient of transaction
+    /// in general case.
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf, contract_address: H256) -> Self {
         // Set the `processed` commitment at rpc level
         let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
