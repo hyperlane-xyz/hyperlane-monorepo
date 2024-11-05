@@ -1,0 +1,30 @@
+{
+  "mode": "pre",
+  "tag": "zksyncbeta",
+  "initialVersions": {
+    "@hyperlane-xyz/core": "5.6.1",
+    "@hyperlane-xyz/ccip-server": "5.6.2",
+    "@hyperlane-xyz/cli": "5.6.2",
+    "@hyperlane-xyz/github-proxy": "5.6.2",
+    "@hyperlane-xyz/helloworld": "5.6.2",
+    "@hyperlane-xyz/infra": "5.6.2",
+    "@hyperlane-xyz/sdk": "5.6.2",
+    "@hyperlane-xyz/utils": "5.6.2",
+    "@hyperlane-xyz/widgets": "5.6.2"
+  },
+  "changesets": [
+    "cold-dingos-give",
+    "cuddly-baboons-drive",
+    "dirty-swans-drum",
+    "fresh-pigs-work",
+    "healthy-boats-lie",
+    "long-queens-deny",
+    "neat-sloths-agree",
+    "plenty-pens-peel",
+    "silent-berries-attend",
+    "sixty-eggs-smoke",
+    "sweet-houses-type",
+    "thin-tips-explain",
+    "tidy-meals-add"
+  ]
+}
