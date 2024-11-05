@@ -11,6 +11,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   MailboxClientConfig,
+  TokenConfig,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -32,7 +33,6 @@ import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { proxyAdmin } from './../deploy/proxy.js';
-import { CollateralExtensions } from './config.js';
 import { TokenMetadata } from './types.js';
 
 export class EvmERC20WarpRouteReader extends HyperlaneReader {
@@ -65,7 +65,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
-    const tokenMetadata = await this.fetchTokenMetadata(type, warpRouteAddress);
+    const tokenMetadata = await this.fetchTokenConfig(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
     const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
@@ -189,11 +189,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
    * @returns A partial ERC20 metadata object containing the token name, symbol, total supply, and decimals.
    * Throws if unsupported token type
    */
-  async fetchTokenMetadata(
+  async fetchTokenConfig(
     type: TokenType,
     tokenAddress: Address,
-  ): Promise<TokenMetadata & { token?: string }> {
-    if (CollateralExtensions.includes(type)) {
+  ): Promise<TokenConfig> {
+    if (
+      type === TokenType.collateral ||
+      type === TokenType.collateralVault ||
+      type === TokenType.collateralVaultRebase
+    ) {
       const erc20 = HypERC20Collateral__factory.connect(
         tokenAddress,
         this.provider,
@@ -202,17 +206,36 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       const { name, symbol, decimals, totalSupply } =
         await this.fetchERC20Metadata(token);
 
-      return { name, symbol, decimals, totalSupply, token };
+      return { type, name, symbol, decimals, totalSupply, token };
     } else if (
       type === TokenType.synthetic ||
       type === TokenType.syntheticRebase
     ) {
-      return this.fetchERC20Metadata(tokenAddress);
+      const baseMetadata = await this.fetchERC20Metadata(tokenAddress);
+
+      if (type === TokenType.syntheticRebase) {
+        const hypERC4626 = HypERC4626__factory.connect(
+          tokenAddress,
+          this.provider,
+        );
+        const collateralChainName = this.multiProvider.getChainName(
+          await hypERC4626.collateralDomain(),
+        );
+        return { type, ...baseMetadata, collateralChainName };
+      }
+
+      return { type, ...baseMetadata };
     } else if (type === TokenType.native) {
       const chainMetadata = this.multiProvider.getChainMetadata(this.chain);
       if (chainMetadata.nativeToken) {
         const { name, symbol, decimals } = chainMetadata.nativeToken;
-        return { name, symbol, decimals, totalSupply: 0 };
+        return {
+          type: TokenType.native,
+          name,
+          symbol,
+          decimals,
+          totalSupply: 0,
+        };
       } else {
         throw new Error(
           `Warp route config specifies native token but chain metadata for ${this.chain} does not provide native token details`,
