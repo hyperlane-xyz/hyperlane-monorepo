@@ -188,7 +188,7 @@ export const ChainMetadataSchemaObject = z.object({
     ),
 
   domainId: ZNzUint.describe(
-    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
+    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value or `name` as a unique identifier.',
   ),
 
   gasCurrencyCoinGeckoId: z
