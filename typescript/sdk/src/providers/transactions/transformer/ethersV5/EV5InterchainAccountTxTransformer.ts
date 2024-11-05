@@ -37,6 +37,7 @@ export class EV5InterchainAccountTxTransformer
   public async transform(
     ...txs: AnnotatedEV5Transaction[]
   ): Promise<AnnotatedEV5Transaction[]> {
+    const transformerChainId = this.multiProvider.getChainId(this.props.chain);
     const txChainsToInnerCalls: Record<ChainName, CallData[]> = txs.reduce(
       (
         txChainToInnerCalls: Record<ChainName, CallData[]>,
@@ -45,6 +46,10 @@ export class EV5InterchainAccountTxTransformer
         assert(chainId, 'Invalid PopulatedTransaction: "chainId" is required');
         assert(to, 'Invalid PopulatedTransaction: "to" is required');
         assert(data, 'Invalid PopulatedTransaction: "data" is required');
+        assert(
+          chainId === transformerChainId,
+          `Transaction chainId ${chainId} does not match transformer chainId ${transformerChainId}`,
+        );
         txChainToInnerCalls[chainId] ||= [];
         txChainToInnerCalls[chainId].push({ to, data });
         return txChainToInnerCalls;
