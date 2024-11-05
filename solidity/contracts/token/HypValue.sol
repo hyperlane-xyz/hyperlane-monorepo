@@ -1,17 +1,44 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+// ============ Internal Imports ============
 import {TokenRouter} from "./libs/TokenRouter.sol";
-import {TokenMessage} from "./libs/TokenMessage.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
+
+// ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-// Note: this assumes 1:1 exchange rate between source and destination chain
+/**
+ * @title HypValue
+ * @author Abacus Works
+ * @notice This contract facilitates the transfer of value between chains using value transfer hooks
+ */
 contract HypValue is TokenRouter {
+    // ============ Errors ============
     error InsufficientValue(uint256 amount, uint256 value);
 
     constructor(address _mailbox) TokenRouter(_mailbox) {}
 
+    // ============ Initialization ============
+
+    /**
+     * @notice Initializes the contract
+     * @param _valuehook The address of the value transfer hook
+     * @param _interchainSecurityModule The address of the interchain security module
+     * @param _owner The owner of the contract
+     */
     function initialize(
         address _valuehook,
         address _interchainSecurityModule,
@@ -24,15 +51,20 @@ contract HypValue is TokenRouter {
         );
     }
 
-    // use _hook with caution
+    // ============ External Functions ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev use _hook with caution, make sure that this hook can handle msg.value transfer using the metadata.msgValue()
+     */
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
         bytes calldata _hookMetadata,
         address _hook
-    ) public payable virtual override returns (bytes32 messageId) {
-        uint256 quote = _checkSufficientValue(_destination, _amount);
+    ) external payable virtual override returns (bytes32 messageId) {
+        uint256 quote = _checkSufficientValue(_destination, _amount, _hook);
 
         bytes memory hookMetadata = StandardHookMetadata.overrideMsgValue(
             _hookMetadata,
@@ -50,12 +82,17 @@ contract HypValue is TokenRouter {
             );
     }
 
+    /// @inheritdoc TokenRouter
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
     ) external payable virtual override returns (bytes32 messageId) {
-        uint256 quote = _checkSufficientValue(_destination, _amount);
+        uint256 quote = _checkSufficientValue(
+            _destination,
+            _amount,
+            address(hook)
+        );
         bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
             _amount,
             destinationGas[_destination],
@@ -74,12 +111,22 @@ contract HypValue is TokenRouter {
             );
     }
 
+    // ============ Internal Functions ============
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev No metadata is needed for value transfers
+     */
     function _transferFromSender(
         uint256
     ) internal pure override returns (bytes memory) {
         return bytes(""); // no metadata
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev Sends the value to the recipient
+     */
     function _transferTo(
         address _recipient,
         uint256 _amount,
@@ -88,17 +135,27 @@ contract HypValue is TokenRouter {
         Address.sendValue(payable(_recipient), _amount);
     }
 
+    /**
+     * @inheritdoc TokenRouter
+     * @dev This contract doesn't hold value
+     */
     function balanceOf(
         address /* _account */
     ) external pure override returns (uint256) {
         return 0;
     }
 
+    /// @dev Checks if the provided value is sufficient for the transfer
     function _checkSufficientValue(
         uint32 _destination,
-        uint256 _amount
+        uint256 _amount,
+        address _hook
     ) internal view returns (uint256) {
-        uint256 quote = this.quoteGasPayment(_destination);
+        uint256 quote = _GasRouter_quoteDispatch(
+            _destination,
+            new bytes(0),
+            _hook
+        );
         if (msg.value < _amount + quote) {
             revert InsufficientValue(_amount + quote, msg.value);
         }

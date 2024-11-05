@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import "forge-std/console.sol";
-
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
@@ -11,6 +9,7 @@ import {HypValue} from "../../contracts/token/HypValue.sol";
 import {OPL2ToL1Hook} from "../../contracts/hooks/OPL2ToL1Hook.sol";
 import {OPL2ToL1Ism} from "../../contracts/isms/hook/OPL2ToL1Ism.sol";
 import {IOptimismPortal} from "../../contracts/interfaces/optimism/IOptimismPortal.sol";
+import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {ICrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
 import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {MockOptimismMessenger, MockOptimismPortal} from "../../contracts/mock/MockOptimism.sol";
@@ -82,7 +81,6 @@ contract HypValueTest is HypTokenTest {
 
     function testRemoteTransfer() public {
         uint256 quote = localValueRouter.quoteGasPayment(DESTINATION);
-        console.log("quote", quote);
         uint256 msgValue = TRANSFER_AMT + quote;
 
         vm.expectEmit(true, true, false, true);
@@ -99,6 +97,9 @@ contract HypValueTest is HypTokenTest {
             TRANSFER_AMT
         );
 
+        vm.assertEq(address(localToken).balance, 0);
+        vm.assertEq(address(valueHook).balance, 0);
+
         _externalBridgeDestinationCall(messageId, msgValue);
 
         vm.expectEmit(true, true, false, true);
@@ -113,11 +114,54 @@ contract HypValueTest is HypTokenTest {
         assertEq(address(mockOverheadIgp).balance, quote);
     }
 
+    function testRemoteTransfer_invalidAmount() public {
+        uint256 quote = localValueRouter.quoteGasPayment(DESTINATION);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                HypValue.InsufficientValue.selector,
+                TRANSFER_AMT + quote,
+                TRANSFER_AMT
+            )
+        );
+        vm.prank(ALICE);
+        bytes32 messageId = localToken.transferRemote{value: TRANSFER_AMT}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT
+        );
+    }
+
     function testTransfer_withHookSpecified(
         uint256 fee,
         bytes calldata metadata
-    ) public override {}
+    ) public override {
+        vm.assume(fee < TRANSFER_AMT);
+        uint256 msgValue = TRANSFER_AMT + fee;
+        vm.deal(ALICE, msgValue);
 
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        hook.setFee(fee);
+
+        vm.prank(ALICE);
+        bytes32 messageId = localToken.transferRemote{value: msgValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            metadata,
+            address(hook)
+        );
+
+        vm.assertEq(address(localToken).balance, 0);
+        vm.assertEq(address(valueHook).balance, 0);
+    }
+
+    function testBenchmark_overheadGasUsage() public override {
+        vm.deal(address(localValueRouter), TRANSFER_AMT);
+        super.testBenchmark_overheadGasUsage();
+    }
+
+    // helper function to simulate the external bridge destination call using OP L2 -> L1 bridge
     function _externalBridgeDestinationCall(
         bytes32 _messageId,
         uint256 _msgValue
