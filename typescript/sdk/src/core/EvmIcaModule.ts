@@ -136,7 +136,7 @@ export class EvmIcaModule extends HyperlaneModule<
     const remoteTransactions: AnnotatedEV5Transaction[] = domainsToEnroll.map(
       (domainId) => ({
         annotation: `Enrolling InterchainAccountRouter on domain ${this.domainId} on InterchainAccountRouter at ${expectedConfig[domainId].address} on domain ${domainId}`,
-        chainId: parseInt(domainId),
+        chainId: Number(this.multiProvider.getChainId(domainId)),
         to: expectedConfig[domainId].address,
         data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
           'enrollRemoteRouter(uint32,bytes32)',
@@ -150,7 +150,7 @@ export class EvmIcaModule extends HyperlaneModule<
 
     transactions.push({
       annotation: `Enrolling remote InterchainAccountRouters on domain ${this.domainId}`,
-      chainId: this.domainId,
+      chainId: Number(this.chainId),
       to: this.args.addresses.interchainAccountRouter,
       data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
         'enrollRemoteRouterAndIsms(uint32[],bytes32[],bytes32[])',
@@ -182,7 +182,7 @@ export class EvmIcaModule extends HyperlaneModule<
 
     transactions.push({
       annotation: `Unenrolling remote InterchainAccountRouters from chain ${this.domainId}`,
-      chainId: this.domainId,
+      chainId: Number(this.chainId),
       to: this.args.addresses.interchainAccountRouter,
       data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
         'unenrollRemoteRouters(uint32[])',
@@ -193,7 +193,7 @@ export class EvmIcaModule extends HyperlaneModule<
     const remoteTransactions: AnnotatedEV5Transaction[] = routesToUnenroll.map(
       (domainId) => ({
         annotation: `Removing InterchainAccountRouter on domain ${this.domainId} from InterchainAccountRouter at ${actualConfig[domainId].address} on domain ${domainId}`,
-        chainId: parseInt(domainId),
+        chainId: Number(this.multiProvider.getChainId(domainId)),
         to: bytes32ToAddress(actualConfig[domainId].address),
         data: InterchainAccountRouter__factory.createInterface().encodeFunctionData(
           'unenrollRemoteRouter(uint32)',

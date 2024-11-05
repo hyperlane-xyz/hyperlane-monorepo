@@ -26,8 +26,8 @@ const EXAMPLES_PATH = './examples';
 const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
 
 const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
-const CORE_READ_CHAIN_2_CONFIG_PATH = `${TEMP_PATH}/anvil2/core-config-read.yaml`;
-const CORE_READ_CHAIN_3_CONFIG_PATH = `${TEMP_PATH}/anvil3/core-config-read.yaml`;
+const CORE_READ_CHAIN_2_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
+const CORE_READ_CHAIN_3_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;
 
 const TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 describe('hyperlane core e2e tests', async function () {
@@ -207,7 +207,7 @@ describe('hyperlane core e2e tests', async function () {
       ).to.equal(initialOwnerAddress);
     });
 
-    it('should update enroll a remote ICA Router', async () => {
+    it('should enroll a remote ICA Router and update the config on all involved chains', async () => {
       await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
       await hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH);
 
@@ -265,7 +265,7 @@ describe('hyperlane core e2e tests', async function () {
       ).to.deep.equal(expectedChain3RemoteRoutersConfig);
     });
 
-    it('should update to unenroll a remote ICA Router', async () => {
+    it('should unenroll a remote ICA Router and update the config on all involved chains', async () => {
       await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
       await hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH);
 
