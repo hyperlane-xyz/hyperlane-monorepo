@@ -215,6 +215,16 @@ abstract contract AbstractMultisigIsmTest is Test {
         vm.expectRevert("!threshold");
         ism.verify(duplicateMetadata, message);
     }
+
+    function testZeroThreshold() public virtual {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 0);
+    }
+
+    function testThresholdExceedsLength() public virtual {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 2);
+    }
 }
 
 contract MerkleRootMultisigIsmTest is AbstractMultisigIsmTest {

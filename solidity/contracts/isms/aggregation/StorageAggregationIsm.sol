@@ -43,7 +43,10 @@ contract StorageAggregationIsm is
         address[] memory _modules,
         uint8 _threshold
     ) public onlyOwner {
-        require(_threshold <= _modules.length, "Invalid threshold");
+        require(
+            0 < _threshold && _threshold <= _modules.length,
+            "Invalid threshold"
+        );
         modules = _modules;
         threshold = _threshold;
         emit ModulesAndThresholdSet(_modules, _threshold);
@@ -64,7 +67,7 @@ contract StorageAggregationIsmFactory is
 
     constructor() {
         implementation = address(
-            new StorageAggregationIsm(new address[](0), 0)
+            new StorageAggregationIsm(new address[](1), 1)
         );
     }
 

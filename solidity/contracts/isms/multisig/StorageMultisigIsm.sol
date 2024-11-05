@@ -45,7 +45,10 @@ abstract contract AbstractStorageMultisigIsm is
         address[] memory _validators,
         uint8 _threshold
     ) public onlyOwner {
-        require(_threshold <= _validators.length, "Invalid threshold");
+        require(
+            0 < _threshold && _threshold <= _validators.length,
+            "Invalid threshold"
+        );
         validators = _validators;
         threshold = _threshold;
         emit ValidatorsAndThresholdSet(_validators, _threshold);

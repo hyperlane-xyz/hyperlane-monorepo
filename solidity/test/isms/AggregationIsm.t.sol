@@ -48,6 +48,8 @@ contract AggregationIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) internal returns (address[] memory) {
+        vm.assume(m > 0 && m <= n && n < 10);
+
         bytes32 randomness = seed;
         address[] memory isms = new address[](n);
         for (uint256 i = 0; i < n; i++) {
@@ -93,7 +95,6 @@ contract AggregationIsmTest is Test {
     }
 
     function testVerify(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
@@ -106,7 +107,7 @@ contract AggregationIsmTest is Test {
         uint8 i,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10 && i < n);
+        vm.assume(i < n);
         deployIsms(m, n, seed);
         (address[] memory modules, ) = ism.modulesAndThreshold("");
         bytes memory noMetadata;
@@ -117,7 +118,6 @@ contract AggregationIsmTest is Test {
     }
 
     function testVerifyMissingMetadata(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         // Populate metadata for one fewer ISMs than needed.
@@ -131,7 +131,6 @@ contract AggregationIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
@@ -143,12 +142,21 @@ contract AggregationIsmTest is Test {
     }
 
     function testModulesAndThreshold(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         address[] memory expectedIsms = deployIsms(m, n, seed);
         (address[] memory actualIsms, uint8 actualThreshold) = ism
             .modulesAndThreshold("");
         assertEq(abi.encode(actualIsms), abi.encode(expectedIsms));
         assertEq(actualThreshold, m);
+    }
+
+    function testZeroThreshold() public {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 0);
+    }
+
+    function testThresholdExceedsLength() public {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 2);
     }
 }
 

@@ -36,6 +36,10 @@ abstract contract StaticThresholdAddressSetFactory is
         address[] calldata _values,
         uint8 _threshold
     ) public returns (address) {
+        require(
+            0 < _threshold && _threshold <= _values.length,
+            "Invalid threshold"
+        );
         (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(
             _values,
             _threshold
