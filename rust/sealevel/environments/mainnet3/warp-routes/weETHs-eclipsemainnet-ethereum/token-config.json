@@ -1,0 +1,11 @@
+{
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "remoteDecimals": 18,
+    "name": "Super Symbiotic LRT",
+    "symbol": "weETHs",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/6ce62e9330ae1af0786f60d9fe6da8541b6b2988/deployments/warp_routes/weETHs/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  }
+}
