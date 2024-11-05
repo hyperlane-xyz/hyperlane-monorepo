@@ -469,7 +469,7 @@ export async function runWarpRouteApply(
   if (transactions.length == 0)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
-  await submitWarpApplyTransactions(params, groupBy(transactions, 'chain'));
+  await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
 }
 
 async function extendWarpRoute(
@@ -885,10 +885,20 @@ async function submitWarpApplyTransactions(
   params: WarpApplyParams,
   chainTransactions: Record<string, AnnotatedEV5Transaction[]>,
 ): Promise<void> {
+  // Create mapping of chain ID to chain name for all chains in warpDeployConfig
+  const chains = Object.keys(params.warpDeployConfig);
+  const chainIdToName = Object.fromEntries(
+    chains.map((chain) => [
+      params.context.multiProvider.getChainId(chain),
+      chain,
+    ]),
+  );
+
   await promiseObjAll(
-    objMap(chainTransactions, async (chain, transactions) => {
+    objMap(chainTransactions, async (chainId, transactions) => {
       await retryAsync(
         async () => {
+          const chain = chainIdToName[chainId];
           const submitter: TxSubmitterBuilder<ProtocolType> =
             await getWarpApplySubmitter({
               chain,
@@ -933,8 +943,8 @@ async function getWarpApplySubmitter({
     ? readChainSubmissionStrategy(strategyUrl)[chain]
     : {
         submitter: {
-          type: TxSubmitterType.JSON_RPC,
           chain,
+          type: TxSubmitterType.JSON_RPC,
         },
       };
 
