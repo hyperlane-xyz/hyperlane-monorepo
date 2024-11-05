@@ -2,11 +2,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::EncodedTransaction;
+use solana_transaction_status::{
+    option_serializer::OptionSerializer, EncodedTransaction, EncodedTransactionWithStatusMeta,
+    UiMessage, UiTransaction, UiTransactionStatusMeta,
+};
+use tracing::warn;
 
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256, H512, U256,
+    utils::to_atto, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, NativeToken, TxnInfo,
+    TxnReceiptInfo, H256, H512, U256,
 };
 
 use crate::error::HyperlaneSealevelError;
@@ -18,6 +23,7 @@ use crate::{ConnectionConf, SealevelRpcClient};
 pub struct SealevelProvider {
     domain: HyperlaneDomain,
     rpc_client: Arc<SealevelRpcClient>,
+    native_token: NativeToken,
 }
 
 impl SealevelProvider {
@@ -25,13 +31,82 @@ impl SealevelProvider {
     pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         // Set the `processed` commitment at rpc level
         let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
+        let native_token = conf.native_token.clone();
 
-        SealevelProvider { domain, rpc_client }
+        SealevelProvider {
+            domain,
+            rpc_client,
+            native_token,
+        }
     }
 
     /// Get an rpc client
     pub fn rpc(&self) -> &SealevelRpcClient {
         &self.rpc_client
+    }
+
+    fn validate_transaction(hash: &H512, txn: &UiTransaction) -> ChainResult<()> {
+        let received_signature = txn
+            .signatures
+            .first()
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+        let received_hash = decode_h512(received_signature)?;
+
+        if &received_hash != hash {
+            Err(Into::<ChainCommunicationError>::into(
+                HyperlaneSealevelError::IncorrectTransaction(
+                    Box::new(*hash),
+                    Box::new(received_hash),
+                ),
+            ))?;
+        }
+        Ok(())
+    }
+
+    fn sender(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
+        let message = match &txn.message {
+            UiMessage::Parsed(m) => m,
+            m => Err(Into::<ChainCommunicationError>::into(
+                HyperlaneSealevelError::UnsupportedMessageEncoding(m.clone()),
+            ))?,
+        };
+
+        let signer = message
+            .account_keys
+            .first()
+            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
+        let pubkey = decode_pubkey(&signer.pubkey)?;
+        let sender = H256::from_slice(&pubkey.to_bytes());
+        Ok(sender)
+    }
+
+    fn gas(meta: &UiTransactionStatusMeta) -> ChainResult<U256> {
+        let OptionSerializer::Some(gas) = meta.compute_units_consumed else {
+            Err(HyperlaneSealevelError::EmptyComputeUnitsConsumed)?
+        };
+
+        Ok(U256::from(gas))
+    }
+
+    /// Extracts and converts fees into atto (10^-18) units.
+    ///
+    /// We convert fees into atto units since otherwise a compute unit price (gas price)
+    /// becomes smaller than 1 lamport (or 1 unit of native token) and the price is rounded
+    /// to zero. We normalise the gas price for all the chain to be expressed in atto units.
+    fn fee(&self, meta: &UiTransactionStatusMeta) -> ChainResult<U256> {
+        let amount_in_native_denom = U256::from(meta.fee);
+
+        to_atto(amount_in_native_denom, self.native_token.decimals).ok_or(
+            ChainCommunicationError::CustomError("Overflow in calculating fees".to_owned()),
+        )
+    }
+
+    fn meta(txn: &EncodedTransactionWithStatusMeta) -> ChainResult<&UiTransactionStatusMeta> {
+        let meta = txn
+            .meta
+            .as_ref()
+            .ok_or(HyperlaneSealevelError::EmptyMetadata)?;
+        Ok(meta)
     }
 }
 
@@ -44,6 +119,7 @@ impl HyperlaneChain for SealevelProvider {
         Box::new(SealevelProvider {
             domain: self.domain.clone(),
             rpc_client: self.rpc_client.clone(),
+            native_token: self.native_token.clone(),
         })
     }
 }
@@ -76,44 +152,43 @@ impl HyperlaneProvider for SealevelProvider {
     /// for all chains, not only Ethereum-like chains.
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let signature = Signature::new(hash.as_bytes());
-        let transaction = self.rpc_client.get_transaction(&signature).await?;
 
-        let ui_transaction = match transaction.transaction.transaction {
+        let txn_confirmed = self.rpc_client.get_transaction(&signature).await?;
+        let txn_with_meta = &txn_confirmed.transaction;
+
+        let txn = match &txn_with_meta.transaction {
             EncodedTransaction::Json(t) => t,
             t => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedTransactionEncoding(t),
+                HyperlaneSealevelError::UnsupportedTransactionEncoding(t.clone()),
             ))?,
         };
 
-        let received_signature = ui_transaction
-            .signatures
-            .first()
-            .ok_or(HyperlaneSealevelError::UnsignedTransaction(*hash))?;
-        let received_hash = decode_h512(received_signature)?;
+        Self::validate_transaction(hash, txn)?;
+        let sender = Self::sender(hash, txn)?;
+        let meta = Self::meta(txn_with_meta)?;
+        let gas_used = Self::gas(meta)?;
+        let fee = self.fee(meta)?;
 
-        if &received_hash != hash {
-            Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::IncorrectTransaction(
-                    Box::new(*hash),
-                    Box::new(received_hash),
-                ),
-            ))?;
+        if fee < gas_used {
+            warn!(tx_hash = ?hash, ?fee, ?gas_used, "calculated fee is less than gas used. it will result in zero gas price");
         }
 
+        let gas_price = Some(fee / gas_used);
+
         let receipt = TxnReceiptInfo {
-            gas_used: Default::default(),
-            cumulative_gas_used: Default::default(),
-            effective_gas_price: None,
+            gas_used,
+            cumulative_gas_used: gas_used,
+            effective_gas_price: gas_price,
         };
 
         Ok(TxnInfo {
             hash: *hash,
-            gas_limit: Default::default(),
+            gas_limit: gas_used,
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
-            gas_price: None,
+            gas_price,
             nonce: 0,
-            sender: Default::default(),
+            sender,
             recipient: None,
             receipt: Some(receipt),
             raw_input_data: None,
