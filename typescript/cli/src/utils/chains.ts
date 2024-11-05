@@ -1,4 +1,5 @@
 import { Separator, confirm } from '@inquirer/prompts';
+import search from '@inquirer/search';
 import select from '@inquirer/select';
 import chalk from 'chalk';
 
@@ -23,9 +24,20 @@ export async function runSingleChainSelectionStep(
     chainMetadata,
     networkType,
   );
-  const chain = (await select({
+
+  const options = [networkTypeSeparator, ...choices];
+  const chain = (await search({
     message,
-    choices: [networkTypeSeparator, ...choices],
+    source: (searchTerm) => {
+      if (!searchTerm) {
+        return options;
+      }
+
+      return options.filter(
+        (value) =>
+          Separator.isSeparator(value) || value.value.includes(searchTerm),
+      );
+    },
     pageSize: calculatePageSize(2),
   })) as string;
   handleNewChain([chain]);
@@ -142,7 +154,9 @@ function getChainChoices(
   networkType: 'mainnet' | 'testnet',
 ) {
   const chainsToChoices = (chains: ChainMetadata[]) =>
-    chains.map((c) => ({ name: c.name, value: c.name }));
+    chains
+      .map((c) => ({ name: c.name, value: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
   const chains = Object.values(chainMetadata);
   const filteredChains = chains.filter((c) =>
