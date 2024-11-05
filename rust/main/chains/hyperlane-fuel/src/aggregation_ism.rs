@@ -5,6 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use fuels::{
     accounts::wallet::WalletUnlocked,
+    programs::calls::Execution,
     types::{bech32::Bech32ContractId, Bytes},
 };
 use hyperlane_core::{
@@ -65,7 +66,7 @@ impl AggregationIsm for FuelAggregationIsm {
         self.contract
             .methods()
             .modules_and_threshold(Bytes(message.to_vec()))
-            .call()
+            .simulate(Execution::StateReadOnly)
             .await
             .map_err(ChainCommunicationError::from_other)
             .map(|res| {

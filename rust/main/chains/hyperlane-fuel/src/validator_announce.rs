@@ -5,6 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use fuels::{
     prelude::WalletUnlocked,
+    programs::calls::Execution,
     tx::{Receipt, ScriptExecutionResult},
     types::{bech32::Bech32ContractId, Address, Bits256, Bytes},
 };
@@ -70,7 +71,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
             .get_announced_storage_locations(
                 validators.iter().map(|v| Bits256::from_h256(v)).collect(),
             )
-            .call()
+            .simulate(Execution::StateReadOnly)
             .await
             .map(|res| res.value)
             .map_err(ChainCommunicationError::from_other)

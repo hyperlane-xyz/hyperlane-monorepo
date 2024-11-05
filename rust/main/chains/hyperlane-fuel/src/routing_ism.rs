@@ -5,6 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use fuels::{
     accounts::wallet::WalletUnlocked,
+    programs::calls::Execution,
     types::{bech32::Bech32ContractId, Bytes},
 };
 use hyperlane_core::{
@@ -63,7 +64,10 @@ impl RoutingIsm for FuelRoutingIsm {
         self.contract
             .methods()
             .route(Bytes(message.to_vec()))
-            .call()
+            .determine_missing_contracts(Some(10))
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .simulate(Execution::StateReadOnly)
             .await
             .map_err(ChainCommunicationError::from_other)
             .map(|res| res.value.into_h256())
