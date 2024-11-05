@@ -178,4 +178,17 @@ library StandardHookMetadata {
                 getCustomMetadata(_metadata)
             );
     }
+
+    function overrideGasLimit(
+        bytes calldata _metadata,
+        uint256 _gasLimit
+    ) internal view returns (bytes memory) {
+        return
+            formatMetadata(
+                msgValue(_metadata, 0),
+                _gasLimit,
+                refundAddress(_metadata, msg.sender),
+                getCustomMetadata(_metadata)
+            );
+    }
 }
