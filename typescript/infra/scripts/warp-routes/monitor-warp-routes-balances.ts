@@ -681,7 +681,7 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
   let apiKey: string | undefined;
   try {
     apiKey = (await fetchGCPSecret(
-      CoinGeckoTokenPriceGetter.getSecretName(environment),
+      `${environment}-coingecko-api-key`,
       false,
     )) as string;
   } catch (e) {

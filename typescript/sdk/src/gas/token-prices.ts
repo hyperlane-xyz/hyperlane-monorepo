@@ -88,17 +88,13 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     expirySeconds?: number,
     sleepMsBetweenRequests = 5000,
   ): CoinGeckoTokenPriceGetter {
-    const coinGecko = new CoinGeckoClient({}, apiKey);
+    const coinGecko = new CoinGeckoClient(undefined, apiKey);
     return new CoinGeckoTokenPriceGetter(
       coinGecko,
       chainMetadata,
       expirySeconds,
       sleepMsBetweenRequests,
     );
-  }
-
-  static getSecretName(environment: string): string {
-    return `${environment}-coingecko-api-key`;
   }
 
   async getTokenPrice(
