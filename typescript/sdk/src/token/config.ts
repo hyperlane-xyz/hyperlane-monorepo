@@ -15,12 +15,6 @@ export enum TokenType {
   nativeScaled = 'nativeScaled',
 }
 
-export const CollateralExtensions = [
-  TokenType.collateral,
-  TokenType.collateralVault,
-  TokenType.collateralVaultRebase,
-];
-
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {
     case TokenType.fastSynthetic:

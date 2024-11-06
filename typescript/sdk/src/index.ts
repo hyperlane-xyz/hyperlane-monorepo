@@ -498,6 +498,7 @@ export {
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
+export { getChainIdFromTxs } from './utils/transactions.js';
 export { chainMetadataToWagmiChain } from './utils/wagmi.js';
 export {
   FeeConstantConfig,
@@ -514,6 +515,7 @@ export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router
 export {
   CollateralConfig,
   NativeConfig,
+  TokenConfig,
   TokenRouterConfigSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,

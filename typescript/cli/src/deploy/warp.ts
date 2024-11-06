@@ -885,12 +885,20 @@ async function submitWarpApplyTransactions(
   params: WarpApplyParams,
   chainTransactions: Record<string, AnnotatedEV5Transaction[]>,
 ): Promise<void> {
-  const { multiProvider } = params.context;
+  // Create mapping of chain ID to chain name for all chains in warpDeployConfig
+  const chains = Object.keys(params.warpDeployConfig);
+  const chainIdToName = Object.fromEntries(
+    chains.map((chain) => [
+      params.context.multiProvider.getChainId(chain),
+      chain,
+    ]),
+  );
+
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
       await retryAsync(
         async () => {
-          const chain = multiProvider.getChainName(chainId);
+          const chain = chainIdToName[chainId];
           const submitter: TxSubmitterBuilder<ProtocolType> =
             await getWarpApplySubmitter({
               chain,
@@ -935,6 +943,7 @@ async function getWarpApplySubmitter({
     ? readChainSubmissionStrategy(strategyUrl)[chain]
     : {
         submitter: {
+          chain,
           type: TxSubmitterType.JSON_RPC,
         },
       };
