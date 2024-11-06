@@ -41,9 +41,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   typeof testnet4SupportedChainNames
 > = {
   [Role.Validator]: {
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -71,9 +72,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     unichaintestnet: true,
   },
   [Role.Relayer]: {
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -101,9 +103,10 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     unichaintestnet: true,
   },
   [Role.Scraper]: {
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
+    arcadiatestnet: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,

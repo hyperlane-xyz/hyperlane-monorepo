@@ -1,9 +1,9 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const testnet4SupportedChainNames = [
+  'alephzeroevmtestnet',
   'alfajores',
   'arbitrumsepolia',
-  // Disabling arcadiatestnet on Oct 29, 2024: chain reset and needs to be redeployed
-  // 'arcadiatestnet',
+  'arcadiatestnet',
   'basesepolia',
   'berabartio',
   'bsctestnet',

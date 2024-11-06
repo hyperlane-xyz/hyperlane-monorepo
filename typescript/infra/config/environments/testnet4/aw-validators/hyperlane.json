@@ -9,6 +9,9 @@
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
+  "arcadiatestnet": {
+    "validators": ["0x7ce5973d3f22971546efb86f5a0417c1248e92f5"]
+  },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
   },
@@ -84,5 +87,8 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
+  },
+  "alephzeroevmtestnet": {
+    "validators": ["0x556cd94bcb6e5773e8df75e7eb3f91909d266a26"]
   }
 }

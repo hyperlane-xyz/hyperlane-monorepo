@@ -343,5 +343,18 @@ export const validatorChainConfig = (
         'odysseytestnet',
       ),
     },
+
+    alephzeroevmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('alephzeroevmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x556cd94bcb6e5773e8df75e7eb3f91909d266a26'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'alephzeroevmtestnet',
+      ),
+    },
   };
 };

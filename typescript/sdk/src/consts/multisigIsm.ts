@@ -12,6 +12,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  alephzeroevmtestnet: {
+    threshold: 1,
+    validators: ['0x556cd94bcb6e5773e8df75e7eb3f91909d266a26'],
+  },
+
   alfajores: {
     threshold: 2,
     validators: [
