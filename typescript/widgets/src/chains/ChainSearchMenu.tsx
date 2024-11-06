@@ -241,7 +241,7 @@ function chainSearch({
           chain.name.includes(queryFormatted) ||
           chain.displayName?.toLowerCase().includes(queryFormatted) ||
           chain.chainId.toString().includes(queryFormatted) ||
-          chain.domainId?.toString().includes(queryFormatted),
+          chain.domainId.toString().includes(queryFormatted),
       )
       // Filter options
       .filter((chain) => {

@@ -5,7 +5,6 @@ import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { eclipsemainnet } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -818,8 +817,8 @@ class ContextFunder {
   ) {
     const l1Chain = L2ToL1[l2Chain];
     const crossChainMessenger = new CrossChainMessenger({
-      l1ChainId: this.multiProvider.getDomainId(l1Chain),
-      l2ChainId: this.multiProvider.getDomainId(l2Chain),
+      l1ChainId: this.multiProvider.getEvmChainId(l1Chain),
+      l2ChainId: this.multiProvider.getEvmChainId(l2Chain),
       l1SignerOrProvider: this.multiProvider.getSignerOrProvider(l1Chain),
       l2SignerOrProvider: this.multiProvider.getSignerOrProvider(l2Chain),
     });
@@ -832,7 +831,7 @@ class ContextFunder {
   private async bridgeToArbitrum(l2Chain: ChainName, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
     const l2Network = await getL2Network(
-      this.multiProvider.getDomainId(l2Chain),
+      this.multiProvider.getEvmChainId(l2Chain),
     );
     const ethBridger = new EthBridger(l2Network);
     return ethBridger.deposit({
