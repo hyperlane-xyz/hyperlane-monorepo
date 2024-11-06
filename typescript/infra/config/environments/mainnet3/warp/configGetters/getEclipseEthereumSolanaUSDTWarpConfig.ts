@@ -9,22 +9,25 @@ import {
 
 import { tokens } from '../../../../../src/config/warp.js';
 
-export const getEclipseEthereumUSDCWarpConfig = async (
+export const getEclipseEthereumSolanaUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const eclipsemainnet: TokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     type: TokenType.synthetic,
-    foreignDeployment: 'D6k6T3G74ij6atCtBiWBs5TbFa1hFVcrFUSGZHuV7q3Z',
+    foreignDeployment: '5g5ujyYUNvdydwyDVCpZwPpgYRqH5RYJRi156cxyE3me',
     gas: 300_000,
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
-
-  const ethereum: TokenRouterConfig = {
+  let ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
+    token: tokens.ethereum.USDT,
     interchainSecurityModule: ethers.constants.AddressZero,
-    token: tokens.ethereum.USDC,
   };
+
+  // Intentionally don't enroll Solana to avoid transferring
+  // directly between Solana and Ethereum
 
   return {
     eclipsemainnet,
