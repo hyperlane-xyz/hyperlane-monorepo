@@ -3,14 +3,14 @@ import { Logger } from 'pino';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ProtocolTypedTransaction } from '../providers/ProviderType.js';
-import { ChainNameOrDomain } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 
 export type HyperlaneModuleParams<
   TConfig,
   TAddressMap extends Record<string, any>,
 > = {
   addresses: TAddressMap;
-  chain: ChainNameOrDomain;
+  chain: ChainNameOrId;
   config: TConfig;
 };
 

@@ -28,7 +28,7 @@ import {
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrDomain } from '../types.js';
+import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
@@ -93,7 +93,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
   constructor(
     protected readonly multiProvider: MultiProvider,
-    protected readonly chain: ChainNameOrDomain,
+    protected readonly chain: ChainNameOrId,
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,

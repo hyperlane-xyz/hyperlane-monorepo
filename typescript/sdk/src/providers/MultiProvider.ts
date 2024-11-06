@@ -19,7 +19,7 @@ import {
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import { ChainMap, ChainName, ChainNameOrDomain } from '../types.js';
+import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
@@ -86,8 +86,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   /**
    * Get an Ethers provider for a given chain name or domain id
    */
-  tryGetProvider(chainNameOrDomain: ChainNameOrDomain): Provider | null {
-    const metadata = this.tryGetChainMetadata(chainNameOrDomain);
+  tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
     const { name, chainId, rpcUrls } = metadata;
 
@@ -111,10 +111,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers provider for a given chain name or domain id
    * @throws if chain's metadata has not been set
    */
-  getProvider(chainNameOrDomain: ChainNameOrDomain): Provider {
-    const provider = this.tryGetProvider(chainNameOrDomain);
+  getProvider(chainNameOrId: ChainNameOrId): Provider {
+    const provider = this.tryGetProvider(chainNameOrId);
     if (!provider)
-      throw new Error(`No chain metadata set for ${chainNameOrDomain}`);
+      throw new Error(`No chain metadata set for ${chainNameOrId}`);
     return provider;
   }
 
@@ -122,11 +122,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets an Ethers provider for a given chain name or domain id
    * @throws if chain's metadata has not been set
    */
-  setProvider(
-    chainNameOrDomain: ChainNameOrDomain,
-    provider: Provider,
-  ): Provider {
-    const chainName = this.getChainName(chainNameOrDomain);
+  setProvider(chainNameOrId: ChainNameOrId, provider: Provider): Provider {
+    const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
     if (signer && signer.provider) {
@@ -150,8 +147,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers signer for a given chain name or domain id
    * If signer is not yet connected, it will be connected
    */
-  tryGetSigner(chainNameOrDomain: ChainNameOrDomain): Signer | null {
-    const chainName = this.tryGetChainName(chainNameOrDomain);
+  tryGetSigner(chainNameOrId: ChainNameOrId): Signer | null {
+    const chainName = this.tryGetChainName(chainNameOrId);
     if (!chainName) return null;
     const signer = this.signers[chainName];
     if (!signer) return null;
@@ -166,10 +163,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * If signer is not yet connected, it will be connected
    * @throws if chain's metadata or signer has not been set
    */
-  getSigner(chainNameOrDomain: ChainNameOrDomain): Signer {
-    const signer = this.tryGetSigner(chainNameOrDomain);
-    if (!signer)
-      throw new Error(`No chain signer set for ${chainNameOrDomain}`);
+  getSigner(chainNameOrId: ChainNameOrId): Signer {
+    const signer = this.tryGetSigner(chainNameOrId);
+    if (!signer) throw new Error(`No chain signer set for ${chainNameOrId}`);
     return signer;
   }
 
@@ -177,10 +173,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get an Ethers signer for a given chain name or domain id
    * @throws if chain's metadata or signer has not been set
    */
-  async getSignerAddress(
-    chainNameOrDomain: ChainNameOrDomain,
-  ): Promise<Address> {
-    const signer = this.getSigner(chainNameOrDomain);
+  async getSignerAddress(chainNameOrId: ChainNameOrId): Promise<Address> {
+    const signer = this.getSigner(chainNameOrId);
     const address = await signer.getAddress();
     return address;
   }
@@ -189,11 +183,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Sets an Ethers Signer for a given chain name or domain id
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
-  setSigner(chainNameOrDomain: ChainNameOrDomain, signer: Signer): Signer {
+  setSigner(chainNameOrId: ChainNameOrId, signer: Signer): Signer {
     if (this.useSharedSigner) {
       throw new Error('MultiProvider already set to use a shared signer');
     }
-    const chainName = this.getChainName(chainNameOrDomain);
+    const chainName = this.getChainName(chainNameOrId);
     this.signers[chainName] = signer;
     if (signer.provider && !this.providers[chainName]) {
       this.providers[chainName] = signer.provider;
@@ -219,11 +213,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Gets the Signer if it's been set, otherwise the provider
    */
   tryGetSignerOrProvider(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
   ): Signer | Provider | null {
     return (
-      this.tryGetSigner(chainNameOrDomain) ||
-      this.tryGetProvider(chainNameOrDomain)
+      this.tryGetSigner(chainNameOrId) || this.tryGetProvider(chainNameOrId)
     );
   }
 
@@ -231,11 +224,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Gets the Signer if it's been set, otherwise the provider
    * @throws if chain metadata has not been set
    */
-  getSignerOrProvider(chainNameOrDomain: ChainNameOrDomain): Signer | Provider {
-    return (
-      this.tryGetSigner(chainNameOrDomain) ||
-      this.getProvider(chainNameOrDomain)
-    );
+  getSignerOrProvider(chainNameOrId: ChainNameOrId): Signer | Provider {
+    return this.tryGetSigner(chainNameOrId) || this.getProvider(chainNameOrId);
   }
 
   /**
@@ -280,15 +270,14 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get a block explorer URL for given chain's address
    */
   override async tryGetExplorerAddressUrl(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     address?: string,
   ): Promise<string | null> {
-    if (address)
-      return super.tryGetExplorerAddressUrl(chainNameOrDomain, address);
-    const signer = this.tryGetSigner(chainNameOrDomain);
+    if (address) return super.tryGetExplorerAddressUrl(chainNameOrId, address);
+    const signer = this.tryGetSigner(chainNameOrId);
     if (signer) {
       const signerAddr = await signer.getAddress();
-      return super.tryGetExplorerAddressUrl(chainNameOrDomain, signerAddr);
+      return super.tryGetExplorerAddressUrl(chainNameOrId, signerAddr);
     }
     return null;
   }
@@ -297,12 +286,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Get the latest block range for a given chain's RPC provider
    */
   async getLatestBlockRange(
-    chainNameOrDomain: ChainNameOrDomain,
-    rangeSize = this.getMaxBlockRange(chainNameOrDomain),
+    chainNameOrId: ChainNameOrId,
+    rangeSize = this.getMaxBlockRange(chainNameOrId),
   ): Promise<{ fromBlock: number; toBlock: number }> {
-    const toBlock = await this.getProvider(chainNameOrDomain).getBlock(
-      'latest',
-    );
+    const toBlock = await this.getProvider(chainNameOrId).getBlock('latest');
     const fromBlock = Math.max(toBlock.number - rangeSize, 0);
     return { fromBlock, toBlock: toBlock.number };
   }
@@ -312,9 +299,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * @throws if chain's metadata has not been set
    */
   getTransactionOverrides(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
   ): Partial<providers.TransactionRequest> {
-    return this.getChainMetadata(chainNameOrDomain)?.transactionOverrides ?? {};
+    return this.getChainMetadata(chainNameOrId)?.transactionOverrides ?? {};
   }
 
   /**
@@ -322,13 +309,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * @throws if chain's metadata or signer has not been set or tx fails
    */
   async handleDeploy<F extends ContractFactory>(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     factory: F,
     params: Parameters<F['deploy']>,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
     // setup contract factory
-    const overrides = this.getTransactionOverrides(chainNameOrDomain);
-    const signer = this.getSigner(chainNameOrDomain);
+    const overrides = this.getTransactionOverrides(chainNameOrId);
+    const signer = this.getSigner(chainNameOrId);
     const contractFactory = await factory.connect(signer);
 
     // estimate gas
@@ -342,12 +329,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     });
 
     this.logger.trace(
-      `Deploying contract ${contract.address} on ${chainNameOrDomain}:`,
+      `Deploying contract ${contract.address} on ${chainNameOrId}:`,
       { transaction: deployTx },
     );
 
     // wait for deploy tx to be confirmed
-    await this.handleTx(chainNameOrDomain, contract.deployTransaction);
+    await this.handleTx(chainNameOrId, contract.deployTransaction);
 
     // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;
@@ -358,13 +345,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * @throws if chain's metadata or signer has not been set or tx fails
    */
   async handleTx(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     tx: ContractTransaction | Promise<ContractTransaction>,
   ): Promise<ContractReceipt> {
     const confirmations =
-      this.getChainMetadata(chainNameOrDomain).blocks?.confirmations ?? 1;
+      this.getChainMetadata(chainNameOrId).blocks?.confirmations ?? 1;
     const response = await tx;
-    const txUrl = this.tryGetExplorerTxUrl(chainNameOrDomain, response);
+    const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
     this.logger.info(
       `Pending ${
         txUrl || response.hash
@@ -378,12 +365,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * @throws if chain's metadata has not been set or tx fails
    */
   async prepareTx(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     tx: PopulatedTransaction,
     from?: string,
   ): Promise<providers.TransactionRequest> {
-    const txFrom = from ?? (await this.getSignerAddress(chainNameOrDomain));
-    const overrides = this.getTransactionOverrides(chainNameOrDomain);
+    const txFrom = from ?? (await this.getSignerAddress(chainNameOrId));
+    const overrides = this.getTransactionOverrides(chainNameOrId);
     return {
       ...tx,
       from: txFrom,
@@ -396,19 +383,19 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * @throws if chain's metadata has not been set or tx fails
    */
   async estimateGas(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     tx: PopulatedTransaction,
     from?: string,
   ): Promise<BigNumber> {
     const txReq = {
-      ...(await this.prepareTx(chainNameOrDomain, tx, from)),
+      ...(await this.prepareTx(chainNameOrId, tx, from)),
       // Reset any tx request params that may have an unintended effect on gas estimation
       gasLimit: undefined,
       gasPrice: undefined,
       maxPriorityFeePerGas: undefined,
       maxFeePerGas: undefined,
     };
-    const provider = this.getProvider(chainNameOrDomain);
+    const provider = this.getProvider(chainNameOrId);
     return provider.estimateGas(txReq);
   }
 
@@ -417,18 +404,18 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * @throws if chain's metadata or signer has not been set or tx fails
    */
   async sendTransaction(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
   ): Promise<ContractReceipt> {
     const { annotation, ...tx } = await txProm;
     if (annotation) {
       this.logger.info(annotation);
     }
-    const txReq = await this.prepareTx(chainNameOrDomain, tx);
-    const signer = this.getSigner(chainNameOrDomain);
+    const txReq = await this.prepareTx(chainNameOrId, tx);
+    const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
-    return this.handleTx(chainNameOrDomain, response);
+    return this.handleTx(chainNameOrId, response);
   }
 
   /**

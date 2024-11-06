@@ -23,7 +23,7 @@ import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainName, ChainNameOrDomain } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
@@ -189,7 +189,7 @@ export class EvmIsmModule extends HyperlaneModule<
     multiProvider,
     contractVerifier,
   }: {
-    chain: ChainNameOrDomain;
+    chain: ChainNameOrId;
     config: IsmConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     mailbox: Address;

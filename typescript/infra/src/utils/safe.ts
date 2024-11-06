@@ -9,7 +9,7 @@ import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
-  ChainNameOrDomain,
+  ChainNameOrId,
   MultiProvider,
   getSafe,
   getSafeService,
@@ -20,7 +20,7 @@ import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.jso
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
 export async function getSafeAndService(
-  chain: ChainNameOrDomain,
+  chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
@@ -57,7 +57,7 @@ export async function createSafeTransaction(
 }
 
 export async function proposeSafeTransaction(
-  chain: ChainNameOrDomain,
+  chain: ChainNameOrId,
   safeSdk: Safe.default,
   safeService: SafeApiKit.default,
   safeTransaction: SafeTransaction,
@@ -82,7 +82,7 @@ export async function proposeSafeTransaction(
 }
 
 export async function deleteAllPendingSafeTxs(
-  chain: ChainNameOrDomain,
+  chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<void> {
@@ -116,7 +116,7 @@ export async function deleteAllPendingSafeTxs(
 }
 
 export async function deleteSafeTx(
-  chain: ChainNameOrDomain,
+  chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeAddress: Address,
   safeTxHash: string,

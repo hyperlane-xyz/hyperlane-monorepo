@@ -13,7 +13,7 @@ import {
 import { multiProtocolTestChainMetadata } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import type { ChainMetadata } from '../metadata/chainMetadataTypes.js';
-import type { ChainMap, ChainName, ChainNameOrDomain } from '../types.js';
+import type { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 
 import { MultiProvider, MultiProviderOptions } from './MultiProvider.js';
 import {
@@ -122,10 +122,10 @@ export class MultiProtocolProvider<
   }
 
   tryGetProvider(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     type?: ProviderType,
   ): TypedProvider | null {
-    const metadata = this.tryGetChainMetadata(chainNameOrDomain);
+    const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
     const { protocol, name, chainId, rpcUrls } = metadata;
     type = type || PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol];
@@ -143,20 +143,20 @@ export class MultiProtocolProvider<
   }
 
   getProvider(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     type?: ProviderType,
   ): TypedProvider {
-    const provider = this.tryGetProvider(chainNameOrDomain, type);
+    const provider = this.tryGetProvider(chainNameOrId, type);
     if (!provider)
-      throw new Error(`No provider available for ${chainNameOrDomain}`);
+      throw new Error(`No provider available for ${chainNameOrId}`);
     return provider;
   }
 
   protected getSpecificProvider<T>(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     type: ProviderType,
   ): T {
-    const provider = this.getProvider(chainNameOrDomain, type);
+    const provider = this.getProvider(chainNameOrId, type);
     if (provider.type !== type)
       throw new Error(
         `Invalid provider type, expected ${type} but found ${provider.type}`,
@@ -165,55 +165,51 @@ export class MultiProtocolProvider<
   }
 
   getEthersV5Provider(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
   ): EthersV5Provider['provider'] {
     return this.getSpecificProvider<EthersV5Provider['provider']>(
-      chainNameOrDomain,
+      chainNameOrId,
       ProviderType.EthersV5,
     );
   }
 
-  getViemProvider(
-    chainNameOrDomain: ChainNameOrDomain,
-  ): ViemProvider['provider'] {
+  getViemProvider(chainNameOrId: ChainNameOrId): ViemProvider['provider'] {
     return this.getSpecificProvider<ViemProvider['provider']>(
-      chainNameOrDomain,
+      chainNameOrId,
       ProviderType.Viem,
     );
   }
 
   getSolanaWeb3Provider(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
   ): SolanaWeb3Provider['provider'] {
     return this.getSpecificProvider<SolanaWeb3Provider['provider']>(
-      chainNameOrDomain,
+      chainNameOrId,
       ProviderType.SolanaWeb3,
     );
   }
 
-  getCosmJsProvider(
-    chainNameOrDomain: ChainNameOrDomain,
-  ): CosmJsProvider['provider'] {
+  getCosmJsProvider(chainNameOrId: ChainNameOrId): CosmJsProvider['provider'] {
     return this.getSpecificProvider<CosmJsProvider['provider']>(
-      chainNameOrDomain,
+      chainNameOrId,
       ProviderType.CosmJs,
     );
   }
 
   getCosmJsWasmProvider(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
   ): CosmJsWasmProvider['provider'] {
     return this.getSpecificProvider<CosmJsWasmProvider['provider']>(
-      chainNameOrDomain,
+      chainNameOrId,
       ProviderType.CosmJsWasm,
     );
   }
 
   setProvider(
-    chainNameOrDomain: ChainNameOrDomain,
+    chainNameOrId: ChainNameOrId,
     provider: TypedProvider,
   ): TypedProvider {
-    const chainName = this.getChainName(chainNameOrDomain);
+    const chainName = this.getChainName(chainNameOrId);
     this.providers[chainName] ||= {};
     this.providers[chainName][provider.type] = provider;
     return provider;
@@ -226,18 +222,18 @@ export class MultiProtocolProvider<
   }
 
   estimateTransactionFee({
-    chainNameOrDomain,
+    chainNameOrId,
     transaction,
     sender,
     senderPubKey,
   }: {
-    chainNameOrDomain: ChainNameOrDomain;
+    chainNameOrId: ChainNameOrId;
     transaction: TypedTransaction;
     sender: Address;
     senderPubKey?: HexString;
   }): Promise<TransactionFeeEstimate> {
-    const provider = this.getProvider(chainNameOrDomain, transaction.type);
-    const chainMetadata = this.getChainMetadata(chainNameOrDomain);
+    const provider = this.getProvider(chainNameOrId, transaction.type);
+    const chainMetadata = this.getChainMetadata(chainNameOrId);
     return estimateTransactionFee({
       transaction,
       provider,
