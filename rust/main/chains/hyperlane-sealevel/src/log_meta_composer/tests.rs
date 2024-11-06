@@ -1,24 +1,25 @@
-use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::EncodedTransactionWithStatusMeta;
 
-use crate::transaction::{
-    is_message_delivery_instruction, is_message_dispatch_instruction, search_message_transactions,
+use crate::log_meta_composer::{
+    is_interchain_payment_instruction, is_message_delivery_instruction,
+    is_message_dispatch_instruction, search_transactions,
 };
 use crate::utils::decode_pubkey;
 
 #[test]
 pub fn test_search_dispatched_message_transaction() {
     // given
+    let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
     let dispatched_message_pda_account =
         decode_pubkey("6eG8PheL41qLFFUtPjSYMtsp4aoAQsMgcsYwkGCB8kwT").unwrap();
-    let (mailbox_program_id, transactions) = transactions(DISPATCH_TXN_JSON);
+    let transactions = transactions(DISPATCH_TXN_JSON);
 
     // when
-    let transaction_hashes = search_message_transactions(
+    let transaction_hashes = search_transactions(
+        transactions,
         &mailbox_program_id,
         &dispatched_message_pda_account,
-        transactions,
-        &is_message_dispatch_instruction,
+        is_message_dispatch_instruction,
     );
 
     // then
@@ -28,27 +29,48 @@ pub fn test_search_dispatched_message_transaction() {
 #[test]
 pub fn test_search_delivered_message_transaction() {
     // given
+    let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
     let delivered_message_pda_account =
         decode_pubkey("Dj7jk47KKXvw4nseNGdyHtNHtjPes2XSfByhF8xymrtS").unwrap();
-    let (mailbox_program_id, transactions) = transactions(DELIVERY_TXN_JSON);
+    let transactions = transactions(DELIVERY_TXN_JSON);
 
     // when
-    let transaction_hashes = search_message_transactions(
+    let transaction_hashes = search_transactions(
+        transactions,
         &mailbox_program_id,
         &delivered_message_pda_account,
-        transactions,
-        &is_message_delivery_instruction,
+        is_message_delivery_instruction,
     );
 
     // then
     assert!(!transaction_hashes.is_empty());
 }
 
-fn transactions(json: &str) -> (Pubkey, Vec<EncodedTransactionWithStatusMeta>) {
-    let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
+#[test]
+pub fn test_search_interchain_payment_transaction() {
+    // given
+    let interchain_payment_program_id =
+        decode_pubkey("BhNcatUDC2D5JTyeaqrdSukiVFsEHK7e3hVmKMztwefv").unwrap();
+    let payment_pda_account =
+        decode_pubkey("9yMwrDqHsbmmvYPS9h4MLPbe2biEykcL51W7qJSDL5hF").unwrap();
+    let transactions = transactions(DISPATCH_TXN_JSON);
+
+    // when
+    let transaction_hashes = search_transactions(
+        transactions,
+        &interchain_payment_program_id,
+        &payment_pda_account,
+        is_interchain_payment_instruction,
+    );
+
+    // then
+    assert!(!transaction_hashes.is_empty());
+}
+
+fn transactions(json: &str) -> Vec<EncodedTransactionWithStatusMeta> {
     let transaction = serde_json::from_str::<EncodedTransactionWithStatusMeta>(json).unwrap();
     let transactions = vec![transaction];
-    (mailbox_program_id, transactions)
+    transactions
 }
 
 const DISPATCH_TXN_JSON: &str = r#"
