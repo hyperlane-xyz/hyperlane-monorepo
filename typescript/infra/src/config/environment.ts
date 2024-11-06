@@ -78,6 +78,9 @@ export function assertEnvironment(env: string): DeployEnvironment {
   throw new Error(`Invalid environment ${env}, must be one of ${envNames}`);
 }
 
+// Gets the router configs for all chains in the environment.
+// Relying solely on HyperlaneCore.getRouterConfig will result
+// in missing any non-EVM chains -- here we merge the two.
 export async function getRouterConfigsForAllVms(
   envConfig: EnvironmentConfig,
   multiProvider: MultiProvider,
@@ -98,6 +101,7 @@ export async function getRouterConfigsForAllVms(
     },
   );
 
+  // Merge, giving evmRouterConfig precedence
   return objMerge(allRouterConfigs, evmRouterConfig);
 }
 
