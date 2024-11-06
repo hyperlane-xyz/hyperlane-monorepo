@@ -112,6 +112,7 @@ export {
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  mustGet,
   objFilter,
   objKeys,
   objLength,

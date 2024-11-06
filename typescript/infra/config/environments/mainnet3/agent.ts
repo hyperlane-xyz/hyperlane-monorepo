@@ -402,13 +402,13 @@ const metricAppContexts = [
   {
     name: 'eclipse_usdc',
     matchingList: matchingList(
-      getWarpAddresses(WarpRouteIds.EthereumEclipseUSDC),
+      getWarpAddresses(WarpRouteIds.EclipseEthereumSolanaUSDC),
     ),
   },
   {
     name: 'eclipse_teth',
     matchingList: matchingList(
-      getWarpAddresses(WarpRouteIds.EthereumEclipseTETH),
+      getWarpAddresses(WarpRouteIds.EclipseEthereumTETH),
     ),
   },
   {
