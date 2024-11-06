@@ -74,6 +74,7 @@ export const TokenConfigSchema = z.discriminatedUnion('type', [
   SyntheticConfigSchema,
   SyntheticRebaseConfigSchema,
 ]);
+export type TokenConfig = z.infer<typeof TokenConfigSchema>;
 
 export const TokenRouterConfigSchema = TokenConfigSchema.and(
   GasRouterConfigSchema,
