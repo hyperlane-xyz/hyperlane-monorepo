@@ -498,6 +498,7 @@ export {
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
+export { getChainIdFromTxs } from './utils/transactions.js';
 export { chainMetadataToViemChain } from './utils/viem.js';
 export {
   FeeConstantConfig,
