@@ -183,17 +183,22 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
 export const chainOwners: ChainMap<OwnableConfig> = {
   ...ethereumChainOwners,
   solanamainnet: {
+    // Squads multisig
     owner: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
   },
   eclipsemainnet: {
     owner: 'B32qTbw8iDcVdagMAMBfDFCef88N1KtfRG5QoPVzbj5K',
   },
   injective: {
+    // Native multisig
     owner: 'inj1ac6qpt57vhtfzdecd2an052elwgenwtxcn9chl',
   },
   neutron: {
+    // Da0Da0 multisig
     owner: 'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7',
   },
+  // We intentionally cause issues if these were to be used, but satisfy the types
+  // and ensure there's an entry for each supported chain.
   stride: {
     owner: 'n/a - nothing owned here',
   },
