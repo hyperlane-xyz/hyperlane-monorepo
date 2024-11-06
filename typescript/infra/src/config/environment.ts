@@ -10,7 +10,7 @@ import {
   OwnableConfig,
   RouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { objKeys, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { mustGet, objKeys, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { environments } from '../../config/environments/index.js';
@@ -103,12 +103,4 @@ export async function getRouterConfigsForAllVms(
 
   // Merge, giving evmRouterConfig precedence
   return objMerge(allRouterConfigs, evmRouterConfig);
-}
-
-function mustGet<T>(obj: Record<string, T>, key: string): T {
-  const value = obj[key];
-  if (!value) {
-    throw new Error(`Missing key ${key} in object ${JSON.stringify(obj)}`);
-  }
-  return value;
 }
