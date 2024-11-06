@@ -173,6 +173,11 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
       pubkey: new PublicKey('BH9VfgYaCWbwuupzsTfSy67yR4dwuCbXmFRrm6aAH2NQ'),
       walletName: 'WBTC/eclipsemainnet-ethereum/ata-payer',
     },
+    // weETHs warp route ATA payer
+    {
+      pubkey: new PublicKey('F4Y6kHrq9qVnmkQhQibxh8nCU2quw5y25z7u8jSHMvtq'),
+      walletName: 'weETHs/eclipsemainnet-ethereum/ata-payer',
+    },
   ],
 };
 
