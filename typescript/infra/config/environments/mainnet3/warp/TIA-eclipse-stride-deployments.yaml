@@ -7,16 +7,17 @@ data:
     stride:
       protocolType: cosmos
       type: collateral
-      hypAddress: stride134axwdlam929m3mar3wv95nvkyep7mr87ravkqcpf8dfe3v0pjlqwrw6ee
-      tokenAddress: 'stutia'
-      name: Stride Staked TIA
-      symbol: stTIA
+      hypAddress: stride1pvtesu3ve7qn7ctll2x495mrqf2ysp6fws68grvcu6f7n2ajghgsh2jdj6
+      tokenAddress: ibc/BF3B4F53F3694B66E13C23107C84B6485BD2B96296BB7EC680EA77BBA75B4801
+      tokenCoinGeckoId: celestia
+      name: Celestia
+      symbol: TIA
       decimals: 6
     eclipsemainnet:
       protocolType: sealevel
       type: synthetic
-      hypAddress: 'tKUHyJ5NxhnwU94JUmzh1ekukDcHHX8mZF6fqxbMwX6'
-      tokenAddress: 'V5m1Cc9VK61mKL8xVYrjR7bjD2BC5VpADLa6ws3G8KM'
+      hypAddress: 'BpXHAiktwjx7fN6M9ST9wr6qKAsH27wZFhdHEhReJsR6'
+      tokenAddress: '9RryNMhAVJpAwAGjCAMKbbTFwgjapqPkzpGMfTQhEjf8'
       isSpl2022: true
       name: Turbo Eth
       symbol: tETH

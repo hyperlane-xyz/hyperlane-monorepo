@@ -14,7 +14,7 @@ import {
   ZKSYNC_KEY,
   deployOrUseExistingCore,
   extendWarpConfig,
-  getChainId,
+  getDomainId,
   updateOwner,
 } from './commands/helpers.js';
 import {
@@ -161,7 +161,7 @@ describe.skip('WarpApply zkSync e2e tests', async function () {
       ZK_REGISTRY_PATH,
     );
 
-    const chain2Id = await getChainId(
+    const chain2Id = await getDomainId(
       CHAIN_NAME_ZK_3,
       ZKSYNC_KEY,
       ZK_REGISTRY_PATH,
@@ -183,7 +183,7 @@ describe.skip('WarpApply zkSync e2e tests', async function () {
       updatedWarpDeployConfig2[CHAIN_NAME_ZK_3].remoteRouters!,
     );
     expect(remoteRouterKeys2).to.include(
-      await getChainId(CHAIN_NAME_ZK_2, ZKSYNC_KEY, ZK_REGISTRY_PATH),
+      await getDomainId(CHAIN_NAME_ZK_2, ZKSYNC_KEY, ZK_REGISTRY_PATH),
     );
   });
 
@@ -231,7 +231,7 @@ describe.skip('WarpApply zkSync e2e tests', async function () {
       ZK_REGISTRY_PATH,
     );
 
-    const chain2Id = await getChainId(
+    const chain2Id = await getDomainId(
       CHAIN_NAME_ZK_3,
       ZKSYNC_KEY,
       ZK_REGISTRY_PATH,
@@ -250,7 +250,7 @@ describe.skip('WarpApply zkSync e2e tests', async function () {
       ZK_REGISTRY_PATH,
     );
 
-    const chain1Id = await getChainId(
+    const chain1Id = await getDomainId(
       CHAIN_NAME_ZK_2,
       ZKSYNC_KEY,
       ZK_REGISTRY_PATH,
@@ -317,12 +317,12 @@ describe.skip('WarpApply zkSync e2e tests', async function () {
     expect(updatedWarpDeployConfig_3.zksync2.owner).to.equal(randomOwner);
 
     // Check that both chains enrolled
-    const chain2Id = await getChainId(
+    const chain2Id = await getDomainId(
       CHAIN_NAME_ZK_2,
       ZKSYNC_KEY,
       ZK_REGISTRY_PATH,
     );
-    const chain3Id = await getChainId(
+    const chain3Id = await getDomainId(
       CHAIN_NAME_ZK_3,
       ZKSYNC_KEY,
       ZK_REGISTRY_PATH,

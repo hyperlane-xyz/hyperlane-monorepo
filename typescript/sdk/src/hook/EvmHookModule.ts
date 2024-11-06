@@ -26,6 +26,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  Domain,
+  EvmChainId,
   ProtocolType,
   addressToBytes32,
   deepEquals,
@@ -95,10 +97,9 @@ export class EvmHookModule extends HyperlaneModule<
   protected readonly deployer: HookDeployer;
 
   // Adding these to reduce how often we need to grab from MultiProvider.
-  public readonly chain: string;
-  // We use domainId here because MultiProvider.getDomainId() will always
-  // return a number, and EVM the domainId and chainId are the same.
-  public readonly domainId: number;
+  public readonly chain: ChainName;
+  public readonly chainId: EvmChainId;
+  public readonly domainId: Domain;
 
   // Transaction overrides for the chain
   protected readonly txOverrides: Partial<ethers.providers.TransactionRequest>;
@@ -121,10 +122,11 @@ export class EvmHookModule extends HyperlaneModule<
     );
     this.deployer = new HookDeployer(multiProvider, hookFactories);
 
-    this.chain = this.multiProvider.getChainName(this.args.chain);
-    this.domainId = this.multiProvider.getDomainId(this.chain);
+    this.chain = multiProvider.getChainName(this.args.chain);
+    this.chainId = multiProvider.getEvmChainId(this.chain);
+    this.domainId = multiProvider.getDomainId(this.chain);
 
-    this.txOverrides = this.multiProvider.getTransactionOverrides(this.chain);
+    this.txOverrides = multiProvider.getTransactionOverrides(this.chain);
   }
 
   public async read(): Promise<HookConfig> {
@@ -217,7 +219,7 @@ export class EvmHookModule extends HyperlaneModule<
     if (!eqAddress(targetConfig.owner, owner)) {
       updateTxs.push({
         annotation: 'Transferring ownership of ownable Hook...',
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: Ownable__factory.createInterface().encodeFunctionData(
           'transferOwnership(address)',
@@ -319,7 +321,7 @@ export class EvmHookModule extends HyperlaneModule<
 
       updateTxs.push({
         annotation: `Updating paused state to ${targetConfig.paused}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data,
       });
@@ -342,7 +344,7 @@ export class EvmHookModule extends HyperlaneModule<
     if (!eqAddress(currentConfig.beneficiary, targetConfig.beneficiary)) {
       updateTxs.push({
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: igpInterface.encodeFunctionData('setBeneficiary(address)', [
           targetConfig.beneficiary,
@@ -443,7 +445,7 @@ export class EvmHookModule extends HyperlaneModule<
         annotation: `Updating overhead for domains ${Object.keys(
           targetOverheads,
         ).join(', ')}...`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: interchainGasPaymaster,
         data: InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
           'setDestinationGasConfigs((uint32,(address,uint96))[])',
@@ -509,7 +511,7 @@ export class EvmHookModule extends HyperlaneModule<
         annotation: `Updating gas oracle config for domains ${Object.keys(
           targetOracleConfig,
         ).join(', ')}...`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: gasOracle,
         data: StorageGasOracle__factory.createInterface().encodeFunctionData(
           'setRemoteGasDataConfigs((uint32,uint128,uint128)[])',
@@ -540,7 +542,7 @@ export class EvmHookModule extends HyperlaneModule<
     if (currentConfig.protocolFee !== targetConfig.protocolFee) {
       updateTxs.push({
         annotation: `Updating protocol fee from ${currentConfig.protocolFee} to ${targetConfig.protocolFee}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: protocolFeeInterface.encodeFunctionData(
           'setProtocolFee(uint256)',
@@ -553,7 +555,7 @@ export class EvmHookModule extends HyperlaneModule<
     if (currentConfig.beneficiary !== targetConfig.beneficiary) {
       updateTxs.push({
         annotation: `Updating beneficiary from ${currentConfig.beneficiary} to ${targetConfig.beneficiary}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: protocolFeeInterface.encodeFunctionData(
           'setBeneficiary(address)',
@@ -601,7 +603,7 @@ export class EvmHookModule extends HyperlaneModule<
     return [
       {
         annotation: 'Updating routing hooks...',
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: this.args.addresses.deployedHook,
         data: DomainRoutingHook__factory.createInterface().encodeFunctionData(
           'setHooks((uint32,address)[])',
@@ -828,17 +830,17 @@ export class EvmHookModule extends HyperlaneModule<
     const chain = this.chain;
     const mailbox = this.args.addresses.mailbox;
 
-    const destinationChain = this.multiProvider.getChainId(
+    const destinationChainId = this.multiProvider.tryGetEvmChainId(
       config.destinationChain,
     );
-    if (typeof destinationChain !== 'number') {
+    if (!destinationChainId) {
       throw new Error(
-        `Only ethereum chains supported for deploying Arbitrum L2 hook,  given: ${config.destinationChain}`,
+        `Only ethereum chains supported for deploying Arbitrum L2 hook, given: ${config.destinationChain}`,
       );
     }
 
     const bridge =
-      config.bridge ?? getArbitrumNetwork(destinationChain).ethBridge.bridge;
+      config.bridge ?? getArbitrumNetwork(destinationChainId).ethBridge.bridge;
 
     const ismConfig: ArbL2ToL1IsmConfig = {
       type: IsmType.ARB_L2_TO_L1,
@@ -862,6 +864,8 @@ export class EvmHookModule extends HyperlaneModule<
       this.multiProvider.getSignerOrProvider(config.destinationChain),
     );
 
+    const childHook = await this.deploy({ config: config.childHook });
+
     // deploy arbL1ToL1 hook
     const hook = await this.deployer.deployContract(
       chain,
@@ -871,7 +875,7 @@ export class EvmHookModule extends HyperlaneModule<
         this.multiProvider.getDomainId(config.destinationChain),
         addressToBytes32(arbL2ToL1IsmAddress),
         config.arbSys,
-        BigNumber.from(200_000), // 2x estimate of executeTransaction call overhead
+        childHook.address,
       ],
     );
     // set authorized hook on arbL2ToL1 ism

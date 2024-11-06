@@ -329,18 +329,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       this.getContracts(destination).domainRoutingIsmFactory;
     let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
-    config.domains = objFilter(
-      config.domains,
-      (domain, config): config is IsmConfig => {
-        const domainId = this.multiProvider.tryGetDomainId(domain);
-        if (domainId === null) {
-          logger.warn(
-            `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
-          );
-        }
-        return domainId !== null;
-      },
-    );
+    config.domains = objFilter(config.domains, (domain, _): _ is IsmConfig => {
+      const domainId = this.multiProvider.tryGetDomainId(domain);
+      if (domainId === null) {
+        logger.warn(
+          `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
+        );
+      }
+      return domainId !== null;
+    });
     const safeConfigDomains = Object.keys(config.domains).map((domain) =>
       this.multiProvider.getDomainId(domain),
     );

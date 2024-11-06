@@ -3,6 +3,7 @@ import { Contract } from 'ethers';
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
   Address,
+  EvmChainId,
   ProtocolType,
   ValueOf,
   eqAddress,
@@ -262,7 +263,7 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 }
 
 export function transferOwnershipTransactions(
-  chainId: number,
+  chainId: EvmChainId,
   contract: Address,
   actual: OwnableConfig,
   expected: OwnableConfig,

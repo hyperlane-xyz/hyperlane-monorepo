@@ -163,18 +163,19 @@ export async function deployOrUseExistingCore(
 
   return addresses;
 }
-export async function getChainId(
+
+export async function getDomainId(
   chainName: string,
   key: string,
   registryPath?: string,
-) {
+): Promise<string> {
   const { registry } = await getContext({
     registryUri: registryPath ?? REGISTRY_PATH,
     registryOverrideUri: '',
     key,
   });
   const chainMetadata = await registry.getChainMetadata(chainName);
-  return String(chainMetadata?.chainId);
+  return String(chainMetadata?.domainId);
 }
 
 export async function deployToken(privateKey: string, chain: string) {

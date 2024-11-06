@@ -7,15 +7,15 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-import { DEPLOYER } from '../../owners.js';
+import { tokens } from '../../../../../src/config/warp.js';
 
-export const getEthereumEclipseTETHWarpConfig = async (
+export const getEclipseEthereumSolanaUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  // @ts-ignore - foreignDeployment configs don't conform to the TokenRouterConfig
   const eclipsemainnet: TokenRouterConfig = {
+    ...routerConfig.eclipsemainnet,
     type: TokenType.synthetic,
-    foreignDeployment: 'BJa3fPvvjKx8gRCWunoSrWBbsmieub37gsGpjp4BfTfW',
+    foreignDeployment: 'D6k6T3G74ij6atCtBiWBs5TbFa1hFVcrFUSGZHuV7q3Z',
     gas: 300_000,
   };
 
@@ -23,8 +23,11 @@ export const getEthereumEclipseTETHWarpConfig = async (
     ...routerConfig.ethereum,
     type: TokenType.collateral,
     interchainSecurityModule: ethers.constants.AddressZero,
-    token: '0x19e099B7aEd41FA52718D780dDA74678113C0b32',
+    token: tokens.ethereum.USDC,
   };
+
+  // Intentionally don't enroll Solana to avoid transferring
+  // directly between Solana and Ethereum
 
   return {
     eclipsemainnet,

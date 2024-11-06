@@ -190,9 +190,18 @@ async function getMultiProvider(registry: IRegistry, signer?: Signer | Wallet) {
   return multiProvider;
 }
 
-export async function getOrRequestApiKeys(
+/**
+ * Requests and saves Block Explorer API keys for the specified chains, prompting the user if necessary.
+ *
+ * @param chains - The list of chain names to request API keys for.
+ * @param chainMetadata - The chain metadata, used to determine if an API key is already configured.
+ * @param registry - The registry used to update the chain metadata with the new API key.
+ * @returns A mapping of chain names to their API keys.
+ */
+export async function requestAndSaveApiKeys(
   chains: ChainName[],
   chainMetadata: ChainMap<ChainMetadata>,
+  registry: IRegistry,
 ): Promise<ChainMap<string>> {
   const apiKeys: ChainMap<string> = {};
 
@@ -220,6 +229,11 @@ export async function getOrRequestApiKeys(
         `${chain} api key`,
         `${chain} metadata blockExplorers config`,
       );
+      chainMetadata[chain].blockExplorers![0].apiKey = apiKeys[chain];
+      await registry.updateChain({
+        chainName: chain,
+        metadata: chainMetadata[chain],
+      });
     }
   }
 

@@ -56,6 +56,7 @@ contract Mailbox is
         address processor;
         uint48 blockNumber;
     }
+
     mapping(bytes32 => Delivery) internal deliveries;
 
     // ============ Events ============

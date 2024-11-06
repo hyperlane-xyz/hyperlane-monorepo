@@ -1,4 +1,4 @@
-use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError};
+use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
 use url::Url;
 
 /// Sealevel connection configuration
@@ -8,6 +8,8 @@ pub struct ConnectionConf {
     pub url: Url,
     /// Operation batching configuration
     pub operation_batch: OperationBatchConfig,
+    /// Native token and its denomination
+    pub native_token: NativeToken,
 }
 
 /// An error type when parsing a connection configuration.
