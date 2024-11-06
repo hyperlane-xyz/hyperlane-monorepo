@@ -201,9 +201,16 @@ export function withAgentRoles<T>(args: Argv<T>) {
       .coerce('roles', (role: string[]): Role[] => role.map(assertRole))
       .choices('roles', Object.values(Role))
       // Ensure roles are unique
-      .coerce('roles', (roles: string[]) => Array.from(new Set(roles)))
+      .coerce('roles', (roles: string[]): Role[] =>
+        Array.from(new Set(roles)).map(assertRole),
+      )
       .alias('r', 'roles')
+      .alias('role', 'roles')
   );
+}
+
+export function withAgentRolesRequired<T>(args: Argv<T>) {
+  return withAgentRoles(args).demandOption('roles');
 }
 
 export function withKeyRoleAndChain<T>(args: Argv<T>) {
