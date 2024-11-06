@@ -1,11 +1,6 @@
-import '@matterlabs/hardhat-zksync-deploy';
 import '@matterlabs/hardhat-zksync-solc';
 import '@nomiclabs/hardhat-ethers';
-import '@nomiclabs/hardhat-waffle';
-import '@typechain/hardhat';
-import 'hardhat-gas-reporter';
 import 'hardhat-ignore-warnings';
-import 'solidity-coverage';
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
@@ -32,9 +27,6 @@ module.exports = {
         runs: 999_999,
       },
     },
-  },
-  gasReporter: {
-    currency: 'USD',
   },
   mocha: {
     bail: true,
