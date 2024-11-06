@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
 ## 5.7.0
 
 ### Patch Changes
