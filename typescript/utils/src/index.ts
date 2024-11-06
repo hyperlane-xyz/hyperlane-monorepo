@@ -151,6 +151,7 @@ export {
   Checkpoint,
   CheckpointWithId,
   Domain,
+  EvmChainId,
   HexString,
   MerkleProof,
   MessageStatus,

@@ -72,11 +72,11 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     const nextNonce: number = await this.safeService.getNextNonce(
       this.props.safeAddress,
     );
-    assert(chainId, 'Invalid PopulatedTransaction: chainId is required');
-    const txChain = this.multiProvider.getChainName(chainId);
+    const submitterChainId = this.multiProvider.getChainId(this.props.chain);
+    assert(chainId, 'Invalid AnnotatedEV5Transaction: chainId is required');
     assert(
-      txChain === this.props.chain,
-      `Invalid PopulatedTransaction: Cannot submit ${txChain} tx to ${this.props.chain} submitter.`,
+      chainId === submitterChainId,
+      `Invalid AnnotatedEV5Transaction: Cannot submit tx for chain ID ${chainId} to submitter for chain ID ${submitterChainId}.`,
     );
     return this.safe.createTransaction({
       safeTransactionData: [{ to, data, value: value?.toString() ?? '0' }],
