@@ -27,6 +27,7 @@ import {
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfigSchema,
 } from './schemas.js';
+import { SupportedIsmTypesOnStarknet } from './starknet-utils.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
@@ -158,3 +159,6 @@ export type RoutingIsmDelta = {
   owner?: Address; // is the owner different
   mailbox?: Address; // is the mailbox different (only for fallback routing)
 };
+
+export type SupportedIsmTypesOnStarknetType =
+  (typeof SupportedIsmTypesOnStarknet)[number];

@@ -75,7 +75,10 @@ export async function runCoreDeploy(params: DeployParams) {
       '0x000000000000000000000000000000002f663fafebbee32e0698f7e13f886c73',
     );
     const starknetCoreModule = new StarknetCoreModule(account);
-    const deployments = await starknetCoreModule.deploy();
+    const deployments = await starknetCoreModule.deploy({
+      chain,
+      config,
+    });
     console.log(deployments);
     logGreen('✅ Core contract deployments complete:\n');
     return;
