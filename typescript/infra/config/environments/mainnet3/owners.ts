@@ -179,3 +179,25 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
     ];
   }),
 );
+
+export const chainOwners: ChainMap<OwnableConfig> = {
+  ...ethereumChainOwners,
+  solanamainnet: {
+    owner: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
+  },
+  eclipsemainnet: {
+    owner: 'B32qTbw8iDcVdagMAMBfDFCef88N1KtfRG5QoPVzbj5K',
+  },
+  injective: {
+    owner: 'inj1ac6qpt57vhtfzdecd2an052elwgenwtxcn9chl',
+  },
+  neutron: {
+    owner: 'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7',
+  },
+  stride: {
+    owner: 'n/a - nothing owned here',
+  },
+  osmosis: {
+    owner: 'n/a - nothing owned here',
+  },
+};
