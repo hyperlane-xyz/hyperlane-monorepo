@@ -7,13 +7,11 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-import { DEPLOYER } from '../../owners.js';
-
 export const getEthereumEclipseTETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  // @ts-ignore - foreignDeployment configs don't conform to the TokenRouterConfig
   const eclipsemainnet: TokenRouterConfig = {
+    ...routerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'BJa3fPvvjKx8gRCWunoSrWBbsmieub37gsGpjp4BfTfW',
     gas: 300_000,

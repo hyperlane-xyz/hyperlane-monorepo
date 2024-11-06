@@ -8,13 +8,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { tokens } from '../../../../../src/config/warp.js';
-import { DEPLOYER } from '../../owners.js';
 
-export const getEthereumEclipseUSDCWarpConfig = async (
+export const getEclipseEthereumUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  // @ts-ignore - foreignDeployment configs don't conform to the TokenRouterConfig
   const eclipsemainnet: TokenRouterConfig = {
+    ...routerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'D6k6T3G74ij6atCtBiWBs5TbFa1hFVcrFUSGZHuV7q3Z',
     gas: 300_000,
