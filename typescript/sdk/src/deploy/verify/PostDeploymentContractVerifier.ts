@@ -44,7 +44,19 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
 
         this.logger.debug(`Verifying ${chain}...`);
         for (const input of this.get(chain)) {
-          await this.contractVerifier.verifyContract(chain, input, this.logger);
+          try {
+            await this.contractVerifier.verifyContract(
+              chain,
+              input,
+              this.logger,
+            );
+          } catch (error) {
+            this.logger.error(
+              { name: input.name, address: input.address },
+              `Failed to verify contract on ${chain}`,
+              error,
+            );
+          }
         }
       }),
     );

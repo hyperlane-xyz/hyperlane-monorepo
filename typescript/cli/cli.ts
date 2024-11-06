@@ -12,6 +12,7 @@ import { deployCommand } from './src/commands/deploy.js';
 import { hookCommand } from './src/commands/hook.js';
 import { ismCommand } from './src/commands/ism.js';
 import {
+  disableProxyCommandOption,
   keyCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
@@ -20,6 +21,7 @@ import {
   skipConfirmationOption,
 } from './src/commands/options.js';
 import { registryCommand } from './src/commands/registry.js';
+import { relayerCommand } from './src/commands/relayer.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
 import { submitCommand } from './src/commands/submit.js';
@@ -45,6 +47,7 @@ try {
     .option('registry', registryUriCommandOption)
     .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
+    .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
     .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
     .middleware([
@@ -60,6 +63,7 @@ try {
     .command(hookCommand)
     .command(ismCommand)
     .command(registryCommand)
+    .command(relayerCommand)
     .command(sendCommand)
     .command(statusCommand)
     .command(submitCommand)

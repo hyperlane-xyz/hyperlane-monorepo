@@ -16,24 +16,28 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
+import {HypERC4626} from "../../contracts/token/extensions/HypERC4626.sol";
+
 import {ERC4626Test} from "../../contracts/test/ERC4626/ERC4626Test.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 
-import {HypERC20CollateralVaultDeposit} from "../../contracts/token/extensions/HypERC20CollateralVaultDeposit.sol";
+import {HypERC4626OwnerCollateral} from "../../contracts/token/extensions/HypERC4626OwnerCollateral.sol";
 import "../../contracts/test/ERC4626/ERC4626Test.sol";
 
-contract HypERC20CollateralVaultDepositTest is HypTokenTest {
+contract HypERC4626OwnerCollateralTest is HypTokenTest {
     using TypeCasts for address;
+
     uint256 constant DUST_AMOUNT = 1e11;
-    HypERC20CollateralVaultDeposit internal erc20CollateralVaultDeposit;
+    HypERC4626OwnerCollateral internal erc20CollateralVaultDeposit;
     ERC4626Test vault;
 
     function setUp() public override {
         super.setUp();
         vault = new ERC4626Test(address(primaryToken), "Regular Vault", "RV");
 
-        HypERC20CollateralVaultDeposit implementation = new HypERC20CollateralVaultDeposit(
+        HypERC4626OwnerCollateral implementation = new HypERC4626OwnerCollateral(
                 vault,
                 address(localMailbox)
             );
@@ -41,14 +45,14 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
             address(implementation),
             PROXY_ADMIN,
             abi.encodeWithSelector(
-                HypERC20CollateralVaultDeposit.initialize.selector,
+                HypERC4626OwnerCollateral.initialize.selector,
                 address(address(noopHook)),
                 address(igp),
                 address(this)
             )
         );
-        localToken = HypERC20CollateralVaultDeposit(address(proxy));
-        erc20CollateralVaultDeposit = HypERC20CollateralVaultDeposit(
+        localToken = HypERC4626OwnerCollateral(address(proxy));
+        erc20CollateralVaultDeposit = HypERC4626OwnerCollateral(
             address(localToken)
         );
 
@@ -226,6 +230,20 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         );
     }
 
+    function testERC4626VaultDeposit_TransferFromSender_CorrectMetadata()
+        public
+    {
+        remoteToken = new HypERC4626(18, address(remoteMailbox), ORIGIN);
+        _enrollRemoteTokenRouter();
+        vm.prank(ALICE);
+
+        primaryToken.approve(address(localToken), TRANSFER_AMT);
+        _performRemoteTransfer(0, TRANSFER_AMT, 1);
+
+        assertEq(HypERC4626(address(remoteToken)).exchangeRate(), 1e10);
+        assertEq(HypERC4626(address(remoteToken)).previousNonce(), 1);
+    }
+
     function testBenchmark_overheadGasUsage() public override {
         vm.prank(ALICE);
         primaryToken.approve(address(localToken), TRANSFER_AMT);
@@ -241,5 +259,35 @@ contract HypERC20CollateralVaultDepositTest is HypTokenTest {
         );
         uint256 gasAfter = gasleft();
         console.log("Overhead gas usage: %d", gasBefore - gasAfter);
+    }
+
+    function _performRemoteTransfer(
+        uint256 _msgValue,
+        uint256 _amount,
+        uint32 _nonce
+    ) internal {
+        vm.prank(ALICE);
+        localToken.transferRemote{value: _msgValue}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            _amount
+        );
+
+        vm.expectEmit(true, true, false, true);
+        emit ReceivedTransferRemote(ORIGIN, BOB.addressToBytes32(), _amount);
+        bytes memory _tokenMessage = TokenMessage.format(
+            BOB.addressToBytes32(),
+            _amount,
+            abi.encode(uint256(1e10), _nonce)
+        );
+
+        vm.prank(address(remoteMailbox));
+        remoteToken.handle(
+            ORIGIN,
+            address(localToken).addressToBytes32(),
+            _tokenMessage
+        );
+
+        assertEq(remoteToken.balanceOf(BOB), _amount);
     }
 }

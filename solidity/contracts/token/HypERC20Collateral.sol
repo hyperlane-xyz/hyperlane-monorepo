@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+// ============ Internal Imports ============
 import {TokenRouter} from "./libs/TokenRouter.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 
+// ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -22,6 +37,7 @@ contract HypERC20Collateral is TokenRouter {
      * @param erc20 Address of the token to keep as collateral
      */
     constructor(address erc20, address _mailbox) TokenRouter(_mailbox) {
+        require(Address.isContract(erc20), "HypERC20Collateral: invalid token");
         wrappedToken = IERC20(erc20);
     }
 

@@ -27,15 +27,27 @@ import {
   SmartProviderOptions,
 } from './types.js';
 
-export const getSmartProviderErrorMessage = (errorMsg: string) =>
-  `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+export function getSmartProviderErrorMessage(errorMsg: string): string {
+  return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
+}
 
-// This is a partial list. If needed, check the full list for more: https://github.com/ethers-io/ethers.js/blob/fc66b8ad405df9e703d42a4b23bc452ec3be118f/src.ts/utils/errors.ts#L77-L85
+// This is a partial list. If needed, check the full list for more: https://docs.ethers.org/v5/api/utils/logger/#errors
 const RPC_SERVER_ERRORS = [
+  EthersError.NETWORK_ERROR,
   EthersError.NOT_IMPLEMENTED,
   EthersError.SERVER_ERROR,
+  EthersError.TIMEOUT,
   EthersError.UNKNOWN_ERROR,
   EthersError.UNSUPPORTED_OPERATION,
+];
+
+const RPC_BLOCKCHAIN_ERRORS = [
+  EthersError.CALL_EXCEPTION,
+  EthersError.INSUFFICIENT_FUNDS,
+  EthersError.NONCE_EXPIRED,
+  EthersError.REPLACEMENT_UNDERPRICED,
+  EthersError.TRANSACTION_REPLACED,
+  EthersError.UNPREDICTABLE_GAS_LIMIT,
 ];
 const DEFAULT_MAX_RETRIES = 1;
 const DEFAULT_BASE_RETRY_DELAY_MS = 250; // 0.25 seconds
@@ -326,12 +338,14 @@ export class HyperlaneSmartProvider
         } else if (result.status === ProviderStatus.Timeout) {
           this.throwCombinedProviderErrors(
             [result, ...providerResultErrors],
-            `All providers timed out for method ${method}`,
+            `All providers timed out on chain ${this._network.name} for method ${method}`,
           );
         } else if (result.status === ProviderStatus.Error) {
           this.throwCombinedProviderErrors(
             [result.error, ...providerResultErrors],
-            `All providers failed for method ${method} and params ${JSON.stringify(
+            `All providers failed on chain ${
+              this._network.name
+            } for method ${method} and params ${JSON.stringify(
               params,
               null,
               2,
@@ -345,11 +359,9 @@ export class HyperlaneSmartProvider
       } else {
         this.throwCombinedProviderErrors(
           providerResultErrors,
-          `All providers failed for method ${method} and params ${JSON.stringify(
-            params,
-            null,
-            2,
-          )}`,
+          `All providers failed on chain ${
+            this._network.name
+          } for method ${method} and params ${JSON.stringify(params, null, 2)}`,
         );
       }
     }
@@ -418,21 +430,35 @@ export class HyperlaneSmartProvider
     errors: any[],
     fallbackMsg: string,
   ): void {
-    this.logger.error(fallbackMsg);
+    this.logger.debug(fallbackMsg);
     if (errors.length === 0) throw new Error(fallbackMsg);
 
     const rpcServerError = errors.find((e) =>
       RPC_SERVER_ERRORS.includes(e.code),
     );
+
     const timedOutError = errors.find(
       (e) => e.status === ProviderStatus.Timeout,
     );
+
+    const rpcBlockchainError = errors.find((e) =>
+      RPC_BLOCKCHAIN_ERRORS.includes(e.code),
+    );
+
     if (rpcServerError) {
-      throw Error(getSmartProviderErrorMessage(rpcServerError.code));
+      throw Error(
+        rpcServerError.error?.message ?? // Server errors sometimes will not have an error.message
+          getSmartProviderErrorMessage(rpcServerError.code),
+      );
     } else if (timedOutError) {
       throw Error(getSmartProviderErrorMessage(ProviderStatus.Timeout));
+    } else if (rpcBlockchainError) {
+      throw Error(rpcBlockchainError.reason ?? rpcBlockchainError.code);
     } else {
-      throw Error(getSmartProviderErrorMessage(ProviderStatus.Error)); // Assumes that all errors are of ProviderStatus.Error
+      this.logger.error(
+        'Unhandled error case in combined provider error handler',
+      );
+      throw Error(fallbackMsg);
     }
   }
 }

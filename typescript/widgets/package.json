@@ -1,16 +1,20 @@
 {
   "name": "@hyperlane-xyz/widgets",
   "description": "Common react components for Hyperlane projects",
-  "version": "4.1.0",
+  "version": "5.7.0",
   "peerDependencies": {
     "react": "^18",
     "react-dom": "^18"
   },
   "dependencies": {
-    "@hyperlane-xyz/registry": "2.3.0",
-    "@hyperlane-xyz/sdk": "4.1.0"
+    "@headlessui/react": "^2.1.8",
+    "@hyperlane-xyz/sdk": "5.7.0",
+    "@hyperlane-xyz/utils": "5.7.0",
+    "clsx": "^2.1.1",
+    "react-tooltip": "^5.28.0"
   },
   "devDependencies": {
+    "@hyperlane-xyz/registry": "4.7.0",
     "@storybook/addon-essentials": "^7.6.14",
     "@storybook/addon-interactions": "^7.6.14",
     "@storybook/addon-links": "^7.6.14",
@@ -34,7 +38,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "storybook": "^7.6.14",
-    "tailwindcss": "^3.2.4",
+    "tailwindcss": "^3.4.13",
     "ts-node": "^10.8.0",
     "typescript": "5.3.3",
     "vite": "^5.1.1"
@@ -59,7 +63,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hyperlane-xyz/hyperlane-widgets"
+    "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
   },
   "scripts": {
     "build": "yarn build:ts && yarn build:css",

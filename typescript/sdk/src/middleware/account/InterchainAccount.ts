@@ -5,6 +5,7 @@ import {
   Address,
   addressToBytes32,
   bytes32ToAddress,
+  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
@@ -31,6 +32,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     super(contractsMap, multiProvider);
   }
 
+  override async remoteChains(chainName: string): Promise<ChainName[]> {
+    return Object.keys(this.contractsMap).filter(
+      (chain) => chain !== chainName,
+    );
+  }
+
   router(
     contracts: HyperlaneContracts<InterchainAccountFactories>,
   ): InterchainAccountRouter {
@@ -49,8 +56,39 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return new InterchainAccount(helper.contractsMap, helper.multiProvider);
   }
 
+  async getAccount(
+    destinationChain: ChainName,
+    config: AccountConfig,
+    routerOverride?: Address,
+    ismOverride?: Address,
+  ): Promise<Address> {
+    return this.getOrDeployAccount(
+      false,
+      destinationChain,
+      config,
+      routerOverride,
+      ismOverride,
+    );
+  }
+
   async deployAccount(
-    chain: ChainName,
+    destinationChain: ChainName,
+    config: AccountConfig,
+    routerOverride?: Address,
+    ismOverride?: Address,
+  ): Promise<Address> {
+    return this.getOrDeployAccount(
+      true,
+      destinationChain,
+      config,
+      routerOverride,
+      ismOverride,
+    );
+  }
+
+  protected async getOrDeployAccount(
+    deployIfNotExists: boolean,
+    destinationChain: ChainName,
     config: AccountConfig,
     routerOverride?: Address,
     ismOverride?: Address,
@@ -61,29 +99,55 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         `Origin chain (${config.origin}) metadata needed for deploying ICAs ...`,
       );
     }
-    const localRouter = this.router(this.contractsMap[chain]);
-    const routerAddress =
+    const destinationRouter = this.router(this.contractsMap[destinationChain]);
+    const originRouterAddress =
       routerOverride ??
-      bytes32ToAddress(await localRouter.routers(originDomain));
-    const ismAddress =
-      ismOverride ?? bytes32ToAddress(await localRouter.isms(originDomain));
-    const account = await localRouter[
-      'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, routerAddress, ismAddress);
-    if (
-      (await this.multiProvider.getProvider(chain).getCode(account)) === '0x'
-    ) {
-      await this.multiProvider.handleTx(
-        chain,
-        localRouter[
-          'getDeployedInterchainAccount(uint32,address,address,address)'
-        ](originDomain, config.owner, routerAddress, ismAddress),
+      bytes32ToAddress(await destinationRouter.routers(originDomain));
+    if (isZeroishAddress(originRouterAddress)) {
+      throw new Error(
+        `Origin router address is zero for ${config.origin} on ${destinationChain}`,
       );
-      this.logger.debug(`Interchain account deployed at ${account}`);
-    } else {
-      this.logger.debug(`Interchain account recovered at ${account}`);
     }
-    return account;
+
+    const destinationIsmAddress =
+      ismOverride ??
+      bytes32ToAddress(await destinationRouter.isms(originDomain));
+    const destinationAccount = await destinationRouter[
+      'getLocalInterchainAccount(uint32,address,address,address)'
+    ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+
+    // If not deploying anything, return the account address.
+    if (!deployIfNotExists) {
+      return destinationAccount;
+    }
+
+    // If the account does not exist, deploy it.
+    if (
+      (await this.multiProvider
+        .getProvider(destinationChain)
+        .getCode(destinationAccount)) === '0x'
+    ) {
+      const txOverrides =
+        this.multiProvider.getTransactionOverrides(destinationChain);
+      await this.multiProvider.handleTx(
+        destinationChain,
+        destinationRouter[
+          'getDeployedInterchainAccount(uint32,address,address,address)'
+        ](
+          originDomain,
+          config.owner,
+          originRouterAddress,
+          destinationIsmAddress,
+          txOverrides,
+        ),
+      );
+      this.logger.debug(`Interchain account deployed at ${destinationAccount}`);
+    } else {
+      this.logger.debug(
+        `Interchain account recovered at ${destinationAccount}`,
+      );
+    }
+    return destinationAccount;
   }
 
   // meant for ICA governance to return the populatedTx

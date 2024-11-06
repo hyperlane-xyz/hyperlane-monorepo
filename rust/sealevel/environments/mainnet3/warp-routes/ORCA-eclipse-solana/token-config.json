@@ -1,0 +1,17 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE",
+    "splTokenProgram": "token"
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Orca",
+    "symbol": "ORCA",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/13ef3e3b8447ba446c562b7fb9b769324d35e6c0/deployments/warp_routes/ORCA/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  }
+}

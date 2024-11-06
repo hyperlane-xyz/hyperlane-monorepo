@@ -1,3 +1,6 @@
+import { z } from 'zod';
+
+import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
 import { HookConfigSchema } from '../hook/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 import { OwnableSchema } from '../schemas.js';
@@ -7,3 +10,17 @@ export const CoreConfigSchema = OwnableSchema.extend({
   defaultHook: HookConfigSchema,
   requiredHook: HookConfigSchema,
 });
+
+export const DeployedCoreAddressesSchema = ProxyFactoryFactoriesSchema.extend({
+  mailbox: z.string(),
+  validatorAnnounce: z.string(),
+  proxyAdmin: z.string(),
+  testRecipient: z.string(),
+  timelockController: z.string().optional(),
+  interchainAccountRouter: z.string(),
+  interchainAccountIsm: z.string(),
+  merkleTreeHook: z.string().optional(),
+  interchainGasPaymaster: z.string().optional(),
+});
+
+export type DeployedCoreAddresses = z.infer<typeof DeployedCoreAddressesSchema>;

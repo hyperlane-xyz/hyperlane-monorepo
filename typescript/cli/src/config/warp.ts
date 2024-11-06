@@ -1,8 +1,9 @@
-import { input, select } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  DeployedOwnableConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -12,7 +13,13 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  isAddress,
+  objMap,
+  promiseObjAll,
+} from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -22,18 +29,24 @@ import {
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { detectAndConfirmOrPrompt } from '../utils/input.js';
+import {
+  detectAndConfirmOrPrompt,
+  setProxyAdminConfig,
+} from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
+  [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
     'Extends an existing ERC20 with remote transfer functionality',
   [TokenType.native]:
     'Extends the native token with remote transfer functionality',
   [TokenType.collateralVault]:
-    'Extends an existing ERC4626 with remote transfer functionality',
+    'Extends an existing ERC4626 with remote transfer functionality. Yields are manually claimed by owner.',
+  [TokenType.collateralVaultRebase]:
+    'Extends an existing ERC4626 with remote transfer functionality. Rebases yields to token holders.',
   [TokenType.collateralFiat]:
     'Extends an existing FiatToken with remote transfer functionality',
   [TokenType.XERC20]:
@@ -116,36 +129,67 @@ export async function createWarpRouteDeployConfig({
     'signer',
   );
 
-  const warpChains = await runMultiChainSelectionStep(
-    context.chainMetadata,
-    'Select chains to connect',
-  );
+  const warpChains = await runMultiChainSelectionStep({
+    chainMetadata: context.chainMetadata,
+    message: 'Select chains to connect',
+    requireNumber: 1,
+    // If the user supplied the --yes flag we skip asking selection
+    // confirmation
+    requiresConfirmation: !context.skipConfirmation,
+  });
 
   const result: WarpRouteDeployConfig = {};
+  let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
+
+    // default to the mailbox from the registry and if not found ask to the user to submit one
+    const chainAddresses = await context.registry.getChainAddresses(chain);
+
+    const mailbox =
+      chainAddresses?.mailbox ??
+      (await input({
+        validate: isAddress,
+        message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
+      }));
+
+    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
+      context,
+      chain,
+      owner,
+    );
+
+    /**
+     * The logic from the cli is as follows:
+     *  --advanced flag is provided: the user will have to build their own configuration using the available ISM types
+     *  --yes flag is provided: the default ISM config will be used (Trusted ISM + Default fallback ISM)
+     *  -- no flag is provided: the user must choose if the default ISM config should be used:
+     *    - yes: the default ISM config will be used (Trusted ISM + Default fallback ISM)
+     *    - no: the default fallback ISM will be used
+     */
+    let interchainSecurityModule: IsmConfig;
+    if (advanced) {
+      interchainSecurityModule = await createAdvancedIsmConfig(context);
+    } else if (context.skipConfirmation) {
+      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
+    } else if (
+      await confirm({
+        message: 'Do you want to use a trusted ISM for warp route?',
+      })
+    ) {
+      interchainSecurityModule = createDefaultWarpIsmConfig(owner);
+    } else {
+      interchainSecurityModule = createFallbackRoutingConfig(owner);
+    }
+
     const type = await select({
       message: `Select ${chain}'s token type`,
-      choices: TYPE_CHOICES,
+      choices: typeChoices,
     });
 
     // TODO: restore NFT prompting
     const isNft =
       type === TokenType.syntheticUri || type === TokenType.collateralUri;
-
-    const mailbox = await detectAndConfirmOrPrompt(
-      async () => {
-        const addresses = await context.registry.getChainAddresses(chain);
-        return addresses?.mailbox;
-      },
-      `For ${chain}, enter the`,
-      'mailbox address',
-      'hyperlane-registry',
-    );
-
-    const interchainSecurityModule = advanced
-      ? await createAdvancedIsmConfig(context)
-      : createDefaultWarpIsmConfig(owner);
 
     switch (type) {
       case TokenType.collateral:
@@ -158,6 +202,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -165,11 +210,42 @@ export async function createWarpRouteDeployConfig({
           }),
         };
         break;
+      case TokenType.syntheticRebase:
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          isNft,
+          proxyAdmin,
+          collateralChainName: '', // This will be derived correctly by zod.parse() below
+          interchainSecurityModule,
+        };
+        typeChoices = restrictChoices([
+          TokenType.syntheticRebase,
+          TokenType.collateralVaultRebase,
+        ]);
+        break;
+      case TokenType.collateralVaultRebase:
+        result[chain] = {
+          mailbox,
+          type,
+          owner,
+          proxyAdmin,
+          isNft,
+          interchainSecurityModule,
+          token: await input({
+            message: `Enter the ERC-4626 vault address on chain ${chain}`,
+          }),
+        };
+
+        typeChoices = restrictChoices([TokenType.syntheticRebase]);
+        break;
       case TokenType.collateralVault:
         result[chain] = {
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -182,6 +258,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
         };
@@ -200,6 +277,10 @@ export async function createWarpRouteDeployConfig({
     );
     throw e;
   }
+}
+
+function restrictChoices(typeChoices: TokenType[]) {
+  return TYPE_CHOICES.filter((choice) => typeChoices.includes(choice.name));
 }
 
 // Note, this is different than the function above which reads a config
@@ -226,12 +307,22 @@ function createDefaultWarpIsmConfig(owner: Address): IsmConfig {
         type: IsmType.TRUSTED_RELAYER,
         relayer: owner,
       },
-      {
-        type: IsmType.FALLBACK_ROUTING,
-        domains: {},
-        owner,
-      },
+      createFallbackRoutingConfig(owner),
     ],
     threshold: 1,
+  };
+}
+
+/**
+ * Creates a fallback configuration for an ISM with a FALLBACK_ROUTING and the provided `owner`.
+ *
+ * @param owner - The address of the owner of the ISM.
+ * @returns The Fallback Routing ISM configuration.
+ */
+function createFallbackRoutingConfig(owner: Address): IsmConfig {
+  return {
+    type: IsmType.FALLBACK_ROUTING,
+    domains: {},
+    owner,
   };
 }

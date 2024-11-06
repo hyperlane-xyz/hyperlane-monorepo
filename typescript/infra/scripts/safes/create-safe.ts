@@ -1,5 +1,6 @@
-import { SafeFactory } from '@safe-global/protocol-kit';
+import { EthersAdapter, SafeFactory } from '@safe-global/protocol-kit';
 import { SafeAccountConfig } from '@safe-global/protocol-kit';
+import { ethers } from 'ethers';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -24,11 +25,17 @@ async function main() {
   const rpcUrls = chainMetadata.rpcUrls;
   const deployerPrivateKey = await getDeployerPrivateKey();
 
+  // Create ethers signer with deployer key
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrls[0].http);
+  const ethAdapter = new EthersAdapter({
+    ethers,
+    signerOrProvider: new ethers.Wallet(deployerPrivateKey, provider),
+  });
+
   let safeFactory;
   try {
-    safeFactory = await SafeFactory.init({
-      provider: rpcUrls[0].http,
-      signer: deployerPrivateKey,
+    safeFactory = await SafeFactory.create({
+      ethAdapter,
     });
   } catch (e) {
     console.error(`Error initializing SafeFactory: ${e}`);
@@ -79,11 +86,7 @@ async function main() {
 }
 
 const getDeployerPrivateKey = async () => {
-  const key = await getKeyForRole(
-    'mainnet3',
-    Contexts.Hyperlane,
-    Role.Deployer,
-  );
+  const key = getKeyForRole('mainnet3', Contexts.Hyperlane, Role.Deployer);
   await key.fetch();
 
   return key.privateKey;

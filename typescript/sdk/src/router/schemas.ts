@@ -4,7 +4,7 @@ import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
 import { HookConfigSchema } from '../hook/schemas.js';
 import { IsmConfigSchema } from '../ism/schemas.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { OwnableSchema } from '../schemas.js';
+import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
 
 export const MailboxClientConfigSchema = OwnableSchema.extend({
   mailbox: ZHash,
@@ -29,9 +29,17 @@ export const RouterConfigSchema = MailboxClientConfigSchema.merge(
 ).merge(
   z.object({
     remoteRouters: RemoteRoutersSchema.optional(),
+    proxyAdmin: DeployedOwnableSchema.optional(),
   }),
 );
 
+const DestinationGasDomain = z.string();
+const DestinationGasAmount = z.string(); // This must be a string type to match Ether's type
+export const DestinationGasSchema = z.record(
+  DestinationGasDomain,
+  DestinationGasAmount,
+);
 export const GasRouterConfigSchema = RouterConfigSchema.extend({
   gas: z.number().optional(),
+  destinationGas: DestinationGasSchema.optional(),
 });

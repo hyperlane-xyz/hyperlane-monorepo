@@ -1,5 +1,216 @@
 # @hyperlane-xyz/infra
 
+## 5.7.0
+
+### Patch Changes
+
+- Updated dependencies [5dabdf388]
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [d9505ab58]
+- Updated dependencies [04108155d]
+- Updated dependencies [7e9e248be]
+- Updated dependencies [4c0605dca]
+- Updated dependencies [db9196837]
+- Updated dependencies [db5875cc2]
+- Updated dependencies [56328e6e1]
+- Updated dependencies [956ff752a]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/sdk@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+  - @hyperlane-xyz/helloworld@5.7.0
+
+## 5.6.2
+
+### Patch Changes
+
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/sdk@5.6.2
+  - @hyperlane-xyz/helloworld@5.6.2
+
+## 5.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@5.6.1
+- @hyperlane-xyz/sdk@5.6.1
+- @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- b3495b205: Updates the warpIds for Renzo's latest deployment to Sei and Taiko to be used by the Checker
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+
+### Patch Changes
+
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [02a5b92ba]
+- Updated dependencies [29341950e]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [32d0a67c2]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [e89f9e35d]
+- Updated dependencies [d41aa6928]
+- Updated dependencies [c3e9268f1]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [7f3e0669d]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+  - @hyperlane-xyz/helloworld@5.6.0
+
+## 5.5.0
+
+### Patch Changes
+
+- Updated dependencies [2afc484a2]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/sdk@5.5.0
+  - @hyperlane-xyz/utils@5.5.0
+  - @hyperlane-xyz/helloworld@5.5.0
+
+## 5.4.0
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+  - @hyperlane-xyz/sdk@5.4.0
+  - @hyperlane-xyz/helloworld@5.4.0
+
+## 5.3.0
+
+### Patch Changes
+
+- Updated dependencies [eb47aaee8]
+- Updated dependencies [50319d8ba]
+- Updated dependencies [35d4503b9]
+- Updated dependencies [8de531fa4]
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [fd536a79a]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/sdk@5.3.0
+  - @hyperlane-xyz/helloworld@5.3.0
+  - @hyperlane-xyz/utils@5.3.0
+
+## 5.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@5.2.1
+- @hyperlane-xyz/sdk@5.2.1
+- @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- 203084df2: Added sdk support for Stake weighted ISM
+
+### Patch Changes
+
+- 5a0d68bdc: replace import console module with direct console
+- Updated dependencies [a19e882fd]
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [518a1bef9]
+- Updated dependencies [203084df2]
+- Updated dependencies [74a592e58]
+- Updated dependencies [739af9a34]
+- Updated dependencies [44588c31d]
+- Updated dependencies [2bd540e0f]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [69f17d99a]
+- Updated dependencies [3ad5918da]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [9563a8beb]
+- Updated dependencies [73c232b3a]
+- Updated dependencies [445b6222c]
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [2e6176f67]
+- Updated dependencies [f2783c03b]
+- Updated dependencies [2ffb78f5c]
+- Updated dependencies [3c07ded5b]
+- Updated dependencies [815542dd7]
+  - @hyperlane-xyz/sdk@5.2.0
+  - @hyperlane-xyz/utils@5.2.0
+  - @hyperlane-xyz/helloworld@5.2.0
+
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Update to registry v2.5.0
+
+### Patch Changes
+
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [19f7d4fd9]
+  - @hyperlane-xyz/sdk@5.1.0
+  - @hyperlane-xyz/helloworld@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
+## 5.0.0
+
+### Minor Changes
+
+- 388d25517: Added HyperlaneRelayer for relaying messages from the CLI
+
+### Patch Changes
+
+- Updated dependencies [2c0ae3cf3]
+- Updated dependencies [0dedbf5a0]
+- Updated dependencies [388d25517]
+- Updated dependencies [69a39da1c]
+- Updated dependencies [4907b510c]
+- Updated dependencies [488f949ef]
+- Updated dependencies [c7f5a35e8]
+- Updated dependencies [7265a4087]
+- Updated dependencies [0a40dcb8b]
+- Updated dependencies [f83b492de]
+- Updated dependencies [79740755b]
+- Updated dependencies [8533f9e66]
+- Updated dependencies [ed65556aa]
+- Updated dependencies [ab827a3fa]
+- Updated dependencies [dfa908796]
+- Updated dependencies [ed63e04c4]
+- Updated dependencies [dfa908796]
+- Updated dependencies [5aa24611b]
+- Updated dependencies [cfb890dc6]
+- Updated dependencies [708999433]
+- Updated dependencies [5529d98d0]
+- Updated dependencies [62d71fad3]
+- Updated dependencies [49986aa92]
+- Updated dependencies [7fdd3958d]
+- Updated dependencies [8e942d3c6]
+- Updated dependencies [fef629673]
+- Updated dependencies [be4617b18]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/sdk@5.0.0
+  - @hyperlane-xyz/utils@5.0.0
+  - @hyperlane-xyz/helloworld@5.0.0
+
 ## 4.1.0
 
 ### Minor Changes

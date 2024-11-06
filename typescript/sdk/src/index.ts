@@ -27,10 +27,10 @@ export {
   testSealevelChain,
 } from './consts/testChains.js';
 export {
+  attachAndConnectContracts,
   attachContracts,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
-  attachAndConnectContracts,
   connectContracts,
   connectContractsMap,
   filterAddressesMap,
@@ -67,7 +67,11 @@ export {
   RelayerCacheSchema,
 } from './core/HyperlaneRelayer.js';
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
-export { CoreConfigSchema } from './core/schemas.js';
+export {
+  CoreConfigSchema,
+  DeployedCoreAddresses,
+  DeployedCoreAddressesSchema,
+} from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
 export {
@@ -92,7 +96,9 @@ export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDep
 export {
   CheckerViolation,
   OwnableConfig,
+  DeployedOwnableConfig,
   OwnerViolation,
+  ProxyAdminViolation,
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
@@ -160,6 +166,7 @@ export {
   PausableIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
+  WeightedMultisigIsmConfig,
 } from './ism/types.js';
 export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
 export {
@@ -189,6 +196,8 @@ export {
 } from './metadata/ChainMetadataManager.js';
 export {
   BlockExplorer,
+  BlockExplorerSchema,
+  EthJsonRpcBlockParameterTag,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
@@ -202,6 +211,8 @@ export {
   getDomainId,
   getReorgPeriod,
   isValidChainMetadata,
+  mergeChainMetadata,
+  mergeChainMetadataMap,
 } from './metadata/chainMetadataTypes.js';
 export { ZChainName, ZHash } from './metadata/customZodTypes.js';
 export {
@@ -248,6 +259,7 @@ export {
   InterchainQueryConfig,
   InterchainQueryDeployer,
 } from './middleware/query/InterchainQueryDeployer.js';
+export { isBlockExplorerHealthy } from './providers/explorerHealthTest.js';
 export {
   MultiProtocolProvider,
   MultiProtocolProviderOptions,
@@ -296,7 +308,12 @@ export {
   ViemTransaction,
   ViemTransactionReceipt,
 } from './providers/ProviderType.js';
-export { ProviderRetryOptions } from './providers/SmartProvider/types.js';
+export {
+  isCosmJsProviderHealthy,
+  isEthersV5ProviderHealthy,
+  isRpcHealthy,
+  isSolanaWeb3ProviderHealthy,
+} from './providers/rpcHealthTest.js';
 export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneEtherscanProvider.js';
 export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 export {
@@ -307,14 +324,10 @@ export {
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
 export {
-  PopulatedTransactionSchema,
-  PopulatedTransactionsSchema,
-} from './providers/transactions/schemas.js';
-export {
-  CallData,
-  PopulatedTransaction,
-  PopulatedTransactions,
-} from './providers/transactions/types.js';
+  ProviderRetryOptions,
+  SmartProviderOptions,
+} from './providers/SmartProvider/types.js';
+export { CallData } from './providers/transactions/types.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -330,10 +343,17 @@ export {
   EV5ImpersonatedAccountTxSubmitterProps,
 } from './providers/transactions/submitter/ethersV5/types.js';
 
-export { SubmissionStrategySchema } from './providers/transactions/submitter/builder/schemas.js';
+export {
+  ChainSubmissionStrategySchema,
+  SubmissionStrategySchema,
+} from './providers/transactions/submitter/builder/schemas.js';
 export { TxSubmitterBuilder } from './providers/transactions/submitter/builder/TxSubmitterBuilder.js';
-export { SubmissionStrategy } from './providers/transactions/submitter/builder/types.js';
+export {
+  ChainSubmissionStrategy,
+  SubmissionStrategy,
+} from './providers/transactions/submitter/builder/types.js';
 
+export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxBuilder.js';
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
@@ -374,11 +394,12 @@ export {
   MailboxClientConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
+  RemoteRouters,
+  DestinationGas,
   RouterAddress,
   RouterConfig,
   RouterViolation,
   RouterViolationType,
-  RemoteRouters,
   proxiedFactories,
 } from './router/types.js';
 export {
@@ -427,6 +448,7 @@ export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
   HypERC20Factories,
+  hypERC20contracts,
   HypERC721Factories,
   TokenFactories,
   hypERC20factories,
@@ -457,6 +479,7 @@ export {
   TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
 } from './token/TokenStandard.js';
+export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
 export { ChainMap, ChainName, ChainNameOrId, Connection } from './types.js';
 export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { filterByChains } from './utils/filter.js';
@@ -468,9 +491,8 @@ export {
   setFork,
   stopImpersonatingAccount,
 } from './utils/fork.js';
+export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
-export { TokenRouterConfig, WarpRouteDeployConfig } from './token/types.js';
-export { multisigIsmVerificationCost } from './utils/ism.js';
 export {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
@@ -494,19 +516,44 @@ export {
   NativeConfig,
   TokenRouterConfigSchema,
   WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigSchemaErrors,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
+  isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './token/schemas.js';
 export { isCompliant } from './utils/schemas.js';
 
-// prettier-ignore
-// @ts-ignore
-export { canProposeSafeTransactions, getSafe, getSafeDelegates, getSafeService } from './utils/gnosisSafe.js';
+export {
+  canProposeSafeTransactions,
+  getSafe,
+  getSafeDelegates,
+  getSafeService,
+  // @ts-ignore
+} from './utils/gnosisSafe.js';
 
-export { DeployedCoreAdresses, EvmCoreModule } from './core/EvmCoreModule.js';
+export { EvmCoreModule } from './core/EvmCoreModule.js';
+export {
+  proxyAdmin,
+  isProxy,
+  proxyConstructorArgs,
+  proxyImplementation,
+} from './deploy/proxy.js';
+export {
+  ProxyFactoryFactoriesAddresses,
+  ProxyFactoryFactoriesSchema,
+} from './deploy/schemas.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
-export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
-export { ProxyFactoryFactoriesAddresses } from './deploy/schemas.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export {
+  GasPriceConfig,
+  NativeTokenPriceConfig,
+  ChainGasOracleParams,
+  getCoingeckoTokenPrices,
+  getCosmosChainGasPrice,
+  getGasPrice,
+  getLocalStorageGasOracleConfig,
+  getTokenExchangeRateFromValues,
+} from './gas/utils.js';

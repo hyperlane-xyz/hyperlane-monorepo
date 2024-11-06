@@ -2,11 +2,12 @@ import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
 import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
-import { log, logBlue, logGreen, logRed } from '../logger.js';
+import { WriteCommandContext } from '../context/types.js';
+import { log, logBlue, logGray, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { stubMerkleTreeConfig } from '../utils/relay.js';
 
 export async function checkMessageStatus({
   context,
@@ -16,7 +17,7 @@ export async function checkMessageStatus({
   selfRelay,
   dispatchTx,
 }: {
-  context: CommandContext;
+  context: WriteCommandContext;
   dispatchTx?: string;
   messageId?: string;
   destination?: ChainName;
@@ -43,25 +44,35 @@ export async function checkMessageStatus({
   );
 
   let dispatchedReceipt: TransactionReceipt;
-  if (!dispatchTx) {
+
+  if (dispatchTx) {
+    dispatchedReceipt = await context.multiProvider
+      .getProvider(origin)
+      .getTransactionReceipt(dispatchTx);
+  } else {
     try {
       dispatchedReceipt = await core.getDispatchTx(origin, messageId);
     } catch (e) {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
+
+      dispatchTx = await input({
+        message: 'Provide dispatch transaction hash',
+      });
+      dispatchedReceipt = await context.multiProvider
+        .getProvider(origin)
+        .getTransactionReceipt(dispatchTx);
     }
-    dispatchTx = await input({
-      message: 'Provide dispatch transaction hash',
-    });
   }
 
-  dispatchedReceipt ??= await context.multiProvider
-    .getProvider(origin)
-    .getTransactionReceipt(dispatchTx);
-
-  const messages = core.getDispatchedMessages(dispatchedReceipt);
+  const messages = core.getDispatchedMessages(dispatchedReceipt!);
   const match = messages.find((m) => m.id === messageId);
   assert(match, `Message ${messageId} not found in dispatch tx ${dispatchTx}`);
   const message = match;
+  try {
+    const { amount, recipient } = parseWarpRouteMessage(message.parsed.body);
+    logGray(`Warping ${amount} to ${recipient}`);
+    // eslint-disable-next-line no-empty
+  } catch {}
 
   let deliveredTx: TransactionReceipt;
 
@@ -78,13 +89,19 @@ export async function checkMessageStatus({
     }
 
     const relayer = new HyperlaneRelayer({ core });
+
+    const hookAddress = await core.getSenderHookAddress(message);
+    const merkleAddress = chainAddresses[origin].merkleTreeHook;
+    stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+
     deliveredTx = await relayer.relayMessage(dispatchedReceipt);
   }
 
   logGreen(
-    `Message ${messageId} delivered in ${context.multiProvider.getExplorerTxUrl(
-      message.parsed.destination,
-      { hash: deliveredTx.transactionHash },
-    )}`,
+    `Message ${messageId} delivered in ${
+      context.multiProvider.tryGetExplorerTxUrl(message.parsed.destination, {
+        hash: deliveredTx.transactionHash,
+      }) ?? deliveredTx.transactionHash
+    }`,
   );
 }

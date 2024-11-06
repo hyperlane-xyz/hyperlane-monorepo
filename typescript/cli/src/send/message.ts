@@ -9,6 +9,7 @@ import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
+import { stubMerkleTreeConfig } from '../utils/relay.js';
 
 export async function sendTestMessage({
   context,
@@ -83,11 +84,6 @@ async function executeDelivery({
   const chainAddresses = await registry.getAddresses();
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
-  const hook = chainAddresses[origin]?.customHook;
-  if (hook) {
-    logBlue(`Using custom hook ${hook} for ${origin} -> ${destination}`);
-  }
-
   try {
     const recipient = chainAddresses[destination].testRecipient;
     if (!recipient) {
@@ -101,8 +97,8 @@ async function executeDelivery({
       destination,
       formattedRecipient,
       messageBody,
-      hook,
-      undefined,
+      // override the the default hook (with IGP) for self-relay to avoid race condition with the production relayer
+      selfRelay ? chainAddresses[origin].merkleTreeHook : undefined,
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);
     logBlue(`Message ID: ${message.id}`);
@@ -110,6 +106,11 @@ async function executeDelivery({
 
     if (selfRelay) {
       const relayer = new HyperlaneRelayer({ core });
+
+      const hookAddress = await core.getSenderHookAddress(message);
+      const merkleAddress = chainAddresses[origin].merkleTreeHook;
+      stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+
       log('Attempting self-relay of message');
       await relayer.relayMessage(dispatchTx);
       logGreen('Message was self-relayed!');

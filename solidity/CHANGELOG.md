@@ -1,5 +1,130 @@
 # @hyperlane-xyz/core
 
+## 5.7.0
+
+### Minor Changes
+
+- 469f2f340: Checking for sufficient fees in `AbstractMessageIdAuthHook` and refund surplus
+- f26453ee5: Added msg.value to preverifyMessage to commit it as part of external hook payload
+- 0640f837c: disabled the ICARouter's ability to change hook given that the user doesn't expect the hook to change after they deploy their ICA account. Hook is not part of the derivation like ism on the destination chain and hence, cannot be configured custom by the user.
+- a82b4b4cb: Made processInboundMessage payable to send value via mailbox.process
+
+### Patch Changes
+
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [04108155d]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/utils@5.7.0
+
+## 5.6.1
+
+### Patch Changes
+
+- a42616ff3: Added overrides for transferFrom, totalSupply to reflect the internal share based accounting for the 4626 mirror asset
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+
+## 5.6.0
+
+### Minor Changes
+
+- c55257cf5: Minor token related changes like adding custom hook to 4626 collateral, checking for ERC20 as valid contract in HypERC20Collateral, etc.
+- 8cc0d9a4a: Added WHypERC4626 as a wrapper for rebasing HypERC4626
+
+### Patch Changes
+
+- 8cc0d9a4a: Add wrapped HypERC4626 for easy defi use
+  - @hyperlane-xyz/utils@5.6.1
+
+## 5.5.0
+
+### Minor Changes
+
+- 72c23c0d6: Added PRECISION and rateUpdateNonce to ensure compatibility of HypERC4626
+
+### Patch Changes
+
+- c9085afd9: Patched OPL2ToL1Ism to check for correct messageId for external call in verify
+- ec6b874b1: Added nonce to HypERC4626
+- Updated dependencies [f1712deb7]
+- Updated dependencies [29341950e]
+  - @hyperlane-xyz/utils@5.6.0
+
+## 5.4.1
+
+### Patch Changes
+
+- 92c86cca6: Forward value from ICA router to proxy for multicall
+- Updated dependencies [2afc484a2]
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- bb75eba74: fix: constrain rate limited ISM to a single message recipient
+- c5c217f8e: Embed NPM package version in bytecode constant
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+
+## 5.3.0
+
+### Patch Changes
+
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/utils@5.3.0
+
+## 5.2.1
+
+### Patch Changes
+
+- eb5afcf3e: Patch `HypNative` with hook overrides `transferRemote` behavior
+  - @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- 203084df2: Added sdk support for Stake weighted ISM
+- 445b6222c: ArbL2ToL1Ism handles value via the executeTransaction branch
+
+### Patch Changes
+
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [291c5fe36]
+  - @hyperlane-xyz/utils@5.2.0
+
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Added hook/ism for using the Optimism native bridge for L2->L1 calls
+- 013f19c64: Added yield route with yield going to message recipient.
+- 013f19c64: feat: attributable fraud for signers
+- 013f19c64: Implement checkpoint fraud proofs for use in slashing
+
+### Patch Changes
+
+- 013f19c64: fix: only evaluate dynamic revert reasons in reverting branch
+  - @hyperlane-xyz/utils@5.1.0
+
+## 5.0.0
+
+### Patch Changes
+
+- 90598ad44: Removed outbox as param for ArbL2ToL1Ism
+- Updated dependencies [388d25517]
+- Updated dependencies [488f949ef]
+- Updated dependencies [dfa908796]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/utils@5.0.0
+
 ## 4.1.0
 
 ### Patch Changes

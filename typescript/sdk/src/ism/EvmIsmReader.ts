@@ -1,9 +1,11 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import {
+  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
+  IOutbox__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAggregationIsm__factory,
@@ -19,12 +21,14 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationIsmConfig,
+  ArbL2ToL1IsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -45,6 +49,9 @@ export interface IsmReader {
     address: Address,
   ): Promise<WithAddress<MultisigIsmConfig>>;
   deriveNullConfig(address: Address): Promise<WithAddress<NullIsmConfig>>;
+  deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1IsmConfig>>;
   assertModuleType(
     moduleType: ModuleType,
     expectedModuleType: ModuleType,
@@ -60,6 +67,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
   }
@@ -100,11 +108,13 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
           break;
         case ModuleType.CCIP_READ:
           throw new Error('CCIP_READ does not have a corresponding IsmType');
+        case ModuleType.ARB_L2_TO_L1:
+          return this.deriveArbL2ToL1Config(address);
         default:
           throw new Error(`Unknown ISM ModuleType: ${moduleType}`);
       }
     } catch (e: any) {
-      const errorMessage = `Failed to derive ISM module type ${moduleType} (${address}):\n\t${e}`;
+      const errorMessage = `Failed to derive ISM module type ${moduleType} on ${this.chain} (${address}) :\n\t${e}`;
       this.logger.debug(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -121,11 +131,14 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       this.provider,
     );
+
     const owner = await ism.owner();
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
 
+    const domainIds = this.messageContext
+      ? [BigNumber.from(this.messageContext.parsed.origin)]
+      : await ism.domains();
     const domains: RoutingIsmConfig['domains'] = {};
-    const domainIds = await ism.domains();
 
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
       const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());
@@ -135,7 +148,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         );
         return;
       }
-      const module = await ism.module(domainId);
+      const module = this.messageContext
+        ? await ism.route(this.messageContext.message)
+        : await ism.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
     });
 
@@ -279,6 +294,21 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     return {
       address,
       type: IsmType.TEST_ISM,
+    };
+  }
+
+  async deriveArbL2ToL1Config(
+    address: Address,
+  ): Promise<WithAddress<ArbL2ToL1IsmConfig>> {
+    const ism = ArbL2ToL1Ism__factory.connect(address, this.provider);
+
+    const outbox = await ism.arbOutbox();
+    const outboxContract = IOutbox__factory.connect(outbox, this.provider);
+    const bridge = await outboxContract.bridge();
+    return {
+      address,
+      type: IsmType.ARB_L2_TO_L1,
+      bridge,
     };
   }
 

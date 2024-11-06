@@ -32,6 +32,23 @@ export const OpStackHookSchema = OwnableSchema.extend({
   destinationChain: z.string(),
 });
 
+export const ArbL2ToL1HookSchema = z.object({
+  type: z.literal(HookType.ARB_L2_TO_L1),
+  arbSys: z
+    .string()
+    .describe(
+      'precompile for sending messages to L1, interface here: https://github.com/OffchainLabs/nitro-contracts/blob/90037b996509312ef1addb3f9352457b8a99d6a6/src/precompiles/ArbSys.sol#L12',
+    ),
+  bridge: z
+    .string()
+    .optional()
+    .describe(
+      'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
+    ),
+  destinationChain: z.string(),
+  childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
+});
+
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   beneficiary: z.string(),
@@ -75,4 +92,5 @@ export const HookConfigSchema = z.union([
   DomainRoutingHookConfigSchema,
   FallbackRoutingHookConfigSchema,
   AggregationHookConfigSchema,
+  ArbL2ToL1HookSchema,
 ]);

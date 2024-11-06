@@ -3,6 +3,8 @@ import { errors as EthersError, Wallet, constants } from 'ethers';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 
+import { randomAddress } from '../../test/testUtils.js';
+
 import {
   HyperlaneSmartProvider,
   getSmartProviderErrorMessage,
@@ -141,5 +143,58 @@ describe('SmartProvider', async () => {
     const erc20 = await factory.deploy('fake', 'FAKE');
 
     expect(erc20.address).to.not.be.empty;
+  });
+
+  it('returns the blockchain error reason: "ERC20: transfer to zero address"', async () => {
+    const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
+      maxRetries: 1,
+    });
+    const signer = new Wallet(PK, smartProvider);
+
+    const factory = new ERC20__factory(signer);
+    const token = await factory.deploy('fake', 'FAKE');
+    try {
+      await token.transfer(constants.AddressZero, 1000000);
+    } catch (e: any) {
+      expect(e.error.message).to.equal(
+        'execution reverted: revert: ERC20: transfer to the zero address',
+      );
+    }
+  });
+
+  it('returns the blockchain error reason: "ERC20: transfer amount exceeds balance"', async () => {
+    const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
+      maxRetries: 1,
+    });
+    const signer = new Wallet(PK, smartProvider);
+
+    const factory = new ERC20__factory(signer);
+    const token = await factory.deploy('fake', 'FAKE');
+    try {
+      await token.transfer(signer.address, 1000000);
+    } catch (e: any) {
+      expect(e.error.message).to.equal(
+        'execution reverted: revert: ERC20: transfer amount exceeds balance',
+      );
+    }
+  });
+
+  it('returns the blockchain error reason: "insufficient funds for intrinsic transaction cost"', async () => {
+    const smartProvider = HyperlaneSmartProvider.fromRpcUrl(NETWORK, URL, {
+      maxRetries: 1,
+    });
+    const signer = new Wallet(PK, smartProvider);
+
+    try {
+      const balance = await signer.getBalance();
+      await signer.sendTransaction({
+        to: randomAddress(),
+        value: balance.add(1),
+      });
+    } catch (e: any) {
+      expect(e.message).to.equal(
+        'insufficient funds for intrinsic transaction cost',
+      );
+    }
   });
 });

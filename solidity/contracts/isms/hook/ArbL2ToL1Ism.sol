@@ -44,6 +44,10 @@ contract ArbL2ToL1Ism is
     // arbitrum nitro contract on L1 to forward verification
     IOutbox public arbOutbox;
 
+    uint256 private constant DATA_LENGTH = 68;
+
+    uint256 private constant MESSAGE_ID_END = 36;
+
     // ============ Constructor ============
 
     constructor(address _bridge) CrossChainEnabledArbitrumL1(_bridge) {
@@ -61,11 +65,12 @@ contract ArbL2ToL1Ism is
         bytes calldata metadata,
         bytes calldata message
     ) external override returns (bool) {
-        bool verified = isVerified(message);
-        if (verified) {
-            releaseValueToRecipient(message);
+        if (!isVerified(message)) {
+            _verifyWithOutboxCall(metadata, message);
+            require(isVerified(message), "ArbL2ToL1Ism: message not verified");
         }
-        return verified || _verifyWithOutboxCall(metadata, message);
+        releaseValueToRecipient(message);
+        return true;
     }
 
     // ============ Internal function ============
@@ -78,7 +83,7 @@ contract ArbL2ToL1Ism is
     function _verifyWithOutboxCall(
         bytes calldata metadata,
         bytes calldata message
-    ) internal returns (bool) {
+    ) internal {
         (
             bytes32[] memory proof,
             uint256 index,
@@ -87,6 +92,7 @@ contract ArbL2ToL1Ism is
             uint256 l2Block,
             uint256 l1Block,
             uint256 l2Timestamp,
+            uint256 value,
             bytes memory data
         ) = abi.decode(
                 metadata,
@@ -95,6 +101,7 @@ contract ArbL2ToL1Ism is
                     uint256,
                     address,
                     address,
+                    uint256,
                     uint256,
                     uint256,
                     uint256,
@@ -107,21 +114,22 @@ contract ArbL2ToL1Ism is
             l2Sender == TypeCasts.bytes32ToAddress(authorizedHook),
             "ArbL2ToL1Ism: l2Sender != authorizedHook"
         );
-        // this data is an abi encoded call of verifyMessageId(bytes32 messageId)
-        require(data.length == 36, "ArbL2ToL1Ism: invalid data length");
+        // this data is an abi encoded call of preVerifyMessage(bytes32 messageId)
+        require(
+            data.length == DATA_LENGTH,
+            "ArbL2ToL1Ism: invalid data length"
+        );
         bytes32 messageId = message.id();
         bytes32 convertedBytes;
         assembly {
             // data = 0x[4 bytes function signature][32 bytes messageId]
-            convertedBytes := mload(add(data, 36))
+            convertedBytes := mload(add(data, MESSAGE_ID_END))
         }
         // check if the parsed message id matches the message id of the message
         require(
             convertedBytes == messageId,
             "ArbL2ToL1Ism: invalid message id"
         );
-
-        // value send to 0
         arbOutbox.executeTransaction(
             proof,
             index,
@@ -130,11 +138,9 @@ contract ArbL2ToL1Ism is
             l2Block,
             l1Block,
             l2Timestamp,
-            0,
+            value,
             data
         );
-        // the above bridge call will revert if the verifyMessageId call fails
-        return true;
     }
 
     /// @inheritdoc AbstractMessageIdAuthorizedIsm

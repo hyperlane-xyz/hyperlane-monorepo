@@ -1,6 +1,10 @@
 import { utils } from 'ethers';
 
-import { Ownable, TimelockController__factory } from '@hyperlane-xyz/core';
+import {
+  Ownable,
+  ProxyAdmin__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -8,6 +12,7 @@ import {
   eqAddress,
   objMap,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
@@ -31,73 +36,118 @@ export abstract class HyperlaneAppChecker<
   App extends HyperlaneApp<any>,
   Config,
 > {
-  readonly multiProvider: MultiProvider;
-  readonly app: App;
-  readonly configMap: ChainMap<Config>;
-  readonly violations: CheckerViolation[];
+  readonly violations: CheckerViolation[] = [];
 
   constructor(
-    multiProvider: MultiProvider,
-    app: App,
-    configMap: ChainMap<Config>,
-  ) {
-    this.multiProvider = multiProvider;
-    this.app = app;
-    this.violations = [];
-    this.configMap = configMap;
-  }
+    readonly multiProvider: MultiProvider,
+    readonly app: App,
+    readonly configMap: ChainMap<Config>,
+  ) {}
 
   abstract checkChain(chain: ChainName): Promise<void>;
 
-  async check(): Promise<void[]> {
-    Object.keys(this.configMap)
-      .filter(
-        (chain) =>
-          this.multiProvider.getChainMetadata(chain).protocol ===
-            ProtocolType.Ethereum && !this.app.chains().includes(chain),
-      )
-      .forEach((chain: string) =>
+  async check(chainsToCheck?: ChainName[]): Promise<void[]> {
+    // Get all EVM chains from config
+    const evmChains = Object.keys(this.configMap).filter(
+      (chain) =>
+        this.multiProvider.getChainMetadata(chain).protocol ===
+        ProtocolType.Ethereum,
+    );
+
+    // Mark any EVM chains that are not deployed
+    const appChains = this.app.chains();
+    for (const chain of evmChains) {
+      if (!appChains.includes(chain)) {
         this.addViolation({
           type: ViolationType.NotDeployed,
           chain,
           expected: '',
           actual: '',
-        }),
-      );
+        });
+      }
+    }
 
+    // Finally, check the chains that were explicitly requested
+    // If no chains were requested, check all app chains
+    const chains =
+      !chainsToCheck || chainsToCheck.length === 0 ? appChains : chainsToCheck;
     return Promise.all(
-      // this.app.chains() will only return Ethereum chains that can be interacted with.
-      this.app.chains().map((chain) => this.checkChain(chain)),
+      chains
+        .filter(
+          (chain) =>
+            this.multiProvider.getChainMetadata(chain).protocol ===
+            ProtocolType.Ethereum,
+        )
+        .map((chain) => this.checkChain(chain)),
     );
   }
 
   addViolation(violation: CheckerViolation): void {
+    if (violation.type === ViolationType.BytecodeMismatch) {
+      rootLogger.warn({ violation }, `Found bytecode mismatch. Ignoring...`);
+      return;
+    }
     this.violations.push(violation);
   }
 
-  async checkProxiedContracts(chain: ChainName): Promise<void> {
-    const expectedAdmin = this.app.getContracts(chain).proxyAdmin.address;
-    if (!expectedAdmin) {
-      throw new Error(
-        `Checking proxied contracts for ${chain} with no admin provided`,
-      );
-    }
+  async checkProxiedContracts(
+    chain: ChainName,
+    owner: Address,
+    ownableOverrides?: Record<string, Address>,
+  ): Promise<void> {
+    // expectedProxyAdminAddress may be undefined, this means that proxyAdmin is not set in the config/not known at deployment time
+    const expectedProxyAdminAddress =
+      this.app.getContracts(chain).proxyAdmin?.address;
     const provider = this.multiProvider.getProvider(chain);
-    const contracts = this.app.getContracts(chain);
 
+    const contracts = this.app.getContracts(chain);
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
-          // Check the ProxiedContract's admin matches expectation
-          const actualAdmin = await proxyAdmin(provider, contract.address);
-          if (!eqAddress(actualAdmin, expectedAdmin)) {
-            this.addViolation({
-              type: ViolationType.ProxyAdmin,
-              chain,
-              name,
-              expected: expectedAdmin,
-              actual: actualAdmin,
-            } as ProxyAdminViolation);
+          const actualProxyAdminAddress = await proxyAdmin(
+            provider,
+            contract.address,
+          );
+
+          if (expectedProxyAdminAddress) {
+            // config defines an expected ProxyAdmin address, we therefore check if the actual ProxyAdmin address matches the expected one
+            if (
+              !eqAddress(actualProxyAdminAddress, expectedProxyAdminAddress)
+            ) {
+              this.addViolation({
+                type: ViolationType.ProxyAdmin,
+                chain,
+                name,
+                expected: expectedProxyAdminAddress,
+                actual: actualProxyAdminAddress,
+                proxyAddress: contract.address,
+              } as ProxyAdminViolation);
+            }
+          } else {
+            // config does not define an expected ProxyAdmin address, this means that checkOwnership will not be able to check the ownership of the ProxyAdmin contract
+            // as it is not explicitly defined in the config. We therefore check the ownership of the ProxyAdmin contract here.
+            const actualProxyAdminContract = ProxyAdmin__factory.connect(
+              actualProxyAdminAddress,
+              provider,
+            );
+            const actualProxyAdminOwner =
+              await actualProxyAdminContract.owner();
+            const expectedOwner = this.getOwner(
+              actualProxyAdminOwner,
+              'proxyAdmin',
+              ownableOverrides,
+            );
+            if (!eqAddress(actualProxyAdminOwner, expectedOwner)) {
+              const violation: OwnerViolation = {
+                chain,
+                name: 'proxyAdmin',
+                type: ViolationType.Owner,
+                actual: actualProxyAdminOwner,
+                expected: expectedOwner,
+                contract: actualProxyAdminContract,
+              };
+              this.addViolation(violation);
+            }
           }
         }
       }),
@@ -163,6 +213,14 @@ export abstract class HyperlaneAppChecker<
     return bytecode.substring(0, bytecode.length - 90);
   }
 
+  protected getOwner(
+    owner: Address,
+    contractName: string,
+    ownableOverrides?: Record<string, Address>,
+  ): Address {
+    return ownableOverrides?.[contractName] ?? owner;
+  }
+
   // This method checks whether the bytecode of a contract matches the expected bytecode. It forces the deployer to explicitly acknowledge a change in bytecode. The violations can be remediated by updating the expected bytecode hash.
   async checkBytecode(
     chain: ChainName,
@@ -211,7 +269,7 @@ export abstract class HyperlaneAppChecker<
   ): Promise<void> {
     const ownableContracts = await this.ownables(chain);
     for (const [name, contract] of Object.entries(ownableContracts)) {
-      const expectedOwner = ownableOverrides?.[name] ?? owner;
+      const expectedOwner = this.getOwner(owner, name, ownableOverrides);
       const actual = await contract.owner();
       if (!eqAddress(actual, expectedOwner)) {
         const violation: OwnerViolation = {

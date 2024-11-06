@@ -1,5 +1,260 @@
 # @hyperlane-xyz/cli
 
+## 5.7.0
+
+### Minor Changes
+
+- db0e73502: re-enable space key for multiselect cli prompt
+- 7e9e248be: Add feat to allow updates to destination gas using warp apply
+- 4c0605dca: Add optional proxy admin reuse in warp route deployments and admin proxy ownership transfer in warp apply
+- db5875cc2: Add `hyperlane warp verify` to allow post-deployment verification.
+- 956ff752a: Enable configuration of IGP hooks in the CLI
+
+### Patch Changes
+
+- Updated dependencies [5dabdf388]
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [d9505ab58]
+- Updated dependencies [04108155d]
+- Updated dependencies [7e9e248be]
+- Updated dependencies [4c0605dca]
+- Updated dependencies [db9196837]
+- Updated dependencies [db5875cc2]
+- Updated dependencies [56328e6e1]
+- Updated dependencies [956ff752a]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/sdk@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+
+## 5.6.2
+
+### Patch Changes
+
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/sdk@5.6.2
+
+## 5.6.1
+
+### Patch Changes
+
+- 3474a8450: Explicitly define inquirer/core and inquirier/figures dependencies
+  - @hyperlane-xyz/sdk@5.6.1
+  - @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 41035aac8: Add strategyUrl detect and validation in the beginning of `warp apply`
+  Remove yaml transactions print from `warp apply`
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+- 32d0a67c2: Adds the warp check command to compare warp routes config files with on chain warp route deployments
+- 3662297fc: Add prompt in `warp init` command to choose if a trusted relayer should be used instead of making the choice by default for the user and enable the `--yes` flag to default to a trusted ISM
+- b1ff48bd1: Add rebasing yield route support into CLI/SDK
+- d41aa6928: Add `EthJsonRpcBlockParameterTag` enum for validating reorgPeriod
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+- a4d5d692f: Update `warp apply` such that it updates in place AND extends in a single call
+- 01e7070eb: updates the multi chain selection prompt by adding search functionality and an optional confirmation prompt for the current selection
+
+### Patch Changes
+
+- e89f9e35d: Update registry to v4.7.0
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [02a5b92ba]
+- Updated dependencies [29341950e]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [32d0a67c2]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [d41aa6928]
+- Updated dependencies [c3e9268f1]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [7f3e0669d]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+
+## 5.5.0
+
+### Patch Changes
+
+- fcfe91113: Reuse SDK transaction typings in tx submitters
+- Updated dependencies [2afc484a2]
+- Updated dependencies [2afc484a2]
+- Updated dependencies [3254472e0]
+- Updated dependencies [fcfe91113]
+- Updated dependencies [6176c9861]
+  - @hyperlane-xyz/sdk@5.5.0
+  - @hyperlane-xyz/utils@5.5.0
+
+## 5.4.0
+
+### Minor Changes
+
+- 4415ac224: Add Gnosis safe transaction builder to warp apply
+
+### Patch Changes
+
+- Updated dependencies [4415ac224]
+  - @hyperlane-xyz/utils@5.4.0
+  - @hyperlane-xyz/sdk@5.4.0
+
+## 5.3.0
+
+### Minor Changes
+
+- 35d4503b9: Update to registry v4.3.6
+- aef3dbf4d: Remove mailbox choice prompt if it can be automatically detected from the registry
+
+### Patch Changes
+
+- a513e1b51: Override default with merkle hook for self relay
+- Updated dependencies [eb47aaee8]
+- Updated dependencies [50319d8ba]
+- Updated dependencies [8de531fa4]
+- Updated dependencies [746eeb9d9]
+- Updated dependencies [fd536a79a]
+- Updated dependencies [50319d8ba]
+  - @hyperlane-xyz/sdk@5.3.0
+  - @hyperlane-xyz/utils@5.3.0
+
+## 5.2.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@5.2.1
+- @hyperlane-xyz/utils@5.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- a5afd20f3: Add CLI e2e typescript tests
+- 203084df2: Added sdk support for Stake weighted ISM
+- a46fe434a: Add hyperlane registry rpc and addresses --contract utils
+- f2783c03b: Add ChainSubmissionStrategySchema
+- 3c07ded5b: Add Safe submit functionality to warp apply
+
+### Patch Changes
+
+- Updated dependencies [a19e882fd]
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [518a1bef9]
+- Updated dependencies [203084df2]
+- Updated dependencies [74a592e58]
+- Updated dependencies [739af9a34]
+- Updated dependencies [44588c31d]
+- Updated dependencies [2bd540e0f]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [69f17d99a]
+- Updated dependencies [3ad5918da]
+- Updated dependencies [291c5fe36]
+- Updated dependencies [9563a8beb]
+- Updated dependencies [73c232b3a]
+- Updated dependencies [445b6222c]
+- Updated dependencies [d6de34ad5]
+- Updated dependencies [2e6176f67]
+- Updated dependencies [f2783c03b]
+- Updated dependencies [2ffb78f5c]
+- Updated dependencies [3c07ded5b]
+- Updated dependencies [815542dd7]
+  - @hyperlane-xyz/sdk@5.2.0
+  - @hyperlane-xyz/utils@5.2.0
+
+## 5.1.0
+
+### Minor Changes
+
+- 013f19c64: Update to registry v2.5.0
+- 013f19c64: Added SDK support for ArbL2ToL1Hook/ISM for selfrelay
+- 013f19c64: Add output of hyperlane warp read to ./configs/warp-route-deployment.yaml
+- 013f19c64: Remove registry.getUri() from core read logging to prevent registry error
+- 013f19c64: Fixes the new chain message to display the correct command
+- 013f19c64: Add check & confirm for existing mailbox to core deploy to allow users to decide if they want to deploy a new mailbox
+
+### Patch Changes
+
+- 013f19c64: Require at least 1 chain selection in warp init
+- 013f19c64: feat: Add long-running CLI relayer
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [013f19c64]
+- Updated dependencies [19f7d4fd9]
+  - @hyperlane-xyz/sdk@5.1.0
+  - @hyperlane-xyz/utils@5.1.0
+
+## 5.0.0
+
+### Major Changes
+
+- f1d70a5e8: refactor: select chain now become 2 step, select mainnet/testnet type first, then select chain
+
+### Minor Changes
+
+- 388d25517: Added HyperlaneRelayer for relaying messages from the CLI
+- d0f7f21fd: Fix logging for hyperlane core apply
+- d00f2ffc0: Displays formatted deployment plan to confirm warp deploy.
+- 40255575c: Adds blockExplorers option on registry init.
+- 708999433: Adds hyperlane warp apply
+- 0e1a80e6e: Improve chain metadata and address fetching from github registries
+- 5529d98d0: Add hyperlane core apply with update ownership
+- 62d71fad3: Add hyperlane warp update to extend a warp config
+- 49986aa92: Add collateralAddressOrDenom for collateralVault
+- ded5718a0: Update hyperlane core read to log the config terminal "preview", only if the number of lines is < 250
+- 5125b798d: Prompt for chain testnet/mainnet during chain definition flow
+- bb470aec2: Add 'submit' command to CLI.
+
+### Patch Changes
+
+- 80ac5d28e: Display token symbol when balance is insufficient for command
+- 6341edf2a: fix: use merkle tree hook address from registry for self relay hook derivations
+- c539775d7: Default to mailbox address in registry
+- c2a2897d7: Update CLI verbiage to ask for vault and not token when initiating collateralVault warp route.
+- Updated dependencies [2c0ae3cf3]
+- Updated dependencies [0dedbf5a0]
+- Updated dependencies [388d25517]
+- Updated dependencies [69a39da1c]
+- Updated dependencies [4907b510c]
+- Updated dependencies [488f949ef]
+- Updated dependencies [c7f5a35e8]
+- Updated dependencies [7265a4087]
+- Updated dependencies [0a40dcb8b]
+- Updated dependencies [f83b492de]
+- Updated dependencies [79740755b]
+- Updated dependencies [8533f9e66]
+- Updated dependencies [ed65556aa]
+- Updated dependencies [ab827a3fa]
+- Updated dependencies [dfa908796]
+- Updated dependencies [ed63e04c4]
+- Updated dependencies [dfa908796]
+- Updated dependencies [5aa24611b]
+- Updated dependencies [cfb890dc6]
+- Updated dependencies [708999433]
+- Updated dependencies [5529d98d0]
+- Updated dependencies [62d71fad3]
+- Updated dependencies [49986aa92]
+- Updated dependencies [7fdd3958d]
+- Updated dependencies [8e942d3c6]
+- Updated dependencies [fef629673]
+- Updated dependencies [be4617b18]
+- Updated dependencies [1474865ae]
+  - @hyperlane-xyz/sdk@5.0.0
+  - @hyperlane-xyz/utils@5.0.0
+
 ## 4.1.0
 
 ### Minor Changes

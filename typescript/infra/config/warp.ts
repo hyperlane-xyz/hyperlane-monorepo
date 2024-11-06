@@ -1,73 +1,87 @@
-import { ethers } from 'ethers';
-
 import {
   ChainMap,
-  HyperlaneIsmFactory,
   MultiProvider,
+  RouterConfig,
   TokenRouterConfig,
-  TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-import { Modules, getAddresses } from '../scripts/agent-utils.js';
 import { getHyperlaneCore } from '../scripts/core-utils.js';
 import { EnvironmentConfig } from '../src/config/environment.js';
-import { tokens } from '../src/config/warp.js';
 
-import { DEPLOYER } from './environments/mainnet3/owners.js';
+import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAncient8EthereumUSDCWarpConfig.js';
+import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumZircuitAmphrETHWarpConfig.js';
+import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
+import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
+import { getEclipseEthereumUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumUSDTWarpConfig.js';
+import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
+import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
+import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
+import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBscLumiaLUMIAWarpConfig.js';
+import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
+import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
+import { getEthereumSeiFastUSDWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiFastUSDWarpConfig.js';
+import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
+import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
+import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
+import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
+import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
+import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
+import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
+
+type WarpConfigGetterWithConfig = (
+  routerConfig: ChainMap<RouterConfig>,
+) => Promise<ChainMap<TokenRouterConfig>>;
+
+type WarpConfigGetterWithoutConfig = () => Promise<ChainMap<TokenRouterConfig>>;
+
+export const warpConfigGetterMap: Record<
+  string,
+  WarpConfigGetterWithConfig | WarpConfigGetterWithoutConfig
+> = {
+  [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
+  [WarpRouteIds.ArbitrumEthereumZircuitAMPHRETH]:
+    getArbitrumEthereumZircuitAmphrETHWarpConfig,
+  [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
+  [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
+  [WarpRouteIds.ArbitrumNeutronEclip]: getArbitrumNeutronEclipWarpConfig,
+  [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
+  [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH]:
+    getRenzoEZETHWarpConfig,
+  [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
+  [WarpRouteIds.EthereumSeiFastUSD]: getEthereumSeiFastUSDWarpConfig,
+  [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
+  [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
+  [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
+  [WarpRouteIds.EthereumZircuitPZETH]: getRenzoPZETHWarpConfig,
+  [WarpRouteIds.EthereumBscLumiaLUMIA]: getEthereumBscLUMIAWarpConfig,
+  [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
+  [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
+  [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
+  [WarpRouteIds.EclipseEthereumSolanaUSDT]: getEclipseEthereumUSDTWarpConfig,
+  [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
+};
 
 export async function getWarpConfig(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
+  warpRouteId: string,
 ): Promise<ChainMap<TokenRouterConfig>> {
   const { core } = await getHyperlaneCore(envConfig.environment, multiProvider);
-  const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-    getAddresses(envConfig.environment, Modules.PROXY_FACTORY),
-    multiProvider,
-  );
-
-  const owner = DEPLOYER;
-
-  // "Manually" deploying an ISM because the warp deployer doesn't support
-  // ISM objects at the moment, and the deploy involves strictly recoverable ISMs.
-  const ism = await ismFactory.deploy({
-    destination: 'ethereum',
-    config: buildAggregationIsmConfigs(
-      'ethereum',
-      ['ancient8'],
-      defaultMultisigConfigs,
-    ).ancient8,
-  });
-
   const routerConfig = core.getRouterConfig(envConfig.owners);
 
-  const ethereum: TokenRouterConfig = {
-    ...routerConfig.ethereum,
-    type: TokenType.collateral,
-    token: tokens.ethereum.USDC,
-    interchainSecurityModule: ism.address,
-    // This hook was recovered from running the deploy script
-    // for the hook module. The hook configuration is the Ethereum
-    // default hook for the Ancient8 remote (no routing).
-    hook: '0x19b2cF952b70b217c90FC408714Fbc1acD29A6A8',
-    owner,
-  };
+  const warpConfigGetter = warpConfigGetterMap[warpRouteId];
+  if (!warpConfigGetter) {
+    throw new Error(
+      `Unknown warp route: ${warpRouteId}, must be one of: ${Object.keys(
+        warpConfigGetterMap,
+      ).join(', ')}`,
+    );
+  }
 
-  // @ts-ignore - The types as they stand require a synthetic to specify
-  // TokenMetadata, but in practice these are actually inferred from a
-  // collateral config. To avoid needing to specify the TokenMetadata, just
-  // ts-ignore for synthetic tokens.
-  const ancient8: TokenRouterConfig = {
-    ...routerConfig.ancient8,
-    type: TokenType.synthetic,
-    // Uses the default ISM
-    interchainSecurityModule: ethers.constants.AddressZero,
-    owner,
-  };
-
-  return {
-    ethereum,
-    ancient8,
-  };
+  if (warpConfigGetter.length === 1) {
+    return warpConfigGetter(routerConfig);
+  } else {
+    return (warpConfigGetter as WarpConfigGetterWithoutConfig)();
+  }
 }
