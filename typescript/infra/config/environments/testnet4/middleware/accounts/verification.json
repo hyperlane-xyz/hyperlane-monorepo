@@ -389,7 +389,7 @@
       "expectedimplementation": "0x2188512B68A5FF76431D538a613C0e2b15C7faf4"
     }
   ],
-  "arcadiatestnet": [
+  "arcadiatestnet2": [
     {
       "name": "InterchainAccountIsm",
       "address": "0x54Bd02f0f20677e9846F8E9FdB1Abc7315C49C38",

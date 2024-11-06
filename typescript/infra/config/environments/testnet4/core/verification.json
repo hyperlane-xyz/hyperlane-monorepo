@@ -1789,7 +1789,7 @@
       "isProxy": false
     }
   ],
-  "arcadiatestnet": [
+  "arcadiatestnet2": [
     {
       "name": "ProxyAdmin",
       "address": "0x54148470292C24345fb828B003461a9444414517",

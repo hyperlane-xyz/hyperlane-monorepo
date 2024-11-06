@@ -1676,7 +1676,7 @@
         "from": 111
       }
     },
-    "arcadiatestnet": {
+    "arcadiatestnet2": {
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.khalani.network/api",
@@ -1694,7 +1694,7 @@
       "displayName": "Arcadia Testnet",
       "domainId": 1098411886,
       "isTestnet": true,
-      "name": "arcadiatestnet",
+      "name": "arcadiatestnet2",
       "nativeToken": {
         "decimals": 18,
         "name": "Ether",

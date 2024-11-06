@@ -69,9 +69,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x09fabfbca0b8bf042e2a1161ee5010d147b0f603'],
   },
 
-  arcadiatestnet: {
+  arcadiatestnet2: {
     threshold: 1,
-    validators: ['0x7ce5973d3f22971546efb86f5a0417c1248e92f5'],
+    validators: ['0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff'],
   },
 
   astar: {

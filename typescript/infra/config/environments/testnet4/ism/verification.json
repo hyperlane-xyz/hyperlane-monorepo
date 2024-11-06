@@ -2265,7 +2265,7 @@
       "isProxy": true
     }
   ],
-  "arcadiatestnet": [
+  "arcadiatestnet2": [
     {
       "name": "StaticMerkleRootMultisigIsmFactory",
       "address": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
