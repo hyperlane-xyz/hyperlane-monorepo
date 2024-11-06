@@ -201,9 +201,7 @@ export function withAgentRoles<T>(args: Argv<T>) {
       .coerce('roles', (role: string[]): Role[] => role.map(assertRole))
       .choices('roles', Object.values(Role))
       // Ensure roles are unique
-      .coerce('roles', (roles: string[]): Role[] =>
-        Array.from(new Set(roles)).map(assertRole),
-      )
+      .coerce('roles', (roles: Role[]) => Array.from(new Set(roles)))
       .alias('r', 'roles')
       .alias('role', 'roles')
   );
