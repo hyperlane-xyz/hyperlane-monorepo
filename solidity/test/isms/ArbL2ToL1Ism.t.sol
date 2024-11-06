@@ -12,6 +12,7 @@ import {ArbL2ToL1Ism} from "../../contracts/isms/hook/ArbL2ToL1Ism.sol";
 import {MockArbBridge, MockArbSys} from "../../contracts/mock/MockArbBridge.sol";
 import {TestRecipient} from "../../contracts/test/TestRecipient.sol";
 import {ExternalBridgeTest} from "./ExternalBridgeTest.sol";
+import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 
 contract ArbL2ToL1IsmTest is ExternalBridgeTest {
     uint256 internal constant MOCK_LEAF_INDEX = 40160;
@@ -22,10 +23,10 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         0x0000000000000000000000000000000000000064;
 
     MockArbBridge internal arbBridge;
+    TestInterchainGasPaymaster internal mockOverheadIgp;
 
     function setUp() public override {
         // Arbitrum bridge mock setup
-        GAS_QUOTE = 120_000;
         vm.etch(L2_ARBSYS_ADDRESS, address(new MockArbSys()).code);
 
         deployAll();
@@ -38,12 +39,13 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
 
     function deployHook() public {
         originMailbox = new TestMailbox(ORIGIN_DOMAIN);
+        mockOverheadIgp = new TestInterchainGasPaymaster();
         hook = new ArbL2ToL1Hook(
             address(originMailbox),
             DESTINATION_DOMAIN,
             TypeCasts.addressToBytes32(address(ism)),
             L2_ARBSYS_ADDRESS,
-            GAS_QUOTE
+            address(mockOverheadIgp)
         );
     }
 
@@ -58,6 +60,20 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
 
         arbBridge.setL2ToL1Sender(address(hook));
         ism.setAuthorizedHook(TypeCasts.addressToBytes32(address(hook)));
+    }
+
+    function test_postDispatch_childHook() public {
+        bytes memory encodedHookData = _encodeHookData(messageId, 0);
+        originMailbox.updateLatestDispatchedId(messageId);
+        _expectOriginExternalBridgeCall(encodedHookData);
+
+        bytes memory igpMetadata = StandardHookMetadata.overrideGasLimit(
+            78_000
+        );
+
+        uint256 quote = hook.quoteDispatch(igpMetadata, encodedMessage);
+        assertEq(quote, mockOverheadIgp.quoteGasPayment(ORIGIN_DOMAIN, 78_000));
+        hook.postDispatch{value: quote}(igpMetadata, encodedMessage);
     }
 
     /* ============ helper functions ============ */
@@ -115,10 +131,7 @@ contract ArbL2ToL1IsmTest is ExternalBridgeTest {
         bytes32 _messageId,
         uint256 _value
     ) internal view returns (bytes memory) {
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (_messageId)
-        );
+        bytes memory encodedHookData = _encodeHookData(_messageId, _value);
 
         bytes32[] memory proof = new bytes32[](16);
         return

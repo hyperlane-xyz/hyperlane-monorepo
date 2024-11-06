@@ -6,6 +6,7 @@ import {
   HypERC4626Collateral__factory,
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
+  ProxyAdmin__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -22,13 +23,15 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { DeployedOwnableConfig } from '../deploy/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { RemoteRouters } from '../router/types.js';
+import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
+import { proxyAdmin } from './../deploy/proxy.js';
 import { CollateralExtensions } from './config.js';
 import { TokenMetadata } from './types.js';
 
@@ -64,11 +67,15 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
     const tokenMetadata = await this.fetchTokenMetadata(type, warpRouteAddress);
     const remoteRouters = await this.fetchRemoteRouters(warpRouteAddress);
+    const proxyAdmin = await this.fetchProxyAdminConfig(warpRouteAddress);
+    const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     return {
       ...baseMetadata,
       ...tokenMetadata,
       remoteRouters,
+      proxyAdmin,
+      destinationGas,
       type,
     } as TokenRouterConfig;
   }
@@ -241,6 +248,45 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       await Promise.all(
         domains.map(async (domain) => {
           return [domain, bytes32ToAddress(await warpRoute.routers(domain))];
+        }),
+      ),
+    );
+  }
+
+  async fetchProxyAdminConfig(
+    tokenAddress: Address,
+  ): Promise<DeployedOwnableConfig> {
+    const proxyAdminAddress = await proxyAdmin(this.provider, tokenAddress);
+    const proxyAdminInstance = ProxyAdmin__factory.connect(
+      proxyAdminAddress,
+      this.provider,
+    );
+
+    return {
+      address: proxyAdminAddress,
+      owner: await proxyAdminInstance.owner(),
+    };
+  }
+
+  async fetchDestinationGas(
+    warpRouteAddress: Address,
+  ): Promise<DestinationGas> {
+    const warpRoute = TokenRouter__factory.connect(
+      warpRouteAddress,
+      this.provider,
+    );
+
+    /**
+     * @remark
+     * Router.domains() is used to enumerate the destination gas because GasRouter.destinationGas is not EnumerableMapExtended type
+     * This means that if a domain is removed, then we cannot read the destinationGas for it. This may impact updates.
+     */
+    const domains = await warpRoute.domains();
+
+    return Object.fromEntries(
+      await Promise.all(
+        domains.map(async (domain) => {
+          return [domain, (await warpRoute.destinationGas(domain)).toString()];
         }),
       ),
     );
