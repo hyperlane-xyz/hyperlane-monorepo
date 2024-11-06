@@ -90,5 +90,8 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
+  },
+  "inksepolia": {
+    "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
   }
 }

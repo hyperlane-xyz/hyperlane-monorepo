@@ -16,6 +16,7 @@ export const testnet4SupportedChainNames = [
   'fuji',
   'holesky',
   // 'hyperliquidevmtestnet',
+  'inksepolia',
   'odysseytestnet',
   'optimismsepolia',
   // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"

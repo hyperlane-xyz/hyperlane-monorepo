@@ -441,6 +441,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  inksepolia: {
+    threshold: 1,
+    validators: ['0xe61c846aee275070207fcbf43674eb254f06097a'],
+  },
+
   kaia: {
     threshold: 2,
     validators: [

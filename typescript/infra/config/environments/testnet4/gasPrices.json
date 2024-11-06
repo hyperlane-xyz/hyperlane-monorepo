@@ -16,15 +16,15 @@
     "decimals": 9
   },
   "basesepolia": {
-    "amount": "0.001000338",
+    "amount": "0.001000308",
     "decimals": 9
   },
   "berabartio": {
-    "amount": "9.470352147",
+    "amount": "1.550227134",
     "decimals": 9
   },
   "bsctestnet": {
-    "amount": "10.180645161",
+    "amount": "100.0",
     "decimals": 9
   },
   "camptestnet": {
@@ -32,7 +32,7 @@
     "decimals": 9
   },
   "citreatestnet": {
-    "amount": "1.48",
+    "amount": "1.5",
     "decimals": 9
   },
   "connextsepolia": {
@@ -56,27 +56,31 @@
     "decimals": 9
   },
   "holesky": {
-    "amount": "0.522300047",
+    "amount": "0.318071759",
+    "decimals": 9
+  },
+  "inksepolia": {
+    "amount": "0.001000252",
     "decimals": 9
   },
   "odysseytestnet": {
-    "amount": "1.000000252",
+    "amount": "2.000000252",
     "decimals": 9
   },
   "optimismsepolia": {
-    "amount": "0.001000251",
+    "amount": "0.001000253",
     "decimals": 9
   },
   "polygonamoy": {
-    "amount": "31.625000015",
+    "amount": "35.0",
     "decimals": 9
   },
   "scrollsepolia": {
-    "amount": "0.5",
+    "amount": "22.997979926",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "48.823776772",
+    "amount": "6.302602541",
     "decimals": 9
   },
   "solanatestnet": {
@@ -92,7 +96,7 @@
     "decimals": 9
   },
   "suavetoliman": {
-    "amount": "10.0",
+    "amount": "1.0",
     "decimals": 9
   },
   "superpositiontestnet": {
@@ -100,7 +104,7 @@
     "decimals": 9
   },
   "unichaintestnet": {
-    "amount": "0.00100026",
+    "amount": "0.00100027",
     "decimals": 9
   }
 }

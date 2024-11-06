@@ -43,6 +43,7 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '5',
     holesky: '5',
     // hyperliquidevmtestnet: '0.1',
+    inksepolia: '0.1',
     odysseytestnet: '0.1',
     optimismsepolia: '0.1',
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"

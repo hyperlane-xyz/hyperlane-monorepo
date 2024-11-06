@@ -356,5 +356,17 @@ export const validatorChainConfig = (
         'alephzeroevmtestnet',
       ),
     },
+    inksepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('inksepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe61c846aee275070207fcbf43674eb254f06097a'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'inksepolia',
+      ),
+    },
   };
 };
