@@ -25,13 +25,13 @@ async function main() {
     return;
   }
 
-  if (!outFile) {
-    console.log(yamlStringify(parsed.data, null, 2));
-    return;
-  }
+  console.log('Warp config:');
+  console.log(yamlStringify(parsed.data, null, 2));
 
-  console.log(`Writing config to ${outFile}`);
-  writeYamlAtPath(outFile, parsed.data);
+  if (outFile) {
+    console.log(`Writing config to ${outFile}`);
+    writeYamlAtPath(outFile, parsed.data);
+  }
 }
 
 main().catch(console.error).then(console.log);
