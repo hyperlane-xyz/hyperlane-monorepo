@@ -108,7 +108,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2) => {
   }
 };
 
-describe.only('EvmIsmModule', async () => {
+describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
   let exampleRoutingConfig: RoutingIsmConfig;
   let mailboxAddress: Address;
