@@ -290,7 +290,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       }
       return domainId !== null;
     });
-    const filteredConfigDomainIds = Object.keys(config.domains).map((domain) =>
+    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
       this.multiProvider.getDomainId(domain),
     );
     const delta: RoutingIsmDelta = existingIsmAddress
@@ -304,7 +304,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         )
       : {
           domainsToUnenroll: [],
-          domainsToEnroll: filteredConfigDomainIds,
+          domainsToEnroll: safeConfigDomains,
         };
 
     const signer = this.multiProvider.getSigner(destination);
@@ -390,7 +390,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           destination,
           routingIsm['initialize(address,uint32[],address[])'](
             config.owner,
-            filteredConfigDomainIds,
+            safeConfigDomains,
             submoduleAddresses,
             overrides,
           ),
@@ -401,14 +401,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         // estimate gas
         const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
           owner,
-          filteredConfigDomainIds,
+          safeConfigDomains,
           submoduleAddresses,
           overrides,
         );
         // add gas buffer
         const tx = await domainRoutingIsmFactory.deploy(
           owner,
-          filteredConfigDomainIds,
+          safeConfigDomains,
           submoduleAddresses,
           {
             gasLimit: addBufferToGasLimit(estimatedGas),

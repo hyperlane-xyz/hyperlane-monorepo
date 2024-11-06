@@ -294,7 +294,7 @@ export abstract class HyperlaneDeployer<
         this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
         await this.multiProvider.sendTransaction(
           chain,
-          await setIsm(contract, targetIsm),
+          setIsm(contract, targetIsm),
         );
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
@@ -322,7 +322,7 @@ export abstract class HyperlaneDeployer<
         );
         await this.multiProvider.sendTransaction(
           chain,
-          await setHook(contract, config),
+          setHook(contract, config),
         );
         const actualHook = await getHook(contract);
         if (!eqAddress(config, actualHook)) {

@@ -253,7 +253,7 @@ describe('EvmHookModule', async () => {
     expect(txs.length).to.equal(n);
 
     for (const tx of txs) {
-      await multiProvider.sendTransaction(hook.chain, tx);
+      await multiProvider.sendTransaction(chain, tx);
     }
   }
 
