@@ -846,10 +846,7 @@
       "validatorAnnounce": "0x527768930D889662Fe7ACF64294871e86e4C2381",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x339B46496D60b1b6B42e9715DeD8B3D2154dA0Bb",
       "staticMessageIdWeightedMultisigIsmFactory": "0x63dFf524F1c7361f4F1bf07D658Bf7f2d5Dd5B20",
-      "gasCurrencyCoinGeckoId": "ethereum",
-      "transactionOverrides": {
-        "gasPrice": 500000000
-      }
+      "gasCurrencyCoinGeckoId": "ethereum"
     },
     "sepolia": {
       "aggregationHook": "0xe3147d5618f5e2e100690B50ec923009a4cde14A",
