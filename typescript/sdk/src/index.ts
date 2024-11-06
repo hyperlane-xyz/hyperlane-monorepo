@@ -515,6 +515,7 @@ export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router
 export {
   CollateralConfig,
   NativeConfig,
+  TokenConfig,
   TokenRouterConfigSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
