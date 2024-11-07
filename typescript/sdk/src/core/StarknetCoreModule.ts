@@ -29,10 +29,8 @@ export class StarknetCoreModule {
       config.requiredHook.type === HookType.PROTOCOL_FEE,
       'only protocolFee hook is accepted for required hook',
     );
-
     const noopIsm = await this.deployer.deployContract('noop_ism', []);
 
-    // deploy hook
     const hook = await this.deployer.deployContract('hook', []);
 
     const protocolFee = await this.deployer.deployContract('protocol_fee', [
@@ -45,7 +43,6 @@ export class StarknetCoreModule {
       '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7',
     ]);
 
-    // deploy mailbox
     const mailboxContract = await this.deployMailbox(
       config.owner,
       noopIsm,
@@ -53,51 +50,25 @@ export class StarknetCoreModule {
       protocolFee,
     );
 
-    //TODO: skip next two steps if default ism not specified
-    const defaultIsm = await this.deployer.deployIsm({
-      chain: chain.toString(),
-      ismConfig: config.defaultIsm,
-      mailbox,
+    const { defaultIsm, requiredHook } = await this.update(config, {
+      chain,
+      mailboxContract,
+      owner: config.owner,
     });
-
-    // Updating not a deployment
-    console.log(`🧩 Updating default ism ${defaultIsm}..`);
-    const { transaction_hash: defaultIsmUpdateTxHash } =
-      await mailboxContract.invoke('set_default_ism', [defaultIsm]);
-
-    await this.signer.waitForTransaction(defaultIsmUpdateTxHash);
-    console.log(
-      `⚡️ Transaction hash for updated default ism: ${defaultIsmUpdateTxHash}`,
-    );
-
-    const merkleTreeHook = await this.deployer.deployContract(
-      'merkle_tree_hook',
-      [mailbox, config.owner],
-    );
-
-    // Updating not a deployment
-    console.log(`🧩 Updating required hook ${merkleTreeHook}..`);
-    const { transaction_hash: requiredHookUpdateTxHash } =
-      await mailboxContract.invoke('set_required_hook', [merkleTreeHook]);
-
-    await this.signer.waitForTransaction(requiredHookUpdateTxHash);
-    console.log(
-      `⚡️ Transaction hash for updated required hook: ${requiredHookUpdateTxHash}`,
-    );
 
     const validatorAnnounce = await this.deployer.deployContract(
       'validator_announce',
-      [mailbox, config.owner],
+      [mailboxContract.address, config.owner],
     );
 
     return {
       noopIsm,
       hook,
       mailbox: mailboxContract.address,
-      defaultIsm,
+      defaultIsm: defaultIsm || noopIsm,
       validatorAnnounce,
       protocolFee,
-      merkleTreeHook,
+      requiredHook: requiredHook || '',
     };
   }
 
@@ -117,5 +88,51 @@ export class StarknetCoreModule {
 
     const { abi } = getCompiledContract('mailbox');
     return new Contract(abi, mailboxAddress, this.signer);
+  }
+
+  async update(
+    expectedConfig: Partial<CoreConfig>,
+    args: { mailboxContract: Contract; chain: ChainNameOrId; owner: string },
+  ): Promise<{ defaultIsm?: string; requiredHook?: string }> {
+    const result: { defaultIsm?: string; requiredHook?: string } = {};
+    if (expectedConfig.defaultIsm) {
+      const defaultIsm = await this.deployer.deployIsm({
+        chain: args.chain.toString(),
+        ismConfig: expectedConfig.defaultIsm,
+        mailbox: args.mailboxContract.address,
+      });
+
+      this.logger.trace(`Updating default ism ${defaultIsm}..`);
+      const { transaction_hash: defaultIsmUpdateTxHash } =
+        await args.mailboxContract.invoke('set_default_ism', [defaultIsm]);
+
+      await this.signer.waitForTransaction(defaultIsmUpdateTxHash);
+      this.logger.trace(
+        `Transaction hash for updated default ism: ${defaultIsmUpdateTxHash}`,
+      );
+      result.defaultIsm = defaultIsm;
+    }
+
+    if (expectedConfig.requiredHook) {
+      const merkleTreeHook = await this.deployer.deployContract(
+        'merkle_tree_hook',
+        [args.mailboxContract.address, args.owner],
+      );
+
+      this.logger.trace(`Updating required hook ${merkleTreeHook}..`);
+      const { transaction_hash: requiredHookUpdateTxHash } =
+        await args.mailboxContract.invoke('set_required_hook', [
+          merkleTreeHook,
+        ]);
+
+      await this.signer.waitForTransaction(requiredHookUpdateTxHash);
+      this.logger.trace(
+        `Transaction hash for updated required hook: ${requiredHookUpdateTxHash}`,
+      );
+
+      result.requiredHook = merkleTreeHook;
+    }
+
+    return result;
   }
 }
