@@ -156,7 +156,7 @@ fn filter_by_encoding(
     }
 }
 
-pub fn account_index_map(account_keys: Vec<String>) -> HashMap<String, usize> {
+fn account_index_map(account_keys: Vec<String>) -> HashMap<String, usize> {
     account_keys
         .into_iter()
         .enumerate()
