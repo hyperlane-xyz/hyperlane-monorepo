@@ -1,4 +1,4 @@
-import { Account, Contract } from 'starknet';
+import { Account, Contract, num } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -95,6 +95,7 @@ export class StarknetCoreModule {
     args: { mailboxContract: Contract; chain: ChainNameOrId; owner: string },
   ): Promise<{ defaultIsm?: string; requiredHook?: string }> {
     const result: { defaultIsm?: string; requiredHook?: string } = {};
+
     if (expectedConfig.defaultIsm) {
       const defaultIsm = await this.deployer.deployIsm({
         chain: args.chain.toString(),
@@ -134,5 +135,18 @@ export class StarknetCoreModule {
     }
 
     return result;
+  }
+
+  //TODO: return CoreConfig by fetching each contract details
+  async read(mailboxContract: Contract) {
+    const [defaultIsm, defaultHook, requiredHook, owner] = (
+      await Promise.all([
+        mailboxContract.call('get_default_ism', [], { parseResponse: true }),
+        mailboxContract.call('get_default_hook'),
+        mailboxContract.call('get_required_hook'),
+        mailboxContract.call('owner'),
+      ])
+    ).map((res) => num.toHex64(res.toString()));
+    return { defaultIsm, defaultHook, requiredHook, owner };
   }
 }
