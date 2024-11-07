@@ -141,7 +141,7 @@ export class StarknetCoreModule {
   async read(mailboxContract: Contract) {
     const [defaultIsm, defaultHook, requiredHook, owner] = (
       await Promise.all([
-        mailboxContract.call('get_default_ism', [], { parseResponse: true }),
+        mailboxContract.call('get_default_ism'),
         mailboxContract.call('get_default_hook'),
         mailboxContract.call('get_required_hook'),
         mailboxContract.call('owner'),
