@@ -7,23 +7,26 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
+import { tokens } from '../../../../../src/config/warp.js';
 import { DEPLOYER } from '../../owners.js';
 
-export const getEthereumEclipseTETHWarpConfig = async (
+export const getEclipseEthereumWeEthsWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  // @ts-ignore - foreignDeployment configs don't conform to the TokenRouterConfig
   const eclipsemainnet: TokenRouterConfig = {
+    ...routerConfig.eclipsemainnet,
     type: TokenType.synthetic,
-    foreignDeployment: 'BJa3fPvvjKx8gRCWunoSrWBbsmieub37gsGpjp4BfTfW',
+    foreignDeployment: '7Zx4wU1QAw98MfvnPFqRh1oyumek7G5VAX6TKB3U1tcn',
     gas: 300_000,
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  const ethereum: TokenRouterConfig = {
+  let ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
     type: TokenType.collateral,
+    token: tokens.ethereum.weETHs,
     interchainSecurityModule: ethers.constants.AddressZero,
-    token: '0x19e099B7aEd41FA52718D780dDA74678113C0b32',
+    owner: DEPLOYER,
   };
 
   return {
