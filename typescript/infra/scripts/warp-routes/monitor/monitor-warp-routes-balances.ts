@@ -149,7 +149,14 @@ async function getTokenBridgedBalance(
     return { balance: 0 };
   }
 
-  const tokenPrice = await tryGetTokenPrice(warpCore, token, tokenPriceGetter);
+  let tokenPrice;
+  // Only record value for collateralized and xERC20 lockbox tokens.
+  if (
+    token.isCollateralized() ||
+    token.standard === TokenStandard.EvmHypXERC20Lockbox
+  ) {
+    tokenPrice = await tryGetTokenPrice(warpCore, token, tokenPriceGetter);
+  }
   const balance = bridgedSupply.getDecimalFormattedAmount();
 
   return {
@@ -184,7 +191,7 @@ async function getXERC20Limit(
   token: Token,
   xerc20: IHypXERC20Adapter<PopulatedTransaction>,
 ): Promise<XERC20Limit> {
-  const formatBigint = (num: bigint) => {
+  const formatBigInt = (num: bigint) => {
     return token.amount(num).getDecimalFormattedAmount();
   };
 
@@ -196,11 +203,10 @@ async function getXERC20Limit(
   ]);
 
   return {
-    tokenName: token.name,
-    mint: formatBigint(mintCurrent),
-    mintMax: formatBigint(mintMax),
-    burn: formatBigint(burnCurrent),
-    burnMax: formatBigint(burnMax),
+    mint: formatBigInt(mintCurrent),
+    mintMax: formatBigInt(mintMax),
+    burn: formatBigInt(burnCurrent),
+    burnMax: formatBigInt(burnMax),
   };
 }
 

@@ -1,5 +1,4 @@
 export interface XERC20Limit {
-  tokenName: string;
   mint: number;
   burn: number;
   mintMax: number;

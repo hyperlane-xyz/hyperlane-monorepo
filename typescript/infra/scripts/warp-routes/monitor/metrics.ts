@@ -1,34 +1,7 @@
-import { PopulatedTransaction, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
-import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
-  CoinGeckoTokenPriceGetter,
-  EvmHypXERC20Adapter,
-  EvmHypXERC20LockboxAdapter,
-  IHypXERC20Adapter,
-  MultiProtocolProvider,
-  Token,
-  TokenStandard,
-  TokenType,
-  WarpCore,
-  WarpCoreConfig,
-  WarpCoreConfigSchema,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMerge, rootLogger } from '@hyperlane-xyz/utils';
-
-import {
-  DeployEnvironment,
-  getRouterConfigsForAllVms,
-} from '../../../src/config/environment.js';
-import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
-import { startMetricsServer } from '../../../src/utils/metrics.js';
-import { readYaml } from '../../../src/utils/utils.js';
-import { getArgs } from '../../agent-utils.js';
-import { getEnvironmentConfig } from '../../core-utils.js';
+import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
 
 import { WarpRouteBalance, XERC20Limit } from './types.js';
 import { logger } from './utils.js';
@@ -42,7 +15,7 @@ interface WarpRouteMetrics {
   token_address: string;
   token_name: string;
   wallet_address: string;
-  token_type: TokenType;
+  token_standard: TokenStandard;
   warp_route_id: string;
   related_chain_names: string;
 }
@@ -52,7 +25,7 @@ const warpRouteMetricLabels: WarpRouteMetricLabels[] = [
   'token_address',
   'token_name',
   'wallet_address',
-  'token_type',
+  'token_standard',
   'warp_route_id',
   'related_chain_names',
 ];
@@ -85,14 +58,10 @@ export function updateTokenBalanceMetrics(
 ) {
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,
-    // TODO better way ?
     token_address: token.collateralAddressOrDenom || token.addressOrDenom,
     token_name: token.name,
-    // TODO better way?
     wallet_address: token.addressOrDenom,
-    // TODO can we go standard => type?
-    // @ts-ignore
-    token_type: token.standard,
+    token_standard: token.standard,
     warp_route_id: createWarpRouteConfigId(
       token.symbol,
       warpCore.getTokenChains(),
@@ -105,6 +74,15 @@ export function updateTokenBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
+  logger.debug('Wallet balance updated for chain', {
+    chain: token.chainName,
+    related_chain_names: metrics.related_chain_names,
+    warp_route_id: metrics.warp_route_id,
+    token: metrics.token_name,
+    value: balanceInfo.balance,
+    token_type: token.standard,
+  });
+
   if (balanceInfo.valueUSD) {
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
     logger.debug('Collateral value updated for chain', {
@@ -116,48 +94,21 @@ export function updateTokenBalanceMetrics(
       token_type: token.standard,
     });
   }
-  logger.debug('Wallet balance updated for chain', {
-    chain: token.chainName,
-    related_chain_names: metrics.related_chain_names,
-    warp_route_id: metrics.warp_route_id,
-    token: metrics.token_name,
-    value: balanceInfo.balance,
-    token_type: token.standard,
-  });
 }
 
 export function updateXERC20LimitsMetrics(token: Token, limits: XERC20Limit) {
-  const chain = token.chainName;
-  xERC20LimitsGauge
-    .labels({
-      chain_name: chain,
-      limit_type: 'mint',
-      token_name: limits.tokenName,
-    })
-    .set(limits.mint);
-  xERC20LimitsGauge
-    .labels({
-      chain_name: chain,
-      limit_type: 'burn',
-      token_name: limits.tokenName,
-    })
-    .set(limits.burn);
-  xERC20LimitsGauge
-    .labels({
-      chain_name: chain,
-      limit_type: 'mintMax',
-      token_name: limits.tokenName,
-    })
-    .set(limits.mintMax);
-  xERC20LimitsGauge
-    .labels({
-      chain_name: chain,
-      limit_type: 'burnMax',
-      token_name: limits.tokenName,
-    })
-    .set(limits.burnMax);
+  for (const [limitType, limit] of Object.entries(limits)) {
+    console.log('limitType', limitType, 'limit', limit);
+    xERC20LimitsGauge
+      .labels({
+        chain_name: token.chainName,
+        limit_type: limitType,
+        token_name: token.name,
+      })
+      .set(limit);
+  }
   logger.info('xERC20 limits updated for chain', {
-    chain,
+    chain: token.chainName,
     limits,
   });
 }
