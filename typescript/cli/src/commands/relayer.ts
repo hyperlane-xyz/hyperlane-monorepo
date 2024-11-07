@@ -10,17 +10,22 @@ import { log } from '../logger.js';
 import { tryReadJson, writeJson } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 
-import { symbolCommandOption } from './options.js';
+import {
+  agentTargetsCommandOption,
+  overrideRegistryUriCommandOption,
+  symbolCommandOption,
+} from './options.js';
 import { MessageOptionsArgTypes } from './send.js';
 
-const DEFAULT_RELAYER_CACHE = 'relayer-cache.json';
+const DEFAULT_RELAYER_CACHE = `${overrideRegistryUriCommandOption.default}/relayer-cache.json`;
 
 export const relayerCommand: CommandModuleWithContext<
-  MessageOptionsArgTypes & { cache: string; symbol?: string }
+  MessageOptionsArgTypes & { chains?: string; cache: string; symbol?: string }
 > = {
   command: 'relayer',
   describe: 'Run a Hyperlane message relayer',
   builder: {
+    chains: agentTargetsCommandOption,
     cache: {
       describe: 'Path to relayer cache file',
       type: 'string',
@@ -28,20 +33,26 @@ export const relayerCommand: CommandModuleWithContext<
     },
     symbol: symbolCommandOption,
   },
-  handler: async ({ context, cache, symbol }) => {
+  handler: async ({ context, cache, chains, symbol }) => {
     const chainAddresses = await context.registry.getAddresses();
     const core = HyperlaneCore.fromAddressesMap(
       chainAddresses,
       context.multiProvider,
     );
 
-    let whitelist: ChainMap<string[]> | undefined;
+    const chainsArray =
+      chains?.split(',').map((_) => _.trim()) ?? Object.keys(chainAddresses);
+
+    const whitelist: ChainMap<string[]> = Object.fromEntries(
+      chainsArray.map((chain) => [chain, []]),
+    );
+
+    // add warp route addresses to whitelist
     if (symbol) {
       const warpRoute = await selectRegistryWarpRoute(context.registry, symbol);
-      whitelist = {};
       warpRoute.tokens.forEach(
         ({ chainName, addressOrDenom }) =>
-          (whitelist![chainName] = [addressOrDenom!]),
+          (whitelist[chainName] = [addressOrDenom!]),
       );
     }
 

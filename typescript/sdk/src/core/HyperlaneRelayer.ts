@@ -38,7 +38,7 @@ const DerivedIsmConfigWithAddressSchema =
 
 const BacklogMessageSchema = z.object({
   attempts: z.number(),
-  lastAttemptTimestamp: z.number(),
+  lastAttempt: z.number(),
   message: z.string(),
   dispatchTx: z.string(),
 });
@@ -48,13 +48,15 @@ const MessageBacklogSchema = z.array(BacklogMessageSchema);
 export const RelayerCacheSchema = z.object({
   hook: z.record(z.record(DerivedHookConfigWithAddressSchema)),
   ism: z.record(z.record(DerivedIsmConfigWithAddressSchema)),
-  // backlog: MessageBacklogSchema.optional(),
+  backlog: MessageBacklogSchema,
 });
 
 type RelayerCache = z.infer<typeof RelayerCacheSchema>;
 
 type MessageWhitelist = ChainMap<Set<Address>>;
 
+// message must have origin and destination chains in the whitelist
+// if whitelist has non-empty address set for chain, message must have sender and recipient in the set
 export function messageMatchesWhitelist(
   whitelist: MessageWhitelist,
   message: ParsedMessage,
@@ -65,7 +67,7 @@ export function messageMatchesWhitelist(
   }
 
   const sender = bytes32ToAddress(message.sender);
-  if (!originAddresses.has(sender)) {
+  if (originAddresses.size !== 0 && !originAddresses.has(sender)) {
     return false;
   }
 
@@ -76,7 +78,7 @@ export function messageMatchesWhitelist(
   }
 
   const recipient = bytes32ToAddress(message.recipient);
-  if (!destinationAddresses.has(recipient)) {
+  if (destinationAddresses.size !== 0 && !destinationAddresses.has(recipient)) {
     return false;
   }
 
@@ -91,7 +93,7 @@ export class HyperlaneRelayer {
 
   protected readonly whitelist: ChainMap<Set<Address>> | undefined;
 
-  public backlog: z.TypeOf<typeof MessageBacklogSchema> = [];
+  public backlog: RelayerCache['backlog'];
   public cache: RelayerCache | undefined;
 
   protected stopRelayingHandler: ((chains?: ChainName[]) => void) | undefined;
@@ -101,7 +103,7 @@ export class HyperlaneRelayer {
   constructor({
     core,
     caching = true,
-    retryTimeout = 5 * 1000,
+    retryTimeout = 1000,
     whitelist = undefined,
   }: {
     core: HyperlaneCore;
@@ -130,6 +132,7 @@ export class HyperlaneRelayer {
       this.cache = {
         hook: {},
         ism: {},
+        backlog: [],
       };
     }
   }
@@ -246,7 +249,7 @@ export class HyperlaneRelayer {
       dispatchTx,
     });
 
-    this.logger.info({ message, metadata }, `Relaying message ${message.id}`);
+    this.logger.info(`Relaying message ${message.id}`);
     return this.core.deliver(message, metadata);
   }
 
@@ -275,8 +278,8 @@ export class HyperlaneRelayer {
     while (this.stopRelayingHandler) {
       const backlogMsg = this.backlog.shift();
 
-      // if backlog is empty, wait 1s and try again
       if (!backlogMsg) {
+        this.logger.trace('Backlog empty, waiting 1s');
         await sleep(1000);
         continue;
       }
@@ -284,8 +287,7 @@ export class HyperlaneRelayer {
       // linear backoff (attempts * retryTimeout)
       if (
         Date.now() <
-        backlogMsg.lastAttemptTimestamp +
-          backlogMsg.attempts * this.retryTimeout
+        backlogMsg.lastAttempt + backlogMsg.attempts * this.retryTimeout
       ) {
         this.backlog.push(backlogMsg);
         continue;
@@ -305,15 +307,12 @@ export class HyperlaneRelayer {
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
       } catch (error) {
         this.logger.error(
-          `Failed to relay message ${id} from backlog (attempt #${
-            attempts + 1
-          })`,
+          `Failed to relay message ${id} (attempt #${attempts + 1})`,
         );
         this.backlog.push({
+          ...backlogMsg,
           attempts: attempts + 1,
-          lastAttemptTimestamp: Date.now(),
-          message,
-          dispatchTx,
+          lastAttempt: Date.now(),
         });
       }
     }
@@ -330,6 +329,8 @@ export class HyperlaneRelayer {
   start(): void {
     assert(!this.stopRelayingHandler, 'Relayer already started');
 
+    this.backlog = this.cache?.backlog ?? [];
+
     const { removeHandler } = this.core.onDispatch(async (message, event) => {
       if (
         this.whitelist &&
@@ -344,7 +345,7 @@ export class HyperlaneRelayer {
 
       this.backlog.push({
         attempts: 0,
-        lastAttemptTimestamp: 0,
+        lastAttempt: Date.now(),
         message: message.message,
         dispatchTx: event.transactionHash,
       });
@@ -360,5 +361,9 @@ export class HyperlaneRelayer {
     assert(this.stopRelayingHandler, 'Relayer not started');
     this.stopRelayingHandler(this.whitelistChains());
     this.stopRelayingHandler = undefined;
+
+    if (this.cache) {
+      this.cache.backlog = this.backlog;
+    }
   }
 }
