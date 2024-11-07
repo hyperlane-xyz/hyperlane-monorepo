@@ -93,8 +93,14 @@ export class StarknetCoreModule {
   async update(
     expectedConfig: Partial<CoreConfig>,
     args: { mailboxContract: Contract; chain: ChainNameOrId; owner: string },
-  ): Promise<{ defaultIsm?: string; requiredHook?: string }> {
-    const result: { defaultIsm?: string; requiredHook?: string } = {};
+  ): Promise<{ defaultIsm?: string; requiredHook?: string; owner?: string }> {
+    const result: {
+      defaultIsm?: string;
+      requiredHook?: string;
+      owner?: string;
+    } = {};
+
+    const actualDefaultIsmConfig = await this.read(args.mailboxContract);
 
     if (expectedConfig.defaultIsm) {
       const defaultIsm = await this.deployer.deployIsm({
@@ -132,6 +138,24 @@ export class StarknetCoreModule {
       );
 
       result.requiredHook = merkleTreeHook;
+    }
+
+    if (
+      expectedConfig.owner &&
+      actualDefaultIsmConfig.owner !== expectedConfig.owner
+    ) {
+      this.logger.trace(`Updating mailbox owner ${expectedConfig.owner}..`);
+      const { transaction_hash: transferOwnershipTxHash } =
+        await args.mailboxContract.invoke('transfer_ownership', [
+          expectedConfig.owner,
+        ]);
+
+      await this.signer.waitForTransaction(transferOwnershipTxHash);
+      this.logger.trace(
+        `Transaction hash for updated required hook: ${transferOwnershipTxHash}`,
+      );
+
+      result.owner = expectedConfig.owner;
     }
 
     return result;
