@@ -42,7 +42,6 @@ export async function runCoreDeploy(params: DeployParams) {
   let chain = params.chain;
 
   const {
-    signer,
     isDryRun,
     chainMetadata,
     dryRunChain,
@@ -61,13 +60,14 @@ export async function runCoreDeploy(params: DeployParams) {
       'Select chain to connect:',
     );
   }
-
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await getOrRequestApiKeys([chain], chainMetadata);
 
+  const signer = multiProvider.getSigner(chain);
+
   const deploymentParams: DeployParams = {
-    context,
+    context: { ...context, signer },
     chain,
     config,
   };

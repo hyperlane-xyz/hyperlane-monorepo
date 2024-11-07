@@ -62,7 +62,6 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
-import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { getOrRequestApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -70,9 +69,7 @@ import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
-  isFile,
   readYamlOrJson,
-  runFileSelectionStep,
   writeYamlOrJson,
 } from '../utils/files.js';
 
@@ -95,43 +92,24 @@ interface WarpApplyParams extends DeployParams {
 
 export async function runWarpRouteDeploy({
   context,
-  warpRouteDeploymentConfigPath,
 }: {
   context: WriteCommandContext;
-  warpRouteDeploymentConfigPath?: string;
 }) {
-  const { signer, skipConfirmation, chainMetadata } = context;
+  const {
+    skipConfirmation,
+    chainMetadata,
+    warpRouteConfig,
+    chains: contextChains,
+  } = context;
 
-  if (
-    !warpRouteDeploymentConfigPath ||
-    !isFile(warpRouteDeploymentConfigPath)
-  ) {
-    if (skipConfirmation)
-      throw new Error('Warp route deployment config required');
-    warpRouteDeploymentConfigPath = await runFileSelectionStep(
-      './configs',
-      'Warp route deployment config',
-      'warp',
-    );
-  } else {
-    log(
-      `Using warp route deployment config at ${warpRouteDeploymentConfigPath}`,
-    );
-  }
-  const warpRouteConfig = await readWarpRouteDeployConfig(
-    warpRouteDeploymentConfigPath,
-    context,
-  );
-
-  const chains = Object.keys(warpRouteConfig);
-
+  const chains = contextChains!;
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
 
   const deploymentParams = {
     context,
-    warpDeployConfig: warpRouteConfig,
+    warpDeployConfig: warpRouteConfig!,
   };
 
   await runDeployPlanStep(deploymentParams);
@@ -142,9 +120,7 @@ export async function runWarpRouteDeploy({
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const userAddress = await signer.getAddress();
-
-  const initialBalances = await prepareDeploy(context, userAddress, chains);
+  const initialBalances = await prepareDeploy(context, null, chains);
 
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
@@ -155,7 +131,7 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context);
 
-  await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
+  await completeDeploy(context, 'warp', initialBalances, null, chains!);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {

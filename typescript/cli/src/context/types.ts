@@ -5,8 +5,12 @@ import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
   ChainMetadata,
+  ChainName,
   MultiProvider,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
+
+// TODO: revisit ContextSettings & CommandContext for improvements
 
 export interface ContextSettings {
   registryUri: string;
@@ -16,6 +20,7 @@ export interface ContextSettings {
   requiresKey?: boolean;
   disableProxy?: boolean;
   skipConfirmation?: boolean;
+  signers?: any;
 }
 
 export interface CommandContext {
@@ -25,6 +30,10 @@ export interface CommandContext {
   skipConfirmation: boolean;
   key?: string;
   signer?: ethers.Signer;
+  signers?: ethers.Signer[];
+  chain?: ChainName;
+  chains?: ChainName[];
+  warpRouteConfig?: WarpRouteDeployConfig;
 }
 
 export interface WriteCommandContext extends CommandContext {

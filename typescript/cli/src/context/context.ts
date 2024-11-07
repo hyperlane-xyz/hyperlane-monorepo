@@ -16,14 +16,20 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
+import {
+  DEFAULT_STRATEGY_CONFIG_PATH, // DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
+} from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
+import { readDefaultStrategyConfig } from '../config/strategy.js';
+// import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
-import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
+import { getImpersonatedSigner } from '../utils/keys.js';
 
+import { SignerStrategyFactory } from './strategies/signer/signer.js';
 import {
   CommandContext,
   ContextSettings,
@@ -32,6 +38,7 @@ import {
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
+
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
@@ -42,14 +49,42 @@ export async function contextMiddleware(argv: Record<string, any>) {
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
   };
+
   if (!isDryRun && settings.fromAddress)
     throw new Error(
       "'--from-address' or '-f' should only be used for dry-runs",
     );
+
   const context = isDryRun
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
   argv.context = context;
+}
+
+export async function signerMiddleware(argv: Record<string, any>) {
+  const { requiresKey, multiProvider } = argv.context;
+
+  if (!requiresKey) return argv;
+
+  const defaultStrategy = await readDefaultStrategyConfig(
+    argv.strategy || DEFAULT_STRATEGY_CONFIG_PATH,
+  );
+
+  // Select appropriate strategy
+  const strategy = SignerStrategyFactory.createStrategy(argv);
+
+  // Determine chains
+  const chains = await strategy.determineChains(argv);
+
+  // Create context manager
+  const contextManager = strategy.createContextManager(chains, defaultStrategy);
+
+  // Figure out if a command requires --origin and --destination
+
+  // Configure signers
+  await strategy.configureSigners(argv, multiProvider, contextManager);
+
+  return argv;
 }
 
 /**
@@ -63,21 +98,18 @@ export async function getContext({
   requiresKey,
   skipConfirmation,
   disableProxy = false,
+  signers,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
-
-  let signer: ethers.Wallet | undefined = undefined;
-  if (key || requiresKey) {
-    ({ key, signer } = await getSigner({ key, skipConfirmation }));
-  }
-  const multiProvider = await getMultiProvider(registry, signer);
+  const multiProvider = await getMultiProvider(registry);
 
   return {
     registry,
+    requiresKey,
     chainMetadata: multiProvider.metadata,
     multiProvider,
     key,
-    signer,
+    signers,
     skipConfirmation: !!skipConfirmation,
   } as CommandContext;
 }

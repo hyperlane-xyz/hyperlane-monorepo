@@ -41,7 +41,7 @@ export async function runPreflightChecksForChains({
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { signer, multiProvider } = context;
+  const { multiProvider } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -49,15 +49,15 @@ export async function runPreflightChecksForChains({
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
     if (metadata.protocol !== ProtocolType.Ethereum)
       throw new Error('Only Ethereum chains are supported for now');
+    const signer = multiProvider.getSigner(chain);
+    assertSigner(signer);
+    logGreen(`✅ ${chain} signer is valid`);
   }
   logGreen('✅ Chains are valid');
 
-  assertSigner(signer);
-  logGreen('✅ Signer is valid');
-
   await nativeBalancesAreSufficient(
     multiProvider,
-    signer,
+    null,
     chainsToGasCheck ?? chains,
     minGas,
   );
@@ -70,8 +70,13 @@ export async function runDeployPlanStep({
   context: WriteCommandContext;
   chain: ChainName;
 }) {
-  const { signer, chainMetadata: chainMetadataMap, skipConfirmation } = context;
-  const address = await signer.getAddress();
+  const {
+    chainMetadata: chainMetadataMap,
+    multiProvider,
+    skipConfirmation,
+  } = context;
+
+  const address = await multiProvider.getSigner(chain).getAddress();
 
   logBlue('\nDeployment plan');
   logGray('===============');
@@ -124,7 +129,7 @@ export function isZODISMConfig(filepath: string): boolean {
 
 export async function prepareDeploy(
   context: WriteCommandContext,
-  userAddress: Address,
+  userAddress: Address | null,
   chains: ChainName[],
 ): Promise<Record<string, BigNumber>> {
   const { multiProvider, isDryRun } = context;
@@ -134,6 +139,7 @@ export async function prepareDeploy(
       const provider = isDryRun
         ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
         : multiProvider.getProvider(chain);
+      const userAddress = await multiProvider.getSigner(chain).getAddress();
       const currentBalance = await provider.getBalance(userAddress);
       initialBalances[chain] = currentBalance;
     }),
@@ -145,7 +151,7 @@ export async function completeDeploy(
   context: WriteCommandContext,
   command: string,
   initialBalances: Record<string, BigNumber>,
-  userAddress: Address,
+  userAddress: Address | null,
   chains: ChainName[],
 ) {
   const { multiProvider, isDryRun } = context;
@@ -154,6 +160,7 @@ export async function completeDeploy(
     const provider = isDryRun
       ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
       : multiProvider.getProvider(chain);
+    const userAddress = await multiProvider.getSigner(chain).getAddress();
     const currentBalance = await provider.getBalance(userAddress);
     const balanceDelta = initialBalances[chain].sub(currentBalance);
     if (isDryRun && balanceDelta.lt(0)) break;

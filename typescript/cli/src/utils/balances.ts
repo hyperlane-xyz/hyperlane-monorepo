@@ -7,14 +7,13 @@ import { logGreen, logRed } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  signer: ethers.Signer,
+  signer: ethers.Signer | null,
   chains: ChainName[],
   minGas: string,
 ) {
-  const address = await signer.getAddress();
-
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
+    const address = multiProvider.getSigner(chain).getAddress();
     const provider = multiProvider.getProvider(chain);
     const gasPrice = await provider.getGasPrice();
     const minBalanceWei = gasPrice.mul(minGas).toString();

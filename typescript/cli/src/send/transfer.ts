@@ -106,8 +106,9 @@ async function executeDelivery({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { signer, multiProvider, registry } = context;
+  const { multiProvider, registry } = context;
 
+  const signer = multiProvider.getSigner(origin);
   const signerAddress = await signer.getAddress();
   recipient ||= signerAddress;
 
@@ -136,12 +137,12 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  const senderAddress = await signer.getAddress();
+  // const senderAddress = await multiProvider.getSigner(origin).getAddress();
   const errors = await warpCore.validateTransfer({
     originTokenAmount: token.amount(amount),
     destination,
-    recipient: recipient ?? senderAddress,
-    sender: senderAddress,
+    recipient: recipient ?? signerAddress,
+    sender: signerAddress,
   });
   if (errors) {
     logRed('Error validating transfer', JSON.stringify(errors));
@@ -152,8 +153,8 @@ async function executeDelivery({
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
-    sender: senderAddress,
-    recipient: recipient ?? senderAddress,
+    sender: signerAddress,
+    recipient: recipient ?? signerAddress,
   });
 
   const txReceipts = [];
@@ -172,7 +173,7 @@ async function executeDelivery({
   const parsed = parseWarpRouteMessage(message.parsed.body);
 
   logBlue(
-    `Sent transfer from sender (${senderAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
+    `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
   log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);

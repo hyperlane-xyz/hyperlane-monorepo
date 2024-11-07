@@ -10,6 +10,7 @@ import {
 export const SubmitterMetadataSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal(TxSubmitterType.JSON_RPC),
+    privateKey: z.string().optional(),
   }),
   z.object({
     type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
