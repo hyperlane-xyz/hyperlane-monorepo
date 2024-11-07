@@ -16,6 +16,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
+import { getWarpCoreConfig } from '../../../config/registry.js';
 import {
   DeployEnvironment,
   getRouterConfigsForAllVms,
@@ -23,7 +24,7 @@ import {
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 import { startMetricsServer } from '../../../src/utils/metrics.js';
 import { readYaml } from '../../../src/utils/utils.js';
-import { getArgs } from '../../agent-utils.js';
+import { getArgs, withWarpRouteIdRequired } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 import {
@@ -34,37 +35,16 @@ import {
 import { WarpRouteBalance, XERC20Limit } from './types.js';
 import { gracefullyHandleError, logger } from './utils.js';
 
-function readWarpCoreConfig(filePath: string): WarpCoreConfig {
-  const config = readYaml(filePath);
-  if (!config) throw new Error(`No warp core config found at ${filePath}`);
-  const result = WarpCoreConfigSchema.safeParse(config);
-  if (!result.success) {
-    const errorMessages = result.error.issues.map(
-      (issue: any) => `${issue.path} => ${issue.message}`,
-    );
-    throw new Error(`Invalid warp core config:\n ${errorMessages.join('\n')}`);
-  }
-  return result.data;
-}
-
 async function main() {
-  const { checkFrequency, filePath, environment } = await getArgs()
-    .describe('checkFrequency', 'frequency to check balances in ms')
-    .demandOption('checkFrequency')
-    .alias('v', 'checkFrequency') // v as in Greek letter nu
-    .number('checkFrequency')
-    .alias('f', 'filePath')
-    .describe(
-      'filePath',
-      'indicate the filepatch to the warp route yaml file relative to typescript/infra',
-    )
-    .demandOption('filePath')
-    .string('filePath')
-    .parse();
+  const { checkFrequency, environment, warpRouteId } =
+    await withWarpRouteIdRequired(getArgs())
+      .describe('checkFrequency', 'frequency to check balances in ms')
+      .demandOption('checkFrequency')
+      .alias('v', 'checkFrequency') // v as in Greek letter nu
+      .number('checkFrequency')
+      .parse();
 
   startMetricsServer(metricsRegister);
-
-  const warpCoreConfig = readWarpCoreConfig(filePath);
 
   const envConfig = getEnvironmentConfig(environment);
   const registry = await envConfig.getRegistry();
@@ -80,6 +60,7 @@ async function main() {
   const multiProtocolProvider = new MultiProtocolProvider(
     objMerge(chainMetadata, routerConfig),
   );
+  const warpCoreConfig = getWarpCoreConfig(warpRouteId);
   const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
 
   await pollAndUpdateWarpRouteMetrics(checkFrequency, warpCore, chainMetadata);
@@ -97,7 +78,6 @@ async function pollAndUpdateWarpRouteMetrics(
   );
 
   setInterval(async () => {
-    // Is this needed? maybe
     await gracefullyHandleError(async () => {
       await Promise.all(
         warpCore.tokens.map((token) =>
@@ -121,6 +101,9 @@ async function updateTokenMetrics(
         token,
         tokenPriceGetter,
       );
+      if (!balanceInfo) {
+        return;
+      }
       updateTokenBalanceMetrics(warpCore, token, balanceInfo);
     }, 'Getting bridged balance and value'),
   ];
@@ -142,11 +125,11 @@ async function getTokenBridgedBalance(
   warpCore: WarpCore,
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
-): Promise<WarpRouteBalance> {
+): Promise<WarpRouteBalance | undefined> {
   const bridgedSupply = await token.getBridgedSupply(warpCore.multiProvider);
   if (!bridgedSupply) {
     logger.warn('Bridged supply not found for token', token);
-    return { balance: 0 };
+    return undefined;
   }
 
   let tokenPrice;
@@ -235,7 +218,7 @@ async function tryGetTokenPrice(
   }
 
   if (!coinGeckoId) {
-    logger.warn('CoinGecko ID missing for token', token);
+    logger.warn('CoinGecko ID missing for token', token.symbol);
     return undefined;
   }
 
