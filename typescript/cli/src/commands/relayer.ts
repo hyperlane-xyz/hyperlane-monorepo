@@ -19,7 +19,7 @@ export const relayerCommand: CommandModuleWithContext<
   MessageOptionsArgTypes & { cache: string; symbol?: string }
 > = {
   command: 'relayer',
-  describe: 'Run a Hyperlane message self-relayer',
+  describe: 'Run a Hyperlane message relayer',
   builder: {
     cache: {
       describe: 'Path to relayer cache file',
@@ -46,6 +46,7 @@ export const relayerCommand: CommandModuleWithContext<
     }
 
     const relayer = new HyperlaneRelayer({ core, whitelist });
+    // TODO: fix merkle hook stubbing
 
     const jsonCache = tryReadJson(cache);
     if (jsonCache) {
