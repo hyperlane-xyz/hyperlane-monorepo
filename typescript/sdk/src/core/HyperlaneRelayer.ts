@@ -38,6 +38,7 @@ const DerivedIsmConfigWithAddressSchema =
 
 const BacklogMessageSchema = z.object({
   attempts: z.number(),
+  lastAttemptTimestamp: z.number(),
   message: z.string(),
   dispatchTx: z.string(),
 });
@@ -280,6 +281,16 @@ export class HyperlaneRelayer {
         continue;
       }
 
+      // linear backoff (attempts * retryTimeout)
+      if (
+        Date.now() <
+        backlogMsg.lastAttemptTimestamp +
+          backlogMsg.attempts * this.retryTimeout
+      ) {
+        this.backlog.push(backlogMsg);
+        continue;
+      }
+
       const { message, dispatchTx, attempts } = backlogMsg;
       const id = messageId(message);
       const parsed = parseMessage(message);
@@ -293,13 +304,17 @@ export class HyperlaneRelayer {
         // TODO: handle batching
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
       } catch (error) {
-        this.logger.error(`Failed to relay message from backlog`);
+        this.logger.error(
+          `Failed to relay message ${id} from backlog (attempt #${
+            attempts + 1
+          })`,
+        );
         this.backlog.push({
           attempts: attempts + 1,
+          lastAttemptTimestamp: Date.now(),
           message,
           dispatchTx,
         });
-        await sleep(this.retryTimeout);
       }
     }
   }
@@ -329,6 +344,7 @@ export class HyperlaneRelayer {
 
       this.backlog.push({
         attempts: 0,
+        lastAttemptTimestamp: 0,
         message: message.message,
         dispatchTx: event.transactionHash,
       });
