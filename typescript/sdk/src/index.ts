@@ -419,11 +419,14 @@ export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypXERC20Adapter,
+  EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
+  IHypXERC20Adapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,

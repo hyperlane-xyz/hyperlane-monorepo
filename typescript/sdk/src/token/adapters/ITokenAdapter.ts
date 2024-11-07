@@ -23,6 +23,7 @@ export interface InterchainGasQuote {
 
 export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
+  getTotalSupply(): Promise<bigint | undefined>;
   getMetadata(isNft?: boolean): Promise<TokenMetadata>;
   isApproveRequired(
     owner: Address,
@@ -43,5 +44,8 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
 
 export interface IHypXERC20Adapter<Tx> extends IHypTokenAdapter<Tx> {
   getMintLimit(): Promise<bigint>;
+  getMintMaxLimit(): Promise<bigint>;
+
   getBurnLimit(): Promise<bigint>;
+  getBurnMaxLimit(): Promise<bigint>;
 }

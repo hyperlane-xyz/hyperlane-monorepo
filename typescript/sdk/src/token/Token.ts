@@ -24,6 +24,7 @@ import {
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
+  XERC20_STANDARDS,
 } from './TokenStandard.js';
 import {
   CwHypCollateralAdapter,
@@ -341,6 +342,44 @@ export class Token implements IToken {
     return new TokenAmount(balance, this);
   }
 
+  async getBridgedSupply(
+    multiProvider: MultiProtocolProvider,
+  ): Promise<TokenAmount | undefined> {
+    const adapter = this.getAdapter(multiProvider);
+    if (this.standard === TokenStandard.EvmHypXERC20Lockbox) {
+      // The EvmHypXERC20Lockbox escrows bridged tokens in the lockbox.
+      const xerc20LockboxAdapter = adapter as EvmHypXERC20LockboxAdapter;
+      const lockboxAddress =
+        await xerc20LockboxAdapter.hypXERC20Lockbox.lockbox();
+      const balance = await xerc20LockboxAdapter.getBalance(lockboxAddress);
+      return new TokenAmount(balance, this);
+    } else if (this.standard === TokenStandard.EvmHypXERC20) {
+      // It's possible for the XERC20 to have other bridges that can mint tokens,
+      // but the only insight we're capable of getting from a view call is the
+      // total supply of the xERC20 itself.
+      const xerc20Adapter = adapter as EvmHypXERC20Adapter;
+      const xerc20TokenAddress = await xerc20Adapter.hypXERC20.wrappedToken();
+      const xerc20 = new EvmTokenAdapter(this.chainName, multiProvider, {
+        token: xerc20TokenAddress,
+      });
+      const totalSupply = await xerc20.getTotalSupply();
+      return new TokenAmount(totalSupply, this);
+    } else if (this.isCollateralized()) {
+      // For any collateralized token, the tokens are escrowed in the router itself.
+      const routerBalance = await adapter.getBalance(this.addressOrDenom);
+      return new TokenAmount(routerBalance, this);
+    } else if (this.isHypToken()) {
+      // If it's a HypToken and not collateralized, it's a synthetic, so just
+      // get the total supply.
+      const totalSupply = await adapter.getTotalSupply();
+      if (totalSupply) {
+        return new TokenAmount(totalSupply, this);
+      }
+    }
+    // Don't support any other type (e.g. IBC'd tokens, other new special types)
+    return undefined;
+  }
+
   amount(amount: Numberish): TokenAmount {
     return new TokenAmount(amount, this);
   }
@@ -353,8 +392,16 @@ export class Token implements IToken {
     return Object.values(PROTOCOL_TO_NATIVE_STANDARD).includes(this.standard);
   }
 
+  isCollateralized(): boolean {
+    return TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard);
+  }
+
   isHypToken(): boolean {
     return TOKEN_HYP_STANDARDS.includes(this.standard);
+  }
+
+  isXerc20(): boolean {
+    return XERC20_STANDARDS.includes(this.standard);
   }
 
   isIbcToken(): boolean {
@@ -417,7 +464,7 @@ export class Token implements IToken {
 
     if (this.equals(token)) return true;
 
-    if (TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard)) {
+    if (this.isCollateralized()) {
       if (
         this.collateralAddressOrDenom &&
         eqAddress(this.collateralAddressOrDenom, token.addressOrDenom)

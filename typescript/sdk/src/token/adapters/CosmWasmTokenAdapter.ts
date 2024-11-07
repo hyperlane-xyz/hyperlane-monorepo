@@ -90,6 +90,10 @@ export class CwNativeTokenAdapter
       ],
     };
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    return undefined;
+  }
 }
 
 export type CW20Metadata = TokenMetadata;
@@ -171,6 +175,10 @@ export class CwTokenAdapter
         amount: weiAmountOrId.toString(),
       },
     });
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    return undefined;
   }
 }
 

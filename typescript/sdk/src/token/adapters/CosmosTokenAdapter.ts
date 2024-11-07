@@ -61,6 +61,10 @@ export class CosmNativeTokenAdapter
   ): Promise<MsgTransferEncodeObject> {
     throw new Error('TODO not yet implemented');
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    return undefined;
+  }
 }
 
 // Interacts with native tokens on a Cosmos chain and adds support for IBC transfers

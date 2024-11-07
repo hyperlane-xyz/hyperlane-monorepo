@@ -113,6 +113,10 @@ export class SealevelNativeTokenAdapter
       }),
     );
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    return undefined;
+  }
 }
 
 // Interacts with SPL token programs
@@ -189,6 +193,10 @@ export class SealevelTokenAdapter
       true,
       this.getTokenProgramId(),
     );
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    return undefined;
   }
 }
 
