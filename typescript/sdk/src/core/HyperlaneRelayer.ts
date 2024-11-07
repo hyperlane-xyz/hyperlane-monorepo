@@ -121,10 +121,6 @@ export class HyperlaneRelayer {
         whitelist,
         (_chain, addresses) => new Set(addresses),
       );
-      for (const [chain, addresses] of Object.entries(this.whitelist)) {
-        const chainId = this.multiProvider.getChainId(chain);
-        this.whitelist[chainId] = addresses;
-      }
     }
 
     this.backlog = [];
@@ -218,6 +214,12 @@ export class HyperlaneRelayer {
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
   ): Promise<ethers.ContractReceipt> {
     if (this.whitelist) {
+      // add human readable names for use in whitelist checks
+      message.parsed = {
+        originChain: this.core.getOrigin(message),
+        destinationChain: this.core.getDestination(message),
+        ...message.parsed,
+      };
       assert(
         messageMatchesWhitelist(this.whitelist, message.parsed),
         `Message ${message.id} does not match whitelist`,
@@ -319,11 +321,7 @@ export class HyperlaneRelayer {
   }
 
   protected whitelistChains() {
-    return this.whitelist
-      ? Object.keys(this.whitelist).filter(
-          (chain) => chain in this.core.contractsMap,
-        )
-      : undefined;
+    return this.whitelist ? Object.keys(this.whitelist) : undefined;
   }
 
   start(): void {
