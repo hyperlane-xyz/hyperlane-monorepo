@@ -4977,7 +4977,7 @@
       "domainId": 1000041455,
       "gasCurrencyCoinGeckoId": "aleph-zero",
       "index": {
-        "from": 3421962
+        "from": 4243354
       },
       "name": "alephzeroevmmainnet",
       "nativeToken": {
@@ -5059,9 +5059,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "maxPriorityFeePerGas": 1000000000
-      },
       "aggregationHook": "0x219c20baA25f296DC83B0Fa8F0B2aFc951625C20",
       "domainRoutingIsm": "0xdAEe23c103419600F3B96f4DbA3858d4a1c3eaaf",
       "domainRoutingIsmFactory": "0x2f0E57527Bb37E5E064EF243fad56CCE6241906c",
@@ -5089,6 +5086,9 @@
       "validatorAnnounce": "0x16625230dD6cFe1B2bec3eCaEc7d43bA3A902CD6",
       "index": {
         "from": 18075501
+      },
+      "transactionOverrides": {
+        "maxPriorityFeePerGas": 1000000000
       }
     },
     "flame": {
@@ -5191,9 +5191,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": 100000000
-      },
       "aggregationHook": "0xB66fd84619eDd59822c5748DCB4F1F78B7D8093D",
       "domainRoutingIsm": "0xa2d4E4dF4972d5196c45bD7f9287827a712Dd27a",
       "domainRoutingIsmFactory": "0x693A4cE39d99e46B04cb562329e3F0141cA17331",
@@ -5221,6 +5218,9 @@
       "validatorAnnounce": "0x5C6699c133A583d389Ba7e0bDD4993e2e63fA804",
       "index": {
         "from": 6777659
+      },
+      "transactionOverrides": {
+        "gasPrice": 100000000
       }
     },
     "immutablezkevmmainnet": {
@@ -5261,10 +5261,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "maxFeePerGas": 100000000000,
-        "maxPriorityFeePerGas": 100000000000
-      },
       "aggregationHook": "0x10b1F811a649A82250a98fDae5494E440B0A9F89",
       "domainRoutingIsm": "0x34397CaA9e6c1A5EF6440E82C46a83D1ef779dcF",
       "domainRoutingIsmFactory": "0xbed53B5C5BCE9433f25A2A702e6df13E22d84Ae9",
@@ -5292,6 +5288,10 @@
       "validatorAnnounce": "0x8c794a781327b819416E7b67908f1D22397f1E67",
       "index": {
         "from": 14336020
+      },
+      "transactionOverrides": {
+        "maxFeePerGas": 100000000000,
+        "maxPriorityFeePerGas": 100000000000
       }
     },
     "lumia": {
@@ -5546,7 +5546,7 @@
       "domainId": 1000012617,
       "gasCurrencyCoinGeckoId": "ethereum",
       "index": {
-        "from": 541753
+        "from": 688784
       },
       "name": "rarichain",
       "nativeToken": {
@@ -5628,9 +5628,6 @@
         }
       ],
       "technicalStack": "other",
-      "transactionOverrides": {
-        "gasPrice": 70000000
-      },
       "aggregationHook": "0x97efE0C88EBEBB8382473233a4975fC6b23DCe25",
       "domainRoutingIsm": "0xB6F0f1267B01C27326F61a4B4fe2c73751802685",
       "domainRoutingIsmFactory": "0x1052eF3419f26Bec74Ed7CEf4a4FA6812Bc09908",
@@ -5658,6 +5655,9 @@
       "validatorAnnounce": "0x20a0A32a110362920597F72974E1E0d7e25cA20a",
       "index": {
         "from": 6878186
+      },
+      "transactionOverrides": {
+        "gasPrice": 70000000
       }
     },
     "superpositionmainnet": {
@@ -5683,7 +5683,7 @@
       "domainId": 1000055244,
       "gasCurrencyCoinGeckoId": "ethereum",
       "index": {
-        "from": 1201
+        "from": 2743
       },
       "name": "superpositionmainnet",
       "nativeToken": {
