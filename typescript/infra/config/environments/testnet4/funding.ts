@@ -26,6 +26,7 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   // desired balance config
   desiredBalancePerChain: {
+    abstracttestnet: '0.1',
     alephzeroevmtestnet: '2',
     alfajores: '5',
     arbitrumsepolia: '0.1',
@@ -57,6 +58,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sonictestnet: '1',
     suavetoliman: '0.1',
     superpositiontestnet: '1',
+    treasuretopaz: '5',
     unichaintestnet: '0.1',
   },
   desiredKathyBalancePerChain: {

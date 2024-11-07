@@ -41,6 +41,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   typeof testnet4SupportedChainNames
 > = {
   [Role.Validator]: {
+    abstracttestnet: true,
     alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
@@ -70,9 +71,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
   [Role.Relayer]: {
+    abstracttestnet: true,
     alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
@@ -102,9 +105,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
   [Role.Scraper]: {
+    abstracttestnet: true,
     alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
@@ -136,6 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: false,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
 };
