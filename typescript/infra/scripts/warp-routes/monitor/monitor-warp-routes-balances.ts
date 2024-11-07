@@ -34,7 +34,7 @@ import {
 import { WarpRouteBalance, XERC20Limit } from './types.js';
 import { gracefullyHandleError, logger } from './utils.js';
 
-export function readWarpCoreConfig(filePath: string): WarpCoreConfig {
+function readWarpCoreConfig(filePath: string): WarpCoreConfig {
   const config = readYaml(filePath);
   if (!config) throw new Error(`No warp core config found at ${filePath}`);
   const result = WarpCoreConfigSchema.safeParse(config);
@@ -47,7 +47,7 @@ export function readWarpCoreConfig(filePath: string): WarpCoreConfig {
   return result.data;
 }
 
-async function main(): Promise<boolean> {
+async function main() {
   const { checkFrequency, filePath, environment } = await getArgs()
     .describe('checkFrequency', 'frequency to check balances in ms')
     .demandOption('checkFrequency')
@@ -83,8 +83,6 @@ async function main(): Promise<boolean> {
   const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
 
   await pollAndUpdateWarpRouteMetrics(checkFrequency, warpCore, chainMetadata);
-
-  return true;
 }
 
 // Indefinitely loops, updating warp route metrics at the specified frequency.
