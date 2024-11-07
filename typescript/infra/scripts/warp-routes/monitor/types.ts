@@ -1,4 +1,4 @@
-export interface xERC20Limit {
+export interface XERC20Limit {
   tokenName: string;
   mint: number;
   burn: number;
@@ -6,7 +6,7 @@ export interface xERC20Limit {
   burnMax: number;
 }
 
-export interface WarpRouteInfo {
+export interface WarpRouteBalance {
   balance: number;
   valueUSD?: number;
 }

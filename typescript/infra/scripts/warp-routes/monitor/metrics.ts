@@ -30,7 +30,7 @@ import { readYaml } from '../../../src/utils/utils.js';
 import { getArgs } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
-import { WarpRouteInfo, xERC20Limit } from './types.js';
+import { WarpRouteBalance, XERC20Limit } from './types.js';
 import { logger } from './utils.js';
 
 export const metricsRegister = new Registry();
@@ -81,7 +81,7 @@ const xERC20LimitsGauge = new Gauge({
 export function updateTokenBalanceMetrics(
   warpCore: WarpCore,
   token: Token,
-  balanceInfo: WarpRouteInfo,
+  balanceInfo: WarpRouteBalance,
 ) {
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,
@@ -126,7 +126,7 @@ export function updateTokenBalanceMetrics(
   });
 }
 
-export function updateXERC20LimitsMetrics(token: Token, limits: xERC20Limit) {
+export function updateXERC20LimitsMetrics(token: Token, limits: XERC20Limit) {
   const chain = token.chainName;
   xERC20LimitsGauge
     .labels({
