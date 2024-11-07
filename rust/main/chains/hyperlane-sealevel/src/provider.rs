@@ -1,10 +1,13 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use lazy_static::lazy_static;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedTransaction, EncodedTransactionWithStatusMeta,
-    UiMessage, UiTransaction, UiTransactionStatusMeta,
+    UiInstruction, UiMessage, UiParsedInstruction, UiParsedMessage, UiTransaction,
+    UiTransactionStatusMeta,
 };
 use tracing::warn;
 
@@ -18,21 +21,30 @@ use crate::error::HyperlaneSealevelError;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 use crate::{ConnectionConf, SealevelRpcClient};
 
+lazy_static! {
+    static ref NATIVE_PROGRAMS: HashSet<String> = HashSet::from([
+        solana_sdk::bpf_loader_upgradeable::ID.to_string(),
+        solana_sdk::compute_budget::ID.to_string(),
+        solana_sdk::config::program::ID.to_string(),
+        solana_sdk::ed25519_program::ID.to_string(),
+        solana_sdk::secp256k1_program::ID.to_string(),
+        solana_sdk::stake::program::ID.to_string(),
+        solana_sdk::system_program::ID.to_string(),
+        solana_sdk::vote::program::ID.to_string(),
+    ]);
+}
+
 /// A wrapper around a Sealevel provider to get generic blockchain information.
 #[derive(Debug)]
 pub struct SealevelProvider {
     domain: HyperlaneDomain,
     rpc_client: Arc<SealevelRpcClient>,
     native_token: NativeToken,
-    contract_address: H256,
 }
 
 impl SealevelProvider {
     /// Create a new Sealevel provider.
-    ///
-    /// We pass contract address since it is hard to identify the recipient of transaction
-    /// in general case.
-    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf, contract_address: H256) -> Self {
+    pub fn new(domain: HyperlaneDomain, conf: &ConnectionConf) -> Self {
         // Set the `processed` commitment at rpc level
         let rpc_client = Arc::new(SealevelRpcClient::new(conf.url.to_string()));
         let native_token = conf.native_token.clone();
@@ -41,7 +53,6 @@ impl SealevelProvider {
             domain,
             rpc_client,
             native_token,
-            contract_address,
         }
     }
 
@@ -69,12 +80,7 @@ impl SealevelProvider {
     }
 
     fn sender(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
-        let message = match &txn.message {
-            UiMessage::Parsed(m) => m,
-            m => Err(Into::<ChainCommunicationError>::into(
-                HyperlaneSealevelError::UnsupportedMessageEncoding(m.clone()),
-            ))?,
-        };
+        let message = Self::parsed_message(&txn)?;
 
         let signer = message
             .account_keys
@@ -83,6 +89,38 @@ impl SealevelProvider {
         let pubkey = decode_pubkey(&signer.pubkey)?;
         let sender = H256::from_slice(&pubkey.to_bytes());
         Ok(sender)
+    }
+
+    fn recipient(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
+        let message = Self::parsed_message(&txn)?;
+
+        let programs = (&message.instructions)
+            .into_iter()
+            .filter_map(|ii| {
+                if let UiInstruction::Parsed(iii) = ii {
+                    Some(iii)
+                } else {
+                    None
+                }
+            })
+            .filter_map(|ii| match ii {
+                UiParsedInstruction::Parsed(iii) => Some(&iii.program_id),
+                UiParsedInstruction::PartiallyDecoded(iii) => Some(&iii.program_id),
+            })
+            .filter(|program_id| !NATIVE_PROGRAMS.contains(*program_id))
+            .collect::<Vec<&String>>();
+
+        if programs.len() > 1 {
+            Err(HyperlaneSealevelError::TooManyNonNativePrograms(*hash))?;
+        }
+
+        let program_id = programs
+            .first()
+            .ok_or(HyperlaneSealevelError::NoNativePrograms(*hash))?;
+
+        let pubkey = decode_pubkey(program_id)?;
+        let recipient = H256::from_slice(&pubkey.to_bytes());
+        Ok(recipient)
     }
 
     fn gas(meta: &UiTransactionStatusMeta) -> ChainResult<U256> {
@@ -113,6 +151,15 @@ impl SealevelProvider {
             .ok_or(HyperlaneSealevelError::EmptyMetadata)?;
         Ok(meta)
     }
+
+    fn parsed_message(txn: &UiTransaction) -> ChainResult<&UiParsedMessage> {
+        Ok(match &txn.message {
+            UiMessage::Parsed(m) => m,
+            m => Err(Into::<ChainCommunicationError>::into(
+                HyperlaneSealevelError::UnsupportedMessageEncoding(m.clone()),
+            ))?,
+        })
+    }
 }
 
 impl HyperlaneChain for SealevelProvider {
@@ -125,7 +172,6 @@ impl HyperlaneChain for SealevelProvider {
             domain: self.domain.clone(),
             rpc_client: self.rpc_client.clone(),
             native_token: self.native_token.clone(),
-            contract_address: self.contract_address,
         })
     }
 }
@@ -171,6 +217,7 @@ impl HyperlaneProvider for SealevelProvider {
 
         Self::validate_transaction(hash, txn)?;
         let sender = Self::sender(hash, txn)?;
+        let recipient = Self::recipient(hash, txn)?;
         let meta = Self::meta(txn_with_meta)?;
         let gas_used = Self::gas(meta)?;
         let fee = self.fee(meta)?;
@@ -195,7 +242,7 @@ impl HyperlaneProvider for SealevelProvider {
             gas_price,
             nonce: 0,
             sender,
-            recipient: Some(self.contract_address),
+            recipient: Some(recipient),
             receipt: Some(receipt),
             raw_input_data: None,
         })

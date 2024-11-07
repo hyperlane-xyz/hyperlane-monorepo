@@ -106,7 +106,7 @@ impl SealevelMailbox {
         locator: ContractLocator,
         payer: Option<Keypair>,
     ) -> ChainResult<Self> {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf, locator.address);
+        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let domain = locator.domain.id();
         let inbox = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &program_id);

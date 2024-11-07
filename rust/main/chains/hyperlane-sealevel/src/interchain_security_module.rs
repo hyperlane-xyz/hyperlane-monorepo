@@ -23,7 +23,7 @@ pub struct SealevelInterchainSecurityModule {
 impl SealevelInterchainSecurityModule {
     /// Create a new sealevel InterchainSecurityModule
     pub fn new(conf: &ConnectionConf, locator: ContractLocator, payer: Option<Keypair>) -> Self {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf, locator.address);
+        let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             payer,

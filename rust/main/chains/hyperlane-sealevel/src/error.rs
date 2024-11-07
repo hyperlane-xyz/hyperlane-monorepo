@@ -42,6 +42,12 @@ pub enum HyperlaneSealevelError {
     /// Empty compute units consumed
     #[error("received empty compute units consumed in transaction")]
     EmptyComputeUnitsConsumed,
+    /// Too many non-native programs
+    #[error("transaction contains too many non-native programs, hash: {0:?}")]
+    TooManyNonNativePrograms(H512),
+    /// No non-native programs
+    #[error("transaction contains no non-native programs, hash: {0:?}")]
+    NoNativePrograms(H512),
 }
 
 impl From<HyperlaneSealevelError> for ChainCommunicationError {
