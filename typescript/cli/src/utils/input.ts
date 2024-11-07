@@ -13,7 +13,7 @@ import {
   useState,
 } from '@inquirer/core';
 import figures from '@inquirer/figures';
-import { KeypressEvent, confirm, input } from '@inquirer/prompts';
+import { KeypressEvent, confirm, input, isSpaceKey } from '@inquirer/prompts';
 import type { PartialDeep } from '@inquirer/type';
 import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
@@ -375,9 +375,9 @@ function getHelpTips({
   let helpTipBottom = '';
   const defaultTopHelpTip =
     instructions ??
-    `(Press ${theme.style.key('tab')} to select, and ${theme.style.key(
-      'enter',
-    )} to proceed`;
+    `(Press ${theme.style.key('tab')} or ${theme.style.key(
+      'space',
+    )} to select, and ${theme.style.key('enter')} to proceed`;
   const defaultBottomHelpTip = `\n${theme.style.help(
     '(Use arrow keys to reveal more choices)',
   )}`;
@@ -589,7 +589,10 @@ export const searchableCheckBox = createPrompt(
           );
           setActive(next);
         }
-      } else if (key.name === 'tab' && optionState.options.length > 0) {
+      } else if (
+        (key.name === 'tab' || isSpaceKey(key)) &&
+        optionState.options.length > 0
+      ) {
         // Avoid the message header to be printed again in the console
         rl.clearLine(0);
 

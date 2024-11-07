@@ -1,0 +1,24 @@
+# Configs and artifacts for the deployment of Hyperlane Warp Routes
+description: Hyperlane Warp Route artifacts
+timestamp: '2024-09-19T16:00:00.000Z'
+deployer: Abacus Works (Hyperlane)
+data:
+  config:
+    solanamainnet:
+      protocolType: sealevel
+      type: collateral
+      hypAddress: '8acihSm2QTGswniKgdgr4JBvJihZ1cakfvbqWCPBLoSp'
+      tokenAddress: 'orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE'
+      tokenCoinGeckoId: orca
+      name: Orca
+      symbol: ORCA
+      decimals: 6
+    eclipsemainnet:
+      protocolType: sealevel
+      type: synthetic
+      hypAddress: '8CvWJS7SPtauAXinJUURkBDLsGUXWiiTdENkEFUPjQ9j'
+      tokenAddress: '2tGbYEm4nuPFyS6zjDTELzEhvVKizgKewi6xT7AaSKzn'
+      isSpl2022: true
+      name: Orca
+      symbol: ORCA
+      decimals: 6

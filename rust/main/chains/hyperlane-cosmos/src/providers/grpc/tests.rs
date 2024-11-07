@@ -3,10 +3,10 @@ use std::str::FromStr;
 use url::Url;
 
 use hyperlane_core::config::OperationBatchConfig;
-use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain};
+use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, NativeToken};
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::{ConnectionConf, CosmosAddress, CosmosAmount, NativeToken, RawCosmosAmount};
+use crate::{ConnectionConf, CosmosAddress, CosmosAmount, RawCosmosAmount};
 
 #[ignore]
 #[tokio::test]
