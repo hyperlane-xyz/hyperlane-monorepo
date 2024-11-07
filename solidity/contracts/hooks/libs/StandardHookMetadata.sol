@@ -166,6 +166,12 @@ library StandardHookMetadata {
         return formatMetadata(uint256(0), uint256(0), _refundAddress, "");
     }
 
+    /**
+     * @notice Overrides the msg.value in the metadata.
+     * @param _metadata encoded standard hook metadata.
+     * @param _msgValue msg.value for the message.
+     * @return encoded standard hook metadata.
+     */
     function overrideMsgValue(
         bytes calldata _metadata,
         uint256 _msgValue
@@ -179,6 +185,12 @@ library StandardHookMetadata {
             );
     }
 
+    /**
+     * @notice Overrides the gas limit in the metadata.
+     * @param _metadata encoded standard hook metadata.
+     * @param _gasLimit gas limit for the message.
+     * @return encoded standard hook metadata.
+     */
     function overrideGasLimit(
         bytes calldata _metadata,
         uint256 _gasLimit

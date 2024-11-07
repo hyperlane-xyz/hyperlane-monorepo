@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT AND Apache-2.0
+// SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
 /*@@@@@@@       @@@@@@@@@
@@ -115,12 +115,12 @@ contract HypValue is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev No metadata is needed for value transfers
+     * @dev No token metadata is needed for value transfers
      */
     function _transferFromSender(
         uint256
     ) internal pure override returns (bytes memory) {
-        return bytes(""); // no metadata
+        return bytes(""); // no token metadata
     }
 
     /**
@@ -130,7 +130,7 @@ contract HypValue is TokenRouter {
     function _transferTo(
         address _recipient,
         uint256 _amount,
-        bytes calldata // no metadata
+        bytes calldata // no token metadata
     ) internal virtual override {
         Address.sendValue(payable(_recipient), _amount);
     }
