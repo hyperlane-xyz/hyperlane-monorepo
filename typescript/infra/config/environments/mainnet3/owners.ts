@@ -128,16 +128,7 @@ export const icas: Partial<
 
   // Oct 16, 2024 batch
   // ----------------------------------------------------------
-  // immutablezkevm: '0x8483e1480B62cB9f0aCecEbF42469b9f4013577a',
-  // rari: '0x1124D54E989570A798769E534eAFbE1444f40AF6',
-  // rootstock: '0x69350aeA98c5195F2c3cC6E6A065d0d8B12F659A',
-  // alephzeroevm: '0x004a4C2e4Cd4F5Bd564fe0A6Ab2Da56258aE576f',
-  // chiliz: '0xb52D281aD2BA9761c16f400d755837493e2baDB7',
   // lumia: '0x418E10Ac9e0b84022d0636228d05bc74172e0e41',
-  // superposition: '0x34b57ff8fBA8da0cFdA795CC0F874FfaB14B1DE9',
-  // flow: '0xf48377f8A3ddA7AAD7C2460C81d939434c829b45',
-  // metall2: '0x2f1b1B0Fb7652E621316460f6c3b019F61d8dC9a',
-  // polynomial: '0xC20eFa1e5A378af9233e9b24515eb3408d43f900',
 
   // // Oct 30, 2024 batch
   // // ----------------------------------------------------------
