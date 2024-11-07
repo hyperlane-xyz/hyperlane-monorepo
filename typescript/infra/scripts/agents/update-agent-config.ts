@@ -144,6 +144,17 @@ export async function writeAgentConfig(
     additionalConfig,
   );
 
+  // Manually add contract addresses for Lumia chain
+  if (agentConfig.chains['lumia']) {
+    agentConfig.chains['lumia'] = {
+      ...agentConfig.chains['lumia'],
+      interchainGasPaymaster: '0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E',
+      mailbox: '0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7',
+      merkleTreeHook: '0x9c44E6b8F0dB517C2c3a0478caaC5349b614F912',
+      validatorAnnounce: '0x989B7307d266151BE763935C856493D968b2affF',
+    };
+  }
+
   const filepath = getAgentConfigJsonPath(envNameToAgentEnv[environment]);
   if (fs.existsSync(filepath)) {
     const currentAgentConfig: AgentConfig = readJSONAtPath(filepath);
