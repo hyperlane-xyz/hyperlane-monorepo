@@ -80,7 +80,7 @@ impl SealevelProvider {
     }
 
     fn sender(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
-        let message = Self::parsed_message(&txn)?;
+        let message = Self::parsed_message(txn)?;
 
         let signer = message
             .account_keys
@@ -92,10 +92,10 @@ impl SealevelProvider {
     }
 
     fn recipient(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
-        let message = Self::parsed_message(&txn)?;
+        let message = Self::parsed_message(txn)?;
 
-        let programs = (&message.instructions)
-            .into_iter()
+        let programs = message.instructions
+            .iter()
             .filter_map(|ii| {
                 if let UiInstruction::Parsed(iii) = ii {
                     Some(iii)
@@ -103,9 +103,9 @@ impl SealevelProvider {
                     None
                 }
             })
-            .filter_map(|ii| match ii {
-                UiParsedInstruction::Parsed(iii) => Some(&iii.program_id),
-                UiParsedInstruction::PartiallyDecoded(iii) => Some(&iii.program_id),
+            .map(|ii| match ii {
+                UiParsedInstruction::Parsed(iii) => &iii.program_id,
+                UiParsedInstruction::PartiallyDecoded(iii) => &iii.program_id,
             })
             .filter(|program_id| !NATIVE_PROGRAMS.contains(*program_id))
             .collect::<Vec<&String>>();
