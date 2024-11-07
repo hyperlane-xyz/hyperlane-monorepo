@@ -23,7 +23,7 @@ async function main() {
     environment,
     agentConfig.environmentChainNames,
   );
-  await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade, true);
+  await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
 }
 
 main()
