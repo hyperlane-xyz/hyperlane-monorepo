@@ -46,16 +46,12 @@ export class StarknetCoreModule {
     ]);
 
     // deploy mailbox
-    const mailbox = await this.deployer.deployContract('mailbox', [
-      '888',
+    const mailboxContract = await this.deployMailbox(
       config.owner,
       noopIsm,
       hook,
       protocolFee,
-    ]);
-
-    const { abi } = await getCompiledContract('mailbox');
-    const mailboxContract = new Contract(abi, mailbox, this.signer);
+    );
 
     //TODO: skip next two steps if default ism not specified
     const defaultIsm = await this.deployer.deployIsm({
@@ -97,11 +93,29 @@ export class StarknetCoreModule {
     return {
       noopIsm,
       hook,
-      mailbox,
+      mailbox: mailboxContract.address,
       defaultIsm,
       validatorAnnounce,
       protocolFee,
       merkleTreeHook,
     };
+  }
+
+  async deployMailbox(
+    owner: string,
+    defaultIsm: string,
+    defaultHook: string,
+    requiredHook: string,
+  ) {
+    const mailboxAddress = await this.deployer.deployContract('mailbox', [
+      '888', // TODO: put domain id here
+      owner,
+      defaultIsm,
+      defaultHook,
+      requiredHook,
+    ]);
+
+    const { abi } = getCompiledContract('mailbox');
+    return new Contract(abi, mailboxAddress, this.signer);
   }
 }
