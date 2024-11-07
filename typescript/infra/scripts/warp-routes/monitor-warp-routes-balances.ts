@@ -3,12 +3,12 @@ import { ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 
 import {
+  ERC20__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IXERC20,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
-import { ERC20__factory } from '@hyperlane-xyz/core';
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
@@ -638,10 +638,10 @@ async function checkWarpRouteMetrics(
   tokenConfig: WarpRouteConfig,
   chainMetadata: ChainMap<ChainMetadata>,
 ) {
-  const tokenPriceGetter = CoinGeckoTokenPriceGetter.withDefaultCoinGecko(
+  const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
     chainMetadata,
-    await getCoinGeckoApiKey(),
-  );
+    apiKey: await getCoinGeckoApiKey(),
+  });
 
   setInterval(async () => {
     try {

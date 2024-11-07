@@ -8073,7 +8073,6 @@ __metadata:
     "@types/ws": "npm:^8.5.5"
     bignumber.js: "npm:^9.1.1"
     chai: "npm:4.5.0"
-    coingecko-api-v3: "npm:^0.0.29"
     cosmjs-types: "npm:^0.9.0"
     cross-fetch: "npm:^3.1.5"
     dotenv: "npm:^10.0.0"
@@ -16860,15 +16859,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"coingecko-api-v3@npm:^0.0.29":
-  version: 0.0.29
-  resolution: "coingecko-api-v3@npm:0.0.29"
-  dependencies:
-    https: "npm:^1.0.0"
-  checksum: 10/e60a0996472419232a144ec77028c060bd9c289f799dd40d46dbb7229cff3d868a3e35bf88724059dc25767b8136d794789e4dd31711592fa73a7be1ca2fcbc7
-  languageName: node
-  linkType: hard
-
 "collect-v8-coverage@npm:^1.0.0":
   version: 1.0.2
   resolution: "collect-v8-coverage@npm:1.0.2"
@@ -21770,13 +21760,6 @@ __metadata:
     agent-base: "npm:^7.0.2"
     debug: "npm:4"
   checksum: 10/405fe582bba461bfe5c7e2f8d752b384036854488b828ae6df6a587c654299cbb2c50df38c4b6ab303502c3c5e029a793fbaac965d1e86ee0be03faceb554d63
-  languageName: node
-  linkType: hard
-
-"https@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "https@npm:1.0.0"
-  checksum: 10/ccea8a8363a018d4b241db7748cff3a85c9f5b71bf80639e9c37dc6823f590f35dda098b80b726930e9f945387c8bfd6b1461df25cab5bf65a31903d81875b5d
   languageName: node
   linkType: hard
 

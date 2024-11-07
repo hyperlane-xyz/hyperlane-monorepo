@@ -554,7 +554,6 @@ export {
   ChainGasOracleParams,
   GasPriceConfig,
   NativeTokenPriceConfig,
-  getCoingeckoTokenPrices,
   getCosmosChainGasPrice,
   getGasPrice,
   getLocalStorageGasOracleConfig,
