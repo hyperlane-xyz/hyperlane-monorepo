@@ -4,9 +4,11 @@ import {
   AggregationHookConfig,
   AggregationIsmConfig,
   ChainMap,
+  ChainTechnicalStack,
   CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
+  IgpConfig,
   IsmType,
   MerkleTreeHookConfig,
   MultisigConfig,
@@ -35,13 +37,22 @@ export const core: ChainMap<CoreConfig> = objMap(
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
 
+    const isZksyncChain =
+      getChain(local).technicalStack === ChainTechnicalStack.ZKSync;
+
+    // zkSync uses a different ISM for the merkle root
     const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
-      type: IsmType.MERKLE_ROOT_MULTISIG,
+      type: isZksyncChain
+        ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+        : IsmType.MERKLE_ROOT_MULTISIG,
       ...multisig,
     });
 
+    // zkSync uses a different ISM for the message ID
     const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
-      type: IsmType.MESSAGE_ID_MULTISIG,
+      type: isZksyncChain
+        ? IsmType.STORAGE_MESSAGE_ID_MULTISIG
+        : IsmType.MESSAGE_ID_MULTISIG,
       ...multisig,
     });
 
@@ -58,17 +69,30 @@ export const core: ChainMap<CoreConfig> = objMap(
       ...ownerConfig,
     };
 
+    // No static aggregation or domain routing ISM support on zkSync
+    const defaultZkSyncIsm: RoutingIsmConfig = {
+      type: IsmType.ROUTING,
+      domains: objMap(
+        originMultisigs,
+        (_, multisig): MultisigIsmConfig => messageIdIsm(multisig),
+      ),
+      ...ownerConfig,
+    };
+
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
       paused: false,
       ...ownerConfig,
     };
 
-    const defaultIsm: AggregationIsmConfig = {
-      type: IsmType.AGGREGATION,
-      modules: [routingIsm, pausableIsm],
-      threshold: 2,
-    };
+    // No static aggregation ISM support on zkSync
+    const defaultIsm: AggregationIsmConfig | RoutingIsmConfig = isZksyncChain
+      ? defaultZkSyncIsm
+      : {
+          type: IsmType.AGGREGATION,
+          modules: [routingIsm, pausableIsm],
+          threshold: 2,
+        };
 
     const merkleHook: MerkleTreeHookConfig = {
       type: HookType.MERKLE_TREE,
@@ -82,28 +106,44 @@ export const core: ChainMap<CoreConfig> = objMap(
       ...ownerConfig,
     };
 
-    const aggregationHooks = objMap(
+    // No static aggregation hook support on zkSync
+    const defaultHookDomains = objMap(
       originMultisigs,
-      (_origin, _): AggregationHookConfig => ({
-        type: HookType.AGGREGATION,
-        hooks: [pausableHook, merkleHook, igpHook],
-      }),
+      (_origin, _): AggregationHookConfig | IgpConfig => {
+        return isZksyncChain
+          ? igpHook
+          : {
+              type: HookType.AGGREGATION,
+              hooks: [pausableHook, merkleHook, igpHook],
+            };
+      },
     );
 
     const defaultHook: FallbackRoutingHookConfig = {
       type: HookType.FALLBACK_ROUTING,
       ...ownerConfig,
-      domains: aggregationHooks,
+      domains: defaultHookDomains,
       fallback: merkleHook,
     };
 
-    const requiredHook: ProtocolFeeHookConfig = {
-      type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
-      protocolFee: BigNumber.from(1).toString(), // 1 wei of native token
-      beneficiary: ownerConfig.owner as Address,
-      ...ownerConfig,
-    };
+    if (typeof ownerConfig.owner !== 'string') {
+      throw new Error('beneficiary must be a string');
+    }
+
+    // No aggregation hook support on zkSync, so we ignore protocolFee
+    // and make the merkleTreeHook required
+    const requiredHook: ProtocolFeeHookConfig | MerkleTreeHookConfig =
+      isZksyncChain
+        ? {
+            type: HookType.MERKLE_TREE,
+          }
+        : {
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
+            protocolFee: BigNumber.from(0).toString(), // 0 wei
+            beneficiary: ownerConfig.owner as Address, // Owner can be AccountConfig
+            ...ownerConfig,
+          };
 
     return {
       defaultIsm,
