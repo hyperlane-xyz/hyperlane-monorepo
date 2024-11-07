@@ -144,7 +144,7 @@ contract HypNativeScaledTest is Test {
         environment.processNextPendingMessage();
     }
 
-    function test_transferRemote(uint256 amount) public {
+    function test_tranferRemote(uint256 amount) public {
         vm.assume(amount <= mintAmount);
 
         uint256 nativeValue = amount * (10 ** nativeDecimals);
