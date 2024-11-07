@@ -39,6 +39,8 @@ contract DeployAVS is Script {
 
     address KILN_OPERATOR_ADDRESS = 0x1f8C8b1d78d01bCc42ebdd34Fae60181bD697662;
 
+    address AW_SAFE = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
+
     function _loadEigenlayerAddresses(string memory targetEnv) internal {
         string memory root = vm.projectRoot();
         string memory path = string.concat(
@@ -234,10 +236,15 @@ contract DeployAVS is Script {
             0x5e4C39Ad7A3E881585e383dB9827EB4811f6F647
         );
 
+        // STEP 1: update the stakeRegistry quorum with the new REZ strategy and adjust the weights accordingly to sum up to 10_000
         IStrategy rezStrategy = strategyFactory.deployedStrategies(rezToken);
+        require(address(rezStrategy).code.length > 0, "Strategy not deployed");
 
         ECDSAStakeRegistry stakeRegistry = ECDSAStakeRegistry(
             0x272CF0BB70D3B4f79414E0823B426d2EaFd48910
+        );
+        HyperlaneServiceManager serviceManager = HyperlaneServiceManager(
+            0xe8E59c6C8B56F2c178f63BCFC4ce5e5e2359c8fc
         );
 
         // get current quorum
@@ -268,14 +275,33 @@ contract DeployAVS is Script {
             baseMultiplier + remainder
         );
 
+        vm.startBroadcast(0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba);
+
         // add strategy to quorum
         bytes memory encodedCall = abi.encodeWithSelector(
             stakeRegistry.updateQuorumConfig.selector,
             newQuorum,
             new address[](0)
         );
+        stakeRegistry.updateQuorumConfig(newQuorum, new address[](0));
 
         console.log("Encoded call: ");
         console.logBytes(encodedCall);
+
+        vm.stopBroadcast();
+
+        // STEP 2.1: check if the REZ strategy is in the restakeable strategies list
+        address[] memory restakeableStrategies = serviceManager
+            .getRestakeableStrategies();
+        bool rezStrategyFound = false;
+        for (uint256 i = 0; i < restakeableStrategies.length; i++) {
+            if (restakeableStrategies[i] == address(rezStrategy)) {
+                rezStrategyFound = true;
+            }
+        }
+        require(
+            rezStrategyFound,
+            "REZ strategy not found in total restakeable strategies"
+        );
     }
 }
