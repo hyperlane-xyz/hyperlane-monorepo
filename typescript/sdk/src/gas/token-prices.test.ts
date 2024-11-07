@@ -16,6 +16,7 @@ describe('TokenPriceGetter', () => {
   const chainB = TestChainName.test2;
   const priceA = 2;
   const priceB = 5;
+  let stub: sinon.SinonStub;
 
   beforeEach(() => {
     tokenPriceGetter = new CoinGeckoTokenPriceGetter({
@@ -26,15 +27,15 @@ describe('TokenPriceGetter', () => {
     });
 
     if (MOCK_FETCH_CALLS) {
-      sinon
+      stub = sinon
         .stub(tokenPriceGetter, 'fetchPriceData')
         .returns(Promise.resolve([priceA, priceB]));
     }
   });
 
   afterEach(() => {
-    if (MOCK_FETCH_CALLS) {
-      sinon.restore();
+    if (MOCK_FETCH_CALLS && stub) {
+      stub.restore();
     }
   });
 
