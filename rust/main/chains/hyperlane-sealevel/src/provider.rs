@@ -94,7 +94,8 @@ impl SealevelProvider {
     fn recipient(hash: &H512, txn: &UiTransaction) -> ChainResult<H256> {
         let message = Self::parsed_message(txn)?;
 
-        let programs = message.instructions
+        let programs = message
+            .instructions
             .iter()
             .filter_map(|ii| {
                 if let UiInstruction::Parsed(iii) = ii {
