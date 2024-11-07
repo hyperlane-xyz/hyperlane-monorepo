@@ -220,7 +220,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       destination: chain,
       config,
       mailbox,
-      existingIsmAddress,
+      existingIsmAddress:
+        existingIsmAddress && !isZeroishAddress(existingIsmAddress)
+          ? existingIsmAddress
+          : undefined,
     });
     this.addDeployedContracts(chain, this.ismFactory.deployedIsms[chain]);
     return ism.address;
