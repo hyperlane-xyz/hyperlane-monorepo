@@ -41,6 +41,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   typeof testnet4SupportedChainNames
 > = {
   [Role.Validator]: {
+    abstracttestnet: true,
     alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
@@ -70,9 +71,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
   [Role.Relayer]: {
+    abstracttestnet: true,
     alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
@@ -102,9 +105,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
   [Role.Scraper]: {
+    abstracttestnet: true,
     alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
@@ -136,6 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: false,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
 };
@@ -215,7 +221,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b8add3c-20241106-190246',
+      tag: 'bb4e82b-20241107-190434',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
@@ -237,7 +243,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b8add3c-20241106-190246',
+      tag: 'bb4e82b-20241107-190434',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -246,7 +252,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b8add3c-20241106-190246',
+      tag: 'bb4e82b-20241107-190434',
     },
     resources: scraperResources,
   },

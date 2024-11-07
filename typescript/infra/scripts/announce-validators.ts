@@ -73,6 +73,10 @@ async function main() {
     await Promise.all(
       Object.entries(agentConfig.validators.chains)
         .filter(([validatorChain, _]) => {
+          if (validatorChain === 'lumia') {
+            return false;
+          }
+
           // If a chain arg was specified, filter to only that chain
           if (!!chain && chain !== validatorChain) {
             return false;
