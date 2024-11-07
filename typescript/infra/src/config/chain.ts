@@ -23,16 +23,7 @@ export const chainsToSkip: ChainName[] = [
   'zeronetwork',
 
   // Oct 16 batch
-  'immutablezkevm',
-  'rari',
-  'rootstock',
-  'alephzeroevm',
-  'chiliz',
   'lumia',
-  'superposition',
-  'flow',
-  'metall2',
-  'polynomial',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
