@@ -11,7 +11,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   );
 
   constructor(
-    readonly configFilePath: string,
+    readonly warpRouteId: string,
     readonly runEnv: DeployEnvironment,
     readonly environmentChainNames: string[],
   ) {
@@ -19,17 +19,12 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   async helmValues() {
-    const pathRelativeToMonorepoRoot = this.configFilePath.includes(
-      'typescript/infra',
-    )
-      ? this.configFilePath
-      : path.join('typescript/infra', this.configFilePath);
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
         tag: 'ef7a886-20241101-165749',
       },
-      configFilePath: pathRelativeToMonorepoRoot,
+      warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,
       environment: this.runEnv,
       hyperlane: {
@@ -43,8 +38,15 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   get helmReleaseName(): string {
-    const match = this.configFilePath.match(/\/([^/]+)-deployments\.yaml$/);
-    const name = match ? match[1] : this.configFilePath;
-    return `hyperlane-warp-route-${name.toLowerCase()}`; // helm requires lower case release names
+    let name = `hyperlane-warp-route-${this.warpRouteId
+      .toLowerCase()
+      .replaceAll('/', '-')}`;
+
+    // Max helm release length is 53 characters, and it can't end with a dash
+    if (name.length > 53) {
+      name = name.slice(0, 53);
+      name = name.replace(/-+$/, '');
+    }
+    return name;
   }
 }
