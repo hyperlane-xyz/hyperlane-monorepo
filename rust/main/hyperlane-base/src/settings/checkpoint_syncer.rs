@@ -1,13 +1,13 @@
 use crate::{
-    settings::base::Settings, CheckpointSyncer, CoreMetrics, GcsStorageClientBuilder, LocalStorage,
+    settings::ChainConf, CheckpointSyncer, CoreMetrics, GcsStorageClientBuilder, LocalStorage,
     OnchainStorageClient, S3Storage, GCS_SERVICE_ACCOUNT_KEY, GCS_USER_SECRET,
 };
 use core::str::FromStr;
 use eyre::{eyre, Context, Report, Result};
-use hyperlane_core::{HyperlaneDomain, H256};
+use hyperlane_core::H256;
 use prometheus::IntGauge;
 use rusoto_core::Region;
-use std::{env, path::PathBuf, sync::Arc};
+use std::{env, path::PathBuf};
 use ya_gcp::{AuthFlow, ServiceAccountAuth};
 
 /// Checkpoint Syncer types
@@ -119,7 +119,7 @@ impl CheckpointSyncerConf {
     pub async fn build(
         &self,
         latest_index_gauge: Option<IntGauge>,
-        settings: Option<&Settings>,
+        chain_setup: Option<&ChainConf>,
         metrics: Option<&CoreMetrics>,
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         Ok(match self {
@@ -162,18 +162,9 @@ impl CheckpointSyncerConf {
                 contract_address,
             } => {
                 // Build the onchain checkpoint storage contract interface
-                let domain = if let Some(settings) = settings {
-                    settings.lookup_domain(chain_name)
-                } else {
-                    Err(eyre!("Missing settings or chain name"))
-                }?;
-                let onchain_checkpoint_storage = settings
+                let onchain_checkpoint_storage = chain_setup
                     .unwrap()
-                    .build_onchain_checkpoint_storage(
-                        contract_address.to_owned(),
-                        &domain,
-                        metrics.unwrap(),
-                    )
+                    .build_onchain_checkpoint_storage(contract_address.to_owned(), metrics.unwrap())
                     .await?;
                 Box::new(OnchainStorageClient::new(onchain_checkpoint_storage))
             }

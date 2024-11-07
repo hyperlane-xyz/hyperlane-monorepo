@@ -275,6 +275,7 @@ impl MessageMetadataBuilder {
 #[derive(new)]
 pub struct BaseMetadataBuilder {
     origin_domain: HyperlaneDomain,
+    origin_chain_setup: ChainConf,
     destination_chain_setup: ChainConf,
     origin_prover_sync: Arc<RwLock<MerkleTreeBuilder>>,
     origin_validator_announce: Arc<dyn ValidatorAnnounce>,
@@ -400,7 +401,10 @@ impl BaseMetadataBuilder {
                     continue;
                 }
 
-                match config.build(None).await {
+                match config
+                    .build(None, self.origin_chain_setup.clone(), self.metrics.clone())
+                    .await
+                {
                     Ok(checkpoint_syncer) => {
                         // found the syncer for this validator
                         checkpoint_syncers.insert(validator.into(), checkpoint_syncer.into());

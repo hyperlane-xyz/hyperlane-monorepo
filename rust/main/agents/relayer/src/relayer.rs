@@ -241,8 +241,10 @@ impl BaseAgent for Relayer {
 
             for origin in &settings.origin_chains {
                 let db = dbs.get(origin).unwrap().clone();
+                let origin_chain_setup = core.settings.chain_setup(origin).unwrap().clone();
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
+                    origin_chain_setup.clone(),
                     destination_chain_setup.clone(),
                     prover_syncs[origin].clone(),
                     validator_announces[origin].clone(),

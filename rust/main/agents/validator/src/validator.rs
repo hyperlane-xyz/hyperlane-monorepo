@@ -79,7 +79,14 @@ impl BaseAgent for Validator {
         let core = settings.build_hyperlane_core(metrics.clone());
         let checkpoint_syncer = settings
             .checkpoint_syncer
-            .build(None, &settings, &metrics)
+            .build(
+                None,
+                settings
+                    .chain_setup(&settings.origin_chain)
+                    .unwrap()
+                    .clone(),
+                &metrics,
+            )
             .await?
             .into();
 
