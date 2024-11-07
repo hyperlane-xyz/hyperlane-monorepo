@@ -11,8 +11,6 @@ import {
   Token,
   TokenStandard,
   WarpCore,
-  WarpCoreConfig,
-  WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
@@ -23,7 +21,6 @@ import {
 } from '../../../src/config/environment.js';
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 import { startMetricsServer } from '../../../src/utils/metrics.js';
-import { readYaml } from '../../../src/utils/utils.js';
 import { getArgs, withWarpRouteIdRequired } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
