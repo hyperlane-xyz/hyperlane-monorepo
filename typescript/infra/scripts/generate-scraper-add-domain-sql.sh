@@ -10,6 +10,7 @@ cd "$(dirname "$0")/../../../"
 # Generate the SQL command for inserting domains into the scraper database
 echo "insert into domain (id, time_created, time_updated, name, native_token, chain_id, is_test_net, is_deprecated) values"
 for name in "$@"; do
+  chain_id=$(yq e ".$name.chainId" ../hyperlane-registry/chains/metadata.yaml)
   domain_id=$(yq e ".$name.domainId" ../hyperlane-registry/chains/metadata.yaml)
   if [ -z "$domain_id" ]; then
     echo "Error: domain_id for $name not found" >&2
@@ -22,8 +23,8 @@ for name in "$@"; do
   fi
   is_testnet=$(yq e ".$name.isTestnet" ../hyperlane-registry/chains/metadata.yaml)
   if [ "$is_testnet" = "true" ]; then
-    echo "($domain_id, current_timestamp, current_timestamp, '$name', '$native_token_symbol', $domain_id, true, false)"
+    echo "($domain_id, current_timestamp, current_timestamp, '$name', '$native_token_symbol', $chain_id, true, false)"
   else
-    echo "($domain_id, current_timestamp, current_timestamp, '$name', '$native_token_symbol', $domain_id, false, false)"
+    echo "($domain_id, current_timestamp, current_timestamp, '$name', '$native_token_symbol', $chain_id, false, false)"
   fi
 done | paste -sd, -

@@ -1,5 +1,19 @@
 # @hyperlane-xyz/utils
 
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+## 5.7.0
+
+### Patch Changes
+
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 04108155d: fix median utils func + add test
+- 39a9b2038: Filter undefined/null values in invertKeysAndValues function
+
 ## 5.6.2
 
 ### Patch Changes

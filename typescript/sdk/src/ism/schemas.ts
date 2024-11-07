@@ -51,6 +51,8 @@ export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
     type: z.union([
       z.literal(IsmType.MERKLE_ROOT_MULTISIG),
       z.literal(IsmType.MESSAGE_ID_MULTISIG),
+      z.literal(IsmType.STORAGE_MERKLE_ROOT_MULTISIG),
+      z.literal(IsmType.STORAGE_MESSAGE_ID_MULTISIG),
     ]),
   }),
 );
