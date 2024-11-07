@@ -8,6 +8,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import { getChains } from '../config/registry.js';
 import { InfraS3Validator } from '../src/agents/aws/validator.js';
 import { CheckpointSyncerType } from '../src/config/agent/validator.js';
+import { chainsToSkip } from '../src/config/chain.js';
 import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
 import {
@@ -73,6 +74,10 @@ async function main() {
     await Promise.all(
       Object.entries(agentConfig.validators.chains)
         .filter(([validatorChain, _]) => {
+          if (chainsToSkip.includes(validatorChain)) {
+            return false;
+          }
+
           // If a chain arg was specified, filter to only that chain
           if (!!chain && chain !== validatorChain) {
             return false;
