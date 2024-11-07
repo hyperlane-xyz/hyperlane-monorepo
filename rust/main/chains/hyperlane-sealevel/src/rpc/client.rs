@@ -17,7 +17,7 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
-    UiReturnDataEncoding, UiTransactionReturnData,
+    UiReturnDataEncoding, UiTransactionEncoding, UiTransactionReturnData,
 };
 
 use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
@@ -188,6 +188,7 @@ impl SealevelRpcClient {
         signature: &Signature,
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
         let config = RpcTransactionConfig {
+            encoding: Some(UiTransactionEncoding::JsonParsed),
             commitment: Some(CommitmentConfig::finalized()),
             ..Default::default()
         };

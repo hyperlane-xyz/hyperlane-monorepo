@@ -319,3 +319,11 @@ export function diffObjMerge(
     isInvalid: true,
   };
 }
+
+export function mustGet<T>(obj: Record<string, T>, key: string): T {
+  const value = obj[key];
+  if (!value) {
+    throw new Error(`Missing key ${key} in object ${JSON.stringify(obj)}`);
+  }
+  return value;
+}

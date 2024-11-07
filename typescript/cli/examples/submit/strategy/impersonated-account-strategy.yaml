@@ -1,3 +1,4 @@
 submitter:
+  chain: anvil2
   type: impersonatedAccount
   userAddress: '0x16F4898F47c085C41d7Cc6b1dc72B91EA617dcBb'

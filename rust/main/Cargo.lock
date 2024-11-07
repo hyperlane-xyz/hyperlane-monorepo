@@ -4417,7 +4417,6 @@ dependencies = [
  "console-subscriber",
  "convert_case 0.6.0",
  "derive-new",
- "derive_builder",
  "ed25519-dalek 1.0.1",
  "ethers",
  "ethers-prometheus",

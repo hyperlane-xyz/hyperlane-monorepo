@@ -1,5 +1,9 @@
 # @hyperlane-xyz/github-proxy
 
+## 6.0.0
+
+## 5.7.0
+
 ## 5.6.2
 
 ## 5.6.1

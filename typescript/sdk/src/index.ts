@@ -453,6 +453,7 @@ export {
   HypERC20Factories,
   HypERC721Factories,
   TokenFactories,
+  hypERC20contracts,
   hypERC20factories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
@@ -500,7 +501,8 @@ export {
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
-export { chainMetadataToWagmiChain } from './utils/wagmi.js';
+export { getChainIdFromTxs } from './utils/transactions.js';
+export { chainMetadataToViemChain } from './utils/viem.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -511,11 +513,16 @@ export {
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 
-export { AggregationIsmConfigSchema, IsmConfigSchema } from './ism/schemas.js';
+export {
+  AggregationIsmConfigSchema,
+  IsmConfigSchema,
+  MultisigIsmConfigSchema,
+} from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   CollateralConfig,
   NativeConfig,
+  TokenConfig,
   TokenRouterConfigSchema,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
@@ -536,15 +543,16 @@ export {
 } from './utils/gnosisSafe.js';
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
-export { proxyAdmin } from './deploy/proxy.js';
+export {
+  isProxy,
+  proxyAdmin,
+  proxyConstructorArgs,
+  proxyImplementation,
+} from './deploy/proxy.js';
 export {
   ProxyFactoryFactoriesAddresses,
   ProxyFactoryFactoriesSchema,
 } from './deploy/schemas.js';
-export { EvmIsmModule } from './ism/EvmIsmModule.js';
-export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
-export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
-
 export {
   ChainGasOracleParams,
   GasPriceConfig,
@@ -556,3 +564,6 @@ export {
   getTokenExchangeRateFromValues,
 } from './gas/utils.js';
 export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';
+export { EvmIsmModule } from './ism/EvmIsmModule.js';
+export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';

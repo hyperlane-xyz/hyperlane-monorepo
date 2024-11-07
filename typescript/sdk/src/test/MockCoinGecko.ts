@@ -1,7 +1,9 @@
+import { SimplePriceResponse } from 'coingecko-api-v3';
+
 import type {
   CoinGeckoInterface,
   CoinGeckoResponse,
-  CoinGeckoSimpleInterface,
+  CoinGeckoSimplePriceInterface,
   CoinGeckoSimplePriceParams,
 } from '../gas/token-prices.js';
 import type { ChainName } from '../types.js';
@@ -18,9 +20,9 @@ export class MockCoinGecko implements CoinGeckoInterface {
     this.fail = {};
   }
 
-  price(params: CoinGeckoSimplePriceParams): CoinGeckoResponse {
-    const data: any = {};
-    for (const id of params.ids) {
+  price(input: CoinGeckoSimplePriceParams): CoinGeckoResponse {
+    const data: SimplePriceResponse = {};
+    for (const id of input.ids) {
       if (this.fail[id]) {
         return Promise.reject(`Failed to fetch price for ${id}`);
       }
@@ -28,16 +30,11 @@ export class MockCoinGecko implements CoinGeckoInterface {
         usd: this.tokenPrices[id],
       };
     }
-    return Promise.resolve({
-      success: true,
-      message: '',
-      code: 200,
-      data,
-    });
+    return Promise.resolve(data);
   }
 
-  get simple(): CoinGeckoSimpleInterface {
-    return this;
+  get simplePrice(): CoinGeckoSimplePriceInterface {
+    return this.price;
   }
 
   setTokenPrice(chain: ChainName, price: number): void {
