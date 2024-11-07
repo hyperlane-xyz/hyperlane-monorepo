@@ -25,6 +25,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
   // desired balance config, must be set for each chain
+  // @ts-ignore
   desiredBalancePerChain: {
     ancient8: '0.5',
     alephzeroevmmainnet: '100',
@@ -85,7 +86,7 @@ export const keyFunderConfig: KeyFunderConfig<
     polynomialfi: '0.05',
     prom: '5',
     proofofplay: '0.05',
-    rarichain: '0.05',
+    // rarichain: '0.05',
     real: '0.1',
     redstone: '0.2',
     rootstockmainnet: '0.002',

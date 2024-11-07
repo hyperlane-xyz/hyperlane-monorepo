@@ -512,6 +512,11 @@ class ContextFunder {
   async fund(): Promise<boolean> {
     const chainKeyEntries = Object.entries(this.keysToFundPerChain);
     const promises = chainKeyEntries.map(async ([chain, keys]) => {
+      if (chain === 'rarichain') {
+        logger.info('Skipping funding for rarichain');
+        return false;
+      }
+
       let failureOccurred = false;
 
       if (keys.length > 0) {
