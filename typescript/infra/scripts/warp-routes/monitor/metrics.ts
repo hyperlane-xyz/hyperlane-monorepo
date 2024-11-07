@@ -74,31 +74,22 @@ export function updateTokenBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  logger.debug('Wallet balance updated for chain', {
-    chain: token.chainName,
-    related_chain_names: metrics.related_chain_names,
-    warp_route_id: metrics.warp_route_id,
-    token: metrics.token_name,
-    value: balanceInfo.balance,
-    token_type: token.standard,
+  logger.info('Wallet balance updated for chain', {
+    labels: metrics,
+    balance: balanceInfo.balance,
   });
 
   if (balanceInfo.valueUSD) {
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    logger.debug('Collateral value updated for chain', {
-      chain: token.chainName,
-      related_chain_names: metrics.related_chain_names,
-      warp_route_id: metrics.warp_route_id,
-      token: metrics.token_name,
-      value: balanceInfo.valueUSD,
-      token_type: token.standard,
+    logger.info('Wallet balance updated for chain', {
+      labels: metrics,
+      valueUSD: balanceInfo.valueUSD,
     });
   }
 }
 
 export function updateXERC20LimitsMetrics(token: Token, limits: XERC20Limit) {
   for (const [limitType, limit] of Object.entries(limits)) {
-    console.log('limitType', limitType, 'limit', limit);
     xERC20LimitsGauge
       .labels({
         chain_name: token.chainName,
