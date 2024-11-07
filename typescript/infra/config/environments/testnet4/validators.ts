@@ -368,5 +368,30 @@ export const validatorChainConfig = (
         'inksepolia',
       ),
     },
+
+    abstracttestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('abstracttestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7655bc4c9802bfcb3132b8822155b60a4fbbce3e'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'abstracttestnet',
+      ),
+    },
+    treasuretopaz: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('treasuretopaz'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x9750849beda0a7870462d4685f953fe39033a5ae'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'treasuretopaz',
+      ),
+    },
   };
 };
