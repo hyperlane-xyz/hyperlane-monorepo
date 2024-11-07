@@ -3,6 +3,11 @@ import { ChainMap } from '../types.js';
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
+  abstracttestnet: {
+    threshold: 1,
+    validators: ['0x7655bc4c9802bfcb3132b8822155b60a4fbbce3e'],
+  },
+
   alephzeroevmmainnet: {
     threshold: 1,
     validators: ['0x33f20e6e775747d60301c6ea1c50e51f0389740c'],
@@ -869,6 +874,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0xe271ef9a6e312540f099a378865432fa73f26689', // tangle
     ],
+  },
+
+  treasuretopaz: {
+    threshold: 1,
+    validators: ['0x9750849beda0a7870462d4685f953fe39033a5ae'],
   },
 
   unichaintestnet: {
