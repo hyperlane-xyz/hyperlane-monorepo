@@ -135,7 +135,7 @@ async function getTokenBridgedBalance(
     token.isCollateralized() ||
     token.standard === TokenStandard.EvmHypXERC20Lockbox
   ) {
-    tokenPrice = await tryGetTokenPrice(warpCore, token, tokenPriceGetter);
+    tokenPrice = await tryGetTokenPrice(token, tokenPriceGetter);
   }
   const balance = bridgedSupply.getDecimalFormattedAmount();
 
@@ -193,26 +193,13 @@ async function getXERC20Limit(
 // Tries to get the price of a token from CoinGecko. Returns undefined if there's no
 // CoinGecko ID for the token.
 async function tryGetTokenPrice(
-  warpCore: WarpCore,
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<number | undefined> {
-  // We assume all tokens in the warp route are the same token, so just find the first one.
-  let coinGeckoId = warpCore.tokens.find(
-    (t) => t.coinGeckoId !== undefined,
-  )?.coinGeckoId;
-
-  // If the token is a native token, we may be able to get the CoinGecko ID from the chain metadata.
-  if (!coinGeckoId && token.isNative()) {
-    const chainMetadata = warpCore.multiProvider.getChainMetadata(
-      token.chainName,
-    );
-    // To defend against Cosmos, which can have multiple types of native tokens,
-    // we only use the gas currency CoinGecko ID if it matches the token symbol.
-    if (chainMetadata.nativeToken?.symbol === token.symbol) {
-      coinGeckoId = chainMetadata.gasCurrencyCoinGeckoId;
-    }
-  }
+  // We only get a price if the token defines a CoinGecko ID.
+  // This way we can ignore values of certain types of collateralized warp routes,
+  // e.g. Native warp routes on rollups that have been pre-funded.
+  let coinGeckoId = token.coinGeckoId;
 
   if (!coinGeckoId) {
     logger.warn('CoinGecko ID missing for token', token.symbol);
