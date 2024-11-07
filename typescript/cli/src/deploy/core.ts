@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
-import { getOrRequestApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -64,7 +64,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys([chain], chainMetadata);
+    apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
 
   const deploymentParams: DeployParams = {
     context,

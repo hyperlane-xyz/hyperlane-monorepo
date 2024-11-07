@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use ethers::prelude::Middleware;
 use ethers_core::{abi::Address, types::BlockNumber};
-use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, U256};
+use hyperlane_core::{ethers_core_types, ChainInfo, HyperlaneCustomErrorWrapper, H512, U256};
 use tokio::time::sleep;
 use tracing::instrument;
 
@@ -49,26 +49,49 @@ where
 {
     #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        let block = get_with_retry_on_none(hash, |h| {
-            let eth_h256: ethers_core_types::H256 = h.into();
-            self.provider.get_block(eth_h256)
-        })
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let block = get_with_retry_on_none(
+            &height,
+            |h| self.provider.get_block(*h),
+            |h| HyperlaneProviderError::CouldNotFindBlockByHeight(*h),
+        )
         .await?;
-        Ok(BlockInfo {
-            hash: *hash,
+
+        let block_height = block
+            .number
+            .ok_or(HyperlaneProviderError::CouldNotFindBlockByHeight(height))?
+            .as_u64();
+
+        if block_height != height {
+            Err(HyperlaneProviderError::IncorrectBlockByHeight(
+                height,
+                block_height,
+            ))?;
+        }
+
+        let block_hash = block
+            .hash
+            .ok_or(HyperlaneProviderError::BlockWithoutHash(height))?;
+
+        let block_info = BlockInfo {
+            hash: block_hash.into(),
             timestamp: block.timestamp.as_u64(),
-            number: block
-                .number
-                .ok_or(HyperlaneProviderError::BlockIsNotPartOfChainYet(*hash))?
-                .as_u64(),
-        })
+            number: block_height,
+        };
+
+        Ok(block_info)
     }
 
     #[instrument(err, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
-        let txn = get_with_retry_on_none(hash, |h| self.provider.get_transaction(*h)).await?;
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let txn = get_with_retry_on_none(
+            hash,
+            |h| self.provider.get_transaction(*h),
+            |h| HyperlaneProviderError::CouldNotFindTransactionByHash(*h),
+        )
+        .await?;
+
         let receipt = self
             .provider
             .get_transaction_receipt(*hash)
@@ -83,7 +106,7 @@ where
             })
             .transpose()?;
 
-        Ok(TxnInfo {
+        let txn_info = TxnInfo {
             hash: *hash,
             max_fee_per_gas: txn.max_fee_per_gas.map(Into::into),
             max_priority_fee_per_gas: txn.max_priority_fee_per_gas.map(Into::into),
@@ -93,7 +116,10 @@ where
             sender: txn.from.into(),
             recipient: txn.to.map(Into::into),
             receipt,
-        })
+            raw_input_data: Some(txn.input.to_vec()),
+        };
+
+        Ok(txn_info)
     }
 
     #[instrument(err, skip(self))]
@@ -193,22 +219,24 @@ impl BuildableWithProvider for HyperlaneProviderBuilder {
 /// Call a get function that returns a Result<Option<T>> and retry if the inner
 /// option is None. This can happen because the provider has not discovered the
 /// object we are looking for yet.
-async fn get_with_retry_on_none<T, F, O, E>(hash: &H256, get: F) -> ChainResult<T>
+async fn get_with_retry_on_none<T, F, O, E, I, N>(
+    id: &I,
+    get: F,
+    not_found_error: N,
+) -> ChainResult<T>
 where
-    F: Fn(&H256) -> O,
+    F: Fn(&I) -> O,
     O: Future<Output = Result<Option<T>, E>>,
     E: std::error::Error + Send + Sync + 'static,
+    N: Fn(&I) -> HyperlaneProviderError,
 {
     for _ in 0..3 {
-        if let Some(t) = get(hash)
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-        {
+        if let Some(t) = get(id).await.map_err(ChainCommunicationError::from_other)? {
             return Ok(t);
         } else {
             sleep(Duration::from_secs(5)).await;
             continue;
         };
     }
-    Err(HyperlaneProviderError::CouldNotFindObjectByHash(*hash).into())
+    Err(not_found_error(id).into())
 }

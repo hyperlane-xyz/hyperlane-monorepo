@@ -1,5 +1,38 @@
 # @hyperlane-xyz/utils
 
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+## 5.7.0
+
+### Patch Changes
+
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 04108155d: fix median utils func + add test
+- 39a9b2038: Filter undefined/null values in invertKeysAndValues function
+
+## 5.6.2
+
+### Patch Changes
+
+- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
+- a36fc5fb2: fix: isObject utils fn should return only boolean value
+
+## 5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+
+### Patch Changes
+
+- f1712deb7: Fix objMerge implementation
+
 ## 5.5.0
 
 ### Minor Changes

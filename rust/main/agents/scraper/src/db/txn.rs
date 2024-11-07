@@ -2,19 +2,17 @@ use std::collections::HashMap;
 
 use derive_more::Deref;
 use eyre::{eyre, Context, Result};
-use hyperlane_core::{TxnInfo, H256};
 use sea_orm::{
     prelude::*, sea_query::OnConflict, ActiveValue::*, DeriveColumn, EnumIter, Insert, NotSet,
     QuerySelect,
 };
 use tracing::{debug, instrument, trace};
 
+use hyperlane_core::{address_to_bytes, bytes_to_h512, h512_to_bytes, TxnInfo, H512};
+
 use super::generated::transaction;
-use crate::{
-    conversions::{address_to_bytes, h256_to_bytes, u256_to_decimal},
-    date_time,
-    db::ScraperDb,
-};
+
+use crate::{conversions::u256_to_decimal, date_time, db::ScraperDb};
 
 #[derive(Debug, Clone, Deref)]
 pub struct StorableTxn {
@@ -43,8 +41,8 @@ impl ScraperDb {
     /// found be excluded from the hashmap.
     pub async fn get_txn_ids(
         &self,
-        hashes: impl Iterator<Item = &H256>,
-    ) -> Result<HashMap<H256, i64>> {
+        hashes: impl Iterator<Item = &H512>,
+    ) -> Result<HashMap<H512, i64>> {
         #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
         enum QueryAs {
             Id,
@@ -53,7 +51,7 @@ impl ScraperDb {
 
         // check database to see which txns we already know and fetch their IDs
         let txns = transaction::Entity::find()
-            .filter(transaction::Column::Hash.is_in(hashes.map(h256_to_bytes)))
+            .filter(transaction::Column::Hash.is_in(hashes.map(h512_to_bytes)))
             .select_only()
             .column_as(transaction::Column::Id, QueryAs::Id)
             .column_as(transaction::Column::Hash, QueryAs::Hash)
@@ -62,7 +60,7 @@ impl ScraperDb {
             .await
             .context("When querying transactions")?
             .into_iter()
-            .map(|(id, hash)| Ok((H256::from_slice(&hash), id)))
+            .map(|(id, hash)| Ok((bytes_to_h512(&hash), id)))
             .collect::<Result<HashMap<_, _>>>()?;
 
         trace!(?txns, "Queried transaction info for hashes");
@@ -86,7 +84,7 @@ impl ScraperDb {
                     max_priority_fee_per_gas: Set(txn
                         .max_priority_fee_per_gas
                         .map(u256_to_decimal)),
-                    hash: Unchanged(h256_to_bytes(&txn.hash)),
+                    hash: Unchanged(h512_to_bytes(&txn.hash)),
                     time_created: Set(date_time::now()),
                     gas_used: Set(u256_to_decimal(receipt.gas_used)),
                     gas_price: Set(txn.gas_price.map(u256_to_decimal)),
@@ -96,6 +94,7 @@ impl ScraperDb {
                     recipient: Set(txn.recipient.as_ref().map(address_to_bytes)),
                     max_fee_per_gas: Set(txn.max_fee_per_gas.map(u256_to_decimal)),
                     cumulative_gas_used: Set(u256_to_decimal(receipt.cumulative_gas_used)),
+                    raw_input_data: Set(txn.raw_input_data.clone()),
                 })
             })
             .collect::<Result<Vec<_>>>()?;

@@ -40,9 +40,9 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-cache-
+            ${{ runner.os }}-yarn-4.5.1-cache-
 
       - name: yarn-install
         run: |
@@ -70,7 +70,7 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           fail-on-cache-miss: true
 
       - name: lint
@@ -108,6 +108,30 @@ jobs:
 
       - name: Unit Tests
         run: yarn test:ci
+
+  cli-e2e:
+    runs-on: ubuntu-latest
+    needs: [yarn-install]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI e2e tests
+        run: yarn --cwd typescript/cli test:e2e
 
   agent-configs:
     runs-on: ubuntu-latest
@@ -163,10 +187,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
+        uses: dtolnay/rust-toolchain@stable
 
       - name: rust cache
         uses: Swatinem/rust-cache@v2
@@ -218,7 +239,7 @@ jobs:
         run: |
           if [[ -n "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" 
+            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)"
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi

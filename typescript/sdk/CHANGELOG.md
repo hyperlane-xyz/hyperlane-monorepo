@@ -1,5 +1,96 @@
 # @hyperlane-xyz/sdk
 
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Minor Changes
+
+- 7b3b07900: Support using apiKey for CoinGeckoTokenPriceGetter
+- 30d92c319: Add `collateralChainName` to Warp Reader. Partial refactor of fetchTokenConfig().
+
+### Patch Changes
+
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/utils@6.0.0
+  - @hyperlane-xyz/core@5.7.1
+
+## 5.7.0
+
+### Minor Changes
+
+- 469f2f340: Checking for sufficient fees in `AbstractMessageIdAuthHook` and refund surplus
+- d9505ab58: Deploy to apechain, arbitrumnova, b3, fantom, gravity, harmony, kaia, morph, orderly, snaxchain, zeronetwork, zksync. Update default metadata in `HyperlaneCore` to `0x00001` to ensure empty metadata does not break on zksync.
+- 7e9e248be: Add feat to allow updates to destination gas using warp apply
+- 4c0605dca: Add optional proxy admin reuse in warp route deployments and admin proxy ownership transfer in warp apply
+- db9196837: Update default validator sets. Throw in `InterchainAccount.getOrDeployAccount` if the origin router is the zero address.
+- db5875cc2: Add `hyperlane warp verify` to allow post-deployment verification.
+- 956ff752a: Introduce utils that can be reused by the CLI and Infra for fetching token prices from Coingecko and gas prices from EVM/Cosmos chains.
+
+### Patch Changes
+
+- 5dabdf388: Optimize HyperlaneRelayer routing config derivation
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 56328e6e1: Fix ICA ISM self relay
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [04108155d]
+- Updated dependencies [f26453ee5]
+- Updated dependencies [0640f837c]
+- Updated dependencies [a82b4b4cb]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/core@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+
+## 5.6.2
+
+### Patch Changes
+
+- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+- Updated dependencies [a42616ff3]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/core@5.6.1
+
+## 5.6.1
+
+### Patch Changes
+
+- Updated dependencies [8cc0d9a4a]
+- Updated dependencies [c55257cf5]
+- Updated dependencies [8cc0d9a4a]
+  - @hyperlane-xyz/core@5.6.0
+  - @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 46044a2e9: Deploy to odysseytestnet
+- 02a5b92ba: Enroll new validators. Add tx overrides when deploying ICA accounts. Core checker now surfaces owner violations for defaultHook and requiredHook. App checker temporarily ignores bytecode mismatch violations.
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+- 8001bbbd6: Add override to some transactions to fix warp apply
+- 32d0a67c2: Adds the warp check command to compare warp routes config files with on chain warp route deployments
+- b1ff48bd1: Add rebasing yield route support into CLI/SDK
+- d41aa6928: Add `EthJsonRpcBlockParameterTag` enum for validating reorgPeriod
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+- 7d7bcc1a3: Add deployments for mainnets: flow, metall2, polynomial
+
+### Patch Changes
+
+- 7f3e0669d: Fix filtering non-evm addresses in appFromAddressesMapHelper
+- 2317eca3c: Set transaction overrides and add 10% gas limit buffer when sending message through HyperlaneCore.
+- Updated dependencies [f1712deb7]
+- Updated dependencies [29341950e]
+- Updated dependencies [c9085afd9]
+- Updated dependencies [ec6b874b1]
+- Updated dependencies [72c23c0d6]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/core@5.5.0
+
 ## 5.5.0
 
 ### Minor Changes

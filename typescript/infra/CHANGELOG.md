@@ -1,5 +1,80 @@
 # @hyperlane-xyz/infra
 
+## 6.0.0
+
+### Patch Changes
+
+- Updated dependencies [7b3b07900]
+- Updated dependencies [30d92c319]
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/sdk@6.0.0
+  - @hyperlane-xyz/utils@6.0.0
+  - @hyperlane-xyz/helloworld@6.0.0
+
+## 5.7.0
+
+### Patch Changes
+
+- Updated dependencies [5dabdf388]
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [d9505ab58]
+- Updated dependencies [04108155d]
+- Updated dependencies [7e9e248be]
+- Updated dependencies [4c0605dca]
+- Updated dependencies [db9196837]
+- Updated dependencies [db5875cc2]
+- Updated dependencies [56328e6e1]
+- Updated dependencies [956ff752a]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/sdk@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+  - @hyperlane-xyz/helloworld@5.7.0
+
+## 5.6.2
+
+### Patch Changes
+
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/sdk@5.6.2
+  - @hyperlane-xyz/helloworld@5.6.2
+
+## 5.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@5.6.1
+- @hyperlane-xyz/sdk@5.6.1
+- @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- b3495b205: Updates the warpIds for Renzo's latest deployment to Sei and Taiko to be used by the Checker
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+
+### Patch Changes
+
+- Updated dependencies [f1712deb7]
+- Updated dependencies [46044a2e9]
+- Updated dependencies [02a5b92ba]
+- Updated dependencies [29341950e]
+- Updated dependencies [8001bbbd6]
+- Updated dependencies [32d0a67c2]
+- Updated dependencies [b1ff48bd1]
+- Updated dependencies [e89f9e35d]
+- Updated dependencies [d41aa6928]
+- Updated dependencies [c3e9268f1]
+- Updated dependencies [7d7bcc1a3]
+- Updated dependencies [7f3e0669d]
+- Updated dependencies [2317eca3c]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/sdk@5.6.0
+  - @hyperlane-xyz/helloworld@5.6.0
+
 ## 5.5.0
 
 ### Patch Changes

@@ -19,7 +19,7 @@ import { ChainAddMenu } from './ChainAddMenu.js';
 import { ChainDetailsMenu } from './ChainDetailsMenu.js';
 import { ChainLogo } from './ChainLogo.js';
 
-enum ChainSortByOption {
+export enum ChainSortByOption {
   Name = 'name',
   ChainId = 'chain id',
   Protocol = 'protocol',
@@ -29,6 +29,8 @@ enum FilterTestnetOption {
   Testnet = 'testnet',
   Mainnet = 'mainnet',
 }
+
+type DefaultSortField = ChainSortByOption | 'custom';
 
 interface ChainFilterState {
   type?: FilterTestnetOption;
@@ -53,13 +55,15 @@ export interface ChainSearchMenuProps {
   ) => void;
   onClickChain: (chain: ChainMetadata) => void;
   // Replace the default 2nd column (deployer) with custom data
-  customListItemField?: CustomListItemField;
+  customListItemField?: CustomListItemField | null;
   // Auto-navigate to a chain details menu
   showChainDetails?: ChainName;
   // Auto-navigate to a chain add menu
   showAddChainMenu?: boolean;
   // Include add button above list
   showAddChainButton?: boolean;
+  // Field by which data will be sorted by default
+  defaultSortField?: DefaultSortField;
 }
 
 export function ChainSearchMenu({
@@ -71,6 +75,7 @@ export function ChainSearchMenu({
   showChainDetails,
   showAddChainButton,
   showAddChainMenu,
+  defaultSortField,
 }: ChainSearchMenuProps) {
   const [drilldownChain, setDrilldownChain] = React.useState<
     ChainName | undefined
@@ -87,7 +92,7 @@ export function ChainSearchMenu({
   }, [chainMetadata]);
 
   const { ListComponent, searchFn, sortOptions, defaultSortState } =
-    useCustomizedListItems(customListItemField);
+    useCustomizedListItems(customListItemField, defaultSortField);
 
   if (drilldownChain && mergedMetadata[drilldownChain]) {
     const isLocalOverrideChain = !chainMetadata[drilldownChain];
@@ -150,7 +155,7 @@ function ChainListItem({
   customField,
 }: {
   data: ChainMetadata;
-  customField?: CustomListItemField;
+  customField?: CustomListItemField | null;
 }) {
   return (
     <>
@@ -167,16 +172,18 @@ function ChainListItem({
           </div>
         </div>
       </div>
-      <div className="htw-text-left htw-overflow-hidden">
-        <div className="htw-text-sm truncate">
-          {customField
-            ? customField.data[chain.name].display || 'Unknown'
-            : chain.deployer?.name || 'Unknown deployer'}
+      {customField !== null && (
+        <div className="htw-text-left htw-overflow-hidden">
+          <div className="htw-text-sm truncate">
+            {customField
+              ? customField.data[chain.name].display || 'Unknown'
+              : chain.deployer?.name || 'Unknown deployer'}
+          </div>
+          <div className="htw-text-[0.7rem] htw-text-gray-500">
+            {customField ? customField.header : 'Deployer'}
+          </div>
         </div>
-        <div className="htw-text-[0.7rem] htw-text-gray-500">
-          {customField ? customField.header : 'Deployer'}
-        </div>
-      </div>
+      )}
     </>
   );
 }
@@ -234,7 +241,7 @@ function chainSearch({
           chain.name.includes(queryFormatted) ||
           chain.displayName?.toLowerCase().includes(queryFormatted) ||
           chain.chainId.toString().includes(queryFormatted) ||
-          chain.domainId?.toString().includes(queryFormatted),
+          chain.domainId.toString().includes(queryFormatted),
       )
       // Filter options
       .filter((chain) => {
@@ -281,7 +288,10 @@ function chainSearch({
  * This is useful because SearchMenu will do handle the list item rendering and
  * management but the custom data is more or a chain-search-specific concern
  */
-function useCustomizedListItems(customListItemField) {
+function useCustomizedListItems(
+  customListItemField,
+  defaultSortField?: DefaultSortField,
+) {
   // Create closure of ChainListItem but with customField pre-bound
   const ListComponent = useCallback(
     ({ data }: { data: ChainMetadata<{ disabled?: boolean }> }) => (
@@ -306,16 +316,19 @@ function useCustomizedListItems(customListItemField) {
     [customListItemField],
   ) as ChainSortByOption[];
 
-  // Sort by the custom field by default, if one is provided
+  // Sort by defaultSortField initially, if value is "custom", sort using custom field by default
   const defaultSortState = useMemo(
     () =>
-      customListItemField
+      defaultSortField
         ? {
-            sortBy: customListItemField.header,
+            sortBy:
+              defaultSortField === 'custom' && customListItemField
+                ? customListItemField.header
+                : defaultSortField,
             sortOrder: SortOrderOption.Desc,
           }
         : undefined,
-    [customListItemField],
+    [defaultSortField, customListItemField],
   ) as SortState<ChainSortByOption> | undefined;
 
   return { ListComponent, searchFn, sortOptions, defaultSortState };

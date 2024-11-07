@@ -232,13 +232,15 @@ async function main(): Promise<boolean> {
     messageReceiptSeconds.labels({ origin, remote }).inc(0);
   }
 
-  chains.map(async (chain) => {
-    return updateWalletBalanceMetricFor(
-      app,
-      chain,
-      coreConfig.owners[chain].owner,
-    );
-  });
+  await Promise.all(
+    chains.map(async (chain) => {
+      return updateWalletBalanceMetricFor(
+        app,
+        chain,
+        coreConfig.owners[chain].owner,
+      );
+    }),
+  );
 
   // Incremented each time an entire cycle has occurred
   let currentCycle = 0;

@@ -3,15 +3,17 @@ use std::str::FromStr;
 use derive_new::new;
 use url::Url;
 
-use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber};
+use hyperlane_core::{
+    config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
+};
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
 pub struct ConnectionConf {
-    /// The GRPC url to connect to
+    /// The GRPC urls to connect to
     grpc_urls: Vec<Url>,
     /// The RPC url to connect to
-    rpc_url: String,
+    rpc_urls: Vec<Url>,
     /// The chain ID
     chain_id: String,
     /// The human readable address prefix for the chains using bech32.
@@ -60,15 +62,6 @@ impl TryFrom<RawCosmosAmount> for CosmosAmount {
     }
 }
 
-/// Chain native token denomination and number of decimal places
-#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
-pub struct NativeToken {
-    /// The number of decimal places in token which can be expressed by denomination
-    pub decimals: u32,
-    /// Denomination of the token
-    pub denom: String,
-}
-
 /// An error type when parsing a connection configuration.
 #[derive(thiserror::Error, Debug)]
 pub enum ConnectionConfError {
@@ -95,9 +88,9 @@ impl ConnectionConf {
         self.grpc_urls.clone()
     }
 
-    /// Get the RPC url
-    pub fn get_rpc_url(&self) -> String {
-        self.rpc_url.clone()
+    /// Get the RPC urls
+    pub fn get_rpc_urls(&self) -> Vec<Url> {
+        self.rpc_urls.clone()
     }
 
     /// Get the chain ID
@@ -134,7 +127,7 @@ impl ConnectionConf {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         grpc_urls: Vec<Url>,
-        rpc_url: String,
+        rpc_urls: Vec<Url>,
         chain_id: String,
         bech32_prefix: String,
         canonical_asset: String,
@@ -145,7 +138,7 @@ impl ConnectionConf {
     ) -> Self {
         Self {
             grpc_urls,
-            rpc_url,
+            rpc_urls,
             chain_id,
             bech32_prefix,
             canonical_asset,

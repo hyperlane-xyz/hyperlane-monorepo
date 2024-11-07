@@ -2,7 +2,11 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { ChainMetadata, isValidChainMetadata } from './chainMetadataTypes.js';
+import {
+  ChainMetadata,
+  EthJsonRpcBlockParameterTag,
+  isValidChainMetadata,
+} from './chainMetadataTypes.js';
 
 const minimalSchema: ChainMetadata = {
   chainId: 5,
@@ -60,6 +64,16 @@ describe('ChainMetadataSchema', () => {
         slip44: 118,
         restUrls: [],
         grpcUrls: [],
+      }),
+    ).to.eq(true);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        blocks: {
+          confirmations: 1,
+          reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
+        },
       }),
     ).to.eq(true);
   });

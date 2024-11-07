@@ -1,4 +1,4 @@
-import CoinGecko from 'coingecko-api';
+import { CoinGeckoClient, SimplePriceResponse } from 'coingecko-api-v3';
 
 import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
@@ -10,12 +10,11 @@ export interface TokenPriceGetter {
   getTokenExchangeRate(base: ChainName, quote: ChainName): Promise<number>;
 }
 
-export type CoinGeckoInterface = Pick<CoinGecko, 'simple'>;
-export type CoinGeckoSimpleInterface = CoinGecko['simple'];
-export type CoinGeckoSimplePriceParams = Parameters<
-  CoinGeckoSimpleInterface['price']
->[0];
-export type CoinGeckoResponse = ReturnType<CoinGeckoSimpleInterface['price']>;
+export type CoinGeckoInterface = Pick<CoinGeckoClient, 'simplePrice'>;
+export type CoinGeckoSimplePriceInterface = CoinGeckoClient['simplePrice'];
+export type CoinGeckoSimplePriceParams =
+  Parameters<CoinGeckoSimplePriceInterface>[0];
+export type CoinGeckoResponse = ReturnType<CoinGeckoSimplePriceInterface>;
 
 type TokenPriceCacheEntry = {
   price: number;
@@ -23,23 +22,23 @@ type TokenPriceCacheEntry = {
 };
 
 class TokenPriceCache {
-  protected cache: Map<ChainName, TokenPriceCacheEntry>;
+  protected cache: Map<string, TokenPriceCacheEntry>;
   protected freshSeconds: number;
   protected evictionSeconds: number;
 
   constructor(freshSeconds = 60, evictionSeconds = 3 * 60 * 60) {
-    this.cache = new Map<ChainName, TokenPriceCacheEntry>();
+    this.cache = new Map<string, TokenPriceCacheEntry>();
     this.freshSeconds = freshSeconds;
     this.evictionSeconds = evictionSeconds;
   }
 
-  put(chain: ChainName, price: number): void {
+  put(id: string, price: number): void {
     const now = new Date();
-    this.cache.set(chain, { timestamp: now, price });
+    this.cache.set(id, { timestamp: now, price });
   }
 
-  isFresh(chain: ChainName): boolean {
-    const entry = this.cache.get(chain);
+  isFresh(id: string): boolean {
+    const entry = this.cache.get(id);
     if (!entry) return false;
 
     const expiryTime = new Date(
@@ -49,17 +48,17 @@ class TokenPriceCache {
     return now < expiryTime;
   }
 
-  fetch(chain: ChainName): number {
-    const entry = this.cache.get(chain);
+  fetch(id: string): number {
+    const entry = this.cache.get(id);
     if (!entry) {
-      throw new Error(`no entry found for ${chain} in token price cache`);
+      throw new Error(`no entry found for ${id} in token price cache`);
     }
     const evictionTime = new Date(
       entry.timestamp.getTime() + 1000 * this.evictionSeconds,
     );
     const now = new Date();
     if (now > evictionTime) {
-      throw new Error(`evicted entry found for ${chain} in token price cache`);
+      throw new Error(`evicted entry found for ${id} in token price cache`);
     }
     return entry.price;
   }
@@ -85,10 +84,11 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
 
   static withDefaultCoinGecko(
     chainMetadata: ChainMap<ChainMetadata>,
+    apiKey?: string,
     expirySeconds?: number,
     sleepMsBetweenRequests = 5000,
   ): CoinGeckoTokenPriceGetter {
-    const coinGecko = new CoinGecko();
+    const coinGecko = new CoinGeckoClient(undefined, apiKey);
     return new CoinGeckoTokenPriceGetter(
       coinGecko,
       chainMetadata,
@@ -97,20 +97,30 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     );
   }
 
-  async getTokenPrice(chain: ChainName): Promise<number> {
-    const [price] = await this.getTokenPrices([chain]);
+  async getTokenPrice(
+    chain: ChainName,
+    currency: string = 'usd',
+  ): Promise<number> {
+    const [price] = await this.getTokenPrices([chain], currency);
     return price;
   }
 
   async getTokenExchangeRate(
     base: ChainName,
     quote: ChainName,
+    currency: string = 'usd',
   ): Promise<number> {
-    const [basePrice, quotePrice] = await this.getTokenPrices([base, quote]);
+    const [basePrice, quotePrice] = await this.getTokenPrices(
+      [base, quote],
+      currency,
+    );
     return basePrice / quotePrice;
   }
 
-  private async getTokenPrices(chains: ChainName[]): Promise<number[]> {
+  private async getTokenPrices(
+    chains: ChainName[],
+    currency: string = 'usd',
+  ): Promise<number[]> {
     const isMainnet = chains.map((c) => !this.metadata[c].isTestnet);
     const allMainnets = isMainnet.every((v) => v === true);
     const allTestnets = isMainnet.every((v) => v === false);
@@ -125,32 +135,37 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
       );
     }
 
-    const toQuery = chains.filter((c) => !this.cache.isFresh(c));
-    if (toQuery.length > 0) {
-      try {
-        await this.queryTokenPrices(toQuery);
-      } catch (e) {
-        rootLogger.warn('Failed to query token prices', e);
-      }
-    }
-    return chains.map((chain) => this.cache.fetch(chain));
-  }
-
-  private async queryTokenPrices(chains: ChainName[]): Promise<void> {
-    const currency = 'usd';
-    // The CoinGecko API expects, in some cases, IDs that do not match
-    // ChainNames.
     const ids = chains.map(
       (chain) => this.metadata[chain].gasCurrencyCoinGeckoId || chain,
     );
-    // Coingecko rate limits, so we are adding this sleep
+
+    await this.getTokenPriceByIds(ids, currency);
+    return chains.map((chain) =>
+      this.cache.fetch(this.metadata[chain].gasCurrencyCoinGeckoId || chain),
+    );
+  }
+
+  public async getTokenPriceByIds(
+    ids: string[],
+    currency: string = 'usd',
+  ): Promise<number[] | undefined> {
+    const toQuery = ids.filter((id) => !this.cache.isFresh(id));
     await sleep(this.sleepMsBetweenRequests);
-    const response = await this.coinGecko.simple.price({
-      ids,
-      vs_currencies: [currency],
-    });
-    const prices = ids.map((id) => response.data[id][currency]);
-    // Update the cache with the newly fetched prices
-    chains.map((chain, i) => this.cache.put(chain, prices[i]));
+
+    if (toQuery.length > 0) {
+      let response: SimplePriceResponse;
+      try {
+        response = await this.coinGecko.simplePrice({
+          ids: toQuery.join(','),
+          vs_currencies: currency,
+        });
+        const prices = toQuery.map((id) => response[id][currency]);
+        toQuery.map((id, i) => this.cache.put(id, prices[i]));
+      } catch (e) {
+        rootLogger.warn('Error when querying token prices', e);
+        return undefined;
+      }
+    }
+    return ids.map((id) => this.cache.fetch(id));
   }
 }
