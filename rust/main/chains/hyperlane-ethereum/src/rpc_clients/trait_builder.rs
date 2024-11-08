@@ -198,8 +198,7 @@ pub trait BuildableWithProvider {
     where
         P: JsonRpcClient + 'static,
     {
-        let provider = wrap_with_gas_oracle(Provider::new(client), locator.domain)?;
-        self.build_with_signer(provider, conn, locator, signer)
+        self.build_with_signer(Provider::new(client), conn, locator, signer)
             .await
     }
 
@@ -223,8 +222,9 @@ pub trait BuildableWithProvider {
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
             let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
+            let gas_oracle_provider = wrap_with_gas_oracle(gas_escalator_provider, locator.domain)?;
             let nonce_manager_provider =
-                wrap_with_nonce_manager(gas_escalator_provider, signer.address())
+                wrap_with_nonce_manager(gas_oracle_provider, signer.address())
                     .await
                     .map_err(ChainCommunicationError::from_other)?;
 
