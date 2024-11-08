@@ -69,10 +69,10 @@ async function pollAndUpdateWarpRouteMetrics(
   warpCore: WarpCore,
   chainMetadata: ChainMap<ChainMetadata>,
 ) {
-  const tokenPriceGetter = CoinGeckoTokenPriceGetter.withDefaultCoinGecko(
+  const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
     chainMetadata,
-    await getCoinGeckoApiKey(),
-  );
+    apiKey: await getCoinGeckoApiKey(),
+  });
 
   setInterval(async () => {
     await gracefullyHandleError(async () => {

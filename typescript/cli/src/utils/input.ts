@@ -19,14 +19,16 @@ import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { ChainName, DeployedOwnableConfig } from '@hyperlane-xyz/sdk';
-import { WarpCoreConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  DeployedOwnableConfig,
+  WarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
 import { Address, isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
 import { readWarpCoreConfig } from '../config/warp.js';
 import { CommandContext } from '../context/types.js';
-import { logGray } from '../logger.js';
-import { logRed } from '../logger.js';
+import { logGray, logRed } from '../logger.js';
 
 import { indentYamlOrJson } from './files.js';
 import { selectRegistryWarpRoute } from './tokens.js';

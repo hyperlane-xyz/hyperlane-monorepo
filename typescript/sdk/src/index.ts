@@ -26,6 +26,7 @@ export {
   testCosmosChain,
   testSealevelChain,
 } from './consts/testChains.js';
+export { randomAddress } from './test/testUtils.js';
 export {
   attachAndConnectContracts,
   attachContracts,
@@ -557,7 +558,6 @@ export {
   ChainGasOracleParams,
   GasPriceConfig,
   NativeTokenPriceConfig,
-  getCoingeckoTokenPrices,
   getCosmosChainGasPrice,
   getGasPrice,
   getLocalStorageGasOracleConfig,
