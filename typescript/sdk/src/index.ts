@@ -26,6 +26,7 @@ export {
   testCosmosChain,
   testSealevelChain,
 } from './consts/testChains.js';
+export { randomAddress } from './test/testUtils.js';
 export {
   attachAndConnectContracts,
   attachContracts,

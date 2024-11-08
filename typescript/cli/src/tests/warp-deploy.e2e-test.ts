@@ -34,6 +34,7 @@ const WARP_CORE_CONFIG_PATH_2_3 = `${REGISTRY_PATH}/deployments/warp_routes/VAUL
 const TEST_TIMEOUT = 60_000; // Long timeout since these tests can take a while
 describe('WarpDeploy e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
+  let chain3Addresses: ChainAddresses = {};
   let token: any;
   let vault: any;
 
@@ -46,7 +47,11 @@ describe('WarpDeploy e2e tests', async function () {
       ANVIL_KEY,
     );
 
-    await deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY);
+    chain3Addresses = await deployOrUseExistingCore(
+      CHAIN_NAME_3,
+      CORE_CONFIG_PATH,
+      ANVIL_KEY,
+    );
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     vault = await deploy4626Vault(ANVIL_KEY, CHAIN_NAME_2, token.address);
@@ -81,8 +86,8 @@ describe('WarpDeploy e2e tests', async function () {
       },
       [CHAIN_NAME_3]: {
         type: TokenType.syntheticRebase,
-        mailbox: chain2Addresses.mailbox,
-        owner: chain2Addresses.mailbox,
+        mailbox: chain3Addresses.mailbox,
+        owner: chain3Addresses.mailbox,
         collateralChainName: CHAIN_NAME_2,
       },
     };

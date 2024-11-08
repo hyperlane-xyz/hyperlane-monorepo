@@ -34,6 +34,7 @@ interface DeployParams {
 interface ApplyParams extends DeployParams {
   deployedCoreAddresses: DeployedCoreAddresses;
 }
+
 /**
  * Executes the core deploy command.
  */
