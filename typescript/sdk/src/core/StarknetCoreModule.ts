@@ -1,4 +1,4 @@
-import { Account, Contract, num } from 'starknet';
+import { Account, Contract } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -7,16 +7,28 @@ import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
 import { HookType } from '../hook/types.js';
 import { ChainNameOrId } from '../types.js';
 
+import { StarknetCoreReader } from './StarknetCoreReader.js';
 import { CoreConfig } from './types.js';
 
 export class StarknetCoreModule {
   protected logger = rootLogger.child({ module: 'StarknetCoreModule' });
   protected deployer: StarknetDeployer;
+  protected coreReader: StarknetCoreReader;
+
   constructor(
     protected readonly signer: Account,
     protected readonly domainId: number,
   ) {
     this.deployer = new StarknetDeployer(signer);
+    this.coreReader = new StarknetCoreReader(signer);
+  }
+
+  /**
+   * Reads the core configuration from the mailbox address
+   * @returns The core config.
+   */
+  public async read(mailboxContract: Contract): Promise<CoreConfig> {
+    return this.coreReader.deriveCoreConfig(mailboxContract.address);
   }
 
   async deploy(params: {
@@ -37,9 +49,9 @@ export class StarknetCoreModule {
     const defaultHook = await this.deployer.deployContract('hook', []);
 
     const protocolFee = await this.deployer.deployContract('protocol_fee', [
-      config.requiredHook.maxProtocolFee || '1000000000000000000',
+      '1000000000000000000',
       '0',
-      config.requiredHook.protocolFee || '10000000000000000',
+      '10000000000000000',
       '0',
       config.requiredHook.beneficiary,
       config.owner,
@@ -103,7 +115,7 @@ export class StarknetCoreModule {
       owner?: string;
     } = {};
 
-    const actualDefaultIsmConfig = await this.read(args.mailboxContract);
+    const actualConfig = await this.read(args.mailboxContract);
 
     if (expectedConfig.defaultIsm) {
       const defaultIsm = await this.deployer.deployIsm({
@@ -143,10 +155,7 @@ export class StarknetCoreModule {
       result.requiredHook = merkleTreeHook;
     }
 
-    if (
-      expectedConfig.owner &&
-      actualDefaultIsmConfig.owner !== expectedConfig.owner
-    ) {
+    if (expectedConfig.owner && actualConfig.owner !== expectedConfig.owner) {
       this.logger.trace(`Updating mailbox owner ${expectedConfig.owner}..`);
       const { transaction_hash: transferOwnershipTxHash } =
         await args.mailboxContract.invoke('transfer_ownership', [
@@ -155,25 +164,12 @@ export class StarknetCoreModule {
 
       await this.signer.waitForTransaction(transferOwnershipTxHash);
       this.logger.trace(
-        `Transaction hash for updated required hook: ${transferOwnershipTxHash}`,
+        `Transaction hash for updated owner: ${transferOwnershipTxHash}`,
       );
 
       result.owner = expectedConfig.owner;
     }
 
     return result;
-  }
-
-  //TODO: return CoreConfig by fetching each contract details
-  async read(mailboxContract: Contract) {
-    const [defaultIsm, defaultHook, requiredHook, owner] = (
-      await Promise.all([
-        mailboxContract.call('get_default_ism'),
-        mailboxContract.call('get_default_hook'),
-        mailboxContract.call('get_required_hook'),
-        mailboxContract.call('owner'),
-      ])
-    ).map((res) => num.toHex64(res.toString()));
-    return { defaultIsm, defaultHook, requiredHook, owner };
   }
 }
