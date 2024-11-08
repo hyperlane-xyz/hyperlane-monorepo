@@ -1,4 +1,8 @@
-import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
+import {
+  Mailbox,
+  Mailbox__factory,
+  Ownable__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
@@ -25,6 +29,7 @@ import {
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
 import { shouldSkipStaticDeployment } from '../deploy/protocolDeploymentConfig.js';
+import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { createDefaultProxyFactoryFactories } from '../deploy/proxyFactoryUtils.js';
 import { ProxyFactoryFactoriesAddresses } from '../deploy/schemas.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -69,6 +74,7 @@ export class EvmCoreModule extends HyperlaneModule<
     this.chainName = multiProvider.getChainName(args.chain);
     this.chainId = multiProvider.getEvmChainId(args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainId = multiProvider.getEvmChainId(args.chain);
   }
 
   /**
@@ -96,6 +102,12 @@ export class EvmCoreModule extends HyperlaneModule<
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
+      ...proxyAdminUpdateTxs(
+        this.chainId,
+        this.args.addresses.mailbox,
+        actualConfig,
+        expectedConfig,
+      ),
     );
 
     return transactions;
@@ -282,15 +294,17 @@ export class EvmCoreModule extends HyperlaneModule<
     );
 
     // Deploy proxyAdmin
-    const proxyAdmin = (
-      await coreDeployer.deployContract(chainName, 'proxyAdmin', [])
-    ).address;
+    const proxyAdmin = await coreDeployer.deployContract(
+      chainName,
+      'proxyAdmin',
+      [],
+    );
 
     // Deploy Mailbox
     const mailbox = await this.deployMailbox({
       config,
       coreDeployer,
-      proxyAdmin,
+      proxyAdmin: proxyAdmin.address,
       multiProvider,
       chain,
     });
@@ -339,10 +353,26 @@ export class EvmCoreModule extends HyperlaneModule<
     const { merkleTreeHook, interchainGasPaymaster } =
       serializedContracts[chainName];
 
+    // Update the ProxyAdmin owner of the Mailbox if the config defines a different owner from the current signer
+    const currentProxyOwner = await proxyAdmin.owner();
+    if (
+      config?.proxyAdmin?.owner &&
+      !eqAddress(config.proxyAdmin.owner, currentProxyOwner)
+    ) {
+      await multiProvider.sendTransaction(chainName, {
+        annotation: `Transferring ownership of ProxyAdmin to the configured address ${config.proxyAdmin.owner}`,
+        to: proxyAdmin.address,
+        data: Ownable__factory.createInterface().encodeFunctionData(
+          'transferOwnership(address)',
+          [config.proxyAdmin.owner],
+        ),
+      });
+    }
+
     // Set Core & extra addresses
     return {
       ...ismFactoryFactories,
-      proxyAdmin,
+      proxyAdmin: proxyAdmin.address,
       mailbox: mailbox.address,
       interchainAccountRouter,
       interchainAccountIsm,
