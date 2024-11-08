@@ -68,7 +68,10 @@ export class TransactionReader {
       return this.readMultisendTransaction(chain, tx);
     }
 
-    return {};
+    return {
+      insight: '⚠️ Unknown transaction type',
+      tx,
+    };
   }
 
   private async readIcaTransaction(
@@ -104,6 +107,7 @@ export class TransactionReader {
     }
 
     return {
+      to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
@@ -172,6 +176,7 @@ export class TransactionReader {
     }
 
     return {
+      to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
       signature: decoded.signature,
       args: prettyArgs,
     };
