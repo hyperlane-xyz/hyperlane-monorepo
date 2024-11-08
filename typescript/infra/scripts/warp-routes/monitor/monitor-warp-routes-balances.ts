@@ -123,11 +123,18 @@ async function getTokenBridgedBalance(
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ): Promise<WarpRouteBalance | undefined> {
-  const bridgedSupply = await token.getBridgedSupply(warpCore.multiProvider);
+  if (!token.isHypToken()) {
+    logger.warn('Cannot get bridged balance for a non-Hyperlane token', token);
+    return undefined;
+  }
+
+  const adapter = token.getHypAdapter(warpCore.multiProvider);
+  const bridgedSupply = await adapter.getBridgedSupply();
   if (!bridgedSupply) {
     logger.warn('Bridged supply not found for token', token);
     return undefined;
   }
+  const balance = token.amount(bridgedSupply).getDecimalFormattedAmount();
 
   let tokenPrice;
   // Only record value for collateralized and xERC20 lockbox tokens.
@@ -137,7 +144,6 @@ async function getTokenBridgedBalance(
   ) {
     tokenPrice = await tryGetTokenPrice(token, tokenPriceGetter);
   }
-  const balance = bridgedSupply.getDecimalFormattedAmount();
 
   return {
     balance,

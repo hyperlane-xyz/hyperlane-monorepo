@@ -203,6 +203,10 @@ export class EvmHypSyntheticAdapter
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
+  getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getTotalSupply();
+  }
+
   async quoteTransferRemoteGas(
     destination: Domain,
   ): Promise<InterchainGasQuote> {
@@ -265,6 +269,10 @@ export class EvmHypCollateralAdapter
     });
   }
 
+  override getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getBalance(this.addresses.token);
+  }
+
   override getMetadata(isNft?: boolean): Promise<TokenMetadata> {
     return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
   }
@@ -316,6 +324,16 @@ export class EvmHypXERC20LockboxAdapter
     );
   }
 
+  /**
+   * Note this may be inaccurate, as this returns the balance
+   * of the lockbox contract, which may be used by other bridges.
+   * However this is the best we can do with a simple view call.
+   */
+  override async getBridgedSupply(): Promise<bigint | undefined> {
+    const lockboxAddress = await this.hypXERC20Lockbox.lockbox();
+    return this.getBalance(lockboxAddress);
+  }
+
   async getMintLimit(): Promise<bigint> {
     const xERC20 = await this.getXErc20();
     const limit = await xERC20.mintingCurrentLimitOf(this.contract.address);
@@ -365,6 +383,19 @@ export class EvmHypXERC20Adapter
       addresses.token,
       this.getProvider(),
     );
+  }
+
+  /**
+   * Note this may be inaccurate, as this returns the total supply
+   * of the xERC20 contract, which may be used by other bridges.
+   * However this is the best we can do with a simple view call.
+   */
+  override async getBridgedSupply(): Promise<bigint | undefined> {
+    const xerc20TokenAddress = await this.hypXERC20.wrappedToken();
+    const xerc20 = new EvmTokenAdapter(this.chainName, this.multiProvider, {
+      token: xerc20TokenAddress,
+    });
+    return xerc20.getTotalSupply();
   }
 
   async getMintLimit(): Promise<bigint> {

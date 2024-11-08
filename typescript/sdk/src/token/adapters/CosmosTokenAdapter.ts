@@ -108,6 +108,11 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
+
+  getBridgedSupply(): Promise<bigint | undefined> {
+    throw new Error('Method not applicable to IBC adapters');
+  }
+
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {

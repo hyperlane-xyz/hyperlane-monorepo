@@ -342,49 +342,6 @@ export class Token implements IToken {
     return new TokenAmount(balance, this);
   }
 
-  /**
-   * Gets the amount of tokens bridged, if possible.
-   * @param multiProvider A multiProvider that contains the chain for this token.
-   * @returns The amount of tokens bridged, or undefined if not supported.
-   */
-  async getBridgedSupply(
-    multiProvider: MultiProtocolProvider,
-  ): Promise<TokenAmount | undefined> {
-    const adapter = this.getAdapter(multiProvider);
-    if (this.standard === TokenStandard.EvmHypXERC20Lockbox) {
-      // The EvmHypXERC20Lockbox escrows bridged tokens in the lockbox.
-      const xerc20LockboxAdapter = adapter as EvmHypXERC20LockboxAdapter;
-      const lockboxAddress =
-        await xerc20LockboxAdapter.hypXERC20Lockbox.lockbox();
-      const balance = await xerc20LockboxAdapter.getBalance(lockboxAddress);
-      return new TokenAmount(balance, this);
-    } else if (this.standard === TokenStandard.EvmHypXERC20) {
-      // It's possible for the XERC20 to have other bridges that can mint tokens,
-      // but the only insight we're capable of getting from a view call is the
-      // total supply of the xERC20 itself.
-      const xerc20Adapter = adapter as EvmHypXERC20Adapter;
-      const xerc20TokenAddress = await xerc20Adapter.hypXERC20.wrappedToken();
-      const xerc20 = new EvmTokenAdapter(this.chainName, multiProvider, {
-        token: xerc20TokenAddress,
-      });
-      const totalSupply = await xerc20.getTotalSupply();
-      return new TokenAmount(totalSupply, this);
-    } else if (this.isCollateralized()) {
-      // For any collateralized token, the tokens are escrowed in the router itself.
-      const routerBalance = await adapter.getBalance(this.addressOrDenom);
-      return new TokenAmount(routerBalance, this);
-    } else if (this.isHypToken()) {
-      // If it's a HypToken and not collateralized, it's a synthetic, so just
-      // get the total supply.
-      const totalSupply = await adapter.getTotalSupply();
-      if (totalSupply) {
-        return new TokenAmount(totalSupply, this);
-      }
-    }
-    // Don't support any other type (e.g. IBC'd tokens, other new special types)
-    return undefined;
-  }
-
   amount(amount: Numberish): TokenAmount {
     return new TokenAmount(amount, this);
   }

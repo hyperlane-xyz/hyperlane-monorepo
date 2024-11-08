@@ -278,6 +278,11 @@ export abstract class SealevelHypTokenAdapter
     }));
   }
 
+  // Intended to be overridden by subclasses
+  async getBridgedSupply(): Promise<bigint | undefined> {
+    return undefined;
+  }
+
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {
@@ -593,6 +598,10 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     return this.wrappedNative.getBalance(owner);
   }
 
+  override async getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getBalance(this.addresses.warpRouter);
+  }
+
   override async getMetadata(): Promise<TokenMetadata> {
     return this.wrappedNative.getMetadata();
   }
@@ -642,6 +651,10 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
     }
 
     return super.getBalance(owner);
+  }
+
+  override async getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getBalance(this.addresses.warpRouter);
   }
 
   override getTransferInstructionKeyList(
@@ -707,6 +720,10 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
       throw error;
     }
+  }
+
+  override async getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getTotalSupply();
   }
 
   async getTotalSupply(): Promise<bigint> {
