@@ -63,6 +63,7 @@ export class CosmNativeTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
     return undefined;
   }
 }

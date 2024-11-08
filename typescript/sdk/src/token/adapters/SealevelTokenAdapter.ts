@@ -115,6 +115,7 @@ export class SealevelNativeTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
     return undefined;
   }
 }
@@ -196,7 +197,10 @@ export class SealevelTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
-    return undefined;
+    const response = await this.getProvider().getTokenSupply(
+      this.tokenMintPubKey,
+    );
+    return BigInt(response.value.amount);
   }
 }
 

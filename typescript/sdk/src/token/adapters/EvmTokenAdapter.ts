@@ -80,6 +80,7 @@ export class EvmNativeTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented, native tokens don't have an accessible total supply
     return undefined;
   }
 }

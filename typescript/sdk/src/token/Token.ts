@@ -342,6 +342,11 @@ export class Token implements IToken {
     return new TokenAmount(balance, this);
   }
 
+  /**
+   * Gets the amount of tokens bridged, if possible.
+   * @param multiProvider A multiProvider that contains the chain for this token.
+   * @returns The amount of tokens bridged, or undefined if not supported.
+   */
   async getBridgedSupply(
     multiProvider: MultiProtocolProvider,
   ): Promise<TokenAmount | undefined> {

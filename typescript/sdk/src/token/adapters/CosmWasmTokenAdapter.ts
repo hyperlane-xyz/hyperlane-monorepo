@@ -92,6 +92,7 @@ export class CwNativeTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
     return undefined;
   }
 }
@@ -178,6 +179,7 @@ export class CwTokenAdapter
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
     return undefined;
   }
 }
