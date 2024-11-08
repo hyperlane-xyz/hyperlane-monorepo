@@ -13,27 +13,35 @@ use hyperlane_core::H512;
 
 use crate::utils::{decode_h512, from_base58};
 
-/// This function searches for a transaction which dispatches Hyperlane message and returns
-/// list of hashes of such transactions.
+/// This function searches for a transaction which specified instruction on Hyperlane message and
+/// returns list of hashes of such transactions.
 ///
 /// This function takes the mailbox program identifier and the identifier for PDA for storing
-/// a dispatched message and searches a message dispatch transaction in a list of transaction.
+/// a dispatched or delivered message and searches a message dispatch or delivery transaction
+/// in a list of transactions.
+///
 /// The list of transaction is usually comes from a block. The function returns list of hashes
-/// of such transactions.
+/// of such transactions and their relative index in the block.
 ///
 /// The transaction will be searched with the following criteria:
 ///     1. Transaction contains Mailbox program id in the list of accounts.
-///     2. Transaction contains dispatched message PDA in the list of accounts.
-///     3. Transaction is performing message dispatch (OutboxDispatch).
+///     2. Transaction contains dispatched/delivered message PDA in the list of accounts.
+///     3. Transaction is performing the specified message instruction.
 ///
 /// * `mailbox_program_id` - Identifier of Mailbox program
-/// * `message_storage_pda_pubkey` - Identifier for dispatch message store PDA
+/// * `message_storage_pda_pubkey` - Identifier for message store PDA
 /// * `transactions` - List of transactions
-pub fn search_dispatched_message_transactions(
+/// * `is_specified_message_instruction` - Function which returns `true` for specified message
+///     instruction
+pub fn search_message_transactions<F>(
     mailbox_program_id: &Pubkey,
     message_storage_pda_pubkey: &Pubkey,
     transactions: Vec<EncodedTransactionWithStatusMeta>,
-) -> Vec<(usize, H512)> {
+    is_specified_message_instruction: &F,
+) -> Vec<(usize, H512)>
+where
+    F: Fn(Instruction) -> bool,
+{
     transactions
         .into_iter()
         .enumerate()
@@ -43,38 +51,43 @@ pub fn search_dispatched_message_transactions(
                 .map(|(hash, account_keys, instructions)| (index, hash, account_keys, instructions))
         })
         .filter_map(|(index, hash, account_keys, instructions)| {
-            filter_not_relevant(
+            filter_by_relevancy(
                 mailbox_program_id,
                 message_storage_pda_pubkey,
                 hash,
                 account_keys,
                 instructions,
+                is_specified_message_instruction,
             )
             .map(|hash| (index, hash))
         })
         .collect::<Vec<(usize, H512)>>()
 }
 
-fn filter_not_relevant(
+fn filter_by_relevancy<F>(
     mailbox_program_id: &Pubkey,
     message_storage_pda_pubkey: &Pubkey,
     hash: H512,
     account_keys: Vec<String>,
     instructions: Vec<UiCompiledInstruction>,
-) -> Option<H512> {
+    is_specified_message_instruction: &F,
+) -> Option<H512>
+where
+    F: Fn(Instruction) -> bool,
+{
     let account_index_map = account_index_map(account_keys);
 
     let mailbox_program_id_str = mailbox_program_id.to_string();
     let mailbox_program_index = match account_index_map.get(&mailbox_program_id_str) {
         Some(i) => *i as u8,
-        None => return None, // If account keys do not contain Mailbox program, transaction is not message dispatch.
+        None => return None, // If account keys do not contain Mailbox program, transaction is not message dispatch/delivery.
     };
 
     let message_storage_pda_pubkey_str = message_storage_pda_pubkey.to_string();
-    let dispatch_message_pda_account_index =
+    let message_storage_pda_account_index =
         match account_index_map.get(&message_storage_pda_pubkey_str) {
             Some(i) => *i as u8,
-            None => return None, // If account keys do not contain dispatch message store PDA account, transaction is not message dispatch.
+            None => return None, // If account keys do not contain dispatch/delivery message store PDA account, transaction is not message dispatch/delivery.
         };
 
     let mailbox_program_maybe = instructions
@@ -83,33 +96,41 @@ fn filter_not_relevant(
 
     let mailbox_program = match mailbox_program_maybe {
         Some(p) => p,
-        None => return None, // If transaction does not contain call into Mailbox, transaction is not message dispatch.
+        None => return None, // If transaction does not contain call into Mailbox, transaction is not message dispatch/delivery.
     };
 
-    // If Mailbox program does not operate on dispatch message store PDA account, transaction is not message dispatch.
+    // If Mailbox program does not operate on dispatch/delivery message store PDA account, transaction is not message dispatch/delivery.
     if !mailbox_program
         .accounts
-        .contains(&dispatch_message_pda_account_index)
+        .contains(&message_storage_pda_account_index)
     {
         return None;
     }
 
     let instruction_data = match from_base58(&mailbox_program.data) {
         Ok(d) => d,
-        Err(_) => return None, // If we cannot decode instruction data, transaction is not message dispatch.
+        Err(_) => return None, // If we cannot decode instruction data, transaction is not message dispatch/delivery.
     };
 
     let instruction = match Instruction::from_instruction_data(&instruction_data) {
         Ok(ii) => ii,
-        Err(_) => return None, // If we cannot parse instruction data, transaction is not message dispatch.
+        Err(_) => return None, // If we cannot parse instruction data, transaction is not message dispatch/delivery.
     };
 
-    // If the call into Mailbox program is not OutboxDispatch, transaction is not message dispatch.
-    if !matches!(instruction, Instruction::OutboxDispatch(_)) {
+    // If the call into Mailbox program is not OutboxDispatch/InboxProcess, transaction is not message dispatch/delivery.
+    if is_specified_message_instruction(instruction) {
         return None;
     }
 
     Some(hash)
+}
+
+pub fn is_message_dispatch_instruction(instruction: Instruction) -> bool {
+    !matches!(instruction, Instruction::OutboxDispatch(_))
+}
+
+pub fn is_message_delivery_instruction(instruction: Instruction) -> bool {
+    !matches!(instruction, Instruction::InboxProcess(_))
 }
 
 fn filter_by_validity(

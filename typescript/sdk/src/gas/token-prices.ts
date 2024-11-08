@@ -1,20 +1,14 @@
-import { CoinGeckoClient, SimplePriceResponse } from 'coingecko-api-v3';
-
-import { rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { objKeys, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../types.js';
+
+const COINGECKO_PRICE_API = 'https://api.coingecko.com/api/v3/simple/price';
 
 export interface TokenPriceGetter {
   getTokenPrice(chain: ChainName): Promise<number>;
   getTokenExchangeRate(base: ChainName, quote: ChainName): Promise<number>;
 }
-
-export type CoinGeckoInterface = Pick<CoinGeckoClient, 'simplePrice'>;
-export type CoinGeckoSimplePriceInterface = CoinGeckoClient['simplePrice'];
-export type CoinGeckoSimplePriceParams =
-  Parameters<CoinGeckoSimplePriceInterface>[0];
-export type CoinGeckoResponse = ReturnType<CoinGeckoSimplePriceInterface>;
 
 type TokenPriceCacheEntry = {
   price: number;
@@ -65,36 +59,26 @@ class TokenPriceCache {
 }
 
 export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
-  protected coinGecko: CoinGeckoInterface;
   protected cache: TokenPriceCache;
+  protected apiKey?: string;
   protected sleepMsBetweenRequests: number;
   protected metadata: ChainMap<ChainMetadata>;
 
-  constructor(
-    coinGecko: CoinGeckoInterface,
-    chainMetadata: ChainMap<ChainMetadata>,
-    expirySeconds?: number,
+  constructor({
+    chainMetadata,
+    apiKey,
+    expirySeconds,
     sleepMsBetweenRequests = 5000,
-  ) {
-    this.coinGecko = coinGecko;
+  }: {
+    chainMetadata: ChainMap<ChainMetadata>;
+    apiKey?: string;
+    expirySeconds?: number;
+    sleepMsBetweenRequests?: number;
+  }) {
+    this.apiKey = apiKey;
     this.cache = new TokenPriceCache(expirySeconds);
     this.metadata = chainMetadata;
     this.sleepMsBetweenRequests = sleepMsBetweenRequests;
-  }
-
-  static withDefaultCoinGecko(
-    chainMetadata: ChainMap<ChainMetadata>,
-    apiKey?: string,
-    expirySeconds?: number,
-    sleepMsBetweenRequests = 5000,
-  ): CoinGeckoTokenPriceGetter {
-    const coinGecko = new CoinGeckoClient(undefined, apiKey);
-    return new CoinGeckoTokenPriceGetter(
-      coinGecko,
-      chainMetadata,
-      expirySeconds,
-      sleepMsBetweenRequests,
-    );
   }
 
   async getTokenPrice(
@@ -103,6 +87,15 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
   ): Promise<number> {
     const [price] = await this.getTokenPrices([chain], currency);
     return price;
+  }
+
+  async getAllTokenPrices(currency: string = 'usd'): Promise<ChainMap<number>> {
+    const chains = objKeys(this.metadata);
+    const prices = await this.getTokenPrices(chains, currency);
+    return chains.reduce(
+      (agg, chain, i) => ({ ...agg, [chain]: prices[i] }),
+      {},
+    );
   }
 
   async getTokenExchangeRate(
@@ -153,19 +146,35 @@ export class CoinGeckoTokenPriceGetter implements TokenPriceGetter {
     await sleep(this.sleepMsBetweenRequests);
 
     if (toQuery.length > 0) {
-      let response: SimplePriceResponse;
       try {
-        response = await this.coinGecko.simplePrice({
-          ids: toQuery.join(','),
-          vs_currencies: currency,
-        });
-        const prices = toQuery.map((id) => response[id][currency]);
-        toQuery.map((id, i) => this.cache.put(id, prices[i]));
+        const prices = await this.fetchPriceData(toQuery, currency);
+        prices.forEach((price, i) => this.cache.put(toQuery[i], price));
       } catch (e) {
         rootLogger.warn('Error when querying token prices', e);
         return undefined;
       }
     }
     return ids.map((id) => this.cache.fetch(id));
+  }
+
+  public async fetchPriceData(
+    ids: string[],
+    currency: string,
+  ): Promise<number[]> {
+    let url = `${COINGECKO_PRICE_API}?ids=${Object.entries(ids).join(
+      ',',
+    )}&vs_currencies=${currency}`;
+    if (this.apiKey) {
+      url += `&x-cg-pro-api-key=${this.apiKey}`;
+    }
+
+    const resp = await fetch(url);
+    const idPrices = await resp.json();
+
+    return ids.map((id) => {
+      const price = idPrices[id]?.[currency];
+      if (!price) throw new Error(`No price found for ${id}`);
+      return Number(price);
+    });
   }
 }

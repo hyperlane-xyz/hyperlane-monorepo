@@ -1,5 +1,6 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const testnet4SupportedChainNames = [
+  'abstracttestnet',
   'alephzeroevmtestnet',
   'alfajores',
   'arbitrumsepolia',
@@ -29,6 +30,7 @@ export const testnet4SupportedChainNames = [
   'sonictestnet',
   'suavetoliman',
   'superpositiontestnet',
+  'treasuretopaz',
   'unichaintestnet',
 ] as const;
 

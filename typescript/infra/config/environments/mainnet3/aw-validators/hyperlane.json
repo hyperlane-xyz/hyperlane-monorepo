@@ -2,8 +2,8 @@
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
-  "alephzeroevm": {
-    "validators": ["0xcae8fab142adc4e434bb7409e40dd932cc3851aa"]
+  "alephzeroevmmainnet": {
+    "validators": ["0x33f20e6e775747d60301c6ea1c50e51f0389740c"]
   },
   "apechain": {
     "validators": ["0x773d7fe6ffb1ba4de814c28044ff9a2d83a48221"]
@@ -23,6 +23,9 @@
   },
   "astarzkevm": {
     "validators": ["0x89ecdd6caf138934bf3a2fb7b323984d72fd66de"]
+  },
+  "flame": {
+    "validators": ["0x1fa928ce884fa16357d4b8866e096392d4d81f43"]
   },
   "avalanche": {
     "validators": [
@@ -67,8 +70,8 @@
   "cheesechain": {
     "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"]
   },
-  "chiliz": {
-    "validators": ["0x82d024f453b1a3f3f6606226f06b038da27596f3"]
+  "chilizmainnet": {
+    "validators": ["0x7403e5d58b48b0f5f715d9c78fbc581f01a625cb"]
   },
   "coredao": {
     "validators": ["0xbd6e158a3f5830d99d7d2bce192695bc4a148de2"]
@@ -104,8 +107,8 @@
   "flare": {
     "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
   },
-  "flow": {
-    "validators": ["0x3aee1090318e9c54d1d23194dcd0f2bee00ddc97"]
+  "flowmainnet": {
+    "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
   },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
@@ -126,8 +129,8 @@
   "harmony": {
     "validators": ["0xd677803a67651974b1c264171b5d7ca8838db8d5"]
   },
-  "immutablezkevm": {
-    "validators": ["0xa787c2952a4d22f776ee6e87e828e6f75de24330"]
+  "immutablezkevmmainnet": {
+    "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
   },
   "inevm": {
     "validators": [
@@ -170,8 +173,8 @@
   "merlin": {
     "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
   },
-  "metall2": {
-    "validators": ["0x1b000e1e1f0a032ed382c6d69a2d58f6fe773c09"]
+  "metal": {
+    "validators": ["0xd9f7f1a05826197a93df51e86cefb41dfbfb896a"]
   },
   "metis": {
     "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
@@ -232,14 +235,17 @@
       "0x6a1da2e0b7ae26aaece1377c0a4dbe25b85fa3ca"
     ]
   },
-  "polynomial": {
-    "validators": ["0xa63ad0891e921ad5947d57e05831fabb9816eca7"]
+  "polynomialfi": {
+    "validators": ["0x23d348c2d365040e56f3fee07e6897122915f513"]
+  },
+  "prom": {
+    "validators": ["0xb0c4042b7c9a95345be8913f4cdbf4043b923d98"]
   },
   "proofofplay": {
     "validators": ["0xcda40baa71970a06e5f55e306474de5ca4e21c3b"]
   },
-  "rari": {
-    "validators": ["0x989d6862e09de21337078efbd86843a3eb1133e3"]
+  "rarichain": {
+    "validators": ["0xeac012df7530720dd7d6f9b727e4fe39807d1516"]
   },
   "real": {
     "validators": ["0xaebadd4998c70b05ce8715cf0c3cb8862fe0beec"]
@@ -247,8 +253,8 @@
   "redstone": {
     "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
   },
-  "rootstock": {
-    "validators": ["0xcb8e3a72cf427feff27416d0e2ec375a052eaaee"]
+  "rootstockmainnet": {
+    "validators": ["0x8675eb603d62ab64e3efe90df914e555966e04ac"]
   },
   "sanko": {
     "validators": ["0x795c37d5babbc44094b084b0c89ed9db9b5fae39"]
@@ -272,8 +278,8 @@
   "solanamainnet": {
     "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
   },
-  "superposition": {
-    "validators": ["0x5978d0e6afa9270ddb87cff43a8fa7a763a5dfc4"]
+  "superpositionmainnet": {
+    "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
