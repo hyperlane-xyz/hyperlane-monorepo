@@ -47,7 +47,7 @@ pub enum HyperlaneSealevelError {
     TooManyNonNativePrograms(H512),
     /// No non-native programs
     #[error("transaction contains no non-native programs, hash: {0:?}")]
-    NoNativePrograms(H512),
+    NoNonNativePrograms(H512),
 }
 
 impl From<HyperlaneSealevelError> for ChainCommunicationError {

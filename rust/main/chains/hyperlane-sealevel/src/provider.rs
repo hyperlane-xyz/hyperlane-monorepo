@@ -117,7 +117,7 @@ impl SealevelProvider {
 
         let program_id = programs
             .first()
-            .ok_or(HyperlaneSealevelError::NoNativePrograms(*hash))?;
+            .ok_or(HyperlaneSealevelError::NoNonNativePrograms(*hash))?;
 
         let pubkey = decode_pubkey(program_id)?;
         let recipient = H256::from_slice(&pubkey.to_bytes());
