@@ -1,5 +1,49 @@
 # @hyperlane-xyz/sdk
 
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Minor Changes
+
+- 7b3b07900: Support using apiKey for CoinGeckoTokenPriceGetter
+- 30d92c319: Add `collateralChainName` to Warp Reader. Partial refactor of fetchTokenConfig().
+
+### Patch Changes
+
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/utils@6.0.0
+  - @hyperlane-xyz/core@5.7.1
+
+## 5.7.0
+
+### Minor Changes
+
+- 469f2f340: Checking for sufficient fees in `AbstractMessageIdAuthHook` and refund surplus
+- d9505ab58: Deploy to apechain, arbitrumnova, b3, fantom, gravity, harmony, kaia, morph, orderly, snaxchain, zeronetwork, zksync. Update default metadata in `HyperlaneCore` to `0x00001` to ensure empty metadata does not break on zksync.
+- 7e9e248be: Add feat to allow updates to destination gas using warp apply
+- 4c0605dca: Add optional proxy admin reuse in warp route deployments and admin proxy ownership transfer in warp apply
+- db9196837: Update default validator sets. Throw in `InterchainAccount.getOrDeployAccount` if the origin router is the zero address.
+- db5875cc2: Add `hyperlane warp verify` to allow post-deployment verification.
+- 956ff752a: Introduce utils that can be reused by the CLI and Infra for fetching token prices from Coingecko and gas prices from EVM/Cosmos chains.
+
+### Patch Changes
+
+- 5dabdf388: Optimize HyperlaneRelayer routing config derivation
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 56328e6e1: Fix ICA ISM self relay
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [04108155d]
+- Updated dependencies [f26453ee5]
+- Updated dependencies [0640f837c]
+- Updated dependencies [a82b4b4cb]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/core@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+
 ## 5.6.2
 
 ### Patch Changes

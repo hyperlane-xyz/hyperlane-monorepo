@@ -9,7 +9,6 @@ import {
 } from '../consts/igp.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { AgentCosmosGasPrice } from '../metadata/agentConfig.js';
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getCosmosRegistryChain } from '../utils/cosmos.js';
@@ -214,38 +213,4 @@ export function getLocalStorageGasOracleConfig({
       },
     };
   }, {} as ChainMap<StorageGasOracleConfig>);
-}
-
-const COINGECKO_PRICE_API = 'https://api.coingecko.com/api/v3/simple/price';
-
-export async function getCoingeckoTokenPrices(
-  chainMetadata: ChainMap<ChainMetadata>,
-  currency = 'usd',
-): Promise<ChainMap<string | undefined>> {
-  const ids = objMap(
-    chainMetadata,
-    (_, metadata) => metadata.gasCurrencyCoinGeckoId ?? metadata.name,
-  );
-
-  const resp = await fetch(
-    `${COINGECKO_PRICE_API}?ids=${Object.entries(ids).join(
-      ',',
-    )}&vs_currencies=${currency}`,
-  );
-
-  const idPrices = await resp.json();
-
-  const prices = objMap(ids, (chain, id) => {
-    const idData = idPrices[id];
-    if (!idData) {
-      return undefined;
-    }
-    const price = idData[currency];
-    if (!price) {
-      return undefined;
-    }
-    return price.toString();
-  });
-
-  return prices;
 }

@@ -243,6 +243,14 @@ contract StaticMerkleRootWeightedMultisigIsmTest is
                 seed
             );
     }
+
+    function testThresholdExceedsLength() public override {
+        // no-op
+    }
+
+    function testZeroThreshold() public override {
+        // no-op
+    }
 }
 
 contract StaticMessageIdWeightedMultisigIsmTest is
@@ -297,5 +305,13 @@ contract StaticMessageIdWeightedMultisigIsmTest is
                 n,
                 seed
             );
+    }
+
+    function testThresholdExceedsLength() public override {
+        // no-op
+    }
+
+    function testZeroThreshold() public override {
+        // no-op
     }
 }

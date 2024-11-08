@@ -84,7 +84,7 @@ export async function estimateTransactionFeeViem({
     ...transaction.transaction,
     blockNumber: undefined,
     account: sender as `0x${string}`,
-  });
+  } as any); // Cast to silence overly-protective type enforcement from viem here
   const feeData = await provider.provider.estimateFeesPerGas();
   return computeEvmTxFee(
     gasUnits,

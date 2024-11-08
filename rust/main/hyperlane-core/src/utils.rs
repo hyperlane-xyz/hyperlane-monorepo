@@ -5,7 +5,7 @@ use std::str::FromStr;
 #[cfg(feature = "float")]
 use std::time::Duration;
 
-use crate::{KnownHyperlaneDomain, H160, H256};
+use crate::{KnownHyperlaneDomain, H160, H256, U256};
 
 /// Converts a hex or base58 string to an H256.
 pub fn hex_or_base58_to_h256(string: &str) -> Result<H256> {
@@ -60,6 +60,17 @@ pub fn fmt_address_for_domain(domain: u32, addr: H256) -> String {
 /// Pretty print a byte slice, including a hex prefix
 pub fn bytes_to_hex(bytes: &[u8]) -> String {
     format!("0x{}", hex::encode(bytes))
+}
+
+/// Exponent value for atto units (10^-18).
+const ATTO_EXPONENT: u32 = 18;
+
+/// Converts `value` expressed with `decimals` into `atto` (`10^-18`) decimals.
+pub fn to_atto(value: U256, decimals: u32) -> Option<U256> {
+    assert!(decimals <= ATTO_EXPONENT);
+    let exponent = ATTO_EXPONENT - decimals;
+    let coefficient = U256::from(10u128.pow(exponent));
+    value.checked_mul(coefficient)
 }
 
 /// Format a domain id as a name if it is known or just the number if not.

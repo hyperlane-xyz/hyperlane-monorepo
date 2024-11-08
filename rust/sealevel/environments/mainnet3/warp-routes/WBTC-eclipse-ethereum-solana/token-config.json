@@ -1,0 +1,16 @@
+{
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 8,
+    "name": "Wrapped BTC",
+    "symbol": "WBTC",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/13ef3e3b8447ba446c562b7fb9b769324d35e6c0/deployments/warp_routes/WBTC/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 8,
+    "token": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+    "foreignDeployment": "0x5B4e223DE74ef8c3218e66EEcC541003CAB3121A"
+  }
+}

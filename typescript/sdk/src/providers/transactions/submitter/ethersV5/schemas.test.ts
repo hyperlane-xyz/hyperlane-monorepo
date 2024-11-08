@@ -42,7 +42,8 @@ describe('ethersV5 submitter props schemas', () => {
   describe('EV5ImpersonatedAccountTxSubmitterPropsSchema', () => {
     it('should parse valid props', () => {
       const validProps: EV5ImpersonatedAccountTxSubmitterProps = {
-        userAddress: '0x1234567890123456789012345678901234567890',
+        chain: CHAIN_MOCK,
+        userAddress: ADDRESS_MOCK,
       };
       const result =
         EV5ImpersonatedAccountTxSubmitterPropsSchema.safeParse(validProps);
@@ -51,6 +52,7 @@ describe('ethersV5 submitter props schemas', () => {
 
     it('should fail parsing invalid props', () => {
       const invalidProps: EV5ImpersonatedAccountTxSubmitterProps = {
+        chain: CHAIN_MOCK,
         userAddress: INVALID_ADDRESS,
       };
       const result =

@@ -48,8 +48,8 @@ export async function getSafe(chain, multiProvider, safeAddress) {
   const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({ ethers, signerOrProvider: signer });
 
-  // Get the domain id for the given chain
-  const domainId = multiProvider.getDomainId(chain);
+  // Get the chain id for the given chain
+  const chainId = multiProvider.getChainId(chain);
 
   // Get the safe version
   const safeService = getSafeService(chain, multiProvider);
@@ -66,11 +66,11 @@ export async function getSafe(chain, multiProvider, safeAddress) {
       safeDeploymentsVersions[safeVersion];
     multiSend = getMultiSendDeployment({
       version: multiSendVersion,
-      network: domainId,
+      network: chainId,
     });
     multiSendCallOnly = getMultiSendCallOnlyDeployment({
       version: multiSendCallOnlyVersion,
-      network: domainId,
+      network: chainId,
     });
   }
 
@@ -78,13 +78,12 @@ export async function getSafe(chain, multiProvider, safeAddress) {
     ethAdapter,
     safeAddress,
     contractNetworks: {
-      // DomainId == ChainId for EVM Chains
-      [domainId]: {
+      [chainId]: {
         // Use the safe address for multiSendAddress and multiSendCallOnlyAddress
         // if the contract is not deployed or if the version is not found.
-        multiSendAddress: multiSend?.networkAddresses[domainId] || safeAddress,
+        multiSendAddress: multiSend?.networkAddresses[chainId] || safeAddress,
         multiSendCallOnlyAddress:
-          multiSendCallOnly?.networkAddresses[domainId] || safeAddress,
+          multiSendCallOnly?.networkAddresses[chainId] || safeAddress,
       },
     },
   });

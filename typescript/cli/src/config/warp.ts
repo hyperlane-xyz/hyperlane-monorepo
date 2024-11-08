@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  DeployedOwnableConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -28,7 +29,10 @@ import {
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { detectAndConfirmOrPrompt } from '../utils/input.js';
+import {
+  detectAndConfirmOrPrompt,
+  setProxyAdminConfig,
+} from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
@@ -129,7 +133,9 @@ export async function createWarpRouteDeployConfig({
     chainMetadata: context.chainMetadata,
     message: 'Select chains to connect',
     requireNumber: 1,
-    requiresConfirmation: true,
+    // If the user supplied the --yes flag we skip asking selection
+    // confirmation
+    requiresConfirmation: !context.skipConfirmation,
   });
 
   const result: WarpRouteDeployConfig = {};
@@ -146,6 +152,12 @@ export async function createWarpRouteDeployConfig({
         validate: isAddress,
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
+
+    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
+      context,
+      chain,
+      owner,
+    );
 
     /**
      * The logic from the cli is as follows:
@@ -190,6 +202,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -203,6 +216,7 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           isNft,
+          proxyAdmin,
           collateralChainName: '', // This will be derived correctly by zod.parse() below
           interchainSecurityModule,
         };
@@ -216,6 +230,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -230,6 +245,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -242,6 +258,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
         };

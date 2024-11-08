@@ -1,7 +1,7 @@
 use hyperlane_core::{ChainCommunicationError, H512};
 use solana_client::client_error::ClientError;
 use solana_sdk::pubkey::ParsePubkeyError;
-use solana_transaction_status::EncodedTransaction;
+use solana_transaction_status::{EncodedTransaction, UiMessage};
 
 /// Errors from the crates specific to the hyperlane-sealevel
 /// implementation.
@@ -27,12 +27,27 @@ pub enum HyperlaneSealevelError {
     /// Unsupported transaction encoding
     #[error("{0:?}")]
     UnsupportedTransactionEncoding(EncodedTransaction),
+    /// Unsupported message encoding
+    #[error("{0:?}")]
+    UnsupportedMessageEncoding(UiMessage),
     /// Unsigned transaction
     #[error("{0}")]
     UnsignedTransaction(H512),
     /// Incorrect transaction
     #[error("received incorrect transaction, expected hash: {0:?}, received hash: {1:?}")]
     IncorrectTransaction(Box<H512>, Box<H512>),
+    /// Empty metadata
+    #[error("received empty metadata in transaction")]
+    EmptyMetadata,
+    /// Empty compute units consumed
+    #[error("received empty compute units consumed in transaction")]
+    EmptyComputeUnitsConsumed,
+    /// Too many non-native programs
+    #[error("transaction contains too many non-native programs, hash: {0:?}")]
+    TooManyNonNativePrograms(H512),
+    /// No non-native programs
+    #[error("transaction contains no non-native programs, hash: {0:?}")]
+    NoNonNativePrograms(H512),
 }
 
 impl From<HyperlaneSealevelError> for ChainCommunicationError {

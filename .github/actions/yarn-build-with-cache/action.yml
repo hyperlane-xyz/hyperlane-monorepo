@@ -16,7 +16,7 @@ runs:
         path: |
           **/node_modules
           .yarn
-        key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+        key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
 
     # Typically, the cache will be hit, but if there's a network error when
     # restoring the cache, let's run the install step ourselves.
