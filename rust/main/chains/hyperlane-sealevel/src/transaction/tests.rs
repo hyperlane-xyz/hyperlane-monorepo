@@ -1,29 +1,57 @@
+use solana_sdk::pubkey::Pubkey;
 use solana_transaction_status::EncodedTransactionWithStatusMeta;
 
-use crate::transaction::search_dispatched_message_transactions;
+use crate::transaction::{
+    is_message_delivery_instruction, is_message_dispatch_instruction, search_message_transactions,
+};
 use crate::utils::decode_pubkey;
 
 #[test]
 pub fn test_search_dispatched_message_transaction() {
     // given
-    let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
     let dispatched_message_pda_account =
         decode_pubkey("6eG8PheL41qLFFUtPjSYMtsp4aoAQsMgcsYwkGCB8kwT").unwrap();
-    let transaction = serde_json::from_str::<EncodedTransactionWithStatusMeta>(JSON).unwrap();
-    let transactions = vec![transaction];
+    let (mailbox_program_id, transactions) = transactions(DISPATCH_TXN_JSON);
 
     // when
-    let transaction_hashes = search_dispatched_message_transactions(
+    let transaction_hashes = search_message_transactions(
         &mailbox_program_id,
         &dispatched_message_pda_account,
         transactions,
+        &is_message_dispatch_instruction,
     );
 
     // then
     assert!(!transaction_hashes.is_empty());
 }
 
-const JSON: &str = r#"
+#[test]
+pub fn test_search_delivered_message_transaction() {
+    // given
+    let delivered_message_pda_account =
+        decode_pubkey("Dj7jk47KKXvw4nseNGdyHtNHtjPes2XSfByhF8xymrtS").unwrap();
+    let (mailbox_program_id, transactions) = transactions(DELIVERY_TXN_JSON);
+
+    // when
+    let transaction_hashes = search_message_transactions(
+        &mailbox_program_id,
+        &delivered_message_pda_account,
+        transactions,
+        &is_message_delivery_instruction,
+    );
+
+    // then
+    assert!(!transaction_hashes.is_empty());
+}
+
+fn transactions(json: &str) -> (Pubkey, Vec<EncodedTransactionWithStatusMeta>) {
+    let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
+    let transaction = serde_json::from_str::<EncodedTransactionWithStatusMeta>(json).unwrap();
+    let transactions = vec![transaction];
+    (mailbox_program_id, transactions)
+}
+
+const DISPATCH_TXN_JSON: &str = r#"
 {
   "blockTime": 1729865514,
   "meta": {
@@ -325,5 +353,195 @@ const JSON: &str = r#"
       "hXjvQbAuFH9vAxZMdGqfnSjN7t7Z7NLTzRq1SG8i6fLr9LS6XahTduPWqakiTsLDyWSofvq3MSncUAkbQLEj85f"
     ]
   }
+}
+"#;
+
+const DELIVERY_TXN_JSON: &str = r#"
+{
+    "blockTime": 1726514134,
+    "meta": {
+        "computeUnitsConsumed": 200654,
+        "err": null,
+        "fee": 5000,
+        "innerInstructions": [
+            {
+                "index": 1,
+                "instructions": [
+                    {
+                        "accounts": [
+                            10
+                        ],
+                        "data": "8YGwT5LUTP4",
+                        "programIdIndex": 9,
+                        "stackHeight": 2
+                    },
+                    {
+                        "accounts": [
+                            12
+                        ],
+                        "data": "2848tnNKZjKzgKikguTY4s5nESn7KLYUbLsrp6Z1FYq4BmM31xRwBXnJU5RW9rEvRUjJfJa58kXdgQYEQpg4sDrRfx5HnGsgXfitkxJw5NKVcFAYLSqKvpkYxer2tAn3a8ZzPvuDD9iqyLkvJnRZ3TbcoAHNisFfvBeWK95YL8zxsyzDS9ZBMaoYrLKQx9b915xj9oijw2UNk7FF5qxThZDKwF8rwckb6t2o6ypzFEqYeQCsRW5quayYsLBjHi8RdY18NDkcnPVkQbdR7FmfrncV4H5ZYZaayMtgAs6kHxRgeuuBEtrYG1UbGjWTQAss9zmeXcKipqS3S2bee96U5w9Cd981e8dkakCtKR7KusjE9nhsFTfXoxcwkRhi3TzqDicrqt7Erf78K",
+                        "programIdIndex": 8,
+                        "stackHeight": 2
+                    },
+                    {
+                        "accounts": [
+                            0,
+                            3
+                        ],
+                        "data": "11117UpxCJ2YqmddN2ykgdMGRXkyPgnqEtj5XYrnk1iC4P1xrvXq2zvZQkj3uNaitHEw2k",
+                        "programIdIndex": 5,
+                        "stackHeight": 2
+                    },
+                    {
+                        "accounts": [
+                            11,
+                            5,
+                            10,
+                            1,
+                            5,
+                            2
+                        ],
+                        "data": "7MHiQP8ahsZcB5cM9ZXGa2foMYQENm7GnrFaV4AmfgKNzSndaXhrcqbVNRgN2kGmrrsfTi8bNEGkAJn6MWjY95PnakaF2HAchXrUUBzQrWKQdRp8VbKjDsnH1tEUiAWm439Y12TpWTW3uSphh1oycpTJP",
+                        "programIdIndex": 9,
+                        "stackHeight": 2
+                    },
+                    {
+                        "accounts": [
+                            2,
+                            1
+                        ],
+                        "data": "3Bxs4ThwQbE4vyj5",
+                        "programIdIndex": 5,
+                        "stackHeight": 3
+                    }
+                ]
+            }
+        ],
+        "loadedAddresses": {
+            "readonly": [],
+            "writable": []
+        },
+        "logMessages": [
+            "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+            "Program ComputeBudget111111111111111111111111111111 success",
+            "Program E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi invoke [1]",
+            "Program 4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg invoke [2]",
+            "Program 4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg consumed 4402 of 1363482 compute units",
+            "Program return: 4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg AA==",
+            "Program 4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg success",
+            "Program 372D5YP7jMYUgYBXTVJ7BZtzKv1mq1J6wvjSFLNTRreC invoke [2]",
+            "Program 372D5YP7jMYUgYBXTVJ7BZtzKv1mq1J6wvjSFLNTRreC consumed 106563 of 1353660 compute units",
+            "Program 372D5YP7jMYUgYBXTVJ7BZtzKv1mq1J6wvjSFLNTRreC success",
+            "Program 11111111111111111111111111111111 invoke [2]",
+            "Program 11111111111111111111111111111111 success",
+            "Program 4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg invoke [2]",
+            "Program 11111111111111111111111111111111 invoke [3]",
+            "Program 11111111111111111111111111111111 success",
+            "Program log: Warp route transfer completed from origin: 1408864445, recipient: 528MctBmY7rXqufM3r8k7t9DTfVNuB4K1rr8xVU4naJM, remote_amount: 100000",
+            "Program 4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg consumed 28117 of 1240216 compute units",
+            "Program 4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg success",
+            "Program log: Hyperlane inbox processed message 0x34ed0705362554568a1a2d24aef6bfde71894dd1bb2f0457fb4bd66016074fcc",
+            "Program E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi consumed 200504 of 1399850 compute units",
+            "Program E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi success"
+        ],
+        "postBalances": [
+            338367600,
+            199691000,
+            891880,
+            1287600,
+            1211040,
+            1,
+            1,
+            1141440,
+            1141440,
+            1141440,
+            2686560,
+            0,
+            8017920,
+            1141440
+        ],
+        "postTokenBalances": [],
+        "preBalances": [
+            339660200,
+            199591000,
+            991880,
+            0,
+            1211040,
+            1,
+            1,
+            1141440,
+            1141440,
+            1141440,
+            2686560,
+            0,
+            8017920,
+            1141440
+        ],
+        "preTokenBalances": [],
+        "rewards": [],
+        "status": {
+            "Ok": null
+        }
+    },
+    "slot": 290198208,
+    "transaction": {
+        "message": {
+            "accountKeys": [
+                "G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp",
+                "528MctBmY7rXqufM3r8k7t9DTfVNuB4K1rr8xVU4naJM",
+                "5H4cmX5ybSqK6Ro6nvr9eiR8G8ATTYRwVsZ42VRRW3wa",
+                "Dj7jk47KKXvw4nseNGdyHtNHtjPes2XSfByhF8xymrtS",
+                "H3EgdESu59M4hn5wrbeyi9VjmFiLYM7iUAbGtrA5uHNE",
+                "11111111111111111111111111111111",
+                "ComputeBudget111111111111111111111111111111",
+                "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV",
+                "372D5YP7jMYUgYBXTVJ7BZtzKv1mq1J6wvjSFLNTRreC",
+                "4UMNyNWW75zo69hxoJaRX5iXNUa5FdRPZZa9vDVCiESg",
+                "A2nmLy86tmraneRMEZ5yWbDGq6YsPKNcESGaTZKkRWZU",
+                "DmU32nL975xAshVYgLLdyMoaUzHa2aCzHJyfLyKRdz3M",
+                "E2jimXLCtTiuZ6jbXP8B7SyZ5vVc1PKYYnMeho9yJ1en",
+                "E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi"
+            ],
+            "header": {
+                "numReadonlySignedAccounts": 0,
+                "numReadonlyUnsignedAccounts": 9,
+                "numRequiredSignatures": 1
+            },
+            "instructions": [
+                {
+                    "accounts": [],
+                    "data": "K1FDJ7",
+                    "programIdIndex": 6,
+                    "stackHeight": null
+                },
+                {
+                    "accounts": [
+                        0,
+                        5,
+                        4,
+                        11,
+                        3,
+                        10,
+                        7,
+                        8,
+                        12,
+                        9,
+                        5,
+                        10,
+                        1,
+                        5,
+                        2
+                    ],
+                    "data": "3RwSrioTudpACxczi2EejzKoZCPVuzq6qWLCQYAWoZoTcRPBobUn7tB5SFvMPNHGJ551rmjXDyKdaQLuzX3d5bjHSrSsquwHqWgM6L2kMEEJZjtygNyx3RhJD9GyZqekDuK19cfYfn1dyLuo7SSqswV3t6yptLhnCv8DhxBLRuXhV2GdNy9PLU3VNc9PvPWxg1Grtr9UZ5GnmdKDeqRvonM9AqmuN6mnv3UaqjjAEX8yDKPhWHm6w1HRzfgbjkXQVL5aSqdgJeF3EVBKJCzvMKbUVjTRgD6iHQyUVrSYvrHpKZxc6EctBHN6tyeZrW5RD1M6giasnm4WqrjDwUyz9xwvk31srJrZp7W7D6i2tTajmBbiKjpNo75iaHj4dycf1H",
+                    "programIdIndex": 13,
+                    "stackHeight": null
+                }
+            ],
+            "recentBlockhash": "AzQN8x5uKk7ExXW4eUu2FiqRG1BX73uvfHcQeBDHcu8a"
+        },
+        "signatures": [
+            "5pBEVfDD3siir1CBf9taeWuee44GspA7EixYkKnzN1hkeYXLxtKYrbe3aE6hxswbY3hhDRVPDor1ZsSXUorC7bcR"
+        ]
+    }
 }
 "#;

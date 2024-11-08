@@ -4629,6 +4629,7 @@ dependencies = [
  "hyperlane-sealevel-multisig-ism-message-id",
  "hyperlane-sealevel-validator-announce",
  "jsonrpc-core",
+ "lazy_static",
  "multisig-ism",
  "num-traits",
  "reqwest",

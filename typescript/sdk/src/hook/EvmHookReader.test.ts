@@ -19,6 +19,7 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName, test1 } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { randomAddress } from '../test/testUtils.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import {
@@ -35,8 +36,6 @@ describe('EvmHookReader', () => {
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
 
-  const generateRandomAddress = () => ethers.Wallet.createRandom().address;
-
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
@@ -48,8 +47,8 @@ describe('EvmHookReader', () => {
   });
 
   it('should derive merkle tree config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
@@ -78,9 +77,9 @@ describe('EvmHookReader', () => {
   });
 
   it('should derive protocol fee hook correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
-    const mockBeneficiary = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const mockBeneficiary = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
@@ -116,8 +115,8 @@ describe('EvmHookReader', () => {
   });
 
   it('should derive pausable config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
     const mockPaused = randomBytes(1)[0] % 2 === 0;
 
     // Mocking the connect method + returned what we need from contract object
@@ -151,9 +150,9 @@ describe('EvmHookReader', () => {
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   it('should derive op stack config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
-    const l1Messenger = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
+    const l1Messenger = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
@@ -187,8 +186,8 @@ describe('EvmHookReader', () => {
   });
 
   it('should throw if derivation fails', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {
