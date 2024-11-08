@@ -8,11 +8,12 @@ import {
   EvmHypXERC20LockboxAdapter,
   IHypXERC20Adapter,
   MultiProtocolProvider,
+  RouterConfig,
   Token,
   TokenStandard,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../../config/registry.js';
 import {
@@ -30,7 +31,7 @@ import {
   updateXERC20LimitsMetrics,
 } from './metrics.js';
 import { WarpRouteBalance, XERC20Limit } from './types.js';
-import { gracefullyHandleError, logger } from './utils.js';
+import { logger, tryFn } from './utils.js';
 
 async function main() {
   const { checkFrequency, environment, warpRouteId } =
@@ -54,8 +55,11 @@ async function main() {
     envConfig,
     await envConfig.getMultiProvider(),
   );
+  const mailboxes = objMap(routerConfig, (_chain, config: RouterConfig) => ({
+    mailbox: config.mailbox,
+  }));
   const multiProtocolProvider = new MultiProtocolProvider(
-    objMerge(chainMetadata, routerConfig),
+    objMerge(chainMetadata, mailboxes),
   );
   const warpCoreConfig = getWarpCoreConfig(warpRouteId);
   const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
@@ -75,7 +79,7 @@ async function pollAndUpdateWarpRouteMetrics(
   });
 
   setInterval(async () => {
-    await gracefullyHandleError(async () => {
+    await tryFn(async () => {
       await Promise.all(
         warpCore.tokens.map((token) =>
           updateTokenMetrics(warpCore, token, tokenPriceGetter),
@@ -92,7 +96,7 @@ async function updateTokenMetrics(
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
 ) {
   const promises = [
-    gracefullyHandleError(async () => {
+    tryFn(async () => {
       const balanceInfo = await getTokenBridgedBalance(
         warpCore,
         token,
@@ -107,7 +111,7 @@ async function updateTokenMetrics(
 
   if (token.isXerc20()) {
     promises.push(
-      gracefullyHandleError(async () => {
+      tryFn(async () => {
         const limits = await getXERC20Limits(warpCore, token);
         updateXERC20LimitsMetrics(token, limits);
       }, 'Getting xERC20 limits'),
