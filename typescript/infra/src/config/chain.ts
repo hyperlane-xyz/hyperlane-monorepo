@@ -20,8 +20,8 @@ import { DeployEnvironment } from './environment.js';
 export const chainsToSkip: ChainName[] = [
   // TODO: remove once zksync PR is merged into main
   // mainnets
-  'zksync',
-  'zeronetwork',
+  // 'zksync',
+  // 'zeronetwork',
   // testnets
   'abstracttestnet',
   'treasuretopaz',
