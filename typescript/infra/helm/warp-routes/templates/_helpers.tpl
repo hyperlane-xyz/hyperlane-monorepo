@@ -72,7 +72,7 @@ The warp-routes container
      value: pretty
   command:
   - ./node_modules/.bin/tsx
-  - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-routes-balances.ts
+  - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
   - -v 
   - "30000"
   - --warpRouteId
