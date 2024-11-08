@@ -24,13 +24,6 @@ use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 /// and an 8 byte discriminator.
 const UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET: usize = 1 + 8 + 8 + 32 + 4 + 32 + 8 + 8;
 
-const LOG_META_COMPOSER_ERROR_MSG_NO_TXN: &str =
-    "block which should contain interchain payment transaction does not contain any transaction";
-const LOG_META_COMPOSER_ERROR_MSG_TOO_MANY_TXNS: &str =
-    "block contains more than one interchain payment transaction operating on the same interchain payment PDA";
-const LOG_META_COMPOSER_ERROR_MSG_NO_TXN_AFTER_FILTERING: &str =
-    "block which should contain interchain payment transaction does not contain any after filtering";
-
 /// A reference to an IGP contract on some Sealevel chain
 #[derive(Debug)]
 pub struct SealevelInterchainGasPaymaster {
@@ -122,9 +115,7 @@ impl SealevelInterchainGasPaymasterIndexer {
 
         let log_meta_composer = LogMetaComposer::new(
             igp.program_id,
-            LOG_META_COMPOSER_ERROR_MSG_NO_TXN.to_owned(),
-            LOG_META_COMPOSER_ERROR_MSG_TOO_MANY_TXNS.to_owned(),
-            LOG_META_COMPOSER_ERROR_MSG_NO_TXN_AFTER_FILTERING.to_owned(),
+            "interchain payment".to_owned(),
             is_interchain_payment_instruction,
         );
 

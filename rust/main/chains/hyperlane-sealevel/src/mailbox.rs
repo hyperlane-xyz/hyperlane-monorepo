@@ -641,20 +641,6 @@ impl Mailbox for SealevelMailbox {
     }
 }
 
-const LOG_META_COMPOSER_DISPATCH_ERROR_MSG_NO_TXN: &str =
-    "block which should contain message dispatch transaction does not contain any transaction";
-const LOG_META_COMPOSER_DISPATCH_ERROR_MSG_TOO_MANY_TXNS: &str =
-    "block contains more than one dispatch message transaction operating on the same dispatch message store PDA";
-const LOG_META_COMPOSER_DISPATCH_ERROR_MSG_NO_TXN_AFTER_FILTERING: &str =
-    "block which should contain message dispatch transaction does not contain any after filtering";
-
-const LOG_META_COMPOSER_DELIVERY_ERROR_MSG_NO_TXN: &str =
-    "block which should contain message delivery transaction does not contain any transaction";
-const LOG_META_COMPOSER_DELIVERY_ERROR_MSG_TOO_MANY_TXNS: &str =
-    "block contains more than one delivery message transactions operating on the same delivery message store PDA";
-const LOG_META_COMPOSER_DELIVERY_ERROR_MSG_NO_TXN_AFTER_FILTERING: &str =
-    "block which should contain message delivery transaction does not contain any after filtering";
-
 /// Struct that retrieves event data for a Sealevel Mailbox contract
 #[derive(Debug)]
 pub struct SealevelMailboxIndexer {
@@ -671,17 +657,13 @@ impl SealevelMailboxIndexer {
 
         let dispatch_message_log_meta_composer = LogMetaComposer::new(
             mailbox.program_id,
-            LOG_META_COMPOSER_DISPATCH_ERROR_MSG_NO_TXN.to_owned(),
-            LOG_META_COMPOSER_DISPATCH_ERROR_MSG_TOO_MANY_TXNS.to_owned(),
-            LOG_META_COMPOSER_DISPATCH_ERROR_MSG_NO_TXN_AFTER_FILTERING.to_owned(),
+            "message dispatch".to_owned(),
             is_message_dispatch_instruction,
         );
 
         let delivery_message_log_meta_composer = LogMetaComposer::new(
             mailbox.program_id,
-            LOG_META_COMPOSER_DISPATCH_ERROR_MSG_NO_TXN.to_owned(),
-            LOG_META_COMPOSER_DISPATCH_ERROR_MSG_TOO_MANY_TXNS.to_owned(),
-            LOG_META_COMPOSER_DISPATCH_ERROR_MSG_NO_TXN_AFTER_FILTERING.to_owned(),
+            "message delivery".to_owned(),
             is_message_delivery_instruction,
         );
 

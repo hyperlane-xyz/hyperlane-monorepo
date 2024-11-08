@@ -16,26 +16,20 @@ use crate::utils::{decode_h256, decode_h512, from_base58};
 #[derive(Debug)]
 pub struct LogMetaComposer {
     program_id: Pubkey,
-    error_msg_no_txn: String,
-    error_msg_too_many_txns: String,
-    error_msg_no_txn_after_filtering: String,
-    is_message_instruction: fn(&[u8]) -> bool,
+    transaction_description: String,
+    is_specified_instruction: fn(&[u8]) -> bool,
 }
 
 impl LogMetaComposer {
     pub fn new(
         program_id: Pubkey,
-        error_msg_no_txn: String,
-        error_msg_too_many_txns: String,
-        error_msg_no_txn_after_filtering: String,
-        is_message_instruction: fn(&[u8]) -> bool,
+        transaction_description: String,
+        is_specified_instruction: fn(&[u8]) -> bool,
     ) -> Self {
         Self {
             program_id,
-            error_msg_no_txn,
-            error_msg_too_many_txns,
-            error_msg_no_txn_after_filtering,
-            is_message_instruction,
+            transaction_description,
+            is_specified_instruction,
         }
     }
 
@@ -50,31 +44,34 @@ impl LogMetaComposer {
 
         let transactions = block
             .transactions
-            .ok_or(HyperlaneSealevelError::NoTransactions(
-                self.error_msg_no_txn.to_owned(),
-            ))?;
+            .ok_or(HyperlaneSealevelError::NoTransactions(format!(
+                "block which should contain {} transaction does not contain any transaction",
+                self.transaction_description,
+            )))?;
 
         let transaction_hashes = search_transactions(
             transactions,
             &self.program_id,
             pda_pubkey,
-            self.is_message_instruction,
+            self.is_specified_instruction,
         );
 
         // We expect to see that there is only one transaction
         if transaction_hashes.len() > 1 {
-            Err(HyperlaneSealevelError::TooManyTransactions(
-                self.error_msg_too_many_txns.to_owned(),
-            ))?
+            Err(HyperlaneSealevelError::TooManyTransactions(format!(
+                "block contains more than one {} transactions operating on the same PDA",
+                self.transaction_description,
+            )))?
         }
 
         let (transaction_index, transaction_hash) =
             transaction_hashes
                 .into_iter()
                 .next()
-                .ok_or(HyperlaneSealevelError::NoTransactions(
-                    self.error_msg_no_txn_after_filtering.to_owned(),
-                ))?;
+                .ok_or(HyperlaneSealevelError::NoTransactions(format!(
+                "block which should contain {} transaction does not contain any after filtering",
+                self.transaction_description,
+            )))?;
 
         let log_meta = LogMeta {
             address: self.program_id.to_bytes().into(),
