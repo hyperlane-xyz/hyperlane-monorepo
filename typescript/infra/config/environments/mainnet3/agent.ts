@@ -10,6 +10,7 @@ import {
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
 import {
+  MetricAppContext,
   matchingList,
   routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
@@ -368,77 +369,89 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   },
 ];
 
-const metricAppContexts = [
-  {
-    name: 'helloworld',
-    matchingList: routerMatchingList(helloWorld[Contexts.Hyperlane].addresses),
-  },
-  {
-    name: 'injective_inevm_inj',
-    matchingList: routerMatchingList(injectiveInevmInjAddresses),
-  },
-  {
-    name: 'inevm_ethereum_usdc',
-    matchingList: matchingList(inevmEthereumUsdcAddresses),
-  },
-  {
-    name: 'inevm_ethereum_usdt',
-    matchingList: matchingList(inevmEthereumUsdtAddresses),
-  },
-  {
-    name: 'viction_ethereum_eth',
-    matchingList: routerMatchingList(victionEthereumEthAddresses),
-  },
-  {
-    name: 'viction_ethereum_usdc',
-    matchingList: routerMatchingList(victionEthereumUsdcAddresses),
-  },
-  {
-    name: 'viction_ethereum_usdt',
-    matchingList: routerMatchingList(victionEthereumUsdtAddresses),
-  },
-  {
-    name: 'ancient8_ethereum_usdc',
-    matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
-  },
-  {
-    name: 'renzo_ezeth',
-    matchingList: matchingList(renzoEzEthAddressesV3),
-  },
-  {
-    name: 'eclipse_usdc',
-    matchingList: matchingList(
-      getWarpAddresses(WarpRouteIds.EclipseEthereumSolanaUSDC),
-    ),
-  },
-  {
-    name: 'eclipse_teth',
-    matchingList: matchingList(
-      getWarpAddresses(WarpRouteIds.EclipseEthereumTETH),
-    ),
-  },
-  {
-    name: 'eclipse_wif',
-    matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaWIF)),
-  },
-  {
-    name: 'eclipse_sol',
-    matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaSOL)),
-  },
-  // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
-  // {
-  //   name: 'merkly_erc20',
-  //   matchingList: routerMatchingList(merklyErc20Addresses),
-  // },
-  // {
-  //   name: 'merkly_eth',
-  //   matchingList: routerMatchingList(merklyErc20Addresses),
-  // },
-  // {
-  //   name: 'merkly_nft',
-  //   matchingList: routerMatchingList(merklyErc20Addresses),
-  // },
-];
+const metricAppContextsGetter = (): MetricAppContext[] => {
+  const warpContexts = Object.values(WarpRouteIds).map((routeId) => {
+    return {
+      name: routeId,
+      matchingList: matchingList(getWarpAddresses(routeId)),
+    };
+  });
+
+  return [
+    {
+      name: 'helloworld',
+      matchingList: routerMatchingList(
+        helloWorld[Contexts.Hyperlane].addresses,
+      ),
+    },
+    ...warpContexts,
+    // {
+    //   name: 'injective_inevm_inj',
+    //   matchingList: routerMatchingList(injectiveInevmInjAddresses),
+    // },
+    // {
+    //   name: 'inevm_ethereum_usdc',
+    //   matchingList: matchingList(inevmEthereumUsdcAddresses),
+    // },
+    // {
+    //   name: 'inevm_ethereum_usdt',
+    //   matchingList: matchingList(inevmEthereumUsdtAddresses),
+    // },
+    // {
+    //   name: 'viction_ethereum_eth',
+    //   matchingList: routerMatchingList(victionEthereumEthAddresses),
+    // },
+    // {
+    //   name: 'viction_ethereum_usdc',
+    //   matchingList: routerMatchingList(victionEthereumUsdcAddresses),
+    // },
+    // {
+    //   name: 'viction_ethereum_usdt',
+    //   matchingList: routerMatchingList(victionEthereumUsdtAddresses),
+    // },
+    // {
+    //   name: 'ancient8_ethereum_usdc',
+    //   matchingList: routerMatchingList(ancient8EthereumUsdcAddresses),
+    // },
+    // {
+    //   name: 'renzo_ezeth',
+    //   matchingList: matchingList(renzoEzEthAddressesV3),
+    // },
+    // {
+    //   name: 'eclipse_usdc',
+    //   matchingList: matchingList(
+    //     getWarpAddresses(WarpRouteIds.EclipseEthereumSolanaUSDC),
+    //   ),
+    // },
+    // {
+    //   name: 'eclipse_teth',
+    //   matchingList: matchingList(
+    //     getWarpAddresses(WarpRouteIds.EclipseEthereumTETH),
+    //   ),
+    // },
+    // {
+    //   name: 'eclipse_wif',
+    //   matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaWIF)),
+    // },
+    // {
+    //   name: 'eclipse_sol',
+    //   matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaSOL)),
+    // },
+    // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
+    // {
+    //   name: 'merkly_erc20',
+    //   matchingList: routerMatchingList(merklyErc20Addresses),
+    // },
+    // {
+    //   name: 'merkly_eth',
+    //   matchingList: routerMatchingList(merklyErc20Addresses),
+    // },
+    // {
+    //   name: 'merkly_nft',
+    //   matchingList: routerMatchingList(merklyErc20Addresses),
+    // },
+  ];
+};
 
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
@@ -474,7 +487,7 @@ const hyperlane: RootAgentConfig = {
       tag: '75d62ae-20241107-060707',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
-    metricAppContexts,
+    metricAppContextsGetter,
     resources: relayerResources,
   },
   validators: {
@@ -511,7 +524,7 @@ const releaseCandidate: RootAgentConfig = {
     // message throughput.
     // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
-    metricAppContexts,
+    metricAppContextsGetter,
     resources: relayerResources,
   },
   validators: {
@@ -551,7 +564,7 @@ const neutron: RootAgentConfig = {
       },
       ...gasPaymentEnforcement,
     ],
-    metricAppContexts: [
+    metricAppContextsGetter: () => [
       {
         name: 'manta_tia',
         matchingList: routerMatchingList(mantaTIAAddresses),

@@ -45,7 +45,7 @@ export interface BaseRelayerConfig {
   addressBlacklist?: string;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
-  metricAppContexts?: MetricAppContext[];
+  metricAppContextsGetter?: () => MetricAppContext[];
 }
 
 // Full relayer-specific agent config for a single chain
@@ -105,9 +105,9 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       relayerConfig.skipTransactionGasLimitFor =
         baseConfig.skipTransactionGasLimitFor.join(',');
     }
-    if (baseConfig.metricAppContexts) {
+    if (baseConfig.metricAppContextsGetter) {
       relayerConfig.metricAppContexts = JSON.stringify(
-        baseConfig.metricAppContexts,
+        baseConfig.metricAppContextsGetter(),
       );
     }
 
