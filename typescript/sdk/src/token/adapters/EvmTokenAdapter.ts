@@ -329,7 +329,7 @@ export class EvmHypXERC20LockboxAdapter
    * of the lockbox contract, which may be used by other bridges.
    * However this is the best we can do with a simple view call.
    */
-  override async getBridgedSupply(): Promise<bigint | undefined> {
+  override async getBridgedSupply(): Promise<bigint> {
     const lockboxAddress = await this.hypXERC20Lockbox.lockbox();
     return this.getBalance(lockboxAddress);
   }
@@ -390,7 +390,7 @@ export class EvmHypXERC20Adapter
    * of the xERC20 contract, which may be used by other bridges.
    * However this is the best we can do with a simple view call.
    */
-  override async getBridgedSupply(): Promise<bigint | undefined> {
+  override async getBridgedSupply(): Promise<bigint> {
     const xerc20TokenAddress = await this.hypXERC20.wrappedToken();
     const xerc20 = new EvmTokenAdapter(this.chainName, this.multiProvider, {
       token: xerc20TokenAddress,

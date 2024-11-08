@@ -598,7 +598,7 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     return this.wrappedNative.getBalance(owner);
   }
 
-  override async getBridgedSupply(): Promise<bigint | undefined> {
+  override async getBridgedSupply(): Promise<bigint> {
     return this.getBalance(this.addresses.warpRouter);
   }
 
@@ -653,7 +653,7 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
     return super.getBalance(owner);
   }
 
-  override async getBridgedSupply(): Promise<bigint | undefined> {
+  override async getBridgedSupply(): Promise<bigint> {
     return this.getBalance(this.addresses.warpRouter);
   }
 
@@ -722,7 +722,7 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
     }
   }
 
-  override async getBridgedSupply(): Promise<bigint | undefined> {
+  override async getBridgedSupply(): Promise<bigint> {
     return this.getTotalSupply();
   }
 

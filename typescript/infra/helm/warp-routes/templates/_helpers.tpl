@@ -74,7 +74,7 @@ The warp-routes container
   - ./node_modules/.bin/tsx
   - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-routes-balances.ts
   - -v 
-  - "10000"
+  - "30000"
   - --warpRouteId
   - {{ .Values.warpRouteId }}
   - -e
