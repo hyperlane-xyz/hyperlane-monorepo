@@ -71,10 +71,12 @@ export class StarknetDeployer {
     mailbox: Address;
   }): Promise<Address> {
     const { chain, ismConfig, mailbox } = params;
-    if (typeof ismConfig === 'string') return '';
+    assert(
+      typeof ismConfig !== 'string',
+      'String ism config is not supported on starknet',
+    );
     const ismType = ismConfig.type;
-    const logger = this.logger.child({ destination: chain, ismType });
-    logger.debug(`Deploying ${ismType} to ${chain}`);
+    this.logger.debug(`Deploying ${ismType} to ${chain}`);
 
     assert(
       SupportedIsmTypesOnStarknet.includes(
