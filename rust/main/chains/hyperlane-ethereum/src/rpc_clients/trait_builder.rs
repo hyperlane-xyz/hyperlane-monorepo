@@ -25,6 +25,7 @@ use ethers_prometheus::middleware::{MiddlewareMetrics, PrometheusMiddlewareConf}
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneDomain, KnownHyperlaneDomain,
 };
+use tracing::instrument;
 
 use crate::signer::Signers;
 use crate::{ConnectionConf, EthereumFallbackProvider, RetryingProvider, RpcConnectionConf};
@@ -204,6 +205,7 @@ pub trait BuildableWithProvider {
 
     /// Wrap the provider creation with a signing provider if signers were
     /// provided, and then create the associated trait.
+    #[instrument(skip(self), fields(domain=?locator.domain), level = "debug")]
     async fn build_with_signer<M>(
         &self,
         provider: M,
