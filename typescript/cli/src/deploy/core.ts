@@ -118,6 +118,7 @@ export async function runCoreDeploy(params: DeployParams) {
 
     case ProtocolType.Starknet:
       {
+        const domainId = multiProvider.getDomainId(chain);
         const provider = new RpcProvider({
           nodeUrl: 'http://127.0.0.1:5050',
         });
@@ -126,7 +127,7 @@ export async function runCoreDeploy(params: DeployParams) {
           '0x4acc9b79dae485fb71f309f5b62501a1329789f4418bb4c25353ad5617be4d4',
           '0x000000000000000000000000000000002f663fafebbee32e0698f7e13f886c73',
         );
-        const starknetCoreModule = new StarknetCoreModule(account);
+        const starknetCoreModule = new StarknetCoreModule(account, domainId);
         deployedAddresses = await starknetCoreModule.deploy({
           chain,
           config,

@@ -12,7 +12,10 @@ import { CoreConfig } from './types.js';
 export class StarknetCoreModule {
   protected logger = rootLogger.child({ module: 'StarknetCoreModule' });
   protected deployer: StarknetDeployer;
-  constructor(protected readonly signer: Account) {
+  constructor(
+    protected readonly signer: Account,
+    protected readonly domainId: number,
+  ) {
     this.deployer = new StarknetDeployer(signer);
   }
 
@@ -79,7 +82,7 @@ export class StarknetCoreModule {
     requiredHook: string,
   ) {
     const mailboxAddress = await this.deployer.deployContract('mailbox', [
-      '888', // TODO: put domain id here
+      this.domainId,
       owner,
       defaultIsm,
       defaultHook,
