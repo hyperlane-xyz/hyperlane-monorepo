@@ -3,7 +3,8 @@ pragma solidity >=0.8.0;
 
 import "forge-std/Script.sol";
 
-import {IStrategy} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IStrategy, IStrategyFactory} from "../../contracts/interfaces/avs/vendored/IStrategy.sol";
 import {IAVSDirectory} from "../../contracts/interfaces/avs/vendored/IAVSDirectory.sol";
 import {IPaymentCoordinator} from "../../contracts/interfaces/avs/vendored/IPaymentCoordinator.sol";
 import {IDelegationManager} from "../../contracts/interfaces/avs/vendored/IDelegationManager.sol";
@@ -37,6 +38,8 @@ contract DeployAVS is Script {
     uint256 thresholdWeight = 6667;
 
     address KILN_OPERATOR_ADDRESS = 0x1f8C8b1d78d01bCc42ebdd34Fae60181bD697662;
+
+    address AW_SAFE = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
 
     function _loadEigenlayerAddresses(string memory targetEnv) internal {
         string memory root = vm.projectRoot();
@@ -225,5 +228,80 @@ contract DeployAVS is Script {
         for (uint256 i = 0; i < strategies.length; i++) {
             require(strategies[i] != address(0), "Strategy address is 0");
         }
+    }
+
+    function addREZStrategy() external {
+        IERC20 rezToken = IERC20(0x3B50805453023a91a8bf641e279401a0b23FA6F9);
+        IStrategyFactory strategyFactory = IStrategyFactory(
+            0x5e4C39Ad7A3E881585e383dB9827EB4811f6F647
+        );
+
+        // STEP 1: update the stakeRegistry quorum with the new REZ strategy and adjust the weights accordingly to sum up to 10_000
+        IStrategy rezStrategy = strategyFactory.deployedStrategies(rezToken);
+        require(address(rezStrategy).code.length > 0, "Strategy not deployed");
+
+        ECDSAStakeRegistry stakeRegistry = ECDSAStakeRegistry(
+            0x272CF0BB70D3B4f79414E0823B426d2EaFd48910
+        );
+        HyperlaneServiceManager serviceManager = HyperlaneServiceManager(
+            0xe8E59c6C8B56F2c178f63BCFC4ce5e5e2359c8fc
+        );
+
+        // get current quorum
+        Quorum memory currentQuorum = stakeRegistry.quorum();
+        Quorum memory newQuorum;
+        newQuorum.strategies = new StrategyParams[](
+            currentQuorum.strategies.length + 1
+        );
+
+        uint256 totalStrategies = newQuorum.strategies.length;
+        uint96 baseMultiplier = uint96(10000 / totalStrategies);
+
+        uint96 remainder = 10000 % uint96(totalStrategies);
+
+        for (uint256 i = 0; i < currentQuorum.strategies.length; i++) {
+            newQuorum.strategies[i] = currentQuorum.strategies[i];
+            newQuorum.strategies[i].multiplier = baseMultiplier;
+        }
+
+        newQuorum.strategies[newQuorum.strategies.length - 1] = StrategyParams({
+            strategy: rezStrategy,
+            multiplier: baseMultiplier + remainder
+        });
+
+        console.log("New REZ Strategy: ", address(rezStrategy));
+        console.log(
+            "New REZ Strategy Multiplier: ",
+            baseMultiplier + remainder
+        );
+
+        vm.startBroadcast(0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba);
+
+        // add strategy to quorum
+        bytes memory encodedCall = abi.encodeWithSelector(
+            stakeRegistry.updateQuorumConfig.selector,
+            newQuorum,
+            new address[](0)
+        );
+        stakeRegistry.updateQuorumConfig(newQuorum, new address[](0));
+
+        console.log("Encoded call: ");
+        console.logBytes(encodedCall);
+
+        vm.stopBroadcast();
+
+        // STEP 2.1: check if the REZ strategy is in the restakeable strategies list
+        address[] memory restakeableStrategies = serviceManager
+            .getRestakeableStrategies();
+        bool rezStrategyFound = false;
+        for (uint256 i = 0; i < restakeableStrategies.length; i++) {
+            if (restakeableStrategies[i] == address(rezStrategy)) {
+                rezStrategyFound = true;
+            }
+        }
+        require(
+            rezStrategyFound,
+            "REZ strategy not found in total restakeable strategies"
+        );
     }
 }
