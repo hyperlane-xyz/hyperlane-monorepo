@@ -2,6 +2,7 @@ import { Account, RpcProvider } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
@@ -65,25 +66,6 @@ export async function runCoreDeploy(params: DeployParams) {
     );
   }
 
-  if (multiProvider.tryGetProtocol(chain) === ProtocolType.Starknet) {
-    const provider = new RpcProvider({
-      nodeUrl: 'http://127.0.0.1:5050',
-    });
-    const account = new Account(
-      provider,
-      '0x4acc9b79dae485fb71f309f5b62501a1329789f4418bb4c25353ad5617be4d4',
-      '0x000000000000000000000000000000002f663fafebbee32e0698f7e13f886c73',
-    );
-    const starknetCoreModule = new StarknetCoreModule(account);
-    const deployments = await starknetCoreModule.deploy({
-      chain,
-      config,
-    });
-    console.log(deployments);
-    logGreen('✅ Core contract deployments complete:\n');
-    return;
-  }
-
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
@@ -95,33 +77,66 @@ export async function runCoreDeploy(params: DeployParams) {
   };
 
   await runDeployPlanStep(deploymentParams);
-  await runPreflightChecksForChains({
-    ...deploymentParams,
-    chains: [chain],
-    minGas: MINIMUM_CORE_DEPLOY_GAS,
-  });
 
-  const userAddress = await signer.getAddress();
+  let deployedAddresses: ChainAddresses;
+  switch (multiProvider.tryGetProtocol(chain)) {
+    case ProtocolType.Ethereum:
+      {
+        await runPreflightChecksForChains({
+          ...deploymentParams,
+          chains: [chain],
+          minGas: MINIMUM_CORE_DEPLOY_GAS,
+        });
 
-  const initialBalances = await prepareDeploy(context, userAddress, [chain]);
+        const userAddress = await signer.getAddress();
 
-  const contractVerifier = new ContractVerifier(
-    multiProvider,
-    apiKeys,
-    coreBuildArtifact,
-    ExplorerLicenseType.MIT,
-  );
+        const initialBalances = await prepareDeploy(context, userAddress, [
+          chain,
+        ]);
 
-  logBlue('🚀 All systems ready, captain! Beginning deployment...');
-  const evmCoreModule = await EvmCoreModule.create({
-    chain,
-    config,
-    multiProvider,
-    contractVerifier,
-  });
+        const contractVerifier = new ContractVerifier(
+          multiProvider,
+          apiKeys,
+          coreBuildArtifact,
+          ExplorerLicenseType.MIT,
+        );
 
-  await completeDeploy(context, 'core', initialBalances, userAddress, [chain]);
-  const deployedAddresses = evmCoreModule.serialize();
+        logBlue('🚀 All systems ready, captain! Beginning deployment...');
+        const evmCoreModule = await EvmCoreModule.create({
+          chain,
+          config,
+          multiProvider,
+          contractVerifier,
+        });
+
+        await completeDeploy(context, 'core', initialBalances, userAddress, [
+          chain,
+        ]);
+        deployedAddresses = evmCoreModule.serialize();
+      }
+      break;
+
+    case ProtocolType.Starknet:
+      {
+        const provider = new RpcProvider({
+          nodeUrl: 'http://127.0.0.1:5050',
+        });
+        const account = new Account(
+          provider,
+          '0x4acc9b79dae485fb71f309f5b62501a1329789f4418bb4c25353ad5617be4d4',
+          '0x000000000000000000000000000000002f663fafebbee32e0698f7e13f886c73',
+        );
+        const starknetCoreModule = new StarknetCoreModule(account);
+        deployedAddresses = await starknetCoreModule.deploy({
+          chain,
+          config,
+        });
+      }
+      break;
+
+    default:
+      throw new Error('Chain protocol is not supported yet!');
+  }
 
   if (!isDryRun) {
     await registry.updateChain({

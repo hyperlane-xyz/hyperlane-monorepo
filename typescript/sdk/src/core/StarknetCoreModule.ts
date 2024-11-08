@@ -31,7 +31,7 @@ export class StarknetCoreModule {
     );
     const noopIsm = await this.deployer.deployContract('noop_ism', []);
 
-    const hook = await this.deployer.deployContract('hook', []);
+    const defaultHook = await this.deployer.deployContract('hook', []);
 
     const protocolFee = await this.deployer.deployContract('protocol_fee', [
       '1000000000000000000',
@@ -46,7 +46,7 @@ export class StarknetCoreModule {
     const mailboxContract = await this.deployMailbox(
       config.owner,
       noopIsm,
-      hook,
+      defaultHook,
       protocolFee,
     );
 
@@ -63,12 +63,12 @@ export class StarknetCoreModule {
 
     return {
       noopIsm,
-      hook,
-      mailbox: mailboxContract.address,
+      defaultHook,
       defaultIsm: defaultIsm || noopIsm,
-      validatorAnnounce,
       protocolFee,
-      requiredHook: requiredHook || '',
+      mailbox: mailboxContract.address,
+      merkleTreeHook: requiredHook || '',
+      validatorAnnounce,
     };
   }
 
