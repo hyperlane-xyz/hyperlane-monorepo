@@ -30,8 +30,6 @@ export interface CommandContext {
   skipConfirmation: boolean;
   key?: string;
   signer?: ethers.Signer;
-  signers?: ethers.Signer[];
-  chain?: ChainName;
   chains?: ChainName[];
   warpRouteConfig?: WarpRouteDeployConfig;
 }

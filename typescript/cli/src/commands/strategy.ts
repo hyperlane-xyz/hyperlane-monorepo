@@ -22,7 +22,6 @@ import {
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
-  mergeYamlOrJson,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
@@ -76,11 +75,15 @@ export const init: CommandModuleWithWriteContext<{
     userAddress: inputUserAddress,
   }) => {
     logCommandHeader(`Hyperlane Key Init`);
-
+    let defaultStrategy;
     try {
-      await readYamlOrJson(DEFAULT_STRATEGY_CONFIG_PATH);
+      defaultStrategy = await readYamlOrJson(DEFAULT_STRATEGY_CONFIG_PATH);
     } catch (e) {
-      writeYamlOrJson(DEFAULT_STRATEGY_CONFIG_PATH, {}, 'yaml');
+      defaultStrategy = writeYamlOrJson(
+        DEFAULT_STRATEGY_CONFIG_PATH,
+        {},
+        'yaml',
+      );
     }
 
     const chain = await runSingleChainSelectionStep(context.chainMetadata);
@@ -172,6 +175,7 @@ export const init: CommandModuleWithWriteContext<{
     }
 
     let result: ChainSubmissionStrategy = {
+      ...defaultStrategy,
       [chain]: {
         submitter: submitter,
       },
@@ -184,7 +188,7 @@ export const init: CommandModuleWithWriteContext<{
       );
       log(indentYamlOrJson(yamlStringify(strategyConfig, null, 2), 4));
 
-      mergeYamlOrJson(DEFAULT_STRATEGY_CONFIG_PATH, strategyConfig);
+      writeYamlOrJson(DEFAULT_STRATEGY_CONFIG_PATH, strategyConfig);
       logGreen('✅ Successfully created new key config.');
     } catch (e) {
       errorRed(
