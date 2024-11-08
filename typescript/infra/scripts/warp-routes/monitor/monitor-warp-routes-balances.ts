@@ -246,4 +246,9 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
   return apiKey;
 }
 
-main().then(logger.info).catch(logger.error);
+main()
+  .then(logger.info)
+  .catch((err) => {
+    logger.error('Error in main', err);
+    process.exit(1);
+  });
