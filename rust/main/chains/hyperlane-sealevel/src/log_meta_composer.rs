@@ -61,7 +61,7 @@ impl LogMetaComposer {
             self.is_message_instruction,
         );
 
-        // We expect to see that there is only one message dispatch transaction
+        // We expect to see that there is only one transaction
         if transaction_hashes.len() > 1 {
             Err(HyperlaneSealevelError::TooManyTransactions(
                 self.error_msg_too_many_txns.to_owned(),
