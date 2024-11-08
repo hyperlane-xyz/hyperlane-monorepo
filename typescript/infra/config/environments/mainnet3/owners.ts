@@ -55,6 +55,7 @@ export const safes: ChainMap<Address> = {
   fusemainnet: '0x29a526227CB864C90Cf078d03872da913B473139',
   endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
+  // zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
 };
 
 export const icaOwnerChain = 'ethereum';
@@ -142,6 +143,20 @@ export const icas: Partial<
   // morph: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   // orderly: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
   // snaxchain: '0x8965d9f19336EB4e910d5f1B9070205FdBee6837',
+
+  // // Nov 8, 2024 batch
+  // // ----------------------------------------------------------
+  // alephzeroevmmainnet: '0xDE91AC081E12107a033728A287b06B1Fc640A637',
+  // chilizmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
+  // flowmainnet: '0x65528D447C93CC1A1A7186CB4449d9fE0d5C1928',
+  // immutablezkevmmainnet: '0x54AF0FCDCD58428f8dF3f825267DfB58f2C710eb',
+  // metal: '0xf1d25462e1f82BbF25b3ef7A4C94F738a30a968B',
+  // polynomialfi: '0x6ACa36E710dC0C80400090EA0bC55dA913a3D20D',
+  // rarichain: '0xD0A4Ad2Ca0251BBc6541f8c2a594F1A82b67F114',
+  // rootstockmainnet: '0x0C15f7479E0B46868693568a3f1C747Fdec9f17d',
+  // superpositionmainnet: '0x5F17Dc2e1fd1371dc6e694c51f22aBAF8E27667B',
+  // flame: '0x4F3d85360840497Cd1bc34Ca55f27629eee2AA2e',
+  // prom: '0x1cDd3C143387cD1FaE23e2B66bc3F409D073aC3D',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
