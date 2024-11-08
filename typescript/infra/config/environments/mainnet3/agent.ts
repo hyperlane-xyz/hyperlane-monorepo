@@ -24,20 +24,20 @@ import {
   supportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
-import ancient8EthereumUsdcAddresses from './warp/ancient8-USDC-addresses.json';
-import arbitrumTIAAddresses from './warp/arbitrum-TIA-addresses.json';
-import arbitrumNeutronEclipAddresses from './warp/arbitrum-neutron-eclip-addresses.json';
-import eclipseStrideTiaAddresses from './warp/eclipse-stride-TIA-addresses.json';
-import eclipseStrideStTiaAddresses from './warp/eclipse-stride-stTIA-addresses.json';
-import inevmEthereumUsdcAddresses from './warp/inevm-USDC-addresses.json';
-import inevmEthereumUsdtAddresses from './warp/inevm-USDT-addresses.json';
-import injectiveInevmInjAddresses from './warp/injective-inevm-addresses.json';
-import mantaTIAAddresses from './warp/manta-TIA-addresses.json';
-import merklyEthAddresses from './warp/merkly-eth-addresses.json';
-import renzoEzEthAddressesV3 from './warp/renzo-ezETH-addresses-v3.json';
-import victionEthereumEthAddresses from './warp/viction-ETH-addresses.json';
-import victionEthereumUsdcAddresses from './warp/viction-USDC-addresses.json';
-import victionEthereumUsdtAddresses from './warp/viction-USDT-addresses.json';
+import ancient8EthereumUsdcAddresses from './warp/artifacts/ancient8-USDC-addresses.json';
+import arbitrumTIAAddresses from './warp/artifacts/arbitrum-TIA-addresses.json';
+import arbitrumNeutronEclipAddresses from './warp/artifacts/arbitrum-neutron-eclip-addresses.json';
+import eclipseStrideTiaAddresses from './warp/artifacts/eclipse-stride-TIA-addresses.json';
+import eclipseStrideStTiaAddresses from './warp/artifacts/eclipse-stride-stTIA-addresses.json';
+import inevmEthereumUsdcAddresses from './warp/artifacts/inevm-USDC-addresses.json';
+import inevmEthereumUsdtAddresses from './warp/artifacts/inevm-USDT-addresses.json';
+import injectiveInevmInjAddresses from './warp/artifacts/injective-inevm-addresses.json';
+import mantaTIAAddresses from './warp/artifacts/manta-TIA-addresses.json';
+import merklyEthAddresses from './warp/artifacts/merkly-eth-addresses.json';
+import renzoEzEthAddressesV3 from './warp/artifacts/renzo-ezETH-addresses-v3.json';
+import victionEthereumEthAddresses from './warp/artifacts/viction-ETH-addresses.json';
+import victionEthereumUsdcAddresses from './warp/artifacts/viction-USDC-addresses.json';
+import victionEthereumUsdtAddresses from './warp/artifacts/viction-USDT-addresses.json';
 import { WarpRouteIds } from './warp/warpIds.js';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
