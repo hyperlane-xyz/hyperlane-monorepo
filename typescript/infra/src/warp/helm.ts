@@ -42,9 +42,13 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       .toLowerCase()
       .replaceAll('/', '-')}`;
 
-    // Max helm release length is 53 characters, and it can't end with a dash
-    if (name.length > 53) {
-      name = name.slice(0, 53);
+    // 52 because the max label length is 63, and there is an auto appended 11 char
+    // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-mantapacific-neutron-566dc75599`
+    const maxChars = 52;
+
+    // Max out length, and it can't end with a dash.
+    if (name.length > maxChars) {
+      name = name.slice(0, maxChars);
       name = name.replace(/-+$/, '');
     }
     return name;
