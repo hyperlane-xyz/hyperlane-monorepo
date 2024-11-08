@@ -20,6 +20,8 @@ contract HypValueTest is HypTokenTest {
 
     address internal constant L2_MESSENGER_ADDRESS =
         0x4200000000000000000000000000000000000007;
+    uint256 internal constant OP_BRIDGE_GAS_LIMIT = 100_000;
+    uint256 internal constant MOCK_NONCE = 0;
 
     HypValue internal localValueRouter;
     HypValue internal remoteValueRouter;
@@ -76,7 +78,7 @@ contract HypValueTest is HypTokenTest {
             address(localToken).addressToBytes32()
         );
 
-        vm.deal(ALICE, 1000e18);
+        vm.deal(ALICE, TRANSFER_AMT * 10);
     }
 
     function testRemoteTransfer() public {
@@ -125,7 +127,7 @@ contract HypValueTest is HypTokenTest {
             )
         );
         vm.prank(ALICE);
-        bytes32 messageId = localToken.transferRemote{value: TRANSFER_AMT}(
+        localToken.transferRemote{value: TRANSFER_AMT}(
             DESTINATION,
             BOB.addressToBytes32(),
             TRANSFER_AMT
@@ -144,7 +146,7 @@ contract HypValueTest is HypTokenTest {
         hook.setFee(fee);
 
         vm.prank(ALICE);
-        bytes32 messageId = localToken.transferRemote{value: msgValue}(
+        localToken.transferRemote{value: msgValue}(
             DESTINATION,
             BOB.addressToBytes32(),
             TRANSFER_AMT,
@@ -154,6 +156,34 @@ contract HypValueTest is HypTokenTest {
 
         vm.assertEq(address(localToken).balance, 0);
         vm.assertEq(address(valueHook).balance, 0);
+    }
+
+    function testTransfer_withHookSpecified_revertsInsufficientValue(
+        uint256 fee,
+        bytes calldata metadata
+    ) public {
+        vm.assume(fee < TRANSFER_AMT);
+        uint256 msgValue = TRANSFER_AMT + fee;
+        vm.deal(ALICE, msgValue);
+
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+        hook.setFee(fee);
+
+        vm.prank(ALICE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                HypValue.InsufficientValue.selector,
+                msgValue,
+                msgValue - 1
+            )
+        );
+        localToken.transferRemote{value: msgValue - 1}(
+            DESTINATION,
+            BOB.addressToBytes32(),
+            TRANSFER_AMT,
+            metadata,
+            address(hook)
+        );
     }
 
     function testBenchmark_overheadGasUsage() public override {
@@ -174,22 +204,22 @@ contract HypValueTest is HypTokenTest {
         bytes memory messengerCalldata = abi.encodeCall(
             ICrossDomainMessenger.relayMessage,
             (
-                0,
+                MOCK_NONCE,
                 address(valueHook),
                 address(ism),
                 _msgValue,
-                uint256(100_000),
+                OP_BRIDGE_GAS_LIMIT,
                 encodedHookData
             )
         );
         vm.deal(address(portal), _msgValue);
         IOptimismPortal.WithdrawalTransaction
             memory withdrawal = IOptimismPortal.WithdrawalTransaction({
-                nonce: 0,
+                nonce: MOCK_NONCE,
                 sender: L2_MESSENGER_ADDRESS,
                 target: address(l1Messenger),
                 value: _msgValue,
-                gasLimit: 100_000,
+                gasLimit: OP_BRIDGE_GAS_LIMIT,
                 data: messengerCalldata
             });
         portal.finalizeWithdrawalTransaction(withdrawal);

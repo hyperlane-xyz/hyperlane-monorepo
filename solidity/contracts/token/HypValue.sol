@@ -26,8 +26,15 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @notice This contract facilitates the transfer of value between chains using value transfer hooks
  */
 contract HypValue is TokenRouter {
+    /**
+     * @dev Emitted when native tokens are donated to the contract.
+     * @param sender The address of the sender.
+     * @param amount The amount of native tokens donated.
+     */
+    event Donation(address indexed sender, uint256 amount);
     // ============ Errors ============
-    error InsufficientValue(uint256 amount, uint256 value);
+
+    error InsufficientValue(uint256 requiredValue, uint256 providedValue);
 
     constructor(address _mailbox) TokenRouter(_mailbox) {}
 
@@ -63,8 +70,15 @@ contract HypValue is TokenRouter {
         uint256 _amount,
         bytes calldata _hookMetadata,
         address _hook
-    ) external payable virtual override returns (bytes32 messageId) {
-        uint256 quote = _checkSufficientValue(_destination, _amount, _hook);
+    ) public payable virtual override returns (bytes32 messageId) {
+        uint256 quote = _GasRouter_quoteDispatch(
+            _destination,
+            _hookMetadata,
+            _hook
+        );
+        if (msg.value < _amount + quote) {
+            revert InsufficientValue(_amount + quote, msg.value);
+        }
 
         bytes memory hookMetadata = StandardHookMetadata.overrideMsgValue(
             _hookMetadata,
@@ -88,25 +102,17 @@ contract HypValue is TokenRouter {
         bytes32 _recipient,
         uint256 _amount
     ) external payable virtual override returns (bytes32 messageId) {
-        uint256 quote = _checkSufficientValue(
-            _destination,
-            _amount,
-            address(hook)
-        );
-        bytes memory hookMetadata = StandardHookMetadata.formatMetadata(
-            _amount,
-            destinationGas[_destination],
-            msg.sender,
-            ""
-        );
-
+        bytes calldata emptyBytes;
+        assembly {
+            emptyBytes.length := 0
+            emptyBytes.offset := 0
+        }
         return
-            _transferRemote(
+            transferRemote(
                 _destination,
                 _recipient,
                 _amount,
-                _amount + quote,
-                hookMetadata,
+                emptyBytes,
                 address(hook)
             );
     }
@@ -137,7 +143,7 @@ contract HypValue is TokenRouter {
 
     /**
      * @inheritdoc TokenRouter
-     * @dev This contract doesn't hold value
+     * @dev The user will hold native value
      */
     function balanceOf(
         address /* _account */
@@ -145,22 +151,7 @@ contract HypValue is TokenRouter {
         return 0;
     }
 
-    /// @dev Checks if the provided value is sufficient for the transfer
-    function _checkSufficientValue(
-        uint32 _destination,
-        uint256 _amount,
-        address _hook
-    ) internal view returns (uint256) {
-        uint256 quote = _GasRouter_quoteDispatch(
-            _destination,
-            new bytes(0),
-            _hook
-        );
-        if (msg.value < _amount + quote) {
-            revert InsufficientValue(_amount + quote, msg.value);
-        }
-        return quote;
+    receive() external payable {
+        emit Donation(msg.sender, msg.value);
     }
-
-    receive() external payable {}
 }
