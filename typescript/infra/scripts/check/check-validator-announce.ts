@@ -25,7 +25,7 @@ async function main() {
 
   const targetNetworks = (
     chains && chains.length > 0 ? chains : config.supportedChainNames
-  ).filter(isEthereumProtocolChain);
+  ).filter((chain) => isEthereumProtocolChain(chain) && chain !== 'lumia');
 
   const chainsWithUnannouncedValidators: ChainMap<string[]> = {};
 
