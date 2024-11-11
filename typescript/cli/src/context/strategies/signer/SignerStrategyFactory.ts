@@ -1,23 +1,32 @@
 import { OriginDestinationSignerStrategy } from './OriginDestinationSignerStrategy.js';
 import { SignerStrategy } from './SignerStrategy.js';
 import { SingleChainSignerStrategy } from './SingleChainSignerStrategy.js';
-import { WarpDeploySignerStrategy } from './WarpDeploySignerStrategy.js';
+import { WarpConfigSignerStrategy } from './WarpConfigSignerStrategy.js';
+
+enum CommandType {
+  CORE_APPLY = 'core:apply',
+  WARP_DEPLOY = 'warp:deploy',
+  WARP_SEND = 'warp:send',
+  WARP_APPLY = 'warp:apply',
+  WARP_READ = 'warp:read',
+  WARP_MESSAGE = 'send:message',
+}
 
 export class SignerStrategyFactory {
+  private static strategyMap: Map<CommandType, () => SignerStrategy> = new Map([
+    [CommandType.CORE_APPLY, () => new SingleChainSignerStrategy()],
+    [CommandType.WARP_DEPLOY, () => new WarpConfigSignerStrategy()],
+    [CommandType.WARP_SEND, () => new OriginDestinationSignerStrategy()],
+    [CommandType.WARP_APPLY, () => new WarpConfigSignerStrategy()],
+    [CommandType.WARP_READ, () => new SingleChainSignerStrategy()],
+    [CommandType.WARP_MESSAGE, () => new OriginDestinationSignerStrategy()],
+  ]);
+
   static createStrategy(argv: Record<string, any>): SignerStrategy {
-    const strategyMap: Record<string, () => SignerStrategy> = {
-      'core:apply': () => new SingleChainSignerStrategy(),
-      'warp:deploy': () => new WarpDeploySignerStrategy(),
-      'warp:send': () => new WarpDeploySignerStrategy(), // Assuming same strategy for 'send'
-      'warp:apply': () => new WarpDeploySignerStrategy(), // Assuming same strategy for 'appl'
-      'send:message': () => new OriginDestinationSignerStrategy(),
-    };
-
-    const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim();
-
+    const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim() as CommandType;
     const createStrategy =
-      strategyMap[commandKey] || (() => new SingleChainSignerStrategy());
-
+      this.strategyMap.get(commandKey) ||
+      (() => new SingleChainSignerStrategy());
     return createStrategy();
   }
 }

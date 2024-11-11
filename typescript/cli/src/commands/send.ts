@@ -46,8 +46,8 @@ export const messageOptions: { [k: string]: Options } = {
 };
 
 export interface MessageOptionsArgTypes {
-  origin?: string;
-  destination?: string;
+  origin: string;
+  destination: string;
   timeout: number;
   quick: boolean;
   relay: boolean;

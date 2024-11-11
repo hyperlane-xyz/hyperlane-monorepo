@@ -7,7 +7,7 @@ import { BaseSubmitterStrategy } from './SubmitterStrategy.js';
 
 export class JsonRpcStrategy extends BaseSubmitterStrategy {
   async getPrivateKey(chain: ChainName): Promise<string> {
-    let pk = this.config[chain]?.submitter?.privateKey;
+    let pk = this.config[chain]?.submitter?.privateKey; // HYP_KEY for backwards compatibility
 
     if (!pk) {
       pk = await password({

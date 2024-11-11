@@ -1,5 +1,3 @@
-import { confirm } from '@inquirer/prompts';
-
 import {
   ChainName,
   ChainSubmissionStrategy,
@@ -17,15 +15,10 @@ import { ContextManager } from '../../manager/ContextManager.js';
 
 import { SignerStrategy } from './SignerStrategy.js';
 
-export interface WarpDeployContextResult {
-  warpRouteConfig: Record<ChainName, any>;
-  chains: ChainName[];
-}
-
-export class WarpDeploySignerStrategy implements SignerStrategy {
+export class WarpConfigSignerStrategy implements SignerStrategy {
   async determineChains(argv: Record<string, any>): Promise<ChainName[]> {
-    const configPath = argv.wd || DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
-    const { chains } = await getWarpDeployContext({
+    const configPath = argv.config || DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
+    const { chains } = await getWarpConfigChains({
       configPath,
       skipConfirmation: argv.skipConfirmation,
     });
@@ -60,13 +53,13 @@ export class WarpDeploySignerStrategy implements SignerStrategy {
   }
 }
 
-export async function getWarpDeployContext({
+export async function getWarpConfigChains({
   configPath = DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   skipConfirmation = false,
 }: {
   configPath?: string;
   skipConfirmation?: boolean;
-}): Promise<WarpDeployContextResult> {
+}): Promise<{ chains: ChainName[] }> {
   // Validate config path
   if (!configPath || !isFile(configPath)) {
     if (skipConfirmation) {
@@ -96,22 +89,5 @@ export async function getWarpDeployContext({
     throw new Error('No chains found in warp route deployment config');
   }
 
-  // Optional: Confirm multi-chain deployment
-  if (!skipConfirmation && chains.length > 1) {
-    const confirmMultiChain = await confirm({
-      message: `Deploy warp route across ${chains.length} chains: ${chains.join(
-        ', ',
-      )}?`,
-      default: true,
-    });
-
-    if (!confirmMultiChain) {
-      throw new Error('Deployment cancelled by user');
-    }
-  }
-
-  return {
-    warpRouteConfig,
-    chains,
-  };
+  return { chains };
 }

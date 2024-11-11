@@ -6,11 +6,6 @@ import {
 
 import { ContextManager } from '../../manager/ContextManager.js';
 
-export interface WarpDeployContextResult {
-  warpRouteConfig: Record<ChainName, any>;
-  chains: ChainName[];
-}
-
 export interface SignerStrategy {
   /**
    * Determines the chains to be used for signing

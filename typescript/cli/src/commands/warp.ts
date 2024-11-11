@@ -138,6 +138,7 @@ export const deploy: CommandModuleWithWriteContext<{
     try {
       await runWarpRouteDeploy({
         context,
+        warpRouteDeploymentConfigPath: config,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);

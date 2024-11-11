@@ -51,7 +51,7 @@ export const init: CommandModuleWithWriteContext<{
     config: outputFileCommandOption(
       DEFAULT_STRATEGY_CONFIG_PATH,
       false,
-      'The path to output a Key Config JSON or YAML file.',
+      'The path to output a Strategy Config JSON or YAML file.',
     ),
     type: {
       type: 'string',

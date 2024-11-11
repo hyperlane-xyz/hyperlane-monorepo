@@ -29,11 +29,10 @@ export class OriginDestinationSignerStrategy implements SignerStrategy {
         'Select the destination chain',
       );
     }
-    const chains = [origin, destination];
-    argv.chains = chains;
+
     argv.origin = origin;
-    argv.destination = origin;
-    return chains; // Explicitly return as single-item array
+    argv.destination = destination;
+    return [origin, destination]; // Explicitly return as single-item array
   }
 
   createContextManager(
