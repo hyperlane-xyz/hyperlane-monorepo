@@ -448,18 +448,18 @@ fn main() -> ExitCode {
 
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
 
+    log!("Setup complete! Agents running in background...");
+    log!("Ctrl+C to end execution...");
+
     if let Some((solana_config_path, (_, solana_path))) =
         solana_config_path.clone().zip(solana_paths.clone())
     {
-        // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
+        // Send some sealevel messages after spinning up the agents, to test the backward indexing cursor
         for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
             initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
                 .join();
         }
     }
-
-    log!("Setup complete! Agents running in background...");
-    log!("Ctrl+C to end execution...");
 
     // Send half the kathy messages after the relayer comes up
     kathy_env_double_insertion.clone().run().join();
