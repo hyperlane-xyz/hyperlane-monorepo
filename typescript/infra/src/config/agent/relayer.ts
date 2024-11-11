@@ -20,7 +20,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChain, getDomainId } from '../../../config/registry.js';
+import {
+  getChain,
+  getDomainId,
+  getWarpAddresses,
+} from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
 import { Role } from '../../roles.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
@@ -225,6 +229,11 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   get relayChains(): Array<string> {
     return this.contextChainNames[Role.Relayer];
   }
+}
+
+// Gets the matching list for the given warp route using addresses from the registry.
+export function warpRouteMatchingList(warpRouteId: string): MatchingList {
+  return matchingList(getWarpAddresses(warpRouteId));
 }
 
 export function routerMatchingList(
