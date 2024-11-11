@@ -50,12 +50,26 @@ export interface BaseRelayerConfig {
 
 // Full relayer-specific agent config for a single chain
 export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
+// Config intended to be set as configMap values, these are usually really long
+// and are intended to derisk hitting max env var length limits.
+export type RelayerConfigMapConfig = Pick<
+  RelayerConfig,
+  'addressBlacklist' | 'gasPaymentEnforcement' | 'metricAppContexts'
+>;
+// The rest of the config is intended to be set as env vars.
+export type RelayerEnvConfig = Omit<
+  RelayerConfig,
+  keyof RelayerConfigMapConfig
+>;
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
   aws: boolean;
-  config?: RelayerConfig;
+  // Config intended to be set as env vars
+  envConfig?: RelayerEnvConfig;
+  // Config intended to be set as configMap values
+  configMapConfig?: RelayerConfigMapConfig;
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.

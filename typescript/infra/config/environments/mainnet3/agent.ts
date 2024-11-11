@@ -35,6 +35,8 @@ import inevmEthereumUsdtAddresses from './warp/artifacts/inevm-USDT-addresses.js
 import injectiveInevmInjAddresses from './warp/artifacts/injective-inevm-addresses.json';
 import mantaTIAAddresses from './warp/artifacts/manta-TIA-addresses.json';
 import merklyEthAddresses from './warp/artifacts/merkly-eth-addresses.json';
+import merklyNftAddresses from './warp/artifacts/merkly-eth-addresses.json';
+import merklyErc20Addresses from './warp/artifacts/merkly-eth-addresses.json';
 import renzoEzEthAddressesV3 from './warp/artifacts/renzo-ezETH-addresses-v3.json';
 import victionEthereumEthAddresses from './warp/artifacts/viction-ETH-addresses.json';
 import victionEthereumUsdcAddresses from './warp/artifacts/viction-USDC-addresses.json';
@@ -438,18 +440,18 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     //   matchingList: matchingList(getWarpAddresses(WarpRouteIds.EclipseSolanaSOL)),
     // },
     // Hitting max env var size limits, see https://stackoverflow.com/questions/28865473/setting-environment-variable-to-a-large-value-argument-list-too-long#answer-28865503
-    // {
-    //   name: 'merkly_erc20',
-    //   matchingList: routerMatchingList(merklyErc20Addresses),
-    // },
-    // {
-    //   name: 'merkly_eth',
-    //   matchingList: routerMatchingList(merklyErc20Addresses),
-    // },
-    // {
-    //   name: 'merkly_nft',
-    //   matchingList: routerMatchingList(merklyErc20Addresses),
-    // },
+    {
+      name: 'merkly_erc20',
+      matchingList: routerMatchingList(merklyErc20Addresses),
+    },
+    {
+      name: 'merkly_eth',
+      matchingList: routerMatchingList(merklyEthAddresses),
+    },
+    {
+      name: 'merkly_nft',
+      matchingList: routerMatchingList(merklyNftAddresses),
+    },
   ];
 };
 
@@ -518,7 +520,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'a64af8b-20241024-120818',
+      tag: '75d62ae-20241107-060707',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -551,7 +553,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b1ff48b-20241016-183301',
+      tag: '75d62ae-20241107-060707',
     },
     gasPaymentEnforcement: [
       {

@@ -47,13 +47,6 @@ export class AgentCli {
         }
         case Role.Relayer:
           managers[role] = new RelayerHelmManager(this.agentConfig);
-          const metricsAppContexts =
-            this.agentConfig.relayer!.metricAppContextsGetter?.();
-          const jsonStr = JSON.stringify(metricsAppContexts);
-          console.log('Metrics App Contexts:', jsonStr);
-          console.log('length:', metricsAppContexts?.length);
-
-          process.exit(0);
           break;
         case Role.Scraper:
           managers[role] = new ScraperHelmManager(this.agentConfig);
