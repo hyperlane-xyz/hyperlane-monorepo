@@ -5,7 +5,7 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
-import {HypValue} from "../../contracts/token/HypValue.sol";
+import {HypNative} from "../../contracts/token/HypNative.sol";
 import {OPL2ToL1Hook} from "../../contracts/hooks/OPL2ToL1Hook.sol";
 import {OPL2ToL1Ism} from "../../contracts/isms/hook/OPL2ToL1Ism.sol";
 import {IOptimismPortal} from "../../contracts/interfaces/optimism/IOptimismPortal.sol";
@@ -15,7 +15,7 @@ import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/Abstract
 import {MockOptimismMessenger, MockOptimismPortal} from "../../contracts/mock/MockOptimism.sol";
 import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
 
-contract HypValueTest is HypTokenTest {
+contract HypNativeTest is HypTokenTest {
     using TypeCasts for address;
 
     address internal constant L2_MESSENGER_ADDRESS =
@@ -23,8 +23,8 @@ contract HypValueTest is HypTokenTest {
     uint256 internal constant OP_BRIDGE_GAS_LIMIT = 100_000;
     uint256 internal constant MOCK_NONCE = 0;
 
-    HypValue internal localValueRouter;
-    HypValue internal remoteValueRouter;
+    HypNative internal localValueRouter;
+    HypNative internal remoteValueRouter;
     OPL2ToL1Hook internal valueHook;
     OPL2ToL1Ism internal ism;
     TestInterchainGasPaymaster internal mockOverheadIgp;
@@ -38,8 +38,8 @@ contract HypValueTest is HypTokenTest {
             address(new MockOptimismMessenger()).code
         );
 
-        localValueRouter = new HypValue(address(localMailbox));
-        remoteValueRouter = new HypValue(address(remoteMailbox));
+        localValueRouter = new HypNative(address(localMailbox));
+        remoteValueRouter = new HypNative(address(remoteMailbox));
 
         localToken = TokenRouter(payable(address(localValueRouter)));
         remoteToken = HypERC20(payable(address(remoteValueRouter)));
@@ -121,7 +121,7 @@ contract HypValueTest is HypTokenTest {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                HypValue.InsufficientValue.selector,
+                HypNative.InsufficientValue.selector,
                 TRANSFER_AMT + quote,
                 TRANSFER_AMT
             )
@@ -172,7 +172,7 @@ contract HypValueTest is HypTokenTest {
         vm.prank(ALICE);
         vm.expectRevert(
             abi.encodeWithSelector(
-                HypValue.InsufficientValue.selector,
+                HypNative.InsufficientValue.selector,
                 msgValue,
                 msgValue - 1
             )

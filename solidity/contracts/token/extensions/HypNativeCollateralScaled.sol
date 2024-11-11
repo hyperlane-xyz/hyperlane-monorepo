@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity >=0.8.0;
 
-import {HypNative} from "../HypNative.sol";
+import {HypNativeCollateral} from "../HypNativeCollateral.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 
 /**
@@ -10,15 +10,18 @@ import {TokenRouter} from "../libs/TokenRouter.sol";
  *      Conversely, it divides the local native `msg.value` amount by `scale` to encode the `message.amount`.
  * @author Abacus Works
  */
-contract HypNativeScaled is HypNative {
+contract HypNativeCollateralScaled is HypNativeCollateral {
     uint256 public immutable scale;
 
-    constructor(uint256 _scale, address _mailbox) HypNative(_mailbox) {
+    constructor(
+        uint256 _scale,
+        address _mailbox
+    ) HypNativeCollateral(_mailbox) {
         scale = _scale;
     }
 
     /**
-     * @inheritdoc HypNative
+     * @inheritdoc HypNativeCollateral
      * @dev Sends scaled `msg.value` (divided by `scale`) to `_recipient`.
      */
     function transferRemote(
@@ -73,6 +76,6 @@ contract HypNativeScaled is HypNative {
         bytes calldata metadata // no metadata
     ) internal override {
         uint256 scaledAmount = _amount * scale;
-        HypNative._transferTo(_recipient, scaledAmount, metadata);
+        HypNativeCollateral._transferTo(_recipient, scaledAmount, metadata);
     }
 }
