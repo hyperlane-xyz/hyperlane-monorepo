@@ -115,7 +115,7 @@ impl SealevelInterchainGasPaymasterIndexer {
 
         let log_meta_composer = LogMetaComposer::new(
             igp.program_id,
-            "interchain payment".to_owned(),
+            "interchain gas payment".to_owned(),
             is_interchain_payment_instruction,
         );
 
