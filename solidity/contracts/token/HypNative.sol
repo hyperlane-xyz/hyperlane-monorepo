@@ -141,14 +141,11 @@ contract HypNative is TokenRouter {
         Address.sendValue(payable(_recipient), _amount);
     }
 
-    /**
-     * @inheritdoc TokenRouter
-     * @dev The user will hold native value
-     */
+    /// @inheritdoc TokenRouter
     function balanceOf(
-        address /* _account */
-    ) external pure override returns (uint256) {
-        return 0;
+        address _account
+    ) external view override returns (uint256) {
+        return _account.balance;
     }
 
     receive() external payable {
