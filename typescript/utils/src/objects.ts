@@ -194,7 +194,7 @@ export function objOmitKeys<T extends Record<string, any> = any>(
   obj: Record<string, any>,
   keys: string[],
 ): Partial<T> {
-  return objFilter(obj, (k, _v): _v is any => !keys.includes(k)) as T;
+  return objFilter(obj, (k, _v): _v is any => !keys.includes(k)) as Partial<T>;
 }
 
 export function invertKeysAndValues(data: any) {
