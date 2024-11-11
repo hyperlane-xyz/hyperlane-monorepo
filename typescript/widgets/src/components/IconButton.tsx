@@ -7,7 +7,7 @@ type Props = PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>> & {
 };
 
 export function IconButton(props: Props) {
-  const { className, children, ...rest } = props;
+  const { className, children, type, ...rest } = props;
 
   const base =
     'htw-flex htw-items-center htw-justify-center htw-transition-all';
@@ -17,7 +17,7 @@ export function IconButton(props: Props) {
   const allClasses = clsx(base, onHover, onDisabled, onActive, className);
 
   return (
-    <button type="button" className={allClasses} {...rest}>
+    <button type={type || 'button'} className={allClasses} {...rest}>
       {children}
     </button>
   );
