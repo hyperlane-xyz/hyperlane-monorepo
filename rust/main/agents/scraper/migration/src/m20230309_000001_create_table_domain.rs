@@ -462,6 +462,22 @@ const DOMAINS: &[RawDomain] = &[
         is_test_net: true,
         is_deprecated: false,
     },
+    RawDomain {
+        name: "sealeveltest1",
+        token: "SOL",
+        domain: 13375,
+        chain_id: 0,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "sealeveltest2",
+        token: "SOL",
+        domain: 13376,
+        chain_id: 0,
+        is_test_net: true,
+        is_deprecated: false,
+    },
 ];
 
 #[derive(DeriveMigrationName)]
