@@ -1,16 +1,21 @@
 import { Signer } from 'ethers';
 
-import { ChainName, TxSubmitterType } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  ChainSubmissionStrategy,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 
-import { ENV } from '../../utils/env.js';
-import { ISubmitterStrategy } from '../strategies/submitter/SubmitterStrategy.js';
-import { SubmitterStrategyFactory } from '../strategies/submitter/SubmitterStrategyFactory.js';
+import { ENV } from '../../../utils/env.js';
+
+import { ISubmitterStrategy } from './SubmitterStrategy.js';
+import { SubmitterStrategyFactory } from './SubmitterStrategyFactory.js';
 
 /**
- * @title ContextManager
+ * @title SubmitterContext
  * @dev Manages the context for transaction submitters, including retrieving chain keys and signers.
  */
-export class ContextManager {
+export class SubmitterContext {
   private strategy: ISubmitterStrategy;
 
   /**
@@ -19,10 +24,10 @@ export class ContextManager {
    * @param submitterType Type of transaction submitter to use.
    */
   constructor(
-    strategyConfig: any,
+    strategyConfig: ChainSubmissionStrategy,
     private chains: ChainName[],
     submitterType: TxSubmitterType,
-    private argv?: any,
+    private argv?: Record<string, any>,
   ) {
     this.strategy = SubmitterStrategyFactory.createStrategy(
       submitterType,
@@ -41,7 +46,7 @@ export class ContextManager {
       this.chains.map(async (chain) => ({
         chainName: chain,
         privateKey:
-          this.argv.key || // argv.key overrides strategy key
+          this.argv?.key || // argv.key overrides strategy key
           (await this.strategy.getPrivateKey(chain)) ||
           ENV.HYP_KEY, // argv.key and ENV.HYP_KEY for backwards compatibility
       })),

@@ -71,22 +71,23 @@ export async function signerMiddleware(argv: Record<string, any>) {
   const signerStrategy = SignerStrategyFactory.createStrategy(argv);
 
   // Determine the chains that will be used for signing based on the selected strategy
-  // e.g. SingleChainSignerStrategy extracts jsonRpc private key from strategyConfig else prompts user PK input
+  // e.g. SingleChainSignerStrategy extracts jsonRpc private key from strategyConfig else prompts user private key input
   const chains = await signerStrategy.determineChains(argv);
 
-  // Create a context manager for the signer, which will manage the signing context for the specified chains
+  // Creates a submitter context for the signer, which manages the signing context for the specified chains
   // default: TxSubmitterType.JSON_RPC
-  const signerContextManager = signerStrategy.createContextManager(
+  const signerSubmitterContext = signerStrategy.createSubmitterContext(
     chains,
     strategyConfig,
     argv,
   );
 
-  // Configure the signers using the selected strategy, multiProvider, and context manager
+  // Configure the signers using the selected strategy, multiProvider, and submitter context
+  // manipulates argv values
   await signerStrategy.configureSigners(
     argv,
     multiProvider,
-    signerContextManager,
+    signerSubmitterContext,
   );
 
   return { ...argv, strategy: strategyUrl };

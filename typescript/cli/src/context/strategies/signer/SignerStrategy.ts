@@ -4,7 +4,7 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import { ContextManager } from '../../manager/ContextManager.js';
+import { SubmitterContext } from '../submitter/SubmitterContext.js';
 
 export interface SignerStrategy {
   /**
@@ -18,23 +18,23 @@ export interface SignerStrategy {
    * Creates a context manager for the selected chains
    * @param chains Selected chains
    * @param strategyConfig Default strategy configuration
-   * @returns ContextManager instance
+   * @returns SubmitterContext instance
    */
-  createContextManager(
+  createSubmitterContext(
     chains: ChainName[],
     strategyConfig: ChainSubmissionStrategy,
-    argv?: any,
-  ): ContextManager;
+    argv?: Record<string, any>,
+  ): SubmitterContext;
 
   /**
    * Configures signers for the multi-provider
    * @param argv Command arguments
    * @param multiProvider MultiProvider instance
-   * @param contextManager ContextManager instance
+   * @param submitterContext SubmitterContext instance
    */
   configureSigners(
     argv: Record<string, any>,
     multiProvider: MultiProvider,
-    contextManager: ContextManager,
+    submitterContext: SubmitterContext,
   ): Promise<void>;
 }

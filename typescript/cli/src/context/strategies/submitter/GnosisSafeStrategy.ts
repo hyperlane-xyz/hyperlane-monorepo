@@ -5,7 +5,7 @@ import { BaseSubmitterStrategy } from './SubmitterStrategy.js';
 
 export class GnosisSafeStrategy extends BaseSubmitterStrategy {
   async getPrivateKey(chain: ChainName): Promise<string> {
-    // Implement Gnosis Safe specific logic
+    // Future works: Implement Gnosis Safe specific logic
     throw new Error('Not implemented');
   }
 

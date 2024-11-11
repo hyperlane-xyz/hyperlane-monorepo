@@ -6,11 +6,20 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { runSingleChainSelectionStep } from '../../../utils/chains.js';
-import { ContextManager } from '../../manager/ContextManager.js';
+import { SubmitterContext } from '../submitter/SubmitterContext.js';
 
 import { SignerStrategy } from './SignerStrategy.js';
 
+/**
+ * @title OriginDestinationSignerStrategy
+ * @notice Strategy implementation for managing multiVM operations requiring both origin and destination chains
+ * @dev This strategy is used by the SignerStrategyFactory for sending messages and tokens across chains
+ */
 export class OriginDestinationSignerStrategy implements SignerStrategy {
+  /**
+   * @notice Determines and validates the origin and destination chains
+   * @dev If origin or destination are not provided in argv, prompts user for interactive selection
+   */
   async determineChains(argv: Record<string, any>): Promise<ChainName[]> {
     const { context } = argv;
     let origin = argv.origin;
@@ -35,12 +44,15 @@ export class OriginDestinationSignerStrategy implements SignerStrategy {
     return [origin, destination]; // Explicitly return as single-item array
   }
 
-  createContextManager(
+  /**
+   * @dev Hardcoded: JSON_RPC as the transaction submitter type
+   */
+  createSubmitterContext(
     chains: ChainName[],
     strategyConfig: ChainSubmissionStrategy,
-    argv?: any,
-  ): ContextManager {
-    return new ContextManager(
+    argv?: Record<string, any>,
+  ): SubmitterContext {
+    return new SubmitterContext(
       strategyConfig,
       chains,
       TxSubmitterType.JSON_RPC,
@@ -48,14 +60,18 @@ export class OriginDestinationSignerStrategy implements SignerStrategy {
     );
   }
 
+  /**
+   * @notice Configures signers for both origin and destination chains
+   * @dev Sets up signers in the MultiProvider and updates the context with necessary references
+   */
   async configureSigners(
     argv: Record<string, any>,
     multiProvider: MultiProvider,
-    contextManager: ContextManager,
+    submitterContext: SubmitterContext,
   ): Promise<void> {
-    const signers = await contextManager.getSigners();
+    const signers = await submitterContext.getSigners();
     multiProvider.setSigners(signers);
     argv.context.multiProvider = multiProvider;
-    argv.contextManager = contextManager;
+    argv.submitterContext = submitterContext;
   }
 }
