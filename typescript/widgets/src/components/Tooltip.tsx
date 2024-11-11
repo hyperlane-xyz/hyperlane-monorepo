@@ -8,7 +8,7 @@ type Props = AnchorHTMLAttributes<HTMLAnchorElement> & {
   id: string;
   content: string;
   size?: number;
-  placement: PlacesType;
+  placement?: PlacesType;
 };
 
 export function Tooltip({
