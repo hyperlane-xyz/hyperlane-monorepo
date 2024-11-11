@@ -11,13 +11,12 @@ import {
 } from '../../../src/config/agent/agent.js';
 import {
   MetricAppContext,
-  matchingList,
   routerMatchingList,
   warpRouteMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
-import { getDomainId, getWarpAddresses } from '../../registry.js';
+import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
