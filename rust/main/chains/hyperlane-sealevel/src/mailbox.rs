@@ -33,6 +33,7 @@ use solana_client::{
 use solana_sdk::{
     account::Account,
     bs58,
+    clock::Slot,
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     hash::Hash,
@@ -45,8 +46,9 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta, TransactionStatus,
-    UiCompiledInstruction, UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction,
-    UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
+    UiCompiledInstruction, UiConfirmedBlock, UiInnerInstructions, UiInstruction, UiMessage,
+    UiParsedInstruction, UiReturnDataEncoding, UiTransaction, UiTransactionReturnData,
+    UiTransactionStatusMeta,
 };
 use tracing::{debug, info, instrument, warn};
 
@@ -61,7 +63,10 @@ use hyperlane_core::{
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
 use crate::error::HyperlaneSealevelError;
-use crate::transaction::search_dispatched_message_transactions;
+use crate::log_meta_composer::{
+    is_interchain_payment_instruction, is_message_delivery_instruction,
+    is_message_dispatch_instruction, LogMetaComposer,
+};
 use crate::utils::{decode_h256, decode_h512, from_base58};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
@@ -641,15 +646,32 @@ impl Mailbox for SealevelMailbox {
 pub struct SealevelMailboxIndexer {
     mailbox: SealevelMailbox,
     program_id: Pubkey,
+    dispatch_message_log_meta_composer: LogMetaComposer,
+    delivery_message_log_meta_composer: LogMetaComposer,
 }
 
 impl SealevelMailboxIndexer {
     pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let mailbox = SealevelMailbox::new(conf, locator, None)?;
+
+        let dispatch_message_log_meta_composer = LogMetaComposer::new(
+            mailbox.program_id,
+            "message dispatch".to_owned(),
+            is_message_dispatch_instruction,
+        );
+
+        let delivery_message_log_meta_composer = LogMetaComposer::new(
+            mailbox.program_id,
+            "message delivery".to_owned(),
+            is_message_delivery_instruction,
+        );
+
         Ok(Self {
             program_id,
             mailbox,
+            dispatch_message_log_meta_composer,
+            delivery_message_log_meta_composer,
         })
     }
 
@@ -694,44 +716,15 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
-        let block = self
-            .mailbox
-            .provider
-            .rpc()
-            .get_block(dispatched_message_account.slot)
+        let log_meta = self
+            .dispatch_message_log_meta(
+                U256::from(nonce),
+                &valid_message_storage_pda_pubkey,
+                &dispatched_message_account.slot,
+            )
             .await?;
-        let block_hash = decode_h256(&block.blockhash)?;
 
-        let transactions =
-            block.transactions.ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any transaction".to_owned()))?;
-
-        let transaction_hashes = search_dispatched_message_transactions(
-            &self.mailbox.program_id,
-            &valid_message_storage_pda_pubkey,
-            transactions,
-        );
-
-        // We expect to see that there is only one message dispatch transaction
-        if transaction_hashes.len() > 1 {
-            Err(HyperlaneSealevelError::TooManyTransactions("Block contains more than one dispatch message transaction operating on the same dispatch message store PDA".to_owned()))?
-        }
-
-        let (transaction_index, transaction_hash) = transaction_hashes
-            .into_iter()
-            .next()
-            .ok_or(HyperlaneSealevelError::NoTransactions("block which should contain message dispatch transaction does not contain any after filtering".to_owned()))?;
-
-        Ok((
-            hyperlane_message.into(),
-            LogMeta {
-                address: self.mailbox.program_id.to_bytes().into(),
-                block_number: dispatched_message_account.slot,
-                block_hash,
-                transaction_id: transaction_hash,
-                transaction_index: transaction_index as u64,
-                log_index: U256::from(nonce),
-            },
-        ))
+        Ok((hyperlane_message.into(), log_meta))
     }
 
     fn dispatched_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
@@ -746,6 +739,29 @@ impl SealevelMailboxIndexer {
             )
         })?;
         Ok(expected_pubkey)
+    }
+
+    async fn dispatch_message_log_meta(
+        &self,
+        log_index: U256,
+        message_storage_pda_pubkey: &Pubkey,
+        message_account_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
+        let block = self
+            .mailbox
+            .provider
+            .rpc()
+            .get_block(*message_account_slot)
+            .await?;
+
+        self.dispatch_message_log_meta_composer
+            .log_meta(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+            )
+            .map_err(Into::<ChainCommunicationError>::into)
     }
 
     async fn get_delivered_message_with_nonce(
@@ -782,19 +798,15 @@ impl SealevelMailboxIndexer {
             .into_inner();
         let message_id = delivered_message_account.message_id;
 
-        Ok((
-            message_id.into(),
-            LogMeta {
-                address: self.mailbox.program_id.to_bytes().into(),
-                block_number: delivered_message_account.slot,
-                // TODO: get these when building out scraper support.
-                // It's inconvenient to get these :|
-                block_hash: H256::zero(),
-                transaction_id: H512::zero(),
-                transaction_index: 0,
-                log_index: U256::zero(),
-            },
-        ))
+        let log_meta = self
+            .delivered_message_log_meta(
+                U256::from(nonce),
+                &valid_message_storage_pda_pubkey,
+                &delivered_message_account.slot,
+            )
+            .await?;
+
+        Ok((message_id.into(), log_meta))
     }
 
     fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
@@ -807,6 +819,29 @@ impl SealevelMailboxIndexer {
             ChainCommunicationError::from_other_str("Could not find program address for message id")
         })?;
         Ok(expected_pubkey)
+    }
+
+    async fn delivered_message_log_meta(
+        &self,
+        log_index: U256,
+        message_storage_pda_pubkey: &Pubkey,
+        message_account_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
+        let block = self
+            .mailbox
+            .provider
+            .rpc()
+            .get_block(*message_account_slot)
+            .await?;
+
+        self.delivery_message_log_meta_composer
+            .log_meta(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+            )
+            .map_err(Into::<ChainCommunicationError>::into)
     }
 }
 

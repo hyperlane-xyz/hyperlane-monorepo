@@ -1,29 +1,3 @@
-use solana_transaction_status::EncodedTransactionWithStatusMeta;
-
-use crate::transaction::search_dispatched_message_transactions;
-use crate::utils::decode_pubkey;
-
-#[test]
-pub fn test_search_dispatched_message_transaction() {
-    // given
-    let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
-    let dispatched_message_pda_account =
-        decode_pubkey("6eG8PheL41qLFFUtPjSYMtsp4aoAQsMgcsYwkGCB8kwT").unwrap();
-    let transaction = serde_json::from_str::<EncodedTransactionWithStatusMeta>(JSON).unwrap();
-    let transactions = vec![transaction];
-
-    // when
-    let transaction_hashes = search_dispatched_message_transactions(
-        &mailbox_program_id,
-        &dispatched_message_pda_account,
-        transactions,
-    );
-
-    // then
-    assert!(!transaction_hashes.is_empty());
-}
-
-const JSON: &str = r#"
 {
   "blockTime": 1729865514,
   "meta": {
@@ -326,4 +300,3 @@ const JSON: &str = r#"
     ]
   }
 }
-"#;
