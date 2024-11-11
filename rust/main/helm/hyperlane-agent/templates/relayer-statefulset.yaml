@@ -55,15 +55,23 @@ spec:
         - secretRef:
             name: {{ include "agent-common.fullname" . }}-relayer-secret
         env:
-          {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.config) | nindent 10 }}
+          {{- include "agent-common.config-env-vars" (dict "config" .Values.hyperlane.relayer.envConfig) | nindent 10 }}
+          - name: CONFIG_FILES
+            value: "/relayer-configmap/relayer-config.json"
         resources:
           {{- toYaml .Values.hyperlane.relayer.resources | nindent 10 }}
         volumeMounts:
         - name: state
           mountPath: {{ .Values.hyperlane.dbPath }}
+        - name: relayer-configmap
+          mountPath: /relayer-configmap
         ports: 
         - name: metrics
           containerPort: {{ .Values.hyperlane.metrics.port }}
+      volumes:
+      - name: relayer-configmap
+        configMap:
+          name: {{ include "agent-common.fullname" . }}-relayer-configmap
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
