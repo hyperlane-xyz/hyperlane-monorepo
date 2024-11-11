@@ -22,7 +22,7 @@ export function Tooltip({
   return (
     <>
       <a
-        className={`hover:scale-105 hover:opacity-70 ${className}`}
+        className={`hover:htw-scale-105 hover:htw-opacity-70 ${className}`}
         data-tooltip-place={placement}
         data-tooltip-id={id}
         data-tooltip-html={content}
