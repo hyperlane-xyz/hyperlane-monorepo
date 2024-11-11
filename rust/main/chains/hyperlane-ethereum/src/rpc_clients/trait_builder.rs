@@ -205,7 +205,7 @@ pub trait BuildableWithProvider {
 
     /// Wrap the provider creation with a signing provider if signers were
     /// provided, and then create the associated trait.
-    #[instrument(skip(self), fields(domain=?locator.domain), level = "debug")]
+    #[instrument(skip(self, provider, conn, locator, signer), fields(domain=?locator.domain.name()), level = "debug")]
     async fn build_with_signer<M>(
         &self,
         provider: M,
