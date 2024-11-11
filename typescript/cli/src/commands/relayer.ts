@@ -4,6 +4,7 @@ import {
   HyperlaneRelayer,
   RelayerCacheSchema,
 } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
@@ -43,7 +44,7 @@ export const relayerCommand: CommandModuleWithContext<
     const chainsArray =
       chains?.split(',').map((_) => _.trim()) ?? Object.keys(chainAddresses);
 
-    const whitelist: ChainMap<string[]> = Object.fromEntries(
+    const whitelist: ChainMap<Address[]> = Object.fromEntries(
       chainsArray.map((chain) => [chain, []]),
     );
 
