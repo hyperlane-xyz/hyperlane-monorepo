@@ -170,9 +170,6 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       Object.keys(configMapConfig),
     ) as RelayerEnvConfig;
 
-    console.log('configMapConfig', configMapConfig);
-    console.log('envConfig', envConfig);
-
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
