@@ -40,8 +40,8 @@ function IconList({
           flexWrap: 'wrap',
         }}
       >
-        {iconList.map((Icon) => (
-          <IconContainer>
+        {iconList.map((Icon, index) => (
+          <IconContainer key={index}>
             <span>{Icon.displayName}</span>
             <Icon
               width={width}

@@ -8,13 +8,14 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {IAggregationIsm} from "../../interfaces/isms/IAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../../isms/libs/AggregationIsmMetadata.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
  * @title AggregationIsm
  * @notice Manages per-domain m-of-n ISM sets that are used to verify
  * interchain messages.
  */
-abstract contract AbstractAggregationIsm is IAggregationIsm {
+abstract contract AbstractAggregationIsm is IAggregationIsm, PackageVersioned {
     // ============ Constants ============
 
     // solhint-disable-next-line const-name-snakecase

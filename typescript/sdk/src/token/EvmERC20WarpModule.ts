@@ -15,7 +15,6 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
-  eqAddress,
   isObjEmpty,
   objMap,
   rootLogger,
@@ -26,6 +25,7 @@ import {
   HyperlaneModule,
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
+import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -67,6 +67,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     this.chainName = this.multiProvider.getChainName(args.chain);
     this.chainId = multiProvider.getEvmChainId(args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainId = multiProvider.getEvmChainId(args.chain);
     this.contractVerifier ??= new ContractVerifier(
       multiProvider,
       {},
@@ -112,7 +113,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ...this.createRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
-      ...this.updateProxyAdminOwnershipTxs(actualConfig, expectedConfig),
+      ...proxyAdminUpdateTxs(
+        this.chainId,
+        this.args.addresses.deployedTokenRoute,
+        actualConfig,
+        expectedConfig,
+      ),
     );
 
     return transactions;
@@ -289,38 +295,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       expectedConfig,
       `${expectedConfig.type} Warp Route`,
     );
-  }
-
-  updateProxyAdminOwnershipTxs(
-    actualConfig: Readonly<TokenRouterConfig>,
-    expectedConfig: Readonly<TokenRouterConfig>,
-  ): AnnotatedEV5Transaction[] {
-    const transactions: AnnotatedEV5Transaction[] = [];
-
-    // Return early because old warp config files did not have the
-    // proxyAdmin property
-    if (!expectedConfig.proxyAdmin) {
-      return transactions;
-    }
-
-    const actualProxyAdmin = actualConfig.proxyAdmin!;
-    assert(
-      eqAddress(actualProxyAdmin.address!, expectedConfig.proxyAdmin.address!),
-      `ProxyAdmin contract addresses do not match. Expected ${expectedConfig.proxyAdmin.address}, got ${actualProxyAdmin.address}`,
-    );
-
-    transactions.push(
-      // Internally the createTransferOwnershipTx method already checks if the
-      // two owner values are the same and produces an empty tx batch if they are
-      ...transferOwnershipTransactions(
-        this.chainId,
-        actualProxyAdmin.address!,
-        actualProxyAdmin,
-        expectedConfig.proxyAdmin,
-      ),
-    );
-
-    return transactions;
   }
 
   /**

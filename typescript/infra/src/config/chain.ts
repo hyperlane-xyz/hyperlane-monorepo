@@ -19,20 +19,15 @@ import { DeployEnvironment } from './environment.js';
 // Temporarily skip some chains
 export const chainsToSkip: ChainName[] = [
   // TODO: remove once zksync PR is merged into main
+  // mainnets
   'zksync',
   'zeronetwork',
+  // testnets
+  'abstracttestnet',
+  'treasuretopaz',
 
   // Oct 16 batch
-  'immutablezkevm',
-  'rari',
-  'rootstock',
-  'alephzeroevm',
-  'chiliz',
   'lumia',
-  'superposition',
-  'flow',
-  'metall2',
-  'polynomial',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
