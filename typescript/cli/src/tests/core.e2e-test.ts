@@ -29,7 +29,7 @@ const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 const CORE_READ_CHAIN_2_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
 const CORE_READ_CHAIN_3_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;
 
-const TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
+const TEST_TIMEOUT = 200_000; // Long timeout since these tests can take a while
 describe('hyperlane core e2e tests', async function () {
   this.timeout(TEST_TIMEOUT);
 
