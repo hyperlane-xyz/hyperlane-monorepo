@@ -2,4 +2,5 @@
 '@hyperlane-xyz/widgets': minor
 ---
 
-New components
+Props and style update: IconButton and Tooltip
+New Icons: XCircleIcon and SwapIcon
