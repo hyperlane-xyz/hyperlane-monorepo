@@ -5,6 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use fuels::{
     accounts::wallet::WalletUnlocked,
+    programs::calls::Execution,
     types::{bech32::Bech32ContractId, Bytes},
 };
 use hyperlane_core::{
@@ -66,7 +67,7 @@ impl MultisigIsm for FuelMultisigIsm {
         self.contract
             .methods()
             .validators_and_threshold(Bytes(message.to_vec()))
-            .call()
+            .simulate(Execution::StateReadOnly)
             .await
             .map_err(ChainCommunicationError::from_other)
             .map(|res| (res.value.0.into_h256_vec(), res.value.1))

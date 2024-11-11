@@ -4,12 +4,14 @@ use crate::{
 };
 use async_trait::async_trait;
 use fuels::{
-    accounts::wallet::WalletUnlocked, programs::calls::Execution, types::bech32::Bech32ContractId,
+    accounts::wallet::WalletUnlocked,
+    programs::calls::Execution,
+    types::{bech32::Bech32ContractId, Bytes},
 };
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    H256, U256,
+    RawHyperlaneMessage, H256, U256,
 };
 
 /// A reference to a AggregationIsm contract on some Fuel chain
@@ -66,7 +68,7 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
         self.contract
             .methods()
             .module_type()
-            .call()
+            .simulate(Execution::StateReadOnly)
             .await
             .map_err(ChainCommunicationError::from_other)
             .map(|res| IsmType(res.value).into())
@@ -79,7 +81,13 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
     ) -> ChainResult<Option<U256>> {
         self.contract
             .methods()
-            .module_type()
+            .verify(
+                Bytes(metadata.to_vec()),
+                Bytes(RawHyperlaneMessage::from(message)),
+            )
+            .determine_missing_contracts(Some(10))
+            .await
+            .map_err(ChainCommunicationError::from_other)?
             .simulate(Execution::Realistic)
             .await
             .map_err(ChainCommunicationError::from_other)

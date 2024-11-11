@@ -271,6 +271,7 @@ impl FuelMailboxIndexer {
         Ok(Self { indexer, contract })
     }
 
+    /// Parse the logs from the mailbox contract
     pub fn mailbox_parser(
         transactions: Vec<(Bytes32, TransactionResponse)>,
     ) -> Vec<(Bytes32, TransactionResponse, HyperlaneMessage, U256)> {

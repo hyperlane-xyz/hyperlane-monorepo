@@ -18,6 +18,7 @@ tracing-futures.workspace = true
 tracing.workspace = true
 hex.workspace = true
 url.workspace = true
+tokio.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 

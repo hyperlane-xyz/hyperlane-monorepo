@@ -218,15 +218,29 @@ impl FuelIndexer {
         }
 
         let start_block = BlockHeight::from(*range_start);
-        let block_data = self
+        let block_data = match self
             .fuel_provider
             .provider()
             .block_by_height(start_block)
             .await
-            .map_err(ChainCommunicationError::from_other)
-            .map(|block| block.unwrap())?;
+            .map_err(ChainCommunicationError::from_other)?
+        {
+            Some(block) => block,
+            None => {
+                return Err(ChainCommunicationError::from_other_str(
+                    "Block not found while building cursors",
+                ))
+            }
+        };
 
-        let first_transaction = block_data.transactions.first().unwrap();
+        let first_transaction = match block_data.transactions.first() {
+            Some(tx) => tx,
+            None => {
+                return Err(ChainCommunicationError::from_other_str(
+                    "Failed to get first transaction in block while building cursors",
+                ))
+            }
+        };
 
         let hex_block = hex::encode(range_start.to_be_bytes());
         let hex_tx = hex::encode(first_transaction.to_vec());
@@ -258,8 +272,10 @@ impl FuelIndexer {
 
         let log_data_receipts = Self::filter_logdata_rec(receipts);
 
+        // TODO fix this, this is a hack
         match log_data_receipts.len() {
             DISPATCH_LOG_DATA_REC_AMOUNT => true,
+            3 => true, // Dispatch with igp hook, this system is bullshit
             4 => true,
             _ => false,
         }
@@ -275,9 +291,10 @@ impl FuelIndexer {
         let log_data_receipts = Self::filter_logdata_rec(receipts);
 
         // Merkle tree insertion is the only function which has a single log data receipt
-        match log_data_receipts.len() {
-            1 => true,
-            _ => false,
+        // TODO this is a hack, fix this
+        match log_data_receipts.len() >= 1 {
+            true => true,
+            false => false,
         }
     }
 

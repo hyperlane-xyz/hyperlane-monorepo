@@ -111,10 +111,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        let tolerance = Some(0.0);
-        let block_horizon = Some(1);
-
-        let cost_estimation = self
+        let simulate_call = self
             .contract
             .methods()
             .announce(
@@ -122,19 +119,21 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
                 announcement.value.storage_location,
                 Bytes(announcement.signature.to_vec()),
             )
-            .estimate_transaction_cost(tolerance, block_horizon)
+            .simulate(Execution::Realistic)
             .await;
 
-        let signer = Address::from(self.contract.account().address()).to_string();
-        let signer_balance = self.provider.get_balance(signer).await.unwrap();
-
-        match cost_estimation {
-            Ok(cost) => {
-                let max_cost = U256::from(cost.total_fee);
-                return Some(max_cost.saturating_sub(signer_balance));
+        match simulate_call {
+            Ok(simulation) => {
+                let signer = Address::from(self.contract.account().address()).to_string();
+                let signer_balance = self.provider.get_balance(signer).await;
+                if let Err(err) = signer_balance {
+                    trace!("Failed to get signer balance: {:?}", err);
+                    return None;
+                }
+                Some(U256::from(simulation.gas_used).saturating_sub(signer_balance.unwrap()))
             }
             Err(err) => {
-                trace!("Failed to estimate transaction cost: {:?}", err);
+                trace!("Failed to simulate validator announcement: {:?}", err);
                 return None;
             }
         }

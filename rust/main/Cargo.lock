@@ -4618,6 +4618,7 @@ dependencies = [
  "hyperlane-core",
  "serde",
  "thiserror",
+ "tokio",
  "tracing",
  "tracing-futures",
  "url",
