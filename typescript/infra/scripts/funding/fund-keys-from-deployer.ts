@@ -180,24 +180,6 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
   ],
 };
 
-// Kludge, ignore chains that are technically supportedChainNames
-// because we want to continue to run agents, but we don't want to
-// try to fund them because we no longer have an available IGP address
-// to claim from.
-// This was easier to do than modifying the funding config due to the types there.
-// We can remove this once they're removed from supportedChainNames.
-const chainsToIgnore = [
-  'alephzeroevm',
-  'chiliz',
-  'flow',
-  'immutablezkevm',
-  'metall2',
-  'polynomial',
-  'rari',
-  'rootstock',
-  'superposition',
-];
-
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
 // The --contexts-and-roles flag is used to specify the contexts and the key roles
@@ -531,10 +513,6 @@ class ContextFunder {
     const chainKeyEntries = Object.entries(this.keysToFundPerChain);
     const promises = chainKeyEntries.map(async ([chain, keys]) => {
       let failureOccurred = false;
-      if (chainsToIgnore.includes(chain)) {
-        logger.warn({ chain }, 'Ignoring chain');
-        return failureOccurred;
-      }
 
       if (keys.length > 0) {
         if (!this.skipIgpClaim) {

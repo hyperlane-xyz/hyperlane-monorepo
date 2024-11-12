@@ -26,6 +26,7 @@ export {
   testCosmosChain,
   testSealevelChain,
 } from './consts/testChains.js';
+export { randomAddress } from './test/testUtils.js';
 export {
   attachAndConnectContracts,
   attachContracts,
@@ -420,11 +421,14 @@ export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypXERC20Adapter,
+  EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
+  IHypXERC20Adapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
@@ -556,7 +560,6 @@ export {
   ChainGasOracleParams,
   GasPriceConfig,
   NativeTokenPriceConfig,
-  getCoingeckoTokenPrices,
   getCosmosChainGasPrice,
   getGasPrice,
   getLocalStorageGasOracleConfig,
