@@ -199,20 +199,12 @@ export async function hyperlaneSendMessage(
         --yes`;
 }
 
-export function hyperlaneRelayer(chains: string[], symbol?: string) {
-  const abortController = new AbortController();
-  const { signal } = abortController;
-
-  const symbolString = symbol ? `--symbol ${symbol}` : '';
-
-  const process = $({
-    signal,
-  })`yarn workspace @hyperlane-xyz/cli run hyperlane relayer \
+export function hyperlaneRelayer(chains: string[], warp?: string) {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane relayer \
         --registry ${REGISTRY_PATH} \
-        --chains ${chains.join(',')} ${symbolString} \
+        --chains ${chains.join(',')} \
+        --warp ${warp ?? ''} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
-
-  return { process, abortController };
 }

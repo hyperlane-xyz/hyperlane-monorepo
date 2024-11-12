@@ -9,19 +9,25 @@ import { Address } from '@hyperlane-xyz/utils';
 import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
 import { tryReadJson, writeJson } from '../utils/files.js';
-import { selectRegistryWarpRoute } from '../utils/tokens.js';
+import { getWarpCoreConfigOrExit } from '../utils/input.js';
 
 import {
   agentTargetsCommandOption,
   overrideRegistryUriCommandOption,
   symbolCommandOption,
+  warpCoreConfigCommandOption,
 } from './options.js';
 import { MessageOptionsArgTypes } from './send.js';
 
 const DEFAULT_RELAYER_CACHE = `${overrideRegistryUriCommandOption.default}/relayer-cache.json`;
 
 export const relayerCommand: CommandModuleWithContext<
-  MessageOptionsArgTypes & { chains?: string; cache: string; symbol?: string }
+  MessageOptionsArgTypes & {
+    chains?: string;
+    cache: string;
+    symbol?: string;
+    warp?: string;
+  }
 > = {
   command: 'relayer',
   describe: 'Run a Hyperlane message relayer',
@@ -33,8 +39,9 @@ export const relayerCommand: CommandModuleWithContext<
       default: DEFAULT_RELAYER_CACHE,
     },
     symbol: symbolCommandOption,
+    warp: warpCoreConfigCommandOption,
   },
-  handler: async ({ context, cache, chains, symbol }) => {
+  handler: async ({ context, cache, chains, symbol, warp }) => {
     const chainAddresses = await context.registry.getAddresses();
     const core = HyperlaneCore.fromAddressesMap(
       chainAddresses,
@@ -49,8 +56,12 @@ export const relayerCommand: CommandModuleWithContext<
     );
 
     // add warp route addresses to whitelist
-    if (symbol) {
-      const warpRoute = await selectRegistryWarpRoute(context.registry, symbol);
+    if (symbol || warp) {
+      const warpRoute = await getWarpCoreConfigOrExit({
+        context,
+        symbol,
+        warp,
+      });
       warpRoute.tokens.forEach(
         ({ chainName, addressOrDenom }) =>
           (whitelist[chainName] = [addressOrDenom!]),

@@ -49,21 +49,18 @@ describe('hyperlane relayer e2e tests', async function () {
 
   describe('relayer', () => {
     it('should relay core messages', async () => {
-      const { abortController } = hyperlaneRelayer([
-        CHAIN_NAME_1,
-        CHAIN_NAME_2,
-      ]);
+      const process = hyperlaneRelayer([CHAIN_NAME_1, CHAIN_NAME_2]);
 
       await hyperlaneSendMessage(CHAIN_NAME_1, CHAIN_NAME_2);
       await hyperlaneSendMessage(CHAIN_NAME_2, CHAIN_NAME_1);
 
-      abortController.abort();
+      await process.kill('SIGINT');
     });
 
     it('should relay warp messages', async () => {
-      const { abortController } = hyperlaneRelayer(
+      const process = hyperlaneRelayer(
         [CHAIN_NAME_1, CHAIN_NAME_2],
-        SYMBOL,
+        WARP_DEPLOY_OUTPUT,
       );
 
       await hyperlaneWarpSendRelay(
@@ -78,7 +75,8 @@ describe('hyperlane relayer e2e tests', async function () {
         WARP_DEPLOY_OUTPUT,
         false,
       );
-      abortController.abort();
+
+      await process.kill('SIGINT');
     });
   });
 });
