@@ -21,7 +21,7 @@ const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
 const WARP_CONFIG_PATH = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 
 const TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
-describe.only('hyperlane relayer e2e tests', async function () {
+describe('hyperlane relayer e2e tests', async function () {
   this.timeout(TEST_TIMEOUT);
 
   before(async () => {
@@ -33,11 +33,10 @@ describe.only('hyperlane relayer e2e tests', async function () {
 
   describe('relayer', () => {
     it('should relay core messages', async () => {
-      const { process, abortController } = hyperlaneRelayer([
+      const { abortController } = hyperlaneRelayer([
         CHAIN_NAME_1,
         CHAIN_NAME_2,
       ]);
-      void process;
 
       await hyperlaneSendMessage(CHAIN_NAME_1, CHAIN_NAME_2);
       await hyperlaneSendMessage(CHAIN_NAME_2, CHAIN_NAME_1);
@@ -46,11 +45,10 @@ describe.only('hyperlane relayer e2e tests', async function () {
     });
 
     it('should relay warp messages', async () => {
-      const { process, abortController } = hyperlaneRelayer(
+      const { abortController } = hyperlaneRelayer(
         [CHAIN_NAME_1, CHAIN_NAME_2],
         SYMBOL,
       );
-      void process;
 
       await hyperlaneWarpSendRelay(
         CHAIN_NAME_1,
