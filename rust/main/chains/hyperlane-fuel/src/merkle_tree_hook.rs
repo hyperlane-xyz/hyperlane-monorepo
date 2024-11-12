@@ -47,6 +47,7 @@ impl FuelMerkleTreeHook {
         })
     }
 
+    /// TODO this is inaccurate, fix this
     /// Simulate lag on call
     /// Since we have no way of querying point in time data, we can only simulate lag
     /// by sleeping for the lag amount of time. As lag is usually 1 based on the re-org
@@ -232,6 +233,8 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for FuelMerkleTreeHookIndexer {
         // else we return count and block
         // this would mess up if there are mutiple count updates per block
         // in that case we can store the amount of updates per block as well
+
+        // TODO: for block numbers we an just sub the lag from the block number
 
         self.contract
             .methods()
