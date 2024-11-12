@@ -1,3 +1,7 @@
+import { TokenType } from '@hyperlane-xyz/sdk';
+
+import { writeYamlOrJson } from '../utils/files.js';
+
 import { hyperlaneCoreDeploy } from './commands/core.js';
 import {
   REGISTRY_PATH,
@@ -18,7 +22,6 @@ const WARP_DEPLOY_OUTPUT = `${REGISTRY_PATH}/deployments/warp_routes/${SYMBOL}/$
 
 const EXAMPLES_PATH = './examples';
 const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
-const WARP_CONFIG_PATH = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 
 const TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 describe('hyperlane relayer e2e tests', async function () {
@@ -28,7 +31,20 @@ describe('hyperlane relayer e2e tests', async function () {
     await hyperlaneCoreDeploy(CHAIN_NAME_1, CORE_CONFIG_PATH);
     await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
 
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+    const warpConfig = {
+      anvil2: {
+        type: TokenType.native,
+        symbol: SYMBOL,
+      },
+      anvil3: {
+        type: TokenType.synthetic,
+        symbol: SYMBOL,
+      },
+    };
+
+    const warpConfigPath = './tmp/warp-route-config.yaml';
+    writeYamlOrJson(warpConfigPath, warpConfig);
+    await hyperlaneWarpDeploy(warpConfigPath);
   });
 
   describe('relayer', () => {

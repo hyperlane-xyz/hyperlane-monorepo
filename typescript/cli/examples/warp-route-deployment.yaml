@@ -8,7 +8,7 @@
 #
 # see comprehensive [list](https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/typescript/sdk/src/token/config.ts#L8)
 ---
-anvil2:
+anvil1:
   type: native
   # token: "0x123" # Collateral/vault address. Required for collateral types
   # owner: "0x123" # Optional owner address for synthetic token
@@ -19,5 +19,3 @@ anvil2:
   # name: "MyCollateralToken"
   # symbol: "MCT"
   # totalSupply: 10000000
-anvil3:
-  type: synthetic
