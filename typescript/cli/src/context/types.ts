@@ -10,8 +10,6 @@ import type {
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
-// TODO: revisit ContextSettings & CommandContext for improvements
-
 export interface ContextSettings {
   registryUri: string;
   registryOverrideUri: string;

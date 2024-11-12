@@ -9,7 +9,7 @@ enum CommandType {
   WARP_SEND = 'warp:send',
   WARP_APPLY = 'warp:apply',
   WARP_READ = 'warp:read',
-  WARP_MESSAGE = 'send:message',
+  SEND_MESSAGE = 'send:message',
 }
 
 export class SignerStrategyFactory {
@@ -19,7 +19,7 @@ export class SignerStrategyFactory {
     [CommandType.WARP_SEND, () => new OriginDestinationSignerStrategy()],
     [CommandType.WARP_APPLY, () => new WarpConfigSignerStrategy()],
     [CommandType.WARP_READ, () => new SingleChainSignerStrategy()],
-    [CommandType.WARP_MESSAGE, () => new OriginDestinationSignerStrategy()],
+    [CommandType.SEND_MESSAGE, () => new OriginDestinationSignerStrategy()],
   ]);
 
   static createStrategy(argv: Record<string, any>): SignerStrategy {

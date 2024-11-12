@@ -22,22 +22,20 @@ export class OriginDestinationSignerStrategy implements SignerStrategy {
    */
   async determineChains(argv: Record<string, any>): Promise<ChainName[]> {
     const { context } = argv;
-    let origin = argv.origin;
-    let destination = argv.destination;
 
-    if (!origin) {
-      origin = await runSingleChainSelectionStep(
+    let origin =
+      argv.origin ??
+      (await runSingleChainSelectionStep(
         context.chainMetadata,
         'Select the origin chain',
-      );
-    }
+      ));
 
-    if (!destination) {
-      destination = await runSingleChainSelectionStep(
+    let destination =
+      argv.destination ??
+      (await runSingleChainSelectionStep(
         context.chainMetadata,
         'Select the destination chain',
-      );
-    }
+      ));
 
     argv.origin = origin;
     argv.destination = destination;
