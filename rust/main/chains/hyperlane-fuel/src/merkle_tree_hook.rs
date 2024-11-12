@@ -1,16 +1,15 @@
 use crate::{
-    contracts::merkle_tree_hook::MerkleTreeHook as MerkleTreeHookContract, conversions::*,
-    ConnectionConf, FuelIndexer, FuelProvider, TransactionEventType,
+    contracts::merkle_tree_hook::{
+        InsertedIntoTreeEvent, MerkleTreeHook as MerkleTreeHookContract,
+    },
+    conversions::*,
+    ConnectionConf, FuelIndexer, FuelProvider,
 };
 use async_trait::async_trait;
 use fuels::{
     accounts::wallet::WalletUnlocked,
     programs::calls::Execution,
-    tx::Receipt,
-    types::{
-        bech32::Bech32ContractId, transaction_response::TransactionResponse, tx_status::TxStatus,
-        Bytes32,
-    },
+    types::{bech32::Bech32ContractId, transaction_response::TransactionResponse, Bytes32},
 };
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
@@ -132,12 +131,10 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
 // ---------------------- Indexer ---------------------------
 // ----------------------------------------------------------
 
-const MESSAGE_ID_LEN: usize = 32;
-
 /// Struct that retrieves event data for a Fuel MerkleTreeHook contract
 #[derive(Debug)]
 pub struct FuelMerkleTreeHookIndexer {
-    indexer: FuelIndexer,
+    indexer: FuelIndexer<InsertedIntoTreeEvent>,
     contract: MerkleTreeHookContract<WalletUnlocked>,
 }
 
@@ -152,57 +149,9 @@ impl FuelMerkleTreeHookIndexer {
             Bech32ContractId::from_h256(&locator.address),
             wallet.clone(),
         );
-        let indexer = FuelIndexer::new(
-            conf,
-            locator,
-            wallet,
-            TransactionEventType::MerkleTreeHookInsert,
-        )
-        .await;
+        let indexer = FuelIndexer::new(conf, locator, wallet).await;
 
         Ok(Self { indexer, contract })
-    }
-
-    /// Parses merkle tree hook post dispatch transactions into the appropriate data to generate indexed logs
-    pub fn merkle_tree_hook_parser(
-        transactions: Vec<(Bytes32, TransactionResponse)>,
-    ) -> Vec<(Bytes32, TransactionResponse, MerkleTreeInsertion, U256)> {
-        transactions
-            .into_iter()
-            .filter_map(|(tx_id, tx_data)| {
-                let receipts = match &tx_data.status {
-                    TxStatus::Success { receipts } => receipts,
-                    _ => return None,
-                };
-                let (log_index, receipt_log_data) = receipts
-                    .into_iter()
-                    .enumerate()
-                    .filter_map(|(log_index, rec)| match rec {
-                        Receipt::LogData { .. }
-                            if rec.data().is_some_and(|data| data.len() == 36) =>
-                        {
-                            let data = rec.data().map(|data| data.to_owned()).unwrap();
-
-                            Some((U256::from(log_index), data))
-                        }
-                        _ => None,
-                    })
-                    .next()?; // Each merkle tree hook post dispatch call should have only one isert receipt
-
-                if !receipt_log_data.is_empty() {
-                    // The log is strucutred to have a message id first and the leaf index following it
-                    let (id, index) = receipt_log_data.split_at(MESSAGE_ID_LEN);
-                    let message_id = H256::from(<[u8; 32]>::try_from(id).unwrap());
-                    let leaf_index = u32::from_be_bytes(index.try_into().unwrap());
-
-                    let insertion = MerkleTreeInsertion::new(leaf_index, message_id);
-
-                    Some((tx_id, tx_data, insertion, log_index))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<(Bytes32, TransactionResponse, MerkleTreeInsertion, U256)>>()
     }
 }
 
@@ -213,9 +162,7 @@ impl Indexer<MerkleTreeInsertion> for FuelMerkleTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        self.indexer
-            .index_logs_in_range(range, Self::merkle_tree_hook_parser)
-            .await
+        self.indexer.index_logs_in_range(range).await
     }
 
     /// Get the chain's latest block number that has reached finality

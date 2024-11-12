@@ -1,709 +1,1368 @@
 {
-    "programType": "contract",
-    "specVersion": "1",
-    "encodingVersion": "1",
-    "concreteTypes": [
-      {
-        "type": "()",
-        "concreteTypeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-      },
-      {
-        "type": "b256",
-        "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-      },
-      {
-        "type": "enum IgpError",
-        "concreteTypeId": "5e9b943fe66bb2f9186016140592021f71cf98395bd3c80eef479a17a9b39e2b",
-        "metadataTypeId": 0
-      },
-      {
-        "type": "enum standards::src5::AccessError",
-        "concreteTypeId": "3f702ea3351c9c1ece2b84048006c8034a24cbc2bad2e740d0412b4172951d3d",
-        "metadataTypeId": 1
-      },
-      {
-        "type": "enum standards::src5::State",
-        "concreteTypeId": "192bc7098e2fe60635a9918afb563e4e5419d386da2bdbf0d716b4bc8549802c",
-        "metadataTypeId": 2
-      },
-      {
-        "type": "enum std::identity::Identity",
-        "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335",
-        "metadataTypeId": 3
-      },
-      {
-        "type": "enum std::option::Option<b256>",
-        "concreteTypeId": "0c2beb9013490c4f753f2757dfe2d8340b22ce3827d596d81d249b7038033cb6",
-        "metadataTypeId": 4,
-        "typeArguments": [
-          "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-        ]
-      },
-      {
-        "type": "enum std::option::Option<u64>",
-        "concreteTypeId": "d852149004cc9ec0bbe7dc4e37bffea1d41469b759512b6136f2e865a4c06e7d",
-        "metadataTypeId": 4,
-        "typeArguments": [
-          "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
-        ]
-      },
-      {
-        "type": "enum sway_libs::ownership::errors::InitializationError",
-        "concreteTypeId": "1dfe7feadc1d9667a4351761230f948744068a090fe91b1bc6763a90ed5d3893",
-        "metadataTypeId": 5
-      },
-      {
-        "type": "str",
-        "concreteTypeId": "8c25cb3686462e9a86d2883c5688a22fe738b0bbc85f458d2d2b5f3f667c6d5a"
-      },
-      {
-        "type": "struct interfaces::igp::BeneficiarySetEvent",
-        "concreteTypeId": "1c700488fc3eb12cecb5df0f1d7fab50a48794cd700cb26c6e93e9762fa84658",
-        "metadataTypeId": 7
-      },
-      {
-        "type": "struct interfaces::igp::ClaimEvent",
-        "concreteTypeId": "fc2d85b6d4433b18adbc77d4019fdd47213b2df923dcc52543a16d1a9462778a",
-        "metadataTypeId": 8
-      },
-      {
-        "type": "struct interfaces::igp::GasOracleSetEvent",
-        "concreteTypeId": "e2a62dd30c887a49893c650f8f85200415866051cadc94f195537b3798498065",
-        "metadataTypeId": 9
-      },
-      {
-        "type": "struct interfaces::igp::GasPaymentEvent",
-        "concreteTypeId": "57f16a22cb9e861b379fae117dc32f53512234a762ed50564496dff7600646b9",
-        "metadataTypeId": 10
-      },
-      {
-        "type": "struct sway_libs::ownership::events::OwnershipRenounced",
-        "concreteTypeId": "43c4fa7b3297401afbf300127e59ea913e5c8f0c7ae69abbec789ab0bb872bed",
-        "metadataTypeId": 13
-      },
-      {
-        "type": "struct sway_libs::ownership::events::OwnershipSet",
-        "concreteTypeId": "e1ef35033ea9d2956f17c3292dea4a46ce7d61fdf37bbebe03b7b965073f43b5",
-        "metadataTypeId": 14
-      },
-      {
-        "type": "struct sway_libs::ownership::events::OwnershipTransferred",
-        "concreteTypeId": "b3fffbcb3158d7c010c31b194b60fb7857adb4ad61bdcf4b8b42958951d9f308",
-        "metadataTypeId": 15
-      },
-      {
-        "type": "u32",
-        "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-      },
-      {
-        "type": "u64",
-        "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
-      }
-    ],
-    "metadataTypes": [
-      {
-        "type": "enum IgpError",
-        "metadataTypeId": 0,
-        "components": [
-          {
-            "name": "InsufficientGasPayment",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          },
-          {
-            "name": "InvalidGasOracle",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          },
-          {
-            "name": "QuoteGasPaymentOverflow",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          },
-          {
-            "name": "InterchainGasPaymentInBaseAsset",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          }
-        ]
-      },
-      {
-        "type": "enum standards::src5::AccessError",
-        "metadataTypeId": 1,
-        "components": [
-          {
-            "name": "NotOwner",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          }
-        ]
-      },
-      {
-        "type": "enum standards::src5::State",
-        "metadataTypeId": 2,
-        "components": [
-          {
-            "name": "Uninitialized",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          },
-          {
-            "name": "Initialized",
-            "typeId": 3
-          },
-          {
-            "name": "Revoked",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          }
-        ]
-      },
-      {
-        "type": "enum std::identity::Identity",
-        "metadataTypeId": 3,
-        "components": [
-          {
-            "name": "Address",
-            "typeId": 11
-          },
-          {
-            "name": "ContractId",
-            "typeId": 12
-          }
-        ]
-      },
-      {
-        "type": "enum std::option::Option",
-        "metadataTypeId": 4,
-        "components": [
-          {
-            "name": "None",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          },
-          {
-            "name": "Some",
-            "typeId": 6
-          }
-        ],
-        "typeParameters": [
-          6
-        ]
-      },
-      {
-        "type": "enum sway_libs::ownership::errors::InitializationError",
-        "metadataTypeId": 5,
-        "components": [
-          {
-            "name": "CannotReinitialized",
-            "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-          }
-        ]
-      },
-      {
-        "type": "generic T",
-        "metadataTypeId": 6
-      },
-      {
-        "type": "struct interfaces::igp::BeneficiarySetEvent",
-        "metadataTypeId": 7,
-        "components": [
-          {
-            "name": "beneficiary",
-            "typeId": 3
-          }
-        ]
-      },
-      {
-        "type": "struct interfaces::igp::ClaimEvent",
-        "metadataTypeId": 8,
-        "components": [
-          {
-            "name": "beneficiary",
-            "typeId": 3
-          },
-          {
-            "name": "amount",
-            "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
-          }
-        ]
-      },
-      {
-        "type": "struct interfaces::igp::GasOracleSetEvent",
-        "metadataTypeId": 9,
-        "components": [
-          {
-            "name": "domain",
-            "typeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          },
-          {
-            "name": "gas_oracle",
-            "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-          }
-        ]
-      },
-      {
-        "type": "struct interfaces::igp::GasPaymentEvent",
-        "metadataTypeId": 10,
-        "components": [
-          {
-            "name": "message_id",
-            "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-          },
-          {
-            "name": "gas_amount",
-            "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
-          },
-          {
-            "name": "payment",
-            "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
-          }
-        ]
-      },
-      {
-        "type": "struct std::address::Address",
-        "metadataTypeId": 11,
-        "components": [
-          {
-            "name": "bits",
-            "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-          }
-        ]
-      },
-      {
-        "type": "struct std::contract_id::ContractId",
-        "metadataTypeId": 12,
-        "components": [
-          {
-            "name": "bits",
-            "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-          }
-        ]
-      },
-      {
-        "type": "struct sway_libs::ownership::events::OwnershipRenounced",
-        "metadataTypeId": 13,
-        "components": [
-          {
-            "name": "previous_owner",
-            "typeId": 3
-          }
-        ]
-      },
-      {
-        "type": "struct sway_libs::ownership::events::OwnershipSet",
-        "metadataTypeId": 14,
-        "components": [
-          {
-            "name": "new_owner",
-            "typeId": 3
-          }
-        ]
-      },
-      {
-        "type": "struct sway_libs::ownership::events::OwnershipTransferred",
-        "metadataTypeId": 15,
-        "components": [
-          {
-            "name": "new_owner",
-            "typeId": 3
-          },
-          {
-            "name": "previous_owner",
-            "typeId": 3
-          }
-        ]
-      }
-    ],
-    "functions": [
-      {
-        "inputs": [
-          {
-            "name": "domain",
-            "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          }
-        ],
-        "name": "gas_oracle",
-        "output": "0c2beb9013490c4f753f2757dfe2d8340b22ce3827d596d81d249b7038033cb6",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "message_id",
-            "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-          },
-          {
-            "name": "destination_domain",
-            "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          },
-          {
-            "name": "gas_amount",
-            "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
-          },
-          {
-            "name": "refund_address",
-            "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
-          }
-        ],
-        "name": "pay_for_gas",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          },
-          {
-            "name": "payable",
-            "arguments": []
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "destination_domain",
-            "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          },
-          {
-            "name": "gas_amount",
-            "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
-          }
-        ],
-        "name": "quote_gas_payment",
-        "output": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0",
-        "attributes": [
-          {
-            "name": "doc-comment",
-            "arguments": [
-              " Quotes the required interchain gas payment to be paid in the base asset."
-            ]
-          },
-          {
-            "name": "doc-comment",
-            "arguments": [
-              " ### Arguments"
-            ]
-          },
-          {
-            "name": "doc-comment",
-            "arguments": [
-              ""
-            ]
-          },
-          {
-            "name": "doc-comment",
-            "arguments": [
-              " * `destination_domain` - The destination domain of the message."
-            ]
-          },
-          {
-            "name": "doc-comment",
-            "arguments": [
-              " * `gas_amount` - The amount of destination gas to pay for."
-            ]
-          },
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "domain",
-            "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          },
-          {
-            "name": "gas_oracle",
-            "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-          }
-        ],
-        "name": "set_gas_oracle",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read",
-              "write"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [],
-        "name": "beneficiary",
-        "output": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335",
-        "attributes": [
-          {
-            "name": "doc-comment",
-            "arguments": [
-              " Gets the current beneficiary."
-            ]
-          },
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [],
-        "name": "claim",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "beneficiary",
-            "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
-          }
-        ],
-        "name": "set_beneficiary",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read",
-              "write"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "new_owner",
-            "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
-          }
-        ],
-        "name": "initialize_ownership",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read",
-              "write"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [],
-        "name": "only_owner",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [],
-        "name": "owner",
-        "output": "192bc7098e2fe60635a9918afb563e4e5419d386da2bdbf0d716b4bc8549802c",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [],
-        "name": "renounce_ownership",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read",
-              "write"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "new_owner",
-            "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
-          }
-        ],
-        "name": "transfer_ownership",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "write"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "domain",
-            "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          }
-        ],
-        "name": "get_gas_oracle",
-        "output": "0c2beb9013490c4f753f2757dfe2d8340b22ce3827d596d81d249b7038033cb6",
-        "attributes": [
-          {
-            "name": "doc-comment",
-            "arguments": [
-              " Gets the gas oracle for a given domain."
-            ]
-          },
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "domain",
-            "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          },
-          {
-            "name": "gas_oracle",
-            "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-          }
-        ],
-        "name": "set_gas_from_oracle",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "doc-comment",
-            "arguments": [
-              " Sets the gas oracle for a given domain."
-            ]
-          },
-          {
-            "name": "storage",
-            "arguments": [
-              "read",
-              "write"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "domain",
-            "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          }
-        ],
-        "name": "gas_overhead",
-        "output": "d852149004cc9ec0bbe7dc4e37bffea1d41469b759512b6136f2e865a4c06e7d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read"
-            ]
-          }
-        ]
-      },
-      {
-        "inputs": [
-          {
-            "name": "domain",
-            "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-          },
-          {
-            "name": "gas_overhead",
-            "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
-          }
-        ],
-        "name": "set_gas_overhead",
-        "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
-        "attributes": [
-          {
-            "name": "storage",
-            "arguments": [
-              "read",
-              "write"
-            ]
-          }
-        ]
-      }
-    ],
-    "loggedTypes": [
-      {
-        "logId": "6817205463125046009",
-        "concreteTypeId": "5e9b943fe66bb2f9186016140592021f71cf98395bd3c80eef479a17a9b39e2b"
-      },
-      {
-        "logId": "10098701174489624218",
-        "concreteTypeId": "8c25cb3686462e9a86d2883c5688a22fe738b0bbc85f458d2d2b5f3f667c6d5a"
-      },
-      {
-        "logId": "6336962848364594715",
-        "concreteTypeId": "57f16a22cb9e861b379fae117dc32f53512234a762ed50564496dff7600646b9"
-      },
-      {
-        "logId": "4571204900286667806",
-        "concreteTypeId": "3f702ea3351c9c1ece2b84048006c8034a24cbc2bad2e740d0412b4172951d3d"
-      },
-      {
-        "logId": "16331791483177302601",
-        "concreteTypeId": "e2a62dd30c887a49893c650f8f85200415866051cadc94f195537b3798498065"
-      },
-      {
-        "logId": "18171327091801537304",
-        "concreteTypeId": "fc2d85b6d4433b18adbc77d4019fdd47213b2df923dcc52543a16d1a9462778a"
-      },
-      {
-        "logId": "2049142816847606060",
-        "concreteTypeId": "1c700488fc3eb12cecb5df0f1d7fab50a48794cd700cb26c6e93e9762fa84658"
-      },
-      {
-        "logId": "2161305517876418151",
-        "concreteTypeId": "1dfe7feadc1d9667a4351761230f948744068a090fe91b1bc6763a90ed5d3893"
-      },
-      {
-        "logId": "16280289466020123285",
-        "concreteTypeId": "e1ef35033ea9d2956f17c3292dea4a46ce7d61fdf37bbebe03b7b965073f43b5"
-      },
-      {
-        "logId": "4883303303013154842",
-        "concreteTypeId": "43c4fa7b3297401afbf300127e59ea913e5c8f0c7ae69abbec789ab0bb872bed"
-      },
-      {
-        "logId": "12970362301975156672",
-        "concreteTypeId": "b3fffbcb3158d7c010c31b194b60fb7857adb4ad61bdcf4b8b42958951d9f308"
-      }
-    ],
-    "messagesTypes": [],
-    "configurables": []
-  }
+  "programType": "contract",
+  "specVersion": "1",
+  "encodingVersion": "1",
+  "concreteTypes": [
+    {
+      "type": "()",
+      "concreteTypeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+    },
+    {
+      "type": "b256",
+      "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+    },
+    {
+      "type": "enum IgpError",
+      "concreteTypeId": "5e9b943fe66bb2f9186016140592021f71cf98395bd3c80eef479a17a9b39e2b",
+      "metadataTypeId": 0
+    },
+    {
+      "type": "enum standards::src5::AccessError",
+      "concreteTypeId": "3f702ea3351c9c1ece2b84048006c8034a24cbc2bad2e740d0412b4172951d3d",
+      "metadataTypeId": 1
+    },
+    {
+      "type": "enum standards::src5::State",
+      "concreteTypeId": "192bc7098e2fe60635a9918afb563e4e5419d386da2bdbf0d716b4bc8549802c",
+      "metadataTypeId": 2
+    },
+    {
+      "type": "enum std::identity::Identity",
+      "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335",
+      "metadataTypeId": 3
+    },
+    {
+      "type": "enum std::option::Option<b256>",
+      "concreteTypeId": "0c2beb9013490c4f753f2757dfe2d8340b22ce3827d596d81d249b7038033cb6",
+      "metadataTypeId": 4,
+      "typeArguments": [
+        "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+      ]
+    },
+    {
+      "type": "enum std::option::Option<u64>",
+      "concreteTypeId": "d852149004cc9ec0bbe7dc4e37bffea1d41469b759512b6136f2e865a4c06e7d",
+      "metadataTypeId": 4,
+      "typeArguments": [
+        "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+      ]
+    },
+    {
+      "type": "enum sway_libs::ownership::errors::InitializationError",
+      "concreteTypeId": "1dfe7feadc1d9667a4351761230f948744068a090fe91b1bc6763a90ed5d3893",
+      "metadataTypeId": 5
+    },
+    {
+      "type": "str",
+      "concreteTypeId": "8c25cb3686462e9a86d2883c5688a22fe738b0bbc85f458d2d2b5f3f667c6d5a"
+    },
+    {
+      "type": "struct interfaces::claimable::BeneficiarySetEvent",
+      "concreteTypeId": "28da8704d9711bb3e5ae8de91a1339201b6e3a044065e47395c1f4064d8e07d8",
+      "metadataTypeId": 7
+    },
+    {
+      "type": "struct interfaces::claimable::ClaimEvent",
+      "concreteTypeId": "6bcec70a463a07509f86d07955802bee953038650739d9b15f8ba95a0e2052aa",
+      "metadataTypeId": 8
+    },
+    {
+      "type": "struct interfaces::igp::GasOracleSetEvent",
+      "concreteTypeId": "e2a62dd30c887a49893c650f8f85200415866051cadc94f195537b3798498065",
+      "metadataTypeId": 9
+    },
+    {
+      "type": "struct interfaces::igp::GasPaymentEvent",
+      "concreteTypeId": "57f16a22cb9e861b379fae117dc32f53512234a762ed50564496dff7600646b9",
+      "metadataTypeId": 10
+    },
+    {
+      "type": "struct sway_libs::ownership::events::OwnershipRenounced",
+      "concreteTypeId": "43c4fa7b3297401afbf300127e59ea913e5c8f0c7ae69abbec789ab0bb872bed",
+      "metadataTypeId": 13
+    },
+    {
+      "type": "struct sway_libs::ownership::events::OwnershipSet",
+      "concreteTypeId": "e1ef35033ea9d2956f17c3292dea4a46ce7d61fdf37bbebe03b7b965073f43b5",
+      "metadataTypeId": 14
+    },
+    {
+      "type": "struct sway_libs::ownership::events::OwnershipTransferred",
+      "concreteTypeId": "b3fffbcb3158d7c010c31b194b60fb7857adb4ad61bdcf4b8b42958951d9f308",
+      "metadataTypeId": 15
+    },
+    {
+      "type": "u32",
+      "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+    },
+    {
+      "type": "u64",
+      "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+    },
+    {
+      "type": "u8",
+      "concreteTypeId": "c89951a24c6ca28c13fd1cfdc646b2b656d69e61a92b91023be7eb58eb914b6b"
+    }
+  ],
+  "metadataTypes": [
+    {
+      "type": "enum IgpError",
+      "metadataTypeId": 0,
+      "components": [
+        {
+          "name": "InsufficientGasPayment",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "InvalidGasOracle",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "QuoteGasPaymentOverflow",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "InterchainGasPaymentInBaseAsset",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "ContractAlreadyInitialized",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        }
+      ]
+    },
+    {
+      "type": "enum standards::src5::AccessError",
+      "metadataTypeId": 1,
+      "components": [
+        {
+          "name": "NotOwner",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        }
+      ]
+    },
+    {
+      "type": "enum standards::src5::State",
+      "metadataTypeId": 2,
+      "components": [
+        {
+          "name": "Uninitialized",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "Initialized",
+          "typeId": 3
+        },
+        {
+          "name": "Revoked",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        }
+      ]
+    },
+    {
+      "type": "enum std::identity::Identity",
+      "metadataTypeId": 3,
+      "components": [
+        {
+          "name": "Address",
+          "typeId": 11
+        },
+        {
+          "name": "ContractId",
+          "typeId": 12
+        }
+      ]
+    },
+    {
+      "type": "enum std::option::Option",
+      "metadataTypeId": 4,
+      "components": [
+        {
+          "name": "None",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "Some",
+          "typeId": 6
+        }
+      ],
+      "typeParameters": [
+        6
+      ]
+    },
+    {
+      "type": "enum sway_libs::ownership::errors::InitializationError",
+      "metadataTypeId": 5,
+      "components": [
+        {
+          "name": "CannotReinitialized",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        }
+      ]
+    },
+    {
+      "type": "generic T",
+      "metadataTypeId": 6
+    },
+    {
+      "type": "struct interfaces::claimable::BeneficiarySetEvent",
+      "metadataTypeId": 7,
+      "components": [
+        {
+          "name": "beneficiary",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ]
+    },
+    {
+      "type": "struct interfaces::claimable::ClaimEvent",
+      "metadataTypeId": 8,
+      "components": [
+        {
+          "name": "beneficiary",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        },
+        {
+          "name": "amount",
+          "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        }
+      ]
+    },
+    {
+      "type": "struct interfaces::igp::GasOracleSetEvent",
+      "metadataTypeId": 9,
+      "components": [
+        {
+          "name": "domain",
+          "typeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        },
+        {
+          "name": "gas_oracle",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ]
+    },
+    {
+      "type": "struct interfaces::igp::GasPaymentEvent",
+      "metadataTypeId": 10,
+      "components": [
+        {
+          "name": "message_id",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        },
+        {
+          "name": "destination_domain",
+          "typeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        },
+        {
+          "name": "gas_amount",
+          "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        },
+        {
+          "name": "payment",
+          "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        }
+      ]
+    },
+    {
+      "type": "struct std::address::Address",
+      "metadataTypeId": 11,
+      "components": [
+        {
+          "name": "bits",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ]
+    },
+    {
+      "type": "struct std::contract_id::ContractId",
+      "metadataTypeId": 12,
+      "components": [
+        {
+          "name": "bits",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ]
+    },
+    {
+      "type": "struct sway_libs::ownership::events::OwnershipRenounced",
+      "metadataTypeId": 13,
+      "components": [
+        {
+          "name": "previous_owner",
+          "typeId": 3
+        }
+      ]
+    },
+    {
+      "type": "struct sway_libs::ownership::events::OwnershipSet",
+      "metadataTypeId": 14,
+      "components": [
+        {
+          "name": "new_owner",
+          "typeId": 3
+        }
+      ]
+    },
+    {
+      "type": "struct sway_libs::ownership::events::OwnershipTransferred",
+      "metadataTypeId": 15,
+      "components": [
+        {
+          "name": "new_owner",
+          "typeId": 3
+        },
+        {
+          "name": "previous_owner",
+          "typeId": 3
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "inputs": [
+        {
+          "name": "domain",
+          "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        }
+      ],
+      "name": "gas_oracle",
+      "output": "0c2beb9013490c4f753f2757dfe2d8340b22ce3827d596d81d249b7038033cb6",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Returns the gas oracle for a domain."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `domain`: [u32] - The domain to get the gas oracle for."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "get_current_domain_gas",
+      "output": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Gets the gas amount for the current domain."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [u64] - The gas amount for the current domain."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "owner",
+          "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        },
+        {
+          "name": "beneficiary",
+          "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        },
+        {
+          "name": "token_exchange_rate",
+          "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        },
+        {
+          "name": "base_asset_decimal",
+          "concreteTypeId": "c89951a24c6ca28c13fd1cfdc646b2b656d69e61a92b91023be7eb58eb914b6b"
+        },
+        {
+          "name": "default_gas_amount",
+          "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        }
+      ],
+      "name": "initialize",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Initializes the contract."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `owner`: [b256] - The owner of the contract."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `default_ism`: [b256] - The default ISM contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `default_hook`: [b256] - The default hook contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `required_hook`: [b256] - The required hook contract Id."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the contract is already initialized."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "message_id",
+          "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        },
+        {
+          "name": "destination_domain",
+          "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        },
+        {
+          "name": "gas_amount",
+          "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        },
+        {
+          "name": "refund_address",
+          "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
+        }
+      ],
+      "name": "pay_for_gas",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Allows the caller to pay for gas."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `message_id`: [b256] - The message ID."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `destination_domain`: [u32] - The domain to pay for."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `gas_amount`: [u64] - The amount of gas."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `refund_address`: [Identity] - The address to refund the excess payment to."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If asset sent is not the base asset."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the payment is less than the required amount."
+          ]
+        },
+        {
+          "name": "payable",
+          "arguments": []
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "destination_domain",
+          "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        },
+        {
+          "name": "gas_amount",
+          "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        }
+      ],
+      "name": "quote_gas_payment",
+      "output": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Quotes the required interchain gas payment to be paid in the base asset."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `destination_domain`: [u32] - The destination domain of the message."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `gas_amount`: [u64] - The amount of destination gas to pay for."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [u64] - The total payment for the gas amount."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "domain",
+          "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        },
+        {
+          "name": "gas_oracle",
+          "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ],
+      "name": "set_gas_oracle",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Sets the gas oracle for a domain."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `domain`: [u32] - The domain to set the gas oracle for."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `gas_oracle`: [b256] - The gas oracle."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the caller is not the owner."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "beneficiary",
+      "output": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Gets the current beneficiary."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [Identity] - The beneficiary."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "claim",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Sends all base asset funds to the beneficiary. Callable by anyone."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "beneficiary",
+          "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
+        }
+      ],
+      "name": "set_beneficiary",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Sets the beneficiary to `beneficiary`. Only callable by the owner."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `beneficiary`: [Identity] - The new beneficiary."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the caller is not the owner."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "new_owner",
+          "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
+        }
+      ],
+      "name": "initialize_ownership",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "only_owner",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "output": "192bc7098e2fe60635a9918afb563e4e5419d386da2bdbf0d716b4bc8549802c",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "renounce_ownership",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "new_owner",
+          "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
+        }
+      ],
+      "name": "transfer_ownership",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "storage",
+          "arguments": [
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "domain",
+          "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        }
+      ],
+      "name": "get_gas_oracle",
+      "output": "0c2beb9013490c4f753f2757dfe2d8340b22ce3827d596d81d249b7038033cb6",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Gets the gas oracle for a given domain."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `domain`: [u32] - The domain to get the gas oracle for."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [b256] - The gas oracle."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "domain",
+          "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        },
+        {
+          "name": "gas_oracle",
+          "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ],
+      "name": "set_gas_from_oracle",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Sets the gas oracle for a given domain."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `domain`: [u32] - The domain to set the gas oracle for."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `gas_oracle`: [b256] - The gas oracle."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the caller is not the owner."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "domain",
+          "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        }
+      ],
+      "name": "gas_overhead",
+      "output": "d852149004cc9ec0bbe7dc4e37bffea1d41469b759512b6136f2e865a4c06e7d",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Gets the gas overhead for a given domain."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `domain`: [u32] - The domain to get the gas overhead for."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Returns"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [u64] - The gas overhead."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read"
+          ]
+        }
+      ]
+    },
+    {
+      "inputs": [
+        {
+          "name": "domain",
+          "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
+        },
+        {
+          "name": "gas_overhead",
+          "concreteTypeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
+        }
+      ],
+      "name": "set_gas_overhead",
+      "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Sets the gas overhead for a given domain."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Arguments"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `domain`: [u32] - The domain to set the gas overhead for."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `gas_overhead`: [u64] - The gas overhead."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " ### Reverts"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            ""
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the caller is not the owner."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": [
+            "read",
+            "write"
+          ]
+        }
+      ]
+    }
+  ],
+  "loggedTypes": [
+    {
+      "logId": "6817205463125046009",
+      "concreteTypeId": "5e9b943fe66bb2f9186016140592021f71cf98395bd3c80eef479a17a9b39e2b"
+    },
+    {
+      "logId": "2161305517876418151",
+      "concreteTypeId": "1dfe7feadc1d9667a4351761230f948744068a090fe91b1bc6763a90ed5d3893"
+    },
+    {
+      "logId": "16280289466020123285",
+      "concreteTypeId": "e1ef35033ea9d2956f17c3292dea4a46ce7d61fdf37bbebe03b7b965073f43b5"
+    },
+    {
+      "logId": "10098701174489624218",
+      "concreteTypeId": "8c25cb3686462e9a86d2883c5688a22fe738b0bbc85f458d2d2b5f3f667c6d5a"
+    },
+    {
+      "logId": "6336962848364594715",
+      "concreteTypeId": "57f16a22cb9e861b379fae117dc32f53512234a762ed50564496dff7600646b9"
+    },
+    {
+      "logId": "4571204900286667806",
+      "concreteTypeId": "3f702ea3351c9c1ece2b84048006c8034a24cbc2bad2e740d0412b4172951d3d"
+    },
+    {
+      "logId": "16331791483177302601",
+      "concreteTypeId": "e2a62dd30c887a49893c650f8f85200415866051cadc94f195537b3798498065"
+    },
+    {
+      "logId": "7768365254202492752",
+      "concreteTypeId": "6bcec70a463a07509f86d07955802bee953038650739d9b15f8ba95a0e2052aa"
+    },
+    {
+      "logId": "2943813761337727923",
+      "concreteTypeId": "28da8704d9711bb3e5ae8de91a1339201b6e3a044065e47395c1f4064d8e07d8"
+    },
+    {
+      "logId": "4883303303013154842",
+      "concreteTypeId": "43c4fa7b3297401afbf300127e59ea913e5c8f0c7ae69abbec789ab0bb872bed"
+    },
+    {
+      "logId": "12970362301975156672",
+      "concreteTypeId": "b3fffbcb3158d7c010c31b194b60fb7857adb4ad61bdcf4b8b42958951d9f308"
+    }
+  ],
+  "messagesTypes": [],
+  "configurables": []
+}
