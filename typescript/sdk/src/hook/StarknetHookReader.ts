@@ -1,4 +1,4 @@
-import { Account, Contract, num } from 'starknet';
+import { Account, CairoCustomEnum, Contract, num } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
@@ -17,12 +17,13 @@ export class StarknetHookReader {
       const { abi } = getCompiledContract('hook');
       const hook = new Contract(abi, address, this.signer);
 
-      const hookType = (await hook.hook_type()).toString();
-
-      switch (hookType) {
-        case HookType.MERKLE_TREE: // MERKLE_TREE
+      const hookType: CairoCustomEnum = await hook.hook_type();
+      switch (hookType.activeVariant()) {
+        case 'UNUSED':
+          return this.deriveUnusedConfig(address);
+        case 'MERKLE_TREE':
           return this.deriveMerkleTreeConfig(address);
-        case HookType.PROTOCOL_FEE: // PROTOCOL_FEE
+        case 'PROTOCOL_FEE':
           return this.deriveProtocolFeeConfig(address);
         default:
           throw Error;
@@ -44,22 +45,24 @@ export class StarknetHookReader {
     const { abi } = getCompiledContract('protocol_fee');
     const hook = new Contract(abi, address, this.signer);
 
-    const [owner, maxProtocolFee, protocolFee, beneficiary] = await Promise.all(
-      [
-        hook.owner(),
-        hook.get_max_protocol_fee(),
-        hook.get_protocol_fee(),
-        hook.get_beneficiary(),
-      ],
-    );
-
+    const [owner, protocolFee, beneficiary] = await Promise.all([
+      hook.owner(),
+      hook.get_protocol_fee(),
+      hook.get_beneficiary(),
+    ]);
     return {
       type: HookType.PROTOCOL_FEE,
       address,
       owner: num.toHex64(owner.toString()),
-      maxProtocolFee: maxProtocolFee.toString(),
       protocolFee: protocolFee.toString(),
       beneficiary: num.toHex64(beneficiary.toString()),
+    };
+  }
+
+  private async deriveUnusedConfig(address: Address) {
+    return {
+      type: HookType.MERKLE_TREE,
+      address,
     };
   }
 }

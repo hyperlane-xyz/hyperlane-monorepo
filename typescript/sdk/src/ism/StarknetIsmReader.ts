@@ -1,4 +1,4 @@
-import { Account, Contract, num } from 'starknet';
+import { Account, CairoCustomEnum, Contract, num } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
@@ -22,21 +22,19 @@ export class StarknetIsmReader {
         address,
         this.signer,
       );
-      const moduleType = (await ism.module_type()).toString();
-
-      switch (moduleType) {
-        case IsmType.PAUSABLE:
-        case IsmType.TRUSTED_RELAYER: // NULL (Pausable ISM & Trusted Relayer ISM)
+      const moduleType: CairoCustomEnum = await ism.module_type();
+      switch (moduleType.activeVariant()) {
+        case 'NULL':
           return this.deriveNullConfig(address);
-        case IsmType.MESSAGE_ID_MULTISIG:
+        case 'MESSAGE_ID_MULTISIG':
           return this.deriveMessageIdMultisigConfig(address);
-        case IsmType.MERKLE_ROOT_MULTISIG:
+        case 'MERKLE_ROOT_MULTISIG':
           return this.deriveMerkleRootMultisigConfig(address);
-        case IsmType.ROUTING:
+        case 'ROUTING':
           return this.deriveRoutingConfig(address);
-        case IsmType.FALLBACK_ROUTING:
+        case 'FALLBACK_ROUTING':
           return this.deriveFallbackRoutingConfig(address);
-        case IsmType.AGGREGATION:
+        case 'AGGREGATION':
           return this.deriveAggregationConfig(address);
         default:
           return {
