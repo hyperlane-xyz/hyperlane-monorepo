@@ -203,12 +203,13 @@ export function hyperlaneRelayer(chains: string[], symbol?: string) {
   const abortController = new AbortController();
   const { signal } = abortController;
 
+  const symbolString = symbol ? `--symbol ${symbol}` : '';
+
   const process = $({
     signal,
   })`yarn workspace @hyperlane-xyz/cli run hyperlane relayer \
         --registry ${REGISTRY_PATH} \
-        --chains ${chains.join(',')} \
-        ${symbol ? `--symbol ${symbol}` : ''} \
+        --chains ${chains.join(',')} ${symbolString} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
