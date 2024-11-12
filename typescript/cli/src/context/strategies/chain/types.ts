@@ -6,7 +6,7 @@ import {
 
 import { SubmitterContext } from '../submitter/SubmitterContext.js';
 
-export interface SignerStrategy {
+export interface ChainHandler {
   /**
    * Determines the chains to be used for signing
    * @param argv Command arguments

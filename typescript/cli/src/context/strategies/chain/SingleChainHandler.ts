@@ -8,30 +8,29 @@ import {
 import { runSingleChainSelectionStep } from '../../../utils/chains.js';
 import { SubmitterContext } from '../submitter/SubmitterContext.js';
 
-import { SignerStrategy } from './SignerStrategy.js';
+import { ChainHandler } from './types.js';
 
 /**
- * @title SingleChainSignerStrategy
+ * @title SingleChainHandler
  * @notice Strategy implementation for managing single-chain operations
  * @dev This strategy is used by commands that operate on a single blockchain
- *      It implements the SignerStrategy interface and is primarily used for
- *      operations like 'core:apply' and 'warp:read' (see SignerStrategyFactory)
+ *      It implements the ChainHandler interface and is primarily used for
+ *      operations like 'core:apply' and 'warp:read'
  */
-export class SingleChainSignerStrategy implements SignerStrategy {
+export class SingleChainHandler implements ChainHandler {
   /**
    * @notice Determines the chain to be used for signing operations
    * @dev Either uses the chain specified in argv or prompts for interactive selection
    */
   async determineChains(argv: Record<string, any>): Promise<ChainName[]> {
-    const chain: ChainName =
+    argv.chain =
       argv.chain ||
       (await runSingleChainSelectionStep(
         argv.context.chainMetadata,
         'Select chain to connect:',
       ));
 
-    argv.chain = chain;
-    return [chain]; // Explicitly return as single-item array
+    return [argv.chain]; // Explicitly return as single-item array
   }
 
   /**

@@ -9,7 +9,7 @@ import { readYamlOrJson } from '../utils/files.js';
 export async function readDefaultStrategyConfig(
   filePath: string,
 ): Promise<ChainSubmissionStrategy> {
-  let config = readYamlOrJson(filePath);
+  const config = readYamlOrJson(filePath);
   assert(config, `No default strategy config found at ${filePath}`);
 
   return ChainSubmissionStrategySchema.parse(config);

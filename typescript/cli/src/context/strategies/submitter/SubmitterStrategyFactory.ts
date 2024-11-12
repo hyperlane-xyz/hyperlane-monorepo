@@ -1,19 +1,19 @@
-import { TxSubmitterType } from '@hyperlane-xyz/sdk';
+import { ChainSubmissionStrategy, TxSubmitterType } from '@hyperlane-xyz/sdk';
 
-import { GnosisSafeStrategy } from './GnosisSafeStrategy.js';
 import { JsonRpcStrategy } from './JsonRpcStrategy.js';
 import { ISubmitterStrategy } from './SubmitterStrategy.js';
 
 export class SubmitterStrategyFactory {
   static createStrategy(
     type: TxSubmitterType,
-    config: any,
+    config: ChainSubmissionStrategy,
   ): ISubmitterStrategy {
     switch (type) {
       case TxSubmitterType.JSON_RPC:
         return new JsonRpcStrategy(config);
-      case TxSubmitterType.GNOSIS_SAFE:
-        return new GnosisSafeStrategy(config);
+      // TO BE IMPLEMENTED!
+      // case TxSubmitterType.STARKNET_JSON_RPC:
+      //   return new StarknetJsonRpcStrategy(config);
       default:
         throw new Error(`Unsupported submitter type: ${type}`);
     }

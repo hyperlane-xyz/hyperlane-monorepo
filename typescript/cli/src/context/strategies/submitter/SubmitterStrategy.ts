@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { TxSubmitterType } from '@hyperlane-xyz/sdk';
+import { ChainSubmissionStrategy, TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 export interface ISubmitterStrategy {
@@ -10,7 +10,7 @@ export interface ISubmitterStrategy {
 }
 
 export abstract class BaseSubmitterStrategy implements ISubmitterStrategy {
-  constructor(protected config: any) {}
+  constructor(protected config: ChainSubmissionStrategy) {}
 
   abstract getPrivateKey(chain: ChainName): Promise<string>;
 

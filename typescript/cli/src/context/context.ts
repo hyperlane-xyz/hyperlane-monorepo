@@ -16,9 +16,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
 import { readDefaultStrategyConfig } from '../config/strategy.js';
+// import { readDefaultStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -26,7 +26,7 @@ import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner } from '../utils/keys.js';
 
-import { SignerStrategyFactory } from './strategies/signer/SignerStrategyFactory.js';
+import { ChainCommandHandler } from './strategies/chain/ChainCommandHandler.js';
 import {
   CommandContext,
   ContextSettings,
@@ -63,20 +63,24 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   if (!requiresKey) return argv;
 
-  const strategyUrl = argv.strategy || DEFAULT_STRATEGY_CONFIG_PATH;
-  const strategyConfig = await readDefaultStrategyConfig(strategyUrl);
-
   // Select the appropriate signing strategy based on the provided hyperlane command
-  // e.g command `core deploy` uses SingleChainSignerStrategy
-  const signerStrategy = SignerStrategyFactory.createStrategy(argv);
+  // e.g command `core deploy` uses SingleChainHandler
+  const chainHandler = ChainCommandHandler.getHandler(argv);
 
   // Determine the chains that will be used for signing based on the selected strategy
-  // e.g. SingleChainSignerStrategy extracts jsonRpc private key from strategyConfig else prompts user private key input
-  const chains = await signerStrategy.determineChains(argv);
+  // e.g. SingleChainHandler extracts jsonRpc private key from strategyConfig else prompts user private key input
+  const chains = await chainHandler.determineChains(argv);
+
+  let strategyConfig = {};
+  try {
+    strategyConfig = await readDefaultStrategyConfig(argv.strategy);
+  } catch (error) {
+    strategyConfig = {};
+  }
 
   // Creates a submitter context for the signer, which manages the signing context for the specified chains
   // default: TxSubmitterType.JSON_RPC
-  const signerSubmitterContext = signerStrategy.createSubmitterContext(
+  const signerSubmitterContext = chainHandler.createSubmitterContext(
     chains,
     strategyConfig,
     argv,
@@ -84,13 +88,13 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   // Configure the signers using the selected strategy, multiProvider, and submitter context
   // manipulates argv values
-  await signerStrategy.configureSigners(
+  await chainHandler.configureSigners(
     argv,
     multiProvider,
     signerSubmitterContext,
   );
 
-  return { ...argv, strategy: strategyUrl };
+  return argv;
 }
 
 /**

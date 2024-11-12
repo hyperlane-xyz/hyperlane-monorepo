@@ -39,18 +39,22 @@ export class SubmitterContext {
    * @dev Retrieves the private keys for the specified chains.
    * @return An array of objects containing chain names and their corresponding private keys.
    */
-  async getChainKeys(): Promise<
+  private async getChainKeys(): Promise<
     Array<{ chainName: ChainName; privateKey: string }>
   > {
-    const chainKeys = await Promise.all(
-      this.chains.map(async (chain) => ({
+    const chainKeys = [];
+
+    for (const chain of this.chains) {
+      const privateKey =
+        this.argv?.key ?? // argv.key overrides strategy private key
+        (await this.strategy.getPrivateKey(chain)) ??
+        ENV.HYP_KEY; // argv.key and ENV.HYP_KEY for backwards compatibility
+
+      chainKeys.push({
         chainName: chain,
-        privateKey:
-          this.argv?.key || // argv.key overrides strategy key
-          (await this.strategy.getPrivateKey(chain)) ||
-          ENV.HYP_KEY, // argv.key and ENV.HYP_KEY for backwards compatibility
-      })),
-    );
+        privateKey: privateKey,
+      });
+    }
 
     return chainKeys;
   }

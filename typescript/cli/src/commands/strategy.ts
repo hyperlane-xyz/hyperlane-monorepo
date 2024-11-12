@@ -101,22 +101,22 @@ export const init: CommandModuleWithWriteContext<{
         })),
       }));
 
-    let submitter: any = {
+    const submitter: any = {
       type: type,
     };
 
     // Configure submitter based on type
     switch (type) {
       case TxSubmitterType.JSON_RPC:
-        const privateKey = await input({
+        submitter.privateKey = await input({
           message: 'Enter your private key',
           validate: (pk) => isValidPrivateKey(pk),
         });
-        submitter.privateKey = privateKey;
+        submitter.chain = chain;
         break;
 
       case TxSubmitterType.IMPERSONATED_ACCOUNT:
-        const userAddress =
+        submitter.userAddress =
           inputUserAddress ||
           (await input({
             message: 'Enter the user address to impersonate',
@@ -131,15 +131,14 @@ export const init: CommandModuleWithWriteContext<{
             },
           }));
         assert(
-          userAddress,
+          submitter.userAddress,
           'User address is required for impersonated account',
         );
-        submitter.userAddress = userAddress;
         break;
 
       case TxSubmitterType.GNOSIS_SAFE:
       case TxSubmitterType.GNOSIS_TX_BUILDER:
-        const safeAddress =
+        submitter.safeAddress =
           inputSafeAddress ||
           (await input({
             message: 'Enter the Safe address',
@@ -153,20 +152,17 @@ export const init: CommandModuleWithWriteContext<{
               }
             },
           }));
-        assert(safeAddress, 'Safe address is required for Gnosis Safe');
-
-        submitter = {
-          type: type,
-          chain: chain,
-          safeAddress: safeAddress,
-        };
+        assert(
+          submitter.safeAddress,
+          'Safe address is required for Gnosis Safe',
+        );
+        submitter.chain = chain;
 
         if (type === TxSubmitterType.GNOSIS_TX_BUILDER) {
-          const version = await input({
+          submitter.version = await input({
             message: 'Enter the Safe version (default: 1.0)',
             default: '1.0',
           });
-          submitter.version = version;
         }
         break;
 
@@ -174,8 +170,8 @@ export const init: CommandModuleWithWriteContext<{
         throw new Error(`Unsupported submitter type: ${type}`);
     }
 
-    let result: ChainSubmissionStrategy = {
-      ...defaultStrategy,
+    const result: ChainSubmissionStrategy = {
+      ...defaultStrategy, // if there are changes in ChainSubmissionStrategy, the defaultStrategy may no longer be compatible
       [chain]: {
         submitter: submitter,
       },

@@ -7,15 +7,17 @@ import { BaseSubmitterStrategy } from './SubmitterStrategy.js';
 
 export class JsonRpcStrategy extends BaseSubmitterStrategy {
   async getPrivateKey(chain: ChainName): Promise<string> {
-    let pk = this.config[chain]?.submitter?.privateKey; // HYP_KEY for backwards compatibility
+    const submitter = this.config[chain]?.submitter as {
+      type: TxSubmitterType.JSON_RPC;
+      privateKey?: string;
+    };
 
-    if (!pk) {
-      pk = await password({
+    return (
+      submitter?.privateKey ??
+      (await password({
         message: `Please enter the private key for chain ${chain}`,
-      });
-    }
-
-    return pk;
+      }))
+    );
   }
 
   getType(): TxSubmitterType {

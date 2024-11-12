@@ -15,6 +15,7 @@ export const EV5GnosisSafeTxBuilderPropsSchema = z.object({
 
 export const EV5JsonRpcTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
+  privateKey: ZHash.optional(),
 });
 
 export const EV5ImpersonatedAccountTxSubmitterPropsSchema =
