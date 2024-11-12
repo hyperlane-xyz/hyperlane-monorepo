@@ -718,7 +718,6 @@ impl SealevelMailboxIndexer {
 
         let log_meta = self
             .dispatch_message_log_meta(
-                U256::from(nonce),
                 &valid_message_storage_pda_pubkey,
                 &dispatched_message_account.slot,
             )
@@ -743,7 +742,6 @@ impl SealevelMailboxIndexer {
 
     async fn dispatch_message_log_meta(
         &self,
-        log_index: U256,
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
     ) -> ChainResult<LogMeta> {
@@ -755,12 +753,7 @@ impl SealevelMailboxIndexer {
             .await?;
 
         self.dispatch_message_log_meta_composer
-            .log_meta(
-                block,
-                log_index,
-                message_storage_pda_pubkey,
-                message_account_slot,
-            )
+            .log_meta(block, message_storage_pda_pubkey, message_account_slot)
             .map_err(Into::<ChainCommunicationError>::into)
     }
 
@@ -800,7 +793,6 @@ impl SealevelMailboxIndexer {
 
         let log_meta = self
             .delivered_message_log_meta(
-                U256::from(nonce),
                 &valid_message_storage_pda_pubkey,
                 &delivered_message_account.slot,
             )
@@ -823,7 +815,6 @@ impl SealevelMailboxIndexer {
 
     async fn delivered_message_log_meta(
         &self,
-        log_index: U256,
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
     ) -> ChainResult<LogMeta> {
@@ -835,12 +826,7 @@ impl SealevelMailboxIndexer {
             .await?;
 
         self.delivery_message_log_meta_composer
-            .log_meta(
-                block,
-                log_index,
-                message_storage_pda_pubkey,
-                message_account_slot,
-            )
+            .log_meta(block, message_storage_pda_pubkey, message_account_slot)
             .map_err(Into::<ChainCommunicationError>::into)
     }
 }

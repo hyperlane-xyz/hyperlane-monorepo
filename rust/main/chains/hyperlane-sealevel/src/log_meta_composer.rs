@@ -36,7 +36,6 @@ impl LogMetaComposer {
     pub fn log_meta(
         &self,
         block: UiConfirmedBlock,
-        log_index: U256,
         pda_pubkey: &Pubkey,
         pda_slot: &Slot,
     ) -> Result<LogMeta, HyperlaneSealevelError> {
@@ -64,14 +63,16 @@ impl LogMetaComposer {
             )))?
         }
 
-        let (transaction_index, transaction_hash) =
-            transaction_hashes
-                .into_iter()
-                .next()
-                .ok_or(HyperlaneSealevelError::NoTransactions(format!(
+        let (transaction_index, transaction_hash, program_index) = transaction_hashes
+            .into_iter()
+            .next()
+            .ok_or(HyperlaneSealevelError::NoTransactions(format!(
                 "block which should contain {} transaction does not contain any after filtering",
                 self.transaction_description,
             )))?;
+
+        // Construct log index which will be increasing relative to block
+        let log_index = U256::from((transaction_index << 8) + (program_index as usize));
 
         let log_meta = LogMeta {
             address: self.program_id.to_bytes().into(),
@@ -120,7 +121,8 @@ pub fn is_interchain_payment_instruction(instruction_data: &[u8]) -> bool {
 }
 
 /// This function searches for relevant transactions in the vector of provided transactions and
-/// returns the relative index and hashes of such transactions.
+/// returns the relative index and hashes of such transactions together with index of the relevant
+/// instruction.
 ///
 /// This function takes a program identifier and the identifier for PDA and searches transactions
 /// which act upon this program and the PDA.
@@ -144,16 +146,19 @@ fn search_transactions(
     program_id: &Pubkey,
     pda_pubkey: &Pubkey,
     is_specified_instruction: fn(&[u8]) -> bool,
-) -> Vec<(usize, H512)> {
+) -> Vec<(usize, H512, u8)> {
     transactions
         .into_iter()
         .enumerate()
-        .filter_map(|(index, tx)| filter_by_encoding(tx).map(|(tx, meta)| (index, tx, meta)))
-        .filter_map(|(index, tx, meta)| {
-            filter_by_validity(tx, meta)
-                .map(|(hash, account_keys, instructions)| (index, hash, account_keys, instructions))
+        .filter_map(|(txn_index, tx)| {
+            filter_by_encoding(tx).map(|(tx, meta)| (txn_index, tx, meta))
         })
-        .filter_map(|(index, hash, account_keys, instructions)| {
+        .filter_map(|(txn_index, tx, meta)| {
+            filter_by_validity(tx, meta).map(|(hash, account_keys, instructions)| {
+                (txn_index, hash, account_keys, instructions)
+            })
+        })
+        .filter_map(|(txn_index, hash, account_keys, instructions)| {
             filter_by_relevancy(
                 program_id,
                 pda_pubkey,
@@ -162,9 +167,9 @@ fn search_transactions(
                 instructions,
                 is_specified_instruction,
             )
-            .map(|hash| (index, hash))
+            .map(|(hash, program_index)| (txn_index, hash, program_index))
         })
-        .collect::<Vec<(usize, H512)>>()
+        .collect::<Vec<(usize, H512, u8)>>()
 }
 
 fn filter_by_relevancy(
@@ -174,7 +179,7 @@ fn filter_by_relevancy(
     account_keys: Vec<String>,
     instructions: Vec<UiCompiledInstruction>,
     is_specified_instruction: fn(&[u8]) -> bool,
-) -> Option<H512> {
+) -> Option<(H512, u8)> {
     let account_index_map = account_index_map(account_keys);
 
     let program_id_str = program_id.to_string();
@@ -213,7 +218,7 @@ fn filter_by_relevancy(
         return None;
     }
 
-    Some(hash)
+    Some((hash, program.program_id_index))
 }
 
 fn filter_by_validity(

@@ -12,7 +12,7 @@ use tracing::{info, instrument};
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, U256,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
@@ -150,10 +150,19 @@ impl SealevelInterchainGasPaymasterIndexer {
             self.interchain_payment_account(account)
         })?;
 
+        self.sealevel_gas_payment(sequence_number, &valid_payment_pda_pubkey)
+            .await
+    }
+
+    async fn sealevel_gas_payment(
+        &self,
+        sequence_number: u64,
+        payment_pda_pubkey: &Pubkey,
+    ) -> ChainResult<SealevelGasPayment> {
         // Now that we have the valid gas payment PDA pubkey, we can get the full account data.
         let account = self
             .rpc_client
-            .get_account_with_finalized_commitment(&valid_payment_pda_pubkey)
+            .get_account_with_finalized_commitment(payment_pda_pubkey)
             .await?;
         let gas_payment_account = GasPaymentAccount::fetch(&mut account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
@@ -169,11 +178,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         };
 
         let log_meta = self
-            .interchain_payment_log_meta(
-                U256::from(sequence_number),
-                &valid_payment_pda_pubkey,
-                &gas_payment_account.slot,
-            )
+            .interchain_payment_log_meta(payment_pda_pubkey, &gas_payment_account.slot)
             .await?;
 
         Ok(SealevelGasPayment::new(
@@ -189,14 +194,13 @@ impl SealevelInterchainGasPaymasterIndexer {
 
     async fn interchain_payment_log_meta(
         &self,
-        log_index: U256,
         payment_pda_pubkey: &Pubkey,
         payment_pda_slot: &Slot,
     ) -> ChainResult<LogMeta> {
         let block = self.rpc_client.get_block(*payment_pda_slot).await?;
 
         self.log_meta_composer
-            .log_meta(block, log_index, payment_pda_pubkey, payment_pda_slot)
+            .log_meta(block, payment_pda_pubkey, payment_pda_slot)
             .map_err(Into::<ChainCommunicationError>::into)
     }
 
