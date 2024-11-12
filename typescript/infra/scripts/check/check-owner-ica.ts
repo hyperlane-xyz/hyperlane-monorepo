@@ -1,14 +1,8 @@
-import { ethers } from 'ethers';
-
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  eqAddress,
-  isZeroish,
-  isZeroishAddress,
-} from '@hyperlane-xyz/utils';
+import { Address, eqAddress, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import { icas } from '../../config/environments/mainnet3/owners.js';
+import { chainsToSkip } from '../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs as getEnvArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
@@ -39,7 +33,9 @@ async function main() {
 
   const checkOwnerIcaChains = (
     chains?.length ? chains : Object.keys(icas)
-  ).filter(isEthereumProtocolChain);
+  ).filter(
+    (chain) => isEthereumProtocolChain(chain) && !chainsToSkip.includes(chain),
+  );
 
   const ownerConfig: AccountConfig = {
     origin: ownerChain,
