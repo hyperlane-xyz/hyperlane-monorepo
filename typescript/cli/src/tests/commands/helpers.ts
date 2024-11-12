@@ -1,3 +1,5 @@
+import { $ } from 'zx';
+
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -182,4 +184,34 @@ export async function sendWarpRouteMessageRoundTrip(
 ) {
   await hyperlaneWarpSendRelay(chain1, chain2, warpCoreConfigPath);
   return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
+}
+
+export async function hyperlaneSendMessage(
+  origin: string,
+  destination: string,
+) {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane send message \
+        --registry ${REGISTRY_PATH} \
+        --origin ${origin} \
+        --destination ${destination} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
+}
+
+export function hyperlaneRelayer(chains: string[], symbol?: string) {
+  const abortController = new AbortController();
+  const { signal } = abortController;
+
+  const process = $({
+    signal,
+  })`yarn workspace @hyperlane-xyz/cli run hyperlane relayer \
+        --registry ${REGISTRY_PATH} \
+        --chains ${chains.join(',')} \
+        ${symbol ? `--symbol ${symbol}` : ''} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
+
+  return { process, abortController };
 }
