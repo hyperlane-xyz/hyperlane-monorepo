@@ -1,25 +1,23 @@
+use std::ops::RangeInclusive;
+
 use async_trait::async_trait;
-use hyperlane_core::{
-    config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
-    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512,
-};
+use derive_new::new;
 use hyperlane_sealevel_igp::{
     accounts::{GasPaymentAccount, ProgramDataAccount},
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
 };
-use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
-use solana_client::{
-    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
-    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
-};
-use std::ops::RangeInclusive;
+use solana_sdk::{account::Account, clock::Slot, pubkey::Pubkey};
 use tracing::{info, instrument};
 
-use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
+use hyperlane_core::{
+    config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
+    HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, U256,
+};
 
-use derive_new::new;
+use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
+use crate::log_meta_composer::{is_interchain_payment_instruction, LogMetaComposer};
+use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 /// The offset to get the `unique_gas_payment_pubkey` field from the serialized GasPaymentData.
 /// The account data includes prefixes that are accounted for here: a 1 byte initialized flag
@@ -93,6 +91,7 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 pub struct SealevelInterchainGasPaymasterIndexer {
     rpc_client: SealevelRpcClient,
     igp: SealevelInterchainGasPaymaster,
+    log_meta_composer: LogMetaComposer,
 }
 
 /// IGP payment data on Sealevel
@@ -113,7 +112,18 @@ impl SealevelInterchainGasPaymasterIndexer {
         let rpc_client = SealevelRpcClient::new(conf.url.to_string());
 
         let igp = SealevelInterchainGasPaymaster::new(conf, &igp_account_locator).await?;
-        Ok(Self { rpc_client, igp })
+
+        let log_meta_composer = LogMetaComposer::new(
+            igp.program_id,
+            "interchain gas payment".to_owned(),
+            is_interchain_payment_instruction,
+        );
+
+        Ok(Self {
+            rpc_client,
+            igp,
+            log_meta_composer,
+        })
     }
 
     #[instrument(err, skip(self))]
@@ -121,70 +131,23 @@ impl SealevelInterchainGasPaymasterIndexer {
         &self,
         sequence_number: u64,
     ) -> ChainResult<SealevelGasPayment> {
-        let payment_bytes = &[
-            &hyperlane_sealevel_igp::accounts::GAS_PAYMENT_DISCRIMINATOR[..],
-            &sequence_number.to_le_bytes()[..],
-        ]
-        .concat();
-        #[allow(deprecated)]
-        let payment_bytes: String = base64::encode(payment_bytes);
-
-        // First, find all accounts with the matching gas payment data.
-        // To keep responses small in case there is ever more than 1
-        // match, we don't request the full account data, and just request
-        // the `unique_gas_payment_pubkey` field.
-        #[allow(deprecated)]
-        let memcmp = RpcFilterType::Memcmp(Memcmp {
-            // Ignore the first byte, which is the `initialized` bool flag.
-            offset: 1,
-            bytes: MemcmpEncodedBytes::Base64(payment_bytes),
-            encoding: None,
-        });
-        let config = RpcProgramAccountsConfig {
-            filters: Some(vec![memcmp]),
-            account_config: RpcAccountInfoConfig {
-                encoding: Some(UiAccountEncoding::Base64),
-                // Don't return any data
-                data_slice: Some(UiDataSliceConfig {
-                    offset: UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET,
-                    length: 32, // the length of the `unique_gas_payment_pubkey` field
-                }),
-                commitment: Some(CommitmentConfig::finalized()),
-                min_context_slot: None,
-            },
-            with_context: Some(false),
-        };
-        tracing::debug!(config=?config, "Fetching program accounts");
-        let accounts = self
-            .rpc_client
-            .get_program_accounts_with_config(&self.igp.program_id, config)
-            .await?;
+        let discriminator = hyperlane_sealevel_igp::accounts::GAS_PAYMENT_DISCRIMINATOR;
+        let sequence_number_bytes = sequence_number.to_le_bytes();
+        let unique_gas_payment_pubkey_length = 32; // the length of the `unique_gas_payment_pubkey` field
+        let accounts = search_accounts_by_discriminator(
+            &self.rpc_client,
+            &self.igp.program_id,
+            discriminator,
+            &sequence_number_bytes,
+            UNIQUE_GAS_PAYMENT_PUBKEY_OFFSET,
+            unique_gas_payment_pubkey_length,
+        )
+        .await?;
 
         tracing::debug!(accounts=?accounts, "Fetched program accounts");
 
-        // Now loop through matching accounts and find the one with a valid account pubkey
-        // that proves it's an actual gas payment PDA.
-        let mut valid_payment_pda_pubkey = Option::<Pubkey>::None;
-
-        for (pubkey, account) in accounts {
-            let unique_gas_payment_pubkey = Pubkey::new(&account.data);
-            let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
-                igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),
-                &self.igp.program_id,
-            )
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find program address for unique_gas_payment_pubkey",
-                )
-            })?;
-            if expected_pubkey == pubkey {
-                valid_payment_pda_pubkey = Some(pubkey);
-                break;
-            }
-        }
-
-        let valid_payment_pda_pubkey = valid_payment_pda_pubkey.ok_or_else(|| {
-            ChainCommunicationError::from_other_str("Could not find valid gas payment PDA pubkey")
+        let valid_payment_pda_pubkey = search_and_validate_account(accounts, |account| {
+            self.interchain_payment_account(account)
         })?;
 
         // Now that we have the valid gas payment PDA pubkey, we can get the full account data.
@@ -205,24 +168,50 @@ impl SealevelInterchainGasPaymasterIndexer {
             gas_amount: gas_payment_account.gas_amount.into(),
         };
 
+        let log_meta = self
+            .interchain_payment_log_meta(
+                U256::from(sequence_number),
+                &valid_payment_pda_pubkey,
+                &gas_payment_account.slot,
+            )
+            .await?;
+
         Ok(SealevelGasPayment::new(
             Indexed::new(igp_payment).with_sequence(
                 sequence_number
                     .try_into()
                     .map_err(StrOrIntParseError::from)?,
             ),
-            LogMeta {
-                address: self.igp.program_id.to_bytes().into(),
-                block_number: gas_payment_account.slot,
-                // TODO: get these when building out scraper support.
-                // It's inconvenient to get these :|
-                block_hash: H256::zero(),
-                transaction_id: H512::zero(),
-                transaction_index: 0,
-                log_index: sequence_number.into(),
-            },
+            log_meta,
             H256::from(gas_payment_account.igp.to_bytes()),
         ))
+    }
+
+    async fn interchain_payment_log_meta(
+        &self,
+        log_index: U256,
+        payment_pda_pubkey: &Pubkey,
+        payment_pda_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
+        let block = self.rpc_client.get_block(*payment_pda_slot).await?;
+
+        self.log_meta_composer
+            .log_meta(block, log_index, payment_pda_pubkey, payment_pda_slot)
+            .map_err(Into::<ChainCommunicationError>::into)
+    }
+
+    fn interchain_payment_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        let unique_gas_payment_pubkey = Pubkey::new(&account.data);
+        let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+            igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),
+            &self.igp.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Could not find program address for unique_gas_payment_pubkey",
+            )
+        })?;
+        Ok(expected_pubkey)
     }
 }
 

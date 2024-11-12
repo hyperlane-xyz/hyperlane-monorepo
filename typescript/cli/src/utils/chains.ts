@@ -58,6 +58,13 @@ type RunMultiChainSelectionStepOptions = {
    * @default false
    */
   requiresConfirmation?: boolean;
+
+  /**
+   * The network type to filter the chains by
+   *
+   * @default undefined
+   */
+  networkType?: 'mainnet' | 'testnet';
 };
 
 export async function runMultiChainSelectionStep({
@@ -65,11 +72,12 @@ export async function runMultiChainSelectionStep({
   message = 'Select chains',
   requireNumber = 0,
   requiresConfirmation = false,
+  networkType = undefined,
 }: RunMultiChainSelectionStepOptions) {
-  const networkType = await selectNetworkType();
+  const selectedNetworkType = networkType ?? (await selectNetworkType());
   const { choices, networkTypeSeparator } = getChainChoices(
     chainMetadata,
-    networkType,
+    selectedNetworkType,
   );
 
   let currentChoiceSelection = new Set();
@@ -82,7 +90,7 @@ export async function runMultiChainSelectionStep({
           ? { ...choice, checked: true }
           : choice,
       ),
-      instructions: `Use TAB key to select at least ${requireNumber} chains, then press ENTER to proceed. Type to search for a specific chain.`,
+      instructions: `Use the TAB or the SPACE key to select at least ${requireNumber} chains, then press ENTER to proceed. Type to search for a specific chain.`,
       theme: {
         style: {
           // The leading space is needed because the help tip will be tightly close to the message header

@@ -155,14 +155,7 @@ function tryParseMetadataInput(
     return failure('name is already in use by another chain');
   }
 
-  if (multiProvider.tryGetChainMetadata(newMetadata.chainId)) {
-    return failure('chainId is already in use by another chain');
-  }
-
-  if (
-    newMetadata.domainId &&
-    multiProvider.tryGetChainMetadata(newMetadata.domainId)
-  ) {
+  if (multiProvider.tryGetChainMetadata(newMetadata.domainId)) {
     return failure('domainId is already in use by another chain');
   }
 

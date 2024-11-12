@@ -61,6 +61,11 @@ export class CosmNativeTokenAdapter
   ): Promise<MsgTransferEncodeObject> {
     throw new Error('TODO not yet implemented');
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
+  }
 }
 
 // Interacts with native tokens on a Cosmos chain and adds support for IBC transfers
@@ -103,6 +108,11 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
+
+  getBridgedSupply(): Promise<bigint | undefined> {
+    throw new Error('Method not applicable to IBC adapters');
+  }
+
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {

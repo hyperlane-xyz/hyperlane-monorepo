@@ -53,14 +53,14 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
     },
   },
-  rootstock: {
+  rootstockmainnet: {
     transactionOverrides: {
       gasPrice: 7 * 10 ** 7, // 0.07 gwei
       // gasLimit: 6800000, // set when deploying contracts
     },
   },
   // Deploy-only overrides, set when deploying contracts
-  // chiliz: {
+  // chilizmainnet: {
   //   transactionOverrides: {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
@@ -68,6 +68,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // zircuit: {
   //   blocks: {
   //     confirmations: 3,
+  //   },
+  // },
+  // prom: {
+  //   transactionOverrides: {
+  //     gasPrice: 20 * 10 ** 9, // 20 gwei
   //   },
   // },
 };

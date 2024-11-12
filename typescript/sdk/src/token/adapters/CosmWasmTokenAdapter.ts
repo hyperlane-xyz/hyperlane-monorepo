@@ -90,6 +90,11 @@ export class CwNativeTokenAdapter
       ],
     };
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
+  }
 }
 
 export type CW20Metadata = TokenMetadata;
@@ -171,6 +176,11 @@ export class CwTokenAdapter
         amount: weiAmountOrId.toString(),
       },
     });
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
   }
 }
 
@@ -274,6 +284,10 @@ export class CwHypSyntheticAdapter
       }));
   }
 
+  getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getTotalSupply();
+  }
+
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {
@@ -364,6 +378,10 @@ export class CwHypNativeAdapter
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
     return this.cw20adapter.getAllRouters();
+  }
+
+  getBridgedSupply(): Promise<bigint> {
+    return this.getBalance(this.addresses.warpRouter);
   }
 
   quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote> {

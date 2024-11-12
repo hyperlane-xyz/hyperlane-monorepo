@@ -8,11 +8,13 @@ import {
   MultiProtocolProvider,
   MultiProvider,
   OwnableConfig,
+  RouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { objKeys } from '@hyperlane-xyz/utils';
+import { mustGet, objKeys, objMap, objMerge } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { environments } from '../../config/environments/index.js';
+import { getHyperlaneCore } from '../../scripts/core-utils.js';
 import { CloudAgentKey } from '../agents/keys.js';
 import { Role } from '../roles.js';
 
@@ -74,4 +76,31 @@ export function assertEnvironment(env: string): DeployEnvironment {
     return env as DeployEnvironment;
   }
   throw new Error(`Invalid environment ${env}, must be one of ${envNames}`);
+}
+
+// Gets the router configs for all chains in the environment.
+// Relying solely on HyperlaneCore.getRouterConfig will result
+// in missing any non-EVM chains -- here we merge the two.
+export async function getRouterConfigsForAllVms(
+  envConfig: EnvironmentConfig,
+  multiProvider: MultiProvider,
+): Promise<ChainMap<RouterConfig>> {
+  const { core, chainAddresses } = await getHyperlaneCore(
+    envConfig.environment,
+    multiProvider,
+  );
+  const evmRouterConfig = core.getRouterConfig(envConfig.owners);
+
+  const allRouterConfigs: ChainMap<RouterConfig> = objMap(
+    chainAddresses,
+    (chain, addresses) => {
+      return {
+        mailbox: mustGet(addresses, 'mailbox'),
+        owner: mustGet(envConfig.owners, chain).owner,
+      };
+    },
+  );
+
+  // Merge, giving evmRouterConfig precedence
+  return objMerge(allRouterConfigs, evmRouterConfig);
 }
