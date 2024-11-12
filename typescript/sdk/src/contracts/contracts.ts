@@ -1,10 +1,12 @@
 import { Contract } from 'ethers';
 
-import { Ownable } from '@hyperlane-xyz/core';
+import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
   Address,
+  EvmChainId,
   ProtocolType,
   ValueOf,
+  eqAddress,
   hexOrBase58ToHex,
   objFilter,
   objMap,
@@ -12,8 +14,10 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import { OwnableConfig } from '../deploy/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainMap, Connection } from '../types.js';
 
 import {
@@ -256,4 +260,30 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
     contractsMap: filteredContractsMap,
     multiProvider,
   };
+}
+
+export function transferOwnershipTransactions(
+  chainId: EvmChainId,
+  contract: Address,
+  actual: OwnableConfig,
+  expected: OwnableConfig,
+  label?: string,
+): AnnotatedEV5Transaction[] {
+  if (eqAddress(actual.owner, expected.owner)) {
+    return [];
+  }
+
+  return [
+    {
+      chainId,
+      annotation: `Transferring ownership of ${label ?? contract} from ${
+        actual.owner
+      } to ${expected.owner}`,
+      to: contract,
+      data: Ownable__factory.createInterface().encodeFunctionData(
+        'transferOwnership',
+        [expected.owner],
+      ),
+    },
+  ];
 }

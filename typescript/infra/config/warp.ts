@@ -6,14 +6,21 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { getHyperlaneCore } from '../scripts/core-utils.js';
-import { EnvironmentConfig } from '../src/config/environment.js';
+import {
+  EnvironmentConfig,
+  getRouterConfigsForAllVms,
+} from '../src/config/environment.js';
 
 import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAncient8EthereumUSDCWarpConfig.js';
 import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumZircuitAmphrETHWarpConfig.js';
 import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
+import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
+import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
+import { getEclipseEthereumWeEthsWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWeETHsWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
+import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBscLumiaLUMIAWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
 import { getEthereumSeiFastUSDWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiFastUSDWarpConfig.js';
@@ -51,9 +58,14 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.EthereumZircuitPZETH]: getRenzoPZETHWarpConfig,
+  [WarpRouteIds.EthereumBscLumiaLUMIA]: getEthereumBscLUMIAWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
   [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
+  [WarpRouteIds.EclipseEthereumSolanaUSDT]:
+    getEclipseEthereumSolanaUSDTWarpConfig,
+  [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
+  [WarpRouteIds.EclipseEthereumWeETHs]: getEclipseEthereumWeEthsWarpConfig,
 };
 
 export async function getWarpConfig(
@@ -61,8 +73,10 @@ export async function getWarpConfig(
   envConfig: EnvironmentConfig,
   warpRouteId: string,
 ): Promise<ChainMap<TokenRouterConfig>> {
-  const { core } = await getHyperlaneCore(envConfig.environment, multiProvider);
-  const routerConfig = core.getRouterConfig(envConfig.owners);
+  const routerConfig = await getRouterConfigsForAllVms(
+    envConfig,
+    multiProvider,
+  );
 
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
   if (!warpConfigGetter) {

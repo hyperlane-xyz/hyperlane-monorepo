@@ -1,5 +1,75 @@
 # @hyperlane-xyz/sdk
 
+## 7.0.0
+
+### Major Changes
+
+- f48cf8766: Upgrade Viem to 2.2 and Solana Web3 to 1.9
+  Rename `chainMetadataToWagmiChain` to `chainMetadataToViemChain`
+- 5f41b1134: Remove getCoingeckoTokenPrices (use CoinGeckoTokenPriceGetter instead)
+
+### Minor Changes
+
+- bbb970a44: Redeploy to alephzeroevmmainnet, chilizmainnet, flowmainnet, immutablezkevmmainnet, metal, polynomialfi, rarichain, rootstockmainnet, superpositionmainnet. Deploy to flame, prom.
+- fa424826c: Add support for updating the mailbox proxy admin owner
+- 40d59a2f4: Deploy to abstracttestnet and treasuretopaz
+- 0264f709e: Deploy to alephzeroevmtestnet, update deployment for arcadiatestnet2.
+- 836060240: Add storage based multisig ISM types
+- f24835438: Added coinGeckoId as an optional property of the TokenConfigSchema
+
+### Patch Changes
+
+- ba0122279: feat: use message context in hook reader IGP derivation
+- Updated dependencies [f48cf8766]
+- Updated dependencies [836060240]
+- Updated dependencies [e6f9d5c4f]
+  - @hyperlane-xyz/utils@7.0.0
+  - @hyperlane-xyz/core@5.8.0
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Minor Changes
+
+- 7b3b07900: Support using apiKey for CoinGeckoTokenPriceGetter
+- 30d92c319: Add `collateralChainName` to Warp Reader. Partial refactor of fetchTokenConfig().
+
+### Patch Changes
+
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/utils@6.0.0
+  - @hyperlane-xyz/core@5.7.1
+
+## 5.7.0
+
+### Minor Changes
+
+- 469f2f340: Checking for sufficient fees in `AbstractMessageIdAuthHook` and refund surplus
+- d9505ab58: Deploy to apechain, arbitrumnova, b3, fantom, gravity, harmony, kaia, morph, orderly, snaxchain, zeronetwork, zksync. Update default metadata in `HyperlaneCore` to `0x00001` to ensure empty metadata does not break on zksync.
+- 7e9e248be: Add feat to allow updates to destination gas using warp apply
+- 4c0605dca: Add optional proxy admin reuse in warp route deployments and admin proxy ownership transfer in warp apply
+- db9196837: Update default validator sets. Throw in `InterchainAccount.getOrDeployAccount` if the origin router is the zero address.
+- db5875cc2: Add `hyperlane warp verify` to allow post-deployment verification.
+- 956ff752a: Introduce utils that can be reused by the CLI and Infra for fetching token prices from Coingecko and gas prices from EVM/Cosmos chains.
+
+### Patch Changes
+
+- 5dabdf388: Optimize HyperlaneRelayer routing config derivation
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 56328e6e1: Fix ICA ISM self relay
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [04108155d]
+- Updated dependencies [f26453ee5]
+- Updated dependencies [0640f837c]
+- Updated dependencies [a82b4b4cb]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/core@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+
 ## 5.6.2
 
 ### Patch Changes

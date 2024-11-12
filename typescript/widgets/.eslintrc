@@ -1,6 +1,18 @@
 {
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:react/recommended",
+    "plugin:react-hooks/recommended",
+    "prettier"
+  ],
+  "plugins": ["react", "react-hooks", "@typescript-eslint"],
   "rules": {
     // TODO use utils rootLogger in widgets lib
-    "no-console": ["off"]
+    "no-console": ["off"],
+    "react/react-in-jsx-scope": "off",
+    "react/prop-types": "off",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn"
   }
 }
