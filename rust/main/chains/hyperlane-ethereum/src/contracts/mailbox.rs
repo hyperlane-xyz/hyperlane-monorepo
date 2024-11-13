@@ -334,6 +334,7 @@ where
             tx,
             self.provider.clone(),
             &self.conn.transaction_overrides.clone(),
+            &self.domain,
         )
         .await
     }
@@ -382,6 +383,7 @@ where
             call,
             provider: self.provider.clone(),
             transaction_overrides: self.conn.transaction_overrides.clone(),
+            domain: self.domain.clone(),
         }
     }
 }
@@ -418,12 +420,18 @@ pub struct SubmittableBatch<M> {
     pub call: ContractCall<M, Vec<MulticallResult>>,
     provider: Arc<M>,
     transaction_overrides: TransactionOverrides,
+    domain: HyperlaneDomain,
 }
 
 impl<M: Middleware + 'static> SubmittableBatch<M> {
     pub async fn submit(self) -> ChainResult<TxOutcome> {
-        let call_with_gas_overrides =
-            fill_tx_gas_params(self.call, self.provider, &self.transaction_overrides).await?;
+        let call_with_gas_overrides = fill_tx_gas_params(
+            self.call,
+            self.provider,
+            &self.transaction_overrides,
+            &self.domain,
+        )
+        .await?;
         let outcome = report_tx(call_with_gas_overrides).await?;
         Ok(outcome.into())
     }
