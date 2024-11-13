@@ -26,22 +26,26 @@ use crate::{EthereumReorgPeriod, Middleware, TransactionOverrides};
 /// An amount of gas to add to the estimated gas
 pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
 
-pub fn apply_gas_estimate_buffer(gas: U256) -> U256 {
-    gas.saturating_add(GAS_ESTIMATE_BUFFER.into())
-}
-
 // A multiplier to apply to the estimated gas, i.e. 10%.
 pub const GAS_ESTIMATE_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const GAS_ESTIMATE_MULTIPLIER_DENOMINATOR: u32 = 10;
 
-pub fn apply_gas_estimate_multiplier(gas: U256) -> ChainResult<U256> {
-    let amount = gas
-        .saturating_mul(GAS_ESTIMATE_MULTIPLIER_NUMERATOR.into())
-        .checked_div(GAS_ESTIMATE_MULTIPLIER_DENOMINATOR.into())
-        .ok_or_else(|| {
-            ChainCommunicationError::from_other_str("Gas estimate buffer divide by zero")
-        })?;
-    Ok(amount)
+pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
+    // Arbitrum Nitro chains use 2d fees are are especially prone to costs increasing
+    // by the time the transaction lands on chain, requiring a higher gas limit.
+    // In this case, we apply a multiplier to the gas estimate.
+    let gas = if domain.is_arbitrum_nitro() {
+        gas.saturating_mul(GAS_ESTIMATE_MULTIPLIER_NUMERATOR.into())
+            .checked_div(GAS_ESTIMATE_MULTIPLIER_DENOMINATOR.into())
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("Gas estimate buffer divide by zero")
+            })?
+    } else {
+        gas
+    };
+
+    // Always add a flat buffer
+    Ok(gas.saturating_add(GAS_ESTIMATE_BUFFER.into()))
 }
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
@@ -119,13 +123,7 @@ where
         None => tx.estimate_gas().await?.into(),
     };
 
-    if domain.is_arbitrum_nitro() {
-        // Arbitrum Nitro chains use 2d fees are are especially prone to costs increasing
-        // by the time the transaction lands on chain, requiring a higher gas limit.
-        estimated_gas_limit = apply_gas_estimate_multiplier(estimated_gas_limit)?;
-    }
-
-    estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit);
+    estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
     let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
         estimated_gas_limit.max(gas_limit)
     } else {

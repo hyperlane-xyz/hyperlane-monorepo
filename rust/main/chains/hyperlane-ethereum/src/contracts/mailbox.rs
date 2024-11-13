@@ -623,7 +623,10 @@ mod test {
         TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
+    use crate::{
+        contracts::EthereumMailbox, tx::apply_gas_estimate_buffer, ConnectionConf,
+        RpcConnectionConf,
+    };
 
     /// An amount of gas to add to the estimated gas
     const GAS_ESTIMATE_BUFFER: u32 = 75_000;
@@ -658,9 +661,9 @@ mod test {
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet);
         // An Arbitrum Nitro chain
-        let (mailbox, mock_provider) =
-            get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet));
+        let (mailbox, mock_provider) = get_test_mailbox(domain.clone());
 
         let message = HyperlaneMessage::default();
         let metadata: Vec<u8> = vec![];
@@ -704,7 +707,8 @@ mod test {
             .await
             .unwrap();
 
-        // The TxCostEstimate's gas limit includes the buffer
+        // The TxCostEstimate's gas limit includes a multiplier and buffer
+        let estimated_gas_limit = apply_gas_estimate_buffer(gas_limit, &domain);
         let estimated_gas_limit = gas_limit.saturating_add(GAS_ESTIMATE_BUFFER.into());
 
         assert_eq!(
