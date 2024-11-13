@@ -2,4 +2,6 @@
 '@hyperlane-xyz/widgets': minor
 ---
 
-New icons and update modal with new props
+New Icons
+Updated modal with new props
+Updated storybook for modal and icon list
