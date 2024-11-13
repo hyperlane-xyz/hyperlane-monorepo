@@ -298,25 +298,7 @@ where
         &self,
         index_settings: IndexSettings,
     ) -> Result<Box<dyn ContractSyncCursor<T>>> {
-        // Hack for https://discord.com/channels/935678348330434570/1306218631516131400/1306258321292132424
-        // If it's inevm, store a watermark of a recent-ish block to overwrite the super high one
-        // that somehow got in there.
-        if self.domain.id() == 2525 {
-            let watermark = self.db.retrieve_high_watermark().await?;
-            if watermark == Some(18972465) {
-                let new_block = 2006000;
-                tracing::warn!(
-                    ?watermark,
-                    ?new_block,
-                    "Overwriting high watermark for inevm!"
-                );
-                // https://inevm.calderaexplorer.xyz/block/2006000,
-                // at Nov 13 2024 11:35:21 AM (+00:00 UTC)
-                self.db.store_high_watermark(new_block).await?;
-            }
-        }
-
-        let watermark = self.db.retrieve_high_watermark().await?;
+        let watermark = self.db.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
