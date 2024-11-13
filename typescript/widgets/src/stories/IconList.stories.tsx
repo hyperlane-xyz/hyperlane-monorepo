@@ -65,7 +65,6 @@ function IconList({
             height={height}
             direction={ellipsisDirection}
             color={color}
-            className="htw-rounded"
           />
         </IconContainer>
         <IconContainer>
