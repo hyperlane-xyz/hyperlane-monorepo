@@ -139,8 +139,9 @@ export async function prepareDeploy(
       const provider = isDryRun
         ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
         : multiProvider.getProvider(chain);
-      const userAddress = await multiProvider.getSigner(chain).getAddress();
-      const currentBalance = await provider.getBalance(userAddress);
+      const address =
+        userAddress ?? (await multiProvider.getSigner(chain).getAddress());
+      const currentBalance = await provider.getBalance(address);
       initialBalances[chain] = currentBalance;
     }),
   );
@@ -160,8 +161,9 @@ export async function completeDeploy(
     const provider = isDryRun
       ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
       : multiProvider.getProvider(chain);
-    const userAddress = await multiProvider.getSigner(chain).getAddress();
-    const currentBalance = await provider.getBalance(userAddress);
+    const address =
+      userAddress ?? (await multiProvider.getSigner(chain).getAddress());
+    const currentBalance = await provider.getBalance(address);
     const balanceDelta = initialBalances[chain].sub(currentBalance);
     if (isDryRun && balanceDelta.lt(0)) break;
     logPink(

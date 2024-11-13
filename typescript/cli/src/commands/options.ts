@@ -128,13 +128,6 @@ export const chainTargetsCommandOption: Options = {
   alias: 'c',
 };
 
-export const strategyConfigUrlCommandOption: Options = {
-  type: 'string',
-  description: 'A path to a JSON or YAML file with a strategy config.',
-  default: DEFAULT_STRATEGY_CONFIG_PATH,
-  alias: 's',
-};
-
 export const outputFileCommandOption = (
   defaultPath?: string,
   demandOption = false,
@@ -205,6 +198,7 @@ export const strategyCommandOption: Options = {
   type: 'string',
   description: 'The submission strategy input file path.',
   alias: 's',
+  default: DEFAULT_STRATEGY_CONFIG_PATH,
   demandOption: true,
 };
 

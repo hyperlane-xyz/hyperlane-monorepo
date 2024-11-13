@@ -17,8 +17,7 @@ import {
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
-import { readDefaultStrategyConfig } from '../config/strategy.js';
-// import { readDefaultStrategyConfig } from '../config/strategy.js';
+import { readStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -73,7 +72,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   let strategyConfig = {};
   try {
-    strategyConfig = await readDefaultStrategyConfig(argv.strategy);
+    strategyConfig = await readStrategyConfig(argv.strategy);
   } catch (error) {
     strategyConfig = {};
   }

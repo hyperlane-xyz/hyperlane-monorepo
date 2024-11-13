@@ -7,15 +7,13 @@ import {
 import { assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
+import { readWarpRouteDeployConfig } from '../../../config/warp.js';
+import { logRed } from '../../../logger.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
-import {
-  isFile,
-  readYamlOrJson,
-  runFileSelectionStep,
-} from '../../../utils/files.js';
+import { isFile, runFileSelectionStep } from '../../../utils/files.js';
 import { SubmitterContext } from '../submitter/SubmitterContext.js';
 
 import { ChainHandler } from './types.js';
@@ -110,14 +108,10 @@ export class MultiChainHandler implements ChainHandler {
         'warp',
       );
     } else {
-      console.log(`Using warp route deployment config at ${configPath}`);
+      logRed(`Using warp route deployment config at ${configPath}`);
     }
 
-    const warpRouteConfig = readYamlOrJson(configPath);
-    assert(
-      warpRouteConfig,
-      `No warp route deploy config found at ${configPath}`,
-    );
+    const warpRouteConfig = await readWarpRouteDeployConfig(configPath);
 
     const chains = Object.keys(warpRouteConfig) as ChainName[];
     assert(

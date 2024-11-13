@@ -1,34 +1,19 @@
-// import { input, select } from '@inquirer/prompts';
-import { input, select } from '@inquirer/prompts';
-import { ethers } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import {
-  ChainSubmissionStrategy,
-  ChainSubmissionStrategySchema,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
-
+  createStrategyConfig,
+  maskSensitiveData,
+  readStrategyConfig,
+} from '../config/strategy.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
-import {
-  errorRed,
-  log,
-  logBlue,
-  logCommandHeader,
-  logGreen,
-} from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
-import {
-  indentYamlOrJson,
-  readYamlOrJson,
-  writeYamlOrJson,
-} from '../utils/files.js';
+import { log, logCommandHeader } from '../logger.js';
+import { indentYamlOrJson } from '../utils/files.js';
 
 import {
   DEFAULT_STRATEGY_CONFIG_PATH,
   outputFileCommandOption,
+  strategyCommandOption,
 } from './options.js';
 
 /**
@@ -37,171 +22,45 @@ import {
 export const strategyCommand: CommandModule = {
   command: 'strategy',
   describe: 'Manage Hyperlane deployment strategies',
-  builder: (yargs) => yargs.command(init).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(init).command(read).version(false).demandCommand(),
   handler: () => log('Command required'),
 };
 
 export const init: CommandModuleWithWriteContext<{
-  chain: string;
-  config: string;
+  out: string;
 }> = {
   command: 'init',
-  describe: 'Initiates strategy',
+  describe: 'Initiates default strategy configuration',
   builder: {
-    config: outputFileCommandOption(
-      DEFAULT_STRATEGY_CONFIG_PATH,
-      false,
-      'The path to output a Strategy Config JSON or YAML file.',
-    ),
-    type: {
-      type: 'string',
-      description:
-        'Type of submitter (jsonRpc, impersonatedAccount, gnosisSafe, gnosisSafeTxBuilder)',
-    },
-    safeAddress: {
-      type: 'string',
-      description:
-        'Safe address (required for gnosisSafe and gnosisSafeTxBuilder types)',
-    },
-    userAddress: {
-      type: 'string',
-      description: 'User address (required for impersonatedAccount type)',
-    },
+    out: outputFileCommandOption(DEFAULT_STRATEGY_CONFIG_PATH),
   },
-  handler: async ({
-    context,
-    type: inputType,
-    safeAddress: inputSafeAddress,
-    userAddress: inputUserAddress,
-  }) => {
-    logCommandHeader(`Hyperlane Key Init`);
-    let defaultStrategy;
-    try {
-      defaultStrategy = await readYamlOrJson(DEFAULT_STRATEGY_CONFIG_PATH);
-    } catch (e) {
-      defaultStrategy = writeYamlOrJson(
-        DEFAULT_STRATEGY_CONFIG_PATH,
-        {},
-        'yaml',
-      );
-    }
+  handler: async ({ context, out }) => {
+    logCommandHeader(`Hyperlane Strategy Init`);
 
-    const chain = await runSingleChainSelectionStep(context.chainMetadata);
-    const chainProtocol = context.chainMetadata[chain].protocol;
-    assert(chainProtocol === ProtocolType.Ethereum, 'Incompatible protocol');
-
-    // If type wasn't provided via command line, prompt for it
-    const type =
-      inputType ||
-      (await select({
-        message: 'Enter the type of submitter',
-        choices: Object.values(TxSubmitterType).map((value) => ({
-          name: value,
-          value: value,
-        })),
-      }));
-
-    const submitter: any = {
-      type: type,
-    };
-
-    // Configure submitter based on type
-    switch (type) {
-      case TxSubmitterType.JSON_RPC:
-        submitter.privateKey = await input({
-          message: 'Enter your private key',
-          validate: (pk) => isValidPrivateKey(pk),
-        });
-        submitter.chain = chain;
-        break;
-
-      case TxSubmitterType.IMPERSONATED_ACCOUNT:
-        submitter.userAddress =
-          inputUserAddress ||
-          (await input({
-            message: 'Enter the user address to impersonate',
-            validate: (address) => {
-              try {
-                return ethers.utils.isAddress(address)
-                  ? true
-                  : 'Invalid Ethereum address';
-              } catch {
-                return 'Invalid Ethereum address';
-              }
-            },
-          }));
-        assert(
-          submitter.userAddress,
-          'User address is required for impersonated account',
-        );
-        break;
-
-      case TxSubmitterType.GNOSIS_SAFE:
-      case TxSubmitterType.GNOSIS_TX_BUILDER:
-        submitter.safeAddress =
-          inputSafeAddress ||
-          (await input({
-            message: 'Enter the Safe address',
-            validate: (address) => {
-              try {
-                return ethers.utils.isAddress(address)
-                  ? true
-                  : 'Invalid Safe address';
-              } catch {
-                return 'Invalid Safe address';
-              }
-            },
-          }));
-        assert(
-          submitter.safeAddress,
-          'Safe address is required for Gnosis Safe',
-        );
-        submitter.chain = chain;
-
-        if (type === TxSubmitterType.GNOSIS_TX_BUILDER) {
-          submitter.version = await input({
-            message: 'Enter the Safe version (default: 1.0)',
-            default: '1.0',
-          });
-        }
-        break;
-
-      default:
-        throw new Error(`Unsupported submitter type: ${type}`);
-    }
-
-    const result: ChainSubmissionStrategy = {
-      ...defaultStrategy, // if there are changes in ChainSubmissionStrategy, the defaultStrategy may no longer be compatible
-      [chain]: {
-        submitter: submitter,
-      },
-    };
-
-    try {
-      const strategyConfig = ChainSubmissionStrategySchema.parse(result);
-      logBlue(
-        `Strategy config is valid, writing to file ${DEFAULT_STRATEGY_CONFIG_PATH}:\n`,
-      );
-      log(indentYamlOrJson(yamlStringify(strategyConfig, null, 2), 4));
-
-      writeYamlOrJson(DEFAULT_STRATEGY_CONFIG_PATH, strategyConfig);
-      logGreen('✅ Successfully created new key config.');
-    } catch (e) {
-      errorRed(
-        `Key config is invalid, please check the submitter configuration.`,
-      );
-      throw e;
-    }
+    await createStrategyConfig({
+      context,
+      outPath: out,
+    });
     process.exit(0);
   },
 };
 
-function isValidPrivateKey(privateKey: string): boolean {
-  try {
-    // Attempt to create a Wallet instance with the private key
-    const wallet = new ethers.Wallet(privateKey);
-    return wallet.privateKey === privateKey;
-  } catch (error) {
-    return false;
-  }
-}
+export const read: CommandModuleWithWriteContext<{
+  strategy: string;
+}> = {
+  command: 'read',
+  describe: 'Reads strategy configuration',
+  builder: {
+    strategy: { ...strategyCommandOption, demandOption: true },
+  },
+  handler: async ({ strategy: strategyUrl }) => {
+    logCommandHeader(`Hyperlane Strategy Read`);
+
+    const strategy = await readStrategyConfig(strategyUrl);
+    const maskedConfig = maskSensitiveData(strategy);
+    log(indentYamlOrJson(yamlStringify(maskedConfig, null, 2), 4));
+
+    process.exit(0);
+  },
+};
