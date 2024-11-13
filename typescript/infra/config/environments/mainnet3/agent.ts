@@ -331,14 +331,6 @@ const contextBase = {
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [
-      // Some intermittent issues indexing IGPs, see
-      // https://discord.com/channels/935678348330434570/1306218631516131400/1306224479046729840
-      ...warpRouteMatchingList(WarpRouteIds.InevmInjectiveINJ),
-    ],
-  },
-  {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
