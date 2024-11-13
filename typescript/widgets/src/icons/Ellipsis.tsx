@@ -4,18 +4,27 @@ import { ColorPalette } from '../color.js';
 
 import { DefaultIconProps } from './types.js';
 
-function _ThreeDotsIcon({
+type Props = DefaultIconProps & {
+  direction?: 'horizontal' | 'vertical';
+};
+
+function _EllipsisIcon({
   color = ColorPalette.Black,
   width = 24,
   height = 6,
+  direction = 'horizontal',
+  className,
   ...rest
-}: DefaultIconProps) {
+}: Props) {
   return (
     <svg
       width={width}
       height={height}
       viewBox="0 0 24 6"
       xmlns="http://www.w3.org/2000/svg"
+      className={`${
+        direction === 'vertical' ? 'htw-rotate-90' : ''
+      } ${className}`}
       {...rest}
     >
       <path
@@ -26,4 +35,4 @@ function _ThreeDotsIcon({
   );
 }
 
-export const ThreeDotsIcon = memo(_ThreeDotsIcon);
+export const EllipsisIcon = memo(_EllipsisIcon);
