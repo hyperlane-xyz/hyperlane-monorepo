@@ -364,11 +364,14 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   fraxtal: {
-    threshold: 2,
+    threshold: 4,
     validators: [
       '0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1',
-      '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
-      '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91', // luganodes
+      '0x0d4c1394a255568ec0ecd11795B28D1BdA183Ca4', // tessellated (superlane)
+      '0x1c3C3013B863Cf666499Da1A61949AE396E3Ab82', // enigma (superlane)
+      '0x573e960e07ad74ea2c5f1e3c31b2055994b12797', // imperator (superlane)
+      '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3', // bware (superlane)
+      '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91', // luganodes (superlane)
     ],
   },
 
