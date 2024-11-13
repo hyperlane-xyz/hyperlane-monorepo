@@ -19,5 +19,6 @@ export function stubMerkleTreeConfig(
       },
     },
     ism: {},
+    backlog: [],
   });
 }
