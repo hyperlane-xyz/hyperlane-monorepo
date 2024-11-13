@@ -33,10 +33,10 @@ export class ErrorBoundary extends Component<Props, State> {
       const details = errorToString(errorInfo, 1000);
       return (
         <div className="htw-flex htw-h-screen htw-w-screen htw-items-center htw-justify-center htw-bg-gray-50">
-          <div className="htw-flex htw-flex-col htw-items-center">
+          <div className="htw-flex htw-flex-col htw-items-center htw-space-y-5">
             <ErrorIcon width={80} height={80} />
-            <h1 className="htw-mt-5 htw-text-lg">Fatal Error Occurred</h1>
-            <div className="htw-mt-5 htw-max-w-2xl htw-text-sm">{details}</div>
+            <h1 className="htw-text-lg">Fatal Error Occurred</h1>
+            <div className="htw-max-w-2xl htw-text-sm">{details}</div>
             {this.props.supportLink}
           </div>
         </div>
