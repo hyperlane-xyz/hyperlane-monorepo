@@ -350,11 +350,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   flowmainnet: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       '0xe132235c958ca1f3f24d772e5970dd58da4c0f6e',
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
+      '0x14ADB9e3598c395Fe3290f3ba706C3816Aa78F59', // flow foundation
     ],
   },
 
