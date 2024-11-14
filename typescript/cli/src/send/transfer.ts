@@ -92,8 +92,12 @@ async function executeDelivery({
   const { multiProvider, registry } = context;
 
   const signer = multiProvider.getSigner(origin);
+  const recipientSigner = multiProvider.getSigner(destination);
+
+  const recipientAddress = await recipientSigner.getAddress();
   const signerAddress = await signer.getAddress();
-  recipient ||= signerAddress;
+
+  recipient ||= recipientAddress;
 
   const chainAddresses = await registry.getAddresses();
 
@@ -124,7 +128,7 @@ async function executeDelivery({
   const errors = await warpCore.validateTransfer({
     originTokenAmount: token.amount(amount),
     destination,
-    recipient: recipient ?? signerAddress,
+    recipient,
     sender: signerAddress,
   });
   if (errors) {
@@ -137,7 +141,7 @@ async function executeDelivery({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
     sender: signerAddress,
-    recipient: recipient ?? signerAddress,
+    recipient,
   });
 
   const txReceipts = [];

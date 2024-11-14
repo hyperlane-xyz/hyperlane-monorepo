@@ -1,12 +1,6 @@
-import {
-  ChainName,
-  ChainSubmissionStrategy,
-  MultiProvider,
-  TxSubmitterType,
-} from '@hyperlane-xyz/sdk';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { runSingleChainSelectionStep } from '../../../utils/chains.js';
-import { SubmitterContext } from '../submitter/SubmitterContext.js';
 
 import { ChainHandler } from './types.js';
 
@@ -31,36 +25,5 @@ export class SingleChainHandler implements ChainHandler {
       ));
 
     return [argv.chain]; // Explicitly return as single-item array
-  }
-
-  /**
-   * @dev Hardcoded: JSON_RPC as the transaction submitter type
-   */
-  createSubmitterContext(
-    chains: ChainName[],
-    strategyConfig: ChainSubmissionStrategy,
-    argv?: Record<string, any>,
-  ): SubmitterContext {
-    return new SubmitterContext(
-      strategyConfig,
-      chains,
-      TxSubmitterType.JSON_RPC,
-      argv,
-    );
-  }
-
-  /**
-   * @notice Sets up signers for the specified chain in the MultiProvider
-   * @dev Sets up signers for single chain
-   */
-  async configureSigners(
-    argv: Record<string, any>,
-    multiProvider: MultiProvider,
-    submitterContext: SubmitterContext,
-  ): Promise<void> {
-    const signers = await submitterContext.getSigners();
-    multiProvider.setSigners(signers);
-    argv.context.multiProvider = multiProvider;
-    argv.submitterContext = submitterContext;
   }
 }

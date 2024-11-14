@@ -26,27 +26,35 @@ import {
 export async function readStrategyConfig(
   filePath: string,
 ): Promise<ChainSubmissionStrategy> {
-  log(`Reading file configs in ${filePath}`);
+  try {
+    log(`Reading file configs in ${filePath}`);
+    const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(filePath);
 
-  const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(filePath);
+    // Check if config exists and is a non-empty object
+    if (!strategyConfig || typeof strategyConfig !== 'object') {
+      logBlue(
+        `No strategy config found in ${filePath}, returning empty config`,
+      );
+      return {};
+    }
 
-  if (
-    !strategyConfig ||
-    typeof strategyConfig !== 'object' ||
-    !Object.keys(strategyConfig).length
-  ) {
-    errorRed(`No strategy configs found in ${filePath}`);
-    process.exit(1);
+    // Validate against schema
+    const parseResult = ChainSubmissionStrategySchema.safeParse(strategyConfig);
+    if (!parseResult.success) {
+      errorRed(`Strategy config validation failed for ${filePath}`);
+      errorRed(JSON.stringify(parseResult.error.errors, null, 2));
+      throw new Error('Invalid strategy configuration');
+    }
+
+    return strategyConfig;
+  } catch (error) {
+    if (error instanceof Error) {
+      errorRed(`Error reading strategy config: ${error.message}`);
+    } else {
+      errorRed('Unknown error reading strategy config');
+    }
+    throw error; // Re-throw to let caller handle the error
   }
-
-  const parseResult = ChainSubmissionStrategySchema.safeParse(strategyConfig);
-
-  if (!parseResult.success) {
-    errorRed(`Strategy config for ${filePath} is invalid!`);
-    errorRed(JSON.stringify(parseResult.error.errors));
-    process.exit(1);
-  }
-  return strategyConfig;
 }
 
 export async function createStrategyConfig({
@@ -103,7 +111,7 @@ export async function createStrategyConfig({
 
       submitter.userAddress = await new Wallet(
         submitter.privateKey,
-      ).getAddress();
+      ).getAddress(); // EVM
 
       submitter.chain = chain;
       break;
@@ -177,6 +185,7 @@ export async function createStrategyConfig({
   }
 }
 
+// TODO: put in utils
 // New utility function to mask sensitive data
 export function maskPrivateKey(key: string): string {
   if (!key) return key;

@@ -12,7 +12,9 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ChainSubmissionStrategy,
   MultiProvider,
+  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -25,7 +27,8 @@ import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner } from '../utils/keys.js';
 
-import { ChainCommandHandler } from './strategies/chain/ChainCommandHandler.js';
+import { ChainInterceptor } from './strategies/chain/ChainInterceptor.js';
+import { SubmitterContext } from './strategies/submitter/SubmitterContext.js';
 import {
   CommandContext,
   ContextSettings,
@@ -58,40 +61,48 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { requiresKey, multiProvider } = argv.context;
+  const { key, context } = argv;
+  const { requiresKey, multiProvider } = context;
 
   if (!requiresKey) return argv;
 
-  // Select the appropriate signing strategy based on the provided hyperlane command
-  // e.g command `core deploy` uses SingleChainHandler
-  const chainHandler = ChainCommandHandler.getHandler(argv);
-
-  // Determine the chains that will be used for signing based on the selected strategy
-  // e.g. SingleChainHandler extracts jsonRpc private key from strategyConfig else prompts user private key input
-  const chains = await chainHandler.determineChains(argv);
-
-  let strategyConfig = {};
+  let strategyConfig: ChainSubmissionStrategy = {};
   try {
     strategyConfig = await readStrategyConfig(argv.strategy);
-  } catch (error) {
+  } catch (e) {
     strategyConfig = {};
   }
 
-  // Creates a submitter context for the signer, which manages the signing context for the specified chains
-  // default: TxSubmitterType.JSON_RPC
-  const signerSubmitterContext = chainHandler.createSubmitterContext(
-    chains,
+  /**
+   * @notice  Select the appropriate chain strategy based on the hyperlane command
+   * @dev   e.g command `core deploy` uses SingleChainHandler
+   */
+  const chainStrategy = ChainInterceptor.getStrategy(argv);
+
+  /**
+   * @notice Determines chains that are used in createSignerContext based on the chain strategy
+   * @dev  e.g. SingleChainHandler extracts chains from CLI or prompts the user to select the chain
+   * @dev  e.g. MultiChainHandler.forOriginDestination() extracts origin/destination from CLI or prompts the user to select origin/destination
+   */
+  const chains = await chainStrategy.determineChains(argv);
+
+  /**
+   * @notice  Extracts private keys from strategyConfig else prompts user private key input
+   */
+
+  const signerStrategy = new SubmitterContext(
     strategyConfig,
-    argv,
+    chains,
+    TxSubmitterType.JSON_RPC,
+    multiProvider,
+    key,
   );
 
-  // Configure the signers using the selected strategy, multiProvider, and submitter context
-  // manipulates argv values
-  await chainHandler.configureSigners(
-    argv,
-    multiProvider,
-    signerSubmitterContext,
-  );
+  /**
+   * @notice  Configure the signers using the selected strategy, multiProvider, and signer context
+   */
+  const MultiProviderWithSigners = await signerStrategy.configureSigners();
+  argv.multiProvider = MultiProviderWithSigners;
 
   return argv;
 }

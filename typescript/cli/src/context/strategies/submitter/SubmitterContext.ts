@@ -1,10 +1,12 @@
-import { Signer } from 'ethers';
+import { Signer, Wallet } from 'ethers';
 
 import {
   ChainName,
   ChainSubmissionStrategy,
+  MultiProvider,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../../../utils/env.js';
 
@@ -27,7 +29,8 @@ export class SubmitterContext {
     strategyConfig: ChainSubmissionStrategy,
     private chains: ChainName[],
     submitterType: TxSubmitterType,
-    private argv?: Record<string, any>,
+    private multiProvider: MultiProvider,
+    private key?: string,
   ) {
     this.strategy = SubmitterStrategyFactory.createStrategy(
       submitterType,
@@ -46,7 +49,7 @@ export class SubmitterContext {
 
     for (const chain of this.chains) {
       const privateKey =
-        this.argv?.key ?? // argv.key overrides strategy private key
+        this?.key ?? // argv.key overrides strategy private key
         (await this.strategy.getPrivateKey(chain)) ??
         ENV.HYP_KEY; // argv.key and ENV.HYP_KEY for backwards compatibility
 
@@ -64,6 +67,7 @@ export class SubmitterContext {
    * @return A record mapping chain names to their corresponding Signer objects.
    */
   async getSigners(): Promise<Record<ChainName, Signer>> {
+    this.strategy;
     const chainKeys = await this.getChainKeys();
     return Object.fromEntries(
       chainKeys.map(({ chainName, privateKey }) => [
@@ -71,5 +75,31 @@ export class SubmitterContext {
         this.strategy.getSigner(privateKey),
       ]),
     );
+  }
+
+  async configureSigners(): Promise<MultiProvider> {
+    for (const chain of this.chains) {
+      const protocol = this.multiProvider.getChainMetadata(chain).protocol;
+      const signer = await this.getSignerForChain(chain, protocol);
+      this.multiProvider.setSigner(chain, signer);
+    }
+
+    return this.multiProvider;
+  }
+
+  async getSignerForChain(
+    chain: ChainName,
+    protocol: ProtocolType,
+  ): Promise<any> {
+    const privateKey =
+      this?.key ?? // argv.key overrides strategy private key
+      ENV.HYP_KEY ?? // ENV.HYP_KEY overrides strategy/prompt to enter pk
+      (await this.strategy.getPrivateKey(chain));
+    switch (protocol) {
+      case ProtocolType.Ethereum:
+        return new Wallet(privateKey);
+      default:
+        throw new Error(`Unsupported protocol: ${protocol}`);
+    }
   }
 }

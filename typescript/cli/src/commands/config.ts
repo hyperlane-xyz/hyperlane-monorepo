@@ -80,7 +80,7 @@ const validateIsmAdvancedCommand: CommandModuleWithContext<{ path: string }> = {
 
 const validateStrategyCommand: CommandModuleWithContext<{ path: string }> = {
   command: 'strategy',
-  describe: 'Validate a Strategy config file',
+  describe: 'Validates a Strategy config file',
   builder: {
     path: inputFileCommandOption(),
   },

@@ -11,21 +11,23 @@ enum CommandType {
   SEND_MESSAGE = 'send:message',
   AGENT_KURTOSIS = 'deploy:kurtosis-agents',
   STATUS = 'status:',
+  SUBMIT = 'submit:',
 }
 
-export class ChainCommandHandler {
+export class ChainInterceptor {
   private static strategyMap: Map<CommandType, () => ChainHandler> = new Map([
     [CommandType.CORE_APPLY, () => new SingleChainHandler()],
-    [CommandType.WARP_DEPLOY, () => MultiChainHandler.forWarpConfig()],
+    [CommandType.WARP_DEPLOY, () => MultiChainHandler.forWarpRouteConfig()],
     [CommandType.WARP_SEND, () => MultiChainHandler.forOriginDestination()],
-    [CommandType.WARP_APPLY, () => MultiChainHandler.forWarpConfig()],
-    [CommandType.WARP_READ, () => new SingleChainHandler()],
+    [CommandType.WARP_APPLY, () => MultiChainHandler.forWarpRouteConfig()],
+    [CommandType.WARP_READ, () => MultiChainHandler.forWarpCoreConfig()],
     [CommandType.SEND_MESSAGE, () => MultiChainHandler.forOriginDestination()],
     [CommandType.AGENT_KURTOSIS, () => MultiChainHandler.forAgentKurtosis()],
     [CommandType.STATUS, () => MultiChainHandler.forOriginDestination()],
+    [CommandType.SUBMIT, () => MultiChainHandler.forStrategyConfig()],
   ]);
 
-  static getHandler(argv: Record<string, any>): ChainHandler {
+  static getStrategy(argv: Record<string, any>): ChainHandler {
     const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim() as CommandType;
     const createStrategy =
       this.strategyMap.get(commandKey) || (() => new SingleChainHandler());

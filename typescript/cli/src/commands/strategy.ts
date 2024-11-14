@@ -31,7 +31,7 @@ export const init: CommandModuleWithWriteContext<{
   out: string;
 }> = {
   command: 'init',
-  describe: 'Initiates default strategy configuration',
+  describe: 'Creates strategy configuration',
   builder: {
     out: outputFileCommandOption(DEFAULT_STRATEGY_CONFIG_PATH),
   },

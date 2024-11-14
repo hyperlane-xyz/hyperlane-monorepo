@@ -7,6 +7,7 @@ import type {
   ChainMetadata,
   ChainName,
   MultiProvider,
+  WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
@@ -28,6 +29,7 @@ export interface CommandContext {
   key?: string;
   signer?: ethers.Signer;
   chains?: ChainName[];
+  warpCoreConfig?: WarpCoreConfig;
 }
 
 export interface WriteCommandContext extends CommandContext {

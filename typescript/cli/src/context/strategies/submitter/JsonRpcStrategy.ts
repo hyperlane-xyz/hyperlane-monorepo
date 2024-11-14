@@ -1,7 +1,6 @@
 import { password } from '@inquirer/prompts';
 
-import { TxSubmitterType } from '@hyperlane-xyz/sdk';
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, TxSubmitterType } from '@hyperlane-xyz/sdk';
 
 import { BaseSubmitterStrategy } from './SubmitterStrategy.js';
 
