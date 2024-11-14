@@ -184,7 +184,7 @@ impl SealevelInterchainGasPaymasterIndexer {
             block_hash: H256::zero(),
             transaction_id: H512::zero(),
             transaction_index: 0,
-            log_index: U256::zero(),
+            log_index: sequence_number.into(),
         };
 
         Ok(SealevelGasPayment::new(
