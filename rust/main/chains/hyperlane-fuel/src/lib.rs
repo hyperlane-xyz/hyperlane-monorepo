@@ -1,9 +1,6 @@
-//! Implementation of hyperlane for fuel.
-
+//! Implementation of Hyperlane for Fuel.
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
-// TODO: Remove once we start filling things in
-#![allow(unused_variables)]
 
 pub use self::{
     aggregation_ism::*, indexer::*, interchain_gas::*, interchain_security_module::*, mailbox::*,

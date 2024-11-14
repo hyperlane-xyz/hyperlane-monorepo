@@ -21,8 +21,6 @@ use std::{
     ops::{Deref, RangeInclusive},
 };
 
-// TODO, clippy issues
-
 /// A Fuel Indexer supporting a specific event type.
 /// The generic `E` is the type of the event this indexer will be filtering and parsing.
 ///
@@ -69,7 +67,6 @@ where
         let contract_address = Bech32ContractId::from_h256(&locator.address);
 
         let decoder = E::log_decoder(contract_address.clone(), wallet);
-        let fn_decoder = decoder.clone();
 
         Self {
             fuel_provider,
@@ -91,7 +88,7 @@ where
     {
         let (block_cursor, transaction_cursor) = self.get_sync_cursors(&range).await?;
 
-        let (transaction_amount, transaction_map) = self
+        let transaction_map = self
             .get_block_data(range.clone(), block_cursor.clone())
             .await?;
 
@@ -175,7 +172,6 @@ where
 
     /// Check if a transaction is from a contract
     /// @note: Only works for checking script transactions
-    #[allow(clippy::get_first)]
     fn is_transaction_from_contract(&self, res: &TransactionResponse) -> bool {
         if let TransactionType::Script(script_transaction) = &res.transaction {
             if script_transaction.inputs().iter().any(|input| {
@@ -210,13 +206,13 @@ where
 
         let mut transaction_data = Vec::new();
         for (tx_data, tx_id) in transactions.results.iter().zip(transaction_ids) {
-            transaction_data.push((tx_id.clone(), tx_data.clone()));
+            transaction_data.push((tx_id, tx_data.clone()));
         }
 
         let filtered_transactions = transaction_data
             .into_iter()
             .filter(|(_, tx_data)| {
-                self.is_transaction_from_contract(&tx_data) && self.has_event(tx_data)
+                self.is_transaction_from_contract(tx_data) && self.has_event(tx_data)
             })
             .collect::<Vec<_>>();
 
@@ -227,7 +223,7 @@ where
         &self,
         range: RangeInclusive<u32>,
         cursor: Option<String>,
-    ) -> ChainResult<(i32, HashMap<Bytes32, (Bytes32, u64)>)> {
+    ) -> ChainResult<HashMap<Bytes32, (Bytes32, u64)>> {
         let result_amount: u32 = range.end() - range.start();
         let req = PaginationRequest {
             cursor,
@@ -243,23 +239,17 @@ where
             .map_err(ChainCommunicationError::from_other)?;
 
         let mut transaction_map: HashMap<Bytes32, (Bytes32, u64)> = HashMap::new();
-        blocks.results.iter().for_each(|block| {
+        blocks.results.into_iter().for_each(|block| {
             block
                 .transactions
-                .iter()
+                .into_iter()
                 .enumerate()
                 .for_each(|(index, tx)| {
-                    transaction_map.insert(tx.clone(), (block.id, index as u64));
+                    transaction_map.insert(tx, (block.id, index as u64));
                 });
         });
 
-        let transaction_amount = blocks
-            .results
-            .iter()
-            .fold(0, |acc: usize, block| acc + block.transactions.len())
-            as i32;
-
-        Ok((transaction_amount, transaction_map))
+        Ok(transaction_map)
     }
 
     async fn get_sync_cursors(
@@ -297,11 +287,11 @@ where
         };
 
         let hex_block = hex::encode(range_start.to_be_bytes());
-        let hex_tx = hex::encode(first_transaction.to_vec());
+        let hex_tx = hex::encode(first_transaction);
 
         let tx_cursor = Some(format!("{}#0x{}", hex_block, hex_tx));
         let block_cursor = Some(range_start.to_string());
 
-        return Ok((block_cursor, tx_cursor));
+        Ok((block_cursor, tx_cursor))
     }
 }

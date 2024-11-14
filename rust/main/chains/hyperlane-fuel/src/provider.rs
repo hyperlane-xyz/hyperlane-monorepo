@@ -70,13 +70,12 @@ impl HyperlaneChain for FuelProvider {
 #[async_trait]
 impl HyperlaneProvider for FuelProvider {
     /// Used by scraper
-    #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
         let block_res = self
             .provider
             .block(&hash.0.into())
             .await
-            .map_err(|_| HyperlaneProviderError::CouldNotFindObjectByHash(hash.clone()))?;
+            .map_err(|_| HyperlaneProviderError::CouldNotFindObjectByHash(*hash))?;
 
         match block_res {
             Some(block) => Ok(BlockInfo {
@@ -84,19 +83,17 @@ impl HyperlaneProvider for FuelProvider {
                 number: block.header.height.into(),
                 timestamp: block.header.time.map_or(0, |t| t.timestamp() as u64),
             }),
-            None => Err(ChainCommunicationError::BlockNotFound(hash.clone())),
+            None => Err(ChainCommunicationError::BlockNotFound(*hash)),
         }
     }
 
     /// Used by scraper
-    #[allow(clippy::clone_on_copy)] // TODO: `rustc` 1.80.1 clippy issue
-    #[allow(clippy::match_like_matches_macro)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
         let transaction_res = self
             .provider
             .get_transaction_by_id(&hash.0.into())
             .await
-            .map_err(|_| HyperlaneProviderError::CouldNotFindObjectByHash(hash.clone()))?;
+            .map_err(|_| HyperlaneProviderError::CouldNotFindObjectByHash(*hash))?;
 
         match transaction_res {
             Some(transaction) => {
@@ -115,10 +112,9 @@ impl HyperlaneProvider for FuelProvider {
 
                 let (sender, recipient, nonce) = match transaction.status {
                     TxStatus::Success { receipts } => {
-                        let valid_receipt = receipts.into_iter().find(|receipt| match receipt {
-                            Receipt::MessageOut { .. } => true,
-                            _ => false,
-                        });
+                        let valid_receipt = receipts
+                            .into_iter()
+                            .find(|receipt| matches!(receipt, Receipt::MessageOut { .. }));
 
                         match valid_receipt {
                             Some(Receipt::MessageOut {
@@ -145,7 +141,7 @@ impl HyperlaneProvider for FuelProvider {
                 };
 
                 Ok(TxnInfo {
-                    hash: hash.clone(),
+                    hash: *hash,
                     gas_limit: gas_limit.into(),
                     max_priority_fee_per_gas: None,
                     max_fee_per_gas: None,

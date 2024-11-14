@@ -232,9 +232,8 @@ impl Mailbox for FuelMailbox {
         })
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        // Seems like this is not needed for Fuel, as it's only used in mocks
-        todo!()
+    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
+        todo!() // not required
     }
 }
 
@@ -284,7 +283,7 @@ impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
 impl Indexer<H256> for FuelMailboxIndexer {
     async fn fetch_logs_in_range(
         &self,
-        range: RangeInclusive<u32>,
+        _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         todo!() // Needed for scraper
     }
@@ -306,7 +305,6 @@ impl SequenceAwareIndexer<H256> for FuelMailboxIndexer {
 
 #[async_trait]
 impl SequenceAwareIndexer<HyperlaneMessage> for FuelMailboxIndexer {
-    #[allow(clippy::unnecessary_cast)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 

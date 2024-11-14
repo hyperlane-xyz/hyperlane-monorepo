@@ -68,9 +68,7 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
     ) -> ChainResult<Vec<Vec<String>>> {
         self.contract
             .methods()
-            .get_announced_storage_locations(
-                validators.iter().map(|v| Bits256::from_h256(v)).collect(),
-            )
+            .get_announced_storage_locations(validators.iter().map(Bits256::from_h256).collect())
             .simulate(Execution::StateReadOnly)
             .await
             .map(|res| res.value)
