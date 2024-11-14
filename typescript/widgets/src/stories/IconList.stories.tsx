@@ -11,8 +11,12 @@ interface StoryIconProps {
   rounded?: boolean;
 }
 
+const excludedComponents = ['IconButton', 'EllipsisIcon'];
+
 const iconList = Object.entries(Hyperlane)
-  .filter(([name]) => name.includes('Icon') && !name.includes('IconButton'))
+  .filter(
+    ([name]) => name.includes('Icon') && !excludedComponents.includes(name),
+  )
   .map(([_, Component]) => Component as React.ComponentType<StoryIconProps>);
 
 function IconList({
@@ -22,6 +26,7 @@ function IconList({
   direction,
   bgColorSeed,
   roundedWideChevron,
+  ellipsisDirection,
 }: {
   width: number;
   height: number;
@@ -29,6 +34,7 @@ function IconList({
   direction: 'n' | 'e' | 's' | 'w';
   bgColorSeed: number | undefined;
   roundedWideChevron: boolean;
+  ellipsisDirection: 'vertical' | 'horizontal';
 }) {
   return (
     <>
@@ -52,6 +58,15 @@ function IconList({
             />
           </IconContainer>
         ))}
+        <IconContainer>
+          <span>EllipsisIcon</span>
+          <Hyperlane.EllipsisIcon
+            width={width}
+            height={height}
+            direction={ellipsisDirection}
+            color={color}
+          />
+        </IconContainer>
         <IconContainer>
           <span>Circle</span>
           <Hyperlane.Circle size={width} bgColorSeed={bgColorSeed} />
@@ -85,6 +100,10 @@ const meta = {
       options: ['n', 'e', 's', 'w'],
       control: { type: 'select' },
     },
+    ellipsisDirection: {
+      options: ['horizontal', 'vertical'],
+      control: { type: 'select' },
+    },
   },
 } satisfies Meta<typeof IconList>;
 export default meta;
@@ -98,5 +117,6 @@ export const DefaultIconList = {
     direction: 's',
     bgColorSeed: 0,
     roundedWideChevron: false,
+    ellipsisDirection: 'horizontal',
   },
 } satisfies Story;
