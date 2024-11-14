@@ -8,10 +8,7 @@ use fuels::{
     prelude::{Bech32ContractId, WalletUnlocked},
     programs::calls::Execution,
     tx::{Receipt, ScriptExecutionResult},
-    types::{
-        transaction::TxPolicies, transaction_builders::VariableOutputPolicy,
-        transaction_response::TransactionResponse, Bytes, Bytes32,
-    },
+    types::{transaction::TxPolicies, transaction_builders::VariableOutputPolicy, Bytes},
 };
 use hyperlane_core::{
     utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,

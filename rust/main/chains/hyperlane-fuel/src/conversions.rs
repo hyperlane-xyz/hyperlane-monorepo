@@ -1,6 +1,5 @@
-use hyperlane_core::{ModuleType, H160, H256};
-
 use fuels::types::{Bits256, EvmAddress};
+use hyperlane_core::{ModuleType, H160, H256};
 
 /// Wrapper around the Fuel ModuleType enum.
 pub struct IsmType(pub crate::contracts::interchain_security_module::ModuleType);
@@ -11,8 +10,9 @@ pub trait FromBits256Array {
     fn into_h256_array(self) -> [H256; 32];
 }
 
-impl FromBits256Array for [Bits256; 32] {
+impl FromBits256Array for Vec<Bits256> {
     fn into_h256_array(self) -> [H256; 32] {
+        assert!(self.len() == 32);
         let mut h256_array: [H256; 32] = [H256::zero(); 32];
         for (i, bits256) in self.iter().enumerate() {
             h256_array[i] = H256::from(bits256.0);

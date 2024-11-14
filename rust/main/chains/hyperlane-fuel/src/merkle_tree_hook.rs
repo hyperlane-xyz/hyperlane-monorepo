@@ -7,17 +7,17 @@ use crate::{
 };
 use async_trait::async_trait;
 use fuels::{
-    accounts::wallet::WalletUnlocked,
-    programs::calls::Execution,
-    types::{bech32::Bech32ContractId, transaction_response::TransactionResponse, Bytes32},
+    accounts::wallet::WalletUnlocked, programs::calls::Execution, types::bech32::Bech32ContractId,
 };
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
     Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
-    U256,
 };
 use std::{num::NonZeroU64, ops::RangeInclusive};
+
+/// Smart contract level enforced finality
+const ENFORCED_FINALITY: u8 = 1;
 
 /// A reference to a AggregationIsm contract on some Fuel chain
 #[derive(Debug)]
@@ -46,15 +46,15 @@ impl FuelMerkleTreeHook {
         })
     }
 
-    /// TODO this is inaccurate, fix this
-    /// Simulate lag on call
-    /// Since we have no way of querying point in time data, we can only simulate lag
-    /// by sleeping for the lag amount of time. As lag is usually 1 based on the re-org
-    /// we would normally sleep for 1 second.
-    async fn simulate_lag(&self, lag: Option<NonZeroU64>) {
-        if let Some(lag) = lag {
-            tokio::time::sleep(std::time::Duration::from_secs(lag.get())).await;
-        }
+    /// Asserts the lag
+    /// The lag or re-org of FuelVM should be set to 1, as it is the solf finality
+    /// Also, since we cannot query point in time, the lag is built into the contract code
+    fn assert_lag(&self, lag: Option<NonZeroU64>) {
+        assert!(
+            lag.is_some_and(|lag| lag.get() == ENFORCED_FINALITY as u64),
+            "FuelVM lag should always be {:?}",
+            ENFORCED_FINALITY
+        );
     }
 }
 
@@ -77,7 +77,7 @@ impl HyperlaneChain for FuelMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for FuelMerkleTreeHook {
     async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        self.simulate_lag(lag).await;
+        self.assert_lag(lag);
 
         self.contract
             .methods()
@@ -95,7 +95,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
     }
 
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        self.simulate_lag(lag).await;
+        self.assert_lag(lag);
 
         self.contract
             .methods()
@@ -107,7 +107,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
     }
 
     async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        self.simulate_lag(lag).await;
+        self.assert_lag(lag);
 
         self.contract
             .methods()
@@ -174,15 +174,6 @@ impl Indexer<MerkleTreeInsertion> for FuelMerkleTreeHookIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for FuelMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO make sure the block is finalized, somehow
-        // Could make a function in sway that checks the stored last count update,
-        // if the last count update is the current block, then we return count-1 and block-1
-        // else we return count and block
-        // this would mess up if there are mutiple count updates per block
-        // in that case we can store the amount of updates per block as well
-
-        // TODO: for block numbers we an just sub the lag from the block number
-
         self.contract
             .methods()
             .count_and_block()

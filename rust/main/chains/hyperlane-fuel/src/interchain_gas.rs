@@ -1,19 +1,17 @@
-use crate::contracts::interchain_gas_paymaster::GasPaymentEvent;
 use crate::{
-    contracts::interchain_gas_paymaster::InterchainGasPaymaster as InterchainGasPaymasterContract,
-    conversions::*, FuelProvider,
+    contracts::interchain_gas_paymaster::{
+        GasPaymentEvent, InterchainGasPaymaster as InterchainGasPaymasterContract,
+    },
+    conversions::*,
+    ConnectionConf, FuelIndexer, FuelProvider,
 };
-use crate::{ConnectionConf, FuelIndexer};
 use async_trait::async_trait;
-use fuels::accounts::wallet::WalletUnlocked;
-use fuels::types::bech32::Bech32ContractId;
-use fuels::types::transaction_response::TransactionResponse;
-use fuels::types::Bytes32;
+use fuels::{accounts::wallet::WalletUnlocked, types::bech32::Bech32ContractId};
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, Indexed, Indexer,
-    InterchainGasPaymaster, SequenceAwareIndexer, U256,
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    SequenceAwareIndexer, H256,
 };
-use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, InterchainGasPayment, LogMeta, H256};
 use std::ops::RangeInclusive;
 
 /// A reference to an IGP contract on some Fuel chain
