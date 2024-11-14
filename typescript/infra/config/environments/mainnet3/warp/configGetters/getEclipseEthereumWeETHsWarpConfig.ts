@@ -23,7 +23,6 @@ export async function getEclipseEthereumWeEthsWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> {
-  console.log('routerConfig', routerConfig);
   const eclipsemainnet: TokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     ...getOwnerConfigForAddress(eclipseOwner),
@@ -40,8 +39,6 @@ export async function getEclipseEthereumWeEthsWarpConfig(
     token: tokens.ethereum.weETHs,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
-
-  console.log('ethereum?', ethereum);
 
   return {
     eclipsemainnet,

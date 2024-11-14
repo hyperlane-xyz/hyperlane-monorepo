@@ -21,11 +21,10 @@ export const getArbitrumNeutronEclipWarpConfig = async (
   const neutronRouter =
     '6b04c49fcfd98bc4ea9c05cd5790462a39537c00028333474aebe6ddf20b73a3';
 
-  // @ts-ignore - foreignDeployment configs dont conform to the TokenRouterConfig
-  // TODO come back here
   const neutron: TokenRouterConfig = {
     ...routerConfig.neutron,
     ...getOwnerConfigForAddress(neutronOwner),
+    type: TokenType.collateral,
     foreignDeployment: neutronRouter,
   };
 
