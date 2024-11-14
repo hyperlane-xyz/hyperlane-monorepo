@@ -707,9 +707,8 @@ mod test {
             .await
             .unwrap();
 
-        // The TxCostEstimate's gas limit includes a multiplier and buffer
+        // The TxCostEstimate's gas limit includes a buffer
         let estimated_gas_limit = apply_gas_estimate_buffer(gas_limit, &domain);
-        let estimated_gas_limit = gas_limit.saturating_add(GAS_ESTIMATE_BUFFER.into());
 
         assert_eq!(
             tx_cost_estimate,
