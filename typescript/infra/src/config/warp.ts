@@ -23,7 +23,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
 
 export type RouterConfigWithoutOwner = Omit<RouterConfig, keyof OwnableConfig>;
 
-export function getNonAbacusWorksOwnerConfig(owner: string): OwnableConfig {
+export function getOwnerConfigForAddress(owner: string): OwnableConfig {
   return {
     owner,
     ownerOverrides: {},

@@ -11,7 +11,7 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 export const getEthereumVictionETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const ismConfig = buildAggregationIsmConfigs(
     'ethereum',
@@ -21,7 +21,7 @@ export const getEthereumVictionETHWarpConfig = async (
 
   const viction: TokenRouterConfig = {
     ...routerConfig.viction,
-    ...abacusWorksOwnerConfig.viction,
+    ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
     name: 'ETH',
     symbol: 'ETH',
@@ -32,7 +32,7 @@ export const getEthereumVictionETHWarpConfig = async (
 
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...abacusWorksOwnerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.native,
     gas: 65_000,
     interchainSecurityModule: ismConfig,

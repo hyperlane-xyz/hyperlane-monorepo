@@ -7,16 +7,16 @@ import {
 
 import {
   RouterConfigWithoutOwner,
-  getNonAbacusWorksOwnerConfig,
+  getOwnerConfigForAddress,
 } from '../../../../../src/config/warp.js';
 
 // Lumia Team
 const owner = '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863';
-const ownerConfig = getNonAbacusWorksOwnerConfig(owner);
+const ownerConfig = getOwnerConfigForAddress(owner);
 
 export const getEthereumBscLUMIAWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,

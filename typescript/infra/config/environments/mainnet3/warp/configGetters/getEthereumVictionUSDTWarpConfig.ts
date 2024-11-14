@@ -14,7 +14,7 @@ import {
 
 export const getEthereumVictionUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const ismConfig = buildAggregationIsmConfigs(
     'ethereum',
@@ -24,7 +24,7 @@ export const getEthereumVictionUSDTWarpConfig = async (
 
   const viction: TokenRouterConfig = {
     ...routerConfig.viction,
-    ...abacusWorksOwnerConfig.viction,
+    ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
     name: 'USDT',
     symbol: 'USDT',
@@ -35,7 +35,7 @@ export const getEthereumVictionUSDTWarpConfig = async (
 
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...abacusWorksOwnerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDT,
     gas: 65_000,

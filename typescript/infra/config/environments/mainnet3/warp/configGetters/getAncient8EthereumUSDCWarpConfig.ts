@@ -16,7 +16,7 @@ import {
 
 export const getAncient8EthereumUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const ismConfig = buildAggregationIsmConfigs(
     'ethereum',
@@ -26,7 +26,7 @@ export const getAncient8EthereumUSDCWarpConfig = async (
 
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...abacusWorksOwnerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
     interchainSecurityModule: ismConfig,
@@ -38,7 +38,7 @@ export const getAncient8EthereumUSDCWarpConfig = async (
 
   const ancient8: TokenRouterConfig = {
     ...routerConfig.ancient8,
-    ...abacusWorksOwnerConfig.ancient8,
+    ...abacusWorksEnvOwnerConfig.ancient8,
     type: TokenType.synthetic,
     // Uses the default ISM
     interchainSecurityModule: ethers.constants.AddressZero,

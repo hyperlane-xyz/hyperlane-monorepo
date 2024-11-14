@@ -9,7 +9,7 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 export const getArbitrumNeutronTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const neutronRouter =
     '910926c4cf95d107237a9cf0b3305fe9c81351ebcba3d218ceb0e4935d92ceac';
@@ -17,13 +17,13 @@ export const getArbitrumNeutronTiaWarpConfig = async (
   // @ts-ignore fix todo
   const neutron: TokenRouterConfig = {
     ...routerConfig.neutron,
-    ...abacusWorksOwnerConfig.neutron,
+    ...abacusWorksEnvOwnerConfig.neutron,
     foreignDeployment: neutronRouter,
   };
 
   const arbitrum: TokenRouterConfig = {
     ...routerConfig.arbitrum,
-    ...abacusWorksOwnerConfig.arbitrum,
+    ...abacusWorksEnvOwnerConfig.arbitrum,
     type: TokenType.synthetic,
     name: 'TIA',
     symbol: 'TIA.n',

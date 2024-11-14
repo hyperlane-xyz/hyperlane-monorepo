@@ -7,16 +7,16 @@ import {
 
 import {
   RouterConfigWithoutOwner,
-  getNonAbacusWorksOwnerConfig,
+  getOwnerConfigForAddress,
 } from '../../../../../src/config/warp.js';
 
 export const getEclipseStrideStTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const eclipsemainnet: TokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
-    ...abacusWorksOwnerConfig.eclipsemainnet,
+    ...abacusWorksEnvOwnerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'tKUHyJ5NxhnwU94JUmzh1ekukDcHHX8mZF6fqxbMwX6',
     gas: 300_000,
@@ -24,7 +24,7 @@ export const getEclipseStrideStTiaWarpConfig = async (
 
   const stride: TokenRouterConfig = {
     ...routerConfig.stride,
-    ...getNonAbacusWorksOwnerConfig('TODO'),
+    ...getOwnerConfigForAddress('TODO'),
     type: TokenType.collateral,
     foreignDeployment:
       'stride134axwdlam929m3mar3wv95nvkyep7mr87ravkqcpf8dfe3v0pjlqwrw6ee',

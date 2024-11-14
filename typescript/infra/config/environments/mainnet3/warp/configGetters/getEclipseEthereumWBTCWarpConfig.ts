@@ -14,11 +14,11 @@ import {
 
 export const getEclipseEthereumWBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const eclipsemainnet: TokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
-    ...abacusWorksOwnerConfig.eclipsemainnet,
+    ...abacusWorksEnvOwnerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'A7EGCDYFw5R7Jfm6cYtKvY8dmkrYMgwRCJFkyQwpHTYu',
     gas: 300_000,
@@ -27,7 +27,7 @@ export const getEclipseEthereumWBTCWarpConfig = async (
 
   let ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...abacusWorksOwnerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.WBTC,
     interchainSecurityModule: ethers.constants.AddressZero,

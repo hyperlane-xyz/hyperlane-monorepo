@@ -9,17 +9,17 @@ import {
 
 import {
   RouterConfigWithoutOwner,
-  getNonAbacusWorksOwnerConfig,
+  getOwnerConfigForAddress,
   tokens,
 } from '../../../../../src/config/warp.js';
 
 // Elixir
 const owner = '0x00000000F51340906F767C6999Fe512b1275955C';
-const ownerConfig = getNonAbacusWorksOwnerConfig(owner);
+const ownerConfig = getOwnerConfigForAddress(owner);
 
 export const getEthereumSeiFastUSDWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const sei: TokenRouterConfig = {
     ...routerConfig.viction,

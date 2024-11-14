@@ -10,7 +10,7 @@ import {
 
 import {
   RouterConfigWithoutOwner,
-  getNonAbacusWorksOwnerConfig,
+  getOwnerConfigForAddress,
   tokens,
 } from '../../../../../src/config/warp.js';
 
@@ -21,12 +21,12 @@ const eclipseOwner = '4Cj1s2ipALjJk9foQV4oDaZYCZwSsVkAShQL1KFVJG9b';
 
 export async function getEclipseEthereumWeEthsWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> {
   console.log('routerConfig', routerConfig);
   const eclipsemainnet: TokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
-    ...getNonAbacusWorksOwnerConfig(eclipseOwner),
+    ...getOwnerConfigForAddress(eclipseOwner),
     type: TokenType.synthetic,
     foreignDeployment: '7Zx4wU1QAw98MfvnPFqRh1oyumek7G5VAX6TKB3U1tcn',
     gas: 300_000,
@@ -35,7 +35,7 @@ export async function getEclipseEthereumWeEthsWarpConfig(
 
   let ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...getNonAbacusWorksOwnerConfig(ethereumOwner),
+    ...getOwnerConfigForAddress(ethereumOwner),
     type: TokenType.collateral,
     token: tokens.ethereum.weETHs,
     interchainSecurityModule: ethers.constants.AddressZero,

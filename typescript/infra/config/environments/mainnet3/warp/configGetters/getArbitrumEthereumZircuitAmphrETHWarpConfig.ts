@@ -9,7 +9,7 @@ import {
 
 import {
   RouterConfigWithoutOwner,
-  getNonAbacusWorksOwnerConfig,
+  getOwnerConfigForAddress,
   tokens,
 } from '../../../../../src/config/warp.js';
 
@@ -20,18 +20,18 @@ const zircuitOwner = '0xD0673e7F3FB4037CA79F53d2d311D0e017d39963';
 
 export const getArbitrumEthereumZircuitAmphrETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const arbitrum: TokenRouterConfig = {
     ...routerConfig.arbitrum,
-    ...getNonAbacusWorksOwnerConfig(arbitrumOwner),
+    ...getOwnerConfigForAddress(arbitrumOwner),
     type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...getNonAbacusWorksOwnerConfig(ethereumOwner),
+    ...getOwnerConfigForAddress(ethereumOwner),
     type: TokenType.collateral,
     token: tokens.ethereum.amphrETH,
     owner: ethereumOwner,
@@ -43,7 +43,7 @@ export const getArbitrumEthereumZircuitAmphrETHWarpConfig = async (
 
   const zircuit: TokenRouterConfig = {
     ...routerConfig.zircuit,
-    ...getNonAbacusWorksOwnerConfig(zircuitOwner),
+    ...getOwnerConfigForAddress(zircuitOwner),
     type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };

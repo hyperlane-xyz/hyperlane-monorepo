@@ -8,7 +8,7 @@ import {
 
 import {
   RouterConfigWithoutOwner,
-  getNonAbacusWorksOwnerConfig,
+  getOwnerConfigForAddress,
 } from '../../../../../src/config/warp.js';
 
 // Eclipse Fi team
@@ -18,7 +18,7 @@ const neutronOwner = 'TODO';
 
 export const getArbitrumNeutronEclipWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  _abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const neutronRouter =
     '6b04c49fcfd98bc4ea9c05cd5790462a39537c00028333474aebe6ddf20b73a3';
@@ -27,13 +27,13 @@ export const getArbitrumNeutronEclipWarpConfig = async (
   // TODO come back here
   const neutron: TokenRouterConfig = {
     ...routerConfig.neutron,
-    ...getNonAbacusWorksOwnerConfig(neutronOwner),
+    ...getOwnerConfigForAddress(neutronOwner),
     foreignDeployment: neutronRouter,
   };
 
   const arbitrum: TokenRouterConfig = {
     ...routerConfig.arbitrum,
-    ...getNonAbacusWorksOwnerConfig(arbitrumOwner),
+    ...getOwnerConfigForAddress(arbitrumOwner),
     type: TokenType.synthetic,
     name: 'Eclipse Fi',
     symbol: 'ECLIP',

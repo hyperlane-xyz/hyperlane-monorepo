@@ -14,11 +14,11 @@ import {
 
 export const getEclipseEthereumSolanaUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const eclipsemainnet: TokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
-    ...abacusWorksOwnerConfig.eclipsemainnet,
+    ...abacusWorksEnvOwnerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: '5g5ujyYUNvdydwyDVCpZwPpgYRqH5RYJRi156cxyE3me',
     gas: 300_000,
@@ -26,7 +26,7 @@ export const getEclipseEthereumSolanaUSDTWarpConfig = async (
   };
   let ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...abacusWorksOwnerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDT,
     interchainSecurityModule: ethers.constants.AddressZero,

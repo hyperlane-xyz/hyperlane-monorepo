@@ -36,7 +36,7 @@ import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 
 type WarpConfigGetter = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ) => Promise<ChainMap<TokenRouterConfig>>;
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
@@ -80,7 +80,7 @@ export async function getWarpConfig(
     return configWithoutOwner;
   });
   // Isolate the owners from the router config
-  const abacusWorksOwnerConfig = objMap(routerConfig, (_chain, config) => {
+  const abacusWorksEnvOwnerConfig = objMap(routerConfig, (_chain, config) => {
     const { owner, ownerOverrides } = config;
     return {
       owner,
@@ -97,5 +97,5 @@ export async function getWarpConfig(
     );
   }
 
-  return warpConfigGetter(routerConfigWithoutOwner, abacusWorksOwnerConfig);
+  return warpConfigGetter(routerConfigWithoutOwner, abacusWorksEnvOwnerConfig);
 }

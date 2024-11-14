@@ -9,20 +9,20 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 export const getInevmInjectiveINJWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const injectiveRouter = 'inj1mv9tjvkaw7x8w8y9vds8pkfq46g2vcfkjehc6k';
 
   const injective: TokenRouterConfig = {
     ...routerConfig.injective,
-    ...abacusWorksOwnerConfig.injective,
+    ...abacusWorksEnvOwnerConfig.injective,
     type: TokenType.native,
     foreignDeployment: injectiveRouter,
   };
 
   const inevm: TokenRouterConfig = {
     ...routerConfig.inevm,
-    ...abacusWorksOwnerConfig.inevm,
+    ...abacusWorksEnvOwnerConfig.inevm,
     type: TokenType.native,
   };
 
