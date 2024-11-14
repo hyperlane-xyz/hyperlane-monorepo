@@ -24,4 +24,8 @@ export enum WarpRouteIds {
   EthereumBscLumiaLUMIA = 'LUMIA/bsc-ethereum-lumia',
   InevmInjectiveINJ = 'INJ/inevm-injective',
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
+  BaseZeroNetworkCBBTC = 'CBBTC/base-zeronetwork',
+  ArbitrumBscEthereumMantleModePolygonScrollZeroNetworkUSDT = 'USDT/arbitrum-bsc-ethereum-mantle-mode-polygon-scroll-zeronetwork',
+  ArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-optimism-polygon-zeronetwork',
+  ArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
 }

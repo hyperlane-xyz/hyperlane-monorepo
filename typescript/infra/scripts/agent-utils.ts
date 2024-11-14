@@ -1,11 +1,7 @@
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
-import {
-  ChainAddresses,
-  IRegistry,
-  warpConfigToWarpAddresses,
-} from '@hyperlane-xyz/registry';
+import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
