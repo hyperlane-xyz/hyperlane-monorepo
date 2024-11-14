@@ -14,6 +14,7 @@ export enum WarpRouteIds {
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
   EclipseStrideSTTIA = 'stTIA/eclipsemainnet-stride',
   EclipseStrideTIA = 'TIA/eclipsemainnet-stride',
+  EthereumFlowCbBTC = 'cbBTC/ethereum-flowmainnet',
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
   EthereumSeiFastUSD = 'FASTUSD/ethereum-sei',

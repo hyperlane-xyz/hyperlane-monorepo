@@ -12,41 +12,33 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { DEPLOYER } from '../../owners.js';
 
-// MEV Capital
-const arbitrumOwner = '0x008615770B588633265cB01Abd19740fAe67d0B9';
-const ethereumOwner = '0x008615770B588633265cB01Abd19740fAe67d0B9';
-const zircuitOwner = '0xD0673e7F3FB4037CA79F53d2d311D0e017d39963';
+// Keep on our deployer for now until we get an address from Flow
+const owner = DEPLOYER;
+const ownerConfig = getOwnerConfigForAddress(owner);
 
-export const getArbitrumEthereumZircuitAmphrETHWarpConfig = async (
+export const getEthereumFlowCbBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  const arbitrum: TokenRouterConfig = {
-    ...routerConfig.arbitrum,
-    ...getOwnerConfigForAddress(arbitrumOwner),
-    type: TokenType.synthetic,
-    interchainSecurityModule: ethers.constants.AddressZero,
-  };
-
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...getOwnerConfigForAddress(ethereumOwner),
+    ...ownerConfig,
     type: TokenType.collateral,
-    token: tokens.ethereum.amphrETH,
+    token: tokens.ethereum.cbBTC,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  const zircuit: TokenRouterConfig = {
-    ...routerConfig.zircuit,
-    ...getOwnerConfigForAddress(zircuitOwner),
+  const flowmainnet: TokenRouterConfig = {
+    ...routerConfig.flowmainnet,
+    ...ownerConfig,
     type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   return {
-    arbitrum,
     ethereum,
-    zircuit,
+    flowmainnet,
   };
 };

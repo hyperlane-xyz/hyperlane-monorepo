@@ -25,6 +25,7 @@ export const getArbitrumNeutronEclipWarpConfig = async (
     ...routerConfig.neutron,
     ...getOwnerConfigForAddress(neutronOwner),
     type: TokenType.collateral,
+    token: 'TODO',
     foreignDeployment: neutronRouter,
   };
 
