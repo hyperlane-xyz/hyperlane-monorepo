@@ -628,9 +628,6 @@ mod test {
         RpcConnectionConf,
     };
 
-    /// An amount of gas to add to the estimated gas
-    const GAS_ESTIMATE_BUFFER: u32 = 75_000;
-
     fn get_test_mailbox(
         domain: HyperlaneDomain,
     ) -> (
@@ -708,7 +705,7 @@ mod test {
             .unwrap();
 
         // The TxCostEstimate's gas limit includes a buffer
-        let estimated_gas_limit = apply_gas_estimate_buffer(gas_limit, &domain);
+        let estimated_gas_limit = apply_gas_estimate_buffer(gas_limit, &domain).unwrap();
 
         assert_eq!(
             tx_cost_estimate,
