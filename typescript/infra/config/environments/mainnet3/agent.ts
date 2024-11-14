@@ -330,13 +330,13 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
-  {
-    type: GasPaymentEnforcementPolicyType.None,
-    matchingList: [
-      { originDomain: getDomainId('solanamainnet') },
-      { originDomain: getDomainId('eclipsemainnet') },
-    ],
-  },
+  // {
+  //   type: GasPaymentEnforcementPolicyType.None,
+  //   matchingList: [
+  //     { originDomain: getDomainId('solanamainnet') },
+  //     { originDomain: getDomainId('eclipsemainnet') },
+  //   ],
+  // },
   {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
@@ -416,7 +416,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '00633fd-20241114-124627',
+      tag: '7f916fa-20241114-155234',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
