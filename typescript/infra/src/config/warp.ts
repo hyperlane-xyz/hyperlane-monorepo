@@ -1,4 +1,9 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  OwnableConfig,
+  RouterConfig,
+  TokenRouterConfig,
+} from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 // Common collateral tokens to be used by warp route deployments.
@@ -15,3 +20,12 @@ export const tokens: ChainMap<Record<string, Address>> = {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
   },
 };
+
+export type RouterConfigWithoutOwner = Omit<RouterConfig, keyof OwnableConfig>;
+
+export function getNonAbacusWorksOwnerConfig(owner: string): OwnableConfig {
+  return {
+    owner,
+    ownerOverrides: {},
+  };
+}

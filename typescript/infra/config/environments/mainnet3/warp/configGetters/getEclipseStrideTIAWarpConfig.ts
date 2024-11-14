@@ -1,15 +1,22 @@
 import {
   ChainMap,
-  RouterConfig,
+  OwnableConfig,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
+import {
+  RouterConfigWithoutOwner,
+  getNonAbacusWorksOwnerConfig,
+} from '../../../../../src/config/warp.js';
+
 export const getEclipseStrideStTiaWarpConfig = async (
-  routerConfig: ChainMap<RouterConfig>,
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const eclipsemainnet: TokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
+    ...abacusWorksOwnerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'tKUHyJ5NxhnwU94JUmzh1ekukDcHHX8mZF6fqxbMwX6',
     gas: 300_000,
@@ -17,6 +24,7 @@ export const getEclipseStrideStTiaWarpConfig = async (
 
   const stride: TokenRouterConfig = {
     ...routerConfig.stride,
+    ...getNonAbacusWorksOwnerConfig('TODO'),
     type: TokenType.collateral,
     foreignDeployment:
       'stride134axwdlam929m3mar3wv95nvkyep7mr87ravkqcpf8dfe3v0pjlqwrw6ee',
