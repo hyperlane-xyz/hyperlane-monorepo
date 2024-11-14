@@ -214,7 +214,7 @@ impl MetricsUpdater {
         let chain_metrics = match self.provider.get_chain_metrics().await {
             Ok(Some(chain_metrics)) => chain_metrics,
             Err(err) => {
-                trace!(chain, ?err, "Failed to get chain metrics");
+                warn!(chain, ?err, "Failed to get chain metrics");
                 return;
             }
             _ => {

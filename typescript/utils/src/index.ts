@@ -120,6 +120,7 @@ export {
   objMapEntries,
   objMerge,
   objOmit,
+  objOmitKeys,
   pick,
   promiseObjAll,
   stringifyObject,

@@ -60,9 +60,10 @@ export async function hyperlaneWarpSendRelay(
   origin: string,
   destination: string,
   warpCorePath: string,
+  relay = true,
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
-        --relay \
+        ${relay ? '--relay' : ''} \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
         --origin ${origin} \
