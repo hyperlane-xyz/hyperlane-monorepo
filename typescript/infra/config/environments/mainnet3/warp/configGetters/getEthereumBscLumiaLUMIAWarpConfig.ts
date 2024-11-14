@@ -5,10 +5,8 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-import {
-  RouterConfigWithoutOwner,
-  getOwnerConfigForAddress,
-} from '../../../../../src/config/warp.js';
+import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 // Lumia Team
 const owner = '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863';

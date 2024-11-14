@@ -5,10 +5,8 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-import {
-  RouterConfigWithoutOwner,
-  getOwnerConfigForAddress,
-} from '../../../../../src/config/warp.js';
+import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 export const getEclipseStrideStTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

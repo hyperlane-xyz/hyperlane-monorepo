@@ -6,10 +6,8 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-import {
-  RouterConfigWithoutOwner,
-  getOwnerConfigForAddress,
-} from '../../../../../src/config/warp.js';
+import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 // Eclipse Fi team
 const arbitrumOwner = '0xfF07222cb0AC905304d6586Aabf13f497C07F0C8';

@@ -7,9 +7,9 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
+import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
 import {
   RouterConfigWithoutOwner,
-  getOwnerConfigForAddress,
   tokens,
 } from '../../../../../src/config/warp.js';
 
