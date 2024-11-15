@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.105",
+    "amount": "0.078",
     "decimals": 9
   },
   "flame": {
@@ -36,11 +36,11 @@
     "decimals": 9
   },
   "b3": {
-    "amount": "0.001000252",
+    "amount": "0.001000254",
     "decimals": 9
   },
   "base": {
-    "amount": "0.010198987",
+    "amount": "0.004893247",
     "decimals": 9
   },
   "bitlayer": {
@@ -48,7 +48,7 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.005065432",
+    "amount": "0.005018176",
     "decimals": 9
   },
   "bob": {
@@ -96,7 +96,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "13.154482028",
+    "amount": "15.0",
     "decimals": 9
   },
   "everclear": {
@@ -104,7 +104,7 @@
     "decimals": 9
   },
   "fantom": {
-    "amount": "6.313597562",
+    "amount": "6.971582929",
     "decimals": 9
   },
   "flare": {
@@ -112,7 +112,7 @@
     "decimals": 9
   },
   "flowmainnet": {
-    "amount": "0.0000001",
+    "amount": "0.1",
     "decimals": 9
   },
   "fraxtal": {
@@ -124,7 +124,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "1.500000008",
+    "amount": "1.500000007",
     "decimals": 9
   },
   "gravity": {
@@ -136,7 +136,7 @@
     "decimals": 9
   },
   "immutablezkevmmainnet": {
-    "amount": "10.000000051",
+    "amount": "10.000000056",
     "decimals": 9
   },
   "inevm": {
@@ -156,7 +156,7 @@
     "decimals": 9
   },
   "linea": {
-    "amount": "0.327116635",
+    "amount": "0.160485013",
     "decimals": 9
   },
   "lisk": {
@@ -164,7 +164,7 @@
     "decimals": 9
   },
   "lukso": {
-    "amount": "0.323509518",
+    "amount": "0.475094399",
     "decimals": 9
   },
   "lumia": {
@@ -172,7 +172,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.003000426",
+    "amount": "0.003001158",
     "decimals": 9
   },
   "mantle": {
@@ -208,7 +208,7 @@
     "decimals": 9
   },
   "morph": {
-    "amount": "0.201",
+    "amount": "0.002",
     "decimals": 9
   },
   "neutron": {
@@ -220,7 +220,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.001000638",
+    "amount": "0.001010111",
     "decimals": 9
   },
   "orderly": {
@@ -232,11 +232,11 @@
     "decimals": 1
   },
   "polygon": {
-    "amount": "36.937366533",
+    "amount": "47.07124319",
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "0.217",
+    "amount": "0.146",
     "decimals": 9
   },
   "polynomialfi": {
@@ -312,7 +312,7 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001000279",
+    "amount": "0.00100025",
     "decimals": 9
   },
   "xai": {
@@ -320,7 +320,7 @@
     "decimals": 9
   },
   "xlayer": {
-    "amount": "10.982428125",
+    "amount": "7.04",
     "decimals": 9
   },
   "zeronetwork": {
@@ -340,7 +340,7 @@
     "decimals": 9
   },
   "zoramainnet": {
-    "amount": "0.001000252",
+    "amount": "0.001000269",
     "decimals": 9
   }
 }

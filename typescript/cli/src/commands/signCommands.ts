@@ -7,6 +7,7 @@ export const SIGN_COMMANDS = [
   'send',
   'status',
   'submit',
+  'relayer',
   'read',
 ];
 
