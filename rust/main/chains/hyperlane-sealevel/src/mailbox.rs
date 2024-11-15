@@ -716,13 +716,24 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
-        let log_meta = self
-            .dispatch_message_log_meta(
-                U256::from(nonce),
-                &valid_message_storage_pda_pubkey,
-                &dispatched_message_account.slot,
-            )
-            .await?;
+        // let log_meta = self
+        //     .dispatch_message_log_meta(
+        //         U256::from(nonce),
+        //         &valid_message_storage_pda_pubkey,
+        //         &dispatched_message_account.slot,
+        //     )
+        //     .await?;
+
+        let log_meta = LogMeta {
+            address: self.program_id.to_bytes().into(),
+            block_number: dispatched_message_account.slot,
+            // TODO: get these when building out scraper support.
+            // It's inconvenient to get these :|
+            block_hash: H256::zero(),
+            transaction_id: H512::zero(),
+            transaction_index: 0,
+            log_index: U256::zero(),
+        };
 
         Ok((hyperlane_message.into(), log_meta))
     }
@@ -741,7 +752,7 @@ impl SealevelMailboxIndexer {
         Ok(expected_pubkey)
     }
 
-    async fn dispatch_message_log_meta(
+    async fn _dispatch_message_log_meta(
         &self,
         log_index: U256,
         message_storage_pda_pubkey: &Pubkey,
@@ -798,13 +809,24 @@ impl SealevelMailboxIndexer {
             .into_inner();
         let message_id = delivered_message_account.message_id;
 
-        let log_meta = self
-            .delivered_message_log_meta(
-                U256::from(nonce),
-                &valid_message_storage_pda_pubkey,
-                &delivered_message_account.slot,
-            )
-            .await?;
+        // let log_meta = self
+        //     .delivered_message_log_meta(
+        //         U256::from(nonce),
+        //         &valid_message_storage_pda_pubkey,
+        //         &delivered_message_account.slot,
+        //     )
+        //     .await?;
+
+        let log_meta = LogMeta {
+            address: self.program_id.to_bytes().into(),
+            block_number: delivered_message_account.slot,
+            // TODO: get these when building out scraper support.
+            // It's inconvenient to get these :|
+            block_hash: H256::zero(),
+            transaction_id: H512::zero(),
+            transaction_index: 0,
+            log_index: U256::zero(),
+        };
 
         Ok((message_id.into(), log_meta))
     }
@@ -821,7 +843,7 @@ impl SealevelMailboxIndexer {
         Ok(expected_pubkey)
     }
 
-    async fn delivered_message_log_meta(
+    async fn _delivered_message_log_meta(
         &self,
         log_index: U256,
         message_storage_pda_pubkey: &Pubkey,

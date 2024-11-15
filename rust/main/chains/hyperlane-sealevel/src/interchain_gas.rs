@@ -12,7 +12,7 @@ use tracing::{info, instrument};
 use hyperlane_core::{
     config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, U256,
+    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H256, H512, U256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
@@ -91,7 +91,7 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 pub struct SealevelInterchainGasPaymasterIndexer {
     rpc_client: SealevelRpcClient,
     igp: SealevelInterchainGasPaymaster,
-    log_meta_composer: LogMetaComposer,
+    _log_meta_composer: LogMetaComposer,
 }
 
 /// IGP payment data on Sealevel
@@ -122,7 +122,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         Ok(Self {
             rpc_client,
             igp,
-            log_meta_composer,
+            _log_meta_composer: log_meta_composer,
         })
     }
 
@@ -168,13 +168,24 @@ impl SealevelInterchainGasPaymasterIndexer {
             gas_amount: gas_payment_account.gas_amount.into(),
         };
 
-        let log_meta = self
-            .interchain_payment_log_meta(
-                U256::from(sequence_number),
-                &valid_payment_pda_pubkey,
-                &gas_payment_account.slot,
-            )
-            .await?;
+        // let log_meta = self
+        //     .interchain_payment_log_meta(
+        //         U256::from(sequence_number),
+        //         &valid_payment_pda_pubkey,
+        //         &gas_payment_account.slot,
+        //     )
+        //     .await?;
+
+        let log_meta = LogMeta {
+            address: self.igp.program_id.to_bytes().into(),
+            block_number: gas_payment_account.slot,
+            // TODO: get these when building out scraper support.
+            // It's inconvenient to get these :|
+            block_hash: H256::zero(),
+            transaction_id: H512::zero(),
+            transaction_index: 0,
+            log_index: sequence_number.into(),
+        };
 
         Ok(SealevelGasPayment::new(
             Indexed::new(igp_payment).with_sequence(
@@ -185,19 +196,6 @@ impl SealevelInterchainGasPaymasterIndexer {
             log_meta,
             H256::from(gas_payment_account.igp.to_bytes()),
         ))
-    }
-
-    async fn interchain_payment_log_meta(
-        &self,
-        log_index: U256,
-        payment_pda_pubkey: &Pubkey,
-        payment_pda_slot: &Slot,
-    ) -> ChainResult<LogMeta> {
-        let block = self.rpc_client.get_block(*payment_pda_slot).await?;
-
-        self.log_meta_composer
-            .log_meta(block, log_index, payment_pda_pubkey, payment_pda_slot)
-            .map_err(Into::<ChainCommunicationError>::into)
     }
 
     fn interchain_payment_account(&self, account: &Account) -> ChainResult<Pubkey> {
@@ -212,6 +210,19 @@ impl SealevelInterchainGasPaymasterIndexer {
             )
         })?;
         Ok(expected_pubkey)
+    }
+
+    async fn _interchain_payment_log_meta(
+        &self,
+        log_index: U256,
+        payment_pda_pubkey: &Pubkey,
+        payment_pda_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
+        let block = self.rpc_client.get_block(*payment_pda_slot).await?;
+
+        self._log_meta_composer
+            .log_meta(block, log_index, payment_pda_pubkey, payment_pda_slot)
+            .map_err(Into::<ChainCommunicationError>::into)
     }
 }
 
