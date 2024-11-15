@@ -439,6 +439,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "stride",
+        token: "STRD",
+        domain: 745,
+        chain_id: 745,
+        is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "cosmostest99990",
         token: "OSMO",
         domain: 99990,
@@ -482,7 +490,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Domain::TimeUpdated).timestamp().not_null())
                     .col(ColumnDef::new(Domain::Name).text().not_null())
                     .col(ColumnDef::new(Domain::NativeToken).text().not_null())
-                    .col(ColumnDef::new(Domain::ChainId).big_unsigned().unique_key())
+                    .col(ColumnDef::new(Domain::ChainId).big_unsigned())
                     .col(ColumnDef::new(Domain::IsTestNet).boolean().not_null())
                     .col(ColumnDef::new(Domain::IsDeprecated).boolean().not_null())
                     .to_owned(),

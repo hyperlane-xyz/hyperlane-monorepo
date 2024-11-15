@@ -87,12 +87,12 @@ impl HyperlaneRocksDB {
         dispatched_block_number: u64,
     ) -> DbResult<bool> {
         if let Ok(Some(_)) = self.retrieve_message_id_by_nonce(&message.nonce) {
-            trace!(msg=?message, "Message already stored in db");
+            trace!(hyp_message=?message, "Message already stored in db");
             return Ok(false);
         }
 
         let id = message.id();
-        debug!(msg=?message,  "Storing new message in db",);
+        debug!(hyp_message=?message,  "Storing new message in db",);
 
         // - `id` --> `message`
         self.store_message_by_id(&id, message)?;

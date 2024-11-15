@@ -83,6 +83,7 @@ itertools = "*"
 jobserver = "=0.1.26"
 jsonrpc-core = "18.0"
 k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
+lazy_static = "1.5.0"
 log = "0.4"
 macro_rules_attribute = "0.2"
 maplit = "1.0"

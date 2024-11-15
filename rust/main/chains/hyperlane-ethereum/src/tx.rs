@@ -1,4 +1,3 @@
-use std::num::NonZeroU64;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,16 +15,37 @@ use ethers_core::{
         EIP1559_FEE_ESTIMATION_REWARD_PERCENTILE,
     },
 };
-use hyperlane_core::{utils::bytes_to_hex, ChainCommunicationError, ChainResult, H256, U256};
+use hyperlane_core::{
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, HyperlaneDomain, ReorgPeriod, H256,
+    U256,
+};
 use tracing::{debug, error, info, warn};
 
-use crate::{Middleware, TransactionOverrides};
+use crate::{EthereumReorgPeriod, Middleware, TransactionOverrides};
 
 /// An amount of gas to add to the estimated gas
 pub const GAS_ESTIMATE_BUFFER: u32 = 75_000;
 
-pub fn apply_gas_estimate_buffer(gas: U256) -> U256 {
-    gas.saturating_add(GAS_ESTIMATE_BUFFER.into())
+// A multiplier to apply to the estimated gas, i.e. 10%.
+pub const GAS_ESTIMATE_MULTIPLIER_NUMERATOR: u32 = 11;
+pub const GAS_ESTIMATE_MULTIPLIER_DENOMINATOR: u32 = 10;
+
+pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
+    // Arbitrum Nitro chains use 2d fees are are especially prone to costs increasing
+    // by the time the transaction lands on chain, requiring a higher gas limit.
+    // In this case, we apply a multiplier to the gas estimate.
+    let gas = if domain.is_arbitrum_nitro() {
+        gas.saturating_mul(GAS_ESTIMATE_MULTIPLIER_NUMERATOR.into())
+            .checked_div(GAS_ESTIMATE_MULTIPLIER_DENOMINATOR.into())
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str("Gas estimate buffer divide by zero")
+            })?
+    } else {
+        gas
+    };
+
+    // Always add a flat buffer
+    Ok(gas.saturating_add(GAS_ESTIMATE_BUFFER.into()))
 }
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
@@ -91,17 +111,19 @@ pub(crate) async fn fill_tx_gas_params<M, D>(
     tx: ContractCall<M, D>,
     provider: Arc<M>,
     transaction_overrides: &TransactionOverrides,
+    domain: &HyperlaneDomain,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,
     D: Detokenize,
 {
     // either use the pre-estimated gas limit or estimate it
-    let estimated_gas_limit: U256 = match tx.tx.gas() {
+    let mut estimated_gas_limit: U256 = match tx.tx.gas() {
         Some(&estimate) => estimate.into(),
         None => tx.estimate_gas().await?.into(),
     };
-    let estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit);
+
+    estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
     let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
         estimated_gas_limit.max(gas_limit)
     } else {
@@ -216,23 +238,20 @@ where
     Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
 }
 
-pub(crate) async fn call_with_lag<M, T>(
+pub(crate) async fn call_with_reorg_period<M, T>(
     call: ethers::contract::builders::ContractCall<M, T>,
     provider: &M,
-    maybe_lag: Option<NonZeroU64>,
+    reorg_period: &ReorgPeriod,
 ) -> ChainResult<ethers::contract::builders::ContractCall<M, T>>
 where
     M: Middleware + 'static,
     T: Detokenize,
 {
-    if let Some(lag) = maybe_lag {
-        let fixed_block_number: BlockNumber = provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .saturating_sub(lag.get().into())
-            .into();
-        Ok(call.block(fixed_block_number))
+    if !reorg_period.is_none() {
+        let block_id = EthereumReorgPeriod::try_from(reorg_period)?
+            .into_block_id(provider)
+            .await?;
+        Ok(call.block(block_id))
     } else {
         Ok(call)
     }

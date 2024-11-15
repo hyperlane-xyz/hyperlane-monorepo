@@ -4,11 +4,11 @@ use fuels::{
     client::FuelClient,
     prelude::Provider,
     tx::Receipt,
-    types::{transaction::TransactionType, tx_status::TxStatus, Address, ContractId},
+    types::{transaction::TransactionType, tx_status::TxStatus, Address, BlockHeight, ContractId},
 };
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain, HyperlaneDomain,
-    HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, U256,
+    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
 };
 
 /// A wrapper around a fuel provider to get generic blockchain information.
@@ -98,30 +98,41 @@ impl HyperlaneChain for FuelProvider {
 #[async_trait]
 impl HyperlaneProvider for FuelProvider {
     /// Used by scraper
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let block_res = self
             .provider
-            .block(&hash.0.into())
+            .block_by_height(BlockHeight::new(height as u32))
             .await
-            .map_err(|_| HyperlaneProviderError::CouldNotFindObjectByHash(*hash))?;
+            .map_err(|_| HyperlaneProviderError::CouldNotFindBlockByHeight(height))?;
 
-        match block_res {
-            Some(block) => Ok(BlockInfo {
+        let block_info = match block_res {
+            Some(block) => BlockInfo {
                 hash: H256::from_slice(block.id.as_slice()),
-                number: block.header.height.into(),
                 timestamp: block.header.time.map_or(0, |t| t.timestamp() as u64),
-            }),
-            None => Err(ChainCommunicationError::BlockNotFound(*hash)),
+                number: block.header.height.into(),
+            },
+            None => Err(HyperlaneProviderError::CouldNotFindBlockByHeight(height))?,
+        };
+
+        if block_info.number != height {
+            Err(HyperlaneProviderError::IncorrectBlockByHeight(
+                height,
+                block_info.number,
+            ))?;
         }
+
+        Ok(block_info)
     }
 
     /// Used by scraper
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let hash_parsed = H256::from_slice(&h512_to_bytes(hash));
+
         let transaction_res = self
             .provider
-            .get_transaction_by_id(&hash.0.into())
+            .get_transaction_by_id(&hash_parsed.0.into())
             .await
-            .map_err(|_| HyperlaneProviderError::CouldNotFindObjectByHash(*hash))?;
+            .map_err(|_| HyperlaneProviderError::CouldNotFindTransactionByHash(*hash))?;
 
         match transaction_res {
             Some(transaction) => {
@@ -153,6 +164,7 @@ impl HyperlaneProvider for FuelProvider {
                     gas_price: Some(gas_price.into()),
                     recipient,
                     receipt: None,
+                    raw_input_data: None,
                 })
             }
             None => Err(ChainCommunicationError::CustomError(format!(

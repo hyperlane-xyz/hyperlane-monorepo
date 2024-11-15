@@ -42,6 +42,10 @@ import { CoreFactories, coreFactories } from './contracts.js';
 import { DispatchEvent } from './events.js';
 import { DispatchedMessage } from './types.js';
 
+// If no metadata is provided, ensure we provide a default of 0x0001.
+// We set to 0x0001 instead of 0x0 to ensure it does not break on zksync.
+const DEFAULT_METADATA = '0x0001';
+
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
@@ -94,7 +98,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       destinationId,
       recipient,
       body,
-      metadata || '0x',
+      metadata || DEFAULT_METADATA,
       hook || ethers.constants.AddressZero,
     );
   };
@@ -159,7 +163,7 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       destinationDomain,
       recipientBytes32,
       body,
-      metadata || '0x',
+      metadata || DEFAULT_METADATA,
       hook || ethers.constants.AddressZero,
     ] as const;
 
@@ -200,9 +204,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(),
         (_sender, _destination, _recipient, message, event) => {
-          const parsed = HyperlaneCore.parseDispatchedMessage(message);
-          this.logger.info(`Observed message ${parsed.id} on ${originChain}`);
-          return handler(parsed, event);
+          const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+
+          // add human readable chain names
+          dispatched.parsed.originChain = this.getOrigin(dispatched);
+          dispatched.parsed.destinationChain = this.getDestination(dispatched);
+
+          this.logger.info(
+            `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+          );
+          return handler(dispatched, event);
         },
       );
     });

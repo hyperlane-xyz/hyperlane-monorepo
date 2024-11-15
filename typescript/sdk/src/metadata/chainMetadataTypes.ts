@@ -10,6 +10,14 @@ import { ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 
+export enum EthJsonRpcBlockParameterTag {
+  Earliest = 'earliest',
+  Latest = 'latest',
+  Safe = 'safe',
+  Finalized = 'finalized',
+  Pending = 'pending',
+}
+
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
@@ -125,9 +133,12 @@ export const ChainMetadataSchemaObject = z.object({
       confirmations: ZUint.describe(
         'Number of blocks to wait before considering a transaction confirmed.',
       ),
-      reorgPeriod: ZUint.optional().describe(
-        'Number of blocks before a transaction has a near-zero chance of reverting.',
-      ),
+      reorgPeriod: z
+        .union([ZUint, z.string()])
+        .optional()
+        .describe(
+          'Number of blocks before a transaction has a near-zero chance of reverting or block tag.',
+        ),
       estimateBlockTime: z
         .number()
         .positive()
@@ -176,8 +187,8 @@ export const ChainMetadataSchemaObject = z.object({
       'A shorter human-readable name of the chain for use in user interfaces.',
     ),
 
-  domainId: ZNzUint.optional().describe(
-    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
+  domainId: ZNzUint.describe(
+    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value or `name` as a unique identifier.',
   ),
 
   gasCurrencyCoinGeckoId: z
@@ -371,7 +382,7 @@ export function getChainIdNumber(chainMetadata: ChainMetadata): number {
   else throw new Error('ChainId is not a number, chain may be of Cosmos type');
 }
 
-export function getReorgPeriod(chainMetadata: ChainMetadata): number {
+export function getReorgPeriod(chainMetadata: ChainMetadata): string | number {
   if (chainMetadata.blocks?.reorgPeriod !== undefined)
     return chainMetadata.blocks.reorgPeriod;
   else throw new Error('Chain has no reorg period');

@@ -11,6 +11,7 @@ import {
   HypXERC20Lockbox,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
+  IXERC20,
   IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -77,6 +78,11 @@ export class EvmNativeTokenAdapter
     const value = BigNumber.from(weiAmountOrId.toString());
     return { value, to: recipient };
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented, native tokens don't have an accessible total supply
+    return undefined;
+  }
 }
 
 // Interacts with ERC20/721 contracts
@@ -109,7 +115,7 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
       isNft ? 0 : this.contract.decimals(),
       this.contract.symbol(),
       this.contract.name(),
-      this.contract.totalSupply(),
+      this.getTotalSupply(),
     ]);
     return { decimals, symbol, name, totalSupply: totalSupply.toString() };
   }
@@ -141,6 +147,11 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
       recipient,
       weiAmountOrId.toString(),
     );
+  }
+
+  async getTotalSupply(): Promise<bigint> {
+    const totalSupply = await this.contract.totalSupply();
+    return totalSupply.toBigInt();
   }
 }
 
@@ -190,6 +201,10 @@ export class EvmHypSyntheticAdapter
       domains.map((d) => this.getRouterAddress(d)),
     );
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
+  }
+
+  getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getTotalSupply();
   }
 
   async quoteTransferRemoteGas(
@@ -254,6 +269,10 @@ export class EvmHypCollateralAdapter
     });
   }
 
+  override getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getBalance(this.addresses.token);
+  }
+
   override getMetadata(isNft?: boolean): Promise<TokenMetadata> {
     return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
   }
@@ -305,26 +324,44 @@ export class EvmHypXERC20LockboxAdapter
     );
   }
 
+  /**
+   * Note this may be inaccurate, as this returns the balance
+   * of the lockbox contract, which may be used by other bridges.
+   * However this is the best we can do with a simple view call.
+   */
+  override async getBridgedSupply(): Promise<bigint> {
+    const lockboxAddress = await this.hypXERC20Lockbox.lockbox();
+    return this.getBalance(lockboxAddress);
+  }
+
   async getMintLimit(): Promise<bigint> {
-    const xERC20 = await this.hypXERC20Lockbox.xERC20();
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.mintingCurrentLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
 
-    const limit = await IXERC20__factory.connect(
-      xERC20,
-      this.getProvider(),
-    ).mintingCurrentLimitOf(this.contract.address);
-
-    return BigInt(limit.toString());
+  async getMintMaxLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.mintingMaxLimitOf(this.contract.address);
+    return limit.toBigInt();
   }
 
   async getBurnLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.burningCurrentLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getBurnMaxLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.burningMaxLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getXErc20(): Promise<IXERC20> {
     const xERC20 = await this.hypXERC20Lockbox.xERC20();
 
-    const limit = await IXERC20__factory.connect(
-      xERC20,
-      this.getProvider(),
-    ).mintingCurrentLimitOf(this.contract.address);
-
-    return BigInt(limit.toString());
+    return IXERC20__factory.connect(xERC20, this.getProvider());
   }
 }
 
@@ -348,26 +385,47 @@ export class EvmHypXERC20Adapter
     );
   }
 
+  /**
+   * Note this may be inaccurate, as this returns the total supply
+   * of the xERC20 contract, which may be used by other bridges.
+   * However this is the best we can do with a simple view call.
+   */
+  override async getBridgedSupply(): Promise<bigint> {
+    const xerc20TokenAddress = await this.hypXERC20.wrappedToken();
+    const xerc20 = new EvmTokenAdapter(this.chainName, this.multiProvider, {
+      token: xerc20TokenAddress,
+    });
+    return xerc20.getTotalSupply();
+  }
+
   async getMintLimit(): Promise<bigint> {
-    const xERC20 = await this.hypXERC20.wrappedToken();
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.mintingCurrentLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
 
-    const limit = await IXERC20__factory.connect(
-      xERC20,
-      this.getProvider(),
-    ).mintingCurrentLimitOf(this.contract.address);
-
-    return BigInt(limit.toString());
+  async getMintMaxLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.mintingMaxLimitOf(this.contract.address);
+    return limit.toBigInt();
   }
 
   async getBurnLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.burningCurrentLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getBurnMaxLimit(): Promise<bigint> {
+    const xERC20 = await this.getXErc20();
+    const limit = await xERC20.burningMaxLimitOf(this.contract.address);
+    return limit.toBigInt();
+  }
+
+  async getXErc20(): Promise<IXERC20> {
     const xERC20 = await this.hypXERC20.wrappedToken();
 
-    const limit = await IXERC20__factory.connect(
-      xERC20,
-      this.getProvider(),
-    ).burningCurrentLimitOf(this.contract.address);
-
-    return BigInt(limit.toString());
+    return IXERC20__factory.connect(xERC20, this.getProvider());
   }
 }
 

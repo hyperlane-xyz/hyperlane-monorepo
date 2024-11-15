@@ -8,10 +8,12 @@ import type {
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { OwnableSchema } from '../schemas.js';
+import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
 import type { ChainName } from '../types.js';
 
 export type OwnableConfig = z.infer<typeof OwnableSchema>;
+
+export type DeployedOwnableConfig = z.infer<typeof DeployedOwnableSchema>;
 
 export interface CheckerViolation {
   chain: ChainName;

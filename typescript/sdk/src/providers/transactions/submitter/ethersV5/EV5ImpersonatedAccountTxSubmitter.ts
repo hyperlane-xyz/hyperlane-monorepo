@@ -26,7 +26,7 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
     multiProvider: MultiProvider,
     public readonly props: EV5ImpersonatedAccountTxSubmitterProps,
   ) {
-    super(multiProvider);
+    super(multiProvider, props);
   }
 
   public async submit(

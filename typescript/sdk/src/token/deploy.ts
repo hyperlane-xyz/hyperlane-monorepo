@@ -29,6 +29,7 @@ import {
   hypERC721factories,
 } from './contracts.js';
 import {
+  TokenMetadataSchema,
   TokenRouterConfig,
   isCollateralConfig,
   isNativeConfig,
@@ -88,8 +89,10 @@ abstract class TokenDeployer<
     ];
     if (isCollateralConfig(config) || isNativeConfig(config)) {
       return defaultArgs;
-    } else if (isSyntheticConfig(config) || isSyntheticRebaseConfig(config)) {
+    } else if (isSyntheticConfig(config)) {
       return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
+    } else if (isSyntheticRebaseConfig(config)) {
+      return [0, config.name, config.symbol, ...defaultArgs];
     } else {
       throw new Error('Unknown collateral type when initializing arguments');
     }
@@ -104,13 +107,16 @@ abstract class TokenDeployer<
 
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
-        return config;
+        return TokenMetadataSchema.parse(config);
       }
 
       if (isNativeConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          return { totalSupply: DERIVED_TOKEN_SUPPLY, ...nativeToken };
+          return TokenMetadataSchema.parse({
+            totalSupply: DERIVED_TOKEN_SUPPLY,
+            ...nativeToken,
+          });
         }
       }
 
@@ -126,11 +132,11 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          return {
+          return TokenMetadataSchema.parse({
             name,
             symbol,
             totalSupply: DERIVED_TOKEN_SUPPLY,
-          };
+          });
         }
 
         let token: string;
@@ -159,7 +165,12 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        return { name, symbol, decimals, totalSupply: DERIVED_TOKEN_SUPPLY };
+        return TokenMetadataSchema.parse({
+          name,
+          symbol,
+          decimals,
+          totalSupply: DERIVED_TOKEN_SUPPLY,
+        });
       }
     }
 

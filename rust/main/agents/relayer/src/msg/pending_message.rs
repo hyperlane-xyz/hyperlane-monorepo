@@ -167,6 +167,14 @@ impl PendingOperation for PendingMessage {
         self.ctx.destination_mailbox.domain()
     }
 
+    fn sender_address(&self) -> &H256 {
+        &self.message.sender
+    }
+
+    fn recipient_address(&self) -> &H256 {
+        &self.message.recipient
+    }
+
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
         match self.ctx.origin_db.retrieve_status_by_message_id(&self.id()) {
             Ok(status) => status,
@@ -460,7 +468,7 @@ impl PendingOperation for PendingMessage {
             actual_gas_for_message = ?gas_used_by_operation,
             message_gas_estimate = ?operation_estimate,
             submission_gas_estimate = ?submission_estimated_cost,
-            message = ?self.message,
+            hyp_message = ?self.message,
             "Gas used by message submission"
         );
     }

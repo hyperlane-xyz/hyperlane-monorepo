@@ -11,13 +11,13 @@ use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
-    ValidatorAnnounce, H256,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
+    SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_cosmos::{self as h_cosmos};
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
-    EthereumValidatorAnnounceAbi,
+    EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
@@ -46,7 +46,7 @@ pub struct ChainConf {
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
     /// The reorg period of the chain, i.e. the number of blocks until finality
-    pub reorg_period: u32,
+    pub reorg_period: ReorgPeriod,
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
@@ -279,13 +279,13 @@ impl ChainConf {
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::SequenceIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::SequenceIndexerBuilder { reorg_period },
                 )
                 .await
             }
@@ -301,11 +301,12 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMailboxDispatchIndexer::new(
                     conf.clone(),
                     locator,
                     signer,
-                    self.reorg_period,
+                    reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
@@ -323,13 +324,13 @@ impl ChainConf {
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::DeliveryIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::DeliveryIndexerBuilder { reorg_period },
                 )
                 .await
             }
@@ -340,11 +341,12 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMailboxDeliveryIndexer::new(
                     conf.clone(),
                     locator,
                     signer,
-                    self.reorg_period,
+                    reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
@@ -407,13 +409,15 @@ impl ChainConf {
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
                     h_eth::InterchainGasPaymasterIndexerBuilder {
                         mailbox_address: self.addresses.mailbox.into(),
-                        reorg_period: self.reorg_period,
+                        reorg_period,
                     },
                 )
                 .await
@@ -432,10 +436,11 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
                     conf.clone(),
                     locator,
-                    self.reorg_period,
+                    reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
@@ -453,13 +458,13 @@ impl ChainConf {
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::MerkleTreeHookIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::MerkleTreeHookIndexerBuilder { reorg_period },
                 )
                 .await
             }
@@ -479,12 +484,13 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
                     conf.clone(),
                     locator,
                     // TODO: remove signer requirement entirely
                     signer,
-                    self.reorg_period,
+                    reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }

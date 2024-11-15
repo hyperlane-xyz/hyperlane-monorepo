@@ -8,13 +8,17 @@ export type InputProps = Omit<
   className?: string;
 };
 
-export function TextInput({ onChange, className, ...props }: InputProps) {
+export function _TextInput(
+  { onChange, className, ...props }: InputProps,
+  ref: React.Ref<HTMLInputElement>,
+) {
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (onChange) onChange(e?.target?.value || '');
   };
 
   return (
     <input
+      ref={ref}
       type="text"
       autoComplete="off"
       onChange={handleChange}
@@ -23,3 +27,5 @@ export function TextInput({ onChange, className, ...props }: InputProps) {
     />
   );
 }
+
+export const TextInput = React.forwardRef(_TextInput);

@@ -35,6 +35,7 @@ export {
   normalizeAddressCosmos,
   normalizeAddressEvm,
   normalizeAddressSealevel,
+  padBytesToLength,
   shortenAddress,
   strip0x,
 } from './addresses.js';
@@ -102,13 +103,16 @@ export {
   parseLegacyMultisigIsmMetadata,
 } from './multisig.js';
 export {
+  ObjectDiff,
   ValueOf,
   arrayToObject,
   deepCopy,
   deepEquals,
+  diffObjMerge,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  mustGet,
   objFilter,
   objKeys,
   objLength,
@@ -116,14 +120,18 @@ export {
   objMapEntries,
   objMerge,
   objOmit,
+  objOmitKeys,
   pick,
   promiseObjAll,
   stringifyObject,
-  diffObjMerge,
-  ObjectDiff,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
-export { difference, setEquality, symmetricDifference } from './sets.js';
+export {
+  difference,
+  intersection,
+  setEquality,
+  symmetricDifference,
+} from './sets.js';
 export {
   errorToString,
   fromHexString,
@@ -145,6 +153,7 @@ export {
   Checkpoint,
   CheckpointWithId,
   Domain,
+  EvmChainId,
   HexString,
   MerkleProof,
   MessageStatus,

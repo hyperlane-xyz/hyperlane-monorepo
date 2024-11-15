@@ -12,9 +12,10 @@ use fuels::{
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneProvider,
-    Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod,
+    SequenceAwareIndexer, H256,
 };
-use std::{num::NonZeroU64, ops::RangeInclusive};
+use std::ops::RangeInclusive;
 
 /// Smart contract level enforced finality
 const ENFORCED_FINALITY: u8 = 1;
@@ -49,9 +50,11 @@ impl FuelMerkleTreeHook {
     /// Asserts the lag
     /// The lag or re-org of FuelVM should be set to 1, as it is the solf finality
     /// Also, since we cannot query point in time, the lag is built into the contract code
-    fn assert_lag(&self, lag: Option<NonZeroU64>) {
+    fn assert_lag(&self, reorg_period: &ReorgPeriod) {
         assert!(
-            lag.is_some_and(|lag| lag.get() == ENFORCED_FINALITY as u64),
+            reorg_period
+                .as_blocks()
+                .is_ok_and(|reorg| reorg == ENFORCED_FINALITY as u32),
             "FuelVM lag should always be {:?}",
             ENFORCED_FINALITY
         );
@@ -76,8 +79,8 @@ impl HyperlaneChain for FuelMerkleTreeHook {
 
 #[async_trait]
 impl MerkleTreeHook for FuelMerkleTreeHook {
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        self.assert_lag(lag);
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+        self.assert_lag(reorg_period);
 
         self.contract
             .methods()
@@ -94,8 +97,8 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
             })
     }
 
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        self.assert_lag(lag);
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        self.assert_lag(reorg_period);
 
         self.contract
             .methods()
@@ -106,8 +109,8 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
             .map(|res| res.value)
     }
 
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
-        self.assert_lag(lag);
+    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+        self.assert_lag(&reorg_period);
 
         self.contract
             .methods()
