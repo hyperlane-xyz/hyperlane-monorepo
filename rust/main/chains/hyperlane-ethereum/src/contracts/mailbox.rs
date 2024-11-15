@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -103,6 +104,7 @@ where
     contract: Arc<EthereumMailboxInternal<M>>,
     provider: Arc<M>,
     reorg_period: EthereumReorgPeriod,
+    domain: HyperlaneDomain,
 }
 
 impl<M> EthereumMailboxIndexer<M>
@@ -123,6 +125,7 @@ where
             contract,
             provider,
             reorg_period,
+            domain: locator.domain.clone(),
         }
     }
 
@@ -163,6 +166,41 @@ where
                 )
             })
             .collect();
+
+        // if it's sei...
+        if self.domain.id() == 1329 {
+            let missed_messages = vec![
+                (
+                    // Nonce 4648
+                    "0xcd809aa8e1784923bb2c3de447813ad77565985989be4efc7ce81481db196aa4",
+                    115095747u32,
+                ),
+                // (
+                //     // nonce 4649
+                //     "0x0d6f2ea16e9d36774df3168483c0ac311a6d880e5460d3609d4a538bf679ae2b",
+                //     115110450u32,
+                // ),
+                // (
+                //     // nonce 4650
+                //     "0x16d20356831d2d2f9b038fe242960885e50cb672ee43aee0579b72f502147487",
+                //     115110593u32,
+                // ),
+            ];
+
+            for (tx_hash, block_num) in missed_messages.iter() {
+                if range.contains(block_num) {
+                    tracing::warn!(
+                        "Trying to get missed message tx hash: {} for block num {}",
+                        tx_hash,
+                        block_num
+                    );
+                    let tx_hash =
+                        H256::from_str(tx_hash).map_err(ChainCommunicationError::from_other)?;
+                    let result = self.fetch_logs_by_tx_hash(tx_hash.into()).await?;
+                    events.extend(result);
+                }
+            }
+        }
 
         events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
         Ok(events)

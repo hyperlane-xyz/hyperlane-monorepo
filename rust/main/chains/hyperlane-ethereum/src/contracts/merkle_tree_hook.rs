@@ -1,5 +1,6 @@
 #![allow(missing_docs)]
 use std::ops::RangeInclusive;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -9,9 +10,9 @@ use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use tracing::instrument;
 
 use hyperlane_core::{
-    ChainResult, Checkpoint, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod,
-    SequenceAwareIndexer, H256, H512,
+    ChainCommunicationError, ChainResult, Checkpoint, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::interfaces::merkle_tree_hook::{
@@ -88,6 +89,7 @@ where
     contract: Arc<MerkleTreeHookContract<M>>,
     provider: Arc<M>,
     reorg_period: EthereumReorgPeriod,
+    domain: HyperlaneDomain,
 }
 
 impl<M> EthereumMerkleTreeHookIndexer<M>
@@ -107,6 +109,7 @@ where
             )),
             provider,
             reorg_period,
+            domain: locator.domain.clone(),
         }
     }
 }
@@ -131,7 +134,7 @@ where
             .query_with_meta()
             .await?;
 
-        let logs = events
+        let mut logs: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)> = events
             .into_iter()
             .map(|(log, log_meta)| {
                 (
@@ -140,6 +143,42 @@ where
                 )
             })
             .collect();
+
+        // if it's sei...
+        if self.domain.id() == 1329 {
+            let missed_messages = vec![
+                (
+                    // Nonce 4648
+                    "0xcd809aa8e1784923bb2c3de447813ad77565985989be4efc7ce81481db196aa4",
+                    115095747u32,
+                ),
+                // (
+                //     // nonce 4649
+                //     "0x0d6f2ea16e9d36774df3168483c0ac311a6d880e5460d3609d4a538bf679ae2b",
+                //     115110450u32,
+                // ),
+                // (
+                //     // nonce 4650
+                //     "0x16d20356831d2d2f9b038fe242960885e50cb672ee43aee0579b72f502147487",
+                //     115110593u32,
+                // ),
+            ];
+
+            for (tx_hash, block_num) in missed_messages.iter() {
+                if range.contains(block_num) {
+                    tracing::warn!(
+                        "Trying to get missed message tx hash: {} for block num {}",
+                        tx_hash,
+                        block_num
+                    );
+                    let tx_hash =
+                        H256::from_str(tx_hash).map_err(ChainCommunicationError::from_other)?;
+                    let result = self.fetch_logs_by_tx_hash(tx_hash.into()).await?;
+                    logs.extend(result);
+                }
+            }
+        }
+
         Ok(logs)
     }
 
