@@ -12,14 +12,13 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
-  ChainSubmissionStrategy,
   MultiProvider,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
-import { readStrategyConfig } from '../config/strategy.js';
+import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -66,12 +65,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   if (!requiresKey) return argv;
 
-  let strategyConfig: ChainSubmissionStrategy = {};
-  try {
-    strategyConfig = await readStrategyConfig(argv.strategy);
-  } catch (e) {
-    strategyConfig = {};
-  }
+  const strategyConfig = await readChainSubmissionStrategyConfig(argv.strategy);
 
   /**
    * @notice  Select the appropriate chain strategy based on the hyperlane command
@@ -89,7 +83,6 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * @notice  Extracts private keys from strategyConfig else prompts user private key input
    */
-
   const signerStrategy = new SubmitterContext(
     strategyConfig,
     chains,

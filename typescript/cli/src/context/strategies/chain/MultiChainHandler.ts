@@ -2,7 +2,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
-import { readStrategyConfig } from '../../../config/strategy.js';
+import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { readWarpRouteDeployConfig } from '../../../config/warp.js';
 import { logRed } from '../../../logger.js';
 import {
@@ -44,9 +44,9 @@ export class MultiChainHandler implements ChainHandler {
   private async determineWarpRouteConfigChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    argv.config = argv.config || DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
+    argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
     argv.context.chains = await this.getWarpConfigChains(
-      argv.config,
+      argv.config.trim(),
       argv.skipConfirmation,
     );
     return argv.context.chains;
@@ -119,7 +119,7 @@ export class MultiChainHandler implements ChainHandler {
   private async determineStrategyChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    const strategy = await readStrategyConfig(argv.strategy);
+    const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
     return extractChainValues(strategy);
   }
 

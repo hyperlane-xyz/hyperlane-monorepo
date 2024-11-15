@@ -19,16 +19,27 @@ import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
+  isFile,
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
 
-export async function readStrategyConfig(
+export async function readChainSubmissionStrategyConfig(
   filePath: string,
 ): Promise<ChainSubmissionStrategy> {
   try {
     log(`Reading file configs in ${filePath}`);
-    const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(filePath);
+
+    if (!isFile(filePath.trim())) {
+      logBlue(
+        `No strategy config found in ${filePath}, returning empty config`,
+      );
+      return {};
+    }
+
+    const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(
+      filePath.trim(),
+    );
 
     // Check if config exists and is a non-empty object
     if (!strategyConfig || typeof strategyConfig !== 'object') {

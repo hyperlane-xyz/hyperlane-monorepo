@@ -11,7 +11,7 @@ export class SubmitterStrategyFactory {
     switch (type) {
       case TxSubmitterType.JSON_RPC:
         return new JsonRpcStrategy(config);
-      // TO BE IMPLEMENTED!
+      // TODO: TO BE IMPLEMENTED!
       // case TxSubmitterType.STARKNET_JSON_RPC:
       //   return new StarknetJsonRpcStrategy(config);
       default:

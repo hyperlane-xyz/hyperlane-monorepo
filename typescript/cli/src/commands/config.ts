@@ -3,7 +3,7 @@ import { CommandModule } from 'yargs';
 import { readChainConfigs } from '../config/chain.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
-import { readStrategyConfig } from '../config/strategy.js';
+import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { CommandModuleWithContext } from '../context/types.js';
 import { log, logGreen } from '../logger.js';
@@ -85,7 +85,7 @@ const validateStrategyCommand: CommandModuleWithContext<{ path: string }> = {
     path: inputFileCommandOption(),
   },
   handler: async ({ path }) => {
-    await readStrategyConfig(path);
+    await readChainSubmissionStrategyConfig(path);
     logGreen('Config is valid');
     process.exit(0);
   },

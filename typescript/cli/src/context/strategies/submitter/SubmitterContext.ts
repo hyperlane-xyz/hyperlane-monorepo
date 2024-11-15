@@ -24,6 +24,8 @@ export class SubmitterContext {
    * @param strategyConfig Configuration for the submitter strategy.
    * @param chains Array of chain names to manage.
    * @param submitterType Type of transaction submitter to use.
+   * @param multiProvider MultiProvider instance for managing multiple chains.
+   * @param key Optional private key for overriding strategy private key.
    */
   constructor(
     strategyConfig: ChainSubmissionStrategy,
@@ -41,6 +43,7 @@ export class SubmitterContext {
   /**
    * @dev Retrieves the private keys for the specified chains.
    * @return An array of objects containing chain names and their corresponding private keys.
+   * @notice This function retrieves private keys from the strategy or falls back to the environment variable.
    */
   private async getChainKeys(): Promise<
     Array<{ chainName: ChainName; privateKey: string }>
@@ -77,26 +80,42 @@ export class SubmitterContext {
     );
   }
 
+  /**
+   * @dev Configures signers for all specified chains in the MultiProvider.
+   * @return The updated MultiProvider instance.
+   * @notice This function sets the signer for each chain based on its protocol.
+   */
   async configureSigners(): Promise<MultiProvider> {
     for (const chain of this.chains) {
-      const protocol = this.multiProvider.getChainMetadata(chain).protocol;
-      const signer = await this.getSignerForChain(chain, protocol);
+      const signer = await this.getSignerForChain(chain);
       this.multiProvider.setSigner(chain, signer);
     }
 
     return this.multiProvider;
   }
 
-  async getSignerForChain(
-    chain: ChainName,
-    protocol: ProtocolType,
-  ): Promise<any> {
+  /**
+   * @dev Retrieves a signer for a specific chain based on its protocol.
+   * @param chain The name of the chain for which to retrieve the signer.
+   * @param protocol The protocol type of the chain.
+   * @return A Promise that resolves to the Signer instance for the specified chain.
+   * @throws Error if the protocol is unsupported.
+   */
+  async getSignerForChain(chain: ChainName): Promise<any> {
+    const { protocol } = this.multiProvider.getChainMetadata(chain);
+
     const privateKey =
       this?.key ?? // argv.key overrides strategy private key
       ENV.HYP_KEY ?? // ENV.HYP_KEY overrides strategy/prompt to enter pk
       (await this.strategy.getPrivateKey(chain));
+
+    // If protocol is starknet, prompt for address input
+
     switch (protocol) {
       case ProtocolType.Ethereum:
+        // Example for ZKSync
+        // if (technicalStack === ChainTechnicalStack.ZkSync)
+        //   return new ZKSyncWallet(privateKey);
         return new Wallet(privateKey);
       default:
         throw new Error(`Unsupported protocol: ${protocol}`);

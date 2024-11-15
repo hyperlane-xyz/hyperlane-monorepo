@@ -4,7 +4,7 @@ import { CommandModule } from 'yargs';
 import {
   createStrategyConfig,
   maskSensitiveData,
-  readStrategyConfig,
+  readChainSubmissionStrategyConfig,
 } from '../config/strategy.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
 import { log, logCommandHeader } from '../logger.js';
@@ -57,7 +57,7 @@ export const read: CommandModuleWithWriteContext<{
   handler: async ({ strategy: strategyUrl }) => {
     logCommandHeader(`Hyperlane Strategy Read`);
 
-    const strategy = await readStrategyConfig(strategyUrl);
+    const strategy = await readChainSubmissionStrategyConfig(strategyUrl);
     const maskedConfig = maskSensitiveData(strategy);
     log(indentYamlOrJson(yamlStringify(maskedConfig, null, 2), 4));
 
