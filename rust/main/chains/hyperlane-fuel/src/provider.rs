@@ -55,6 +55,34 @@ impl FuelProvider {
             .map_err(ChainCommunicationError::from_other)
             .map(|block| block - 1)
     }
+
+    /// Extract transaction data from receipts
+    fn extract_transaction_data(receipts: Vec<Receipt>) -> (H256, Option<H256>, u64) {
+        let valid_receipt = receipts
+            .into_iter()
+            .find(|receipt| matches!(receipt, Receipt::MessageOut { .. }));
+
+        match valid_receipt {
+            Some(Receipt::MessageOut {
+                sender,
+                recipient,
+                nonce,
+                ..
+            }) => {
+                let mut arr = [0u8; 8];
+                let nonce_bytes = <[u8; 32]>::from(nonce);
+                arr.copy_from_slice(&nonce_bytes[0..8]);
+                let parsed_nonce = u64::from_be_bytes(arr);
+
+                (
+                    <[u8; 32]>::from(sender).into(),
+                    Some(<[u8; 32]>::from(recipient).into()),
+                    parsed_nonce,
+                )
+            }
+            _ => (H256::zero(), None, 0),
+        }
+    }
 }
 
 impl HyperlaneChain for FuelProvider {
@@ -111,32 +139,7 @@ impl HyperlaneProvider for FuelProvider {
                 };
 
                 let (sender, recipient, nonce) = match transaction.status {
-                    TxStatus::Success { receipts } => {
-                        let valid_receipt = receipts
-                            .into_iter()
-                            .find(|receipt| matches!(receipt, Receipt::MessageOut { .. }));
-
-                        match valid_receipt {
-                            Some(Receipt::MessageOut {
-                                sender,
-                                recipient,
-                                nonce,
-                                ..
-                            }) => {
-                                let mut arr = [0u8; 8];
-                                let nonce_bytes = <[u8; 32]>::from(nonce);
-                                arr.copy_from_slice(&nonce_bytes[0..8]);
-                                let parsed_nonce = u64::from_be_bytes(arr);
-
-                                (
-                                    <[u8; 32]>::from(sender).into(),
-                                    Some(<[u8; 32]>::from(recipient).into()),
-                                    parsed_nonce,
-                                )
-                            }
-                            _ => (H256::zero(), None, 0),
-                        }
-                    }
+                    TxStatus::Success { receipts } => Self::extract_transaction_data(receipts),
                     _ => (H256::zero(), None, 0),
                 };
 
@@ -165,7 +168,7 @@ impl HyperlaneProvider for FuelProvider {
         match contract_res {
             Ok(contract) => Ok(contract.is_some()),
             Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Failed to get contract: {}",
+                "Failed to query contract: {}",
                 e
             ))),
         }
@@ -173,9 +176,10 @@ impl HyperlaneProvider for FuelProvider {
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         let base = self.provider.base_asset_id();
-        let address_bytes = hex::decode(address)?;
-        let address =
-            *Address::from_bytes_ref_checked(address_bytes.as_slice()).expect("Invalid address");
+        let address_bytes = hex::decode(&address)?;
+        let address = *Address::from_bytes_ref_checked(address_bytes.as_slice()).ok_or(
+            ChainCommunicationError::CustomError(format!("Invalid address: {}", address)),
+        )?;
 
         self.provider
             .get_asset_balance(&address.into(), *base)
