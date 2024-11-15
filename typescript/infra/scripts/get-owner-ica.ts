@@ -1,6 +1,7 @@
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, eqAddress, isZeroishAddress } from '@hyperlane-xyz/utils';
 
+import { chainsToSkip } from '../src/config/chain.js';
 import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
 import { getArgs as getEnvArgs, withChains } from './agent-utils.js';
@@ -52,20 +53,37 @@ async function main() {
     origin: ownerChain,
     owner: originOwner,
   };
+  const ownerChainInterchainAccountRouter =
+    ica.contractsMap[ownerChain].interchainAccountRouter.address;
+
+  if (isZeroishAddress(ownerChainInterchainAccountRouter)) {
+    console.error(`Interchain account router address is zero`);
+    process.exit(1);
+  }
 
   const getOwnerIcaChains = (
     chains?.length ? chains : config.supportedChainNames
-  ).filter(isEthereumProtocolChain);
+  ).filter(
+    (chain) => isEthereumProtocolChain(chain) && !chainsToSkip.includes(chain),
+  );
 
   const results: Record<string, { ICA: Address; Deployed?: string }> = {};
   const settledResults = await Promise.allSettled(
     getOwnerIcaChains.map(async (chain) => {
       try {
-        const account = await ica.getAccount(chain, ownerConfig);
+        const account = await ica.getAccount(
+          chain,
+          ownerConfig,
+          ownerChainInterchainAccountRouter,
+        );
         const result: { ICA: Address; Deployed?: string } = { ICA: account };
 
         if (deploy) {
-          const deployedAccount = await ica.deployAccount(chain, ownerConfig);
+          const deployedAccount = await ica.deployAccount(
+            chain,
+            ownerConfig,
+            ownerChainInterchainAccountRouter,
+          );
           result.Deployed = eqAddress(account, deployedAccount) ? '✅' : '❌';
           if (result.Deployed === '❌') {
             console.warn(
@@ -96,6 +114,7 @@ async function main() {
   });
 
   console.table(results);
+  process.exit(0);
 }
 
 main()

@@ -1,2 +1,3 @@
 submitter:
+  chain: anvil2
   type: jsonRpc

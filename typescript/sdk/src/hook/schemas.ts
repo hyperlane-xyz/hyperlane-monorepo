@@ -46,6 +46,7 @@ export const ArbL2ToL1HookSchema = z.object({
       'address of the bridge contract on L1, optional only needed for non @arbitrum/sdk chains',
     ),
   destinationChain: z.string(),
+  childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
 });
 
 export const IgpSchema = OwnableSchema.extend({

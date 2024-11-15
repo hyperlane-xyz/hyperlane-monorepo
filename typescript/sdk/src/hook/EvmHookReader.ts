@@ -243,7 +243,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     let oracleKey: string | undefined;
 
-    const domainIds = this.multiProvider.getKnownDomainIds();
+    const domainIds = this.messageContext
+      ? [this.messageContext.parsed.destination]
+      : this.multiProvider.getKnownDomainIds();
 
     const allKeys = await concurrentMap(
       this.concurrency,
@@ -365,11 +367,14 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
+    const childHookAddress = await hook.childHook();
+    const childHookConfig = await this.deriveHookConfig(childHookAddress);
     const config: WithAddress<ArbL2ToL1HookConfig> = {
       address,
       type: HookType.ARB_L2_TO_L1,
       destinationChain: destinationChainName,
       arbSys,
+      childHook: childHookConfig,
     };
 
     this._cache.set(address, config);

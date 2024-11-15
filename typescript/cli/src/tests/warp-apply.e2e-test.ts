@@ -15,7 +15,7 @@ import {
   REGISTRY_PATH,
   deployOrUseExistingCore,
   extendWarpConfig,
-  getChainId,
+  getDomainId,
   updateOwner,
 } from './commands/helpers.js';
 import {
@@ -128,7 +128,7 @@ describe('WarpApply e2e tests', async function () {
       warpConfigPath,
     );
 
-    const chain2Id = await getChainId(CHAIN_NAME_3, ANVIL_KEY);
+    const chain2Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
     const remoteRouterKeys1 = Object.keys(
       updatedWarpDeployConfig1[CHAIN_NAME_2].remoteRouters!,
     );
@@ -141,7 +141,7 @@ describe('WarpApply e2e tests', async function () {
       warpConfigPath,
     );
 
-    const chain1Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
+    const chain1Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
     const remoteRouterKeys2 = Object.keys(
       updatedWarpDeployConfig2[CHAIN_NAME_3].remoteRouters!,
     );
@@ -182,7 +182,7 @@ describe('WarpApply e2e tests', async function () {
       warpConfigPath,
     );
 
-    const chain2Id = await getChainId(CHAIN_NAME_3, ANVIL_KEY);
+    const chain2Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
     const remoteRouterKeys1 = Object.keys(
       updatedWarpDeployConfig1[CHAIN_NAME_2].remoteRouters!,
     );
@@ -195,7 +195,7 @@ describe('WarpApply e2e tests', async function () {
       warpConfigPath,
     );
 
-    const chain1Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
+    const chain1Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
     const remoteRouterKeys2 = Object.keys(
       updatedWarpDeployConfig2[CHAIN_NAME_3].remoteRouters!,
     );
@@ -247,8 +247,8 @@ describe('WarpApply e2e tests', async function () {
     expect(updatedWarpDeployConfig_3.anvil3.owner).to.equal(randomOwner);
 
     // Check that both chains enrolled
-    const chain2Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
-    const chain3Id = await getChainId(CHAIN_NAME_3, ANVIL_KEY);
+    const chain2Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
+    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
 
     const remoteRouterKeys2 = Object.keys(
       updatedWarpDeployConfig_2[CHAIN_NAME_2].remoteRouters!,
@@ -295,8 +295,8 @@ describe('WarpApply e2e tests', async function () {
       warpConfigPath,
     );
 
-    const chain2Id = await getChainId(CHAIN_NAME_2, ANVIL_KEY);
-    const chain3Id = await getChainId(CHAIN_NAME_3, ANVIL_KEY);
+    const chain2Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
+    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
 
     // Destination gas should be set in the existing chain (chain2) to include the extended chain (chain3)
     const destinationGas_2 =

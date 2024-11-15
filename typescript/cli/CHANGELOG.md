@@ -1,5 +1,68 @@
 # @hyperlane-xyz/cli
 
+## 7.0.0
+
+### Minor Changes
+
+- fa424826c: Add support for updating the mailbox proxy admin owner
+- 836060240: Add storage based multisig ISM types
+
+### Patch Changes
+
+- Updated dependencies [bbb970a44]
+- Updated dependencies [fa424826c]
+- Updated dependencies [f48cf8766]
+- Updated dependencies [40d59a2f4]
+- Updated dependencies [0264f709e]
+- Updated dependencies [836060240]
+- Updated dependencies [ba0122279]
+- Updated dependencies [e6f9d5c4f]
+- Updated dependencies [f24835438]
+- Updated dependencies [5f41b1134]
+  - @hyperlane-xyz/sdk@7.0.0
+  - @hyperlane-xyz/utils@7.0.0
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Patch Changes
+
+- Updated dependencies [7b3b07900]
+- Updated dependencies [30d92c319]
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/sdk@6.0.0
+  - @hyperlane-xyz/utils@6.0.0
+
+## 5.7.0
+
+### Minor Changes
+
+- db0e73502: re-enable space key for multiselect cli prompt
+- 7e9e248be: Add feat to allow updates to destination gas using warp apply
+- 4c0605dca: Add optional proxy admin reuse in warp route deployments and admin proxy ownership transfer in warp apply
+- db5875cc2: Add `hyperlane warp verify` to allow post-deployment verification.
+- 956ff752a: Enable configuration of IGP hooks in the CLI
+
+### Patch Changes
+
+- Updated dependencies [5dabdf388]
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [d9505ab58]
+- Updated dependencies [04108155d]
+- Updated dependencies [7e9e248be]
+- Updated dependencies [4c0605dca]
+- Updated dependencies [db9196837]
+- Updated dependencies [db5875cc2]
+- Updated dependencies [56328e6e1]
+- Updated dependencies [956ff752a]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/sdk@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+
 ## 5.6.2
 
 ### Patch Changes

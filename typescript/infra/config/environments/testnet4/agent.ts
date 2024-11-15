@@ -41,9 +41,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   typeof testnet4SupportedChainNames
 > = {
   [Role.Validator]: {
+    abstracttestnet: true,
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
+    arcadiatestnet2: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -56,6 +58,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    inksepolia: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -68,12 +71,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
   [Role.Relayer]: {
+    abstracttestnet: true,
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
+    arcadiatestnet2: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -86,6 +92,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    inksepolia: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -98,12 +105,15 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
   [Role.Scraper]: {
+    abstracttestnet: true,
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
-    // arcadiatestnet: true,
+    arcadiatestnet2: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -117,6 +127,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    inksepolia: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -130,6 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: false,
+    treasuretopaz: true,
     unichaintestnet: true,
   },
 };
@@ -209,11 +221,11 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '463b35b-20241011-161150',
+      tag: 'bb4e82b-20241107-190434',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
-    metricAppContexts: [
+    metricAppContextsGetter: () => [
       {
         name: 'helloworld',
         matchingList: routerMatchingList(
@@ -231,7 +243,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '463b35b-20241011-161150',
+      tag: 'bb4e82b-20241107-190434',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -240,7 +252,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '463b35b-20241011-161150',
+      tag: 'bb4e82b-20241107-190434',
     },
     resources: scraperResources,
   },

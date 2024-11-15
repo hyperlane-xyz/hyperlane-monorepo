@@ -1,5 +1,40 @@
 # @hyperlane-xyz/core
 
+## 5.8.0
+
+### Minor Changes
+
+- 836060240: Add storage based multisig ISM types
+
+### Patch Changes
+
+- Updated dependencies [f48cf8766]
+- Updated dependencies [e6f9d5c4f]
+  - @hyperlane-xyz/utils@7.0.0
+
+## 5.7.1
+
+### Patch Changes
+
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/utils@6.0.0
+
+## 5.7.0
+
+### Minor Changes
+
+- 469f2f340: Checking for sufficient fees in `AbstractMessageIdAuthHook` and refund surplus
+- f26453ee5: Added msg.value to preverifyMessage to commit it as part of external hook payload
+- 0640f837c: disabled the ICARouter's ability to change hook given that the user doesn't expect the hook to change after they deploy their ICA account. Hook is not part of the derivation like ism on the destination chain and hence, cannot be configured custom by the user.
+- a82b4b4cb: Made processInboundMessage payable to send value via mailbox.process
+
+### Patch Changes
+
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [04108155d]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/utils@5.7.0
+
 ## 5.6.1
 
 ### Patch Changes

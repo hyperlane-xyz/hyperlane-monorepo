@@ -557,6 +557,7 @@ export abstract class HyperlaneAppGovernor<
     chain: ChainName,
     signerAddress: Address,
     safeAddress: string,
+    retries = 3,
   ): Promise<boolean> {
     if (!this.canPropose[chain].has(safeAddress)) {
       try {
@@ -568,25 +569,47 @@ export abstract class HyperlaneAppGovernor<
         );
         this.canPropose[chain].set(safeAddress, canPropose);
       } catch (error) {
+        const errorMessage = (error as Error).message.toLowerCase();
+
+        // Handle invalid MultiSend contract errors
         if (
-          error instanceof Error &&
-          (error.message.includes('Invalid MultiSend contract address') ||
-            error.message.includes(
-              'Invalid MultiSendCallOnly contract address',
-            ))
+          errorMessage.includes('invalid multisend contract address') ||
+          errorMessage.includes('invalid multisendcallonly contract address')
         ) {
-          console.warn(
-            chalk.yellow(`${error.message}: Setting submission type to MANUAL`),
-          );
-          return false;
-        } else {
-          console.error(
-            chalk.red(
-              `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
-            ),
-          );
+          console.warn(chalk.yellow(`Invalid contract: ${errorMessage}.`));
           return false;
         }
+
+        // Handle service unavailable and rate limit errors
+        if (
+          errorMessage.includes('service unavailable') ||
+          errorMessage.includes('too many requests')
+        ) {
+          console.warn(
+            chalk.yellow(
+              `Safe service error for ${safeAddress} on ${chain}: ${errorMessage}. ${retries} retries left.`,
+            ),
+          );
+
+          if (retries > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            return this.checkSafeProposalEligibility(
+              chain,
+              signerAddress,
+              safeAddress,
+              retries - 1,
+            );
+          }
+          return false;
+        }
+
+        // Handle all other errors
+        console.error(
+          chalk.red(
+            `Failed to determine if signer can propose safe transactions on ${chain}. Error: ${error}`,
+          ),
+        );
+        return false;
       }
     }
     return this.canPropose[chain].get(safeAddress) || false;

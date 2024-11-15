@@ -11,7 +11,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   );
 
   constructor(
-    readonly configFilePath: string,
+    readonly warpRouteId: string,
     readonly runEnv: DeployEnvironment,
     readonly environmentChainNames: string[],
   ) {
@@ -19,17 +19,12 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   async helmValues() {
-    const pathRelativeToMonorepoRoot = this.configFilePath.includes(
-      'typescript/infra',
-    )
-      ? this.configFilePath
-      : path.join('typescript/infra', this.configFilePath);
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '8e2f616-20241025-163752',
+        tag: '6cd61f1-20241112-111341',
       },
-      configFilePath: pathRelativeToMonorepoRoot,
+      warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,
       environment: this.runEnv,
       hyperlane: {
@@ -43,8 +38,19 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   get helmReleaseName(): string {
-    const match = this.configFilePath.match(/\/([^/]+)-deployments\.yaml$/);
-    const name = match ? match[1] : this.configFilePath;
-    return `hyperlane-warp-route-${name.toLowerCase()}`; // helm requires lower case release names
+    let name = `hyperlane-warp-route-${this.warpRouteId
+      .toLowerCase()
+      .replaceAll('/', '-')}`;
+
+    // 52 because the max label length is 63, and there is an auto appended 11 char
+    // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-mantapacific-neutron-566dc75599`
+    const maxChars = 52;
+
+    // Max out length, and it can't end with a dash.
+    if (name.length > maxChars) {
+      name = name.slice(0, maxChars);
+      name = name.replace(/-+$/, '');
+    }
+    return name;
   }
 }
