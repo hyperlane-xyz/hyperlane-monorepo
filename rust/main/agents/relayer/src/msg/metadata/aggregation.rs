@@ -141,7 +141,6 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
                 result
             }
         };
-        // let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
 
         let sub_modules_and_metas = join_all(

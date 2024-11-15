@@ -61,16 +61,6 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
             }
         };
 
-        // let leaf_index = unwrap_or_none_result!(
-        //     self.get_merkle_leaf_id_by_message_id(message_id)
-        //         .await
-        //         .context(CTX)?,
-        //     debug!(
-        //         hyp_message=?message,
-        //         "No merkle leaf found for message id, must have not been enqueued in the tree"
-        //     )
-        // );
-
         // Update the validator latest checkpoint metrics.
         let _ = checkpoint_syncer
             .get_validator_latest_checkpoints_and_update_metrics(

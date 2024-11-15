@@ -127,11 +127,6 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             }
         };
 
-        // let (validators, threshold) = multisig_ism
-        //     .validators_and_threshold(message)
-        //     .await
-        //     .context(CTX)?;
-
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");
             return Ok(None);

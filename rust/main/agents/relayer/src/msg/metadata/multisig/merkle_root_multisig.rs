@@ -55,11 +55,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             }
         };
 
-        // let highest_leaf_index = unwrap_or_none_result!(
-        //     self.highest_known_leaf_index().await,
-        //     debug!("Couldn't get highest known leaf index")
-        // );
-
         let fn_name = "get_merkle_leaf_id_by_message_id";
         let leaf_index = match self
             .get_cached_call_result::<u32>(None, fn_name, &message.id())
@@ -83,15 +78,6 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
             }
         };
 
-        // let leaf_index = unwrap_or_none_result!(
-        //     self.get_merkle_leaf_id_by_message_id(message.id())
-        //         .await
-        //         .context(CTX)?,
-        //     debug!(
-        //         hyp_message=?message,
-        //         "No merkle leaf found for message id, must have not been enqueued in the tree"
-        //     )
-        // );
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
                 .fetch_checkpoint_in_range(
