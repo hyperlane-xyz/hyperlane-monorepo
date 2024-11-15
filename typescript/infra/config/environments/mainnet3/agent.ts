@@ -330,19 +330,14 @@ const contextBase = {
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
-  // {
-  //   type: GasPaymentEnforcementPolicyType.None,
-  //   matchingList: [
-  //     { originDomain: getDomainId('solanamainnet') },
-  //     { originDomain: getDomainId('eclipsemainnet') },
-  //   ],
-  // },
   {
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
+      // Temporary to make decent adapter messages go through that have underpaid.
+      { destinationDomain: getDomainId('zeronetwork') },
     ],
   },
   {
@@ -416,7 +411,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7f916fa-20241114-155234',
+      tag: '25a927d-20241114-171323',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -450,7 +445,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '75d62ae-20241107-060707',
+      tag: '25a927d-20241114-171323',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -483,7 +478,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '75d62ae-20241107-060707',
+      tag: '25a927d-20241114-171323',
     },
     gasPaymentEnforcement,
     metricAppContextsGetter,
