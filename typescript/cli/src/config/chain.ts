@@ -1,5 +1,6 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { ethers } from 'ethers';
+import { keccak256 } from 'ethers/lib/utils.js';
 import {
   Provider as StarknetProvider,
   provider as starknetProvider,
@@ -99,11 +100,8 @@ export async function createChainConfig({
     name,
     displayName,
     chainId,
-    // TODO: Agree on a uniqe way to generate number domain id for starknet chains
     domainId:
-      typeof chainId === 'string'
-        ? parseInt((parseInt(chainId.slice(-4)) / 10 ** 18).toString())
-        : chainId,
+      typeof chainId === 'string' ? stringChainIdToDomainId(chainId) : chainId,
     protocol: protocol,
     rpcUrls: [{ http: rpcUrl }],
     isTestnet,
@@ -314,4 +312,9 @@ function createProtocolChainIdDetector(
 function formatChainIdBasedOnProtocol(chainId: string, protocol: ProtocolType) {
   if (protocol === ProtocolType.Starknet) return chainId;
   return parseInt(chainId, 10);
+}
+
+//TODO: move this to somewhere else
+function stringChainIdToDomainId(chainId: string): number {
+  return parseInt(keccak256(chainId).slice(0, 12));
 }
