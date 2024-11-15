@@ -125,18 +125,6 @@ impl SealevelRpcClient {
             .map_err(Into::into)
     }
 
-    pub async fn get_block_height(&self) -> ChainResult<u32> {
-        let height = self
-            .0
-            .get_block_height_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .try_into()
-            // FIXME solana block height is u64...
-            .expect("sealevel block height exceeds u32::MAX");
-        Ok(height)
-    }
-
     pub async fn get_multiple_accounts_with_finalized_commitment(
         &self,
         pubkeys: &[Pubkey],
@@ -181,6 +169,18 @@ impl SealevelRpcClient {
             .get_signature_statuses(signatures)
             .await
             .map_err(ChainCommunicationError::from_other)
+    }
+
+    pub async fn get_slot(&self) -> ChainResult<u32> {
+        let slot = self
+            .0
+            .get_slot_with_commitment(CommitmentConfig::finalized())
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .try_into()
+            // FIXME solana block height is u64...
+            .expect("sealevel block slot exceeds u32::MAX");
+        Ok(slot)
     }
 
     pub async fn get_transaction(
