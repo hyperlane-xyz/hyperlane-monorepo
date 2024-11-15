@@ -178,6 +178,7 @@ pub enum KnownHyperlaneDomain {
     Zetachain = 7000,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
+    FuelIgnition = 1717982311,
 
     // -- Local chains --
     //
@@ -321,7 +322,7 @@ impl KnownHyperlaneDomain {
                 InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
                 ReAl, Redstone, Sanko, Sei, SolanaMainnet, Taiko, Tangle, Viction, Worldchain, Xai,
-                Xlayer, Zetachain, Zircuit, ZoraMainnet,
+                Xlayer, Zetachain, Zircuit, ZoraMainnet, FuelIgnition
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
@@ -353,7 +354,7 @@ impl KnownHyperlaneDomain {
                 ScrollSepolia, Sepolia, SuperpositionTestnet
 
             ],
-            HyperlaneDomainProtocol::Fuel: [FuelTest1, FuelTestnet],
+            HyperlaneDomainProtocol::Fuel: [FuelTest1, FuelTestnet, FuelIgnition],
             HyperlaneDomainProtocol::Sealevel: [EclipseMainnet, SolanaMainnet, SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [
                 Injective, Neutron, Osmosis,
@@ -388,15 +389,15 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainTechnicalStack::Other: [
                 Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
                 FuseMainnet, Gnosis, Injective, Linea, Lukso, Neutron, Osmosis, Polygon,
-                Sei, SolanaMainnet, Taiko, Viction, Zetachain,
+                Sei, SolanaMainnet, Taiko, Viction, Zetachain, FuelIgnition,
 
                 // Local chains
                 CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,
-                Test2, Test3, FuelTestnet,
+                Test2, Test3,
 
                 // Test chains
                 Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
-                Sepolia
+                Sepolia, FuelTestnet
            ],
         })
     }
