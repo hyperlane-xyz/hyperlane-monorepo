@@ -105,10 +105,32 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .await
             .context(CTX)?;
 
-        let (validators, threshold) = multisig_ism
-            .validators_and_threshold(message)
+        let contract_address = Some(ism_address);
+        let fn_name = "validators_and_threshold";
+
+        let (validators, threshold) = match self
+            .as_ref()
+            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, fn_name, message)
             .await
-            .context(CTX)?;
+        {
+            Some(result) => result,
+            None => {
+                let result = multisig_ism
+                    .validators_and_threshold(message)
+                    .await
+                    .context(CTX)?;
+
+                self.as_ref()
+                    .cache_call_result(contract_address, fn_name, message, &result)
+                    .await;
+                result
+            }
+        };
+
+        // let (validators, threshold) = multisig_ism
+        //     .validators_and_threshold(message)
+        //     .await
+        //     .context(CTX)?;
 
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");

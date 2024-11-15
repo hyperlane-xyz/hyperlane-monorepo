@@ -43,6 +43,8 @@ tracing.workspace = true
 url.workspace = true
 warp.workspace = true
 ya-gcp.workspace = true
+moka = { workspace = true, features = ["future"] }
+chrono = { workspace = true, features = ["serde"] }
 
 backtrace = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }

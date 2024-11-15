@@ -37,15 +37,39 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         let message_id = message.id();
 
         const CTX: &str = "When fetching MessageIdMultisig metadata";
-        let leaf_index = unwrap_or_none_result!(
-            self.get_merkle_leaf_id_by_message_id(message_id)
-                .await
-                .context(CTX)?,
-            debug!(
-                hyp_message=?message,
-                "No merkle leaf found for message id, must have not been enqueued in the tree"
-            )
-        );
+
+        let fn_name = "get_merkle_leaf_id_by_message_id";
+        let leaf_index = match self
+            .get_cached_call_result::<u32>(None, fn_name, &message_id)
+            .await
+        {
+            Some(index) => index,
+            None => {
+                let index: u32 = unwrap_or_none_result!(
+                    self.get_merkle_leaf_id_by_message_id(message_id)
+                        .await
+                        .context(CTX)?,
+                    debug!(
+                        hyp_message=?message,
+                        "No merkle leaf found for message id, must have not been enqueued in the tree"
+                    )
+                );
+
+                self.cache_call_result(None, fn_name, &message_id, &index)
+                    .await;
+                index
+            }
+        };
+
+        // let leaf_index = unwrap_or_none_result!(
+        //     self.get_merkle_leaf_id_by_message_id(message_id)
+        //         .await
+        //         .context(CTX)?,
+        //     debug!(
+        //         hyp_message=?message,
+        //         "No merkle leaf found for message id, must have not been enqueued in the tree"
+        //     )
+        // );
 
         // Update the validator latest checkpoint metrics.
         let _ = checkpoint_syncer

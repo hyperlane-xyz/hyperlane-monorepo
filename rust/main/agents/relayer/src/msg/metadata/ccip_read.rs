@@ -5,6 +5,7 @@ use derive_more::Deref;
 use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use eyre::Context;
+use hyperlane_base::cache::SerializedOffchainLookup;
 use hyperlane_core::{utils::bytes_to_hex, HyperlaneMessage, RawHyperlaneMessage, H256};
 use hyperlane_ethereum::OffchainLookup;
 use regex::Regex;
@@ -36,24 +37,47 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
         const CTX: &str = "When fetching CcipRead metadata";
         let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
 
-        let response = ism
-            .get_offchain_verify_info(RawHyperlaneMessage::from(message).to_vec())
+        let contract_address = Some(ism.address());
+        let fn_name = "get_offchain_verify_info";
+        let parsed_message = RawHyperlaneMessage::from(message).to_vec();
+
+        let info_from_cache = self
+            .get_cached_call_result::<SerializedOffchainLookup>(
+                contract_address,
+                fn_name,
+                &parsed_message,
+            )
             .await;
-        let info: OffchainLookup = match response {
-            Ok(_) => {
-                info!("incorrectly configured getOffchainVerifyInfo, expected revert");
-                return Ok(None);
-            }
-            Err(raw_error) => {
-                let matching_regex = Regex::new(r"0x[[:xdigit:]]+")?;
-                if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
-                    OffchainLookup::decode(hex_decode(&matching[0][2..])?)?
-                } else {
-                    info!("unable to parse custom error out of revert");
-                    return Ok(None);
+
+        let info: OffchainLookup = match info_from_cache {
+            Some(info) => info.into(),
+            None => {
+                let response = ism.get_offchain_verify_info(parsed_message.clone()).await;
+                match response {
+                    Ok(_) => {
+                        info!("incorrectly configured getOffchainVerifyInfo, expected revert");
+                        return Ok(None);
+                    }
+                    Err(raw_error) => {
+                        let matching_regex = Regex::new(r"0x[[:xdigit:]]+")?;
+                        if let Some(matching) = &matching_regex.captures(&raw_error.to_string()) {
+                            OffchainLookup::decode(hex_decode(&matching[0][2..])?)?
+                        } else {
+                            info!("unable to parse custom error out of revert");
+                            return Ok(None);
+                        }
+                    }
                 }
             }
         };
+
+        self.cache_call_result(
+            contract_address,
+            fn_name,
+            &parsed_message,
+            &SerializedOffchainLookup::from(info.clone()),
+        )
+        .await;
 
         for url in info.urls.iter() {
             // Need to explicitly convert the sender H160 the hex because the `ToString` implementation

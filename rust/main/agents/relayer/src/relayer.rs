@@ -10,6 +10,7 @@ use eyre::Result;
 use futures_util::future::try_join_all;
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
+    cache::{HyperlaneMokaCache, MeteredCache, MeteredCacheConfig},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::ChainConf,
@@ -72,6 +73,8 @@ pub struct Relayer {
     prover_syncs: HashMap<HyperlaneDomain, Arc<RwLock<MerkleTreeBuilder>>>,
     merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
+    /// The original reference to the relayer cache
+    _cache: MeteredCache<HyperlaneMokaCache>,
     message_whitelist: Arc<MatchingList>,
     message_blacklist: Arc<MatchingList>,
     address_blacklist: Arc<AddressBlacklist>,
@@ -125,6 +128,12 @@ impl BaseAgent for Relayer {
     {
         let core = settings.build_hyperlane_core(core_metrics.clone());
         let db = DB::from_path(&settings.db)?;
+        let cache_name = "relayer_cache";
+        let cache = MeteredCache::new(
+            HyperlaneMokaCache::new(cache_name),
+            core_metrics.cache_metrics(),
+            MeteredCacheConfig { cache_name },
+        );
         let dbs = settings
             .origin_chains
             .iter()
@@ -249,6 +258,7 @@ impl BaseAgent for Relayer {
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     db,
+                    cache.clone(),
                     IsmAwareAppContextClassifier::new(
                         mailboxes[destination].clone(),
                         settings.metric_app_contexts.clone(),
@@ -263,6 +273,7 @@ impl BaseAgent for Relayer {
                     Arc::new(MessageContext {
                         destination_mailbox: mailboxes[destination].clone(),
                         origin_db: dbs.get(origin).unwrap().clone(),
+                        cache: cache.clone(),
                         metadata_builder: Arc::new(metadata_builder),
                         origin_gas_payment_enforcer: gas_payment_enforcers[origin].clone(),
                         transaction_gas_limit,
@@ -274,6 +285,7 @@ impl BaseAgent for Relayer {
 
         Ok(Self {
             dbs,
+            _cache: cache,
             origin_chains: settings.origin_chains,
             destination_chains,
             msg_ctxs,

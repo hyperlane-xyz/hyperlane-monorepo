@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{
+    cache::{HyperlaneCache, HyperlaneMokaCache, MeteredCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
 };
@@ -20,7 +21,7 @@ use hyperlane_core::{
     TxOutcome, H256, U256,
 };
 use prometheus::{IntCounter, IntGauge};
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
 
 use super::{
@@ -43,6 +44,8 @@ pub struct MessageContext {
     pub destination_mailbox: Arc<dyn Mailbox>,
     /// Origin chain database to verify gas payments.
     pub origin_db: HyperlaneRocksDB,
+    /// Cache to store commonly used data calls.
+    pub cache: MeteredCache<HyperlaneMokaCache>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: Arc<BaseMetadataBuilder>,
@@ -199,16 +202,9 @@ impl PendingOperation for PendingMessage {
         // If the message has already been processed, e.g. due to another relayer having
         // already processed, then mark it as already-processed, and move on to
         // the next tick.
-        let is_already_delivered = match self
-            .ctx
-            .destination_mailbox
-            .delivered(self.message.id())
-            .await
-        {
+        let is_already_delivered = match self.is_message_delivered().await {
             Ok(is_delivered) => is_delivered,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus);
-            }
+            Err(reprepare_reason) => return reprepare_reason,
         };
         if is_already_delivered {
             debug!("Message has already been delivered, marking as submitted.");
@@ -217,17 +213,10 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Confirm(ConfirmReason::AlreadySubmitted);
         }
 
-        let provider = self.ctx.destination_mailbox.provider();
-
         // We cannot deliver to an address that is not a contract so check and drop if it isn't.
-        let is_contract = match provider.is_contract(&self.message.recipient).await {
+        let is_contract = match self.is_recipient_contract().await {
             Ok(is_contract) => is_contract,
-            Err(err) => {
-                return self.on_reprepare(
-                    Some(err),
-                    ReprepareReason::ErrorCheckingIfRecipientIsContract,
-                );
-            }
+            Err(reprepare_reason) => return reprepare_reason,
         };
         if !is_contract {
             info!(
@@ -237,16 +226,9 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Drop;
         }
 
-        let ism_address = match self
-            .ctx
-            .destination_mailbox
-            .recipient_ism(self.message.recipient)
-            .await
-        {
+        let ism_address = match self.recipient_ism_address().await {
             Ok(ism_address) => ism_address,
-            Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress);
-            }
+            Err(reprepare_reason) => return reprepare_reason,
         };
 
         let message_metadata_builder = match MessageMetadataBuilder::new(
@@ -533,6 +515,130 @@ impl PendingMessage {
             }
         }
         pm
+    }
+
+    async fn is_message_delivered(&mut self) -> Result<bool, PendingOperationResult> {
+        let contract_address = Some(self.ctx.destination_mailbox.address());
+        let fn_name = "delivered";
+        let message_id = self.message.id();
+
+        // Check cache for message delivery status
+        if let Some(is_delivered) = self
+            .get_from_cache::<bool>(contract_address, fn_name, &message_id)
+            .await
+        {
+            return Ok(is_delivered);
+        }
+
+        // Check if the message is already delivered
+        let is_delivered = self
+            .ctx
+            .destination_mailbox
+            .delivered(self.message.id())
+            .await
+            .map_err(|err| {
+                self.on_reprepare(Some(err), ReprepareReason::ErrorCheckingDeliveryStatus)
+            })?;
+
+        // Cache the message delivery status
+        self.store_to_cache(contract_address, fn_name, &message_id, &is_delivered)
+            .await;
+
+        Ok(is_delivered)
+    }
+
+    async fn is_recipient_contract(&mut self) -> Result<bool, PendingOperationResult> {
+        let contract_address = None;
+        let method = "is_contract";
+        let fn_params = self.message.recipient;
+        let provider = self.ctx.destination_mailbox.provider();
+
+        // Check cache for recipient contract status
+        if let Some(is_contract) = self
+            .get_from_cache::<bool>(contract_address, method, &fn_params)
+            .await
+        {
+            return Ok(is_contract);
+        }
+
+        // Check if the recipient is a contract
+        let is_contract = provider.is_contract(&fn_params).await.map_err(|err| {
+            self.on_reprepare(
+                Some(err),
+                ReprepareReason::ErrorCheckingIfRecipientIsContract,
+            )
+        })?;
+
+        // Cache the recipient contract status
+        self.store_to_cache(contract_address, method, &fn_params, &is_contract)
+            .await;
+
+        Ok(is_contract)
+    }
+
+    async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
+        let contract_address = None;
+        let method = "recipient_ism";
+        let fn_params = self.message.recipient;
+
+        // Check cache for recipient ISM address
+        if let Some(ism_address) = self
+            .get_from_cache::<H256>(contract_address, method, &fn_params)
+            .await
+        {
+            return Ok(ism_address);
+        }
+
+        // Fetch the recipient ISM address
+        let ism_address = self
+            .ctx
+            .destination_mailbox
+            .recipient_ism(self.message.recipient)
+            .await
+            .map_err(|err| {
+                self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress)
+            })?;
+
+        // Cache the recipient ISM address
+        self.store_to_cache(contract_address, method, &fn_params, &ism_address)
+            .await;
+
+        Ok(ism_address)
+    }
+
+    async fn get_from_cache<U: DeserializeOwned>(
+        &self,
+        contract_address: Option<H256>,
+        method: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+    ) -> Option<U> {
+        self.ctx
+            .cache
+            .get_cached_call_result::<U>(contract_address, method, fn_params)
+            .await
+            .map_err(|err| {
+                warn!(error=?err, "Error checking cache stored {:?} result", method);
+                err
+            })
+            .ok()
+            .flatten()
+    }
+
+    async fn store_to_cache(
+        &self,
+        contract_address: Option<H256>,
+        method: &str,
+        fn_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+    ) {
+        if let Err(err) = self
+            .ctx
+            .cache
+            .cache_call_result(contract_address, method, fn_params, result)
+            .await
+        {
+            warn!(error=?err, "Error caching {:?} result", method);
+        }
     }
 
     fn on_reprepare<E: Debug>(

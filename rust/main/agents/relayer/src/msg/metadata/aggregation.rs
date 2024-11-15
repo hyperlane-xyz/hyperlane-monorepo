@@ -126,7 +126,22 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
     ) -> eyre::Result<Option<Vec<u8>>> {
         const CTX: &str = "When fetching AggregationIsm metadata";
         let ism = self.build_aggregation_ism(ism_address).await.context(CTX)?;
-        let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
+
+        let contract_address = Some(ism.address());
+        let fn_name = "modules_and_threshold";
+        let (ism_addresses, threshold) = match self
+            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, fn_name, message)
+            .await
+        {
+            Some(result) => result,
+            None => {
+                let result = ism.modules_and_threshold(message).await.context(CTX)?;
+                self.cache_call_result(contract_address, fn_name, message, &result)
+                    .await;
+                result
+            }
+        };
+        // let (ism_addresses, threshold) = ism.modules_and_threshold(message).await.context(CTX)?;
         let threshold = threshold as usize;
 
         let sub_modules_and_metas = join_all(

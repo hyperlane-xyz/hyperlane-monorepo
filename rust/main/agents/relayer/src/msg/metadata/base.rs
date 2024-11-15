@@ -22,7 +22,10 @@ use crate::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_base::{
+    cache::{HyperlaneCache, HyperlaneMokaCache, MeteredCache, NoParams},
+    db::{HyperlaneDb, HyperlaneRocksDB},
+};
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -33,6 +36,7 @@ use hyperlane_core::{
     ValidatorAnnounce, H160, H256,
 };
 
+use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
@@ -239,10 +243,26 @@ impl MessageMetadataBuilder {
             .await
             .context("When building ISM")?;
 
-        let module_type = ism
-            .module_type()
+        let module_type = match self
+            .get_cached_call_result::<ModuleType>(Some(ism.address()), "module_type", &NoParams)
             .await
-            .context("When fetching module type")?;
+        {
+            Some(module_type) => module_type,
+            None => {
+                let module_type = ism
+                    .module_type()
+                    .await
+                    .context("When fetching module type")?;
+                self.cache_call_result(Some(ism.address()), "module_type", &NoParams, &module_type)
+                    .await;
+                module_type
+            }
+        };
+
+        // let module_type = ism
+        //     .module_type()
+        //     .await
+        //     .context("When fetching module type")?;
         let cloned = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
@@ -281,6 +301,7 @@ pub struct BaseMetadataBuilder {
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
+    cache: MeteredCache<HyperlaneMokaCache>,
     app_context_classifier: IsmAwareAppContextClassifier,
     #[new(value = "7")]
     max_depth: u32,
@@ -333,6 +354,38 @@ impl BaseMetadataBuilder {
             .db
             .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
         Ok(merkle_leaf)
+    }
+
+    pub async fn cache_call_result(
+        &self,
+        contract_address: Option<H256>,
+        method: &str,
+        call_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+    ) {
+        self.cache
+            .cache_call_result(contract_address, method, call_params, result)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", method);
+            })
+            .ok();
+    }
+
+    pub async fn get_cached_call_result<T: DeserializeOwned>(
+        &self,
+        contract_address: Option<H256>,
+        method: &str,
+        serialized_params: &(impl Serialize + Send + Sync),
+    ) -> Option<T> {
+        self.cache
+            .get_cached_call_result(contract_address, method, serialized_params)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when fetching cached call result for {:?}", method);
+            })
+            .ok()
+            .flatten()
     }
 
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {
