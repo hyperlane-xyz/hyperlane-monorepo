@@ -12,6 +12,7 @@ enum CommandType {
   AGENT_KURTOSIS = 'deploy:kurtosis-agents',
   STATUS = 'status:',
   SUBMIT = 'submit:',
+  RELAYER = 'relayer:',
 }
 
 export class ChainInterceptor {
@@ -25,6 +26,7 @@ export class ChainInterceptor {
     [CommandType.AGENT_KURTOSIS, () => MultiChainHandler.forAgentKurtosis()],
     [CommandType.STATUS, () => MultiChainHandler.forOriginDestination()],
     [CommandType.SUBMIT, () => MultiChainHandler.forStrategyConfig()],
+    [CommandType.RELAYER, () => MultiChainHandler.forRelayer()],
   ]);
 
   static getStrategy(argv: Record<string, any>): ChainHandler {

@@ -3,13 +3,13 @@ import { Signer, Wallet } from 'ethers';
 import { ChainSubmissionStrategy, TxSubmitterType } from '@hyperlane-xyz/sdk';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-export interface ISubmitterStrategy {
+export interface IMultiChainSigner {
   getPrivateKey(chain: ChainName): Promise<string>;
   getSigner(privateKey: string): Signer;
   getType(): TxSubmitterType;
 }
 
-export abstract class BaseSubmitterStrategy implements ISubmitterStrategy {
+export abstract class BaseMultiChainSigner implements IMultiChainSigner {
   constructor(protected config: ChainSubmissionStrategy) {}
 
   abstract getPrivateKey(chain: ChainName): Promise<string>;

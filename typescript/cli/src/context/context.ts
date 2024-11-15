@@ -17,6 +17,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
@@ -27,7 +28,7 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner } from '../utils/keys.js';
 
 import { ChainInterceptor } from './strategies/chain/ChainInterceptor.js';
-import { SubmitterContext } from './strategies/submitter/SubmitterContext.js';
+import { MultiChainSignerContext } from './strategies/signer/MultiChainSignerContext.js';
 import {
   CommandContext,
   ContextSettings,
@@ -65,7 +66,9 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   if (!requiresKey) return argv;
 
-  const strategyConfig = await readChainSubmissionStrategyConfig(argv.strategy);
+  const strategyConfig = await readChainSubmissionStrategyConfig(
+    argv.strategy ?? DEFAULT_STRATEGY_CONFIG_PATH,
+  );
 
   /**
    * @notice  Select the appropriate chain strategy based on the hyperlane command
@@ -83,7 +86,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * @notice  Extracts private keys from strategyConfig else prompts user private key input
    */
-  const signerStrategy = new SubmitterContext(
+  const signerStrategy = new MultiChainSignerContext(
     strategyConfig,
     chains,
     TxSubmitterType.JSON_RPC,

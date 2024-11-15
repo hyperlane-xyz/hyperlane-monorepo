@@ -3,13 +3,16 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import { readWarpRouteDeployConfig } from '../../../config/warp.js';
 import { logRed } from '../../../logger.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
-import { isFile, runFileSelectionStep } from '../../../utils/files.js';
+import {
+  isFile,
+  readYamlOrJson,
+  runFileSelectionStep,
+} from '../../../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../../../utils/input.js';
 
 import { ChainHandler } from './types.js';
@@ -20,6 +23,7 @@ enum ChainSelectionMode {
   WARP_CONFIG,
   WARP_READ,
   STRATEGY,
+  RELAYER,
 }
 
 export class MultiChainHandler implements ChainHandler {
@@ -35,6 +39,8 @@ export class MultiChainHandler implements ChainHandler {
         return this.determineAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
         return this.determineStrategyChains(argv);
+      case ChainSelectionMode.RELAYER:
+        return this.determineRelayerChains(argv);
       case ChainSelectionMode.ORIGIN_DESTINATION:
       default:
         return this.determineOriginDestinationChains(argv);
@@ -45,7 +51,7 @@ export class MultiChainHandler implements ChainHandler {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
-    argv.context.chains = await this.getWarpConfigChains(
+    argv.context.chains = await this.getWarpRouteConfigChains(
       argv.config.trim(),
       argv.skipConfirmation,
     );
@@ -122,8 +128,13 @@ export class MultiChainHandler implements ChainHandler {
     const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
     return extractChainValues(strategy);
   }
+  private async determineRelayerChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    return argv.chains.split(',').map((item: string) => item.trim());
+  }
 
-  private async getWarpConfigChains(
+  private async getWarpRouteConfigChains(
     configPath: string,
     skipConfirmation: boolean,
   ): Promise<ChainName[]> {
@@ -138,7 +149,11 @@ export class MultiChainHandler implements ChainHandler {
       logRed(`Using warp route deployment config at ${configPath}`);
     }
 
-    const warpRouteConfig = await readWarpRouteDeployConfig(configPath);
+    // @dev instead of using readWarpRouteDeployConfig, which uses context to get the signer to fill defaults and make file pass zod validation
+    const warpRouteConfig = (await readYamlOrJson(configPath)) as Record<
+      string,
+      any
+    >;
 
     const chains = Object.keys(warpRouteConfig) as ChainName[];
     assert(
@@ -165,6 +180,9 @@ export class MultiChainHandler implements ChainHandler {
   }
   static forStrategyConfig(): MultiChainHandler {
     return new MultiChainHandler(ChainSelectionMode.STRATEGY);
+  }
+  static forRelayer(): MultiChainHandler {
+    return new MultiChainHandler(ChainSelectionMode.RELAYER);
   }
 }
 

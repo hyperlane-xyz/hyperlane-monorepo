@@ -2,21 +2,22 @@ import { password } from '@inquirer/prompts';
 
 import { ChainName, TxSubmitterType } from '@hyperlane-xyz/sdk';
 
-import { BaseSubmitterStrategy } from './SubmitterStrategy.js';
+import { BaseMultiChainSigner } from './BaseMultiChainSigner.js';
 
-export class JsonRpcStrategy extends BaseSubmitterStrategy {
+export class JsonRpcSigner extends BaseMultiChainSigner {
   async getPrivateKey(chain: ChainName): Promise<string> {
     const submitter = this.config[chain]?.submitter as {
       type: TxSubmitterType.JSON_RPC;
       privateKey?: string;
     };
 
-    return (
+    const privateKey =
       submitter?.privateKey ??
       (await password({
         message: `Please enter the private key for chain ${chain}`,
-      }))
-    );
+      }));
+
+    return privateKey;
   }
 
   getType(): TxSubmitterType {

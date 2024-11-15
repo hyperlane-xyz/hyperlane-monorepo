@@ -197,9 +197,8 @@ export const transactionsCommandOption: Options = {
 export const strategyCommandOption: Options = {
   type: 'string',
   description: 'The submission strategy input file path.',
-  alias: 's',
-  default: DEFAULT_STRATEGY_CONFIG_PATH,
-  demandOption: true,
+  alias: ['s', 'strategy'],
+  demandOption: false,
 };
 
 export const addressCommandOption = (

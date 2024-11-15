@@ -10,15 +10,15 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../../../utils/env.js';
 
-import { ISubmitterStrategy } from './SubmitterStrategy.js';
-import { SubmitterStrategyFactory } from './SubmitterStrategyFactory.js';
+import { IMultiChainSigner } from './BaseMultiChainSigner.js';
+import { MultiChainSignerFactory } from './MultiChainSignerFactory.js';
 
 /**
- * @title SubmitterContext
+ * @title MultiChainSignerContext
  * @dev Manages the context for transaction submitters, including retrieving chain keys and signers.
  */
-export class SubmitterContext {
-  private strategy: ISubmitterStrategy;
+export class MultiChainSignerContext {
+  private strategy: IMultiChainSigner;
 
   /**
    * @param strategyConfig Configuration for the submitter strategy.
@@ -34,7 +34,7 @@ export class SubmitterContext {
     private multiProvider: MultiProvider,
     private key?: string,
   ) {
-    this.strategy = SubmitterStrategyFactory.createStrategy(
+    this.strategy = MultiChainSignerFactory.getSignerStrategy(
       submitterType,
       strategyConfig,
     );
@@ -101,7 +101,7 @@ export class SubmitterContext {
    * @return A Promise that resolves to the Signer instance for the specified chain.
    * @throws Error if the protocol is unsupported.
    */
-  async getSignerForChain(chain: ChainName): Promise<any> {
+  async getSignerForChain(chain: ChainName): Promise<Signer> {
     const { protocol } = this.multiProvider.getChainMetadata(chain);
 
     const privateKey =

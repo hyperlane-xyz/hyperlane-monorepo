@@ -30,6 +30,7 @@ export async function hyperlaneCoreRead(chain: string, coreOutputPath: string) {
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \
+        --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
 }
