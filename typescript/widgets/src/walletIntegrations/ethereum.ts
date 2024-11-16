@@ -6,6 +6,7 @@ import {
   waitForTransactionReceipt,
 } from '@wagmi/core';
 import { useCallback, useMemo } from 'react';
+import { Chain as ViemChain } from 'viem';
 import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
 import {
@@ -14,6 +15,7 @@ import {
   ProviderType,
   TypedTransactionReceipt,
   WarpTypedTransaction,
+  chainMetadataToViemChain,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
@@ -25,7 +27,7 @@ import {
   ChainTransactionFns,
   WalletDetails,
 } from './types.js';
-import { ethers5TxToWagmiTx } from './utils.js';
+import { ethers5TxToWagmiTx, getChainsForProtocol } from './utils.js';
 
 const logger = widgetLogger.child({ module: 'walletIntegrations/ethereum' });
 
@@ -155,4 +157,13 @@ export function useEthereumTransactionFns(
   );
 
   return { sendTransaction: onSendTx, switchNetwork: onSwitchNetwork };
+}
+
+// Metadata formatted for use in Wagmi config
+export function getWagmiChainConfigs(
+  multiProvider: MultiProtocolProvider,
+): ViemChain[] {
+  return getChainsForProtocol(multiProvider, ProtocolType.Ethereum).map(
+    chainMetadataToViemChain,
+  );
 }

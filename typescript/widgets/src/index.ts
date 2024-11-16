@@ -59,7 +59,11 @@ export { XCircleIcon } from './icons/XCircle.js';
 export { DropdownMenu, type DropdownMenuProps } from './layout/DropdownMenu.js';
 export { Modal, useModal, type ModalProps } from './layout/Modal.js';
 export { Popover, type PopoverProps } from './layout/Popover.js';
+export { CosmosLogo } from './logos/Cosmos.js';
+export { EthereumLogo } from './logos/Ethereum.js';
 export { HyperlaneLogo } from './logos/Hyperlane.js';
+export { PROTOCOL_TO_LOGO } from './logos/protocols.js';
+export { SolanaLogo } from './logos/Solana.js';
 export { MessageTimeline } from './messages/MessageTimeline.js';
 export {
   MessageStage,
@@ -77,6 +81,7 @@ export {
 } from './utils/clipboard.js';
 export { useConnectionHealthTest } from './utils/useChainConnectionTest.js';
 export {
+  getCosmosKitChainConfigs,
   useCosmosAccount,
   useCosmosActiveChain,
   useCosmosConnectFn,
@@ -85,6 +90,7 @@ export {
   useCosmosWalletDetails,
 } from './walletIntegrations/cosmos.js';
 export {
+  getWagmiChainConfigs,
   useEthereumAccount,
   useEthereumActiveChain,
   useEthereumConnectFn,
@@ -104,6 +110,7 @@ export {
   useTransactionFns,
   useWalletDetails,
 } from './walletIntegrations/multiProtocol.js';
+export { MultiProtocolWalletModal } from './walletIntegrations/MultiProtocolWalletModal.js';
 export {
   useSolanaAccount,
   useSolanaActiveChain,

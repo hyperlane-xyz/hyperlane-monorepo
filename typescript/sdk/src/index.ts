@@ -26,7 +26,6 @@ export {
   testCosmosChain,
   testSealevelChain,
 } from './consts/testChains.js';
-export { randomAddress } from './test/testUtils.js';
 export {
   attachAndConnectContracts,
   attachContracts,
@@ -329,6 +328,7 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData } from './providers/transactions/types.js';
+export { randomAddress } from './test/testUtils.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -370,6 +370,10 @@ export { EV5TxTransformerInterface } from './providers/transactions/transformer/
 export { EV5InterchainAccountTxTransformerPropsSchema } from './providers/transactions/transformer/ethersV5/schemas.js';
 export { EV5InterchainAccountTxTransformerProps } from './providers/transactions/transformer/ethersV5/types.js';
 
+export {
+  chainMetadataToCosmosChain,
+  chainMetadataToViemChain,
+} from './metadata/chainMetadataConversion.js';
 export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
@@ -503,7 +507,6 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
-export { chainMetadataToViemChain } from './utils/viem.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,

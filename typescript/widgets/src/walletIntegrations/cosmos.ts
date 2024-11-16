@@ -1,3 +1,4 @@
+import type { AssetList, Chain as CosmosChain } from '@chain-registry/types';
 import type {
   DeliverTxResponse,
   ExecuteResult,
@@ -14,6 +15,7 @@ import {
   ProviderType,
   TypedTransactionReceipt,
   WarpTypedTransaction,
+  chainMetadataToCosmosChain,
 } from '@hyperlane-xyz/sdk';
 import { HexString, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
@@ -26,6 +28,7 @@ import {
   ChainTransactionFns,
   WalletDetails,
 } from './types.js';
+import { getChainsForProtocol } from './utils.js';
 
 // Used because the CosmosKit hooks always require a chain name
 const PLACEHOLDER_COSMOS_CHAIN = cosmoshub.name;
@@ -177,14 +180,29 @@ export function useCosmosTransactionFns(
 function getCosmosChains(
   multiProvider: MultiProtocolProvider,
 ): ChainMetadata[] {
-  const chains = Object.values(multiProvider.metadata).filter(
-    (c) => c.protocol === ProtocolType.Cosmos,
-  );
-  return [...chains, cosmoshub];
+  return [
+    ...getChainsForProtocol(multiProvider, ProtocolType.Cosmos),
+    cosmoshub,
+  ];
 }
 
 function getCosmosChainNames(
   multiProvider: MultiProtocolProvider,
 ): ChainName[] {
   return getCosmosChains(multiProvider).map((c) => c.name);
+}
+
+// Metadata formatted for use in Wagmi config
+export function getCosmosKitChainConfigs(
+  multiProvider: MultiProtocolProvider,
+): {
+  chains: CosmosChain[];
+  assets: AssetList[];
+} {
+  const chains = getCosmosChains(multiProvider);
+  const configList = chains.map(chainMetadataToCosmosChain);
+  return {
+    chains: configList.map((c) => c.chain),
+    assets: configList.map((c) => c.assets),
+  };
 }

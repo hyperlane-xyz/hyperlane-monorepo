@@ -19,7 +19,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@adraffy/ens-normalize@npm:1.11.0, @adraffy/ens-normalize@npm:^1.10.1":
+"@adraffy/ens-normalize@npm:^1.10.1":
   version: 1.11.0
   resolution: "@adraffy/ens-normalize@npm:1.11.0"
   checksum: 10/abef75f21470ea43dd6071168e092d2d13e38067e349e76186c78838ae174a46c3e18ca50921d05bea6ec3203074147c9e271f8cb6531d1c2c0e146f3199ddcb
@@ -5217,6 +5217,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@chain-registry/types@npm:^0.50.14":
+  version: 0.50.14
+  resolution: "@chain-registry/types@npm:0.50.14"
+  checksum: 10/4a1e6978de66d50f98a804174fb8bfa712e42284473edc9e85e6c308dac3fcf381d1888248579128e7a78cec7539378bf7a149b20654741daa85b1c88b8beb8c
+  languageName: node
+  linkType: hard
+
 "@chain-registry/utils@npm:^1.51.13":
   version: 1.51.13
   resolution: "@chain-registry/utils@npm:1.51.13"
@@ -8322,6 +8329,7 @@ __metadata:
   dependencies:
     "@arbitrum/sdk": "npm:^4.0.0"
     "@aws-sdk/client-s3": "npm:^3.74.0"
+    "@chain-registry/types": "npm:^0.50.14"
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@hyperlane-xyz/core": "npm:5.8.0"
@@ -8354,7 +8362,7 @@ __metadata:
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.7.1"
     typescript: "npm:5.3.3"
-    viem: "npm:^2.21.40"
+    viem: "npm:^2.21.45"
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
   peerDependencies:
@@ -36797,7 +36805,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"viem@npm:^2.1.1, viem@npm:^2.21.41":
+"viem@npm:^2.1.1, viem@npm:^2.21.41, viem@npm:^2.21.45":
   version: 2.21.45
   resolution: "viem@npm:2.21.45"
   dependencies:
@@ -36816,28 +36824,6 @@ __metadata:
     typescript:
       optional: true
   checksum: 10/93428588882620de5ed442a5a568367762d39660bdb4ff9c430d5409da1dca085a3648bf0afedb6631bb219b410e58ccabf600ed26228ab9ae73a77a1031c576
-  languageName: node
-  linkType: hard
-
-"viem@npm:^2.21.40":
-  version: 2.21.41
-  resolution: "viem@npm:2.21.41"
-  dependencies:
-    "@adraffy/ens-normalize": "npm:1.11.0"
-    "@noble/curves": "npm:1.6.0"
-    "@noble/hashes": "npm:1.5.0"
-    "@scure/bip32": "npm:1.5.0"
-    "@scure/bip39": "npm:1.4.0"
-    abitype: "npm:1.0.6"
-    isows: "npm:1.0.6"
-    webauthn-p256: "npm:0.0.10"
-    ws: "npm:8.18.0"
-  peerDependencies:
-    typescript: ">=5.0.4"
-  peerDependenciesMeta:
-    typescript:
-      optional: true
-  checksum: 10/bd3d1426584eb319c6ab69949c188d7142f6fa14b38df5ed54c967c5d5246e4eb98a9412ab7d053ff3d649df3d0174fc57f8a1e6f2803ce3aa97be2e010500b9
   languageName: node
   linkType: hard
 
