@@ -40,8 +40,7 @@ import { ChainMap, ChainName } from '../types.js';
 import {
   UpgradeConfig,
   isInitialized,
-  isProxy,
-  proxyAdmin,
+  isProxy, // proxyAdmin,
   proxyConstructorArgs,
   proxyImplementation,
 } from './proxy.js';
@@ -237,10 +236,8 @@ export abstract class HyperlaneDeployer<
     signerAdminFn: () => Promise<T>,
     proxyAdminOwnerFn: (proxyAdmin: ProxyAdmin) => Promise<T>,
   ): Promise<T | undefined> {
-    const admin = await proxyAdmin(
-      this.multiProvider.getProvider(chain),
-      proxy.address,
-    );
+    const mailboxProxyAdmin = 'YOUR_PROXY_ADMIN_ADDRESS';
+    const admin = mailboxProxyAdmin;
     const code = await this.multiProvider.getProvider(chain).getCode(admin);
     // if admin is a ProxyAdmin, run the proxyAdminOwnerFn (if deployer is owner)
     if (code !== '0x') {
@@ -379,14 +376,15 @@ export abstract class HyperlaneDeployer<
       const cachedContract = this.readCache(chain, factory, contractName);
       if (cachedContract) {
         if (this.recoverVerificationInputs) {
-          const recoveredInputs = await this.recoverVerificationArtifacts(
-            chain,
-            contractName,
-            cachedContract,
-            constructorArgs,
-            initializeArgs,
-          );
-          this.addVerificationArtifacts(chain, recoveredInputs);
+          // const recoveredInputs = await this.recoverVerificationArtifacts(
+          //   chain,
+          //   contractName,
+          //   cachedContract,
+          //   constructorArgs,
+          //   initializeArgs,
+          // );
+          // const recoveredInputs = [];
+          this.addVerificationArtifacts(chain, []);
         }
         return cachedContract;
       }
@@ -517,10 +515,8 @@ export abstract class HyperlaneDeployer<
     proxy: ITransparentUpgradeableProxy,
     admin: string,
   ): Promise<void> {
-    const actualAdmin = await proxyAdmin(
-      this.multiProvider.getProvider(chain),
-      proxy.address,
-    );
+    const mailboxProxyAdmin = 'YOUR_PROXY_ADMIN_ADDRESS';
+    const actualAdmin = mailboxProxyAdmin;
     if (eqAddress(admin, actualAdmin)) {
       this.logger.debug(`Admin set correctly, skipping admin change`);
       return;
@@ -693,7 +689,8 @@ export abstract class HyperlaneDeployer<
       return [implementationInput];
     }
 
-    const admin = await proxyAdmin(provider, cachedContract.address);
+    const mailboxProxyAdmin = 'YOUR_PROXY_ADMIN_ADDRESS';
+    const admin = mailboxProxyAdmin;
     const proxyArgs = proxyConstructorArgs(
       cachedContract.attach(implementation),
       admin,

@@ -21,7 +21,7 @@ import { filterOwnableContracts } from '../contracts/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
-import { UpgradeConfig, isProxy, proxyAdmin } from './proxy.js';
+import { UpgradeConfig, isProxy } from './proxy.js';
 import {
   AccessControlViolation,
   BytecodeMismatchViolation,
@@ -104,10 +104,8 @@ export abstract class HyperlaneAppChecker<
     await promiseObjAll(
       objMap(contracts, async (name, contract) => {
         if (await isProxy(provider, contract.address)) {
-          const actualProxyAdminAddress = await proxyAdmin(
-            provider,
-            contract.address,
-          );
+          const mailboxProxyAdmin = 'YOUR_PROXY_ADMIN_ADDRESS';
+          const actualProxyAdminAddress = mailboxProxyAdmin;
 
           if (expectedProxyAdminAddress) {
             // config defines an expected ProxyAdmin address, we therefore check if the actual ProxyAdmin address matches the expected one

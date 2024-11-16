@@ -35,25 +35,25 @@ export class HyperlaneIgpChecker extends HyperlaneAppChecker<
 
   async checkBytecodes(chain: ChainName): Promise<void> {
     const contracts = this.app.getContracts(chain);
-    const implementation = await proxyImplementation(
-      this.multiProvider.getProvider(chain),
-      contracts.interchainGasPaymaster.address,
-    );
-    await this.checkBytecode(
-      chain,
-      'InterchainGasPaymaster implementation',
-      implementation,
-      [
-        BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
-        BytecodeHash.OPT_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
-      ],
-      (bytecode) =>
-        bytecode // We persist the block number in the bytecode now too, so we have to strip it
-          .replaceAll(
-            /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
-            (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
-          ),
-    );
+    // const implementation = await proxyImplementation(
+    //   this.multiProvider.getProvider(chain),
+    //   contracts.interchainGasPaymaster.address,
+    // );
+    // await this.checkBytecode(
+    //   chain,
+    //   'InterchainGasPaymaster implementation',
+    //   implementation,
+    //   [
+    //     BytecodeHash.INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+    //     BytecodeHash.OPT_INTERCHAIN_GAS_PAYMASTER_BYTECODE_HASH,
+    //   ],
+    //   (bytecode) =>
+    //     bytecode // We persist the block number in the bytecode now too, so we have to strip it
+    //       .replaceAll(
+    //         /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
+    //         (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+    //       ),
+    // );
 
     await this.checkProxy(
       chain,

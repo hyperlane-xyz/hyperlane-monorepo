@@ -48,13 +48,12 @@ export class EvmCoreReader implements CoreReader {
    */
   async deriveCoreConfig(address: Address): Promise<CoreConfig> {
     const mailbox = Mailbox__factory.connect(address, this.provider);
-    const [defaultIsm, defaultHook, requiredHook, mailboxProxyAdmin] =
-      await Promise.all([
-        mailbox.defaultIsm(),
-        mailbox.defaultHook(),
-        mailbox.requiredHook(),
-        proxyAdmin(this.provider, mailbox.address),
-      ]);
+    const [defaultIsm, defaultHook, requiredHook] = await Promise.all([
+      mailbox.defaultIsm(),
+      mailbox.defaultHook(),
+      mailbox.requiredHook(),
+    ]);
+    const mailboxProxyAdmin = 'YOUR_PROXY_ADMIN_ADDRESS';
 
     // Parallelize each configuration request
     const results = await promiseObjAll(

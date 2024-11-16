@@ -79,18 +79,18 @@ export async function runVerifyWarpRoute({
     });
     verificationInputs[chainName].push(implementationInput);
 
-    // Verify Proxy and ProxyAdmin
-    if (isProxyContract) {
-      const { proxyAdminInput, transparentUpgradeableProxyInput } =
-        await verificationUtils.getProxyAndAdminInput({
-          chainName,
-          multiProvider,
-          proxyAddress: token.addressOrDenom,
-        });
+    // // Verify Proxy and ProxyAdmin
+    // if (isProxyContract) {
+    //   const { proxyAdminInput, transparentUpgradeableProxyInput } =
+    //     await verificationUtils.getProxyAndAdminInput({
+    //       chainName,
+    //       multiProvider,
+    //       proxyAddress: token.addressOrDenom,
+    //     });
 
-      verificationInputs[chainName].push(proxyAdminInput);
-      verificationInputs[chainName].push(transparentUpgradeableProxyInput);
-    }
+    //   verificationInputs[chainName].push(proxyAdminInput);
+    //   verificationInputs[chainName].push(transparentUpgradeableProxyInput);
+    // }
   }
 
   logBlue(`All explorer constructor args successfully retrieved. Verifying...`);

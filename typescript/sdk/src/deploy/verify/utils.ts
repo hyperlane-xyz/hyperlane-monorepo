@@ -9,7 +9,7 @@ import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../../types.js';
-import { proxyAdmin, proxyImplementation } from '../proxy.js';
+import { proxyImplementation } from '../proxy.js';
 
 import { ContractVerificationInput } from './types.js';
 
@@ -220,7 +220,8 @@ export async function getProxyAndAdminInput({
 }> {
   const provider = multiProvider.getProvider(chainName);
 
-  const proxyAdminAddress = await proxyAdmin(provider, proxyAddress);
+  const mailboxProxyAdmin = 'YOUR_PROXY_ADMIN_ADDRESS';
+  const proxyAdminAddress = mailboxProxyAdmin;
   const proxyAdminConstructorArgs = await getConstructorArgumentsApi({
     chainName,
     multiProvider,

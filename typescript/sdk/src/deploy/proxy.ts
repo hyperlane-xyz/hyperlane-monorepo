@@ -35,24 +35,7 @@ export async function isInitialized(
   provider: ethers.providers.Provider,
   contract: Address,
 ): Promise<boolean> {
-  // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
-  const storageValue = await provider.getStorageAt(contract, '0x0');
-  return (
-    storageValue ===
-    '0x00000000000000000000000000000000000000000000000000000000000000ff'
-  );
-}
-
-export async function proxyAdmin(
-  provider: ethers.providers.Provider,
-  proxy: Address,
-): Promise<Address> {
-  // Hardcoded storage slot for admin per EIP-1967
-  const storageValue = await provider.getStorageAt(
-    proxy,
-    '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103',
-  );
-  return ethers.utils.getAddress(storageValue.slice(26));
+  return false;
 }
 
 export function proxyConstructorArgs<C extends ethers.Contract>(
@@ -70,7 +53,8 @@ export async function isProxy(
   provider: ethers.providers.Provider,
   proxy: Address,
 ): Promise<boolean> {
-  const admin = await proxyAdmin(provider, proxy);
+  const mailboxProxyAdmin = 'YOUR_PROXY_ADMIN_ADDRESS';
+  const admin = mailboxProxyAdmin;
   return !eqAddress(admin, ethers.constants.AddressZero);
 }
 

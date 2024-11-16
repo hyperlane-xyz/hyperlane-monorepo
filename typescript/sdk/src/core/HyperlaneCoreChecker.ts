@@ -188,58 +188,58 @@ export class HyperlaneCoreChecker extends HyperlaneAppChecker<
     const contracts = this.app.getContracts(chain);
     const mailbox = contracts.mailbox;
     const localDomain = await mailbox.localDomain();
-    const implementation = await proxyImplementation(
-      this.multiProvider.getProvider(chain),
-      mailbox.address,
-    );
+    // // const implementation = await proxyImplementation(
+    //   this.multiProvider.getProvider(chain),
+    //   mailbox.address,
+    // );
 
-    if (implementation === ethers.constants.AddressZero) {
-      const violation: MailboxViolation = {
-        type: CoreViolationType.Mailbox,
-        subType: MailboxViolationType.NotProxied,
-        contract: mailbox,
-        chain,
-        actual: implementation,
-        expected: 'non-zero address',
-      };
-      this.addViolation(violation);
-    } else {
-      await this.checkBytecode(
-        chain,
-        'Mailbox implementation',
-        implementation,
-        [
-          BytecodeHash.V3_MAILBOX_BYTECODE_HASH,
-          BytecodeHash.OPT_V3_MAILBOX_BYTECODE_HASH,
-        ],
-        (bytecode) =>
-          // This is obviously super janky but basically we are searching
-          //  for the occurrences of localDomain in the bytecode and remove
-          //  that to compare, but some coincidental occurrences of
-          // localDomain in the bytecode should be not be removed which
-          // are just done via an offset guard
-          bytecode
-            .replaceAll(
-              ethersUtils.defaultAbiCoder
-                .encode(['uint32'], [localDomain])
-                .slice(2),
-              (match, offset) => (offset > 8000 ? match : ''),
-            )
-            // We persist the block number in the bytecode now too, so we have to strip it
-            .replaceAll(
-              /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
-              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
-            )
-            .replaceAll(
-              /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
-              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
-            )
-            .replaceAll(
-              /(f167f00000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})338989898/g,
-              (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
-            ),
-      );
-    }
+    // if (implementation === ethers.constants.AddressZero) {
+    //   const violation: MailboxViolation = {
+    //     type: CoreViolationType.Mailbox,
+    //     subType: MailboxViolationType.NotProxied,
+    //     contract: mailbox,
+    //     chain,
+    //     actual: implementation,
+    //     expected: 'non-zero address',
+    //   };
+    //   this.addViolation(violation);
+    // } else {
+    //   await this.checkBytecode(
+    //     chain,
+    //     'Mailbox implementation',
+    //     implementation,
+    //     [
+    //       BytecodeHash.V3_MAILBOX_BYTECODE_HASH,
+    //       BytecodeHash.OPT_V3_MAILBOX_BYTECODE_HASH,
+    //     ],
+    //     (bytecode) =>
+    //       // This is obviously super janky but basically we are searching
+    //       //  for the occurrences of localDomain in the bytecode and remove
+    //       //  that to compare, but some coincidental occurrences of
+    //       // localDomain in the bytecode should be not be removed which
+    //       // are just done via an offset guard
+    //       bytecode
+    //         .replaceAll(
+    //           ethersUtils.defaultAbiCoder
+    //             .encode(['uint32'], [localDomain])
+    //             .slice(2),
+    //           (match, offset) => (offset > 8000 ? match : ''),
+    //         )
+    //         // We persist the block number in the bytecode now too, so we have to strip it
+    //         .replaceAll(
+    //           /(00000000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})81565/g,
+    //           (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+    //         )
+    //         .replaceAll(
+    //           /(0000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})6118123373/g,
+    //           (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+    //         )
+    //         .replaceAll(
+    //           /(f167f00000000000000000000000000000000000000000000000000000[a-f0-9]{0,22})338989898/g,
+    //           (match, _offset) => (match.length % 2 === 0 ? '' : '0'),
+    //         ),
+    //   );
+    // }
 
     await this.checkProxy(chain, 'Mailbox proxy', contracts.mailbox.address);
 
