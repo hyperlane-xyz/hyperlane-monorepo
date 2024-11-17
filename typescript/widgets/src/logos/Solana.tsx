@@ -9,7 +9,7 @@ function _SolanaLogo(props: SVGProps<SVGSVGElement>) {
       {...props}
     >
       <linearGradient
-        id="a"
+        id="solGrad1"
         x1="360.88"
         x2="141.21"
         y1="351.46"
@@ -21,11 +21,11 @@ function _SolanaLogo(props: SVGProps<SVGSVGElement>) {
         <stop offset="1" stopColor="#dc1fff"></stop>
       </linearGradient>
       <path
-        fill="url(#a)"
+        fill="url(#solGrad1)"
         d="M64.6 237.9c2.4-2.4 5.7-3.8 9.2-3.8h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1z"
       ></path>
       <linearGradient
-        id="b"
+        id="solGrad2"
         x1="264.83"
         x2="45.16"
         y1="401.6"
@@ -37,11 +37,11 @@ function _SolanaLogo(props: SVGProps<SVGSVGElement>) {
         <stop offset="1" stopColor="#dc1fff"></stop>
       </linearGradient>
       <path
-        fill="url(#b)"
+        fill="url(#solGrad2)"
         d="M64.6 3.8C67.1 1.4 70.4 0 73.8 0h317.4c5.8 0 8.7 7 4.6 11.1l-62.7 62.7c-2.4 2.4-5.7 3.8-9.2 3.8H6.5c-5.8 0-8.7-7-4.6-11.1z"
       ></path>
       <linearGradient
-        id="c"
+        id="solGrad3"
         x1="312.55"
         x2="92.88"
         y1="376.69"
@@ -53,7 +53,7 @@ function _SolanaLogo(props: SVGProps<SVGSVGElement>) {
         <stop offset="1" stopColor="#dc1fff"></stop>
       </linearGradient>
       <path
-        fill="url(#c)"
+        fill="url(#solGrad3)"
         d="M333.1 120.1c-2.4-2.4-5.7-3.8-9.2-3.8H6.5c-5.8 0-8.7 7-4.6 11.1l62.7 62.7c2.4 2.4 5.7 3.8 9.2 3.8h317.4c5.8 0 8.7-7 4.6-11.1z"
       ></path>
     </svg>

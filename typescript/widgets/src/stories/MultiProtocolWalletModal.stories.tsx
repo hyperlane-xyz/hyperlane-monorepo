@@ -1,6 +1,5 @@
 import { ChakraProvider } from '@chakra-ui/react';
 import { ChainProvider } from '@cosmos-kit/react';
-import { Button } from '@headlessui/react';
 import '@interchain-ui/react/styles';
 import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
 import '@rainbow-me/rainbowkit/styles.css';
@@ -21,9 +20,18 @@ import { cosmoshub, ethereum, solanamainnet } from '@hyperlane-xyz/registry';
 import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { Button } from '../components/Button.js';
+import { ConnectWalletButton } from '../walletIntegrations/ConnectWalletButton.js';
 import { MultiProtocolWalletModal } from '../walletIntegrations/MultiProtocolWalletModal.js';
 import { getCosmosKitChainConfigs } from '../walletIntegrations/cosmos.js';
 import { getWagmiChainConfigs } from '../walletIntegrations/ethereum.js';
+import { useDisconnectFns } from '../walletIntegrations/multiProtocol.js';
+
+const multiProvider = new MultiProtocolProvider({
+  ethereum,
+  cosmoshub,
+  solanamainnet,
+});
 
 function MinimalDapp({ protocols }: { protocols?: ProtocolType[] }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -34,7 +42,12 @@ function MinimalDapp({ protocols }: { protocols?: ProtocolType[] }) {
     <EthereumWalletProvider>
       <CosmosWalletProvider>
         <SolanaWalletProvider>
-          <Button onClick={open}>Open wallet picker</Button>
+          <ConnectWalletButton
+            multiProvider={multiProvider}
+            onClickWhenConnected={open}
+            onClickWhenUnconnected={open}
+          />
+          <DisconnectButton />
           <MultiProtocolWalletModal
             isOpen={isOpen}
             close={close}
@@ -45,12 +58,6 @@ function MinimalDapp({ protocols }: { protocols?: ProtocolType[] }) {
     </EthereumWalletProvider>
   );
 }
-
-const multiProvider = new MultiProtocolProvider({
-  ethereum,
-  cosmoshub,
-  solanamainnet,
-});
 
 const wagmiConfig = createConfig({
   chains: [getWagmiChainConfigs(multiProvider)[0]],
@@ -92,6 +99,20 @@ function SolanaWalletProvider({ children }: PropsWithChildren<unknown>) {
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
+  );
+}
+
+function DisconnectButton() {
+  const disconnectFns = useDisconnectFns();
+  const onClickDisconnect = async () => {
+    for (const disconnectFn of Object.values(disconnectFns)) {
+      await disconnectFn();
+    }
+  };
+  return (
+    <Button onClick={onClickDisconnect} className="htw-mt-4 htw-text-sm">
+      Disconnect
+    </Button>
   );
 }
 

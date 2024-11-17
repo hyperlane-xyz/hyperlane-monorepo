@@ -66,6 +66,7 @@ export { EthereumLogo } from './logos/Ethereum.js';
 export { HyperlaneLogo } from './logos/Hyperlane.js';
 export { PROTOCOL_TO_LOGO } from './logos/protocols.js';
 export { SolanaLogo } from './logos/Solana.js';
+export { WalletConnectLogo } from './logos/WalletConnect.js';
 export { MessageTimeline } from './messages/MessageTimeline.js';
 export {
   MessageStage,
@@ -85,6 +86,7 @@ export { useDebounce } from './utils/debounce.js';
 export { useIsSsr } from './utils/ssr.js';
 export { useInterval, useTimeout } from './utils/timeout.js';
 export { useConnectionHealthTest } from './utils/useChainConnectionTest.js';
+export { ConnectWalletButton } from './walletIntegrations/ConnectWalletButton.js';
 export {
   getCosmosKitChainConfigs,
   useCosmosAccount,
@@ -138,3 +140,4 @@ export {
   findChainByRpcUrl,
   getChainsForProtocol,
 } from './walletIntegrations/utils.js';
+export { WalletLogo } from './walletIntegrations/WalletLogo.js';
