@@ -133,3 +133,8 @@ export type {
   SwitchNetworkFn,
   WalletDetails,
 } from './walletIntegrations/types.js';
+export {
+  ethers5TxToWagmiTx,
+  findChainByRpcUrl,
+  getChainsForProtocol,
+} from './walletIntegrations/utils.js';
