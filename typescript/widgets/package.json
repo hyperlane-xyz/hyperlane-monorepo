@@ -22,7 +22,10 @@
     "wagmi": "^2.12.26"
   },
   "devDependencies": {
+    "@chakra-ui/react": "^2.8.2",
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
+    "@emotion/react": "^11.13.3",
+    "@emotion/styled": "^11.13.0",
     "@hyperlane-xyz/registry": "6.1.0",
     "@storybook/addon-essentials": "^7.6.14",
     "@storybook/addon-interactions": "^7.6.14",
@@ -32,6 +35,7 @@
     "@storybook/react": "^7.6.14",
     "@storybook/react-vite": "^7.6.14",
     "@storybook/test": "^7.6.14",
+    "@tanstack/react-query": "^5.59.20",
     "@types/node": "^18.11.18",
     "@types/react": "^18.0.27",
     "@types/react-dom": "^18.0.10",
@@ -44,6 +48,7 @@
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-storybook": "^0.6.15",
+    "framer-motion": "^10.16.4",
     "postcss": "^8.4.21",
     "prettier": "^2.8.8",
     "react": "^18.2.0",

@@ -10,9 +10,11 @@ import { useConnectFns } from './multiProtocol.js';
 export function MultiProtocolWalletModal({
   isOpen,
   close,
+  protocols,
 }: {
   isOpen: boolean;
   close: () => void;
+  protocols?: ProtocolType[]; // defaults to all protocols if not provided
 }) {
   const connectFns = useConnectFns();
 
@@ -22,35 +24,39 @@ export function MultiProtocolWalletModal({
     if (connectFn) connectFn();
   };
 
+  const includesProtocol = (protocol: ProtocolType) =>
+    !protocols || protocols.includes(protocol);
+
   return (
-    <Modal
-      title="Select Wallet Type"
-      isOpen={isOpen}
-      close={close}
-      panelClassname="htw-max-w-sm"
-    >
-      <div className="flex flex-col space-y-2.5 pb-2 pt-4">
-        <ProtocolButton
-          protocol={ProtocolType.Ethereum}
-          onClick={onClickProtocol}
-          subTitle="an EVM"
-        >
-          Ethereum
-        </ProtocolButton>
-        <ProtocolButton
-          protocol={ProtocolType.Sealevel}
-          onClick={onClickProtocol}
-          subTitle="a Solana"
-        >
-          Solana
-        </ProtocolButton>
-        <ProtocolButton
-          protocol={ProtocolType.Cosmos}
-          onClick={onClickProtocol}
-          subTitle="a Cosmos"
-        >
-          Cosmos
-        </ProtocolButton>
+    <Modal isOpen={isOpen} close={close} panelClassname="htw-max-w-sm htw-p-4">
+      <div className="htw-flex htw-flex-col htw-space-y-2.5 htw-pb-2 htw-pt-4">
+        {includesProtocol(ProtocolType.Ethereum) && (
+          <ProtocolButton
+            protocol={ProtocolType.Ethereum}
+            onClick={onClickProtocol}
+            subTitle="an EVM"
+          >
+            Ethereum
+          </ProtocolButton>
+        )}
+        {includesProtocol(ProtocolType.Sealevel) && (
+          <ProtocolButton
+            protocol={ProtocolType.Sealevel}
+            onClick={onClickProtocol}
+            subTitle="a Solana"
+          >
+            Solana
+          </ProtocolButton>
+        )}
+        {includesProtocol(ProtocolType.Cosmos) && (
+          <ProtocolButton
+            protocol={ProtocolType.Cosmos}
+            onClick={onClickProtocol}
+            subTitle="an Cosmos"
+          >
+            Cosmos
+          </ProtocolButton>
+        )}
       </div>
     </Modal>
   );
@@ -70,11 +76,11 @@ function ProtocolButton({
   return (
     <button
       onClick={() => onClick(protocol)}
-      className="flex w-full flex-col items-center space-y-2.5 rounded-lg border border-gray-200 py-3.5 transition-all hover:border-gray-200 hover:bg-gray-100 active:bg-gray-200"
+      className="htw-flex htw-w-full htw-flex-col htw-items-center htw-space-y-2.5 htw-rounded-lg htw-border htw-border-gray-200 htw-py-3.5 htw-transition-all hover:htw-bg-gray-100 active:htw-scale-95"
     >
       <Logo width={34} height={34} />
-      <div className="tracking-wide text-gray-800">{children}</div>
-      <div className="text-sm text-gray-500">{`Connect to ${subTitle} compatible wallet`}</div>
+      <div className="htw-tracking-wide htw-text-gray-800">{children}</div>
+      <div className="htw-text-sm htw-text-gray-500">{`Connect to ${subTitle} compatible wallet`}</div>
     </button>
   );
 }
