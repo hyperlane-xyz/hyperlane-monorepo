@@ -43,21 +43,26 @@ struct IndexedTxIdAndSequence {
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
 /// `indexer` and fills the agent's db with this data.
 #[derive(Debug)]
-pub struct ContractSync<T: Indexable, D: HyperlaneLogStore<T>, I: Indexer<T>> {
+pub struct ContractSync<T: Indexable, S: HyperlaneLogStore<T>, I: Indexer<T>> {
     domain: HyperlaneDomain,
-    db: D,
+    store: S,
     indexer: I,
     metrics: ContractSyncMetrics,
     broadcast_sender: Option<BroadcastMpscSender<H512>>,
     _phantom: PhantomData<T>,
 }
 
-impl<T: Indexable, D: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, D, I> {
+impl<T: Indexable, S: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, S, I> {
     /// Create a new ContractSync
-    pub fn new(domain: HyperlaneDomain, db: D, indexer: I, metrics: ContractSyncMetrics) -> Self {
+    pub fn new(
+        domain: HyperlaneDomain,
+        store: S,
+        indexer: I,
+        metrics: ContractSyncMetrics,
+    ) -> Self {
         Self {
             domain,
-            db,
+            store,
             indexer,
             metrics,
             broadcast_sender: T::broadcast_channel_size().map(BroadcastMpscSender::new),
@@ -66,10 +71,10 @@ impl<T: Indexable, D: HyperlaneLogStore<T>, I: Indexer<T>> ContractSync<T, D, I>
     }
 }
 
-impl<T, D, I> ContractSync<T, D, I>
+impl<T, S, I> ContractSync<T, S, I>
 where
     T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
-    D: HyperlaneLogStore<T>,
+    S: HyperlaneLogStore<T>,
     I: Indexer<T> + 'static,
 {
     /// The domain that this ContractSync is running on
@@ -221,7 +226,7 @@ where
         let logs = Vec::from_iter(deduped_logs);
 
         // Store deliveries
-        let stored = match self.db.store_logs(&logs).await {
+        let stored = match self.store.store_logs(&logs).await {
             Ok(stored) => stored,
             Err(err) => {
                 warn!(?err, "Error storing logs in db");
@@ -298,7 +303,7 @@ where
         &self,
         index_settings: IndexSettings,
     ) -> Result<Box<dyn ContractSyncCursor<T>>> {
-        let watermark = self.db.retrieve_high_watermark().await.unwrap();
+        let watermark = self.store.retrieve_high_watermark().await.unwrap();
         let index_settings = IndexSettings {
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
@@ -307,7 +312,7 @@ where
         Ok(Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),
-                self.db.clone(),
+                self.store.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
             )
@@ -348,7 +353,7 @@ where
         Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
                 self.indexer.clone(),
-                Arc::new(self.db.clone()),
+                Arc::new(self.store.clone()),
                 index_settings.chunk_size,
                 index_settings.mode,
             )

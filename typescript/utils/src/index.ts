@@ -120,6 +120,7 @@ export {
   objMapEntries,
   objMerge,
   objOmit,
+  objOmitKeys,
   pick,
   promiseObjAll,
   stringifyObject,
@@ -169,7 +170,7 @@ export {
   TokenCaip19Id,
   WithAddress,
 } from './types.js';
-export { isHttpsUrl, isUrl } from './url.js';
+export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';

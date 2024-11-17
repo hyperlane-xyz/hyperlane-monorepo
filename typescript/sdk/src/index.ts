@@ -26,7 +26,6 @@ export {
   testCosmosChain,
   testSealevelChain,
 } from './consts/testChains.js';
-export { randomAddress } from './test/testUtils.js';
 export {
   attachAndConnectContracts,
   attachContracts,
@@ -329,6 +328,7 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData } from './providers/transactions/types.js';
+export { randomAddress } from './test/testUtils.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -420,11 +420,14 @@ export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypXERC20Adapter,
+  EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
+  IHypXERC20Adapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
@@ -531,7 +534,7 @@ export {
   isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './token/schemas.js';
-export { isCompliant } from './utils/schemas.js';
+export { isCompliant, validateZodResult } from './utils/schemas.js';
 
 export {
   canProposeSafeTransactions,

@@ -24,6 +24,7 @@ import {
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
   TokenStandard,
+  XERC20_STANDARDS,
 } from './TokenStandard.js';
 import {
   CwHypCollateralAdapter,
@@ -353,8 +354,16 @@ export class Token implements IToken {
     return Object.values(PROTOCOL_TO_NATIVE_STANDARD).includes(this.standard);
   }
 
+  isCollateralized(): boolean {
+    return TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard);
+  }
+
   isHypToken(): boolean {
     return TOKEN_HYP_STANDARDS.includes(this.standard);
+  }
+
+  isXerc20(): boolean {
+    return XERC20_STANDARDS.includes(this.standard);
   }
 
   isIbcToken(): boolean {
@@ -417,7 +426,7 @@ export class Token implements IToken {
 
     if (this.equals(token)) return true;
 
-    if (TOKEN_COLLATERALIZED_STANDARDS.includes(this.standard)) {
+    if (this.isCollateralized()) {
       if (
         this.collateralAddressOrDenom &&
         eqAddress(this.collateralAddressOrDenom, token.addressOrDenom)
