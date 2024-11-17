@@ -536,7 +536,7 @@ export {
   isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './token/schemas.js';
-export { isCompliant } from './utils/schemas.js';
+export { isCompliant, validateZodResult } from './utils/schemas.js';
 
 export {
   canProposeSafeTransactions,

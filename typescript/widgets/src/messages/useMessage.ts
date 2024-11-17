@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { HYPERLANE_EXPLORER_API_URL } from '../consts.js';
 import { widgetLogger } from '../logger.js';
 import { executeExplorerQuery } from '../utils/explorers.js';
-import { useInterval } from '../utils/useInterval.js';
+import { useInterval } from '../utils/timeout.js';
 
 import { ApiMessage, MessageStatus } from './types.js';
 

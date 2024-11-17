@@ -12,6 +12,7 @@ export { ColorPalette, seedToBgColor } from './color.js';
 export { Button } from './components/Button.js';
 export { CopyButton } from './components/CopyButton.js';
 export { DatetimeField } from './components/DatetimeField.js';
+export { ErrorBoundary } from './components/ErrorBoundary.js';
 export { IconButton } from './components/IconButton.js';
 export { LinkButton } from './components/LinkButton.js';
 export { SegmentedControl } from './components/SegmentedControl.js';
@@ -30,6 +31,7 @@ export { DiscordIcon } from './icons/Discord.js';
 export { DocsIcon } from './icons/Docs.js';
 export { EllipsisIcon } from './icons/Ellipsis.js';
 export { EnvelopeIcon } from './icons/Envelope.js';
+export { ErrorIcon } from './icons/Error.js';
 export { FilterIcon } from './icons/Filter.js';
 export { FunnelIcon } from './icons/Funnel.js';
 export { GearIcon } from './icons/Gear.js';
@@ -79,6 +81,9 @@ export {
   tryClipboardGet,
   tryClipboardSet,
 } from './utils/clipboard.js';
+export { useDebounce } from './utils/debounce.js';
+export { useIsSsr } from './utils/ssr.js';
+export { useInterval, useTimeout } from './utils/timeout.js';
 export { useConnectionHealthTest } from './utils/useChainConnectionTest.js';
 export {
   getCosmosKitChainConfigs,
