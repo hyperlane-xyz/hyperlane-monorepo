@@ -86,6 +86,10 @@ export { useDebounce } from './utils/debounce.js';
 export { useIsSsr } from './utils/ssr.js';
 export { useInterval, useTimeout } from './utils/timeout.js';
 export { useConnectionHealthTest } from './utils/useChainConnectionTest.js';
+export {
+  AccountList,
+  AccountSummary,
+} from './walletIntegrations/AccountList.js';
 export { ConnectWalletButton } from './walletIntegrations/ConnectWalletButton.js';
 export {
   getCosmosKitChainConfigs,
