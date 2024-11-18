@@ -14,10 +14,12 @@ export const getArbitrumNeutronTiaWarpConfig = async (
   const neutronRouter =
     '910926c4cf95d107237a9cf0b3305fe9c81351ebcba3d218ceb0e4935d92ceac';
 
-  // @ts-ignore fix todo
   const neutron: TokenRouterConfig = {
     ...routerConfig.neutron,
     ...abacusWorksEnvOwnerConfig.neutron,
+    type: TokenType.collateral,
+    token:
+      'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7',
     foreignDeployment: neutronRouter,
   };
 

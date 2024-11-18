@@ -1,7 +1,6 @@
 import {
   ChainMap,
   OwnableConfig,
-  RouterConfig,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
@@ -11,8 +10,8 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 // Eclipse Fi team
 const arbitrumOwner = '0xfF07222cb0AC905304d6586Aabf13f497C07F0C8';
-// Eclipse Fi team
-const neutronOwner = 'TODO';
+const neutronOwner =
+  'neutron1aud8lty0wwmyc86ugkzqrusnrku0ckm0ym62v4ve0jjjyepjjg6spssrwj';
 
 export const getArbitrumNeutronEclipWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -25,7 +24,7 @@ export const getArbitrumNeutronEclipWarpConfig = async (
     ...routerConfig.neutron,
     ...getOwnerConfigForAddress(neutronOwner),
     type: TokenType.collateral,
-    token: 'TODO',
+    token: 'factory/neutron10sr06r3qkhn7xzpw3339wuj77hu06mzna6uht0/eclip',
     foreignDeployment: neutronRouter,
   };
 
