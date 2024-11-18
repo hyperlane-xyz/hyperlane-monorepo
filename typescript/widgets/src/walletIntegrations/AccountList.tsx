@@ -107,7 +107,7 @@ export function AccountSummary({
   };
 
   return (
-    <div className="relative">
+    <div className="htw-relative">
       <Button
         onClick={onClickCopy}
         className={clsx(styles.btn, 'htw-py-2 htw-pl-1 htw-pr-3', className)}

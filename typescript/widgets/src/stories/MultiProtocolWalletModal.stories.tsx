@@ -20,12 +20,11 @@ import { cosmoshub, ethereum, solanamainnet } from '@hyperlane-xyz/registry';
 import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { Button } from '../components/Button.js';
+import { AccountList } from '../walletIntegrations/AccountList.js';
 import { ConnectWalletButton } from '../walletIntegrations/ConnectWalletButton.js';
 import { MultiProtocolWalletModal } from '../walletIntegrations/MultiProtocolWalletModal.js';
 import { getCosmosKitChainConfigs } from '../walletIntegrations/cosmos.js';
 import { getWagmiChainConfigs } from '../walletIntegrations/ethereum.js';
-import { useDisconnectFns } from '../walletIntegrations/multiProtocol.js';
 
 const multiProvider = new MultiProtocolProvider({
   ethereum,
@@ -42,12 +41,19 @@ function MinimalDapp({ protocols }: { protocols?: ProtocolType[] }) {
     <EthereumWalletProvider>
       <CosmosWalletProvider>
         <SolanaWalletProvider>
-          <ConnectWalletButton
-            multiProvider={multiProvider}
-            onClickWhenConnected={open}
-            onClickWhenUnconnected={open}
-          />
-          <DisconnectButton />
+          <div className="htw-space-y-4">
+            <h1>CONNECT BUTTON</h1>
+            <ConnectWalletButton
+              multiProvider={multiProvider}
+              onClickWhenConnected={open}
+              onClickWhenUnconnected={open}
+            />
+            <h1>ACCOUNT SUMMARY</h1>
+            <AccountList
+              multiProvider={multiProvider}
+              onClickConnectWallet={open}
+            />
+          </div>
           <MultiProtocolWalletModal
             isOpen={isOpen}
             close={close}
@@ -99,20 +105,6 @@ function SolanaWalletProvider({ children }: PropsWithChildren<unknown>) {
         <WalletModalProvider>{children}</WalletModalProvider>
       </WalletProvider>
     </ConnectionProvider>
-  );
-}
-
-function DisconnectButton() {
-  const disconnectFns = useDisconnectFns();
-  const onClickDisconnect = async () => {
-    for (const disconnectFn of Object.values(disconnectFns)) {
-      await disconnectFn();
-    }
-  };
-  return (
-    <Button onClick={onClickDisconnect} className="htw-mt-4 htw-text-sm">
-      Disconnect
-    </Button>
   );
 }
 
