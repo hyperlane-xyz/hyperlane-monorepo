@@ -1,7 +1,6 @@
 /// Moka expiry trait implementation for dynamic lifetimes
 mod dynamic_expiry;
 mod hyperlane_cache;
-mod metered_cache;
 
 use std::hash::RandomState;
 
@@ -10,7 +9,6 @@ use serde::{de::DeserializeOwned, Serialize};
 
 pub use dynamic_expiry::*;
 pub use hyperlane_cache::*;
-pub use metered_cache::*;
 
 use crate::cache::CacheError;
 

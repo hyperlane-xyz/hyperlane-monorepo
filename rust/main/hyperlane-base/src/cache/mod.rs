@@ -1,10 +1,12 @@
 mod error;
+mod metered_cache;
 mod moka;
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub use error::*;
+pub use metered_cache::*;
 pub use moka::*;
 
 use hyperlane_core::H256;
