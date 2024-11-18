@@ -8,15 +8,12 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-const USDB_ADDRESS = '0x4300000000000000000000000000000000000003';
-
-export const getBlastZeroNetworkUSDBWarpConfig = async (
+export const getPolygonZeroNetworkPolWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  const blast: TokenRouterConfig = {
-    ...routerConfig.blast,
-    type: TokenType.collateral,
-    token: USDB_ADDRESS,
+  const polygon: TokenRouterConfig = {
+    ...routerConfig.polygon,
+    type: TokenType.native,
     interchainSecurityModule: {
       owner: ethers.constants.AddressZero,
       type: IsmType.FALLBACK_ROUTING,
@@ -34,7 +31,7 @@ export const getBlastZeroNetworkUSDBWarpConfig = async (
     },
   };
   return {
-    blast,
+    polygon,
     zeronetwork,
   };
 };
