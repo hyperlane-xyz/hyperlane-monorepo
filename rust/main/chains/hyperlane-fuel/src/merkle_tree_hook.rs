@@ -48,7 +48,7 @@ impl FuelMerkleTreeHook {
     }
 
     /// Asserts the lag
-    /// The lag or re-org of FuelVM should be set to 1, as it is the solf finality
+    /// The lag or re-org of FuelVM should be set to 1, as it is the soft finality
     /// Also, since we cannot query point in time, the lag is built into the contract code
     fn assert_lag(&self, reorg_period: &ReorgPeriod) {
         assert!(
