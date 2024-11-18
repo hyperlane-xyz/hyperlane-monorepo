@@ -11,6 +11,7 @@ import {
   ChainMap,
   ChainName,
   CoreConfig,
+  DerivedIsmConfig,
   EvmIsmReader,
   InterchainAccount,
   MultiProvider,
@@ -68,8 +69,16 @@ export class TransactionReader {
       return this.readMultisendTransaction(chain, tx);
     }
 
+    const insight = '⚠️ Unknown transaction type';
+    // If we get here, it's an unknown transaction
+    this.errors.push({
+      chain: chain,
+      tx,
+      info: insight,
+    });
+
     return {
-      insight: '⚠️ Unknown transaction type',
+      insight,
       tx,
     };
   }
@@ -83,26 +92,34 @@ export class TransactionReader {
       return undefined;
     }
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const decoded =
-      interchainAccountFactories.interchainAccountRouter.interface.parseTransaction(
-        {
-          data: tx.data,
-          value: tx.value,
-        },
-      );
+    const icaInterface =
+      interchainAccountFactories.interchainAccountRouter.interface;
+    const decoded = icaInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
 
     const args = formatFunctionFragmentArgs(
       decoded.args,
       decoded.functionFragment,
     );
     let prettyArgs = args;
-    if (decoded.functionFragment.name === 'enrollRemoteRouters') {
+
+    if (
+      decoded.functionFragment.name ===
+      icaInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
+    ) {
       prettyArgs = await this.formatRouterEnrollments(
         chain,
         'interchainAccountRouter',
         args,
       );
-    } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
+    } else if (
+      decoded.functionFragment.name ===
+      icaInterface.functions[
+        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
+      ].name
+    ) {
       prettyArgs = await this.readIcaCall(chain, args);
     }
 
@@ -157,11 +174,11 @@ export class TransactionReader {
     tx: AnnotatedEV5Transaction,
   ): Promise<any> {
     if (!tx.data) {
-      console.log('No data in mailbox transaction');
+      console.log('⚠️ No data in mailbox transaction');
       return undefined;
     }
-    const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const decoded = coreFactories.mailbox.interface.parseTransaction({
+    const mailboxInterface = coreFactories.mailbox.interface;
+    const decoded = mailboxInterface.parseTransaction({
       data: tx.data,
       value: tx.value,
     });
@@ -171,7 +188,10 @@ export class TransactionReader {
       decoded.functionFragment,
     );
     let prettyArgs = args;
-    if (decoded.functionFragment.name === 'setDefaultIsm') {
+    if (
+      decoded.functionFragment.name ===
+      mailboxInterface.functions['setDefaultIsm(address)'].name
+    ) {
       prettyArgs = await this.formatMailboxSetDefaultIsm(chain, args);
     }
 
@@ -184,17 +204,20 @@ export class TransactionReader {
 
   ismDerivationsInProgress: ChainMap<boolean> = {};
 
-  private async formatMailboxSetDefaultIsm(
-    chain: ChainName,
-    args: Record<string, any>,
-  ): Promise<any> {
-    const { _module: module } = args;
-
+  private async deriveIsmConfig(
+    chain: string,
+    module: string,
+  ): Promise<DerivedIsmConfig> {
     const reader = new EvmIsmReader(this.multiProvider, chain);
+
+    // Start recording some info about the deriving
     const startTime = Date.now();
     console.log('Deriving ISM config...', chain);
     this.ismDerivationsInProgress[chain] = true;
+
     const derivedConfig = await reader.deriveIsmConfig(module);
+
+    // Deriving is done, remove from in progress
     delete this.ismDerivationsInProgress[chain];
     console.log(
       'Finished deriving ISM config',
@@ -210,6 +233,17 @@ export class TransactionReader {
       'chains',
       remainingInProgress,
     );
+
+    return derivedConfig;
+  }
+
+  private async formatMailboxSetDefaultIsm(
+    chain: ChainName,
+    args: Record<string, any>,
+  ): Promise<any> {
+    const { _module: module } = args;
+
+    const derivedConfig = this.deriveIsmConfig(chain, module);
     const expectedIsmConfig = this.coreConfig[chain].defaultIsm;
 
     let insight = '✅ matches expected ISM config';

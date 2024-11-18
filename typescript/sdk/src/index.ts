@@ -148,7 +148,7 @@ export {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types.js';
-export { EvmIsmReader } from './ism/EvmIsmReader.js';
+export { DerivedIsmConfig, EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export {
   buildAggregationIsmConfigs,
