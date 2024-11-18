@@ -397,7 +397,7 @@ mod test {
 
     use super::*;
     use hyperlane_base::{
-        cache::{HyperlaneMokaCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics},
+        cache::{LocalCache, MeteredCache, MeteredCacheConfig, MeteredCacheMetrics},
         db::{
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
             InterchainGasPaymentData,
@@ -477,7 +477,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<HyperlaneMokaCache>,
+        cache: MeteredCache<LocalCache>,
     ) -> BaseMetadataBuilder {
         let mut settings = Settings::default();
         settings.chains.insert(
@@ -507,7 +507,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<HyperlaneMokaCache>,
+        cache: MeteredCache<LocalCache>,
     ) -> (MessageProcessor, UnboundedReceiver<QueueOperation>) {
         let base_metadata_builder =
             dummy_metadata_builder(origin_domain, destination_domain, db, cache.clone());
@@ -580,7 +580,7 @@ mod test {
         origin_domain: &HyperlaneDomain,
         destination_domain: &HyperlaneDomain,
         db: &HyperlaneRocksDB,
-        cache: MeteredCache<HyperlaneMokaCache>,
+        cache: MeteredCache<LocalCache>,
         num_operations: usize,
     ) -> Vec<QueueOperation> {
         let (message_processor, mut receive_channel) =
@@ -769,7 +769,7 @@ mod test {
             let destination_domain = dummy_domain(1, "dummy_destination_domain");
             let db = HyperlaneRocksDB::new(&origin_domain, db);
             let cache = MeteredCache::new(
-                HyperlaneMokaCache::new("test-cache"),
+                LocalCache::new("test-cache"),
                 dummy_cache_metrics(),
                 MeteredCacheConfig {
                     cache_name: "test-cache".to_owned(),

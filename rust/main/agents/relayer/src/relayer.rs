@@ -10,7 +10,7 @@ use eyre::Result;
 use futures_util::future::try_join_all;
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
-    cache::{HyperlaneMokaCache, MeteredCache, MeteredCacheConfig},
+    cache::{LocalCache, MeteredCache, MeteredCacheConfig},
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::{ChainConf, IndexSettings},
@@ -78,7 +78,7 @@ pub struct Relayer {
     merkle_tree_hook_syncs: HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<MerkleTreeInsertion>>>,
     dbs: HashMap<HyperlaneDomain, HyperlaneRocksDB>,
     /// The original reference to the relayer cache
-    _cache: MeteredCache<HyperlaneMokaCache>,
+    _cache: MeteredCache<LocalCache>,
     message_whitelist: Arc<MatchingList>,
     message_blacklist: Arc<MatchingList>,
     address_blacklist: Arc<AddressBlacklist>,
@@ -134,7 +134,7 @@ impl BaseAgent for Relayer {
         let db = DB::from_path(&settings.db)?;
         let cache_name = "relayer_cache";
         let cache = MeteredCache::new(
-            HyperlaneMokaCache::new(cache_name),
+            LocalCache::new(cache_name),
             core_metrics.cache_metrics(),
             MeteredCacheConfig {
                 cache_name: cache_name.to_owned(),

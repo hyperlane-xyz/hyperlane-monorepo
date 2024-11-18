@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::{
-    cache::{FunctionCallCache, HyperlaneMokaCache, MeteredCache, NoParams},
+    cache::{FunctionCallCache, LocalCache, MeteredCache, NoParams},
     db::{HyperlaneDb, HyperlaneRocksDB},
 };
 use hyperlane_base::{
@@ -305,7 +305,7 @@ pub struct BaseMetadataBuilder {
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
-    cache: MeteredCache<HyperlaneMokaCache>,
+    cache: MeteredCache<LocalCache>,
     app_context_classifier: IsmAwareAppContextClassifier,
     #[new(value = "7")]
     max_depth: u32,

@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{
-    cache::{FunctionCallCache, HyperlaneMokaCache, MeteredCache},
+    cache::{FunctionCallCache, LocalCache, MeteredCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
 };
@@ -45,7 +45,7 @@ pub struct MessageContext {
     /// Origin chain database to verify gas payments.
     pub origin_db: HyperlaneRocksDB,
     /// Cache to store commonly used data calls.
-    pub cache: MeteredCache<HyperlaneMokaCache>,
+    pub cache: MeteredCache<LocalCache>,
     /// Used to construct the ISM metadata needed to verify a message from the
     /// origin.
     pub metadata_builder: Arc<BaseMetadataBuilder>,

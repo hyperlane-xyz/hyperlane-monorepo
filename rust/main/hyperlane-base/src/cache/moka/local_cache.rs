@@ -9,19 +9,19 @@ use crate::cache::FunctionCallCache;
 
 use super::{BaseCache, CacheResult, Expiration, ExpirationType};
 
-/// Cache for storing function calls with serializable results
+/// Local cache for storing function calls with serializable results in memory
 #[derive(Debug, Clone)]
-pub struct HyperlaneMokaCache(BaseCache);
+pub struct LocalCache(BaseCache);
 
-impl HyperlaneMokaCache {
-    /// Create a new cache with the given name
+impl LocalCache {
+    /// Create a new local cache with the given name
     pub fn new(name: &str) -> Self {
         Self(BaseCache::new(name))
     }
 }
 
 #[async_trait]
-impl FunctionCallCache for HyperlaneMokaCache {
+impl FunctionCallCache for LocalCache {
     /// Cache a call result with the given parameters
     async fn cache_call_result(
         &self,

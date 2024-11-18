@@ -1,6 +1,6 @@
 /// Moka expiry trait implementation for dynamic lifetimes
 mod dynamic_expiry;
-mod hyperlane_cache;
+mod local_cache;
 
 use std::hash::RandomState;
 
@@ -8,7 +8,7 @@ use moka::{future::Cache, policy::EvictionPolicy};
 use serde::{de::DeserializeOwned, Serialize};
 
 pub use dynamic_expiry::*;
-pub use hyperlane_cache::*;
+pub use local_cache::*;
 
 use crate::cache::CacheError;
 
