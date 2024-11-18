@@ -103,7 +103,7 @@ impl BaseCache {
     }
 
     fn serialize(&self, value: &impl Serialize) -> CacheResult<String> {
-        serde_json::to_string(value).map_err(CacheError::FailedToSerializeInuput)
+        serde_json::to_string(value).map_err(CacheError::FailedToSerializeInput)
     }
 
     fn deserialize<T: DeserializeOwned>(&self, json_value: String) -> CacheResult<T> {

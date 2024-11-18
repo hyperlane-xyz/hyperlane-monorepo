@@ -1,11 +1,9 @@
-mod cache_types;
 mod error;
 mod moka;
 
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Serialize};
 
-pub use cache_types::*;
 pub use error::*;
 pub use moka::*;
 

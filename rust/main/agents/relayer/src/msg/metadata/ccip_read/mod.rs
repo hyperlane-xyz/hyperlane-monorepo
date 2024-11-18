@@ -1,18 +1,21 @@
 #![allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
+mod cache_types;
 
 use async_trait::async_trait;
 use derive_more::Deref;
 use derive_new::new;
 use ethers::{abi::AbiDecode, core::utils::hex::decode as hex_decode};
 use eyre::Context;
-use hyperlane_base::cache::SerializedOffchainLookup;
-use hyperlane_core::{utils::bytes_to_hex, HyperlaneMessage, RawHyperlaneMessage, H256};
-use hyperlane_ethereum::OffchainLookup;
 use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{info, instrument};
+
+use hyperlane_core::{utils::bytes_to_hex, HyperlaneMessage, RawHyperlaneMessage, H256};
+use hyperlane_ethereum::OffchainLookup;
+
+use cache_types::SerializedOffchainLookup;
 
 use super::{base::MessageMetadataBuilder, MetadataBuilder};
 
