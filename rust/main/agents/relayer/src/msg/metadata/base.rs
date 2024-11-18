@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
 use hyperlane_base::{
-    cache::{HyperlaneCache, HyperlaneMokaCache, MeteredCache, NoParams},
+    cache::{FunctionCallCache, HyperlaneMokaCache, MeteredCache, NoParams},
     db::{HyperlaneDb, HyperlaneRocksDB},
 };
 use hyperlane_base::{

@@ -9,9 +9,9 @@ pub use moka::*;
 
 use hyperlane_core::H256;
 
-/// Hyperlane Cache Interface
+/// Cache for storing function calls with serializable results
 #[async_trait]
-pub trait HyperlaneCache: Send + Sync {
+pub trait FunctionCallCache: Send + Sync {
     /// Set a value in the cache
     async fn cache_call_result(
         &self,

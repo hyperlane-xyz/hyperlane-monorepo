@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
 use hyperlane_base::{
-    cache::{HyperlaneCache, HyperlaneMokaCache, MeteredCache},
+    cache::{FunctionCallCache, HyperlaneMokaCache, MeteredCache},
     db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
 };

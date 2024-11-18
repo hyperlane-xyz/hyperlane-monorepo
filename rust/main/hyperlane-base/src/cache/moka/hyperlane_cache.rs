@@ -5,7 +5,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use hyperlane_core::H256;
 
-use crate::cache::{CacheError, HyperlaneCache};
+use crate::cache::{CacheError, FunctionCallCache};
 
 use super::{BaseCache, CacheResult, Expiration, ExpirationType};
 
@@ -71,7 +71,7 @@ impl HyperlaneMokaCache {
 }
 
 #[async_trait]
-impl HyperlaneCache for HyperlaneMokaCache {
+impl FunctionCallCache for HyperlaneMokaCache {
     async fn cache_call_result(
         &self,
         contract_address: Option<H256>,

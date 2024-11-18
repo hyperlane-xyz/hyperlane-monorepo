@@ -9,7 +9,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use hyperlane_core::H256;
 
-use crate::cache::HyperlaneCache;
+use crate::cache::FunctionCallCache;
 
 use super::{CacheResult, Expiration};
 
@@ -56,9 +56,9 @@ pub struct MeteredCache<C> {
 }
 
 #[async_trait]
-impl<C> HyperlaneCache for MeteredCache<C>
+impl<C> FunctionCallCache for MeteredCache<C>
 where
-    C: HyperlaneCache,
+    C: FunctionCallCache,
 {
     async fn cache_call_result(
         &self,
