@@ -336,8 +336,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     matchingList: [
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
-      // Temporary to make decent adapter messages go through that have underpaid.
-      { destinationDomain: getDomainId('zeronetwork') },
     ],
   },
   {
