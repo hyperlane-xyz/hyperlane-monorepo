@@ -29,25 +29,25 @@ enum ChainSelectionMode {
 export class MultiChainHandler implements ChainHandler {
   constructor(private mode: ChainSelectionMode) {}
 
-  async determineChains(argv: Record<string, any>): Promise<ChainName[]> {
+  async resolveChains(argv: Record<string, any>): Promise<ChainName[]> {
     switch (this.mode) {
       case ChainSelectionMode.WARP_CONFIG:
-        return this.determineWarpRouteConfigChains(argv);
+        return this.resolveWarpRouteConfigChains(argv);
       case ChainSelectionMode.WARP_READ:
-        return this.determineWarpCoreConfigChains(argv);
+        return this.resolveWarpCoreConfigChains(argv);
       case ChainSelectionMode.AGENT_KURTOSIS:
-        return this.determineAgentChains(argv);
+        return this.resolveAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
-        return this.determineStrategyChains(argv);
+        return this.resolveStrategyChains(argv);
       case ChainSelectionMode.RELAYER:
-        return this.determineRelayerChains(argv);
+        return this.resolveRelayerChains(argv);
       case ChainSelectionMode.ORIGIN_DESTINATION:
       default:
-        return this.determineOriginDestinationChains(argv);
+        return this.resolveOriginDestinationChains(argv);
     }
   }
 
-  private async determineWarpRouteConfigChains(
+  private async resolveWarpRouteConfigChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
@@ -57,7 +57,7 @@ export class MultiChainHandler implements ChainHandler {
     );
     return argv.context.chains;
   }
-  private async determineWarpCoreConfigChains(
+  private async resolveWarpCoreConfigChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     if (argv.symbol || argv.warp) {
@@ -78,7 +78,7 @@ export class MultiChainHandler implements ChainHandler {
     }
   }
 
-  private async determineAgentChains(
+  private async resolveAgentChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     const { chainMetadata } = argv.context;
@@ -101,7 +101,7 @@ export class MultiChainHandler implements ChainHandler {
     return [argv.origin, ...argv.targets];
   }
 
-  private async determineOriginDestinationChains(
+  private async resolveOriginDestinationChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     const { chainMetadata } = argv.context;
@@ -122,13 +122,13 @@ export class MultiChainHandler implements ChainHandler {
 
     return [argv.origin, argv.destination];
   }
-  private async determineStrategyChains(
+  private async resolveStrategyChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
     return extractChainValues(strategy);
   }
-  private async determineRelayerChains(
+  private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     return argv.chains.split(',').map((item: string) => item.trim());

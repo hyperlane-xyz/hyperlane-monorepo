@@ -13,7 +13,6 @@ import {
   ChainMetadata,
   ChainName,
   MultiProvider,
-  TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -28,7 +27,7 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner } from '../utils/keys.js';
 
 import { ChainInterceptor } from './strategies/chain/ChainInterceptor.js';
-import { MultiChainSignerContext } from './strategies/signer/MultiChainSignerContext.js';
+import { MultiProtocolSignerContext } from './strategies/signer/MultiProtocolSignerContext.js';
 import {
   CommandContext,
   ContextSettings,
@@ -71,34 +70,33 @@ export async function signerMiddleware(argv: Record<string, any>) {
   );
 
   /**
-   * @notice  Select the appropriate chain strategy based on the hyperlane command
-   * @dev   e.g command `core deploy` uses SingleChainHandler
+   * @notice Intercepts Hyperlane command to determine chains
+   * @dev For example, command `core deploy` uses SingleChainHandler
    */
   const chainStrategy = ChainInterceptor.getStrategy(argv);
 
   /**
-   * @notice Determines chains that are used in createSignerContext based on the chain strategy
-   * @dev  e.g. SingleChainHandler extracts chains from CLI or prompts the user to select the chain
-   * @dev  e.g. MultiChainHandler.forOriginDestination() extracts origin/destination from CLI or prompts the user to select origin/destination
+   * @notice Resolves chains that are used in MultiProtocolSignerContext based on the chain strategy
+   * @dev For example:
+   * - SingleChainHandler extracts chains from CLI or prompts the user to select the chain
+   * - MultiChainHandler.forOriginDestination() extracts origin/destination from CLI or prompts the user to select origin/destination
    */
-  const chains = await chainStrategy.determineChains(argv);
+  const chains = await chainStrategy.resolveChains(argv);
 
   /**
-   * @notice  Extracts private keys from strategyConfig else prompts user private key input
+   * @notice Extracts signer config - private keys from strategyConfig or prompts user for private key input
    */
-  const signerStrategy = new MultiChainSignerContext(
+  const multiProtocolSigner = new MultiProtocolSignerContext(
     strategyConfig,
     chains,
-    TxSubmitterType.JSON_RPC,
     multiProvider,
     key,
   );
 
   /**
-   * @notice  Configure the signers using the selected strategy, multiProvider, and signer context
+   * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
-  const MultiProviderWithSigners = await signerStrategy.configureSigners();
-  argv.multiProvider = MultiProviderWithSigners;
+  argv.multiProvider = await multiProtocolSigner.attachSignersToMp();
 
   return argv;
 }

@@ -6,5 +6,5 @@ export interface ChainHandler {
    * @param argv Command arguments
    * @returns Array of chain names
    */
-  determineChains(argv: Record<string, any>): Promise<ChainName[]>;
+  resolveChains(argv: Record<string, any>): Promise<ChainName[]>;
 }

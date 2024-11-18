@@ -75,19 +75,21 @@ export async function createStrategyConfig({
   context: CommandContext;
   outPath: string;
 }) {
-  let strategy;
+  let strategy: ChainSubmissionStrategy;
   try {
     // the output strategy might contain submitters for other chain we don't want to overwrite
-    strategy = await readYamlOrJson(outPath);
+    const strategyObj = await readYamlOrJson(outPath);
+    strategy = ChainSubmissionStrategySchema.parse(strategyObj);
   } catch (e) {
     strategy = writeYamlOrJson(outPath, {}, 'yaml');
   }
   const chain = await runSingleChainSelectionStep(context.chainMetadata);
   const chainProtocol = context.chainMetadata[chain].protocol;
-  assert(chainProtocol === ProtocolType.Ethereum, 'Incompatible protocol');
+  assert(chainProtocol === ProtocolType.Ethereum, 'Incompatible protocol'); // Needs to be compatible with MultiProvider - ethers.Signer
 
   if (
     !context.skipConfirmation &&
+    strategy &&
     Object.prototype.hasOwnProperty.call(strategy, chain)
   ) {
     const isConfirmed = await confirm({

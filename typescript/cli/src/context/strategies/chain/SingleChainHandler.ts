@@ -16,13 +16,11 @@ export class SingleChainHandler implements ChainHandler {
    * @notice Determines the chain to be used for signing operations
    * @dev Either uses the chain specified in argv or prompts for interactive selection
    */
-  async determineChains(argv: Record<string, any>): Promise<ChainName[]> {
-    argv.chain =
-      argv.chain ||
-      (await runSingleChainSelectionStep(
-        argv.context.chainMetadata,
-        'Select chain to connect:',
-      ));
+  async resolveChains(argv: Record<string, any>): Promise<ChainName[]> {
+    argv.chain ||= await runSingleChainSelectionStep(
+      argv.context.chainMetadata,
+      'Select chain to connect:',
+    );
 
     return [argv.chain]; // Explicitly return as single-item array
   }
