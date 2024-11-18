@@ -100,7 +100,8 @@ export async function runWarpRouteDeploy({
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
 }) {
-  const { signer, skipConfirmation, chainMetadata, registry } = context;
+  const { signer, skipConfirmation, chainMetadata, registry, multiProvider } =
+    context;
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -136,26 +137,75 @@ export async function runWarpRouteDeploy({
 
   await runDeployPlanStep(deploymentParams);
 
-  await runPreflightChecksForChains({
-    context,
-    chains,
-    minGas: MINIMUM_WARP_DEPLOY_GAS,
-  });
-
-  const userAddress = await signer.getAddress();
-
-  const initialBalances = await prepareDeploy(context, userAddress, chains);
-
-  const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
-
-  const warpCoreConfig = await getWarpCoreConfig(
-    deploymentParams,
-    deployedContracts,
+  // Group chains string list by protocol
+  const chainsByProtocol = chains.reduce<Record<ProtocolType, ChainName[]>>(
+    (acc, chain) => {
+      const protocol = multiProvider.tryGetProtocol(chain);
+      assert(protocol, `protocol is not provided for chain: ${chain}`);
+      acc[protocol] = acc[protocol] || [];
+      acc[protocol].push(chain);
+      return acc;
+    },
+    {} as Record<ProtocolType, ChainName[]>,
   );
+  console.log({ chainsByProtocol });
+  const deployments: WarpCoreConfig = { tokens: [] };
 
-  await writeDeploymentArtifacts(warpCoreConfig, context);
+  // Execute deployments for each protocol
+  for (const protocol of Object.keys(chainsByProtocol) as ProtocolType[]) {
+    const protocolChains = chainsByProtocol[protocol];
+    const protocolDeploymentParams = {
+      context: deploymentParams.context,
+      warpDeployConfig: Object.fromEntries(
+        Object.entries(deploymentParams.warpDeployConfig).filter(([chain]) =>
+          protocolChains.includes(chain),
+        ),
+      ),
+    };
 
-  await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
+    switch (protocol) {
+      case ProtocolType.Ethereum:
+        {
+          const userAddress = await signer.getAddress();
+
+          await runPreflightChecksForChains({
+            context,
+            chains: protocolChains,
+            minGas: MINIMUM_WARP_DEPLOY_GAS,
+          });
+
+          await prepareDeploy(context, userAddress, protocolChains);
+
+          const deployedContracts = await executeDeploy(
+            protocolDeploymentParams,
+            apiKeys,
+          );
+
+          const warpCoreConfig = await getWarpCoreConfig(
+            deploymentParams,
+            deployedContracts,
+          );
+          deployments.tokens = [
+            ...deployments.tokens,
+            ...warpCoreConfig.tokens,
+          ];
+          deployments.options = {
+            ...deployments.options,
+            ...warpCoreConfig.options,
+          };
+        }
+        break;
+
+      case ProtocolType.Starknet:
+        break;
+
+      default:
+        throw new Error(`Unsupported protocol type: ${protocol}`);
+    }
+  }
+
+  await writeDeploymentArtifacts(deployments, context);
+  await completeDeploy(context, 'warp', {}, '', chains);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -954,3 +1004,35 @@ async function getWarpApplySubmitter({
     multiProvider,
   });
 }
+
+// async function runStarknetDeployments({
+//   context,
+//   warpRouteConfig,
+//   chains,
+// }: {
+//   context: WriteCommandContext;
+//   warpRouteConfig: WarpRouteDeployConfig;
+//   chains: ChainName[];
+// }): Promise<HyperlaneContractsMap<any>> {
+//   if (chains.length === 0) {
+//     return {};
+//   }
+
+//   logBlue('Deploying Starknet contracts...');
+
+//   const deployedContracts: HyperlaneContractsMap<any> = {};
+
+//   for (const chain of chains) {
+//     const config = warpRouteConfig[chain];
+
+//     // TODO: Implement Starknet-specific deployment logic:
+//     // 1. Set up Starknet provider and account similar to core.ts
+//     // 2. Create Starknet token deployer (similar to HypERC20Deployer/HypERC721Deployer)
+//     // 3. Deploy ISM if specified in config
+//     // 4. Deploy token contracts
+//     // 5. Store deployed addresses in deployedContracts map
+//   }
+
+//   logGreen('✅ Starknet contract deployments complete');
+//   return deployedContracts;
+// }
