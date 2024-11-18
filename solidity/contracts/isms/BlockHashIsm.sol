@@ -13,8 +13,13 @@ interface IBlockHashOracle {
 
 contract BlockHashISM is IInterchainSecurityModule, PackageVersioned {
     using Message for bytes;
+
     uint8 public constant override moduleType = uint8(Types.NULL);
     IBlockHashOracle public immutable oracle;
+
+    constructor(address _oracle) {
+        oracle = IBlockHashOracle(_oracle);
+    }
 
     /**
      * @inheritdoc IInterchainSecurityModule
