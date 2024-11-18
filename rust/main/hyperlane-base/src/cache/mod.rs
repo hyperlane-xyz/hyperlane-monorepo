@@ -5,9 +5,12 @@ mod moka;
 use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-pub use error::*;
-pub use metered_cache::*;
-pub use moka::*;
+pub use error::CacheError;
+pub use metered_cache::{
+    MeteredCache, MeteredCacheConfig, MeteredCacheMetrics, MeteredCacheMetricsBuilder,
+    HIT_COUNT_HELP, HIT_COUNT_LABELS, MISS_COUNT_HELP, MISS_COUNT_LABELS,
+};
+pub use moka::{CacheResult, Expiration, LocalCache};
 
 use hyperlane_core::H256;
 

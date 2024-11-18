@@ -7,8 +7,8 @@ use std::hash::RandomState;
 use moka::{future::Cache, policy::EvictionPolicy};
 use serde::{de::DeserializeOwned, Serialize};
 
-pub use dynamic_expiry::*;
-pub use local_cache::*;
+pub use dynamic_expiry::{DynamicExpiry, Expiration, ExpirationType};
+pub use local_cache::LocalCache;
 
 use crate::cache::CacheError;
 
