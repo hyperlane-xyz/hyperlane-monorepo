@@ -679,10 +679,6 @@ impl SealevelMailboxIndexer {
         &self.mailbox.rpc()
     }
 
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.rpc().get_block_height().await
-    }
-
     async fn get_dispatched_message_with_nonce(
         &self,
         nonce: u32,
@@ -868,17 +864,6 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    #[instrument(err, skip(self))]
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
-        Ok((Some(count), tip))
-    }
-}
-
-#[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs_in_range(
         &self,
@@ -898,7 +883,21 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
+    }
+}
+
+#[async_trait]
+impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
+    #[instrument(err, skip(self))]
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.mailbox.provider.rpc().get_slot().await?;
+        // TODO: need to make sure the call and tip are at the same height?
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
+        Ok((Some(count), tip))
     }
 }
 
@@ -922,7 +921,10 @@ impl Indexer<H256> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
     }
 }
 
@@ -931,7 +933,7 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");
-        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        let tip = self.mailbox.provider.rpc().get_slot().await?;
         Ok((Some(1), tip))
     }
 }

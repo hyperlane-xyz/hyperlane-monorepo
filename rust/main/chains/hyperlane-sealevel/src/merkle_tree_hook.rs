@@ -93,7 +93,10 @@ impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Indexer::<HyperlaneMessage>::get_finalized_block_number(&self.0).await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
     }
 }
 
