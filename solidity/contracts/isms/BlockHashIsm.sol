@@ -6,9 +6,9 @@ import {PackageVersioned} from "contracts/PackageVersioned.sol";
 import {Message} from "../libs/Message.sol";
 
 interface IBlockHashOracle {
-    uint32 public immutable origin;
+    function origin() external view returns (uint32);
 
-    function blockhash(uint256 height) external view returns (uint256 hash);
+    function blockHash(uint256 height) external view returns (uint256 hash);
 }
 
 contract BlockHashISM is IInterchainSecurityModule, PackageVersioned {
@@ -27,14 +27,14 @@ contract BlockHashISM is IInterchainSecurityModule, PackageVersioned {
     function verify(
         bytes calldata,
         bytes calldata message
-    ) public pure override returns (bool) {
+    ) public view override returns (bool) {
         (uint256 blockHash, uint256 blockHeight) = _extractBlockInfo(
             message.body()
         );
 
         // if the block hash at the specified height does not match the oracle results means the transaction was not mined on that origin chain
         require(
-            oracle.blockhash(blockHeight) == blockHash,
+            oracle.blockHash(blockHeight) == blockHash,
             "Transaction not dispatched from origin chain"
         );
 
@@ -43,7 +43,7 @@ contract BlockHashISM is IInterchainSecurityModule, PackageVersioned {
 
     function _extractBlockInfo(
         bytes calldata _messageBody
-    ) internal returns (uint256 hash, uint256 height) {
+    ) internal view returns (uint256 hash, uint256 height) {
         require(_messageBody.length >= 64, "Invalid message body");
 
         (hash, height) = abi.decode(_messageBody[:64], (uint256, uint256));
