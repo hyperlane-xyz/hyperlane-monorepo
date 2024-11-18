@@ -2,12 +2,16 @@ mod error;
 mod moka;
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub use error::*;
 pub use moka::*;
 
 use hyperlane_core::H256;
+
+/// Should be used as the `fn_params` when the function has no parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoParams;
 
 /// Cache for storing function calls with serializable results
 #[async_trait]

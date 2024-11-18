@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 use hyperlane_core::H256;
 
@@ -12,10 +12,6 @@ use super::{BaseCache, CacheResult, Expiration, ExpirationType};
 /// Cache for storing function calls with serializable results
 #[derive(Debug, Clone)]
 pub struct HyperlaneMokaCache(BaseCache);
-
-/// Used when the function has no parameters
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NoParams;
 
 impl HyperlaneMokaCache {
     /// Create a new cache with the given name
