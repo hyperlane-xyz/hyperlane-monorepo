@@ -23,6 +23,7 @@ import {
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { maskSensitiveData } from '../utils/output.js';
 
 export async function readChainSubmissionStrategyConfig(
   filePath: string,
@@ -174,7 +175,7 @@ export async function createStrategyConfig({
   }
 
   const strategyResult: ChainSubmissionStrategy = {
-    ...strategy, // if there are changes in ChainSubmissionStrategy, the strategy may no longer be compatible
+    ...strategy, // if there are changes in ChainSubmissionStrategy, the loaded strategy may no longer be compatible
     [chain]: {
       submitter: submitter,
     },
@@ -196,31 +197,4 @@ export async function createStrategyConfig({
       `Key config is invalid, please check the submitter configuration.`,
     );
   }
-}
-
-// TODO: put in utils
-// New utility function to mask sensitive data
-export function maskPrivateKey(key: string): string {
-  if (!key) return key;
-  const middle = '•'.repeat(key.length);
-  return `${middle}`;
-}
-
-// Function to recursively mask private keys in an object
-export function maskSensitiveData(obj: any): any {
-  if (!obj) return obj;
-
-  if (typeof obj === 'object') {
-    const masked = { ...obj };
-    for (const [key, value] of Object.entries(masked)) {
-      if (key === 'privateKey' && typeof value === 'string') {
-        masked[key] = maskPrivateKey(value);
-      } else if (typeof value === 'object') {
-        masked[key] = maskSensitiveData(value);
-      }
-    }
-    return masked;
-  }
-
-  return obj;
 }

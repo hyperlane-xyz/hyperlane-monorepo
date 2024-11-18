@@ -21,7 +21,7 @@ export async function runKurtosisAgentDeploy({
   relayChains?: string;
   agentConfigurationPath?: string;
 }) {
-  // TODO: decide what to do with this, since its handled in MultiChainHandler - AGENT_KURTOSIS mode
+  // Future works: decide what to do with this, since its handled in MultiChainHandler - AGENT_KURTOSIS mode
   if (!originChain) {
     originChain = await runSingleChainSelectionStep(
       context.chainMetadata,

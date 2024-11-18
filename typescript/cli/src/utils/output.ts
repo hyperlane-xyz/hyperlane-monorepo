@@ -54,3 +54,70 @@ export function formatYamlViolationsOutput(
 
   return highlightedLines.join('\n');
 }
+
+/**
+ * @notice Masks private key with dots
+ * @param key Private key to mask
+ * @return Masked key
+ */
+export function maskPrivateKey(key: string): string {
+  if (!key) return key;
+  const middle = '•'.repeat(key.length);
+  return `${middle}`;
+}
+
+/**
+ * @notice Recursively masks sensitive data in objects
+ * @param obj Object with potential sensitive data
+ * @return Object with masked sensitive data
+ */
+export function maskSensitiveData(obj: any): any {
+  if (!obj) return obj;
+
+  if (typeof obj === 'object') {
+    const masked = { ...obj };
+    for (const [key, value] of Object.entries(masked)) {
+      if (key === 'privateKey' && typeof value === 'string') {
+        masked[key] = maskPrivateKey(value);
+      } else if (typeof value === 'object') {
+        masked[key] = maskSensitiveData(value);
+      }
+    }
+    return masked;
+  }
+
+  return obj;
+}
+
+/**
+ * @notice Extracts chain names from a nested configuration object
+ * @param config Object to search for chain names
+ * @return Array of discovered chain names
+ */
+export function extractChainsFromObj(config: Record<string, any>): string[] {
+  const chains: string[] = [];
+
+  // Recursively search for chain/chainName fields
+  function findChainFields(obj: any) {
+    if (obj === null || typeof obj !== 'object') return;
+
+    if (Array.isArray(obj)) {
+      obj.forEach((item) => findChainFields(item));
+      return;
+    }
+
+    if ('chain' in obj) {
+      chains.push(obj.chain);
+    }
+
+    if ('chainName' in obj) {
+      chains.push(obj.chainName);
+    }
+
+    // Recursively search in all nested values
+    Object.values(obj).forEach((value) => findChainFields(value));
+  }
+
+  findChainFields(config);
+  return chains;
+}

@@ -14,6 +14,7 @@ import {
   runFileSelectionStep,
 } from '../../../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../../../utils/input.js';
+import { extractChainsFromObj } from '../../../utils/output.js';
 
 import { ChainHandler } from './types.js';
 
@@ -67,7 +68,7 @@ export class MultiChainHandler implements ChainHandler {
         symbol: argv.symbol,
       });
       argv.context.warpCoreConfig = warpCoreConfig;
-      const chains = extractChainValues(warpCoreConfig);
+      const chains = extractChainsFromObj(warpCoreConfig);
       return chains;
     } else if (argv.chain) {
       return [argv.chain];
@@ -126,7 +127,7 @@ export class MultiChainHandler implements ChainHandler {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
-    return extractChainValues(strategy);
+    return extractChainsFromObj(strategy);
   }
   private async resolveRelayerChains(
     argv: Record<string, any>,
@@ -184,35 +185,4 @@ export class MultiChainHandler implements ChainHandler {
   static forRelayer(): MultiChainHandler {
     return new MultiChainHandler(ChainSelectionMode.RELAYER);
   }
-}
-
-// TODO: Put in helpers
-function extractChainValues(config: Record<string, any>): string[] {
-  const chains: string[] = [];
-
-  // Function to recursively search for chain fields
-  function findChainFields(obj: any) {
-    // Return if value is null or not an object/array
-    if (obj === null || typeof obj !== 'object') return;
-
-    // Handle arrays
-    if (Array.isArray(obj)) {
-      obj.forEach((item) => findChainFields(item));
-      return;
-    }
-
-    // Check for chain fields
-    if ('chain' in obj) {
-      chains.push(obj.chain);
-    }
-    if ('chainName' in obj) {
-      chains.push(obj.chainName);
-    }
-
-    // Recursively search in all object values
-    Object.values(obj).forEach((value) => findChainFields(value));
-  }
-
-  findChainFields(config);
-  return chains;
 }
