@@ -1,3 +1,4 @@
+import { ValidatorAnnounce__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
   S3Validator,
@@ -9,8 +10,13 @@ import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 const acceptableValidatorVersions: Record<string, string> = {
+  '72d498fa984750b9137c1211fef6c80a3e594ce7': 'aug-27-batch', // Aug 27 deploy
+  d71dd4e5ed7eb69cc4041813ef444e37d881cdda: 'sep-9-batch', // Sep 9 deploy
+  '45399a314cec85723bbb5d2360531c96a3aa261e': 'oct-27-batch', // Oct 27 deploy
+  '75d62ae7bbdeb77730c6d343c4fc1df97a08abe4': 'nov-7-batch', // Nov 7 deploy
   a64af8be9a76120d0cfc727bb70660fa07e70cce: 'pre-1.0.0', // pre-1.0.0
   ffbe1dd82e2452dbc111b6fb469a34fb870da8f1: '1.0.0', // 1.0.0
+  '79453fcd972a1e62ba8ee604f0a4999c7b938582': 'tesselated-special-build', // Tessellated's Own Build
 };
 
 // TODO: refactor multisigIsm.ts to include mappings of addresses to aliases as part of the config
@@ -66,7 +72,14 @@ const KNOWN_VALIDATOR_ADDRESSES: Record<string, string> = {
   '0x7089b6352d37d23fb05a7fee4229c78e038fba09': 'imperator',
   '0xfed056cc0967f5bc9c6350f6c42ee97d3983394d': 'imperator',
   '0x9ab11f38a609940153850df611c9a2175dcffe0f': 'imperator',
+  '0x75237d42ce8ea27349a0254ada265db94157e0c1': 'imperator',
   '0x14025fe092f5f8a401dd9819704d9072196d2125': 'p2p',
+  '0x14d0b24d3a8f3aad17db4b62cbcec12821c98cb3': 'bware',
+  '0x0d4e7e64f3a032db30b75fe7acae4d2c877883bc': 'decentrio',
+  '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4': 'tessellated',
+  '0x3da4ee2801ec6cc5fad73dbb94b10a203adb3d9e': 'enigma',
+  '0x4df6e8878992c300e7bfe98cac6bf7d3408b9cbf': 'imperator',
+  '0x14adb9e3598c395fe3290f3ba706c3816aa78f59': 'flow foundation',
 };
 
 type ValidatorInfo = {
@@ -89,7 +102,13 @@ function sortValidatorInfo(a: ValidatorInfo, b: ValidatorInfo) {
 }
 
 async function main() {
-  const { environment, chains } = await withChains(getArgs()).argv;
+  const { environment, chains, showUpdated } = await withChains(getArgs())
+    .describe(
+      'show-updated',
+      'If enabled, prints a table with all updated validators',
+    )
+    .boolean('show-updated')
+    .default('show-updated', false).argv;
 
   const config = getEnvironmentConfig(environment);
   const { core } = await getHyperlaneCore(environment);
@@ -101,9 +120,18 @@ async function main() {
   const mismatchedValidators: ValidatorInfo[] = [];
   const upgradedValidators: ValidatorInfo[] = [];
 
+  // Manually add validator announce for OG Lumia chain deployment
+  const lumiaValidatorAnnounce = ValidatorAnnounce__factory.connect(
+    '0x989B7307d266151BE763935C856493D968b2affF',
+    core.multiProvider.getProvider('lumia'),
+  );
+
   await Promise.all(
     targetNetworks.map(async (chain) => {
-      const validatorAnnounce = core.getContracts(chain).validatorAnnounce;
+      const validatorAnnounce =
+        chain === 'lumia'
+          ? lumiaValidatorAnnounce
+          : core.getContracts(chain).validatorAnnounce;
       const expectedValidators = defaultMultisigConfigs[chain].validators || [];
       const storageLocations = await validatorAnnounce[
         'getAnnouncedStorageLocations(address[])'
@@ -160,12 +188,19 @@ async function main() {
     console.log('\n⚠️ Validators with mismatched git SHA:');
     console.table(mismatchedValidators.sort(sortValidatorInfo));
 
+    if (showUpdated) {
+      console.log('\n✅ Validators with expected git SHA:');
+      console.table(upgradedValidators.sort(sortValidatorInfo));
+    }
+    process.exit(1);
+  }
+
+  if (showUpdated) {
     console.log('\n✅ Validators with expected git SHA:');
     console.table(upgradedValidators.sort(sortValidatorInfo));
-    process.exit(1);
-  } else {
-    console.log('\n✅ All validators running expected git SHA!');
   }
+  console.log('\n✅ All validators running expected git SHA!');
+  process.exit(0);
 }
 
 main().catch(console.error);
