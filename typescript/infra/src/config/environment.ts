@@ -108,6 +108,7 @@ export async function getRouterConfigsForAllVms(
 export function getOwnerConfigForAddress(owner: string): OwnableConfig {
   return {
     owner,
+    // To ensure that any other overrides aren't applied
     ownerOverrides: {},
   };
 }
