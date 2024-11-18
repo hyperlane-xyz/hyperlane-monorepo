@@ -74,27 +74,19 @@ impl BaseCache {
     /// Get the number of entries in the cache
     /// This will run any pending tasks before returning the entry count
     /// which ensures that the count is accurate
-    pub async fn entries(&self) -> u64 {
+    pub async fn _entries(&self) -> u64 {
         self.cache.run_pending_tasks().await;
         self.cache.entry_count()
     }
 
-    /// Get the total weight of the cache
-    /// This will run any pending tasks before returning the weight
-    /// which ensures that the weight is accurate
-    pub async fn weight(&self) -> u64 {
-        self.cache.run_pending_tasks().await;
-        self.cache.weighted_size()
-    }
-
     /// Check if the cache contains a value for the given key
-    pub fn contains_key(&self, key: &impl Serialize) -> CacheResult<bool> {
+    pub fn _contains_key(&self, key: &impl Serialize) -> CacheResult<bool> {
         let key = self.serialize(key)?;
         Ok(self.cache.contains_key(&key))
     }
 
     /// Remove the value for the given key
-    pub async fn remove(&self, key: &impl Serialize) -> CacheResult<()> {
+    pub async fn _remove(&self, key: &impl Serialize) -> CacheResult<()> {
         let key = self.serialize(key)?;
         self.cache.invalidate(&key).await;
         Ok(())
@@ -141,7 +133,7 @@ mod test {
 
         cache.set(&key.clone(), &value, ttl).await.unwrap();
 
-        let entries = cache.entries().await;
+        let entries = cache._entries().await;
         assert_eq!(entries, 1);
 
         let cached_value = cache.get::<i32>(&key).await.unwrap();
@@ -158,7 +150,7 @@ mod test {
 
         cache.set(&key, &value, ttl).await.unwrap();
 
-        let entries = cache.entries().await;
+        let entries = cache._entries().await;
         assert_eq!(entries, 1);
 
         let cached_value = cache.get::<String>(&key).await.unwrap();
@@ -175,7 +167,7 @@ mod test {
 
         cache.set(&key.clone(), &value, ttl).await.unwrap();
 
-        let entries = cache.entries().await;
+        let entries = cache._entries().await;
         assert_eq!(entries, 1);
 
         let cached_value = cache.get::<(String, i32, U256)>(&key).await.unwrap();
@@ -200,7 +192,7 @@ mod test {
 
         cache.set(&key.clone(), &value, ttl).await.unwrap();
 
-        let entries = cache.entries().await;
+        let entries = cache._entries().await;
         assert_eq!(entries, 1);
 
         let cached_value = cache.get::<TestStruct>(&key).await.unwrap();
@@ -274,7 +266,7 @@ mod test {
             cache.set(&key, &value, ttl).await.unwrap();
         }
 
-        let entries = cache.entries().await;
+        let entries = cache._entries().await;
         assert_eq!(entries, keys_with_ttl.len() as u64);
 
         // Pull each key from the cache and check the value, expiration and TTL
@@ -284,7 +276,7 @@ mod test {
             assert!(cached_value.is_some_and(|(v, e)| {
                 assert!(v == value);
                 assert!(&e.variant == expiry_type);
-                assert!(cache.contains_key(&key).unwrap());
+                assert!(cache._contains_key(&key).unwrap());
 
                 let ttl = e.time_to_live();
 
@@ -310,32 +302,32 @@ mod test {
 
         // Ensure the first entry expires
         sleep(5).await;
-        let entries = cache.entries().await;
+        let entries = cache._entries().await;
         assert_eq!(entries, keys_with_ttl.len() as u64 - 1);
-        assert!(!cache.contains_key(&keys_with_ttl[0].0).unwrap());
-        assert!(cache.contains_key(&keys_with_ttl[1].0).unwrap());
-        assert!(cache.contains_key(&keys_with_ttl[2].0).unwrap());
-        assert!(cache.contains_key(&keys_with_ttl[3].0).unwrap());
+        assert!(!cache._contains_key(&keys_with_ttl[0].0).unwrap());
+        assert!(cache._contains_key(&keys_with_ttl[1].0).unwrap());
+        assert!(cache._contains_key(&keys_with_ttl[2].0).unwrap());
+        assert!(cache._contains_key(&keys_with_ttl[3].0).unwrap());
 
         // Ensure the second entry expires
         sleep(5).await;
-        let entries = cache.entries().await;
+        let entries = cache._entries().await;
         assert_eq!(entries, keys_with_ttl.len() as u64 - 2);
-        assert!(!cache.contains_key(&keys_with_ttl[0].0).unwrap());
-        assert!(!cache.contains_key(&keys_with_ttl[1].0).unwrap());
-        assert!(cache.contains_key(&keys_with_ttl[2].0).unwrap());
-        assert!(cache.contains_key(&keys_with_ttl[3].0).unwrap());
+        assert!(!cache._contains_key(&keys_with_ttl[0].0).unwrap());
+        assert!(!cache._contains_key(&keys_with_ttl[1].0).unwrap());
+        assert!(cache._contains_key(&keys_with_ttl[2].0).unwrap());
+        assert!(cache._contains_key(&keys_with_ttl[3].0).unwrap());
 
         // Expire the last two entries
-        cache.remove(&keys_with_ttl[2].0).await.unwrap();
-        cache.remove(&keys_with_ttl[3].0).await.unwrap();
+        cache._remove(&keys_with_ttl[2].0).await.unwrap();
+        cache._remove(&keys_with_ttl[3].0).await.unwrap();
 
         // Ensure the last two entries are removed
-        let entries = cache.entries().await;
+        let entries = cache._entries().await;
         assert_eq!(entries, 0);
-        assert!(!cache.contains_key(&keys_with_ttl[0].0).unwrap());
-        assert!(!cache.contains_key(&keys_with_ttl[1].0).unwrap());
-        assert!(!cache.contains_key(&keys_with_ttl[2].0).unwrap());
-        assert!(!cache.contains_key(&keys_with_ttl[3].0).unwrap());
+        assert!(!cache._contains_key(&keys_with_ttl[0].0).unwrap());
+        assert!(!cache._contains_key(&keys_with_ttl[1].0).unwrap());
+        assert!(!cache._contains_key(&keys_with_ttl[2].0).unwrap());
+        assert!(!cache._contains_key(&keys_with_ttl[3].0).unwrap());
     }
 }
