@@ -15,6 +15,60 @@ use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
+
+impl MerkleRootMultisigMetadataBuilder {
+    async fn call_highest_known_leaf_index(&self) -> Result<Option<u32>> {
+        let fn_name = "highest_known_leaf_index";
+
+        match self
+            .get_cached_call_result::<u32>(None, fn_name, &NoParams)
+            .await
+        {
+            Some(index) => Ok(Some(index)),
+            None => {
+                let index: u32 = unwrap_or_none_result!(
+                    self.highest_known_leaf_index().await,
+                    debug!("Couldn't get highest known leaf index")
+                );
+
+                self.cache_call_result(None, fn_name, &NoParams, &index)
+                    .await;
+                Ok(Some(index))
+            }
+        }
+    }
+
+    async fn call_get_merkle_leaf_id_by_message_id(
+        &self,
+        message: &HyperlaneMessage,
+    ) -> Result<Option<u32>> {
+        let fn_name = "get_merkle_leaf_id_by_message_id";
+        let message_id = message.id();
+
+        match self
+            .get_cached_call_result::<u32>(None, fn_name, &message_id)
+            .await
+        {
+            Some(index) => Ok(Some(index)),
+            None => {
+                let index: u32 = unwrap_or_none_result!(
+                    self.get_merkle_leaf_id_by_message_id(message_id)
+                        .await
+                        .context("When fetching merkle leaf index by message id")?,
+                    debug!(
+                        hyp_message_id=?message_id,
+                        "No merkle leaf found for message id, must have not been enqueued in the tree"
+                    )
+                );
+
+                self.cache_call_result(None, fn_name, &message_id, &index)
+                    .await;
+                Ok(Some(index))
+            }
+        }
+    }
+}
+
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
@@ -37,46 +91,11 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
 
-        let fn_name = "highest_known_leaf_index";
-        let highest_leaf_index = match self
-            .get_cached_call_result::<u32>(None, fn_name, &NoParams)
-            .await
-        {
-            Some(index) => index,
-            None => {
-                let index: u32 = unwrap_or_none_result!(
-                    self.highest_known_leaf_index().await,
-                    debug!("Couldn't get highest known leaf index")
-                );
+        let highest_leaf_index: u32 =
+            unwrap_or_none_result!(self.call_highest_known_leaf_index().await?);
 
-                self.cache_call_result(None, fn_name, &NoParams, &index)
-                    .await;
-                index
-            }
-        };
-
-        let fn_name = "get_merkle_leaf_id_by_message_id";
-        let leaf_index = match self
-            .get_cached_call_result::<u32>(None, fn_name, &message.id())
-            .await
-        {
-            Some(index) => index,
-            None => {
-                let index: u32 = unwrap_or_none_result!(
-                    self.get_merkle_leaf_id_by_message_id(message.id())
-                        .await
-                        .context(CTX)?,
-                    debug!(
-                        hyp_message=?message,
-                        "No merkle leaf found for message id, must have not been enqueued in the tree"
-                    )
-                );
-
-                self.cache_call_result(None, fn_name, &message.id(), &index)
-                    .await;
-                index
-            }
-        };
+        let leaf_index: u32 =
+            unwrap_or_none_result!(self.call_get_merkle_leaf_id_by_message_id(message).await?);
 
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer

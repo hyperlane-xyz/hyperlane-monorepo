@@ -12,7 +12,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{info, instrument};
 
-use hyperlane_core::{utils::bytes_to_hex, HyperlaneMessage, RawHyperlaneMessage, H256};
+use hyperlane_core::{
+    unwrap_or_none_result, utils::bytes_to_hex, CcipReadIsm, HyperlaneMessage, RawHyperlaneMessage,
+    H256,
+};
 use hyperlane_ethereum::OffchainLookup;
 
 use cache_types::SerializedOffchainLookup;
@@ -29,17 +32,12 @@ pub struct CcipReadIsmMetadataBuilder {
     base: MessageMetadataBuilder,
 }
 
-#[async_trait]
-impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self))]
-    async fn build(
+impl CcipReadIsmMetadataBuilder {
+    async fn call_get_offchain_verify_info(
         &self,
-        ism_address: H256,
+        ism: &dyn CcipReadIsm,
         message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<Vec<u8>>> {
-        const CTX: &str = "When fetching CcipRead metadata";
-        let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
-
+    ) -> eyre::Result<Option<OffchainLookup>> {
         let contract_address = Some(ism.address());
         let fn_name = "get_offchain_verify_info";
         let parsed_message = RawHyperlaneMessage::from(message).to_vec();
@@ -81,6 +79,24 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
             &SerializedOffchainLookup::from(info.clone()),
         )
         .await;
+
+        Ok(Some(info))
+    }
+}
+
+#[async_trait]
+impl MetadataBuilder for CcipReadIsmMetadataBuilder {
+    #[instrument(err, skip(self))]
+    async fn build(
+        &self,
+        ism_address: H256,
+        message: &HyperlaneMessage,
+    ) -> eyre::Result<Option<Vec<u8>>> {
+        const CTX: &str = "When fetching CcipRead metadata";
+        let ism = self.build_ccip_read_ism(ism_address).await.context(CTX)?;
+
+        let info: OffchainLookup =
+            unwrap_or_none_result!(self.call_get_offchain_verify_info(&ism, message).await?);
 
         for url in info.urls.iter() {
             // Need to explicitly convert the sender H160 the hex because the `ToString` implementation

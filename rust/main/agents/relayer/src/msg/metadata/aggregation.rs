@@ -7,7 +7,9 @@ use eyre::Context;
 use itertools::{Either, Itertools};
 use tracing::{info, instrument};
 
-use hyperlane_core::{HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256};
+use hyperlane_core::{
+    AggregationIsm, HyperlaneMessage, InterchainSecurityModule, ModuleType, H256, U256,
+};
 
 use super::{MessageMetadataBuilder, MetadataBuilder};
 
@@ -113,6 +115,32 @@ impl AggregationIsmMetadataBuilder {
         }
         Some(Self::n_cheapest_metas(metas_and_gas, threshold))
     }
+
+    async fn call_modules_and_threshold(
+        &self,
+        ism: &dyn AggregationIsm,
+        message: &HyperlaneMessage,
+    ) -> eyre::Result<(Vec<H256>, u8)> {
+        let contract_address = Some(ism.address());
+        let fn_name = "modules_and_threshold";
+
+        match self
+            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, fn_name, message)
+            .await
+        {
+            Some(result) => Ok(result),
+            None => {
+                let result = ism
+                    .modules_and_threshold(message)
+                    .await
+                    .context("When fetching AggregationIsm metadata")?;
+
+                self.cache_call_result(contract_address, fn_name, message, &result)
+                    .await;
+                Ok(result)
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -127,20 +155,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         const CTX: &str = "When fetching AggregationIsm metadata";
         let ism = self.build_aggregation_ism(ism_address).await.context(CTX)?;
 
-        let contract_address = Some(ism.address());
-        let fn_name = "modules_and_threshold";
-        let (ism_addresses, threshold) = match self
-            .get_cached_call_result::<(Vec<H256>, u8)>(contract_address, fn_name, message)
-            .await
-        {
-            Some(result) => result,
-            None => {
-                let result = ism.modules_and_threshold(message).await.context(CTX)?;
-                self.cache_call_result(contract_address, fn_name, message, &result)
-                    .await;
-                result
-            }
-        };
+        let (ism_addresses, threshold) = self.call_modules_and_threshold(&ism, message).await?;
         let threshold = threshold as usize;
 
         let sub_modules_and_metas = join_all(

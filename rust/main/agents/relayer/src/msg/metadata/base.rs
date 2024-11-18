@@ -232,6 +232,28 @@ impl MessageMetadataBuilder {
         }
     }
 
+    async fn call_module_type(&self, ism: &dyn InterchainSecurityModule) -> Result<ModuleType> {
+        let contract_address = Some(ism.address());
+        let fn_name = "module_type";
+
+        match self
+            .get_cached_call_result::<ModuleType>(contract_address, fn_name, &NoParams)
+            .await
+        {
+            Some(module_type) => Ok(module_type),
+            None => {
+                let module_type = ism
+                    .module_type()
+                    .await
+                    .context("When fetching module type")?;
+
+                self.cache_call_result(contract_address, fn_name, &NoParams, &module_type)
+                    .await;
+                Ok(module_type)
+            }
+        }
+    }
+
     #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()), ret)]
     pub async fn build_ism_and_metadata(
         &self,
@@ -243,21 +265,7 @@ impl MessageMetadataBuilder {
             .await
             .context("When building ISM")?;
 
-        let module_type = match self
-            .get_cached_call_result::<ModuleType>(Some(ism.address()), "module_type", &NoParams)
-            .await
-        {
-            Some(module_type) => module_type,
-            None => {
-                let module_type = ism
-                    .module_type()
-                    .await
-                    .context("When fetching module type")?;
-                self.cache_call_result(Some(ism.address()), "module_type", &NoParams, &module_type)
-                    .await;
-                module_type
-            }
-        };
+        let module_type = self.call_module_type(&ism).await?;
 
         let cloned = self.clone_with_incremented_depth()?;
 
