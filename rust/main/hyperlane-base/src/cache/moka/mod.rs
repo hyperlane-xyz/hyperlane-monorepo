@@ -230,6 +230,23 @@ mod test {
     }
 
     #[tokio::test]
+    async fn insert_with_invalid_expiry_timestamp() {
+        let cache = BaseCache::new("test-cache");
+
+        let key = "key".to_owned();
+        let value = 123;
+        let invalid_timestamp = 946684800; // 2000-01-01 00:00:00
+        let ttl = ExpirationType::AfterTimestamp(invalid_timestamp as u64);
+
+        let result = cache.set(&key, &value, ttl).await;
+        assert!(result.is_ok());
+
+        // If timestamp is in the past, the entry should be immediately expired
+        let entry = cache.get::<i32>(&key).await.unwrap();
+        assert!(entry.is_none());
+    }
+
+    #[tokio::test]
     async fn different_ttls() {
         let cache = BaseCache::new("test-cache");
 

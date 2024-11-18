@@ -24,7 +24,7 @@ impl From<ExpirationType> for Expiration {
     fn from(expiration: ExpirationType) -> Self {
         Expiration {
             variant: expiration,
-            created_at: Utc::now().timestamp(),
+            created_at: Utc::now().timestamp() as u64,
         }
     }
 }
@@ -35,7 +35,7 @@ pub struct Expiration {
     /// The type of expiration used when the entry was created.
     pub variant: ExpirationType,
     /// Unix timestamp when the entry was created.
-    pub created_at: i64,
+    pub created_at: u64,
 }
 
 impl Expiration {
@@ -45,7 +45,10 @@ impl Expiration {
             ExpirationType::AfterDuration(duration) => Some(duration),
             ExpirationType::AfterTimestamp(timestamp) => {
                 let target_time = UNIX_EPOCH + Duration::from_secs(timestamp);
-                target_time.duration_since(SystemTime::now()).ok()
+                target_time
+                    .duration_since(SystemTime::now())
+                    .ok()
+                    .or(Some(Duration::ZERO))
             }
             ExpirationType::Never => None,
             ExpirationType::Default => Some(Duration::from_secs(60 * 5)),
@@ -56,7 +59,7 @@ impl Expiration {
     /// Returns None if the entry should never expire or if the expiration time is in the past
     pub fn time_to_live(&self) -> Option<Duration> {
         let expiration = self.as_duration()?;
-        let created_at = match Utc.timestamp_opt(self.created_at, 0) {
+        let created_at = match Utc.timestamp_opt(self.created_at as i64, 0) {
             LocalResult::Single(time) => time,
             LocalResult::Ambiguous(easliest, _) => easliest,
             LocalResult::None => return None,
