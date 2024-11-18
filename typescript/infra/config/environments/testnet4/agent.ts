@@ -225,7 +225,7 @@ const hyperlane: RootAgentConfig = {
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
-    metricAppContexts: [
+    metricAppContextsGetter: () => [
       {
         name: 'helloworld',
         matchingList: routerMatchingList(

@@ -193,7 +193,8 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     owner: 'BNGDJ1h9brgt6FFVd8No1TVAH48Fp44d7jkuydr1URwJ',
   },
   eclipsemainnet: {
-    owner: 'B32qTbw8iDcVdagMAMBfDFCef88N1KtfRG5QoPVzbj5K',
+    // Squads multisig
+    owner: 'E4TncCw3WMqQZbkACVcomX3HqcSzLfNyhTnqKN1DimGr',
   },
   injective: {
     // Native multisig

@@ -5,7 +5,7 @@ import { fetchWithTimeout } from '@hyperlane-xyz/utils';
 
 import { HYPERLANE_EXPLORER_API_URL } from '../consts.js';
 import { queryExplorerForBlock } from '../utils/explorers.js';
-import { useInterval } from '../utils/useInterval.js';
+import { useInterval } from '../utils/timeout.js';
 
 import {
   MessageStatus,

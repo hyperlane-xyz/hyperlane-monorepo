@@ -206,9 +206,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(),
         (_sender, _destination, _recipient, message, event) => {
-          const parsed = HyperlaneCore.parseDispatchedMessage(message);
-          this.logger.info(`Observed message ${parsed.id} on ${originChain}`);
-          return handler(parsed, event);
+          const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+
+          // add human readable chain names
+          dispatched.parsed.originChain = this.getOrigin(dispatched);
+          dispatched.parsed.destinationChain = this.getDestination(dispatched);
+
+          this.logger.info(
+            `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+          );
+          return handler(dispatched, event);
         },
       );
     });
