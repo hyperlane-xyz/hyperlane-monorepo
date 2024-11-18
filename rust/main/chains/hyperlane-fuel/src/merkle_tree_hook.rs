@@ -110,7 +110,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
     }
 
     async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        self.assert_lag(&reorg_period);
+        self.assert_lag(reorg_period);
 
         self.contract
             .methods()
