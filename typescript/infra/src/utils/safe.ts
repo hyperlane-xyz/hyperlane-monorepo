@@ -14,7 +14,7 @@ import {
   getSafe,
   getSafeService,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress, retryAsync } from '@hyperlane-xyz/utils';
 
 import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
 import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
@@ -24,10 +24,10 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  const safeSdk: Safe.default = await getSafe(
-    chain,
-    multiProvider,
-    safeAddress,
+  const safeSdk: Safe.default = await retryAsync(
+    () => getSafe(chain, multiProvider, safeAddress),
+    5,
+    1000,
   );
   const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };

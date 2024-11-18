@@ -41,6 +41,15 @@ export async function getPendingTxsForChains(
         return;
       }
 
+      if (chain === 'endurance') {
+        console.info(
+          chalk.gray.italic(
+            `Skipping chain ${chain} as it does not have a functional safe API`,
+          ),
+        );
+        return;
+      }
+
       let safeSdk, safeService;
       try {
         ({ safeSdk, safeService } = await getSafeAndService(
@@ -128,6 +137,10 @@ async function main() {
   );
 
   const pendingTxs = await getPendingTxsForChains(chainsToCheck, multiProvider);
+  if (pendingTxs.length === 0) {
+    console.info(chalk.green('No pending transactions found!'));
+    process.exit(0);
+  }
   console.table(pendingTxs, [
     'chain',
     'nonce',
@@ -149,9 +162,10 @@ async function main() {
       default: execute,
     }))
   ) {
+    console.info(chalk.green('No transactions to execute!'));
     process.exit(0);
   } else {
-    console.log(chalk.blueBright('Executing transactions'));
+    console.info(chalk.blueBright('Executing transactions...'));
   }
 
   for (const tx of executableTxs) {
