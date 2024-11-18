@@ -80,6 +80,7 @@ export async function createStrategyConfig({
   try {
     // the output strategy might contain submitters for other chain we don't want to overwrite
     const strategyObj = await readYamlOrJson(outPath);
+    // if there are changes in ChainSubmissionStrategy, the existing strategy may no longer be compatible
     strategy = ChainSubmissionStrategySchema.parse(strategyObj);
   } catch (e) {
     strategy = writeYamlOrJson(outPath, {}, 'yaml');
@@ -103,7 +104,7 @@ export async function createStrategyConfig({
     }
   }
 
-  const type = await select({
+  const submitterType = await select({
     message: 'Enter the type of submitter',
     choices: Object.values(TxSubmitterType).map((value) => ({
       name: value,
@@ -111,12 +112,12 @@ export async function createStrategyConfig({
     })),
   });
 
-  const submitter: any = {
-    type: type,
+  const submitter: Record<string, any> = {
+    type: submitterType,
   };
 
-  // Configure submitter based on type
-  switch (type) {
+  // Configure submitter based on submitterType
+  switch (submitterType) {
     case TxSubmitterType.JSON_RPC:
       submitter.privateKey = await password({
         message: 'Enter your private key',
@@ -162,7 +163,7 @@ export async function createStrategyConfig({
 
       submitter.chain = chain;
 
-      if (type === TxSubmitterType.GNOSIS_TX_BUILDER) {
+      if (submitterType === TxSubmitterType.GNOSIS_TX_BUILDER) {
         submitter.version = await input({
           message: 'Enter the Safe version (default: 1.0)',
           default: '1.0',
@@ -171,13 +172,13 @@ export async function createStrategyConfig({
       break;
 
     default:
-      throw new Error(`Unsupported submitter type: ${type}`);
+      throw new Error(`Unsupported submitter type: ${submitterType}`);
   }
 
   const strategyResult: ChainSubmissionStrategy = {
-    ...strategy, // if there are changes in ChainSubmissionStrategy, the loaded strategy may no longer be compatible
+    ...strategy,
     [chain]: {
-      submitter: submitter,
+      submitter: submitter as ChainSubmissionStrategy[string]['submitter'],
     },
   };
 
