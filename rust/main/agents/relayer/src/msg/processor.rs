@@ -772,7 +772,7 @@ mod test {
                 HyperlaneMokaCache::new("test-cache"),
                 dummy_cache_metrics(),
                 MeteredCacheConfig {
-                    cache_name: "test-cache",
+                    cache_name: "test-cache".to_owned(),
                 },
             );
 

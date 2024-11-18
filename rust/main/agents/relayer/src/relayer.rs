@@ -136,7 +136,9 @@ impl BaseAgent for Relayer {
         let cache = MeteredCache::new(
             HyperlaneMokaCache::new(cache_name),
             core_metrics.cache_metrics(),
-            MeteredCacheConfig { cache_name },
+            MeteredCacheConfig {
+                cache_name: cache_name.to_owned(),
+            },
         );
         let dbs = settings
             .origin_chains

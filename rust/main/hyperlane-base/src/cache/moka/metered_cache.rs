@@ -17,7 +17,7 @@ use super::{CacheResult, Expiration};
 #[derive(Debug, Clone)]
 pub struct MeteredCacheConfig {
     /// The name of the cache set on creation.
-    pub cache_name: &'static str,
+    pub cache_name: String,
 }
 
 /// Container for all the relevant cache metrics.
@@ -87,7 +87,7 @@ where
             .await;
 
         let labels = hashmap! {
-            "cache_name" => self.config.cache_name,
+            "cache_name" => self.config.cache_name.as_str(),
             "method" => method,
             "status" => if result.is_ok() { "success" } else { "failure" }
         };
