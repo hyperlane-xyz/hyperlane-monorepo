@@ -26,7 +26,7 @@ import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner } from '../utils/keys.js';
 
-import { ChainInterceptor } from './strategies/chain/ChainInterceptor.js';
+import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
 import { MultiProtocolSignerContext } from './strategies/signer/MultiProtocolSignerContext.js';
 import {
   CommandContext,
@@ -36,7 +36,6 @@ import {
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
-
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
@@ -47,12 +46,10 @@ export async function contextMiddleware(argv: Record<string, any>) {
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
   };
-
   if (!isDryRun && settings.fromAddress)
     throw new Error(
       "'--from-address' or '-f' should only be used for dry-runs",
     );
-
   const context = isDryRun
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
@@ -70,21 +67,17 @@ export async function signerMiddleware(argv: Record<string, any>) {
   );
 
   /**
-   * @notice Intercepts Hyperlane command to determine chains
-   * @dev For example, command `core deploy` uses SingleChainHandler
+   * Intercepts Hyperlane command to determine chains.
    */
-  const chainStrategy = ChainInterceptor.getStrategy(argv);
+  const chainStrategy = ChainResolverFactory.getStrategy(argv);
 
   /**
-   * @notice Resolves chains that are used in MultiProtocolSignerContext based on the chain strategy
-   * @dev For example:
-   * - SingleChainHandler extracts chains from CLI or prompts the user to select the chain
-   * - MultiChainHandler.forOriginDestination() extracts origin/destination from CLI or prompts the user to select origin/destination
+   * Resolves chains based on the chain strategy.
    */
   const chains = await chainStrategy.resolveChains(argv);
 
   /**
-   * @notice Extracts signer config - private keys from strategyConfig or prompts user for private key input
+   * Extracts signer config
    */
   const multiProtocolSigner = new MultiProtocolSignerContext(
     strategyConfig,
@@ -112,7 +105,6 @@ export async function getContext({
   requiresKey,
   skipConfirmation,
   disableProxy = false,
-  signers,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
@@ -124,7 +116,6 @@ export async function getContext({
     chainMetadata: multiProvider.metadata,
     multiProvider,
     key,
-    signers,
     skipConfirmation: !!skipConfirmation,
   } as CommandContext;
 }

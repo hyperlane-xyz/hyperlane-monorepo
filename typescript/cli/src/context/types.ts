@@ -5,7 +5,6 @@ import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
   ChainMetadata,
-  ChainName,
   MultiProvider,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -18,7 +17,6 @@ export interface ContextSettings {
   requiresKey?: boolean;
   disableProxy?: boolean;
   skipConfirmation?: boolean;
-  signers?: any;
 }
 
 export interface CommandContext {
@@ -28,7 +26,6 @@ export interface CommandContext {
   skipConfirmation: boolean;
   key?: string;
   signer?: ethers.Signer;
-  chains?: ChainName[];
   warpCoreConfig?: WarpCoreConfig;
 }
 

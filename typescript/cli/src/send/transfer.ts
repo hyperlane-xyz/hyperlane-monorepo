@@ -18,6 +18,7 @@ import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
@@ -39,14 +40,30 @@ export async function sendTestTransfer({
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
-  origin: ChainName;
-  destination: ChainName;
+  origin?: ChainName; // resolved in signerMiddleware
+  destination?: ChainName; // resolved in signerMiddleware
   amount: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
+  const { chainMetadata } = context;
+
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
+      chainMetadata,
+      'Select the origin chain',
+    );
+  }
+
+  if (!destination) {
+    destination = await runSingleChainSelectionStep(
+      chainMetadata,
+      'Select the destination chain',
+    );
+  }
+
   await runPreflightChecksForChains({
     context,
     chains: [origin, destination],

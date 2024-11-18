@@ -100,12 +100,7 @@ export async function runWarpRouteDeploy({
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
 }) {
-  const {
-    skipConfirmation,
-    chainMetadata,
-    registry,
-    chains: contextChains,
-  } = context;
+  const { skipConfirmation, chainMetadata, registry } = context;
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -128,14 +123,15 @@ export async function runWarpRouteDeploy({
     context,
   );
 
-  const chains = contextChains!;
+  const chains = Object.keys(warpRouteConfig);
+
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
 
   const deploymentParams = {
     context,
-    warpDeployConfig: warpRouteConfig!,
+    warpDeployConfig: warpRouteConfig,
   };
 
   await runDeployPlanStep(deploymentParams);

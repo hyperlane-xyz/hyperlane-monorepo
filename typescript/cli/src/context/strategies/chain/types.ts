@@ -1,6 +1,6 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
-export interface ChainHandler {
+export interface ChainResolver {
   /**
    * Determines the chains to be used for signing
    * @param argv Command arguments

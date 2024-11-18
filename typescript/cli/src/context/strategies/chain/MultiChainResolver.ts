@@ -16,7 +16,7 @@ import {
 import { getWarpCoreConfigOrExit } from '../../../utils/input.js';
 import { extractChainsFromObj } from '../../../utils/output.js';
 
-import { ChainHandler } from './types.js';
+import { ChainResolver } from './types.js';
 
 enum ChainSelectionMode {
   ORIGIN_DESTINATION,
@@ -27,7 +27,13 @@ enum ChainSelectionMode {
   RELAYER,
 }
 
-export class MultiChainHandler implements ChainHandler {
+// This class could be broken down into multiple strategies
+
+/**
+ * @title MultiChainResolver
+ * @notice Resolves chains based on the specified selection mode.
+ */
+export class MultiChainResolver implements ChainResolver {
   constructor(private mode: ChainSelectionMode) {}
 
   async resolveChains(argv: Record<string, any>): Promise<ChainName[]> {
@@ -58,6 +64,7 @@ export class MultiChainHandler implements ChainHandler {
     );
     return argv.context.chains;
   }
+
   private async resolveWarpCoreConfigChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -123,12 +130,14 @@ export class MultiChainHandler implements ChainHandler {
 
     return [argv.origin, argv.destination];
   }
+
   private async resolveStrategyChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     const strategy = await readChainSubmissionStrategyConfig(argv.strategy);
     return extractChainsFromObj(strategy);
   }
+
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -150,7 +159,7 @@ export class MultiChainHandler implements ChainHandler {
       logRed(`Using warp route deployment config at ${configPath}`);
     }
 
-    // @dev instead of using readWarpRouteDeployConfig, which uses context to get the signer to fill defaults and make file pass zod validation
+    // Alternative to readWarpRouteDeployConfig that doesn't use context for signer and zod validation
     const warpRouteConfig = (await readYamlOrJson(configPath)) as Record<
       string,
       any
@@ -165,24 +174,27 @@ export class MultiChainHandler implements ChainHandler {
     return chains;
   }
 
-  static forOriginDestination(): MultiChainHandler {
-    return new MultiChainHandler(ChainSelectionMode.ORIGIN_DESTINATION);
+  static forAgentKurtosis(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.AGENT_KURTOSIS);
   }
 
-  static forAgentKurtosis(): MultiChainHandler {
-    return new MultiChainHandler(ChainSelectionMode.AGENT_KURTOSIS);
+  static forOriginDestination(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.ORIGIN_DESTINATION);
   }
 
-  static forWarpRouteConfig(): MultiChainHandler {
-    return new MultiChainHandler(ChainSelectionMode.WARP_CONFIG);
+  static forRelayer(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.RELAYER);
   }
-  static forWarpCoreConfig(): MultiChainHandler {
-    return new MultiChainHandler(ChainSelectionMode.WARP_READ);
+
+  static forStrategyConfig(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.STRATEGY);
   }
-  static forStrategyConfig(): MultiChainHandler {
-    return new MultiChainHandler(ChainSelectionMode.STRATEGY);
+
+  static forWarpRouteConfig(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_CONFIG);
   }
-  static forRelayer(): MultiChainHandler {
-    return new MultiChainHandler(ChainSelectionMode.RELAYER);
+
+  static forWarpCoreConfig(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.WARP_READ);
   }
 }

@@ -2,16 +2,14 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { runSingleChainSelectionStep } from '../../../utils/chains.js';
 
-import { ChainHandler } from './types.js';
+import { ChainResolver } from './types.js';
 
 /**
- * @title SingleChainHandler
+ * @title SingleChainResolver
  * @notice Strategy implementation for managing single-chain operations
- * @dev This strategy is used by commands that operate on a single blockchain
- *      It implements the ChainHandler interface and is primarily used for
- *      operations like 'core:apply' and 'warp:read'
+ * @dev Primarily used for operations like 'core:apply' and 'warp:read'
  */
-export class SingleChainHandler implements ChainHandler {
+export class SingleChainResolver implements ChainResolver {
   /**
    * @notice Determines the chain to be used for signing operations
    * @dev Either uses the chain specified in argv or prompts for interactive selection

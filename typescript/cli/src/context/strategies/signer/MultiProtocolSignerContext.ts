@@ -13,7 +13,7 @@ import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 
 /**
  * @title MultiProtocolSignerContext
- * @dev Manages the context for transaction submitters, including retrieving signers config and signers.
+ * @dev Context manager for signers across multiple protocols
  */
 export class MultiProtocolSignerContext {
   private signerStrategies: Map<ChainName, IMultiProtocolSigner> = new Map();
@@ -36,8 +36,7 @@ export class MultiProtocolSignerContext {
   }
 
   /**
-   * @dev Retrieves the signers config for the specified chains.
-   * @return An array of objects containing chain names and their corresponding signers config.
+   * @dev Gets signers config for specified chains
    */
   private async getSignersConfig(): Promise<
     Array<{ chain: ChainName; privateKey: string }>
@@ -48,7 +47,7 @@ export class MultiProtocolSignerContext {
   }
 
   /**
-   * @notice This function retrieves private key from the strategy or falls back to the environment variable.
+   * @dev Gets private key from strategy or environment fallback
    */
   private async getSignerConfigForChain(
     chain: ChainName,
@@ -79,10 +78,7 @@ export class MultiProtocolSignerContext {
   }
 
   /**
-   * @dev Retrieves a signer for a specific chain based on its protocol.
-   * @param chain The name of the chain for which to retrieve the signer.
-   * @return A Promise that resolves to the Signer instance for the specified chain.
-   * @throws Error if the protocol is unsupported.
+   * @dev Gets protocol-specific signer for a chain
    */
   async getSigner(chain: ChainName): Promise<Signer> {
     const { privateKey } = await this.getSignerConfigForChain(chain);
@@ -95,8 +91,7 @@ export class MultiProtocolSignerContext {
   }
 
   /**
-   * @dev Retrieves signers for the specified chains using their signers config.
-   * @return A record mapping chain names to their corresponding Signer objects.
+   * @dev Gets signers for all specified chains
    */
   async getSigners(): Promise<Record<ChainName, Signer>> {
     const signerConfigs = await this.getSignersConfig();
@@ -113,9 +108,7 @@ export class MultiProtocolSignerContext {
   }
 
   /**
-   * @dev Configures signers for all specified chains in the MultiProvider.
-   * @return The updated MultiProvider instance.
-   * @notice This function sets the signer for each chain based on its protocol.
+   * @dev Configures signers for chains in MultiProvider
    */
   async attachSignersToMp(): Promise<MultiProvider> {
     for (const chain of this.chains) {
