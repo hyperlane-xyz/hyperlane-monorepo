@@ -316,5 +316,5 @@ function formatChainIdBasedOnProtocol(chainId: string, protocol: ProtocolType) {
 
 //TODO: move this to somewhere else
 function stringChainIdToDomainId(chainId: string): number {
-  return parseInt(keccak256(chainId).slice(0, 12));
+  return parseInt(keccak256(chainId).slice(0, 8));
 }
