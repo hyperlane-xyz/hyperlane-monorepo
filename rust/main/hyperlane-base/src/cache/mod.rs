@@ -16,7 +16,7 @@ pub struct NoParams;
 /// Cache for storing function calls with serializable results
 #[async_trait]
 pub trait FunctionCallCache: Send + Sync {
-    /// Set a value in the cache
+    /// Cache a call result with the given parameters
     async fn cache_call_result(
         &self,
         contract_address: Option<H256>,
