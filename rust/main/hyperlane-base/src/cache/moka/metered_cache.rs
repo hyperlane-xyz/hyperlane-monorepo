@@ -1,11 +1,13 @@
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use derive_builder::Builder;
 use derive_new::new;
-use hyperlane_core::H256;
 use maplit::hashmap;
 use prometheus::IntCounterVec;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::Debug;
+
+use hyperlane_core::H256;
 
 use crate::cache::HyperlaneCache;
 

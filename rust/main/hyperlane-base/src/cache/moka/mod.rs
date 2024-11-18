@@ -3,14 +3,16 @@ mod dynamic_expiry;
 mod hyperlane_cache;
 mod metered_cache;
 
+use std::hash::RandomState;
+
+use moka::{future::Cache, policy::EvictionPolicy};
+use serde::{de::DeserializeOwned, Serialize};
+
 pub use dynamic_expiry::*;
 pub use hyperlane_cache::*;
 pub use metered_cache::*;
 
 use crate::cache::CacheError;
-use moka::{future::Cache, policy::EvictionPolicy};
-use serde::{de::DeserializeOwned, Serialize};
-use std::hash::RandomState;
 
 /// A simple generic cache that stores serializable values.
 /// Supports dynamic expiration times
@@ -113,10 +115,12 @@ impl BaseCache {
 mod test {
     use std::time::Duration;
 
-    use super::*;
     use chrono::Utc;
-    use hyperlane_core::{H256, U256};
     use serde::Deserialize;
+
+    use hyperlane_core::{H256, U256};
+
+    use super::*;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
     struct TestStruct {

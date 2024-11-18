@@ -1,6 +1,8 @@
-use super::CoreMetrics;
-use crate::cache::*;
 use eyre::Result;
+
+use crate::cache::*;
+
+use super::CoreMetrics;
 
 pub(crate) fn create_cache_metrics(metrics: &CoreMetrics) -> Result<MeteredCacheMetrics> {
     Ok(MeteredCacheMetricsBuilder::default()

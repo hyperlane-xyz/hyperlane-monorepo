@@ -1,9 +1,13 @@
-use super::{BaseCache, CacheResult, Expiration, ExpirationType};
-use crate::cache::{CacheError, HyperlaneCache};
-use async_trait::async_trait;
-use hyperlane_core::H256;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt::Debug;
+
+use async_trait::async_trait;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+use hyperlane_core::H256;
+
+use crate::cache::{CacheError, HyperlaneCache};
+
+use super::{BaseCache, CacheResult, Expiration, ExpirationType};
 
 /// Cache for storing function calls with serializable results
 #[derive(Debug, Clone)]

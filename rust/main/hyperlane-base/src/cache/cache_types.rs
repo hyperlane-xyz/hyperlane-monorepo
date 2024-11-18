@@ -1,5 +1,6 @@
-use hyperlane_ethereum::OffchainLookup;
 use serde::{Deserialize, Serialize};
+
+use hyperlane_ethereum::OffchainLookup;
 
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
