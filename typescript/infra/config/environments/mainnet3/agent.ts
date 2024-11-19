@@ -12,6 +12,7 @@ import {
 import {
   MetricAppContext,
   routerMatchingList,
+  senderMatchingList,
   warpRouteMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
@@ -20,6 +21,7 @@ import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
+import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
@@ -384,6 +386,14 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     {
       name: 'velo_token_bridge',
       matchingList: routerMatchingList(veloTokenBridgeAddresses),
+    },
+    {
+      // https://github.com/bgd-labs/aave-delivery-infrastructure?tab=readme-ov-file#deployed-addresses
+      // We match on senders because the sender is always the same and
+      // well documented, while the recipient may be switched out and is
+      // more poorly documented.
+      name: 'aave',
+      matchingList: senderMatchingList(aaveSenderAddresses),
     },
   ];
 };
