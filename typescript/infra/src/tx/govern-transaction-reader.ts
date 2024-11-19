@@ -486,8 +486,10 @@ export class GovernTransactionReader {
       return undefined;
     }
 
-    const { safeSdk } = await retryAsync(() =>
-      getSafeAndService(chain, this.multiProvider, safe),
+    const { safeSdk } = await getSafeAndService(
+      chain,
+      this.multiProvider,
+      safe,
     );
 
     this.multiSendCallOnlyAddressCache[chain] =
