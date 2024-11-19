@@ -86,7 +86,7 @@
     "build:ts": "tsc",
     "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/styles.css -o ./dist/styles.css --minify",
     "clean": "rm -rf ./dist ./cache ./storybook-static",
-    "lint": "eslint ./src --ext .ts",
+    "lint": "eslint ./src --ext '.ts,.tsx'",
     "prettier": "prettier --write ./src",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

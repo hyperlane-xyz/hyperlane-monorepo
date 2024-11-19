@@ -21,6 +21,7 @@ import { CopyButton } from '../components/CopyButton.js';
 import { LinkButton } from '../components/LinkButton.js';
 import { ChevronIcon } from '../icons/Chevron.js';
 import { PlusIcon } from '../icons/Plus.js';
+import { widgetLogger } from '../logger.js';
 
 export interface ChainAddMenuProps {
   chainMetadata: ChainMap<ChainMetadata>;
@@ -143,7 +144,7 @@ function tryParseMetadataInput(
   const result = ChainMetadataSchema.safeParse(parsed.data);
 
   if (!result.success) {
-    console.error('Error validating chain config', result.error);
+    widgetLogger.error('Error validating chain config', result.error);
     const firstIssue = result.error.issues[0];
     return failure(`${firstIssue.path} => ${firstIssue.message}`);
   }

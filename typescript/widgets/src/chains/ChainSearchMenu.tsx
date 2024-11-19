@@ -89,7 +89,7 @@ export function ChainSearchMenu({
       overrideChainMetadata,
     );
     return { mergedMetadata, listData: Object.values(mergedMetadata) };
-  }, [chainMetadata]);
+  }, [chainMetadata, overrideChainMetadata]);
 
   const { ListComponent, searchFn, sortOptions, defaultSortState } =
     useCustomizedListItems(customListItemField, defaultSortField);
@@ -297,7 +297,7 @@ function useCustomizedListItems(
     ({ data }: { data: ChainMetadata<{ disabled?: boolean }> }) => (
       <ChainListItem data={data} customField={customListItemField} />
     ),
-    [ChainListItem, customListItemField],
+    [customListItemField],
   );
 
   // Bind the custom field to the search function
