@@ -371,6 +371,10 @@ export { EV5InterchainAccountTxTransformerPropsSchema } from './providers/transa
 export { EV5InterchainAccountTxTransformerProps } from './providers/transactions/transformer/ethersV5/types.js';
 
 export {
+  chainMetadataToCosmosChain,
+  chainMetadataToViemChain,
+} from './metadata/chainMetadataConversion.js';
+export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
 } from './router/adapters/EvmRouterAdapter.js';
@@ -503,7 +507,6 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
-export { chainMetadataToViemChain } from './utils/viem.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
