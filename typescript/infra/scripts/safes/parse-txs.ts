@@ -41,7 +41,7 @@ async function main() {
       };
 
       const results = await reader.read(chain, tx);
-      console.log(`Completed tx ${txHash} on ${chain}`);
+      console.log(`Finished reading tx ${txHash} on ${chain}`);
       return [chain, results];
     }),
   );
