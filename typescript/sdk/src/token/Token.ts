@@ -40,6 +40,7 @@ import {
 } from './adapters/CosmosTokenAdapter.js';
 import {
   EvmHypCollateralAdapter,
+  EvmHypCollateralFiatAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
@@ -192,11 +193,14 @@ export class Token implements IToken {
       });
     } else if (
       standard === TokenStandard.EvmHypCollateral ||
-      standard === TokenStandard.EvmHypCollateralFiat ||
       standard === TokenStandard.EvmHypOwnerCollateral ||
       standard === TokenStandard.EvmHypRebaseCollateral
     ) {
       return new EvmHypCollateralAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmHypCollateralFiat) {
+      return new EvmHypCollateralFiatAdapter(chainName, multiProvider, {
         token: addressOrDenom,
       });
     } else if (
