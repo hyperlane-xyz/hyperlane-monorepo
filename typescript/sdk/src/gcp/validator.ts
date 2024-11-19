@@ -71,10 +71,6 @@ export class GcpValidator extends BaseValidator {
     throw new Error(`Unable to parse location ${storageLocation}`);
   }
 
-  async listItems(): Promise<string[]> {
-    return this.storage.listItems();
-  }
-
   async getAnnouncement(): Promise<Announcement> {
     const { value } = await this.getSignedAnnouncement();
     return value;

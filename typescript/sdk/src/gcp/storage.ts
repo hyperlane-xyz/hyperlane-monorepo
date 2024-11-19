@@ -42,27 +42,6 @@ export class GcpStorageWrapper {
     }
   }
 
-  // List items in the bucket with optional folder prefix
-  async listItems(): Promise<string[]> {
-    const bucket = this.client.bucket(this.bucket);
-    const options = this.config.folder
-      ? { prefix: this.config.folder + '/' }
-      : {};
-
-    try {
-      const [files] = await bucket.getFiles(options);
-      return files.map((file) => {
-        const fullPath = file.name;
-        // If there's a folder prefix, remove it from the returned paths
-        return this.config.folder
-          ? fullPath.slice(this.config.folder.length + 1)
-          : fullPath;
-      });
-    } catch (e) {
-      throw new Error(`Failed to list items in bucket: ${e}`);
-    }
-  }
-
   formatKey(key: string): string {
     return this.config.folder ? `${this.config.folder}/${key}` : key;
   }
