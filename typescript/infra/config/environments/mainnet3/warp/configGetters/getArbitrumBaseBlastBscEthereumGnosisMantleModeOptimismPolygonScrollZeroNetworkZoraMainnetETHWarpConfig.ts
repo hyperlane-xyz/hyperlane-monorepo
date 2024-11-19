@@ -1,7 +1,8 @@
+import { ethers } from 'ethers';
+
 import {
   ChainMap,
   IsmConfig,
-  IsmType,
   RouterConfig,
   TokenRouterConfig,
   TokenType,
@@ -13,11 +14,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
   async (
     routerConfig: ChainMap<RouterConfig>,
   ): Promise<ChainMap<TokenRouterConfig>> => {
-    const ISM_CONFIG: IsmConfig = {
-      type: IsmType.FALLBACK_ROUTING,
-      owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913',
-      domains: {},
-    };
+    const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
 
     const arbitrum: TokenRouterConfig = {
       ...routerConfig.arbitrum,

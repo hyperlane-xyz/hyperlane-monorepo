@@ -1,7 +1,7 @@
+import { ethers } from 'ethers';
+
 import {
   ChainMap,
-  IsmConfig,
-  IsmType,
   RouterConfig,
   TokenRouterConfig,
   TokenType,
@@ -12,11 +12,7 @@ import { tokens } from '../../../../../src/config/warp.js';
 export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
   routerConfig: ChainMap<RouterConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  const ISM_CONFIG: IsmConfig = {
-    type: IsmType.FALLBACK_ROUTING,
-    owner: '0x3f13C1351AC66ca0f4827c607a94c93c82AD0913',
-    domains: {},
-  };
+  const ISM_CONFIG = ethers.constants.AddressZero;
 
   const arbitrum: TokenRouterConfig = {
     ...routerConfig.arbitrum,
@@ -49,7 +45,7 @@ export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
   const zeronetwork: TokenRouterConfig = {
     ...routerConfig.zeronetwork,
     type: TokenType.collateral,
-    token: '0x6a6394F47DD0BAF794808F2749C09bd4Ee874E70',
+    token: tokens.zeronetwork.USDC,
     interchainSecurityModule: ISM_CONFIG,
   };
 

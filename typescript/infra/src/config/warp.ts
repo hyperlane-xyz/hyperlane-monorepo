@@ -47,4 +47,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
   gnosis: {
     WETH: '0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1',
   },
+  zeronetwork: {
+    USDC: '0x6a6394F47DD0BAF794808F2749C09bd4Ee874E70',
+  },
 };
