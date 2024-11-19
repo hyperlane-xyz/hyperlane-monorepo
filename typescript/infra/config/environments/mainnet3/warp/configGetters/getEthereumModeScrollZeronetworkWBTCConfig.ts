@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  IsmType,
   RouterConfig,
   TokenRouterConfig,
   TokenType,
@@ -22,43 +21,27 @@ export const getEthereumModeScrollZeronetworkWBTCConfig = async (
     ...routerConfig.ethereum,
     type: TokenType.collateral,
     token: collateralAddresses.ethereum,
-    interchainSecurityModule: {
-      owner: ethers.constants.AddressZero,
-      type: IsmType.FALLBACK_ROUTING,
-      domains: {},
-    },
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const mode: TokenRouterConfig = {
     ...routerConfig.mode,
     type: TokenType.collateral,
     token: collateralAddresses.mode,
-    interchainSecurityModule: {
-      owner: ethers.constants.AddressZero,
-      type: IsmType.FALLBACK_ROUTING,
-      domains: {},
-    },
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const scroll: TokenRouterConfig = {
     ...routerConfig.scroll,
     type: TokenType.collateral,
-    token: collateralAddresses.token,
-    interchainSecurityModule: {
-      owner: ethers.constants.AddressZero,
-      type: IsmType.FALLBACK_ROUTING,
-      domains: {},
-    },
+    token: collateralAddresses.scroll,
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const zeronetwork: TokenRouterConfig = {
     ...routerConfig.zeronetwork,
     type: TokenType.synthetic,
-    interchainSecurityModule: {
-      owner: ethers.constants.AddressZero,
-      type: IsmType.FALLBACK_ROUTING,
-      domains: {},
-    },
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   return {

@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  IsmType,
   RouterConfig,
   TokenRouterConfig,
   TokenType,
@@ -17,21 +16,13 @@ export const getBlastZeroNetworkUSDBWarpConfig = async (
     ...routerConfig.blast,
     type: TokenType.collateral,
     token: tokens.blast.usdb,
-    interchainSecurityModule: {
-      owner: ethers.constants.AddressZero,
-      type: IsmType.FALLBACK_ROUTING,
-      domains: {},
-    },
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const zeronetwork: TokenRouterConfig = {
     ...routerConfig.zeronetwork,
     type: TokenType.synthetic,
-    interchainSecurityModule: {
-      owner: ethers.constants.AddressZero,
-      type: IsmType.FALLBACK_ROUTING,
-      domains: {},
-    },
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
   return {
     blast,

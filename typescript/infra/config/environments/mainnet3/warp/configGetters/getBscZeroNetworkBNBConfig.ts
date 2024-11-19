@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
-  IsmType,
   RouterConfig,
   TokenRouterConfig,
   TokenType,
@@ -14,21 +13,13 @@ export const getBscZeroNetworkBNBWarpConfig = async (
   const bsc: TokenRouterConfig = {
     ...routerConfig.bsc,
     type: TokenType.native,
-    interchainSecurityModule: {
-      owner: ethers.constants.AddressZero,
-      type: IsmType.FALLBACK_ROUTING,
-      domains: {},
-    },
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const zeronetwork: TokenRouterConfig = {
     ...routerConfig.zeronetwork,
     type: TokenType.synthetic,
-    interchainSecurityModule: {
-      owner: ethers.constants.AddressZero,
-      type: IsmType.FALLBACK_ROUTING,
-      domains: {},
-    },
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
   return {
     bsc,
