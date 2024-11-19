@@ -257,7 +257,10 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.rpc_client.get_block_height().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
     }
 }
 
@@ -277,7 +280,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for SealevelInterchainGasPaymast
             .payment_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
-        let tip = self.rpc_client.get_block_height().await?;
+        let tip = self.igp.provider.rpc().get_slot().await?;
         Ok((Some(payment_count), tip))
     }
 }
