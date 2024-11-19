@@ -14,4 +14,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
   sei: {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
   },
+  blast: {
+    usdb: '0x4300000000000000000000000000000000000003',
+  },
 };

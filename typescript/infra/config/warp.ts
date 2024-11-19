@@ -15,6 +15,8 @@ import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/
 import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumZircuitAmphrETHWarpConfig.js';
 import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
+import { getBlastZeroNetworkUSDBWarpConfig } from './environments/mainnet3/warp/configGetters/getBlastZeroNetworkUSDBWarpConfig.js';
+import { getBscZeroNetworkBNBWarpConfig } from './environments/mainnet3/warp/configGetters/getBscZeroNetworkBNBConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseEthereumWeEthsWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWeETHsWarpConfig.js';
@@ -23,12 +25,14 @@ import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/co
 import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBscLumiaLUMIAWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
+import { getEthereumModeScrollZeronetworkWBTCConfig } from './environments/mainnet3/warp/configGetters/getEthereumModeScrollZeronetworkWBTCConfig.js';
 import { getEthereumSeiFastUSDWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiFastUSDWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getPolygonZeroNetworkPolWarpConfig } from './environments/mainnet3/warp/configGetters/getPolygonZeroNetworkPolConfig.js';
 import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
@@ -52,6 +56,8 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
+  [WarpRouteIds.BlastZeroNetworkUSDB]: getBlastZeroNetworkUSDBWarpConfig,
+  [WarpRouteIds.BscZeroNetworkBNB]: getBscZeroNetworkBNBWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.EthereumSeiFastUSD]: getEthereumSeiFastUSDWarpConfig,
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
@@ -59,6 +65,8 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.EthereumZircuitPZETH]: getRenzoPZETHWarpConfig,
   [WarpRouteIds.EthereumBscLumiaLUMIA]: getEthereumBscLUMIAWarpConfig,
+  [WarpRouteIds.EthereumModeScrollZeroNetworkWBTC]:
+    getEthereumModeScrollZeronetworkWBTCConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
   [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
@@ -66,6 +74,7 @@ export const warpConfigGetterMap: Record<
     getEclipseEthereumSolanaUSDTWarpConfig,
   [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
   [WarpRouteIds.EclipseEthereumWeETHs]: getEclipseEthereumWeEthsWarpConfig,
+  [WarpRouteIds.PolygonZeroNetworkPOL]: getPolygonZeroNetworkPolWarpConfig,
 };
 
 export async function getWarpConfig(
