@@ -35,7 +35,47 @@ import {
 import { DeployEnvironment } from '../config/environment.js';
 import { getSafeAndService } from '../utils/safe.js';
 
-export class TransactionReader {
+interface GovernTransaction extends Record<string, any> {
+  chain: ChainName;
+}
+
+interface MultiSendTransaction {
+  index: number;
+  value: string;
+  operation: string;
+  decoded: GovernTransaction;
+}
+
+interface MultiSendGovernTransactions extends GovernTransaction {
+  multisends: MultiSendTransaction[];
+}
+
+interface SetDefaultIsmInsight {
+  module: string;
+  insight: string;
+}
+
+interface IcaRemoteCallInsight {
+  destination: {
+    domain: number;
+    chain: ChainName;
+  };
+  router: {
+    address: string;
+    insight: string;
+  };
+  ism: {
+    address: string;
+    insight: string;
+  };
+  destinationIca: {
+    address: string;
+    insight: string;
+  };
+  calls: GovernTransaction[];
+}
+
+export class GovernTransactionReader {
   errors: any[] = [];
 
   constructor(
@@ -45,16 +85,10 @@ export class TransactionReader {
     readonly coreConfig: ChainMap<CoreConfig>,
   ) {}
 
-  async read(chain: ChainName, tx: AnnotatedEV5Transaction): Promise<any> {
-    try {
-      return await this.doRead(chain, tx);
-    } catch (e) {
-      console.error('Error reading transaction', e, chain, tx);
-      throw e;
-    }
-  }
-
-  async doRead(chain: ChainName, tx: AnnotatedEV5Transaction): Promise<any> {
+  async read(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
     // If it's to an ICA
     if (this.isIcaTransaction(chain, tx)) {
       return this.readIcaTransaction(chain, tx);
@@ -78,6 +112,7 @@ export class TransactionReader {
     });
 
     return {
+      chain,
       insight,
       tx,
     };
@@ -86,10 +121,9 @@ export class TransactionReader {
   private async readIcaTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
-  ): Promise<any> {
+  ): Promise<GovernTransaction> {
     if (!tx.data) {
-      console.log('No data in ICA transaction');
-      return undefined;
+      throw new Error('No data in ICA transaction');
     }
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const icaInterface =
@@ -120,7 +154,7 @@ export class TransactionReader {
         'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
       ].name
     ) {
-      prettyArgs = await this.readIcaCall(chain, args);
+      prettyArgs = await this.readIcaRemoteCall(chain, args);
     }
 
     return {
@@ -128,6 +162,7 @@ export class TransactionReader {
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
+      chain,
     };
   }
 
@@ -135,7 +170,7 @@ export class TransactionReader {
     chain: ChainName,
     routerName: string,
     args: Record<string, any>,
-  ): Promise<any> {
+  ): Promise<GovernTransaction> {
     const { _domains: domains, _addresses: addresses } = args;
     return domains.map((domain: number, index: number) => {
       const remoteChainName = this.multiProvider.getChainName(domain);
@@ -172,10 +207,9 @@ export class TransactionReader {
   private async readMailboxTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
-  ): Promise<any> {
+  ): Promise<GovernTransaction> {
     if (!tx.data) {
-      console.log('⚠️ No data in mailbox transaction');
-      return undefined;
+      throw new Error('⚠️ No data in mailbox transaction');
     }
     const mailboxInterface = coreFactories.mailbox.interface;
     const decoded = mailboxInterface.parseTransaction({
@@ -196,13 +230,14 @@ export class TransactionReader {
     }
 
     return {
+      chain,
       to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
       signature: decoded.signature,
       args: prettyArgs,
     };
   }
 
-  ismDerivationsInProgress: ChainMap<boolean> = {};
+  private ismDerivationsInProgress: ChainMap<boolean> = {};
 
   private async deriveIsmConfig(
     chain: string,
@@ -240,7 +275,7 @@ export class TransactionReader {
   private async formatMailboxSetDefaultIsm(
     chain: ChainName,
     args: Record<string, any>,
-  ): Promise<any> {
+  ): Promise<SetDefaultIsmInsight> {
     const { _module: module } = args;
 
     const derivedConfig = this.deriveIsmConfig(chain, module);
@@ -272,10 +307,10 @@ export class TransactionReader {
     };
   }
 
-  private async readIcaCall(
+  private async readIcaRemoteCall(
     chain: ChainName,
     args: Record<string, any>,
-  ): Promise<any> {
+  ): Promise<IcaRemoteCallInsight> {
     const {
       _destination: destination,
       _router: router,
@@ -355,7 +390,7 @@ export class TransactionReader {
     return {
       destination: {
         domain: destination,
-        chainName: remoteChainName,
+        chain: remoteChainName,
       },
       router: {
         address: router,
@@ -376,22 +411,22 @@ export class TransactionReader {
   private async readMultisendTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
-  ): Promise<any> {
+  ): Promise<MultiSendGovernTransactions> {
     if (!tx.data) {
-      console.log('No data in multisend transaction');
-      return undefined;
+      throw new Error('No data in multisend transaction');
     }
-    const multisends = decodeMultiSendData(tx.data);
+    const multisendDatas = decodeMultiSendData(tx.data);
 
     const { symbol } = await this.multiProvider.getNativeToken(chain);
 
-    return Promise.all(
-      multisends.map(async (multisend, index) => {
+    const multisends = await Promise.all(
+      multisendDatas.map(async (multisend, index) => {
         const decoded = await this.read(
           chain,
           metaTransactionDataToEV5Transaction(multisend),
         );
         return {
+          chain,
           index,
           value: `${ethers.utils.formatEther(multisend.value)} ${symbol}`,
           operation: formatOperationType(multisend.operation),
@@ -399,6 +434,11 @@ export class TransactionReader {
         };
       }),
     );
+
+    return {
+      chain,
+      multisends,
+    };
   }
 
   isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
@@ -432,7 +472,7 @@ export class TransactionReader {
     return eqAddress(multiSendCallOnlyAddress, tx.to);
   }
 
-  multiSendCallOnlyAddressCache: ChainMap<string> = {};
+  private multiSendCallOnlyAddressCache: ChainMap<string> = {};
 
   async getMultiSendCallOnlyAddress(
     chain: ChainName,
@@ -469,8 +509,8 @@ function metaTransactionDataToEV5Transaction(
 function formatFunctionFragmentArgs(
   args: Result,
   fragment: ethers.utils.FunctionFragment,
-): Record<string, string> {
-  const accumulator: Record<string, string> = {};
+): Record<string, any> {
+  const accumulator: Record<string, any> = {};
   return fragment.inputs.reduce((acc, input, index) => {
     acc[input.name] = args[index];
     return acc;

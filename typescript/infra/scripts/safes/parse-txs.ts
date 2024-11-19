@@ -3,7 +3,7 @@ import { BigNumber } from 'ethers';
 import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
 import { stringifyObject } from '@hyperlane-xyz/utils';
 
-import { TransactionReader } from '../../src/tx/transaction-reader.js';
+import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
 import { getSafeTx } from '../../src/utils/safe.js';
 import {
   getArgs,
@@ -22,7 +22,7 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
 
-  const reader = new TransactionReader(
+  const reader = new GovernTransactionReader(
     environment,
     multiProvider,
     chainAddresses,
@@ -40,9 +40,14 @@ async function main() {
         value: BigNumber.from(safeTx.value),
       };
 
-      const results = await reader.read(chain, tx);
-      console.log(`Finished reading tx ${txHash} on ${chain}`);
-      return [chain, results];
+      try {
+        const results = await reader.read(chain, tx);
+        console.log(`Finished reading tx ${txHash} on ${chain}`);
+        return [chain, results];
+      } catch (err) {
+        console.error('Error reading transaction', err, chain, tx);
+        process.exit(1);
+      }
     }),
   );
 
