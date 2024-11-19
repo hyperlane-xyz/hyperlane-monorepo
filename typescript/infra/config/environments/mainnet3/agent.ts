@@ -12,6 +12,7 @@ import {
 import {
   MetricAppContext,
   routerMatchingList,
+  senderMatchingList,
   warpRouteMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
@@ -20,14 +21,17 @@ import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
+import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
+import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
+import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
+import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
+import veloMessageModuleAddresses from './misc-artifacts/velo-message-module-addresses.json';
+import veloTokenBridgeAddresses from './misc-artifacts/velo-token-bridge-addresses.json';
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
-import merklyEthAddresses from './warp/artifacts/merkly-eth-addresses.json';
-import merklyNftAddresses from './warp/artifacts/merkly-eth-addresses.json';
-import merklyErc20Addresses from './warp/artifacts/merkly-eth-addresses.json';
 import { WarpRouteIds } from './warp/warpIds.js';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
@@ -375,6 +379,22 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'merkly_nft',
       matchingList: routerMatchingList(merklyNftAddresses),
     },
+    {
+      name: 'velo_message_module',
+      matchingList: routerMatchingList(veloMessageModuleAddresses),
+    },
+    {
+      name: 'velo_token_bridge',
+      matchingList: routerMatchingList(veloTokenBridgeAddresses),
+    },
+    {
+      // https://github.com/bgd-labs/aave-delivery-infrastructure?tab=readme-ov-file#deployed-addresses
+      // We match on senders because the sender is always the same and
+      // well documented, while the recipient may be switched out and is
+      // more poorly documented.
+      name: 'aave',
+      matchingList: senderMatchingList(aaveSenderAddresses),
+    },
   ];
 };
 
@@ -409,7 +429,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '75d62ae-20241107-060707',
+      tag: '25a927d-20241114-171323',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -443,7 +463,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '75d62ae-20241107-060707',
+      tag: '25a927d-20241114-171323',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
@@ -476,7 +496,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '75d62ae-20241107-060707',
+      tag: '25a927d-20241114-171323',
     },
     gasPaymentEnforcement,
     metricAppContextsGetter,
