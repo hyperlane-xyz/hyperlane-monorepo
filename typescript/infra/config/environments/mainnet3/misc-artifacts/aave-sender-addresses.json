@@ -14,7 +14,7 @@
   "optimism": {
     "sender": "0x48A9FE90bce5EEd790f3F4Ce192d1C0B351fd4Ca"
   },
-  "binance": {
+  "bsc": {
     "sender": "0x9d33ee6543C9b2C8c183b8fb58fB089266cffA19"
   },
   "base": {
@@ -29,7 +29,7 @@
   "scroll": {
     "sender": "0x03073D3F4769f6b6604d616238fD6c636C99AD0A"
   },
-  "zkevm": {
+  "polygonzkevm": {
     "sender": "0xed7e0874526B9BB9E36C7e9472ed7ed324CEeE3B"
   },
   "celo": {
