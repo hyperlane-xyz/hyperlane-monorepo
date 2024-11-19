@@ -95,8 +95,8 @@ export {
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
   CheckerViolation,
-  OwnableConfig,
   DeployedOwnableConfig,
+  OwnableConfig,
   OwnerViolation,
   ProxyAdminViolation,
   ViolationType,
@@ -197,11 +197,11 @@ export {
 export {
   BlockExplorer,
   BlockExplorerSchema,
-  EthJsonRpcBlockParameterTag,
   ChainMetadata,
   ChainMetadataSchema,
   ChainMetadataSchemaObject,
   ChainTechnicalStack,
+  EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ExplorerFamilyValue,
   NativeToken,
@@ -328,6 +328,7 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData } from './providers/transactions/types.js';
+export { randomAddress } from './test/testUtils.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -370,6 +371,10 @@ export { EV5InterchainAccountTxTransformerPropsSchema } from './providers/transa
 export { EV5InterchainAccountTxTransformerProps } from './providers/transactions/transformer/ethersV5/types.js';
 
 export {
+  chainMetadataToCosmosChain,
+  chainMetadataToViemChain,
+} from './metadata/chainMetadataConversion.js';
+export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
 } from './router/adapters/EvmRouterAdapter.js';
@@ -390,12 +395,12 @@ export {
   MailboxClientConfig as ConnectionClientConfig,
   ClientViolation as ConnectionClientViolation,
   ClientViolationType as ConnectionClientViolationType,
+  DestinationGas,
   GasRouterConfig,
   MailboxClientConfig,
   ProxiedFactories,
   ProxiedRouterConfig,
   RemoteRouters,
-  DestinationGas,
   RouterAddress,
   RouterConfig,
   RouterViolation,
@@ -419,11 +424,14 @@ export {
   EvmHypCollateralAdapter,
   EvmHypNativeAdapter,
   EvmHypSyntheticAdapter,
+  EvmHypXERC20Adapter,
+  EvmHypXERC20LockboxAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
   IHypTokenAdapter,
+  IHypXERC20Adapter,
   ITokenAdapter,
   InterchainGasQuote,
   TransferParams,
@@ -448,9 +456,9 @@ export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
   HypERC20Factories,
-  hypERC20contracts,
   HypERC721Factories,
   TokenFactories,
+  hypERC20contracts,
   hypERC20factories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
@@ -499,7 +507,6 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
-export { chainMetadataToWagmiChain } from './utils/wagmi.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -510,7 +517,11 @@ export {
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 
-export { AggregationIsmConfigSchema, IsmConfigSchema } from './ism/schemas.js';
+export {
+  AggregationIsmConfigSchema,
+  IsmConfigSchema,
+  MultisigIsmConfigSchema,
+} from './ism/schemas.js';
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
 export {
   CollateralConfig,
@@ -525,7 +536,7 @@ export {
   isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './token/schemas.js';
-export { isCompliant } from './utils/schemas.js';
+export { isCompliant, validateZodResult } from './utils/schemas.js';
 
 export {
   canProposeSafeTransactions,
@@ -537,8 +548,8 @@ export {
 
 export { EvmCoreModule } from './core/EvmCoreModule.js';
 export {
-  proxyAdmin,
   isProxy,
+  proxyAdmin,
   proxyConstructorArgs,
   proxyImplementation,
 } from './deploy/proxy.js';
@@ -546,16 +557,15 @@ export {
   ProxyFactoryFactoriesAddresses,
   ProxyFactoryFactoriesSchema,
 } from './deploy/schemas.js';
-export { EvmIsmModule } from './ism/EvmIsmModule.js';
-export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
-export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export {
+  ChainGasOracleParams,
   GasPriceConfig,
   NativeTokenPriceConfig,
-  ChainGasOracleParams,
-  getCoingeckoTokenPrices,
   getCosmosChainGasPrice,
   getGasPrice,
   getLocalStorageGasOracleConfig,
   getTokenExchangeRateFromValues,
 } from './gas/utils.js';
+export { EvmIsmModule } from './ism/EvmIsmModule.js';
+export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';

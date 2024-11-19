@@ -177,6 +177,10 @@ export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
+export function withWarpRouteIdRequired<T>(args: Argv<T>) {
+  return withWarpRouteId(args).demandOption('warpRouteId');
+}
+
 export function withProtocol<T>(args: Argv<T>) {
   return args
     .describe('protocol', 'protocol type')

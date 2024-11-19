@@ -47,6 +47,10 @@ export const TokenConfigSchema = z.object({
     .array(TokenConnectionConfigSchema)
     .optional()
     .describe('The list of token connections (e.g. warp or IBC)'),
+  coinGeckoId: z
+    .string()
+    .optional()
+    .describe('The CoinGecko id of the token, used for price lookups'),
 });
 
 export type TokenArgs = Omit<

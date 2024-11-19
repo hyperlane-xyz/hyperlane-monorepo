@@ -1,5 +1,36 @@
 # @hyperlane-xyz/widgets
 
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [bbb970a44]
+- Updated dependencies [fa424826c]
+- Updated dependencies [f48cf8766]
+- Updated dependencies [40d59a2f4]
+- Updated dependencies [0264f709e]
+- Updated dependencies [836060240]
+- Updated dependencies [ba0122279]
+- Updated dependencies [e6f9d5c4f]
+- Updated dependencies [f24835438]
+- Updated dependencies [5f41b1134]
+  - @hyperlane-xyz/sdk@7.0.0
+  - @hyperlane-xyz/utils@7.0.0
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Patch Changes
+
+- Updated dependencies [7b3b07900]
+- Updated dependencies [30d92c319]
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/sdk@6.0.0
+  - @hyperlane-xyz/utils@6.0.0
+
 ## 5.7.0
 
 ### Minor Changes

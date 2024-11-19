@@ -1,5 +1,24 @@
 # @hyperlane-xyz/core
 
+## 5.8.0
+
+### Minor Changes
+
+- 836060240: Add storage based multisig ISM types
+
+### Patch Changes
+
+- Updated dependencies [f48cf8766]
+- Updated dependencies [e6f9d5c4f]
+  - @hyperlane-xyz/utils@7.0.0
+
+## 5.7.1
+
+### Patch Changes
+
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/utils@6.0.0
+
 ## 5.7.0
 
 ### Minor Changes

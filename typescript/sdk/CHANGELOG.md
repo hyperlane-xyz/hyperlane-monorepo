@@ -1,5 +1,48 @@
 # @hyperlane-xyz/sdk
 
+## 7.0.0
+
+### Major Changes
+
+- f48cf8766: Upgrade Viem to 2.2 and Solana Web3 to 1.9
+  Rename `chainMetadataToWagmiChain` to `chainMetadataToViemChain`
+- 5f41b1134: Remove getCoingeckoTokenPrices (use CoinGeckoTokenPriceGetter instead)
+
+### Minor Changes
+
+- bbb970a44: Redeploy to alephzeroevmmainnet, chilizmainnet, flowmainnet, immutablezkevmmainnet, metal, polynomialfi, rarichain, rootstockmainnet, superpositionmainnet. Deploy to flame, prom.
+- fa424826c: Add support for updating the mailbox proxy admin owner
+- 40d59a2f4: Deploy to abstracttestnet and treasuretopaz
+- 0264f709e: Deploy to alephzeroevmtestnet, update deployment for arcadiatestnet2.
+- 836060240: Add storage based multisig ISM types
+- f24835438: Added coinGeckoId as an optional property of the TokenConfigSchema
+
+### Patch Changes
+
+- ba0122279: feat: use message context in hook reader IGP derivation
+- Updated dependencies [f48cf8766]
+- Updated dependencies [836060240]
+- Updated dependencies [e6f9d5c4f]
+  - @hyperlane-xyz/utils@7.0.0
+  - @hyperlane-xyz/core@5.8.0
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Minor Changes
+
+- 7b3b07900: Support using apiKey for CoinGeckoTokenPriceGetter
+- 30d92c319: Add `collateralChainName` to Warp Reader. Partial refactor of fetchTokenConfig().
+
+### Patch Changes
+
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/utils@6.0.0
+  - @hyperlane-xyz/core@5.7.1
+
 ## 5.7.0
 
 ### Minor Changes
