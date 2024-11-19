@@ -20,14 +20,16 @@ import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
+import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
+import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
+import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
+import veloMessageModuleAddresses from './misc-artifacts/velo-message-module-addresses.json';
+import veloTokenBridgeAddresses from './misc-artifacts/velo-token-bridge-addresses.json';
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
-import merklyEthAddresses from './warp/artifacts/merkly-eth-addresses.json';
-import merklyNftAddresses from './warp/artifacts/merkly-eth-addresses.json';
-import merklyErc20Addresses from './warp/artifacts/merkly-eth-addresses.json';
 import { WarpRouteIds } from './warp/warpIds.js';
 
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
@@ -374,6 +376,14 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
     {
       name: 'merkly_nft',
       matchingList: routerMatchingList(merklyNftAddresses),
+    },
+    {
+      name: 'velo_message_module',
+      matchingList: routerMatchingList(veloMessageModuleAddresses),
+    },
+    {
+      name: 'velo_token_bridge',
+      matchingList: routerMatchingList(veloTokenBridgeAddresses),
     },
   ];
 };
