@@ -7,6 +7,7 @@ import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
 
@@ -20,13 +21,29 @@ export async function sendTestMessage({
   selfRelay,
 }: {
   context: WriteCommandContext;
-  origin: ChainName;
-  destination: ChainName;
+  origin?: ChainName;
+  destination?: ChainName;
   messageBody: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
+  const { chainMetadata } = context;
+
+  if (!origin) {
+    origin = await runSingleChainSelectionStep(
+      chainMetadata,
+      'Select the origin chain',
+    );
+  }
+
+  if (!destination) {
+    destination = await runSingleChainSelectionStep(
+      chainMetadata,
+      'Select the destination chain',
+    );
+  }
+
   await runPreflightChecksForChains({
     context,
     chains: [origin, destination],
