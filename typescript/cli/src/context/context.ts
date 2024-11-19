@@ -27,7 +27,7 @@ import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner } from '../utils/keys.js';
 
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
-import { MultiProtocolSignerContext } from './strategies/signer/MultiProtocolSignerContext.js';
+import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandContext,
   ContextSettings,
@@ -36,7 +36,7 @@ import {
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
-  const requiresKey = isSignCommand(argv);
+  const requiresKey = argv.requiresKey ?? isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
     registryOverrideUri: argv.overrides,
@@ -79,7 +79,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * Extracts signer config
    */
-  const multiProtocolSigner = new MultiProtocolSignerContext(
+  const multiProtocolSigner = new MultiProtocolSignerManager(
     strategyConfig,
     chains,
     multiProvider,

@@ -50,10 +50,11 @@ export async function readChainSubmissionStrategyConfig(
       return {};
     }
 
-    // Validate against schema
     const parseResult = ChainSubmissionStrategySchema.safeParse(strategyConfig);
     if (!parseResult.success) {
-      errorRed(`Strategy config validation failed for ${filePath}`);
+      errorRed(
+        `Strategy config validation using ChainSubmissionStrategySchema failed for ${filePath}`,
+      );
       errorRed(JSON.stringify(parseResult.error.errors, null, 2));
       throw new Error('Invalid strategy configuration');
     }

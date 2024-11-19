@@ -1,4 +1,4 @@
-import { Signer, Wallet } from 'ethers';
+import { Signer } from 'ethers';
 
 import { ChainSubmissionStrategy } from '@hyperlane-xyz/sdk';
 import { ChainName } from '@hyperlane-xyz/sdk';
@@ -17,11 +17,6 @@ export interface IMultiProtocolSigner {
 export abstract class BaseMultiProtocolSigner implements IMultiProtocolSigner {
   constructor(protected config: ChainSubmissionStrategy) {}
 
-  abstract getSignerConfig(
-    chain: ChainName,
-  ): Promise<SignerConfig> | SignerConfig;
-
-  getSigner(config: SignerConfig): Signer {
-    return new Wallet(config.privateKey);
-  }
+  abstract getSignerConfig(chain: ChainName): Promise<SignerConfig>;
+  abstract getSigner(config: SignerConfig): Signer;
 }

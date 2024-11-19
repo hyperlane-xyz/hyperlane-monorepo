@@ -12,14 +12,14 @@ import { IMultiProtocolSigner } from './BaseMultiProtocolSigner.js';
 import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 
 /**
- * @title MultiProtocolSignerContext
+ * @title MultiProtocolSignerManager
  * @dev Context manager for signers across multiple protocols
  */
-export class MultiProtocolSignerContext {
+export class MultiProtocolSignerManager {
   private signerStrategies: Map<ChainName, IMultiProtocolSigner> = new Map();
 
   constructor(
-    strategyConfig: ChainSubmissionStrategy,
+    submissionStrategy: ChainSubmissionStrategy,
     private chains: ChainName[],
     private multiProvider: MultiProvider,
     private key?: string,
@@ -28,7 +28,7 @@ export class MultiProtocolSignerContext {
     for (const chain of chains) {
       const strategy = MultiProtocolSignerFactory.getSignerStrategy(
         chain,
-        strategyConfig,
+        submissionStrategy,
         multiProvider,
       );
       this.signerStrategies.set(chain, strategy);

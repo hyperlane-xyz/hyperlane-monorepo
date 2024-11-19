@@ -57,11 +57,10 @@ class EthereumSignerStrategy extends BaseMultiProtocolSigner {
 }
 
 // 99% overlap with EthereumSignerStrategy for the sake of keeping MultiProtocolSignerFactory clean
-// TODO: use ZKSync suitable signer
+// TODO: import ZKSync signer
 class ZKSyncSignerStrategy extends BaseMultiProtocolSigner {
   async getSignerConfig(chain: ChainName): Promise<SignerConfig> {
     const submitter = this.config[chain]?.submitter as {
-      type: TxSubmitterType.JSON_RPC;
       privateKey?: string;
     };
 
