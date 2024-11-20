@@ -5,7 +5,6 @@ import {
   addressToBytes32,
   assert,
   eqAddress,
-  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -105,10 +104,7 @@ export class HyperlaneRouterChecker<
 
       let expectedConfig = config.interchainSecurityModule;
 
-      if (
-        typeof expectedConfig === 'string' &&
-        !isZeroishAddress(expectedConfig)
-      ) {
+      if (typeof expectedConfig === 'string') {
         expectedConfig = await ismReader.deriveIsmConfig(expectedConfig);
       }
 
