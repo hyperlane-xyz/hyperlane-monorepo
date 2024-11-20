@@ -6,6 +6,7 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
+import { logBlue } from '../../../logger.js';
 import { ENV } from '../../../utils/env.js';
 
 import { IMultiProtocolSigner } from './BaseMultiProtocolSigner.js';
@@ -60,14 +61,18 @@ export class MultiProtocolSignerManager {
     // Determine private key with clear precedence
     let privateKey: string;
     if (this.key) {
+      logBlue('Using private key passed via CLI --key flag');
       privateKey = this.key;
     } else if (ENV.HYP_KEY) {
+      logBlue('Using private key from .env');
       privateKey = ENV.HYP_KEY;
     } else {
       const strategyConfig = await signerStrategy.getSignerConfig(chain);
       if (!strategyConfig?.privateKey) {
         throw new Error(`No private key found for chain ${chain}`);
       }
+      logBlue('Extracting private key from strategy config/user prompt');
+
       privateKey = strategyConfig.privateKey;
     }
 
