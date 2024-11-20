@@ -21,7 +21,6 @@ use std::{
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
 };
-
 use tracing::{instrument, warn};
 
 const GAS_ESTIMATE_MULTIPLIER: f64 = 1.3;
@@ -78,11 +77,7 @@ impl Debug for FuelMailbox {
 impl Mailbox for FuelMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        assert!(
-            reorg_period.is_none(),
-            "Fuel does not support querying point-in-time"
-        );
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         self.contract
             .methods()
             .nonce()

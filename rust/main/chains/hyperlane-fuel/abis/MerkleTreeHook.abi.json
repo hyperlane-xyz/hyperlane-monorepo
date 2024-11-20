@@ -353,7 +353,7 @@
         {
           "name": "doc-comment",
           "arguments": [
-            " Gets the stored count of the MerkleTree library."
+            " Gets the stored count of the MerkleTree."
           ]
         },
         {

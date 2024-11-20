@@ -449,7 +449,7 @@
       "blocks": {
         "confirmations": 1,
         "estimateBlockTime": 1,
-        "reorgPeriod": 1
+        "reorgPeriod": 0
       },
       "chainId": 1717982312,
       "deployer": {

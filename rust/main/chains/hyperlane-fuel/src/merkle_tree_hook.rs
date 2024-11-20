@@ -17,10 +17,7 @@ use hyperlane_core::{
 };
 use std::ops::RangeInclusive;
 
-/// Smart contract level enforced finality
-const ENFORCED_FINALITY: u8 = 1;
-
-/// A reference to a AggregationIsm contract on some Fuel chain
+/// A reference to a MerkleTreeHook contract on some Fuel chain
 #[derive(Debug)]
 pub struct FuelMerkleTreeHook {
     contract: MerkleTreeHookContract<WalletUnlocked>,
@@ -46,19 +43,6 @@ impl FuelMerkleTreeHook {
             provider: fuel_provider,
         })
     }
-
-    /// Asserts the lag
-    /// The lag or re-org of FuelVM should be set to 1, as it is the soft finality
-    /// Also, since we cannot query point in time, the lag is built into the contract code
-    fn assert_lag(&self, reorg_period: &ReorgPeriod) {
-        assert!(
-            reorg_period
-                .as_blocks()
-                .is_ok_and(|reorg| reorg == ENFORCED_FINALITY as u32),
-            "FuelVM lag should always be {:?}",
-            ENFORCED_FINALITY
-        );
-    }
 }
 
 impl HyperlaneContract for FuelMerkleTreeHook {
@@ -79,9 +63,7 @@ impl HyperlaneChain for FuelMerkleTreeHook {
 
 #[async_trait]
 impl MerkleTreeHook for FuelMerkleTreeHook {
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        self.assert_lag(reorg_period);
-
+    async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
         self.contract
             .methods()
             .tree()
@@ -97,9 +79,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
             })
     }
 
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
-        self.assert_lag(reorg_period);
-
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         self.contract
             .methods()
             .count()
@@ -109,9 +89,7 @@ impl MerkleTreeHook for FuelMerkleTreeHook {
             .map(|res| res.value)
     }
 
-    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
-        self.assert_lag(reorg_period);
-
+    async fn latest_checkpoint(&self, _reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         self.contract
             .methods()
             .latest_checkpoint()
