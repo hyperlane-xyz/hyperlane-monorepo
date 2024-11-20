@@ -1,4 +1,5 @@
 {
+  "abstracttestnet": "10",
   "alephzeroevmtestnet": "10",
   "alfajores": "10",
   "arbitrumsepolia": "10",
@@ -25,5 +26,6 @@
   "sonictestnet": "10",
   "suavetoliman": "10",
   "superpositiontestnet": "10",
+  "treasuretopaz": "10",
   "unichaintestnet": "10"
 }

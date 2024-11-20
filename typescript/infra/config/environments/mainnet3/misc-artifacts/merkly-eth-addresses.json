@@ -1,0 +1,77 @@
+{
+  "optimism": {
+    "router": "0xc110e7faa95680c79937ccaca3d1cab7902be25e"
+  },
+  "bsc": {
+    "router": "0xae4789D7C596fdED0e135Bca007152c87a0756f5"
+  },
+  "gnosis": {
+    "router": "0x98Ee7E8f0A0D18F393805cf99A56ce6B33ea1B21"
+  },
+  "arbitrum": {
+    "router": "0x233888F5Dc1d3C0360b559aBc029675290DAFa70"
+  },
+  "polygon": {
+    "router": "0x0cb0354E9C51960a7875724343dfC37B93d32609"
+  },
+  "base": {
+    "router": "0x0cb0354E9C51960a7875724343dfC37B93d32609"
+  },
+  "linea": {
+    "router": "0x8F2161c83F46B46628cb591358dE4a89A63eEABf"
+  },
+  "mantle": {
+    "router": "0xf4368751f99127F052AFa993aEc3C6393AcA5466"
+  },
+  "zoramainnet": {
+    "router": "0x8028d4f11d10730B12Ae011474F9db8140F112F4"
+  },
+  "scroll": {
+    "router": "0xc0faBF14f8ad908b2dCE4C8aA2e7c1a6bD069957"
+  },
+  "ethereum": {
+    "router": "0x64D9b639aE85a1e436c1752889c5C40699f3887C"
+  },
+  "mantapacific": {
+    "router": "0x75DAa6Eb3748C33b5fB3716465DAD9658BE42A8D"
+  },
+  "mode": {
+    "router": "0x9970cB23f10dBd95B8A3E643f3A6A6ABB6f3cB9b"
+  },
+  "xlayer": {
+    "router": "0x444791b5cA0E0BdC2De93467f430fbe925b35487"
+  },
+  "ancient8": {
+    "router": "0x7dFb5E7808B5eb4fB8b9e7169537575f6fF1a218"
+  },
+  "zetachain": {
+    "router": "0xe35030B407C96C037190B63646AC1Eb34F43Cc2b"
+  },
+  "redstone": {
+    "router": "0x49bF21531991742b0c1797230758992769771CcD"
+  },
+  "sei": {
+    "router": "0x97aa7b7501FA0fe66649DE7394b9794fa40aEF02"
+  },
+  "taiko": {
+    "router": "0xb08ab8cBd0226D8335fB0Cb88ce47FAfC9C47096"
+  },
+  "bob": {
+    "router": "0xEF62b433Ca3AC8b151c4a255de3eD3dA4e60AdD2"
+  },
+  "worldchain": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  },
+  "zircuit": {
+    "router": "0xA5f471A19fdB367Ea80c4c82ecd30eA94090d549"
+  },
+  "kroma": {
+    "router": "0x9f6f71f3D58aCeba796ADD5f00A893C636163BB2"
+  },
+  "everclear": {
+    "router": "0xe35030B407C96C037190B63646AC1Eb34F43Cc2b"
+  },
+  "morph": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  }
+}

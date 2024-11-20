@@ -1,5 +1,22 @@
 # @hyperlane-xyz/utils
 
+## 7.1.0
+
+### Minor Changes
+
+- 0e285a443: Add an isRelativeUrl function
+
+## 7.0.0
+
+### Major Changes
+
+- f48cf8766: Upgrade Viem to 2.2 and Solana Web3 to 1.9
+  Rename `chainMetadataToWagmiChain` to `chainMetadataToViemChain`
+
+### Patch Changes
+
+- e6f9d5c4f: Added a mustGet helper
+
 ## 6.0.0
 
 ### Major Changes

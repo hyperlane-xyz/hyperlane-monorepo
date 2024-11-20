@@ -27,8 +27,8 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     /// This is used to check if there are new logs to index and to
     /// establish targets to index towards.
     latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-    /// A DB used to check which logs have already been indexed.
-    db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    /// A store used to check which logs have already been indexed.
+    store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
     /// A snapshot of the last indexed log, or if no indexing has occurred yet,
     /// the initial log to start indexing forward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -55,14 +55,14 @@ impl<T> Debug for ForwardSequenceAwareSyncCursor<T> {
 
 impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     #[instrument(
-        skip(db, latest_sequence_querier),
+        skip(store, latest_sequence_querier),
         fields(chunk_size, next_sequence, start_block, index_mode),
         ret
     )]
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-        db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+        store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         next_sequence: u32,
         start_block: u32,
         index_mode: IndexMode,
@@ -77,7 +77,7 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
         Self {
             chunk_size,
             latest_sequence_querier,
-            db,
+            store,
             last_indexed_snapshot,
             current_indexing_snapshot: TargetSnapshot {
                 sequence: next_sequence,
@@ -221,10 +221,10 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// log for the sequence number hasn't been indexed.
     async fn get_sequence_log_block_number(&self, sequence: u32) -> Result<Option<u32>> {
         // Ensure there's a full entry for the sequence.
-        if self.db.retrieve_by_sequence(sequence).await?.is_some() {
+        if self.store.retrieve_by_sequence(sequence).await?.is_some() {
             // And get the block number.
             if let Some(block_number) = self
-                .db
+                .store
                 .retrieve_log_block_number_by_sequence(sequence)
                 .await?
             {

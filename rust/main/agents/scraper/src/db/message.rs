@@ -31,36 +31,6 @@ pub struct StorableMessage<'a> {
 }
 
 impl ScraperDb {
-    /// Get the highest message nonce that is stored in the database.
-    #[instrument(skip(self))]
-    pub async fn last_message_nonce(
-        &self,
-        origin_domain: u32,
-        origin_mailbox: &H256,
-    ) -> Result<Option<u32>> {
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-        enum QueryAs {
-            Nonce,
-        }
-
-        let last_nonce = message::Entity::find()
-            .filter(message::Column::Origin.eq(origin_domain))
-            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
-            .select_only()
-            .column_as(message::Column::Nonce.max(), QueryAs::Nonce)
-            .into_values::<i32, QueryAs>()
-            .one(&self.0)
-            .await?
-            .map(|idx| idx as u32);
-        debug!(
-            ?last_nonce,
-            origin_domain,
-            ?origin_mailbox,
-            "Queried last message nonce from database"
-        );
-        Ok(last_nonce)
-    }
-
     /// Get the dispatched message associated with a nonce.
     #[instrument(skip(self))]
     pub async fn retrieve_message_by_nonce(

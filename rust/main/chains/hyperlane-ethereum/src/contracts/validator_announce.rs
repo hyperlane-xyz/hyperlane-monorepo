@@ -92,7 +92,13 @@ where
             announcement.value.storage_location,
             serialized_signature.into(),
         );
-        fill_tx_gas_params(tx, self.provider.clone(), &self.conn.transaction_overrides).await
+        fill_tx_gas_params(
+            tx,
+            self.provider.clone(),
+            &self.conn.transaction_overrides,
+            &self.domain,
+        )
+        .await
     }
 }
 
