@@ -83,13 +83,13 @@ export async function signerMiddleware(argv: Record<string, any>) {
     strategyConfig,
     chains,
     multiProvider,
-    key,
+    { key },
   );
 
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
-  argv.multiProvider = await multiProtocolSigner.attachSignersToMp();
+  argv.multiProvider = await multiProtocolSigner.setupMultiProvider();
 
   return argv;
 }
