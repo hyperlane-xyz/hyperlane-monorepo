@@ -74,7 +74,7 @@ const warpRouteTokenBalance = new Gauge({
 
 const warpRouteCollateralValue = new Gauge({
   name: 'hyperlane_warp_route_collateral_value',
-  help: 'Total value of collateral held in a HypERC20Collateral or HypNative contract of a Warp Route',
+  help: 'Total value of collateral held in a HypERC20Collateral or HypNativeCollateral contract of a Warp Route',
   registers: [metricsRegister],
   labelNames: warpRouteMetricLabels,
 });
