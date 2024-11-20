@@ -80,7 +80,10 @@ export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
 export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
   .lazy(() =>
     z.object({
-      type: z.literal(IsmType.AGGREGATION),
+      type: z.union([
+        z.literal(IsmType.AGGREGATION),
+        z.literal(IsmType.STORAGE_AGGREGATION),
+      ]),
       modules: z.array(IsmConfigSchema),
       threshold: z.number(),
     }),
