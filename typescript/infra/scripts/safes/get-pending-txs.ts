@@ -177,7 +177,17 @@ async function main() {
       console.log(
         `Executing transaction ${tx.shortTxHash} on chain ${tx.chain}`,
       );
-      await executeTx(tx.chain, multiProvider, safes[tx.chain], tx.fullTxHash);
+      try {
+        await executeTx(
+          tx.chain,
+          multiProvider,
+          safes[tx.chain],
+          tx.fullTxHash,
+        );
+      } catch (error) {
+        console.error(chalk.red(`Error executing transaction: ${error}`));
+        return;
+      }
     }
   }
 

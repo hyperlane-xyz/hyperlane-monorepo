@@ -52,23 +52,35 @@ export async function executeTx(
     multiProvider,
     safeAddress,
   );
-  let safeTransaction;
-  try {
-    safeTransaction = await safeService.getTransaction(safeTxHash);
-    if (!safeTransaction) {
-      throw new Error(`Failed to fetch transaction details for ${safeTxHash}`);
-    }
-  } catch (error) {
-    console.error(chalk.red(`Error fetching transaction: ${error}`));
-    return;
+  const safeTransaction = await safeService.getTransaction(safeTxHash);
+  if (!safeTransaction) {
+    throw new Error(`Failed to fetch transaction details for ${safeTxHash}`);
   }
 
+  // Throw if the safe doesn't have enough balance to cover the gas
+  let estimate;
   try {
-    await safeSdk.executeTransaction(safeTransaction);
+    estimate = await safeService.estimateSafeTransaction(
+      safeAddress,
+      safeTransaction,
+    );
   } catch (error) {
-    console.error(chalk.red(`Error executing transaction: ${error}`));
-    return;
+    throw new Error(
+      `Failed to estimate gas for Safe transaction ${safeTxHash} on chain ${chain}: ${error}`,
+    );
   }
+  const balance = await multiProvider
+    .getProvider(chain)
+    .getBalance(safeAddress);
+  if (balance.lt(estimate.safeTxGas)) {
+    throw new Error(
+      `Safe ${safeAddress} on ${chain} has insufficient balance (${balance.toString()}) for estimated gas (${
+        estimate.safeTxGas
+      })`,
+    );
+  }
+
+  await safeSdk.executeTransaction(safeTransaction);
 
   console.log(
     chalk.green.bold(`Executed transaction ${safeTxHash} on ${chain}`),
