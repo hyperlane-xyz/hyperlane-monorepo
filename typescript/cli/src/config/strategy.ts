@@ -29,7 +29,7 @@ export async function readChainSubmissionStrategyConfig(
   filePath: string,
 ): Promise<ChainSubmissionStrategy> {
   try {
-    log(`Reading file configs in ${filePath}`);
+    log(`Reading submission strategy in ${filePath}`);
 
     if (!isFile(filePath.trim())) {
       logBlue(
@@ -79,16 +79,14 @@ export async function createStrategyConfig({
 }) {
   let strategy: ChainSubmissionStrategy;
   try {
-    // the output strategy might contain submitters for other chain we don't want to overwrite
     const strategyObj = await readYamlOrJson(outPath);
-    // if there are changes in ChainSubmissionStrategy, the existing strategy may no longer be compatible
     strategy = ChainSubmissionStrategySchema.parse(strategyObj);
   } catch (e) {
     strategy = writeYamlOrJson(outPath, {}, 'yaml');
   }
+
   const chain = await runSingleChainSelectionStep(context.chainMetadata);
   const chainProtocol = context.chainMetadata[chain].protocol;
-  assert(chainProtocol === ProtocolType.Ethereum, 'Incompatible protocol'); // Needs to be compatible with MultiProvider - ethers.Signer
 
   if (
     !context.skipConfirmation &&
@@ -100,34 +98,34 @@ export async function createStrategyConfig({
       default: false,
     });
 
-    if (!isConfirmed) {
-      throw Error('Strategy init cancelled');
-    }
+    assert(isConfirmed, 'Strategy initialization cancelled by user.');
   }
 
-  const submitterType = await select({
-    message: 'Enter the type of submitter',
-    choices: Object.values(TxSubmitterType).map((value) => ({
-      name: value,
-      value: value,
-    })),
-  });
+  const isEthereum = chainProtocol === ProtocolType.Ethereum;
+  const submitterType = isEthereum
+    ? await select({
+        message: 'Select the submitter type',
+        choices: Object.values(TxSubmitterType).map((value) => ({
+          name: value,
+          value: value,
+        })),
+      })
+    : TxSubmitterType.JSON_RPC; // Do other non-evm chains support gnosis and account impersonation?
 
-  const submitter: Record<string, any> = {
-    type: submitterType,
-  };
+  const submitter: Record<string, any> = { type: submitterType };
 
-  // Configure submitter based on submitterType
   switch (submitterType) {
     case TxSubmitterType.JSON_RPC:
       submitter.privateKey = await password({
-        message: 'Enter your private key',
-        validate: (pk) => isPrivateKeyEvm(pk),
+        message: 'Enter the private key for JSON-RPC submission:',
+        validate: (pk) => (isEthereum ? isPrivateKeyEvm(pk) : true),
       });
 
-      submitter.userAddress = await new Wallet(
-        submitter.privateKey,
-      ).getAddress(); // EVM
+      submitter.userAddress = isEthereum
+        ? await new Wallet(submitter.privateKey).getAddress()
+        : await input({
+            message: 'Enter the user address for JSON-RPC submission:',
+          });
 
       submitter.chain = chain;
       break;
@@ -185,18 +183,16 @@ export async function createStrategyConfig({
 
   try {
     const strategyConfig = ChainSubmissionStrategySchema.parse(strategyResult);
-    logBlue(`Strategy config is valid, writing to file ${outPath}:\n`);
+    logBlue(`Strategy configuration is valid. Writing to file ${outPath}:\n`);
 
-    // Mask sensitive data before logging
     const maskedConfig = maskSensitiveData(strategyConfig);
     log(indentYamlOrJson(yamlStringify(maskedConfig, null, 2), 4));
 
-    // Write the original unmasked config to file
     writeYamlOrJson(outPath, strategyConfig);
-    logGreen('✅ Successfully created new key config.');
+    logGreen('✅ Successfully created a new strategy configuration.');
   } catch (e) {
     errorRed(
-      `Key config is invalid, please check the submitter configuration.`,
+      `The strategy configuration is invalid. Please review the submitter settings.`,
     );
   }
 }
