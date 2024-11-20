@@ -1,11 +1,7 @@
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
-import {
-  ChainAddresses,
-  IRegistry,
-  warpConfigToWarpAddresses,
-} from '@hyperlane-xyz/registry';
+import { ChainAddresses, IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -157,20 +153,26 @@ export function withChain<T>(args: Argv<T>) {
     .alias('c', 'chain');
 }
 
-export function withChains<T>(args: Argv<T>) {
+export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
   return (
     args
       .describe('chains', 'Set of chains to perform actions on.')
       .array('chains')
-      .choices('chains', getChains())
+      .choices(
+        'chains',
+        !chainOptions || chainOptions.length === 0 ? getChains() : chainOptions,
+      )
       // Ensure chains are unique
       .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
       .alias('c', 'chains')
   );
 }
 
-export function withChainsRequired<T>(args: Argv<T>) {
-  return withChains(args).demandOption('chains');
+export function withChainsRequired<T>(
+  args: Argv<T>,
+  chainOptions?: ChainName[],
+) {
+  return withChains(args, chainOptions).demandOption('chains');
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {
