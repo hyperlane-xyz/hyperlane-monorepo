@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/widgets",
   "description": "Common react components for Hyperlane projects",
-  "version": "7.0.0",
+  "version": "7.1.0",
   "peerDependencies": {
     "react": "^18",
     "react-dom": "^18"
@@ -9,8 +9,8 @@
   "dependencies": {
     "@cosmos-kit/react": "^2.18.0",
     "@headlessui/react": "^2.1.8",
-    "@hyperlane-xyz/sdk": "7.0.0",
-    "@hyperlane-xyz/utils": "7.0.0",
+    "@hyperlane-xyz/sdk": "7.1.0",
+    "@hyperlane-xyz/utils": "7.1.0",
     "@interchain-ui/react": "^1.23.28",
     "@rainbow-me/rainbowkit": "^2.2.0",
     "@solana/wallet-adapter-react": "^0.15.32",
@@ -86,7 +86,7 @@
     "build:ts": "tsc",
     "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/styles.css -o ./dist/styles.css --minify",
     "clean": "rm -rf ./dist ./cache ./storybook-static",
-    "lint": "eslint ./src --ext .ts",
+    "lint": "eslint ./src --ext '.ts,.tsx'",
     "prettier": "prettier --write ./src",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

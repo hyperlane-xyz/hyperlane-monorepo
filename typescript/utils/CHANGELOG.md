@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 7.1.0
+
+### Minor Changes
+
+- 0e285a443: Add an isRelativeUrl function
+
 ## 7.0.0
 
 ### Major Changes
