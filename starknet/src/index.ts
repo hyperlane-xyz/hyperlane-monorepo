@@ -61,31 +61,46 @@ export const getCompiledContractCasm = (name: string): CairoAssembly => {
 };
 
 /**
- * @notice Locates a contract file with the specified suffix
- * @dev Combines the target path with contract name and suffix, validates file existence
- * @param name The name of the contract to find
- * @param suffix The suffix type from CONFIG.SUFFIXES to append to the filename
- * @returns The full path to the contract file
- * @throws {ContractError} If the file is not found or name is invalid
+ * @notice Finds the path to a contract file based on predefined patterns
+ * @dev Searches for contract files in multiple predefined locations:
+ *      - contracts_{name}{suffix}
+ *      - token_{name}{suffix}
+ * @param name The base name of the contract to find
+ * @param suffix The type of contract file to look for (from CONFIG.SUFFIXES)
+ * @returns {string} The full path to the first matching contract file
+ * @throws {ContractError} If no matching file is found or the contract name is invalid
  */
 function findContractFile(
   name: string,
   suffix: keyof typeof CONFIG.SUFFIXES,
 ): string {
   assertValidContractName(name);
-  const mainPath = `${TARGET_DEV_PATH}/contracts_${name}${CONFIG.SUFFIXES[suffix]}`;
 
-  if (!existsSync(mainPath)) {
+  const suffixPath = CONFIG.SUFFIXES[suffix];
+  const possiblePaths = [
+    {
+      type: 'contracts',
+      path: `${TARGET_DEV_PATH}/contracts_${name}${suffixPath}`,
+    },
+    {
+      type: 'token',
+      path: `${TARGET_DEV_PATH}/token_${name}${suffixPath}`,
+    },
+  ];
+
+  const existingPath = possiblePaths.find(({ path }) => existsSync(path));
+
+  if (!existingPath) {
     throw new ContractError(
       ErrorMessages[CONFIG.ERROR_CODES.FILE_NOT_FOUND],
       CONFIG.ERROR_CODES.FILE_NOT_FOUND,
       {
         name,
         suffix,
-        path: mainPath,
+        path: possiblePaths[0].path,
       },
     );
   }
 
-  return mainPath;
+  return existingPath.path;
 }
