@@ -12,36 +12,33 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { DEPLOYER } from '../../owners.js';
 
-// Elixir
-const owner = '0x00000000F51340906F767C6999Fe512b1275955C';
+// Keep on our deployer for now until we get an address from Flow
+const owner = DEPLOYER;
 const ownerConfig = getOwnerConfigForAddress(owner);
 
-export const getEthereumSeiFastUSDWarpConfig = async (
+export const getEthereumFlowCbBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  const sei: TokenRouterConfig = {
-    ...routerConfig.viction,
-    ...ownerConfig,
-    type: TokenType.XERC20,
-    name: 'fastUSD',
-    symbol: 'fastUSD',
-    decimals: 18,
-    token: tokens.sei.fastUSD,
-    interchainSecurityModule: ethers.constants.AddressZero,
-  };
-
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
     ...ownerConfig,
     type: TokenType.collateral,
-    token: tokens.ethereum.deUSD,
+    token: tokens.ethereum.cbBTC,
+    interchainSecurityModule: ethers.constants.AddressZero,
+  };
+
+  const flowmainnet: TokenRouterConfig = {
+    ...routerConfig.flowmainnet,
+    ...ownerConfig,
+    type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   return {
-    sei,
     ethereum,
+    flowmainnet,
   };
 };
