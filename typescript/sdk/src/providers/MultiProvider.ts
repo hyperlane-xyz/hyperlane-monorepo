@@ -3,8 +3,8 @@ import {
   ContractFactory,
   ContractReceipt,
   ContractTransaction,
-  Signer as EthersSigner,
   PopulatedTransaction,
+  Signer,
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
@@ -38,8 +38,7 @@ import {
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
-type Provider = providers.Provider | ZKSyncProvider;
-type Signer = EthersSigner | ZKSyncWallet;
+type Provider = providers.Provider;
 
 export interface MultiProviderOptions {
   logger?: Logger;
@@ -55,7 +54,7 @@ export interface MultiProviderOptions {
 export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   readonly providers: ChainMap<Provider>;
   readonly providerBuilder: ProviderBuilderFn<Provider>;
-  signers: ChainMap<ZKSyncWallet | Signer>;
+  signers: ChainMap<Signer>;
   useSharedSigner = false; // A single signer to be used for all chains
   readonly logger: Logger;
 
@@ -147,7 +146,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     this.providers[chainName] = provider;
     const signer = this.signers[chainName];
     if (signer && signer.provider) {
-      this.setSigner(chainName, (signer as EthersSigner).connect(provider));
+      this.setSigner(chainName, signer.connect(provider));
     }
     return provider;
   }
@@ -177,10 +176,6 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const provider = this.tryGetProvider(chainName);
     if (!provider) return signer;
 
-    // Handle ZKSync provider separately
-    if (signer instanceof ZKSyncWallet) {
-      return signer.connect(provider as ZKSyncProvider);
-    }
     return signer.connect(provider);
   }
 
@@ -340,10 +335,8 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     params: Parameters<F['deploy']>,
     artifact?: ZKSyncArtifact,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
-    const metadata = this.tryGetChainMetadata(chainNameOrId);
-    if (!metadata) {
-      throw new Error('Chain metadata not found!');
-    }
+    const metadata = this.getChainMetadata(chainNameOrId);
+
     const { technicalStack } = metadata;
 
     let contract;

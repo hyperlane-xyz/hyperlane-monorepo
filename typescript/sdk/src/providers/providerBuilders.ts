@@ -128,7 +128,7 @@ export function defaultProviderBuilder(
 ): providers.Provider {
   return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
 }
-// Kept for backwards compatibility
+
 export function defaultZKProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,

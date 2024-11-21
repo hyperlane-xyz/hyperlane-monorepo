@@ -1,7 +1,6 @@
-import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
-import { rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { isZeroishAddress, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -95,7 +94,7 @@ export abstract class BaseContractVerifier {
       return false;
     }
 
-    if (input.address === ethers.constants.AddressZero) return false;
+    if (isZeroishAddress(input.address)) return false;
     if (Array.isArray(input.constructorArguments)) {
       verificationLogger.debug(
         'Constructor arguments in legacy format, skipping',
