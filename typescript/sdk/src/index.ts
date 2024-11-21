@@ -568,3 +568,4 @@ export {
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
