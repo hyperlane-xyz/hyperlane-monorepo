@@ -313,5 +313,20 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "boba": {
+    "validators": ["0xebeb92c94ca8408e73aa16fd554cb3a7df075c59"]
+  },
+  "duckchain": {
+    "validators": ["0x91d55fe6dac596a6735d96365e21ce4bca21d83c"]
+  },
+  "superseed": {
+    "validators": ["0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88"]
+  },
+  "unichain": {
+    "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
+  },
+  "vana": {
+    "validators": ["0xfdf3b0dfd4b822d10cacb15c8ae945ea269e7534"]
   }
 }
