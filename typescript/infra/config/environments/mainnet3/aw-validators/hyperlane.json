@@ -53,6 +53,9 @@
   "bob": {
     "validators": ["0x20f283be1eb0e81e22f51705dcb79883cfdd34aa"]
   },
+  "boba": {
+    "validators": ["0xebeb92c94ca8408e73aa16fd554cb3a7df075c59"]
+  },
   "bsc": {
     "validators": [
       "0x570af9b7b36568c8877eebba6c6727aa9dab7268",
@@ -84,6 +87,9 @@
   },
   "dogechain": {
     "validators": ["0xe43f742c37858746e6d7e458bc591180d0cba440"]
+  },
+  "duckchain": {
+    "validators": ["0x91d55fe6dac596a6735d96365e21ce4bca21d83c"]
   },
   "eclipsemainnet": {
     "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
@@ -278,6 +284,9 @@
   "solanamainnet": {
     "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
   },
+  "superseed": {
+    "validators": ["0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88"]
+  },
   "superpositionmainnet": {
     "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
   },
@@ -286,6 +295,12 @@
   },
   "tangle": {
     "validators": ["0x1ee52cbbfacd7dcb0ba4e91efaa6fbc61602b15b"]
+  },
+  "unichain": {
+    "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
+  },
+  "vana": {
+    "validators": ["0xfdf3b0dfd4b822d10cacb15c8ae945ea269e7534"]
   },
   "viction": {
     "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
