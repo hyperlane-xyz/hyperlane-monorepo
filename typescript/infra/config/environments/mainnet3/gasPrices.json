@@ -12,7 +12,7 @@
     "decimals": 9
   },
   "arbitrum": {
-    "amount": "0.01",
+    "amount": "0.123544",
     "decimals": 9
   },
   "arbitrumnova": {
@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.078",
+    "amount": "0.24",
     "decimals": 9
   },
   "flame": {
@@ -36,11 +36,11 @@
     "decimals": 9
   },
   "b3": {
-    "amount": "0.001000254",
+    "amount": "0.001000252",
     "decimals": 9
   },
   "base": {
-    "amount": "0.004893247",
+    "amount": "0.024525952",
     "decimals": 9
   },
   "bitlayer": {
@@ -48,11 +48,15 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.005018176",
+    "amount": "0.005892268",
     "decimals": 9
   },
   "bob": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "boba": {
+    "amount": "0.001000047",
     "decimals": 9
   },
   "bsc": {
@@ -87,6 +91,10 @@
     "amount": "250.0",
     "decimals": 9
   },
+  "duckchain": {
+    "amount": "10.0",
+    "decimals": 9
+  },
   "eclipsemainnet": {
     "amount": "0.0000001",
     "decimals": 1
@@ -96,7 +104,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "15.0",
+    "amount": "30.088451558",
     "decimals": 9
   },
   "everclear": {
@@ -124,7 +132,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "1.500000007",
+    "amount": "1.500000008",
     "decimals": 9
   },
   "gravity": {
@@ -136,7 +144,7 @@
     "decimals": 9
   },
   "immutablezkevmmainnet": {
-    "amount": "10.000000056",
+    "amount": "10.00000005",
     "decimals": 9
   },
   "inevm": {
@@ -156,7 +164,7 @@
     "decimals": 9
   },
   "linea": {
-    "amount": "0.160485013",
+    "amount": "0.548523195",
     "decimals": 9
   },
   "lisk": {
@@ -172,7 +180,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.003001158",
+    "amount": "0.0030005",
     "decimals": 9
   },
   "mantle": {
@@ -208,7 +216,7 @@
     "decimals": 9
   },
   "morph": {
-    "amount": "0.002",
+    "amount": "0.014614332",
     "decimals": 9
   },
   "neutron": {
@@ -220,7 +228,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.001010111",
+    "amount": "0.001065045",
     "decimals": 9
   },
   "orderly": {
@@ -232,11 +240,11 @@
     "decimals": 1
   },
   "polygon": {
-    "amount": "47.07124319",
+    "amount": "260.197309239",
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "0.146",
+    "amount": "0.451",
     "decimals": 9
   },
   "polynomialfi": {
@@ -244,7 +252,7 @@
     "decimals": 9
   },
   "prom": {
-    "amount": "13.1",
+    "amount": "75.2",
     "decimals": 9
   },
   "proofofplay": {
@@ -280,7 +288,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "0.542811448",
+    "amount": "3.89327567",
     "decimals": 9
   },
   "snaxchain": {
@@ -295,16 +303,28 @@
     "amount": "0.005",
     "decimals": 1
   },
+  "superseed": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "superpositionmainnet": {
     "amount": "0.01",
     "decimals": 9
   },
   "taiko": {
-    "amount": "0.1323",
+    "amount": "0.1243284",
     "decimals": 9
   },
   "tangle": {
     "amount": "1.0",
+    "decimals": 9
+  },
+  "unichain": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "vana": {
+    "amount": "0.001000007",
     "decimals": 9
   },
   "viction": {
@@ -312,7 +332,7 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.00100025",
+    "amount": "0.00100026",
     "decimals": 9
   },
   "xai": {
@@ -320,7 +340,7 @@
     "decimals": 9
   },
   "xlayer": {
-    "amount": "7.04",
+    "amount": "23.05",
     "decimals": 9
   },
   "zeronetwork": {
@@ -340,7 +360,7 @@
     "decimals": 9
   },
   "zoramainnet": {
-    "amount": "0.001000269",
+    "amount": "0.001000252",
     "decimals": 9
   }
 }

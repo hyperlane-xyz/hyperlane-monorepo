@@ -152,6 +152,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                false,
             )
             .await?
             .into_iter()
@@ -166,6 +167,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                false,
             )
             .await?
             .into_iter()
@@ -180,6 +182,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                false,
             )
             .await?
             .into_iter()

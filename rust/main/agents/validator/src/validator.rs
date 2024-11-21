@@ -109,6 +109,7 @@ impl BaseAgent for Validator {
                 &metrics,
                 &contract_sync_metrics,
                 msg_db.clone().into(),
+                false,
             )
             .await?;
 

@@ -163,6 +163,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  boba: {
+    threshold: 1,
+    validators: ['0xebeb92c94ca8408e73aa16fd554cb3a7df075c59'],
+  },
+
   bsc: {
     threshold: 3,
     validators: [
@@ -269,6 +274,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       '0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f', // merkly
       '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36', // mitosis
     ],
+  },
+
+  duckchain: {
+    threshold: 1,
+    validators: ['0x91d55fe6dac596a6735d96365e21ce4bca21d83c'],
   },
 
   eclipsemainnet: {
@@ -905,6 +915,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a'],
   },
 
+  superseed: {
+    threshold: 1,
+    validators: ['0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88'],
+  },
+
   taiko: {
     threshold: 3,
     validators: [
@@ -929,9 +944,19 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: ['0x9750849beda0a7870462d4685f953fe39033a5ae'],
   },
 
+  unichain: {
+    threshold: 1,
+    validators: ['0x9773a382342ebf604a2e5de0a1f462fb499e28b1'],
+  },
+
   unichaintestnet: {
     threshold: 1,
     validators: ['0x5e99961cf71918308c3b17ef21b5f515a4f86fe5'],
+  },
+
+  vana: {
+    threshold: 1,
+    validators: ['0xfdf3b0dfd4b822d10cacb15c8ae945ea269e7534'],
   },
 
   viction: {
