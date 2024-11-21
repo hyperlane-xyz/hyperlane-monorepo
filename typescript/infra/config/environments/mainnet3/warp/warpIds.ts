@@ -1,6 +1,7 @@
 export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
   ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH = 'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-taiko-zircuit',
+  ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
   ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
@@ -14,6 +15,7 @@ export enum WarpRouteIds {
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
   EclipseStrideSTTIA = 'stTIA/eclipsemainnet-stride',
   EclipseStrideTIA = 'TIA/eclipsemainnet-stride',
+  EthereumFlowCbBTC = 'CBBTC/ethereum-flowmainnet',
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
   EthereumSeiFastUSD = 'FASTUSD/ethereum-sei',

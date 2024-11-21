@@ -74,17 +74,23 @@ export function updateTokenBalanceMetrics(
   };
 
   warpRouteTokenBalance.labels(metrics).set(balanceInfo.balance);
-  logger.info('Wallet balance updated for token', {
-    labels: metrics,
-    balance: balanceInfo.balance,
-  });
+  logger.info(
+    {
+      labels: metrics,
+      balance: balanceInfo.balance,
+    },
+    'Wallet balance updated for token',
+  );
 
   if (balanceInfo.valueUSD) {
     warpRouteCollateralValue.labels(metrics).set(balanceInfo.valueUSD);
-    logger.info('Wallet balance updated for token', {
-      labels: metrics,
-      valueUSD: balanceInfo.valueUSD,
-    });
+    logger.info(
+      {
+        labels: metrics,
+        valueUSD: balanceInfo.valueUSD,
+      },
+      'Wallet value updated for token',
+    );
   }
 }
 

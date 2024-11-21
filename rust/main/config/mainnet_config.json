@@ -1231,7 +1231,7 @@
       "bech32Prefix": "inj",
       "blockExplorers": [
         {
-          "apiUrl": "https://www.mintscan.io/injective",
+          "apiUrl": "https://apis.mintscan.io/v1/injective",
           "family": "other",
           "name": "Mintscan",
           "url": "https://www.mintscan.io/injective"
@@ -2042,7 +2042,7 @@
       "bech32Prefix": "neutron",
       "blockExplorers": [
         {
-          "apiUrl": "https://www.mintscan.io/neutron",
+          "apiUrl": "https://apis.mintscan.io/v1/neutron",
           "family": "other",
           "name": "Mintscan",
           "url": "https://www.mintscan.io/neutron"
@@ -2180,7 +2180,7 @@
       "bech32Prefix": "osmo",
       "blockExplorers": [
         {
-          "apiUrl": "https://www.mintscan.io/osmosis",
+          "apiUrl": "https://apis.mintscan.io/v1/osmosis",
           "family": "other",
           "name": "Mintscan",
           "url": "https://www.mintscan.io/osmosis"
@@ -4111,7 +4111,7 @@
       "bech32Prefix": "stride",
       "blockExplorers": [
         {
-          "apiUrl": "https://www.mintscan.io/stride",
+          "apiUrl": "https://apis.mintscan.io/v1/stride",
           "family": "other",
           "name": "Mintscan",
           "url": "https://www.mintscan.io/stride"

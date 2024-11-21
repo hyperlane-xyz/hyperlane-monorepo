@@ -102,12 +102,13 @@ export function SearchMenu<
   const handleSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
+      e.stopPropagation();
       if (results.length === 1) {
         const item = results[0];
         isEditMode ? onClickEditItem(item) : onClickItem(item);
       }
     },
-    [results, isEditMode],
+    [results, isEditMode, onClickEditItem, onClickItem],
   );
 
   useEffect(() => {
@@ -254,6 +255,7 @@ function SortDropdown<SortBy extends string>({
         buttonClassname="htw-flex htw-items-stretch hover:htw-bg-gray-100 active:htw-scale-95"
         menuClassname="htw-py-1.5 htw-px-2 htw-flex htw-flex-col htw-gap-2 htw-text-sm htw-border htw-border-gray-100"
         menuItems={options.map((o) => (
+          // eslint-disable-next-line react/jsx-key
           <div
             className="htw-rounded htw-p-1.5 hover:htw-bg-gray-200"
             onClick={() => onSetSortBy(o)}
@@ -298,7 +300,7 @@ function FilterDropdown<FilterState>({
       (k) => !deepEquals(value[k], defaultValue[k]),
     );
     return modifiedKeys.map((k) => value[k]);
-  }, [value]);
+  }, [value, defaultValue]);
   const hasFilters = filterValues.length > 0;
 
   const onClear = () => {

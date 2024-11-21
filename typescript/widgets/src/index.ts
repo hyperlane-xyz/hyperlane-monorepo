@@ -56,12 +56,17 @@ export { WalletIcon } from './icons/Wallet.js';
 export { WarningIcon } from './icons/Warning.js';
 export { WebIcon } from './icons/Web.js';
 export { WideChevronIcon } from './icons/WideChevron.js';
-export { XCircleIcon } from './icons/XCircle.js';
 export { XIcon } from './icons/X.js';
+export { XCircleIcon } from './icons/XCircle.js';
 export { DropdownMenu, type DropdownMenuProps } from './layout/DropdownMenu.js';
 export { Modal, useModal, type ModalProps } from './layout/Modal.js';
 export { Popover, type PopoverProps } from './layout/Popover.js';
+export { CosmosLogo } from './logos/Cosmos.js';
+export { EthereumLogo } from './logos/Ethereum.js';
 export { HyperlaneLogo } from './logos/Hyperlane.js';
+export { PROTOCOL_TO_LOGO } from './logos/protocols.js';
+export { SolanaLogo } from './logos/Solana.js';
+export { WalletConnectLogo } from './logos/WalletConnect.js';
 export { MessageTimeline } from './messages/MessageTimeline.js';
 export {
   MessageStage,
@@ -81,3 +86,62 @@ export { useDebounce } from './utils/debounce.js';
 export { useIsSsr } from './utils/ssr.js';
 export { useInterval, useTimeout } from './utils/timeout.js';
 export { useConnectionHealthTest } from './utils/useChainConnectionTest.js';
+export {
+  AccountList,
+  AccountSummary,
+} from './walletIntegrations/AccountList.js';
+export { ConnectWalletButton } from './walletIntegrations/ConnectWalletButton.js';
+export {
+  getCosmosKitChainConfigs,
+  useCosmosAccount,
+  useCosmosActiveChain,
+  useCosmosConnectFn,
+  useCosmosDisconnectFn,
+  useCosmosTransactionFns,
+  useCosmosWalletDetails,
+} from './walletIntegrations/cosmos.js';
+export {
+  getWagmiChainConfigs,
+  useEthereumAccount,
+  useEthereumActiveChain,
+  useEthereumConnectFn,
+  useEthereumDisconnectFn,
+  useEthereumTransactionFns,
+  useEthereumWalletDetails,
+} from './walletIntegrations/ethereum.js';
+export {
+  getAccountAddressAndPubKey,
+  getAccountAddressForChain,
+  useAccountAddressForChain,
+  useAccountForChain,
+  useAccounts,
+  useActiveChains,
+  useConnectFns,
+  useDisconnectFns,
+  useTransactionFns,
+  useWalletDetails,
+} from './walletIntegrations/multiProtocol.js';
+export { MultiProtocolWalletModal } from './walletIntegrations/MultiProtocolWalletModal.js';
+export {
+  useSolanaAccount,
+  useSolanaActiveChain,
+  useSolanaConnectFn,
+  useSolanaDisconnectFn,
+  useSolanaTransactionFns,
+  useSolanaWalletDetails,
+} from './walletIntegrations/solana.js';
+export type {
+  AccountInfo,
+  ActiveChainInfo,
+  ChainAddress,
+  ChainTransactionFns,
+  SendTransactionFn,
+  SwitchNetworkFn,
+  WalletDetails,
+} from './walletIntegrations/types.js';
+export {
+  ethers5TxToWagmiTx,
+  findChainByRpcUrl,
+  getChainsForProtocol,
+} from './walletIntegrations/utils.js';
+export { WalletLogo } from './walletIntegrations/WalletLogo.js';

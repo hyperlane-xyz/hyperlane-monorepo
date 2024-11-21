@@ -1,5 +1,23 @@
 # @hyperlane-xyz/cli
 
+## 7.1.0
+
+### Minor Changes
+
+- 5db46bd31: Implements persistent relayer for use in CLI
+
+### Patch Changes
+
+- Updated dependencies [6f2d50fbd]
+- Updated dependencies [1159e0f4b]
+- Updated dependencies [0e285a443]
+- Updated dependencies [ff2b4e2fb]
+- Updated dependencies [0e285a443]
+- Updated dependencies [5db46bd31]
+- Updated dependencies [0cd65c571]
+  - @hyperlane-xyz/sdk@7.1.0
+  - @hyperlane-xyz/utils@7.1.0
+
 ## 7.0.0
 
 ### Minor Changes

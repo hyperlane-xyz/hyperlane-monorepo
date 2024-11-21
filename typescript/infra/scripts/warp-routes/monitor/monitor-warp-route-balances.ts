@@ -13,7 +13,7 @@ import {
   TokenStandard,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../../config/registry.js';
 import {
@@ -78,7 +78,7 @@ async function pollAndUpdateWarpRouteMetrics(
     apiKey: await getCoinGeckoApiKey(),
   });
 
-  setInterval(async () => {
+  while (true) {
     await tryFn(async () => {
       await Promise.all(
         warpCore.tokens.map((token) =>
@@ -86,7 +86,8 @@ async function pollAndUpdateWarpRouteMetrics(
         ),
       );
     }, 'Updating warp route metrics');
-  }, checkFrequency);
+    await sleep(checkFrequency);
+  }
 }
 
 // Updates the metrics for a single token in a warp route.
@@ -246,9 +247,7 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
   return apiKey;
 }
 
-main()
-  .then(logger.info)
-  .catch((err) => {
-    logger.error('Error in main', err);
-    process.exit(1);
-  });
+main().catch((err) => {
+  logger.error('Error in main:', err);
+  process.exit(1);
+});

@@ -3,6 +3,7 @@ import React, { Component, PropsWithChildren, ReactNode } from 'react';
 import { errorToString } from '@hyperlane-xyz/utils';
 
 import { ErrorIcon } from '../icons/Error.js';
+import { widgetLogger } from '../logger.js';
 
 type Props = PropsWithChildren<{
   supportLink?: ReactNode;
@@ -24,7 +25,7 @@ export class ErrorBoundary extends Component<Props, State> {
       error,
       errorInfo,
     });
-    console.error('Error caught by error boundary', error, errorInfo);
+    widgetLogger.error('Error caught by error boundary', error, errorInfo);
   }
 
   render() {
