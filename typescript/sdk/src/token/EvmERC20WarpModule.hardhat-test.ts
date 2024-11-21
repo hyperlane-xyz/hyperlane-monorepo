@@ -16,6 +16,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
+  HookConfig,
+  HookType,
   HyperlaneAddresses,
   HyperlaneContractsMap,
   IsmConfig,
@@ -272,6 +274,16 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       },
     ];
 
+    const hookConfigToUpdate: HookConfig[] = [
+      {
+        type: HookType.PROTOCOL_FEE,
+        beneficiary: randomAddress(),
+        owner: randomAddress(),
+        maxProtocolFee: '1337',
+        protocolFee: '1337',
+      },
+    ];
+
     it('should deploy and set a new Ism', async () => {
       const config = {
         ...baseConfig,
@@ -300,6 +312,37 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         );
 
         expect(updatedConfig).to.deep.equal(interchainSecurityModule);
+      }
+    });
+
+    it.only('should deploy and set a new Hook', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+        interchainSecurityModule: ismAddress,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+
+      for (const hook of hookConfigToUpdate) {
+        const expectedConfig: TokenRouterConfig = {
+          ...actualConfig,
+          ismFactoryAddresses,
+          hook,
+        };
+        await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+        const updatedConfig = normalizeConfig(
+          (await evmERC20WarpModule.read()).interchainSecurityModule,
+        );
+
+        expect(updatedConfig).to.deep.equal(hook);
       }
     });
 

@@ -110,6 +110,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
      */
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
+      // ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
@@ -277,6 +278,48 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     return updateTransactions;
   }
 
+  // async createHookUpdateTxs(
+  //   actualConfig: TokenRouterConfig,
+  //   expectedConfig: TokenRouterConfig,
+  // ): Promise<AnnotatedEV5Transaction[]> {
+  //   const updateTransactions: AnnotatedEV5Transaction[] = [];
+  //   if (!expectedConfig.hook) {
+  //     return [];
+  //   }
+
+  //   if (expectedConfig.ismFactoryAddresses) {
+  //     const actualDeployedHook = (actualConfig.hook as DerivedHookConfig)
+  //       .address;
+
+  //     // Try to update (may also deploy) Hook with the expected config
+  //     const {
+  //       deployedHook: expectedDeployedHook,
+  //       updateTransactions: ismUpdateTransactions,
+  //     } = await this.deployOrUpdateIsm(actualConfig, expectedConfig);
+
+  //     // If an Hook is updated in-place, push the update txs
+  //     updateTransactions.push(...ismUpdateTransactions);
+
+  //     // If a new Hook is deployed, push the setHook tx
+  //     if (!eqAddress(actualDeployedHook, expectedDeployedHook)) {
+  //       const contractToUpdate = MailboxClient__factory.connect(
+  //         this.args.addresses.deployedTokenRoute,
+  //         this.multiProvider.getProvider(this.domainId),
+  //       );
+  //       updateTransactions.push({
+  //         chainId: this.chainId,
+  //         annotation: `Setting ISM for Warp Route to ${expectedDeployedHook}`,
+  //         to: contractToUpdate.address,
+  //         data: contractToUpdate.interface.encodeFunctionData('setHook', [
+  //           expectedDeployedHook,
+  //         ]),
+  //       });
+  //     }
+  //   }
+
+  //   return updateTransactions;
+  // }
+
   /**
    * Transfer ownership of an existing Warp route with a given config.
    *
@@ -343,6 +386,63 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     return { deployedIsm, updateTransactions };
   }
+
+  /**
+   * Updates or deploys the ISM using the provided configuration.
+   *
+   * @returns Object with deployedIsm address, and update Transactions
+   */
+  // public async deployOrUpdateHook(
+  //   actualConfig: TokenRouterConfig,
+  //   expectedConfig: TokenRouterConfig,
+  // ): Promise<{
+  //   deployedHook: Address;
+  //   updateTransactions: AnnotatedEV5Transaction[];
+  // }> {
+  //   assert(expectedConfig.hook, 'Ism not derived correctly');
+  //   assert(
+  //     expectedConfig.ismFactoryAddresses,
+  //     'Ism Factories addresses not provided',
+  //   );
+  //   const addresses = await registry.getAddresses();
+  //   // const ismModule = new EvmHookModule(
+  //   //   this.multiProvider,
+  //   //   {
+  //   //     chain: this.args.chain,
+  //   //     config: expectedConfig.hook,
+  //   //     addresses: {
+  //   //       ...expectedConfig.ismFactoryAddresses,
+  //   //       mailbox: expectedConfig.mailbox,
+  //   //       deployedIsm: (
+  //   //         actualConfig.interchainSecurityModule as DerivedIsmConfig
+  //   //       ).address,
+  //   //     },
+  //   //   },
+  //   //   this.contractVerifier,
+  //   // );
+
+  //   const hookModule = new EvmHookModule(
+  //     this.multiProvider,
+  //     {
+  //       chain: this.args.chain,
+  //       config: expectedConfig.hook,
+  //       addresses: {
+  //         ...expectedConfig.ismFactoryAddresses,
+
+  //         deployedHook: (actualConfig.hook as DerivedHookConfig).address,
+  //       },
+  //     },
+  //     this.contractVerifier,
+  //   );
+
+  //   this.logger.info(
+  //     `Comparing target ISM config with ${this.args.chain} chain`,
+  //   );
+  //   const updateTransactions = await hookModule.update(expectedConfig.hook);
+  //   const { deployedHook } = hookModule.serialize();
+
+  //   return { deployedHook, updateTransactions };
+  // }
 
   /**
    * Deploys the Warp Route.
