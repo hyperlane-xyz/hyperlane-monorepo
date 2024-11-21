@@ -69,7 +69,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     const hypToken = this.app.router(this.app.getContracts(chain));
 
     // Check all actual decimals are consistent
-    const actualChainDecimals = await this.getAllActualDecimals();
+    const actualChainDecimals = await this.getEvmActualDecimals();
     this.checkDecimalConsistency(
       chain,
       hypToken,
@@ -128,14 +128,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     }
   }
 
-  getChainDecimals(): Record<ChainName, number | undefined> {
-    return objMap(this.configMap, (_chain, config) => config.decimals);
-  }
-
   private cachedAllActualDecimals: Record<ChainName, number> | undefined =
     undefined;
 
-  async getAllActualDecimals(): Promise<Record<ChainName, number>> {
+  async getEvmActualDecimals(): Promise<Record<ChainName, number>> {
     if (this.cachedAllActualDecimals) {
       return this.cachedAllActualDecimals;
     }
