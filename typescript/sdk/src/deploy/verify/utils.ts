@@ -1,3 +1,4 @@
+import { Interface } from '@ethersproject/abi';
 import { ethers, utils } from 'ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
@@ -7,8 +8,6 @@ import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName } from '../../types.js';
 
 import { ContractVerificationInput } from './types.js';
-
-const { Interface } = await import('@ethersproject/abi');
 
 export function formatFunctionArguments(
   fragment: utils.Fragment,
