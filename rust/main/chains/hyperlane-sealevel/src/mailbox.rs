@@ -648,14 +648,14 @@ pub struct SealevelMailboxIndexer {
     program_id: Pubkey,
     dispatch_message_log_meta_composer: LogMetaComposer,
     delivery_message_log_meta_composer: LogMetaComposer,
-    advance_log_index: bool,
+    advanced_log_meta: bool,
 }
 
 impl SealevelMailboxIndexer {
     pub fn new(
         conf: &ConnectionConf,
         locator: ContractLocator,
-        advance_log_index: bool,
+        advanced_log_meta: bool,
     ) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let mailbox = SealevelMailbox::new(conf, locator, None)?;
@@ -677,7 +677,7 @@ impl SealevelMailboxIndexer {
             mailbox,
             dispatch_message_log_meta_composer,
             delivery_message_log_meta_composer,
-            advance_log_index,
+            advanced_log_meta,
         })
     }
 
@@ -718,7 +718,7 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
-        let log_meta = if self.advance_log_index {
+        let log_meta = if self.advanced_log_meta {
             self.dispatch_message_log_meta(
                 U256::from(nonce),
                 &valid_message_storage_pda_pubkey,
@@ -812,7 +812,7 @@ impl SealevelMailboxIndexer {
             .into_inner();
         let message_id = delivered_message_account.message_id;
 
-        let log_meta = if self.advance_log_index {
+        let log_meta = if self.advanced_log_meta {
             self.delivered_message_log_meta(
                 U256::from(nonce),
                 &valid_message_storage_pda_pubkey,

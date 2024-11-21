@@ -158,7 +158,7 @@ impl Settings {
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         store: Arc<S>,
-        advance_log_index: bool,
+        advanced_log_meta: bool,
     ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
     where
         T: Indexable + Debug,
@@ -168,7 +168,7 @@ impl Settings {
         let setup = self.chain_setup(domain)?;
         // Currently, all indexers are of the `SequenceIndexer` type
         let indexer =
-            SequenceIndexer::<T>::try_from_with_metrics(setup, metrics, advance_log_index).await?;
+            SequenceIndexer::<T>::try_from_with_metrics(setup, metrics, advanced_log_meta).await?;
         Ok(Arc::new(ContractSync::new(
             domain.clone(),
             store.clone() as SequenceAwareLogStore<_>,
@@ -184,7 +184,7 @@ impl Settings {
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         store: Arc<S>,
-        advance_log_index: bool,
+        advanced_log_meta: bool,
     ) -> eyre::Result<Arc<WatermarkContractSync<T>>>
     where
         T: Indexable + Debug,
@@ -194,7 +194,7 @@ impl Settings {
         let setup = self.chain_setup(domain)?;
         // Currently, all indexers are of the `SequenceIndexer` type
         let indexer =
-            SequenceIndexer::<T>::try_from_with_metrics(setup, metrics, advance_log_index).await?;
+            SequenceIndexer::<T>::try_from_with_metrics(setup, metrics, advanced_log_meta).await?;
         Ok(Arc::new(ContractSync::new(
             domain.clone(),
             store.clone() as WatermarkLogStore<_>,
@@ -212,7 +212,7 @@ impl Settings {
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         stores: HashMap<HyperlaneDomain, Arc<S>>,
-        advance_log_index: bool,
+        advanced_log_meta: bool,
     ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
@@ -232,7 +232,7 @@ impl Settings {
                         metrics,
                         sync_metrics,
                         stores.get(domain).unwrap().clone(),
-                        advance_log_index,
+                        advanced_log_meta,
                     )
                     .await
                     .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
@@ -242,7 +242,7 @@ impl Settings {
                         metrics,
                         sync_metrics,
                         stores.get(domain).unwrap().clone(),
-                        advance_log_index,
+                        advanced_log_meta,
                     )
                     .await
                     .map(|r| r as Arc<dyn ContractSyncer<T>>)?,

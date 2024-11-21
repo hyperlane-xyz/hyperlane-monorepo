@@ -92,7 +92,7 @@ pub struct SealevelInterchainGasPaymasterIndexer {
     rpc_client: SealevelRpcClient,
     igp: SealevelInterchainGasPaymaster,
     log_meta_composer: LogMetaComposer,
-    advance_log_meta: bool,
+    advanced_log_meta: bool,
 }
 
 /// IGP payment data on Sealevel
@@ -108,7 +108,7 @@ impl SealevelInterchainGasPaymasterIndexer {
     pub async fn new(
         conf: &ConnectionConf,
         igp_account_locator: ContractLocator<'_>,
-        advance_log_meta: bool,
+        advanced_log_meta: bool,
     ) -> ChainResult<Self> {
         // Set the `processed` commitment at rpc level
         let rpc_client = SealevelRpcClient::new(conf.url.to_string());
@@ -125,7 +125,7 @@ impl SealevelInterchainGasPaymasterIndexer {
             rpc_client,
             igp,
             log_meta_composer,
-            advance_log_meta,
+            advanced_log_meta,
         })
     }
 
@@ -171,7 +171,7 @@ impl SealevelInterchainGasPaymasterIndexer {
             gas_amount: gas_payment_account.gas_amount.into(),
         };
 
-        let log_meta = if self.advance_log_meta {
+        let log_meta = if self.advanced_log_meta {
             self.interchain_payment_log_meta(
                 U256::from(sequence_number),
                 &valid_payment_pda_pubkey,
