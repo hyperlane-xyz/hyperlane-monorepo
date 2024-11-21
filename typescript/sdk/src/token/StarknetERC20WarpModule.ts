@@ -1,11 +1,12 @@
 import { Account, byteArray, getChecksumAddress } from 'starknet';
 
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
 import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
+import { HypERC20Deployer } from './deploy.js';
 import { WarpRouteDeployConfig } from './types.js';
 
 export class StarknetERC20WarpModule {
@@ -21,6 +22,15 @@ export class StarknetERC20WarpModule {
   }
 
   public async deployToken() {
+    // TODO: manage this in a multi-protocol way, for now works as we just support native-synthetic pair
+    const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+      this.multiProvider,
+      this.config,
+    );
+    assert(
+      tokenMetadata && tokenMetadata.decimals,
+      "Token metadata can't be extracted",
+    );
     for (const [chain, chainConfig] of Object.entries(this.config)) {
       //Ignore non-starknet chains
       if (
@@ -36,14 +46,14 @@ export class StarknetERC20WarpModule {
       });
 
       const tokenAddress = await this.deployer.deployContract('HypErc20', {
-        decimals: 18,
+        decimals: tokenMetadata.decimals,
         mailbox: chainConfig.mailbox,
-        total_supply: 0,
-        name: [byteArray.byteArrayFromString('etherum')],
-        symbol: [byteArray.byteArrayFromString('ETH')],
+        total_supply: tokenMetadata.totalSupply,
+        name: [byteArray.byteArrayFromString(tokenMetadata.name)],
+        symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
         hook: getChecksumAddress(0),
         interchain_security_module: ismAddress,
-        owner: this.signer.address,
+        owner: this.signer.address, //TODO: use config.owner, and in warp init ask for starknet owner
       });
       console.log({ tokenAddress });
     }
