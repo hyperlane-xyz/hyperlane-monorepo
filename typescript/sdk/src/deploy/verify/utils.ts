@@ -1,4 +1,3 @@
-import { Interface } from '@ethersproject/abi';
 import { ethers, utils } from 'ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
@@ -93,7 +92,7 @@ export async function getContractVerificationInputForZKSync({
 }
 
 export function encodeArguments(abi: any, constructorArgs: any[]): string {
-  const contractInterface = new Interface(abi);
+  const contractInterface = new utils.Interface(abi);
   let deployArgumentsEncoded;
   try {
     deployArgumentsEncoded = contractInterface
