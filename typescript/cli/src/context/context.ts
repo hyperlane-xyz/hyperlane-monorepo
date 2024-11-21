@@ -45,6 +45,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
+    strategyPath: argv.strategy,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
@@ -57,13 +58,12 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, context } = argv;
-  const { requiresKey, multiProvider } = context;
+  const { key, requiresKey, multiProvider, strategyPath } = argv.context;
 
   if (!requiresKey) return argv;
 
   const strategyConfig = await readChainSubmissionStrategyConfig(
-    argv.strategy ?? DEFAULT_STRATEGY_CONFIG_PATH,
+    strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
   );
 
   /**
