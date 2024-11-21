@@ -4,6 +4,7 @@ import { Logger } from 'pino';
 import {
   ChainName,
   ChainSubmissionStrategy,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -31,6 +32,7 @@ export class MultiProtocolSignerManager {
     protected readonly submissionStrategy: ChainSubmissionStrategy,
     protected readonly chains: ChainName[],
     protected readonly multiProvider: MultiProvider,
+    private multiProtocolProvider: MultiProtocolProvider,
     protected readonly options: MultiProtocolSignerOptions = {},
   ) {
     this.logger =
