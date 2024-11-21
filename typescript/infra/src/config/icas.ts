@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import { ethers } from 'ethers';
 
 import {
@@ -11,7 +12,13 @@ import {
   MultiProvider,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, deepEquals, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  deepEquals,
+  eqAddress,
+  rootLogger,
+  stringifyObject,
+} from '@hyperlane-xyz/utils';
 
 import { getAbacusWorksIcasPath } from '../../scripts/agent-utils.js';
 import { readJSONAtPath, writeMergedJSONAtPath } from '../utils/utils.js';
@@ -24,7 +31,7 @@ export interface IcaArtifact {
 }
 
 export interface IcaDeployResult {
-  chain: string;
+  chain: ChainName;
   result?: IcaArtifact;
   error?: string;
   deployed?: string;
@@ -45,7 +52,35 @@ export function readAbacusWorksIcas(
   return readJSONAtPath(getAbacusWorksIcasPath(environment));
 }
 
+/**
+ * Manages the Interchain Accounts (ICAs) for Abacus Works
+ *
+ * Public methods:
+ * - getIcaAccount(ownerConfig: AccountConfig, icaChain: ChainName, ismAddress: Address): Promise<string>
+ *   Gets the ICA address using the owner config and ISM address.
+ *
+ * - recoverOrDeployChainIca(chain: ChainName, ownerConfig: AccountConfig, chainArtifact?: IcaArtifact, deploy: boolean): Promise<IcaDeployResult>
+ *   Recovers or deploys the ICA for a given chain. If deploy is true and the existing ICA does not match expected config, deploys a new one.
+ *   Returns result containing ICA address, ISM address, and deployment status.
+ *
+ * - artifactMatchesExpectedConfig(ownerConfig: AccountConfig, icaChain: ChainName, icaArtifact: IcaArtifact): Promise<boolean>
+ *   Verifies that an ICA artifact matches the expected configuration by checking ISM config and ICA address recovery
+ *
+ * - deployNewIca(chain: ChainName, ownerConfig: AccountConfig): Promise<IcaDeployResult>
+ *   Deploys a new ICA with proper ownership setup:
+ *   1. Deploys ISM with deployer as initial owner.
+ *   2. Deploys ICA using the ISM.
+ *   3. Transfers ISM ownership to the ICA.
+ *   4. Verifies deployment matches expected config.
+ *
+ * - getExpectedIsmConfig(chain: ChainName, ownerConfig: AccountConfig, icaAddress: Address): Promise<IsmConfig>
+ *   Gets the expected ISM configuration for a chain and owner.
+ */
 export class AbacusWorksIcaManager {
+  private readonly logger = rootLogger.child({
+    module: 'AbacusWorksIcaManager',
+  });
+
   constructor(
     private readonly multiProvider: MultiProvider,
     private readonly ica: InterchainAccount,
@@ -60,6 +95,11 @@ export class AbacusWorksIcaManager {
 
   /**
    * Gets the ICA address using the owner config and ISM address
+   *
+   * @param ownerConfig - The owner config for the ICA
+   * @param icaChain - The chain where the ICA exists
+   * @param ismAddress - The address of the ISM
+   * @returns The ICA address
    */
   public async getIcaAccount(
     ownerConfig: AccountConfig,
@@ -77,33 +117,33 @@ export class AbacusWorksIcaManager {
   }
 
   /**
-   * Verifies or deploys the ICA for a given chain.
+   * Recovers or deploys the ICA for a given chain.
    * @param chain - The chain to process.
-   * @param options - The options for verifying or deploying the ICA.
-   * @returns The result of verifying or deploying the ICA.
+   * @param ownerConfig - The owner config for the ICA.
+   * @param chainArtifact - The existing ICA artifact for the chain, if it exists.
+   * @param deploy - Whether to deploy a new ICA if the existing one does not match the expected config.
+   * @returns The result of recovering or deploying the ICA.
    */
-  public async verifyOrDeployChainIca(
-    chain: string,
-    {
-      ownerConfig,
-      chainArtifact,
-      deploy,
-    }: {
-      ownerConfig: AccountConfig;
-      chainArtifact?: IcaArtifact;
-      deploy: boolean;
-    },
+  public async recoverOrDeployChainIca(
+    chain: ChainName,
+    ownerConfig: AccountConfig,
+    chainArtifact: IcaArtifact | undefined,
+    deploy: boolean,
   ): Promise<IcaDeployResult> {
     // Try to recover existing ICA
+    // If the chain artifact is undefined, we assume the ICA is not deployed
+    // If the ISM address is zero, we assume the ICA is not deployed
     if (
       chainArtifact &&
       !eqAddress(chainArtifact.ism, ethers.constants.AddressZero)
     ) {
-      console.log(
-        'Attempting ICA recovery on chain',
-        chain,
-        'with existing artifact',
-        chainArtifact,
+      this.logger.debug(
+        chalk.italic.gray(
+          'Attempting ICA recovery on chain',
+          chain,
+          'with existing artifact',
+          chainArtifact,
+        ),
       );
 
       const matches = await this.artifactMatchesExpectedConfig(
@@ -113,7 +153,7 @@ export class AbacusWorksIcaManager {
       );
 
       if (matches) {
-        console.log('Recovered ICA on chain', chain);
+        this.logger.info(chalk.bold.green(`Recovered ICA on chain ${chain}`));
         return {
           chain,
           result: chainArtifact,
@@ -122,17 +162,17 @@ export class AbacusWorksIcaManager {
         };
       }
 
-      console.warn(
+      this.logger.warn(
         `Chain ${chain} ICA artifact does not match expected config, will redeploy`,
       );
     }
 
-    // Handle case where deployment is not allowed
+    // If we're not deploying, we can't have an ICA
     if (!deploy) {
-      console.log(
-        'Skipping required ISM deployment for chain',
-        chain,
-        ', will not have an ICA',
+      this.logger.debug(
+        chalk.italic.gray(
+          `Skipping required ISM deployment for chain ${chain}, will not have an ICA`,
+        ),
       );
       return {
         chain,
@@ -154,8 +194,7 @@ export class AbacusWorksIcaManager {
    * 1. Checking that the ISM configuration matches what we expect
    * 2. Verifying we can recover the correct ICA address
    *
-   * @param originChain - The chain where the owner account exists
-   * @param originOwner - The address of the owner account
+   * @param ownerConfig - The owner config for the ICA
    * @param icaChain - The chain where the ICA exists
    * @param icaArtifact - The artifact containing ICA and ISM addresses
    * @returns True if the artifact matches expected config, false otherwise
@@ -215,13 +254,15 @@ export class AbacusWorksIcaManager {
     );
 
     if (!matches) {
-      console.log(
-        `Somehow after everything, the ICA artifact on chain ${chain} still does not match the expected config! There's probably a bug.`,
+      this.logger.error(
+        chalk.bold.red(
+          `Somehow after everything, the ICA artifact on chain ${chain} still does not match the expected config! There's probably a bug.`,
+        ),
       );
       return { chain, result: undefined, deployed: '❌', recovered: '❌' };
     }
 
-    return { chain, result: newChainArtifact, deployed: '✅', recovered: '❌' };
+    return { chain, result: newChainArtifact, deployed: '✅', recovered: '-' };
   }
 
   /**
@@ -255,16 +296,25 @@ export class AbacusWorksIcaManager {
     // Read the actual config from the deployed ISM
     const actualIsmConfig = await ismModule.read();
 
+    const normalizedActualIsmConfig = normalizeConfig(actualIsmConfig);
+    const normalizedDesiredIsmConfig = normalizeConfig(desiredIsmConfig);
+
     // Compare normalized configs to handle any formatting differences
     const configsMatch = deepEquals(
-      normalizeConfig(actualIsmConfig),
-      normalizeConfig(desiredIsmConfig),
+      normalizedActualIsmConfig,
+      normalizedDesiredIsmConfig,
     );
 
     if (!configsMatch) {
-      console.log('ISM mismatch for', icaChain);
-      console.log('actualIsmConfig:', JSON.stringify(actualIsmConfig));
-      console.log('desiredIsmConfig:', JSON.stringify(desiredIsmConfig));
+      this.logger.error(chalk.bold.red(`ISM mismatch for ${icaChain}`));
+      this.logger.error(
+        chalk.red('Actual ISM config:\n'),
+        stringifyObject(normalizedActualIsmConfig),
+      );
+      this.logger.error(
+        chalk.red('Desired ISM config:\n'),
+        stringifyObject(normalizedDesiredIsmConfig),
+      );
     }
 
     return configsMatch;
@@ -273,8 +323,7 @@ export class AbacusWorksIcaManager {
   /**
    * Verifies that we can recover the correct ICA address using the owner config
    *
-   * @param originChain - The chain where the owner account exists
-   * @param originOwner - The address of the owner account
+   * @param ownerConfig - The owner config for the ICA
    * @param icaChain - The chain where the ICA exists
    * @param icaArtifact - The artifact containing the ICA address
    * @returns True if recovered address matches artifact, false otherwise
@@ -294,14 +343,16 @@ export class AbacusWorksIcaManager {
     // Check if recovered address matches the artifact
     const accountMatches = eqAddress(account, icaArtifact.ica);
     if (!accountMatches) {
-      console.error(
-        `⚠️⚠️⚠️ Failed to recover ICA for ${icaChain}. Expected: ${
-          icaArtifact.ica
-        }, got: ${account}. Chain owner config: ${JSON.stringify({
-          origin: ownerConfig.origin,
-          owner: ownerConfig.owner,
-          ismOverride: icaArtifact.ism,
-        })} ⚠️⚠️⚠️`,
+      this.logger.error(
+        chalk.bold.red(
+          `⚠️⚠️⚠️ Failed to recover ICA for ${icaChain}. Expected: ${
+            icaArtifact.ica
+          }, got: ${account}. Chain owner config: ${JSON.stringify({
+            origin: ownerConfig.origin,
+            owner: ownerConfig.owner,
+            ismOverride: icaArtifact.ism,
+          })} ⚠️⚠️⚠️`,
+        ),
       );
     }
 
@@ -314,7 +365,10 @@ export class AbacusWorksIcaManager {
    * @param chain - The destination chain for the ICA deployment
    * @returns ISM module and address
    */
-  private async deployInitialIsm(chain: ChainName) {
+  private async deployInitialIsm(chain: ChainName): Promise<{
+    ismModule: EvmIsmModule;
+    ismAddress: Address;
+  }> {
     // Initially configure ISM with deployer as owner since ICA address is unknown
     const deployerOwnedIsm = this.getIcaIsm(
       chain,
@@ -322,7 +376,9 @@ export class AbacusWorksIcaManager {
       this.deployer,
     );
 
-    console.log('Deploying ISM for ICA on chain', chain);
+    this.logger.info(
+      chalk.italic.blue(`Deploying ISM for ICA on chain ${chain}`),
+    );
     // Create and deploy the ISM module
     const ismModule = await EvmIsmModule.create({
       chain,
@@ -350,23 +406,25 @@ export class AbacusWorksIcaManager {
     chain: ChainName,
     ownerConfig: AccountConfig,
     ismAddress: Address,
-  ) {
+  ): Promise<Address> {
     // Configure ICA with deployed ISM address
-    const chainOwnerConfig = {
+    const icaOwnerConfig = {
       ...ownerConfig,
       ismOverride: ismAddress,
     };
 
-    console.log(
-      'Deploying ICA on chain',
-      chain,
-      'with owner config',
-      chainOwnerConfig,
+    this.logger.info(
+      chalk.italic.blue(
+        `Deploying ICA on chain ${chain} with owner config`,
+        stringifyObject(icaOwnerConfig),
+      ),
     );
 
     // Deploy the ICA
-    const deployedIca = await this.ica.deployAccount(chain, chainOwnerConfig);
-    console.log(`Deployed ICA on chain: ${chain}: ${deployedIca}`);
+    const deployedIca = await this.ica.deployAccount(chain, icaOwnerConfig);
+    this.logger.info(
+      chalk.bold.green(`Deployed ICA on chain ${chain}: ${deployedIca}`),
+    );
 
     return deployedIca;
   }
@@ -391,9 +449,11 @@ export class AbacusWorksIcaManager {
       chain,
     });
     const updateTxs = await ismModule.update(icaOwnedIsmConfig);
-    console.log(
-      `Updating routing ISM owner on ${chain} with transactions:`,
-      updateTxs,
+    this.logger.info(
+      chalk.italic.blue(`Updating routing ISM owner on ${chain}`),
+    );
+    this.logger.debug(
+      chalk.italic.gray(`Update transactions:`, stringifyObject(updateTxs)),
     );
     await submitter.submit(...updateTxs);
   }

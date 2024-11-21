@@ -1,9 +1,15 @@
+import chalk from 'chalk';
+
 import { AccountConfig, ChainMap, InterchainAccount } from '@hyperlane-xyz/sdk';
 import {
+  LogFormat,
+  LogLevel,
   assert,
+  configureRootLogger,
   eqAddress,
   isZeroishAddress,
   objFilter,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { getIcaIsm } from '../../config/environments/mainnet3/ica.js';
@@ -52,6 +58,7 @@ async function main() {
     deploy,
     owner: ownerOverride,
   } = await getArgs();
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
   assert(environment === 'mainnet3', 'Only mainnet3 is supported');
 
@@ -63,7 +70,10 @@ async function main() {
   try {
     artifacts = await readAbacusWorksIcas(environment);
   } catch (err) {
-    console.error('Error reading artifacts, defaulting to no artifacts:', err);
+    rootLogger.error(
+      chalk.bold.red('Error reading artifacts, defaulting to no artifacts:'),
+      err,
+    );
     artifacts = {};
   }
 
@@ -82,7 +92,7 @@ async function main() {
   }
 
   // Log the owner address
-  console.log(`Governance owner on ${ownerChain}: ${originOwner}`);
+  rootLogger.info(`Governance owner on ${ownerChain}: ${originOwner}`);
 
   // Get the chain addresses
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
@@ -102,7 +112,9 @@ async function main() {
   const ownerChainInterchainAccountRouter =
     ica.contractsMap[ownerChain].interchainAccountRouter.address;
   if (isZeroishAddress(ownerChainInterchainAccountRouter)) {
-    console.error(`Interchain account router address is zero`);
+    rootLogger.error(
+      chalk.bold.red(`Interchain account router address is zero`),
+    );
     process.exit(1);
   }
 
@@ -119,8 +131,10 @@ async function main() {
     chains = chainsArg;
   } else {
     chains = ica.chains().filter((chain) => chain !== ownerChain);
-    console.log(
-      'Chains not supplied, using all ICA supported chains other than the owner chain:',
+    rootLogger.debug(
+      chalk.italic.gray(
+        'Chains not supplied, using all ICA supported chains other than the owner chain:',
+      ),
       chains,
     );
   }
@@ -137,15 +151,16 @@ async function main() {
   // Verify or deploy each chain's ICA
   const settledResults = await Promise.allSettled(
     chains.map(async (chain) => {
-      return abacusWorksIca.verifyOrDeployChainIca(chain, {
-        chainArtifact: artifacts[chain],
-        deploy,
+      return abacusWorksIca.recoverOrDeployChainIca(
+        chain,
         ownerConfig,
-      });
+        artifacts[chain],
+        deploy,
+      );
     }),
   );
 
-  // User-friendly output for the console.table
+  // User-friendly output for the rootLogger.table
   const results: Record<string, Omit<IcaDeployResult, 'chain'>> = {};
   // Map of chain to ICA artifact
   const icaArtifacts: ChainMap<IcaArtifact> = {};
@@ -153,7 +168,7 @@ async function main() {
     if (settledResult.status === 'fulfilled') {
       const { chain, result, error, deployed, recovered } = settledResult.value;
       if (error || !result) {
-        console.error(`Failed to process ${chain}:`, error);
+        rootLogger.error(chalk.red(`Failed to process ${chain}:`), error);
       } else {
         results[chain] = {
           deployed,
@@ -163,23 +178,26 @@ async function main() {
         icaArtifacts[chain] = result;
       }
     } else {
-      console.error(`Promise rejected:`, settledResult.reason);
+      rootLogger.error(chalk.red(`Promise rejected:`), settledResult.reason);
     }
   });
 
   console.table(results);
 
-  console.log(
-    `Writing results to local artifacts: ${getAbacusWorksIcasPath(
-      environment,
-    )}`,
+  rootLogger.info(
+    chalk.italic.gray(
+      `Writing results to local artifacts: ${getAbacusWorksIcasPath(
+        environment,
+      )}`,
+    ),
   );
   persistAbacusWorksIcas(environment, icaArtifacts);
+  process.exit(0);
 }
 
 main()
   .then()
   .catch((err) => {
-    console.error('Error:', err);
+    rootLogger.error(chalk.bold.red('Error:'), err);
     process.exit(1);
   });
