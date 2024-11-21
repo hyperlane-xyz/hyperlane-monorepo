@@ -334,18 +334,18 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         chain,
         config,
         multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
       });
       const actualConfig = await evmERC20WarpModule.read();
 
       for (const hook of hookConfigToUpdate) {
         const expectedConfig: TokenRouterConfig = {
           ...actualConfig,
-          ismFactoryAddresses,
           hook,
         };
         await sendTxs(await evmERC20WarpModule.update(expectedConfig));
         const updatedConfig = normalizeConfig(
-          (await evmERC20WarpModule.read()).interchainSecurityModule,
+          (await evmERC20WarpModule.read()).hook,
         );
 
         expect(updatedConfig).to.deep.equal(hook);
