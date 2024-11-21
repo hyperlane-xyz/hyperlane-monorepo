@@ -12,6 +12,7 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
@@ -58,8 +59,10 @@ export async function contextMiddleware(argv: Record<string, any>) {
 
 export async function signerMiddleware(argv: Record<string, any>) {
   const { key, context } = argv;
-  const { requiresKey, multiProvider } = context;
+  const { requiresKey, multiProvider, chainMetadata } = context;
 
+  const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
+  argv.multiProtocolProvider = multiProtocolProvider;
   if (!requiresKey) return argv;
 
   const strategyConfig = await readChainSubmissionStrategyConfig(
@@ -83,6 +86,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
     strategyConfig,
     chains,
     multiProvider,
+    multiProtocolProvider,
     { key },
   );
 
