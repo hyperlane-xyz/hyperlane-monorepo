@@ -42,6 +42,7 @@ import {
   withContext,
   withFork,
   withGovern,
+  withInteractive,
   withModule,
   withPushMetrics,
   withWarpRouteId,
@@ -56,7 +57,7 @@ export function getCheckBaseArgs() {
 }
 
 export function getCheckWarpDeployArgs() {
-  return withPushMetrics(getCheckBaseArgs());
+  return withInteractive(withPushMetrics(getCheckBaseArgs()));
 }
 
 export function getCheckDeployArgs() {

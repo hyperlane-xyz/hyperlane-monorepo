@@ -1,3 +1,4 @@
+import { checkbox } from '@inquirer/prompts';
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
@@ -23,6 +24,7 @@ import {
 
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
+import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
 import {
   getChain,
@@ -268,6 +270,27 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .string('rpcUrls')
     .demandOption('rpcUrls')
     .alias('r', 'rpcUrls');
+}
+
+export function withInteractive<T>(args: Argv<T>) {
+  return args
+    .describe('interactive', 'If enabled, runs in interactive mode')
+    .boolean('interactive')
+    .default('interactive', false);
+}
+
+export async function getWarpRouteIdsInteractive() {
+  const choices = Object.values(WarpRouteIds).map((id) => ({
+    value: id,
+  }));
+
+  const selection = await checkbox({
+    message: 'Select Warp Route IDs to deploy',
+    choices,
+    pageSize: 30,
+  });
+
+  return selection;
 }
 
 // not requiring to build coreConfig to get agentConfig

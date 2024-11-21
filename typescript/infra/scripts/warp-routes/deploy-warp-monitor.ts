@@ -9,6 +9,7 @@ import {
   assertCorrectKubeContext,
   getAgentConfig,
   getArgs,
+  getWarpRouteIdsInteractive,
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -39,27 +40,6 @@ async function main() {
     console.log(`Deploying Warp Monitor for Warp Route ID: ${id}`);
     await deployWarpMonitor(id);
   }
-}
-
-async function getWarpRouteIdsInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
-
-  let selection: WarpRouteIds[] = [];
-
-  while (!selection.length) {
-    selection = await checkbox({
-      message: 'Select Warp Route IDs to deploy',
-      choices,
-      pageSize: 30,
-    });
-    if (!selection.length) {
-      console.log('Please select at least one Warp Route ID');
-    }
-  }
-
-  return selection;
 }
 
 main()
