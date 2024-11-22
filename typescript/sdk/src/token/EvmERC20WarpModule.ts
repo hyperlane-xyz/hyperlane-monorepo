@@ -9,6 +9,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   ContractVerifier,
   ExplorerLicenseType,
+  HookConfig,
   HyperlaneAddresses,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -292,9 +293,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    const actualDeployedHook = (actualConfig.hook as DerivedHookConfig).address;
+    const actualDeployedHook = (actualConfig.hook as DerivedHookConfig)
+      ?.address;
 
-    // Try to update (may also deploy) Hook with the expected config
+    // Try to deploy or update Hook with the expected config
     const {
       deployedHook: expectedDeployedHook,
       updateTransactions: hookUpdateTransactions,
@@ -354,10 +356,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     deployedIsm: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
-    assert(
-      expectedConfig.interchainSecurityModule,
-      'Ism not derived correctly',
-    );
+    assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
     const ismModule = new EvmIsmModule(
       this.multiProvider,
@@ -386,9 +385,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Updates or deploys the ISM using the provided configuration.
+   * Updates or deploys the hook using the provided configuration.
    *
-   * @returns Object with deployedIsm address, and update Transactions
+   * @returns Object with deployedHook address, and update Transactions
    */
   public async deployOrUpdateHook(
     actualConfig: TokenRouterConfig,
@@ -397,25 +396,85 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
-    assert(expectedConfig.hook, 'Ism not derived correctly');
+    assert(expectedConfig.hook, 'No hook config');
 
+    if (!actualConfig.hook) {
+      return this.deployNewHook(expectedConfig.hook);
+    }
+
+    return this.updateExistingHook(
+      expectedConfig.hook,
+      actualConfig.hook as DerivedHookConfig,
+    );
+  }
+
+  async deployNewHook(hookConfig: HookConfig): Promise<{
+    deployedHook: Address;
+    updateTransactions: AnnotatedEV5Transaction[];
+  }> {
+    this.logger.info(
+      `No hook deployed for warp route, deploying new hook on ${this.args.chain} chain`,
+    );
+
+    const {
+      mailbox,
+      proxyAdmin,
+      staticMerkleRootMultisigIsmFactory,
+      staticMessageIdMultisigIsmFactory,
+      staticAggregationIsmFactory,
+      staticAggregationHookFactory,
+      domainRoutingIsmFactory,
+      staticMerkleRootWeightedMultisigIsmFactory,
+      staticMessageIdWeightedMultisigIsmFactory,
+    } = this.args.addresses;
+
+    const hookModule = await EvmHookModule.create({
+      chain: this.args.chain,
+      config: hookConfig,
+      proxyFactoryFactories: {
+        staticMerkleRootMultisigIsmFactory,
+        staticMessageIdMultisigIsmFactory,
+        staticAggregationIsmFactory,
+        staticAggregationHookFactory,
+        domainRoutingIsmFactory,
+        staticMerkleRootWeightedMultisigIsmFactory,
+        staticMessageIdWeightedMultisigIsmFactory,
+      },
+      coreAddresses: {
+        mailbox,
+        proxyAdmin,
+      },
+      contractVerifier: this.contractVerifier,
+      multiProvider: this.multiProvider,
+    });
+    const { deployedHook } = hookModule.serialize();
+    return { deployedHook, updateTransactions: [] };
+  }
+
+  async updateExistingHook(
+    expectedHookConfig: HookConfig,
+    actualHookConfig: DerivedHookConfig,
+  ): Promise<{
+    deployedHook: Address;
+    updateTransactions: AnnotatedEV5Transaction[];
+  }> {
     const hookModule = new EvmHookModule(
       this.multiProvider,
       {
         chain: this.args.chain,
-        config: expectedConfig.hook,
+        config: expectedHookConfig,
         addresses: {
           ...this.args.addresses,
-          deployedHook: (actualConfig.hook as DerivedHookConfig).address,
+          deployedHook: actualHookConfig.address,
         },
       },
       this.contractVerifier,
     );
 
     this.logger.info(
-      `Comparing target ISM config with ${this.args.chain} chain`,
+      `Comparing target Hook config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await hookModule.update(expectedConfig.hook);
+    const updateTransactions = await hookModule.update(expectedHookConfig);
     const { deployedHook } = hookModule.serialize();
 
     return { deployedHook, updateTransactions };
