@@ -145,8 +145,7 @@ export async function createWarpRouteDeployConfig({
     { key: context.key },
   );
 
-  const multiProviderWithSigners =
-    await multiProtocolSigner.setupMultiProvider();
+  const multiProviderWithSigners = await multiProtocolSigner.getMultiProvider();
 
   const result: WarpRouteDeployConfig = {};
   let typeChoices = TYPE_CHOICES;

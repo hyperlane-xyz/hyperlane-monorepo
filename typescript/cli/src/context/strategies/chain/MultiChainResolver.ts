@@ -5,6 +5,7 @@ import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/opt
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { logRed } from '../../../logger.js';
 import {
+  extractChainsFromObj,
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
@@ -14,7 +15,6 @@ import {
   runFileSelectionStep,
 } from '../../../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../../../utils/input.js';
-import { extractChainsFromObj } from '../../../utils/output.js';
 
 import { ChainResolver } from './types.js';
 

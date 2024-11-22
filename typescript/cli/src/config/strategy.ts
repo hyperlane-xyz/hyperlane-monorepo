@@ -130,13 +130,8 @@ export async function createStrategyConfig({
     case TxSubmitterType.IMPERSONATED_ACCOUNT:
       submitter.userAddress = await input({
         message: 'Enter the user address to impersonate',
-        validate: (address) => {
-          try {
-            return isAddress(address) ? true : 'Invalid Ethereum address';
-          } catch {
-            return 'Invalid Ethereum address';
-          }
-        },
+        validate: (address) =>
+          isAddress(address) ? true : 'Invalid Ethereum address',
       });
       assert(
         submitter.userAddress,
@@ -148,13 +143,8 @@ export async function createStrategyConfig({
     case TxSubmitterType.GNOSIS_TX_BUILDER:
       submitter.safeAddress = await input({
         message: 'Enter the Safe address',
-        validate: (address) => {
-          try {
-            return isAddress(address) ? true : 'Invalid Safe address';
-          } catch {
-            return 'Invalid Safe address';
-          }
-        },
+        validate: (address) =>
+          isAddress(address) ? true : 'Invalid Safe address',
       });
 
       submitter.chain = chain;
@@ -188,6 +178,7 @@ export async function createStrategyConfig({
     writeYamlOrJson(outPath, strategyConfig);
     logGreen('✅ Successfully created a new strategy configuration.');
   } catch (e) {
+    // don't log error since it may contain sensitive data
     errorRed(
       `The strategy configuration is invalid. Please review the submitter settings.`,
     );

@@ -101,36 +101,3 @@ export function maskSensitiveData(obj: any): any {
 
   return obj;
 }
-
-/**
- * @notice Extracts chain names from a nested configuration object
- * @param config Object to search for chain names
- * @return Array of discovered chain names
- */
-export function extractChainsFromObj(config: Record<string, any>): string[] {
-  const chains: string[] = [];
-
-  // Recursively search for chain/chainName fields
-  function findChainFields(obj: any) {
-    if (obj === null || typeof obj !== 'object') return;
-
-    if (Array.isArray(obj)) {
-      obj.forEach((item) => findChainFields(item));
-      return;
-    }
-
-    if ('chain' in obj) {
-      chains.push(obj.chain);
-    }
-
-    if ('chainName' in obj) {
-      chains.push(obj.chainName);
-    }
-
-    // Recursively search in all nested values
-    Object.values(obj).forEach((value) => findChainFields(value));
-  }
-
-  findChainFields(config);
-  return chains;
-}
