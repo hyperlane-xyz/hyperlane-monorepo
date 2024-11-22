@@ -243,7 +243,7 @@ export class EvmHookModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HookConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
-    coreAddresses: CoreAddresses;
+    coreAddresses: Omit<CoreAddresses, 'validatorAnnounce'>;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmHookModule> {
