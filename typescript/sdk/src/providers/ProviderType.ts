@@ -27,7 +27,7 @@ import {
   types as zkSyncTypes,
 } from 'zksync-ethers';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
   ZKSync = 'zksync',
@@ -214,9 +214,7 @@ export interface ZKSyncTransaction
   transaction: zkSyncTypes.TransactionRequest;
 }
 
-export interface AnnotatedEV5Transaction extends EV5Transaction {
-  annotation?: string;
-}
+export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;

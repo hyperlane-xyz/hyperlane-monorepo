@@ -1,7 +1,13 @@
 import { ethers } from 'ethers';
 import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
+
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+
+import { DeployedOwnableConfig } from './types.js';
 
 type Provider = ethers.providers.Provider | ZKSyncProvider;
 
@@ -69,4 +75,51 @@ export async function isProxy(
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
   return !eqAddress(admin, ethers.constants.AddressZero);
+}
+
+export function proxyAdminUpdateTxs(
+  chainId: ChainId,
+  proxyAddress: Address,
+  actualConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
+  expectedConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
+): AnnotatedEV5Transaction[] {
+  const transactions: AnnotatedEV5Transaction[] = [];
+
+  // Return early because old config files did not have the
+  // proxyAdmin property
+  if (!expectedConfig.proxyAdmin?.address) {
+    return transactions;
+  }
+
+  const actualProxyAdmin = actualConfig.proxyAdmin!;
+  const parsedChainId =
+    typeof chainId === 'string' ? parseInt(chainId) : chainId;
+
+  if (
+    actualProxyAdmin.address &&
+    actualProxyAdmin.address !== expectedConfig.proxyAdmin.address
+  ) {
+    transactions.push({
+      chainId: parsedChainId,
+      annotation: `Updating ProxyAdmin for proxy at "${proxyAddress}" from "${actualProxyAdmin.address}" to "${expectedConfig.proxyAdmin.address}"`,
+      to: actualProxyAdmin.address,
+      data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+        'changeProxyAdmin(address,address)',
+        [proxyAddress, expectedConfig.proxyAdmin.address],
+      ),
+    });
+  } else {
+    transactions.push(
+      // Internally the createTransferOwnershipTx method already checks if the
+      // two owner values are the same and produces an empty tx batch if they are
+      ...transferOwnershipTransactions(
+        parsedChainId,
+        actualProxyAdmin.address!,
+        actualProxyAdmin,
+        expectedConfig.proxyAdmin,
+      ),
+    );
+  }
+
+  return transactions;
 }

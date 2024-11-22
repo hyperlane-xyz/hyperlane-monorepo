@@ -24,6 +24,7 @@ export const isIsmStatic: Record<IsmType, boolean> = {
   [IsmType.ARB_L2_TO_L1]: false,
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: true,
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: true,
+  [IsmType.STORAGE_AGGREGATION]: false,
 } as const;
 
 /**

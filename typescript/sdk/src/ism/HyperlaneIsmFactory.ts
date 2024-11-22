@@ -19,6 +19,7 @@ import {
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   StaticWeightedValidatorSetFactory,
+  StorageAggregationIsm__factory,
   StorageMerkleRootMultisigIsm__factory,
   StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
@@ -160,6 +161,8 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         contract = await this.deployMultisigIsm(destination, config, logger);
         break;
       case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
@@ -182,6 +185,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         });
         break;
       case IsmType.AGGREGATION:
+      case IsmType.STORAGE_AGGREGATION:
         contract = await this.deployAggregationIsm({
           destination,
           config,
@@ -381,18 +385,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       this.getContracts(destination).domainRoutingIsmFactory;
     let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
     // filtering out domains which are not part of the multiprovider
-    config.domains = objFilter(
-      config.domains,
-      (domain, config): config is IsmConfig => {
-        const domainId = this.multiProvider.tryGetDomainId(domain);
-        if (domainId === null) {
-          logger.warn(
-            `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
-          );
-        }
-        return domainId !== null;
-      },
-    );
+    config.domains = objFilter(config.domains, (domain, _): _ is IsmConfig => {
+      const domainId = this.multiProvider.tryGetDomainId(domain);
+      if (domainId === null) {
+        logger.warn(
+          `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
+        );
+      }
+      return domainId !== null;
+    });
     const safeConfigDomains = Object.keys(config.domains).map((domain) =>
       this.multiProvider.getDomainId(domain),
     );
@@ -557,8 +558,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   }): Promise<IAggregationIsm> {
     const { destination, config, origin, mailbox } = params;
     const signer = this.multiProvider.getSigner(destination);
-    const staticAggregationIsmFactory =
-      this.getContracts(destination).staticAggregationIsmFactory;
+
     const addresses: Address[] = [];
     for (const module of config.modules) {
       const submodule = await this.deploy({
@@ -569,14 +569,30 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       });
       addresses.push(submodule.address);
     }
-    const address = await this.deployStaticAddressSet(
-      destination,
-      staticAggregationIsmFactory,
-      addresses,
-      params.logger,
-      config.threshold,
-    );
-    return IAggregationIsm__factory.connect(address, signer);
+
+    let ismAddress: string;
+    if (config.type === IsmType.STORAGE_AGGREGATION) {
+      // TODO: support using minimal proxy factories for storage aggregation ISMs too
+      const factory = new StorageAggregationIsm__factory().connect(signer);
+      const ism = await this.multiProvider.handleDeploy(destination, factory, [
+        addresses,
+        config.threshold,
+      ]);
+      ismAddress = ism.address;
+    } else {
+      const staticAggregationIsmFactory =
+        this.getContracts(destination).staticAggregationIsmFactory;
+
+      ismAddress = await this.deployStaticAddressSet(
+        destination,
+        staticAggregationIsmFactory,
+        addresses,
+        params.logger,
+        config.threshold,
+      );
+    }
+
+    return IAggregationIsm__factory.connect(ismAddress, signer);
   }
 
   async deployStaticAddressSet(

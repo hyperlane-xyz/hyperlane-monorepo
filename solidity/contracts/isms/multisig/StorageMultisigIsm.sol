@@ -11,11 +11,11 @@ import {MinimalProxy} from "../../libs/MinimalProxy.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 
 // ============ External Imports ============
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
 
 abstract contract AbstractStorageMultisigIsm is
     AbstractMultisigIsm,
-    OwnableUpgradeable
+    Ownable2StepUpgradeable
 {
     address[] public validators;
     uint8 public threshold;
@@ -25,25 +25,30 @@ abstract contract AbstractStorageMultisigIsm is
     constructor(
         address[] memory _validators,
         uint8 _threshold
-    ) OwnableUpgradeable() {
+    ) Ownable2StepUpgradeable() {
         validators = _validators;
         threshold = _threshold;
         _disableInitializers();
     }
 
     function initialize(
+        address _owner,
         address[] memory _validators,
         uint8 _threshold
     ) external initializer {
-        __Ownable_init();
+        __Ownable2Step_init();
         setValidatorsAndThreshold(_validators, _threshold);
+        _transferOwnership(_owner);
     }
 
     function setValidatorsAndThreshold(
         address[] memory _validators,
         uint8 _threshold
     ) public onlyOwner {
-        require(_threshold <= _validators.length, "Invalid threshold");
+        require(
+            0 < _threshold && _threshold <= _validators.length,
+            "Invalid threshold"
+        );
         validators = _validators;
         threshold = _threshold;
         emit ValidatorsAndThresholdSet(_validators, _threshold);
@@ -99,7 +104,11 @@ abstract contract StorageMultisigIsmFactory is
     ) external returns (address ism) {
         ism = MinimalProxy.create(implementation());
         emit ModuleDeployed(ism);
-        AbstractStorageMultisigIsm(ism).initialize(_validators, _threshold);
+        AbstractStorageMultisigIsm(ism).initialize(
+            msg.sender,
+            _validators,
+            _threshold
+        );
     }
 
     function implementation() public view virtual returns (address);

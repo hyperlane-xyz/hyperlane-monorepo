@@ -95,7 +95,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
-   * Get an Ethers provider for a given chain name, chain id, or domain id
+   * Get an Ethers provider for a given chain name or domain id
    */
   tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
@@ -127,7 +127,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
-   * Get an Ethers provider for a given chain name, chain id, or domain id
+   * Get an Ethers provider for a given chain name or domain id
    * @throws if chain's metadata has not been set
    */
   getProvider(chainNameOrId: ChainNameOrId): Provider {
@@ -138,7 +138,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
-   * Sets an Ethers provider for a given chain name, chain id, or domain id
+   * Sets an Ethers provider for a given chain name or domain id
    * @throws if chain's metadata has not been set
    */
   setProvider(chainNameOrId: ChainNameOrId, provider: Provider): Provider {
@@ -163,7 +163,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
-   * Get an Ethers signer for a given chain name, chain id, or domain id
+   * Get an Ethers signer for a given chain name or domain id
    * If signer is not yet connected, it will be connected
    */
   tryGetSigner(chainNameOrId: ChainNameOrId): Signer | null {
@@ -180,7 +180,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
-   * Get an Ethers signer for a given chain name, chain id, or domain id
+   * Get an Ethers signer for a given chain name or domain id
    * If signer is not yet connected, it will be connected
    * @throws if chain's metadata or signer has not been set
    */
@@ -191,7 +191,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
-   * Get an Ethers signer for a given chain name, chain id, or domain id
+   * Get an Ethers signer for a given chain name or domain id
    * @throws if chain's metadata or signer has not been set
    */
   async getSignerAddress(chainNameOrId: ChainNameOrId): Promise<Address> {
@@ -201,7 +201,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
-   * Sets an Ethers Signer for a given chain name, chain id, or domain id
+   * Sets an Ethers Signer for a given chain name or domain id
    * @throws if chain's metadata has not been set or shared signer has already been set
    */
   setSigner(chainNameOrId: ChainNameOrId, signer: Signer): Signer {
@@ -316,7 +316,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   }
 
   /**
-   * Get the transaction overrides for a given chain name, chain id, or domain id
+   * Get the transaction overrides for a given chain name or domain id
    * @throws if chain's metadata has not been set
    */
   getTransactionOverrides(

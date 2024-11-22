@@ -318,16 +318,16 @@ export const validatorChainConfig = (
         'sonictestnet',
       ),
     },
-    arcadiatestnet: {
+    arcadiatestnet2: {
       interval: 5,
-      reorgPeriod: getReorgPeriod('arcadiatestnet'),
+      reorgPeriod: getReorgPeriod('arcadiatestnet2'),
       validators: validatorsConfig(
         {
-          [Contexts.Hyperlane]: ['0x7ce5973d3f22971546efb86f5a0417c1248e92f5'],
+          [Contexts.Hyperlane]: ['0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff'],
           [Contexts.ReleaseCandidate]: [],
           [Contexts.Neutron]: [],
         },
-        'arcadiatestnet',
+        'arcadiatestnet2',
       ),
     },
 
@@ -341,6 +341,56 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'odysseytestnet',
+      ),
+    },
+
+    alephzeroevmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('alephzeroevmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x556cd94bcb6e5773e8df75e7eb3f91909d266a26'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'alephzeroevmtestnet',
+      ),
+    },
+    inksepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('inksepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe61c846aee275070207fcbf43674eb254f06097a'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'inksepolia',
+      ),
+    },
+
+    abstracttestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('abstracttestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7655bc4c9802bfcb3132b8822155b60a4fbbce3e'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'abstracttestnet',
+      ),
+    },
+    treasuretopaz: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('treasuretopaz'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x9750849beda0a7870462d4685f953fe39033a5ae'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'treasuretopaz',
       ),
     },
   };

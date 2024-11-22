@@ -243,7 +243,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     let oracleKey: string | undefined;
 
-    const domainIds = this.multiProvider.getKnownDomainIds();
+    const domainIds = this.messageContext
+      ? [this.messageContext.parsed.destination]
+      : this.multiProvider.getKnownDomainIds();
 
     const allKeys = await concurrentMap(
       this.concurrency,

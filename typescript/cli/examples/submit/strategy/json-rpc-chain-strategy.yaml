@@ -1,8 +1,10 @@
 anvil2:
   submitter:
+    chain: anvil2
     type: jsonRpc
 anvil3:
   submitter:
+    chain: anvil3
     type: jsonRpc
 zksync1:
   submitter:

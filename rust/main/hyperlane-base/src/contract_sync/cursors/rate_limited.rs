@@ -78,7 +78,7 @@ pub enum SyncDirection {
 /// performed by `next_action`.
 pub(crate) struct RateLimitedContractSyncCursor<T> {
     indexer: Arc<dyn Indexer<T>>,
-    db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
+    store: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
     tip: u32,
     last_tip_update: Instant,
     eta_calculator: SyncerEtaCalculator,
@@ -89,14 +89,14 @@ impl<T> RateLimitedContractSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         indexer: Arc<dyn Indexer<T>>,
-        db: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
+        store: Arc<dyn HyperlaneWatermarkedLogStore<T>>,
         chunk_size: u32,
         initial_height: u32,
     ) -> Result<Self> {
         let tip = indexer.get_finalized_block_number().await?;
         Ok(Self {
             indexer,
-            db,
+            store,
             tip,
             last_tip_update: Instant::now(),
             eta_calculator: SyncerEtaCalculator::new(initial_height, tip, ETA_TIME_WINDOW),
@@ -189,7 +189,7 @@ where
     ) -> Result<()> {
         // Store a relatively conservative view of the high watermark, which should allow a single watermark to be
         // safely shared across multiple cursors, so long as they are running sufficiently in sync
-        self.db
+        self.store
             .store_high_watermark(u32::max(
                 self.sync_state.start_block,
                 self.sync_state

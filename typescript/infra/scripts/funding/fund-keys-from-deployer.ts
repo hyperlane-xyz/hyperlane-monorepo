@@ -5,7 +5,6 @@ import { BigNumber, ethers } from 'ethers';
 import { Gauge, Registry } from 'prom-client';
 import { format } from 'util';
 
-import { eclipsemainnet } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
@@ -116,6 +115,16 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
       pubkey: new PublicKey('A1XtL9mAzkNEpBPinrCpDRrPqVAFjgaxDk4ATFVoQVyc'),
       walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
     },
+    {
+      // USDT warp route ATA payer
+      pubkey: new PublicKey('9i3kYQqMtkm4sw1w5SQ8ebKMmh4LPVYKZRMPaZeRfn37'),
+      walletName: 'USDT/eclipsemainnet-ethereum-solanamainnet/ata-payer',
+    },
+    {
+      // ORCA warp route ATA payer
+      pubkey: new PublicKey('HqAVwQA6rh1TGdyUHi2XqmCtBSyG3DZjjsCLRXWqyNuU'),
+      walletName: 'ORCA/eclipsemainnet-solanamainnet/ata-payer',
+    },
   ],
   eclipsemainnet: [
     {
@@ -147,6 +156,26 @@ const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
       // TIA warp route ATA payer
       pubkey: new PublicKey('AZs4Rw6H6YwJBKoHBCfChCitHnHvQcVGgrJwGh4bKmAf'),
       walletName: 'TIA/eclipsemainnet-stride/ata-payer',
+    },
+    {
+      // USDT warp route ATA payer
+      pubkey: new PublicKey('78s5TD48q89EZqHNC2bfsswQXn6n3sn1ecGgqXgJe4hL'),
+      walletName: 'USDT/eclipsemainnet-ethereum-solanamainnet/ata-payer',
+    },
+    {
+      // ORCA warp route ATA payer
+      pubkey: new PublicKey('3ZyZHoDRzfYg4ug6Tx4Zywe6M5Vt19vPZFx9Ag8qqnXu'),
+      walletName: 'ORCA/eclipsemainnet-solanamainnet/ata-payer',
+    },
+    {
+      // WBTC warp route ATA payer
+      pubkey: new PublicKey('BH9VfgYaCWbwuupzsTfSy67yR4dwuCbXmFRrm6aAH2NQ'),
+      walletName: 'WBTC/eclipsemainnet-ethereum/ata-payer',
+    },
+    // weETHs warp route ATA payer
+    {
+      pubkey: new PublicKey('F4Y6kHrq9qVnmkQhQibxh8nCU2quw5y25z7u8jSHMvtq'),
+      walletName: 'weETHs/eclipsemainnet-ethereum/ata-payer',
     },
   ],
 };
@@ -308,7 +337,12 @@ class ContextFunder {
     );
 
     this.igp = HyperlaneIgp.fromAddressesMap(
-      getEnvAddresses(this.environment),
+      {
+        ...getEnvAddresses(this.environment),
+        lumia: {
+          interchainGasPaymaster: '0x9024A3902B542C87a5C4A2b3e15d60B2f087Dc3E',
+        },
+      },
       multiProvider,
     );
     this.keysToFundPerChain = objMap(roleKeysPerChain, (_chain, roleKeys) => {
@@ -479,6 +513,7 @@ class ContextFunder {
     const chainKeyEntries = Object.entries(this.keysToFundPerChain);
     const promises = chainKeyEntries.map(async ([chain, keys]) => {
       let failureOccurred = false;
+
       if (keys.length > 0) {
         if (!this.skipIgpClaim) {
           failureOccurred ||= await gracefullyHandleError(
@@ -793,8 +828,8 @@ class ContextFunder {
   ) {
     const l1Chain = L2ToL1[l2Chain];
     const crossChainMessenger = new CrossChainMessenger({
-      l1ChainId: this.multiProvider.getDomainId(l1Chain),
-      l2ChainId: this.multiProvider.getDomainId(l2Chain),
+      l1ChainId: this.multiProvider.getEvmChainId(l1Chain),
+      l2ChainId: this.multiProvider.getEvmChainId(l2Chain),
       l1SignerOrProvider: this.multiProvider.getSignerOrProvider(l1Chain),
       l2SignerOrProvider: this.multiProvider.getSignerOrProvider(l2Chain),
     });
@@ -807,7 +842,7 @@ class ContextFunder {
   private async bridgeToArbitrum(l2Chain: ChainName, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
     const l2Network = await getL2Network(
-      this.multiProvider.getDomainId(l2Chain),
+      this.multiProvider.getEvmChainId(l2Chain),
     );
     const ethBridger = new EthBridger(l2Network);
     return ethBridger.deposit({

@@ -7,6 +7,7 @@ function cleanup() {
   rm -rf /tmp/anvil3
   rm -rf /tmp/zksync1
   rm -rf /tmp/zksync2
+  rm -rf ./tmp
   rm -f ./test-configs/anvil/chains/anvil2/addresses.yaml
   rm -f ./test-configs/anvil/chains/anvil3/addresses.yaml
   rm -f ./test-configs/zksync/chains/zksync1/addresses.yaml
@@ -21,7 +22,12 @@ anvil --chain-id 31338 -p 8555 --state /tmp/anvil2/state --gas-price 1 > /dev/nu
 anvil --chain-id 31347 -p 8600 --state /tmp/anvil3/state --gas-price 1 > /dev/null &
 
 echo "Running E2E tests"
-yarn mocha --config .mocharc-e2e.json
+if [ -n "${CLI_E2E_TEST}" ]; then
+  echo "Running only ${CLI_E2E_TEST} test"
+  yarn mocha --config .mocharc-e2e.json "src/**/${CLI_E2E_TEST}.e2e-test.ts"
+else
+  yarn mocha --config .mocharc-e2e.json "src/**/*.e2e-test.ts"
+fi
 
 cleanup
 

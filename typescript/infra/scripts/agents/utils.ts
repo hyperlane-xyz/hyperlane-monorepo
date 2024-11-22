@@ -11,7 +11,7 @@ import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
   getArgs,
-  withAgentRole,
+  withAgentRolesRequired,
   withChains,
   withContext,
 } from '../agent-utils.js';
@@ -70,21 +70,23 @@ export class AgentCli {
 
   protected async init() {
     if (this.initialized) return;
-    const argv = await withChains(withAgentRole(withContext(getArgs())))
+    const argv = await withChains(
+      withAgentRolesRequired(withContext(getArgs())),
+    )
       .describe('dry-run', 'Run through the steps without making any changes')
       .boolean('dry-run').argv;
 
     if (
       argv.chains &&
       argv.chains.length > 0 &&
-      !argv.role.includes(Role.Validator)
+      !argv.roles.includes(Role.Validator)
     ) {
       console.warn('Chain argument applies to validator role only. Ignoring.');
     }
 
     const { envConfig, agentConfig } = await getConfigsBasedOnArgs(argv);
     await assertCorrectKubeContext(envConfig);
-    this.roles = argv.role;
+    this.roles = argv.roles;
     this.envConfig = envConfig;
     this.agentConfig = agentConfig;
     this.dryRun = argv.dryRun || false;

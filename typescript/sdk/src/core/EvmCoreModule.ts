@@ -1,7 +1,12 @@
-import { Mailbox, Mailbox__factory } from '@hyperlane-xyz/core';
+import {
+  Mailbox,
+  Mailbox__factory,
+  Ownable__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
+  EvmChainId,
   ProtocolType,
   eqAddress,
   rootLogger,
@@ -24,6 +29,7 @@ import {
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
 import { isStaticDeploymentSupported } from '../deploy/protocolDeploymentConfig.js';
+import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { createDefaultProxyFactoryFactories } from '../deploy/proxyFactoryUtils.js';
 import { ProxyFactoryFactoriesAddresses } from '../deploy/schemas.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -35,7 +41,7 @@ import { IsmConfig } from '../ism/types.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
   HyperlaneModule,
@@ -54,10 +60,9 @@ export class EvmCoreModule extends HyperlaneModule<
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
-  public readonly chainName: string;
+  public readonly chainName: ChainName;
 
-  // We use domainId here because MultiProvider.getDomainId() will always
-  // return a number, and EVM the domainId and chainId are the same.
+  public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
 
   constructor(
@@ -65,9 +70,11 @@ export class EvmCoreModule extends HyperlaneModule<
     args: HyperlaneModuleParams<CoreConfig, DeployedCoreAddresses>,
   ) {
     super(args);
-    this.coreReader = new EvmCoreReader(multiProvider, this.args.chain);
-    this.chainName = this.multiProvider.getChainName(this.args.chain);
+    this.coreReader = new EvmCoreReader(multiProvider, args.chain);
+    this.chainName = multiProvider.getChainName(args.chain);
+    this.chainId = multiProvider.getEvmChainId(args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
+    this.chainId = multiProvider.getEvmChainId(args.chain);
   }
 
   /**
@@ -95,6 +102,12 @@ export class EvmCoreModule extends HyperlaneModule<
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
+      ...proxyAdminUpdateTxs(
+        this.chainId,
+        this.args.addresses.mailbox,
+        actualConfig,
+        expectedConfig,
+      ),
     );
 
     return transactions;
@@ -137,7 +150,7 @@ export class EvmCoreModule extends HyperlaneModule<
       );
       updateTransactions.push({
         annotation: `Setting default ISM for Mailbox ${mailbox} to ${deployedIsm}`,
-        chainId: this.domainId,
+        chainId: this.chainId,
         to: contractToUpdate.address,
         data: contractToUpdate.interface.encodeFunctionData('setDefaultIsm', [
           deployedIsm,
@@ -207,7 +220,7 @@ export class EvmCoreModule extends HyperlaneModule<
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
     return transferOwnershipTransactions(
-      this.domainId,
+      this.chainId,
       this.args.addresses.mailbox,
       actualConfig,
       expectedConfig,
@@ -281,15 +294,17 @@ export class EvmCoreModule extends HyperlaneModule<
     );
 
     // Deploy proxyAdmin
-    const proxyAdmin = (
-      await coreDeployer.deployContract(chainName, 'proxyAdmin', [])
-    ).address;
+    const proxyAdmin = await coreDeployer.deployContract(
+      chainName,
+      'proxyAdmin',
+      [],
+    );
 
     // Deploy Mailbox
     const mailbox = await this.deployMailbox({
       config,
       coreDeployer,
-      proxyAdmin,
+      proxyAdmin: proxyAdmin.address,
       multiProvider,
       chain,
     });
@@ -338,10 +353,26 @@ export class EvmCoreModule extends HyperlaneModule<
     const { merkleTreeHook, interchainGasPaymaster } =
       serializedContracts[chainName];
 
+    // Update the ProxyAdmin owner of the Mailbox if the config defines a different owner from the current signer
+    const currentProxyOwner = await proxyAdmin.owner();
+    if (
+      config?.proxyAdmin?.owner &&
+      !eqAddress(config.proxyAdmin.owner, currentProxyOwner)
+    ) {
+      await multiProvider.sendTransaction(chainName, {
+        annotation: `Transferring ownership of ProxyAdmin to the configured address ${config.proxyAdmin.owner}`,
+        to: proxyAdmin.address,
+        data: Ownable__factory.createInterface().encodeFunctionData(
+          'transferOwnership(address)',
+          [config.proxyAdmin.owner],
+        ),
+      });
+    }
+
     // Set Core & extra addresses
     return {
       ...ismFactoryFactories,
-      proxyAdmin,
+      proxyAdmin: proxyAdmin.address,
       mailbox: mailbox.address,
       interchainAccountRouter,
       interchainAccountIsm,

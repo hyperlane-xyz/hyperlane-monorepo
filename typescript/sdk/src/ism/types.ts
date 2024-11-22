@@ -52,6 +52,7 @@ export enum IsmType {
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
+  STORAGE_AGGREGATION = 'storageAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
   MESSAGE_ID_MULTISIG = 'messageIdMultisigIsm',
   STORAGE_MERKLE_ROOT_MULTISIG = 'storageMerkleRootMultisigIsm',
@@ -79,6 +80,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.FALLBACK_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
       return ModuleType.AGGREGATION;
     case IsmType.MERKLE_ROOT_MULTISIG:
     case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
@@ -130,7 +132,7 @@ export type RoutingIsmConfig = OwnableConfig & {
 };
 
 export type AggregationIsmConfig = {
-  type: IsmType.AGGREGATION;
+  type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;
   modules: Array<IsmConfig>;
   threshold: number;
 };
@@ -142,6 +144,7 @@ export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
+  [IsmType.STORAGE_AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
   [IsmType.MESSAGE_ID_MULTISIG]: IMultisigIsm;
   [IsmType.STORAGE_MERKLE_ROOT_MULTISIG]: IMultisigIsm;

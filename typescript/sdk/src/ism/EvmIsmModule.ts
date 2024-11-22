@@ -5,6 +5,7 @@ import { DomainRoutingIsm__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
+  EvmChainId,
   ProtocolType,
   assert,
   deepEquals,
@@ -54,8 +55,7 @@ export class EvmIsmModule extends HyperlaneModule<
 
   // Adding these to reduce how often we need to grab from MultiProvider.
   public readonly chain: ChainName;
-  // We use domainId here because MultiProvider.getDomainId() will always
-  // return a number, and EVM the domainId and chainId are the same.
+  public readonly chainId: EvmChainId;
   public readonly domainId: Domain;
 
   constructor(
@@ -79,8 +79,9 @@ export class EvmIsmModule extends HyperlaneModule<
 
     this.mailbox = params.addresses.mailbox;
 
-    this.chain = this.multiProvider.getChainName(this.args.chain);
-    this.domainId = this.multiProvider.getDomainId(this.chain);
+    this.chain = multiProvider.getChainName(this.args.chain);
+    this.chainId = multiProvider.getEvmChainId(this.chain);
+    this.domainId = multiProvider.getDomainId(this.chain);
   }
 
   public async read(): Promise<IsmConfig> {
@@ -170,7 +171,7 @@ export class EvmIsmModule extends HyperlaneModule<
     // Lastly, check if the resolved owner is different from the current owner
     updateTxs.push(
       ...transferOwnershipTransactions(
-        this.domainId,
+        this.chainId,
         this.args.addresses.deployedIsm,
         currentConfig,
         targetConfig,
@@ -253,9 +254,9 @@ export class EvmIsmModule extends HyperlaneModule<
       const domainId = this.multiProvider.getDomainId(origin);
       const tx = await contract.populateTransaction.set(domainId, ism.address);
       updateTxs.push({
+        chainId: this.chainId,
         annotation: `Setting new ISM for origin ${origin}...`,
         ...tx,
-        chainId: this.domainId,
       });
     }
 
@@ -269,9 +270,9 @@ export class EvmIsmModule extends HyperlaneModule<
       const domainId = this.multiProvider.getDomainId(origin);
       const tx = await contract.populateTransaction.remove(domainId);
       updateTxs.push({
+        chainId: this.chainId,
         annotation: `Unenrolling originDomain ${domainId} from preexisting routing ISM at ${this.args.addresses.deployedIsm}...`,
         ...tx,
-        chainId: this.domainId,
       });
     }
 

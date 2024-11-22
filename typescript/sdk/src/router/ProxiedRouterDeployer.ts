@@ -1,6 +1,8 @@
 import { constants } from 'ethers';
 
 import {
+  ProxyAdmin,
+  ProxyAdmin__factory,
   Router,
   TimelockController,
   TimelockController__factory,
@@ -82,12 +84,27 @@ export abstract class ProxiedRouterDeployer<
     chain: ChainName,
     config: Config,
   ): Promise<HyperlaneContracts<Factories & ProxiedFactories>> {
-    const proxyAdmin = await this.deployContractFromFactory(
-      chain,
-      this.factories.proxyAdmin,
-      'proxyAdmin',
-      [],
-    );
+    let proxyAdmin: ProxyAdmin;
+    if (config.proxyAdmin?.address) {
+      this.logger.debug(
+        `Reusing existing ProxyAdmin at ${config.proxyAdmin.address} for chain ${chain}`,
+      );
+      proxyAdmin = ProxyAdmin__factory.connect(
+        config.proxyAdmin.address,
+        this.multiProvider.getSigner(chain),
+      );
+    } else {
+      this.logger.debug(
+        `A ProxyAdmin config has not been supplied for chain ${chain}, deploying a new contract`,
+      );
+
+      proxyAdmin = await this.deployContractFromFactory(
+        chain,
+        this.factories.proxyAdmin,
+        'proxyAdmin',
+        [],
+      );
+    }
 
     let timelockController: TimelockController;
     let adminOwner: string;

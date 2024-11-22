@@ -192,19 +192,25 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         app_config: &TokenConfig,
         program_id: Pubkey,
     ) {
-        if let Some(ata_payer_funding_amount) = self.ata_payer_funding_amount {
-            if matches!(
-                app_config.token_type,
-                TokenType::Collateral(_) | TokenType::Synthetic(_)
-            ) {
-                fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
+        let try_fund_ata_payer = |ctx: &mut Context, client: &RpcClient| {
+            if let Some(ata_payer_funding_amount) = self.ata_payer_funding_amount {
+                if matches!(
+                    app_config.token_type,
+                    TokenType::Collateral(_) | TokenType::Synthetic(_)
+                ) {
+                    fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
+                }
             }
-        }
+        };
 
         let (token_pda, _token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
         if account_exists(client, &token_pda).unwrap() {
             println!("Warp route token already exists, skipping init");
+
+            // Fund the ATA payer up to the specified amount.
+            try_fund_ata_payer(ctx, client);
+
             return;
         }
 
@@ -398,6 +404,8 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                 println!("Set the {authority} authority to the mint account. Status: {status}");
             }
         }
+
+        try_fund_ata_payer(ctx, client);
     }
 
     /// Sets gas router configs on all deployable chains.
