@@ -56,11 +56,11 @@ export function formatYamlViolationsOutput(
 }
 
 /**
- * @notice Masks private key with dots
- * @param key Private key to mask
+ * @notice Masks sensitive key with dots
+ * @param key Sensitive key to mask
  * @return Masked key
  */
-export function maskPrivateKey(key: string): string {
+export function maskSensitiveKey(key: string): string {
   if (!key) return key;
   const middle = '•'.repeat(key.length);
   return `${middle}`;
@@ -91,7 +91,7 @@ export function maskSensitiveData(obj: any): any {
     const masked = { ...obj };
     for (const [key, value] of Object.entries(masked)) {
       if (isSensitiveKey(key) && typeof value === 'string') {
-        masked[key] = maskPrivateKey(value);
+        masked[key] = maskSensitiveKey(value);
       } else if (typeof value === 'object') {
         masked[key] = maskSensitiveData(value);
       }
