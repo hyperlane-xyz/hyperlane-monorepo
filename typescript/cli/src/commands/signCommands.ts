@@ -8,7 +8,6 @@ export const SIGN_COMMANDS = [
   'status',
   'submit',
   'relayer',
-  'read',
 ];
 
 export function isSignCommand(argv: any): boolean {

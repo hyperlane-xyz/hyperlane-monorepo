@@ -62,7 +62,7 @@ export class MultiProtocolSignerManager {
   /**
    * @dev Configures signers for EVM chains in MultiProvider
    */
-  async setupMultiProvider(): Promise<MultiProvider> {
+  async getMultiProvider(): Promise<MultiProvider> {
     for (const chain of this.chains) {
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer);

@@ -17,6 +17,7 @@ export interface ContextSettings {
   requiresKey?: boolean;
   disableProxy?: boolean;
   skipConfirmation?: boolean;
+  strategyPath?: string;
 }
 
 export interface CommandContext {
@@ -27,6 +28,7 @@ export interface CommandContext {
   key?: string;
   signer?: ethers.Signer;
   warpCoreConfig?: WarpCoreConfig;
+  strategyPath?: string;
 }
 
 export interface WriteCommandContext extends CommandContext {

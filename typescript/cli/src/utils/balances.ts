@@ -7,7 +7,6 @@ import { logGreen, logRed } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  signer: ethers.Signer | null,
   chains: ChainName[],
   minGas: string,
 ) {

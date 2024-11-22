@@ -56,15 +56,28 @@ export function formatYamlViolationsOutput(
 }
 
 /**
- * @notice Masks private key with dots
- * @param key Private key to mask
+ * @notice Masks sensitive key with dots
+ * @param key Sensitive key to mask
  * @return Masked key
  */
-export function maskPrivateKey(key: string): string {
+export function maskSensitiveKey(key: string): string {
   if (!key) return key;
   const middle = '•'.repeat(key.length);
   return `${middle}`;
 }
+
+const SENSITIVE_PATTERNS = [
+  'privatekey',
+  'key',
+  'secret',
+  'secretkey',
+  'password',
+];
+
+const isSensitiveKey = (key: string) => {
+  const lowerKey = key.toLowerCase();
+  return SENSITIVE_PATTERNS.some((pattern) => lowerKey.includes(pattern));
+};
 
 /**
  * @notice Recursively masks sensitive data in objects
@@ -77,8 +90,8 @@ export function maskSensitiveData(obj: any): any {
   if (typeof obj === 'object') {
     const masked = { ...obj };
     for (const [key, value] of Object.entries(masked)) {
-      if (key === 'privateKey' && typeof value === 'string') {
-        masked[key] = maskPrivateKey(value);
+      if (isSensitiveKey(key) && typeof value === 'string') {
+        masked[key] = maskSensitiveKey(value);
       } else if (typeof value === 'object') {
         masked[key] = maskSensitiveData(value);
       }
@@ -87,37 +100,4 @@ export function maskSensitiveData(obj: any): any {
   }
 
   return obj;
-}
-
-/**
- * @notice Extracts chain names from a nested configuration object
- * @param config Object to search for chain names
- * @return Array of discovered chain names
- */
-export function extractChainsFromObj(config: Record<string, any>): string[] {
-  const chains: string[] = [];
-
-  // Recursively search for chain/chainName fields
-  function findChainFields(obj: any) {
-    if (obj === null || typeof obj !== 'object') return;
-
-    if (Array.isArray(obj)) {
-      obj.forEach((item) => findChainFields(item));
-      return;
-    }
-
-    if ('chain' in obj) {
-      chains.push(obj.chain);
-    }
-
-    if ('chainName' in obj) {
-      chains.push(obj.chainName);
-    }
-
-    // Recursively search in all nested values
-    Object.values(obj).forEach((value) => findChainFields(value));
-  }
-
-  findChainFields(config);
-  return chains;
 }

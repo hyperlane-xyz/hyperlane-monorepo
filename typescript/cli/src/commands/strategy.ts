@@ -48,7 +48,6 @@ export const init: CommandModuleWithWriteContext<{
 
 export const read: CommandModuleWithWriteContext<{
   strategy: string;
-  requiresKey: boolean;
 }> = {
   command: 'read',
   describe: 'Reads strategy configuration',
@@ -58,7 +57,6 @@ export const read: CommandModuleWithWriteContext<{
       demandOption: true,
       default: DEFAULT_STRATEGY_CONFIG_PATH,
     },
-    requiresKey: { demandOption: false, default: false, hidden: true },
   },
   handler: async ({ strategy: strategyUrl }) => {
     logCommandHeader(`Hyperlane Strategy Read`);

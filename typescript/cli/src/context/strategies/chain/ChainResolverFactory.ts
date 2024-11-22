@@ -3,7 +3,6 @@ import { SingleChainResolver } from './SingleChainResolver.js';
 import { ChainResolver } from './types.js';
 
 enum CommandType {
-  CORE_APPLY = 'core:apply',
   WARP_DEPLOY = 'warp:deploy',
   WARP_SEND = 'warp:send',
   WARP_APPLY = 'warp:apply',
@@ -21,7 +20,6 @@ enum CommandType {
  */
 export class ChainResolverFactory {
   private static strategyMap: Map<CommandType, () => ChainResolver> = new Map([
-    [CommandType.CORE_APPLY, () => new SingleChainResolver()],
     [CommandType.WARP_DEPLOY, () => MultiChainResolver.forWarpRouteConfig()],
     [CommandType.WARP_SEND, () => MultiChainResolver.forOriginDestination()],
     [CommandType.WARP_APPLY, () => MultiChainResolver.forWarpRouteConfig()],

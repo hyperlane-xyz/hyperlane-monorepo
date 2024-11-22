@@ -19,7 +19,7 @@ import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
-import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
+import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -37,7 +37,7 @@ import {
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
-  const requiresKey = argv.requiresKey ?? isSignCommand(argv);
+  const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
     registryOverrideUri: argv.overrides,
@@ -46,6 +46,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
+    strategyPath: argv.strategy,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
@@ -58,15 +59,15 @@ export async function contextMiddleware(argv: Record<string, any>) {
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, context } = argv;
-  const { requiresKey, multiProvider, chainMetadata } = context;
+  const { key, requiresKey, multiProvider, strategyPath, chainMetadata } =
+    argv.context;
 
   const multiProtocolProvider = new MultiProtocolProvider(chainMetadata);
   argv.multiProtocolProvider = multiProtocolProvider;
   if (!requiresKey) return argv;
 
-  const strategyConfig = await readChainSubmissionStrategyConfig(
-    argv.strategy ?? DEFAULT_STRATEGY_CONFIG_PATH,
+  const strategyConfig = await safeReadChainSubmissionStrategyConfig(
+    strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
   );
 
   /**
@@ -93,7 +94,8 @@ export async function signerMiddleware(argv: Record<string, any>) {
   /**
    * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
    */
-  argv.multiProvider = await multiProtocolSigner.setupMultiProvider();
+  argv.multiProvider = await multiProtocolSigner.getMultiProvider();
+  argv.multiProtocolSigner = multiProtocolSigner;
 
   return argv;
 }
