@@ -57,7 +57,6 @@ export async function runPreflightChecksForChains({
 
   await nativeBalancesAreSufficient(
     multiProvider,
-    null,
     chainsToGasCheck ?? chains,
     minGas,
   );

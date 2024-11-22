@@ -10,12 +10,13 @@ import {
 import {
   ProtocolType,
   assert,
+  errorToString,
   isAddress,
   isPrivateKeyEvm,
 } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
-import { errorRed, log, logBlue, logGreen } from '../logger.js';
+import { errorRed, log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
@@ -25,48 +26,44 @@ import {
 } from '../utils/files.js';
 import { maskSensitiveData } from '../utils/output.js';
 
+/**
+ * Reads and validates a chain submission strategy configuration from a file
+ */
 export async function readChainSubmissionStrategyConfig(
   filePath: string,
 ): Promise<ChainSubmissionStrategy> {
+  log(`Reading submission strategy in ${filePath}`);
   try {
-    log(`Reading submission strategy in ${filePath}`);
+    const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(filePath);
 
-    if (!isFile(filePath.trim())) {
-      logBlue(
-        `No strategy config found in ${filePath}, returning empty config`,
-      );
-      return {};
-    }
+    const parseResult = ChainSubmissionStrategySchema.parse(strategyConfig);
 
-    const strategyConfig = readYamlOrJson<ChainSubmissionStrategy>(
-      filePath.trim(),
-    );
-
-    // Check if config exists and is a non-empty object
-    if (!strategyConfig || typeof strategyConfig !== 'object') {
-      logBlue(
-        `No strategy config found in ${filePath}, returning empty config`,
-      );
-      return {};
-    }
-
-    const parseResult = ChainSubmissionStrategySchema.safeParse(strategyConfig);
-    if (!parseResult.success) {
-      errorRed(
-        `Strategy config validation using ChainSubmissionStrategySchema failed for ${filePath}`,
-      );
-      errorRed(JSON.stringify(parseResult.error.errors, null, 2));
-      throw new Error('Invalid strategy configuration');
-    }
-
-    return strategyConfig;
+    return parseResult;
   } catch (error) {
-    if (error instanceof Error) {
-      errorRed(`Error reading strategy config: ${error.message}`);
-    } else {
-      errorRed('Unknown error reading strategy config');
-    }
+    logRed(`⛔️ Error reading strategy config:`, errorToString(error));
     throw error; // Re-throw to let caller handle the error
+  }
+}
+
+/**
+ * Safely reads chain submission strategy config, returns empty object if any errors occur
+ */
+export async function safeReadChainSubmissionStrategyConfig(
+  filePath: string,
+): Promise<ChainSubmissionStrategy> {
+  try {
+    const trimmedFilePath = filePath.trim();
+    if (!isFile(trimmedFilePath)) {
+      logBlue(`File ${trimmedFilePath} does not exist, returning empty config`);
+      return {};
+    }
+    return await readChainSubmissionStrategyConfig(trimmedFilePath);
+  } catch (error) {
+    logRed(
+      `Failed to read strategy config, defaulting to empty config:`,
+      errorToString(error),
+    );
+    return {};
   }
 }
 
@@ -133,13 +130,8 @@ export async function createStrategyConfig({
     case TxSubmitterType.IMPERSONATED_ACCOUNT:
       submitter.userAddress = await input({
         message: 'Enter the user address to impersonate',
-        validate: (address) => {
-          try {
-            return isAddress(address) ? true : 'Invalid Ethereum address';
-          } catch {
-            return 'Invalid Ethereum address';
-          }
-        },
+        validate: (address) =>
+          isAddress(address) ? true : 'Invalid Ethereum address',
       });
       assert(
         submitter.userAddress,
@@ -151,13 +143,8 @@ export async function createStrategyConfig({
     case TxSubmitterType.GNOSIS_TX_BUILDER:
       submitter.safeAddress = await input({
         message: 'Enter the Safe address',
-        validate: (address) => {
-          try {
-            return isAddress(address) ? true : 'Invalid Safe address';
-          } catch {
-            return 'Invalid Safe address';
-          }
-        },
+        validate: (address) =>
+          isAddress(address) ? true : 'Invalid Safe address',
       });
 
       submitter.chain = chain;
@@ -191,6 +178,7 @@ export async function createStrategyConfig({
     writeYamlOrJson(outPath, strategyConfig);
     logGreen('✅ Successfully created a new strategy configuration.');
   } catch (e) {
+    // don't log error since it may contain sensitive data
     errorRed(
       `The strategy configuration is invalid. Please review the submitter settings.`,
     );

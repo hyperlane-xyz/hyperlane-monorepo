@@ -1,4 +1,4 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 import { runSingleChainSelectionStep } from '../../../utils/chains.js';
 
@@ -14,7 +14,7 @@ export class SingleChainResolver implements ChainResolver {
    * @notice Determines the chain to be used for signing operations
    * @dev Either uses the chain specified in argv or prompts for interactive selection
    */
-  async resolveChains(argv: Record<string, any>): Promise<ChainName[]> {
+  async resolveChains(argv: ChainMap<any>): Promise<ChainName[]> {
     argv.chain ||= await runSingleChainSelectionStep(
       argv.context.chainMetadata,
       'Select chain to connect:',

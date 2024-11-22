@@ -1,7 +1,6 @@
 import { Signer } from 'ethers';
 
-import { ChainSubmissionStrategy } from '@hyperlane-xyz/sdk';
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainName, ChainSubmissionStrategy } from '@hyperlane-xyz/sdk';
 
 export interface SignerConfig {
   privateKey: string;

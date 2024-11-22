@@ -1,10 +1,11 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { logRed } from '../../../logger.js';
 import {
+  extractChainsFromObj,
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
@@ -14,7 +15,6 @@ import {
   runFileSelectionStep,
 } from '../../../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../../../utils/input.js';
-import { extractChainsFromObj } from '../../../utils/output.js';
 
 import { ChainResolver } from './types.js';
 
@@ -36,7 +36,7 @@ enum ChainSelectionMode {
 export class MultiChainResolver implements ChainResolver {
   constructor(private mode: ChainSelectionMode) {}
 
-  async resolveChains(argv: Record<string, any>): Promise<ChainName[]> {
+  async resolveChains(argv: ChainMap<any>): Promise<ChainName[]> {
     switch (this.mode) {
       case ChainSelectionMode.WARP_CONFIG:
         return this.resolveWarpRouteConfigChains(argv);

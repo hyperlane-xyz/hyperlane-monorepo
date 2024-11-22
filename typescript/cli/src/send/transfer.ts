@@ -141,7 +141,6 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  // const senderAddress = await multiProvider.getSigner(origin).getAddress();
   const errors = await warpCore.validateTransfer({
     originTokenAmount: token.amount(amount),
     destination,

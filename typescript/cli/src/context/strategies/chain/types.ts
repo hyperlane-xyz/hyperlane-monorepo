@@ -1,4 +1,4 @@
-import { ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 export interface ChainResolver {
   /**
@@ -6,5 +6,5 @@ export interface ChainResolver {
    * @param argv Command arguments
    * @returns Array of chain names
    */
-  resolveChains(argv: Record<string, any>): Promise<ChainName[]>;
+  resolveChains(argv: ChainMap<any>): Promise<ChainName[]>;
 }
