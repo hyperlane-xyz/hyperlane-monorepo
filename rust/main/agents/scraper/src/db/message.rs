@@ -18,6 +18,7 @@ use super::generated::{delivered_message, message};
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
     pub message_id: H256,
+    pub sequence: Option<i64>,
     pub meta: &'a LogMeta,
     /// The database id of the transaction the delivery event occurred in
     pub txn_id: i64,
@@ -147,6 +148,7 @@ impl ScraperDb {
                 domain: Unchanged(domain as i32),
                 destination_mailbox: Unchanged(destination_mailbox.clone()),
                 destination_tx_id: Set(delivery.txn_id),
+                sequence: Set(delivery.sequence),
             })
             .collect_vec();
 

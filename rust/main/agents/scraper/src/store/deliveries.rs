@@ -25,11 +25,18 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
         let storable = deliveries
             .iter()
             .filter_map(|(message_id, meta)| {
-                txns.get(&meta.transaction_id)
-                    .map(|txn| (*message_id.inner(), meta, txn.id))
+                txns.get(&meta.transaction_id).map(|txn| {
+                    (
+                        *message_id.inner(),
+                        message_id.sequence.map(|v| v as i64),
+                        meta,
+                        txn.id,
+                    )
+                })
             })
-            .map(|(message_id, meta, txn_id)| StorableDelivery {
+            .map(|(message_id, sequence, meta, txn_id)| StorableDelivery {
                 message_id,
+                sequence,
                 meta,
                 txn_id,
             });
