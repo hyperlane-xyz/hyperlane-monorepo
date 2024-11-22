@@ -78,11 +78,7 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 
-import {
-  completeDeploy,
-  prepareDeploy,
-  runPreflightChecksForChains,
-} from './utils.js';
+import { prepareDeploy, runPreflightChecksForChains } from './utils.js';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -174,19 +170,22 @@ export async function runWarpRouteDeploy({
         break;
 
       case ProtocolType.Starknet:
-        await executeStarknetDeployments({
+        const addresses = await executeStarknetDeployments({
           warpRouteConfig,
           context,
         });
+        const warpCoreConfig = await getWarpCoreConfigForStarknet(
+          { context, warpDeployConfig: warpRouteConfig },
+          addresses,
+        );
+        deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
         break;
 
       default:
         throw new Error(`Unsupported protocol type: ${protocol}`);
     }
   }
-  return;
   await writeDeploymentArtifacts(deployments, context);
-  await completeDeploy(context, 'warp', {}, '', chains);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -1012,7 +1011,7 @@ async function executeStarknetDeployments({
 }: {
   warpRouteConfig: WarpRouteDeployConfig;
   context: WriteCommandContext;
-}): Promise<HyperlaneContractsMap<any>> {
+}): Promise<ChainMap<string>> {
   const provider = new RpcProvider({
     nodeUrl: 'http://127.0.0.1:5050',
   });
@@ -1030,6 +1029,63 @@ async function executeStarknetDeployments({
     warpRouteConfig,
     context.multiProvider,
   );
-  await starknetDeployer.deployToken();
-  return {};
+
+  return await starknetDeployer.deployToken();
+}
+
+async function getWarpCoreConfigForStarknet(
+  { warpDeployConfig, context }: DeployParams,
+  contracts: ChainMap<string>,
+): Promise<WarpCoreConfig> {
+  const warpCoreConfig: WarpCoreConfig = { tokens: [] };
+
+  // TODO: replace with warp read
+  const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+    context.multiProvider,
+    warpDeployConfig,
+  );
+  assert(
+    tokenMetadata && isTokenMetadata(tokenMetadata),
+    'Missing required token metadata',
+  );
+  const { decimals, symbol, name } = tokenMetadata;
+  assert(decimals, 'Missing decimals on token metadata');
+
+  generateTokenConfigsForStarknet(
+    warpCoreConfig,
+    warpDeployConfig,
+    contracts,
+    symbol,
+    name,
+    decimals,
+  );
+
+  fullyConnectTokens(warpCoreConfig);
+
+  return warpCoreConfig;
+}
+
+function generateTokenConfigsForStarknet(
+  warpCoreConfig: WarpCoreConfig,
+  warpDeployConfig: WarpRouteDeployConfig,
+  contracts: ChainMap<string>,
+  symbol: string,
+  name: string,
+  decimals: number,
+): void {
+  for (const [chainName, contract] of Object.entries(contracts)) {
+    const config = warpDeployConfig[chainName];
+    const collateralAddressOrDenom = isCollateralConfig(config)
+      ? config.token // gets set in the above deriveTokenMetadata()
+      : undefined;
+    warpCoreConfig.tokens.push({
+      chainName,
+      standard: TOKEN_TYPE_TO_STANDARD[config.type],
+      decimals,
+      symbol,
+      name,
+      addressOrDenom: contract,
+      collateralAddressOrDenom,
+    });
+  }
 }
