@@ -18,7 +18,7 @@ import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
-import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
+import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -36,7 +36,7 @@ import {
 
 export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
-  const requiresKey = argv.requiresKey ?? isSignCommand(argv);
+  const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
     registryOverrideUri: argv.overrides,
@@ -62,7 +62,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   if (!requiresKey) return argv;
 
-  const strategyConfig = await readChainSubmissionStrategyConfig(
+  const strategyConfig = await safeReadChainSubmissionStrategyConfig(
     strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
   );
 

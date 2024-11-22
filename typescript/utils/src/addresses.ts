@@ -382,5 +382,9 @@ export function strip0x(hexstr: string) {
 }
 
 export function isPrivateKeyEvm(privateKey: string): boolean {
-  return new Wallet(privateKey).privateKey === privateKey;
+  try {
+    return new Wallet(privateKey).privateKey === privateKey;
+  } catch (e) {
+    throw new Error('Provided Private Key is not EVM compatible!');
+  }
 }

@@ -154,7 +154,7 @@ export async function createWarpRouteDeployConfig({
     logBlue(`${chain}: Configuring warp route...`);
 
     const owner = await detectAndConfirmOrPrompt(
-      async () => await multiProviderWithSigners.getSigner(chain).getAddress(),
+      async () => multiProviderWithSigners.getSigner(chain).getAddress(),
       'Enter the desired',
       'owner address',
       'signer',

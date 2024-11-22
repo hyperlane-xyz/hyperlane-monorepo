@@ -66,6 +66,19 @@ export function maskPrivateKey(key: string): string {
   return `${middle}`;
 }
 
+const SENSITIVE_PATTERNS = [
+  'privatekey',
+  'key',
+  'secret',
+  'secretkey',
+  'password',
+];
+
+const isSensitiveKey = (key: string) => {
+  const lowerKey = key.toLowerCase();
+  return SENSITIVE_PATTERNS.some((pattern) => lowerKey.includes(pattern));
+};
+
 /**
  * @notice Recursively masks sensitive data in objects
  * @param obj Object with potential sensitive data
@@ -77,7 +90,7 @@ export function maskSensitiveData(obj: any): any {
   if (typeof obj === 'object') {
     const masked = { ...obj };
     for (const [key, value] of Object.entries(masked)) {
-      if (key === 'privateKey' && typeof value === 'string') {
+      if (isSensitiveKey(key) && typeof value === 'string') {
         masked[key] = maskPrivateKey(value);
       } else if (typeof value === 'object') {
         masked[key] = maskSensitiveData(value);
