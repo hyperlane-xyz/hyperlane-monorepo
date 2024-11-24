@@ -352,6 +352,8 @@ where
     ) -> Result<Box<dyn ContractSyncCursor<T>>> {
         Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
+                self.domain(),
+                self.metrics.forward_backward_cursor_metrics.clone(),
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,

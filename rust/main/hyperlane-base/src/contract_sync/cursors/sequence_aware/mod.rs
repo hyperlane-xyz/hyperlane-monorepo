@@ -3,16 +3,20 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use eyre::Result;
 use hyperlane_core::{
-    ChainCommunicationError, ContractSyncCursor, CursorAction,
+    ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneDomain,
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
 };
 use std::ops::RangeInclusive;
 
 mod backward;
 mod forward;
+mod metrics;
 
 pub(crate) use backward::BackwardSequenceAwareSyncCursor;
 pub(crate) use forward::ForwardSequenceAwareSyncCursor;
+pub(crate) use metrics::ForwardBackwardCursorMetrics;
+
+use super::Indexable;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LastIndexedSnapshot {
@@ -67,11 +71,17 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,
     last_direction: SyncDirection,
+    metrics: ForwardBackwardCursorMetrics,
+    domain: HyperlaneDomain,
 }
 
-impl<T: Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
+impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
+    ForwardBackwardSequenceAwareSyncCursor<T>
+{
     /// Construct a new contract sync helper.
     pub async fn new(
+        domain: &HyperlaneDomain,
+        metrics: ForwardBackwardCursorMetrics,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
         store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         chunk_size: u32,
@@ -97,12 +107,48 @@ impl<T: Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
             forward: forward_cursor,
             backward: backward_cursor,
             last_direction: SyncDirection::Forward,
+            metrics,
+            domain: domain.to_owned(),
         })
+    }
+
+    async fn update_metrics(&self) {
+        let (cursor_type, latest_block, sequence) = match self.last_direction {
+            SyncDirection::Forward => (
+                "ForwardSequenced",
+                self.forward.latest_queried_block(),
+                self.forward.last_sequence(),
+            ),
+            SyncDirection::Backward => (
+                "BackwardSequenced",
+                self.backward.latest_queried_block(),
+                self.backward.last_sequence(),
+            ),
+        };
+
+        let chain_name = self.domain.name();
+        let label_values = &[T::name(), chain_name, cursor_type];
+
+        self.metrics
+            .cursor_current_block
+            .with_label_values(label_values)
+            .set(latest_block as i64);
+
+        self.metrics
+            .cursor_current_sequence
+            .with_label_values(label_values)
+            .set(sequence as i64);
+
+        let max_sequence = self.forward.target_sequence().await as i64;
+        self.metrics
+            .cursor_max_sequence
+            .with_label_values(&[T::name(), chain_name])
+            .set(max_sequence);
     }
 }
 
 #[async_trait]
-impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
+impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
     for ForwardBackwardSequenceAwareSyncCursor<T>
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
@@ -131,6 +177,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
         logs: Vec<(Indexed<T>, LogMeta)>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
+        self.update_metrics().await;
         match self.last_direction {
             SyncDirection::Forward => self.forward.update(logs, range).await,
             SyncDirection::Backward => self.backward.update(logs, range).await,

@@ -76,6 +76,11 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
         }
     }
 
+    /// Get the last indexed sequence or 0 if no logs have been indexed yet.
+    pub fn last_sequence(&self) -> u32 {
+        self.last_indexed_snapshot.sequence.unwrap_or(0)
+    }
+
     /// Gets the next range of logs to query.
     /// If the cursor is fully synced, this returns None.
     /// Otherwise, it returns the next range to query, either by block or sequence depending on the mode.

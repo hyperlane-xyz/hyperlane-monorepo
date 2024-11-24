@@ -1,5 +1,8 @@
-use crate::CoreMetrics;
 use prometheus::{IntCounterVec, IntGaugeVec};
+
+use crate::CoreMetrics;
+
+use super::sequence_aware::ForwardBackwardCursorMetrics;
 
 /// Struct encapsulating prometheus metrics used by the ContractSync.
 #[derive(Debug, Clone)]
@@ -20,6 +23,9 @@ pub struct ContractSyncMetrics {
 
     /// See `last_known_message_nonce` in CoreMetrics.
     pub message_nonce: IntGaugeVec,
+
+    /// Metrics for forward and backward cursors.
+    pub forward_backward_cursor_metrics: ForwardBackwardCursorMetrics,
 }
 
 impl ContractSyncMetrics {
@@ -43,10 +49,13 @@ impl ContractSyncMetrics {
 
         let message_nonce = metrics.last_known_message_nonce();
 
+        let forward_backward_cursor_metrics = ForwardBackwardCursorMetrics::new(metrics);
+
         ContractSyncMetrics {
             indexed_height,
             stored_events,
             message_nonce,
+            forward_backward_cursor_metrics,
         }
     }
 }

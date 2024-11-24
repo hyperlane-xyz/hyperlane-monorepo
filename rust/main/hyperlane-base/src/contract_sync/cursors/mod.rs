@@ -24,6 +24,8 @@ pub trait Indexable {
     fn broadcast_channel_size() -> Option<usize> {
         None
     }
+    /// Returns the name of the type for metrics.
+    fn name() -> &'static str;
 }
 
 impl Indexable for HyperlaneMessage {
@@ -40,6 +42,10 @@ impl Indexable for HyperlaneMessage {
     fn broadcast_channel_size() -> Option<usize> {
         TX_ID_CHANNEL_CAPACITY
     }
+
+    fn name() -> &'static str {
+        "HyperlaneMessage"
+    }
 }
 
 impl Indexable for InterchainGasPayment {
@@ -50,6 +56,10 @@ impl Indexable for InterchainGasPayment {
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
+    }
+
+    fn name() -> &'static str {
+        "InterchainGasPayment"
     }
 }
 
@@ -62,6 +72,10 @@ impl Indexable for MerkleTreeInsertion {
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
         }
     }
+
+    fn name() -> &'static str {
+        "MerkleTreeInsertion"
+    }
 }
 
 impl Indexable for Delivery {
@@ -72,5 +86,9 @@ impl Indexable for Delivery {
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
+    }
+
+    fn name() -> &'static str {
+        "Delivery"
     }
 }

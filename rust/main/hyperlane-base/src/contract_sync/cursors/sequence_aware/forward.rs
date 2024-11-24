@@ -88,6 +88,22 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
         }
     }
 
+    /// Get target sequence or return 0 if request failed
+    pub async fn target_sequence(&self) -> u32 {
+        let (count, _) = self
+            .latest_sequence_querier
+            .latest_sequence_count_and_tip()
+            .await
+            .ok()
+            .unwrap_or((None, 0));
+        count.unwrap_or(0).saturating_sub(1)
+    }
+
+    /// Get the last indexed sequence or 0 if no logs have been indexed yet.
+    pub fn last_sequence(&self) -> u32 {
+        self.last_indexed_snapshot.sequence.unwrap_or(0)
+    }
+
     /// Gets the next range of logs to index.
     /// If there are no logs to index, returns `None`.
     /// If there are logs to index, returns the range of logs, either by sequence or block number
