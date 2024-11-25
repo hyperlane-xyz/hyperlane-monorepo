@@ -3,5 +3,11 @@
     "@typescript-eslint/explicit-module-boundary-types": ["warn", {
       "allowArgumentsExplicitlyTypedAsAny": true
     }]
+  },
+  "settings": {
+    "import/resolver": {
+      "typescript": true,
+      "node": true
+    }
   }
 }

@@ -12,6 +12,10 @@
     "react-hooks/exhaustive-deps": "warn"
   },
   "settings": {
+    "import/resolver": {
+      "typescript": true,
+      "node": true
+    },
     "react": {
       "version": "18", 
       "defaultVersion": "18"
