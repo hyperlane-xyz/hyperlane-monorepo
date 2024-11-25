@@ -14,9 +14,11 @@ import {
 } from '../../../../../src/config/warp.js';
 import { DEPLOYER } from '../../owners.js';
 
-// Keep on our deployer for now until we get an address from Flow
-const owner = DEPLOYER;
-const ownerConfig = getOwnerConfigForAddress(owner);
+const ethereumOwner = '0x58C3FB862a4F5f038C24F8506BE378e9415c5B6C';
+const ethereumOwnerConfig = getOwnerConfigForAddress(ethereumOwner);
+
+const flowOwner = '0xa507DFccA02727B46cBdC600C57E89b2b55E5330';
+const flowOwnerConfig = getOwnerConfigForAddress(flowOwner);
 
 export const getEthereumFlowCbBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -24,7 +26,7 @@ export const getEthereumFlowCbBTCWarpConfig = async (
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...ownerConfig,
+    ...ethereumOwnerConfig,
     type: TokenType.collateral,
     token: tokens.ethereum.cbBTC,
     interchainSecurityModule: ethers.constants.AddressZero,
@@ -32,7 +34,7 @@ export const getEthereumFlowCbBTCWarpConfig = async (
 
   const flowmainnet: TokenRouterConfig = {
     ...routerConfig.flowmainnet,
-    ...ownerConfig,
+    ...flowOwnerConfig,
     type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
