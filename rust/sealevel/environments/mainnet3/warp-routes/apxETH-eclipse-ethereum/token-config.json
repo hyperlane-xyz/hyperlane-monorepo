@@ -1,0 +1,11 @@
+{
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "remoteDecimals": 18,
+    "name": "Autocompounding Pirex Ether",
+    "symbol": "apxETH",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/ae7df1bc00af19f8ba692c14e4df3acdbf30497d/deployments/warp_routes/APXETH/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  }
+}
