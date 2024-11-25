@@ -49,7 +49,7 @@ import { TokenRouterConfig, TokenRouterConfigSchema } from './schemas.js';
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
   mailbox: Address;
-  proxyAdmin: Address;
+  proxyAdmin: Address; // Used by IGP
 };
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,

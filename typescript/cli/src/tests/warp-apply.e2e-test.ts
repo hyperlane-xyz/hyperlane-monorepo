@@ -3,9 +3,12 @@ import { Wallet } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  HookType,
   TokenRouterConfig,
   TokenType,
   WarpRouteDeployConfig,
+  normalizeConfig,
+  randomAddress,
 } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
@@ -92,6 +95,45 @@ describe('WarpApply e2e tests', async function () {
     );
     expect(stdout).to.include(
       'Warp config is the same as target. No updates needed.',
+    );
+  });
+
+  it('should update hook configuration', async () => {
+    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+    // First read the existing config
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+
+    // Update with a new hook config
+    const owner = randomAddress();
+    warpDeployConfig[CHAIN_NAME_2].hook = {
+      type: HookType.PROTOCOL_FEE,
+      beneficiary: owner,
+      maxProtocolFee: '1000000',
+      protocolFee: '100000',
+      owner,
+    };
+
+    // Write the updated config
+    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+    // Apply the changes
+    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+
+    // Read back the config to verify changes
+    const updatedConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+
+    // Verify the hook was updated with all properties
+    expect(normalizeConfig(updatedConfig[CHAIN_NAME_2].hook)).to.deep.equal(
+      normalizeConfig(warpDeployConfig[CHAIN_NAME_2].hook),
     );
   });
 
