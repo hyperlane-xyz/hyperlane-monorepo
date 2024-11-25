@@ -47,13 +47,12 @@ impl FuelProvider {
     }
 
     /// Get the finalized block number
-    /// We subtract 1 from the latest block height to get the finalized block number
+    /// Since FuelVM has instant finality, this is the same as the latest block number
     pub async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.provider
             .latest_block_height()
             .await
             .map_err(ChainCommunicationError::from_other)
-            .map(|block| block - 1)
     }
 
     /// Extract transaction data from receipts

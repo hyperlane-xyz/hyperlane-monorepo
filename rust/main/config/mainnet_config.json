@@ -2719,7 +2719,7 @@
         "gasPrice": 200000000
       }
     },
-    "fueltestnet": {
+    "fuelignition": {
       "blockExplorers": [
         {
           "apiUrl": "https://app.fuel.network/",

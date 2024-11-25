@@ -456,6 +456,7 @@
         "name": "Simply Staking",
         "url": "https://simplystaking.com/"
       },
+      "isTestnet": true,
       "displayName": "FuelTestnet",
       "domainId": 1717982312,
       "gasCurrencyCoinGeckoId": "fuel-2",
