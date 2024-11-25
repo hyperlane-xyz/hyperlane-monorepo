@@ -60,7 +60,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
 export async function signerMiddleware(argv: Record<string, any>) {
   const { key, requiresKey, multiProvider, strategyPath } = argv.context;
 
-  if (!requiresKey) return argv;
+  if (!requiresKey && !key) return argv;
 
   const strategyConfig = await safeReadChainSubmissionStrategyConfig(
     strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
