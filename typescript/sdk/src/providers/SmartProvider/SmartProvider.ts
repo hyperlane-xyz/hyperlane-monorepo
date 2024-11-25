@@ -1,5 +1,5 @@
 import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
-import pino, { Logger } from 'pino';
+import { Logger, pino } from 'pino';
 
 import {
   raceWithContext,

@@ -1,0 +1,7 @@
+{
+  "rules": {
+    // The cyclical calls between builders when decoding will require more deep refactoring
+    // to avoid circular dependencies.
+    "import/no-cycle": ["warn"]
+  }
+}

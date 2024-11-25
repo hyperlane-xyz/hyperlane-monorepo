@@ -135,12 +135,12 @@ export {
 } from './gas/types.js';
 export { EvmHookReader } from './hook/EvmHookReader.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
-export { HookConfigSchema } from './hook/schemas.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
+  HookConfigSchema,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
@@ -150,6 +150,7 @@ export {
 } from './hook/types.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
+export { decodeIsmMetadata } from './ism/metadata/decode.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
@@ -521,8 +522,8 @@ export {
   AggregationIsmConfigSchema,
   IsmConfigSchema,
   MultisigIsmConfigSchema,
-} from './ism/schemas.js';
-export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
+} from './ism/types.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/types.js';
 export {
   CollateralConfig,
   NativeConfig,

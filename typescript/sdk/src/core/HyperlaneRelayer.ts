@@ -17,10 +17,10 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
-import { HookConfigSchema } from '../hook/schemas.js';
+import { HookConfigSchema } from '../hook/types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
-import { IsmConfigSchema } from '../ism/schemas.js';
+import { IsmConfigSchema } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -320,7 +320,7 @@ export class HyperlaneRelayer {
     }
   }
 
-  protected whitelistChains() {
+  protected whitelistChains(): string[] | undefined {
     return this.whitelist ? Object.keys(this.whitelist) : undefined;
   }
 
