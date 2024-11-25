@@ -14,6 +14,7 @@ import {
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  MultiProvider,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
   proxiedFactories,
@@ -72,9 +73,13 @@ export async function getGovernor(
   chains?: string[],
   fork?: string,
   govern?: boolean,
+  multiProvider: MultiProvider | undefined = undefined,
 ) {
   const envConfig = getEnvironmentConfig(environment);
-  let multiProvider = await envConfig.getMultiProvider();
+  // If the multiProvider is not passed in, get it from the environment
+  if (!multiProvider) {
+    multiProvider = await envConfig.getMultiProvider();
+  }
 
   // must rotate to forked provider before building core contracts
   if (fork) {
