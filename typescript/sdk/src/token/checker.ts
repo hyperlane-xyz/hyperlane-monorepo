@@ -200,7 +200,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     return collateralToken;
   }
 
-  async checkDecimalConsistency(
+  checkDecimalConsistency(
     chain: ChainName,
     hypToken: TokenRouter,
     chainDecimals: Record<ChainName, number | undefined>,
