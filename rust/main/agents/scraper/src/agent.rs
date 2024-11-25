@@ -198,6 +198,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 store.into(),
+                true,
             )
             .await
             .unwrap();
@@ -229,6 +230,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
             )
             .await
             .unwrap();
@@ -261,6 +263,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()),
+                true,
             )
             .await
             .unwrap();

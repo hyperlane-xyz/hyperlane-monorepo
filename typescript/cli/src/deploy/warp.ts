@@ -534,7 +534,8 @@ async function updateExistingWarpRoute(
 ) {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, registry } = params.context;
-  const addresses = await registry.getAddresses();
+  const registryAddresses =
+    (await registry.getAddresses()) as ChainMap<ProxyFactoryFactoriesAddresses>;
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
@@ -553,15 +554,13 @@ async function updateExistingWarpRoute(
             `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
           );
 
-        config.ismFactoryAddresses = addresses[
-          chain
-        ] as ProxyFactoryFactoriesAddresses;
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
             config,
             chain,
             addresses: {
+              ...registryAddresses[chain],
               deployedTokenRoute: deployedConfig.addressOrDenom!,
             },
           },
@@ -646,7 +645,9 @@ async function enrollRemoteRouters(
   deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
 ): Promise<AnnotatedEV5Transaction[]> {
   logBlue(`Enrolling deployed routers with each other...`);
-  const { multiProvider } = params.context;
+  const { multiProvider, registry } = params.context;
+  const registryAddresses =
+    (await registry.getAddresses()) as ChainMap<ProxyFactoryFactoriesAddresses>;
   const deployedRoutersAddresses: ChainMap<Address> = objMap(
     deployedContractsMap,
     (_, contracts) => getRouter(contracts).address,
@@ -674,7 +675,10 @@ async function enrollRemoteRouters(
         const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
           config: mutatedWarpRouteConfig,
           chain,
-          addresses: { deployedTokenRoute: router.address },
+          addresses: {
+            ...registryAddresses[chain],
+            deployedTokenRoute: router.address,
+          },
         });
 
         const otherChains = multiProvider
