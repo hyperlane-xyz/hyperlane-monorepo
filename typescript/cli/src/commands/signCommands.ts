@@ -16,3 +16,15 @@ export function isSignCommand(argv: any): boolean {
     (argv._.length > 1 && SIGN_COMMANDS.includes(argv._[1]))
   );
 }
+
+export enum CommandType {
+  WARP_DEPLOY = 'warp:deploy',
+  WARP_SEND = 'warp:send',
+  WARP_APPLY = 'warp:apply',
+  WARP_READ = 'warp:read',
+  SEND_MESSAGE = 'send:message',
+  AGENT_KURTOSIS = 'deploy:kurtosis-agents',
+  STATUS = 'status:',
+  SUBMIT = 'submit:',
+  RELAYER = 'relayer:',
+}
