@@ -328,5 +328,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "bsquared": {
+    "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
   }
 }

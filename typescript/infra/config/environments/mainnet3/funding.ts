@@ -42,6 +42,7 @@ export const keyFunderConfig: KeyFunderConfig<
     bob: '0.2',
     boba: '0.05',
     bsc: '5',
+    bsquared: '0.002',
     celo: '3',
     cheesechain: '50',
     chilizmainnet: '200',

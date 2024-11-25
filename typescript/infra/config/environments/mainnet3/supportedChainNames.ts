@@ -17,6 +17,7 @@ export const mainnet3SupportedChainNames = [
   'bob',
   'boba',
   'bsc',
+  'bsquared',
   'celo',
   'cheesechain',
   'chilizmainnet',
