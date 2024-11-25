@@ -307,7 +307,7 @@ export class HyperlaneRelayer {
 
         // TODO: handle batching
         await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
-      } catch (error) {
+      } catch {
         this.logger.error(
           `Failed to relay message ${id} (attempt #${attempts + 1})`,
         );

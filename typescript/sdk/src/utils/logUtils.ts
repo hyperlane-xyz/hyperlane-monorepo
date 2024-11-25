@@ -10,7 +10,7 @@ export function findMatchingLogEvents(
     .map((log) => {
       try {
         return iface.parseLog(log);
-      } catch (e) {
+      } catch {
         return undefined;
       }
     })
