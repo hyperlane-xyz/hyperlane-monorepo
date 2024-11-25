@@ -18,6 +18,9 @@
     "prettier"
   ],
   "rules": {
+    "guard-for-in": ["error"],
+    "import/no-cycle": ["error"],
+    "import/no-self-import": ["error"],
     "no-console": ["error"],
     "no-eval": ["error"],
     "no-extra-boolean-cast": ["error"],
@@ -31,7 +34,6 @@
         "name": "fs",
         "message": "Avoid use of node-specific libraries"
     }],
-    "guard-for-in": ["error"],
     "@typescript-eslint/ban-ts-comment": ["off"],
     "@typescript-eslint/explicit-module-boundary-types": ["off"],
     "@typescript-eslint/no-explicit-any": ["off"],
