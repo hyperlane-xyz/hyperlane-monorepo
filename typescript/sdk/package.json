@@ -34,6 +34,8 @@
     "chai": "4.5.0",
     "dotenv": "^10.0.0",
     "eslint": "^8.57.0",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.31.0",
     "ethereum-waffle": "^4.0.10",
     "hardhat": "^2.22.2",
     "mocha": "^10.2.0",
