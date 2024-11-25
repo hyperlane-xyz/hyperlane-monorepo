@@ -139,6 +139,7 @@ export {
   streamToString,
   toHexString,
   toTitleCase,
+  toUpperCamelCase,
   trimToLength,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
