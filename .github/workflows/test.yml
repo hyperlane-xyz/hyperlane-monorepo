@@ -109,9 +109,18 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
-  cli-e2e:
+  cli-e2e-matrix:
     runs-on: ubuntu-latest
     needs: [yarn-install]
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core
+          - relay
+          - warp-read
+          - warp-apply
+          - warp-deploy
     steps:
       - uses: actions/checkout@v4
         with:
@@ -130,8 +139,21 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI e2e tests
+      - name: CLI e2e tests (${{ matrix.test }})
         run: yarn --cwd typescript/cli test:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-e2e:
+    runs-on: ubuntu-latest
+    needs: cli-e2e-matrix
+    if: always()
+    steps:
+      - name: Check cli-e2e matrix status
+        if: ${{ needs.cli-e2e-matrix.result != 'success' }}
+        run: |
+          echo "CLI E2E tests failed"
+          exit 1
 
   agent-configs:
     runs-on: ubuntu-latest

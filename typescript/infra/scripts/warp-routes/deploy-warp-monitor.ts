@@ -46,11 +46,18 @@ async function getWarpRouteIdsInteractive() {
     value: id,
   }));
 
-  const selection = await checkbox({
-    message: 'Select Warp Route IDs to deploy',
-    choices,
-    pageSize: 30,
-  });
+  let selection: WarpRouteIds[] = [];
+
+  while (!selection.length) {
+    selection = await checkbox({
+      message: 'Select Warp Route IDs to deploy',
+      choices,
+      pageSize: 30,
+    });
+    if (!selection.length) {
+      console.log('Please select at least one Warp Route ID');
+    }
+  }
 
   return selection;
 }
