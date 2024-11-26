@@ -13,6 +13,7 @@ optimizer_runs = 999_999
 fs_permissions = [
     { access = "read", path = "./script/avs/"},
     { access = "read", path = "../vectors" },
+    { access = "read", path = "./test/test-data"},
     { access = "write", path = "./fixtures" }
 ]
 ignored_warnings_from = [
