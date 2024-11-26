@@ -105,6 +105,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
 
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
+      case IsmType.ICA_FALLBACK_ROUTING:
         return this.routingMetadataBuilder.build(
           {
             ...context,

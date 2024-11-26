@@ -1,5 +1,8 @@
-import { DefaultFallbackRoutingIsm__factory } from '@hyperlane-xyz/core';
-import { WithAddress, assert } from '@hyperlane-xyz/utils';
+import {
+  DefaultFallbackRoutingIsm__factory,
+  InterchainAccountIsm__factory,
+} from '@hyperlane-xyz/core';
+import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../EvmIsmReader.js';
@@ -72,7 +75,10 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
       return super.build(context, maxDepth);
     }
 
-    if (context.ism.type !== IsmType.FALLBACK_ROUTING) {
+    if (
+      context.ism.type !== IsmType.FALLBACK_ROUTING &&
+      context.ism.type !== IsmType.ICA_FALLBACK_ROUTING
+    ) {
       throw new Error(
         `Origin domain ${originChain} is not enrolled in DomainRoutingIsm`,
       );
@@ -82,19 +88,28 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
       this.baseMetadataBuilder.multiProvider.getProvider(
         context.message.parsed.destination,
       );
-    const fallbackIsm = DefaultFallbackRoutingIsm__factory.connect(
-      context.ism.address,
-      destinationProvider,
-    );
-    const defaultIsmAddress = await fallbackIsm.module(
-      context.message.parsed.origin,
-    );
+
+    let ismAddress: Address;
+    if (context.ism.type === IsmType.ICA_FALLBACK_ROUTING) {
+      const icaFallbackRoutingIsm = InterchainAccountIsm__factory.connect(
+        context.ism.address,
+        destinationProvider,
+      );
+
+      ismAddress = await icaFallbackRoutingIsm.route(context.message.message);
+    } else {
+      const fallbackIsm = DefaultFallbackRoutingIsm__factory.connect(
+        context.ism.address,
+        destinationProvider,
+      );
+      ismAddress = await fallbackIsm.module(context.message.parsed.origin);
+    }
 
     const ismReader = new EvmIsmReader(
       this.baseMetadataBuilder.multiProvider,
       context.message.parsed.destination,
     );
-    const defaultIsmConfig = await ismReader.deriveIsmConfig(defaultIsmAddress);
+    const defaultIsmConfig = await ismReader.deriveIsmConfig(ismAddress);
 
     const originContext = {
       ...context,

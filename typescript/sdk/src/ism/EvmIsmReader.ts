@@ -1,6 +1,7 @@
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  AbstractRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
@@ -127,17 +128,34 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   async deriveRoutingConfig(
     address: Address,
   ): Promise<WithAddress<RoutingIsmConfig>> {
-    const ism = DefaultFallbackRoutingIsm__factory.connect(
-      address,
-      this.provider,
-    );
+    const ism = AbstractRoutingIsm__factory.connect(address, this.provider);
 
-    const owner = await ism.owner();
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
+
+    let owner: Address | undefined;
+    const defaultFallbackIsmInstance =
+      DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
+    try {
+      owner = await defaultFallbackIsmInstance.owner();
+    } catch (error) {
+      this.logger.debug(
+        'Error accessing owner property, implying this is an ICA routing ISM.',
+        address,
+      );
+    }
+
+    // If the current ISM does not have an owner then it is an ICA Router
+    if (!owner) {
+      return {
+        type: IsmType.ICA_FALLBACK_ROUTING,
+        address,
+        domains: {},
+      };
+    }
 
     const domainIds = this.messageContext
       ? [BigNumber.from(this.messageContext.parsed.origin)]
-      : await ism.domains();
+      : await defaultFallbackIsmInstance.domains();
     const domains: RoutingIsmConfig['domains'] = {};
 
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
@@ -149,15 +167,15 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         return;
       }
       const module = this.messageContext
-        ? await ism.route(this.messageContext.message)
-        : await ism.module(domainId);
+        ? await defaultFallbackIsmInstance.route(this.messageContext.message)
+        : await defaultFallbackIsmInstance.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
     });
 
     // Fallback routing ISM extends from MailboxClient, default routing
     let ismType = IsmType.FALLBACK_ROUTING;
     try {
-      await ism.mailbox();
+      await defaultFallbackIsmInstance.mailbox();
     } catch (error) {
       ismType = IsmType.ROUTING;
       this.logger.debug(
