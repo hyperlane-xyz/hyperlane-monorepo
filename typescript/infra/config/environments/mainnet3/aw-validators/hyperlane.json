@@ -63,6 +63,9 @@
       "0x03047213365800f065356b4a2fe97c3c3a52296a"
     ]
   },
+  "bsquared": {
+    "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
+  },
   "celo": {
     "validators": [
       "0x63478422679303c3e4fc611b771fa4a707ef7f4a",
