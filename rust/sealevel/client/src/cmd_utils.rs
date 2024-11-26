@@ -17,6 +17,22 @@ use solana_sdk::{
 
 const SOLANA_DOMAIN: u32 = 1399811149;
 
+pub(crate) fn get_compute_unit_price_micro_lamports_for_id(domain: u32) -> u64 {
+    get_compute_unit_price(domain == SOLANA_DOMAIN)
+}
+
+pub(crate) fn get_compute_unit_price_micro_lamports_for_chain_name(chain_name: &str) -> u64 {
+    get_compute_unit_price(chain_name == "solanamainnet")
+}
+
+fn get_compute_unit_price(is_solanamainnet: bool) -> u64 {
+    if is_solanamainnet {
+        500_000
+    } else {
+        0
+    }
+}
+
 pub(crate) fn account_exists(client: &RpcClient, account: &Pubkey) -> Result<bool, ClientError> {
     // Using `get_account_with_commitment` instead of `get_account` so we get Ok(None) when the account
     // doesn't exist, rather than an error
@@ -73,9 +89,9 @@ pub(crate) fn deploy_program(
         program_keypair_path,
     ];
 
+    let compute_unit_price = get_compute_unit_price_micro_lamports_for_id(local_domain).to_string();
     if local_domain.eq(&SOLANA_DOMAIN) {
-        // May need tweaking depending on gas prices / available balance
-        command.append(&mut vec!["--with-compute-unit-price", "550000"]);
+        command.extend(vec!["--with-compute-unit-price", &compute_unit_price]);
     }
 
     build_cmd(command.as_slice(), None, None);
