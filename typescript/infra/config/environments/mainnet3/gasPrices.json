@@ -63,6 +63,10 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "bsquared": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "celo": {
     "amount": "10.0",
     "decimals": 9

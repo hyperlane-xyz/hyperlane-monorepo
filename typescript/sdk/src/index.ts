@@ -148,7 +148,7 @@ export {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types.js';
-export { EvmIsmReader } from './ism/EvmIsmReader.js';
+export { DerivedIsmConfig, EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export {
   buildAggregationIsmConfigs,
@@ -500,6 +500,7 @@ export {
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
+export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export {
   SealevelAccountDataWrapper,
