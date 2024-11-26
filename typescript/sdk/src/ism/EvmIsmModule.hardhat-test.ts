@@ -23,6 +23,7 @@ import {
   IsmType,
   ModuleType,
   MultisigIsmConfig,
+  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
@@ -54,7 +55,7 @@ function randomNonNestedModuleType(): ModuleType {
   return NonNestedModuleTypes[randomInt(NonNestedModuleTypes.length)];
 }
 
-const randomIsmConfig = (depth = 0, maxDepth = 2) => {
+const randomIsmConfig = (depth = 0, maxDepth = 2): any => {
   const moduleType =
     depth === maxDepth ? randomNonNestedModuleType() : randomModuleType();
 
@@ -110,7 +111,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2) => {
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
-  let exampleRoutingConfig: RoutingIsmConfig;
+  let exampleRoutingConfig: OwnableRoutingIsmConfig;
   let mailboxAddress: Address;
   let fundingAccount: Signer;
 

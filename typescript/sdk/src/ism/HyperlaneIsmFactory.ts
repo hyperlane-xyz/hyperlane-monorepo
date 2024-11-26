@@ -438,7 +438,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             overrides,
           ),
         );
-      } else {
+      } else if (config.type === IsmType.ROUTING) {
         // deploying new domain routing ISM
         const owner = config.owner;
         // estimate gas
@@ -482,6 +482,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           moduleAddress,
           this.multiProvider.getSigner(destination),
         );
+      } else {
+        // TODO: configure the ICA ISM
+        throw new Error('Not supported yet');
       }
     }
     return routingIsm;

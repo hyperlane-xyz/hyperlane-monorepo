@@ -20,6 +20,7 @@ import {
   IsmType,
   ModuleType,
   MultisigIsmConfig,
+  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
   WeightedMultisigIsmConfig,
@@ -136,7 +137,7 @@ describe('HyperlaneIsmFactory', async () => {
   let ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
   let ismFactory: HyperlaneIsmFactory;
   let multiProvider: MultiProvider;
-  let exampleRoutingConfig: RoutingIsmConfig;
+  let exampleRoutingConfig: OwnableRoutingIsmConfig;
   let mailboxAddress: Address;
   let newMailboxAddress: Address;
   let contractsMap: HyperlaneContractsMap<ProxyFactoryFactories> = {};

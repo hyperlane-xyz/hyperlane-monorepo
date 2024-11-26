@@ -68,13 +68,19 @@ export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
 
 export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
   () =>
-    OwnableSchema.extend({
-      type: z.union([
-        z.literal(IsmType.ROUTING),
-        z.literal(IsmType.FALLBACK_ROUTING),
-      ]),
-      domains: z.record(IsmConfigSchema),
-    }),
+    z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal(IsmType.ICA_FALLBACK_ROUTING),
+        domains: z.record(IsmConfigSchema),
+      }),
+      OwnableSchema.extend({
+        type: z.union([
+          z.literal(IsmType.ROUTING),
+          z.literal(IsmType.FALLBACK_ROUTING),
+        ]),
+        domains: z.record(IsmConfigSchema),
+      }),
+    ]),
 );
 
 export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z

@@ -423,9 +423,13 @@ export async function routingModuleDelta(
   };
 
   // if owners don't match, we need to transfer ownership
-  const expectedOwner = config.owner;
-  if (!eqAddress(owner, normalizeAddress(expectedOwner)))
-    delta.owner = expectedOwner;
+  if (
+    config.type !== IsmType.ICA_FALLBACK_ROUTING &&
+    !eqAddress(owner, normalizeAddress(config.owner))
+  ) {
+    delta.owner = config.owner;
+  }
+
   if (config.type === IsmType.FALLBACK_ROUTING) {
     const client = MailboxClient__factory.connect(moduleAddress, provider);
     const mailboxAddress = await client.mailbox();

@@ -51,6 +51,7 @@ export enum IsmType {
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
+  ICA_FALLBACK_ROUTING = 'icaFallbackRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
   STORAGE_AGGREGATION = 'storageAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
@@ -76,8 +77,8 @@ export const MUTABLE_ISM_TYPE = [
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
     case IsmType.ROUTING:
-      return ModuleType.ROUTING;
     case IsmType.FALLBACK_ROUTING:
+    case IsmType.ICA_FALLBACK_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
@@ -126,10 +127,24 @@ export type NullIsmConfig =
   | OpStackIsmConfig
   | TrustedRelayerIsmConfig;
 
-export type RoutingIsmConfig = OwnableConfig & {
-  type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
+type BaseRoutingIsmConfig<
+  T extends
+    | IsmType.ROUTING
+    | IsmType.FALLBACK_ROUTING
+    | IsmType.ICA_FALLBACK_ROUTING,
+> = {
+  type: T;
   domains: ChainMap<IsmConfig>;
 };
+
+export type OwnableRoutingIsmConfig = BaseRoutingIsmConfig<
+  IsmType.ROUTING | IsmType.FALLBACK_ROUTING
+> &
+  OwnableConfig;
+
+export type RoutingIsmConfig =
+  | BaseRoutingIsmConfig<IsmType.ICA_FALLBACK_ROUTING>
+  | OwnableRoutingIsmConfig;
 
 export type AggregationIsmConfig = {
   type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;
@@ -143,6 +158,7 @@ export type DeployedIsmType = {
   [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
+  [IsmType.ICA_FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.STORAGE_AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
