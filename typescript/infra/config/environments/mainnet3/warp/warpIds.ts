@@ -11,6 +11,7 @@ export enum WarpRouteIds {
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',
   EclipseEthereumWeETHs = 'weETHs/eclipsemainnet-ethereum',
+  EclipseSolanaEzSOL = 'EZSOL/eclipsemainnet-solanamainnet',
   EclipseSolanaORCA = 'ORCA/eclipsemainnet-solanamainnet',
   EclipseSolanaSOL = 'SOL/eclipsemainnet-solanamainnet',
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
