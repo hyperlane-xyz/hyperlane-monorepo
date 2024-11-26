@@ -21,8 +21,10 @@ export default [
       '**/node_modules',
       '**/dist',
       '**/coverage',
+      '**/*.cjs',
       '**/*.cts',
-      '*.config.mjs',
+      '**/*.mjs',
+      'jest.config.js'
     ],
   },
   ...compat.extends(

@@ -6,12 +6,14 @@ import { ProofsService } from './services/ProofsService';
 
 // Initialize Services
 const proofsService = new ProofsService(
-  config.LIGHT_CLIENT_ADDR,
-  config.RPC_ADDRESS,
-  config.STEP_FN_ID,
-  config.CHAIN_ID,
-  config.SUCCINCT_PLATFORM_URL,
-  config.SUCCINCT_API_KEY,
+  {
+    lightClientAddress: config.LIGHT_CLIENT_ADDR,
+    stepFunctionId: config.STEP_FN_ID,
+    platformUrl: config.SUCCINCT_PLATFORM_URL,
+    apiKey: config.SUCCINCT_API_KEY,
+  },
+  { url: config.RPC_ADDRESS, chainId: config.CHAIN_ID },
+  { url: `${config.SERVER_URL_PREFIX}:${config.SERVER_PORT}` },
 );
 
 // Initialize Server and add Service handlers
