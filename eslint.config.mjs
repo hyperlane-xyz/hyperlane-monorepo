@@ -1,8 +1,8 @@
 import { FlatCompat } from '@eslint/eslintrc';
 import js from '@eslint/js';
 import typescriptEslint from '@typescript-eslint/eslint-plugin';
-import importPlugin from 'eslint-plugin-import';
 import tsParser from '@typescript-eslint/parser';
+import importPlugin from 'eslint-plugin-import';
 import jest from 'eslint-plugin-jest';
 import globals from 'globals';
 import path from 'node:path';
@@ -25,7 +25,7 @@ export default [
       '**/*.cjs',
       '**/*.cts',
       '**/*.mjs',
-      'jest.config.js'
+      'jest.config.js',
     ],
   },
   ...compat.extends(
@@ -37,7 +37,7 @@ export default [
   ),
   {
     plugins: {
-      'import': importPlugin,
+      import: importPlugin,
       '@typescript-eslint': typescriptEslint,
       jest,
     },
@@ -80,7 +80,7 @@ export default [
         'error',
         {
           name: 'console',
-          message: "Please use a logger and/or the utils' package assert",
+          message: 'Please use a logger and/or the utils package assert',
         },
         {
           name: 'fs',
