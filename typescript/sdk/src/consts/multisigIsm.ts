@@ -187,6 +187,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  bsquared: {
+    threshold: 1,
+    validators: ['0xcadc90933c9fbe843358a4e70e46ad2db78e28aa'],
+  },
+
   camptestnet: {
     threshold: 1,
     validators: ['0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e'],
