@@ -7,6 +7,7 @@ import {
   IsmConfig,
   IsmType,
   MailboxClientConfig,
+  MultiProtocolProvider,
   TokenType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
@@ -142,6 +143,7 @@ export async function createWarpRouteDeployConfig({
     strategyConfig,
     warpChains,
     context.multiProvider,
+    new MultiProtocolProvider(context.chainMetadata),
     { key: context.key },
   );
 
