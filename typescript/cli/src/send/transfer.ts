@@ -6,13 +6,18 @@ import {
   HyperlaneCore,
   HyperlaneRelayer,
   MultiProtocolProvider,
+  MultiProvider,
   ProviderType,
   Token,
   TokenAmount,
   WarpCore,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  parseWarpRouteMessage,
+  timeout,
+} from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';

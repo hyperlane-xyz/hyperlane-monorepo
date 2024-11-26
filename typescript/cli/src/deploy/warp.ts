@@ -136,16 +136,23 @@ export async function runWarpRouteDeploy({
 
   await runDeployPlanStep(deploymentParams);
 
+  const ethereumChains = chains.filter(
+    (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
+  );
+
   await runPreflightChecksForChains({
     context,
-    chains,
+    chains: ethereumChains,
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
   const userAddress = await signer.getAddress();
 
-  const initialBalances = await prepareDeploy(context, userAddress, chains);
-
+  const initialBalances = await prepareDeploy(
+    context,
+    userAddress,
+    ethereumChains,
+  );
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
   const warpCoreConfig = await getWarpCoreConfig(
@@ -155,7 +162,13 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context);
 
-  await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
+  await completeDeploy(
+    context,
+    'warp',
+    initialBalances,
+    userAddress,
+    ethereumChains,
+  );
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
