@@ -17,7 +17,7 @@ mod contracts;
 mod ism;
 
 /// Generated contract bindings.
-mod interfaces;
+pub mod interfaces;
 
 /// Ethers JSONRPC Client implementations
 mod rpc_clients;

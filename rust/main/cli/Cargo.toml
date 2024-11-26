@@ -1,0 +1,18 @@
+[package]
+name = "hyper-cli"
+edition = "2021"
+
+[[bin]]
+name = "hyper"
+path = "src/main.rs"
+
+[dependencies]
+tokio.workspace = true
+eyre.workspace = true
+ethers.workspace = true
+futures.workspace = true
+clap = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+hyperlane-core = { path = "../hyperlane-core", features = ["async"] }
+hyperlane-ethereum = { path = "../chains/hyperlane-ethereum"}
+relayer = { path = "../agents/relayer"}

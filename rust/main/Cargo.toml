@@ -16,6 +16,7 @@ members = [
   "utils/crypto",
   "utils/hex",
   "utils/run-locally",
+  "cli",
 ]
 
 [workspace.package]
