@@ -14,7 +14,7 @@ import {
 } from '@inquirer/core';
 import figures from '@inquirer/figures';
 import { KeypressEvent, confirm, input, isSpaceKey } from '@inquirer/prompts';
-import type { PartialDeep } from '@inquirer/type';
+import type { PartialDeep, Prompt } from '@inquirer/type';
 import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
@@ -464,7 +464,10 @@ function isDownKey(key: KeypressEvent): boolean {
   return key.name === 'down';
 }
 
-export const searchableCheckBox = createPrompt(
+export const searchableCheckBox: Prompt<
+  any,
+  SearchableCheckboxConfig<any>
+> = createPrompt(
   <Value>(
     config: SearchableCheckboxConfig<Value>,
     done: (value: Array<Value>) => void,
