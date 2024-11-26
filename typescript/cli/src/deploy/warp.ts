@@ -136,6 +136,7 @@ export async function runWarpRouteDeploy({
 
   await runDeployPlanStep(deploymentParams);
 
+  // Some of the below functions throw if passed non-EVM chains
   const ethereumChains = chains.filter(
     (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
   );
