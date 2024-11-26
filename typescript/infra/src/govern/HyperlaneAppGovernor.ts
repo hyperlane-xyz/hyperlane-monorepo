@@ -390,7 +390,7 @@ export abstract class HyperlaneAppGovernor<
     if (!eqAddress(recoveredAccount, account.address)) {
       console.error(
         chalk.red(
-          `Failed to recover the target owner ICA: (chain: ${chain}, remote owner: ${accountConfig.owner}, origin: ${accountConfig}).
+          `Failed to recover the target owner ICA: (chain: ${chain}, remote owner: ${accountConfig.owner}, origin: ${accountConfig.origin}).
           Used ISM override: ${ismOverride}, recovered account: ${recoveredAccount}. Is the ICA's ISM override correct?
           Defaulting to manual submission.`,
         ),
@@ -404,7 +404,7 @@ export abstract class HyperlaneAppGovernor<
 
     // Get the encoded call to the remote ICA
     const callRemote = await this.interchainAccount.getCallRemote({
-      chain: origin,
+      chain: accountConfig.origin,
       destination: chain,
       innerCalls: [
         {
@@ -437,12 +437,12 @@ export abstract class HyperlaneAppGovernor<
 
     // Try to infer the submission type for the ICA call
     const { type: subType } = await this.inferCallSubmissionType(
-      origin,
+      accountConfig.origin,
       encodedCall,
       (chain: ChainName, submitterAddress: Address) => {
         // Require the submitter to be the owner of the ICA on the origin chain.
         return (
-          chain === origin &&
+          chain === accountConfig.origin &&
           eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
         );
       },
@@ -454,7 +454,7 @@ export abstract class HyperlaneAppGovernor<
     if (subType !== SubmissionType.MANUAL) {
       return {
         type: subType,
-        chain: origin,
+        chain: accountConfig.origin,
         call: encodedCall,
         icaTargetChain: chain,
       };

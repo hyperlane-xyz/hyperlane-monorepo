@@ -91,12 +91,13 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       );
     }
 
+    const configOwner = bytes32ToAddress(config.owner);
     const destinationIsmAddress =
       config.ismOverride ??
       bytes32ToAddress(await destinationRouter.isms(originDomain));
     const destinationAccount = await destinationRouter[
       'getLocalInterchainAccount(uint32,address,address,address)'
-    ](originDomain, config.owner, originRouterAddress, destinationIsmAddress);
+    ](originDomain, configOwner, originRouterAddress, destinationIsmAddress);
 
     // If not deploying anything, return the account address.
     if (!deployIfNotExists) {
@@ -117,7 +118,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           'getDeployedInterchainAccount(uint32,address,address,address)'
         ](
           originDomain,
-          config.owner,
+          configOwner,
           originRouterAddress,
           destinationIsmAddress,
           txOverrides,
