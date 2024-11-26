@@ -49,7 +49,7 @@
     "build": "yarn version:update && tsc",
     "dev": "yarn version:update && tsc --watch",
     "clean": "rm -rf ./dist",
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src ./examples",
     "test:ci": "yarn mocha --config .mocharc.json",
     "test:e2e": "./scripts/run-e2e-test.sh",

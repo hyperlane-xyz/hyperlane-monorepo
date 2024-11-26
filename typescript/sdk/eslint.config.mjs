@@ -14,16 +14,12 @@ export default [
     },
   },
   {
-    ignores: [
-      './src/ism/metadata/**/*.ts',
-    ],
+    ignores: ['./src/ism/metadata/**/*.ts'],
     rules: {
-        'import/no-cycle': ['off'],
-    }
+      'import/no-cycle': ['off'],
+    },
   },
   {
-    ignores: [
-      'src/**/*.js',
-    ],
+    ignores: ['src/**/*.js'],
   },
 ];

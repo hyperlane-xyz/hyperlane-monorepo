@@ -941,7 +941,7 @@ async function getWarpApplySubmitter({
   context: WriteCommandContext;
   strategyUrl?: string;
 }): Promise<TxSubmitterBuilder<ProtocolType>> {
-  const { chainMetadata, multiProvider } = context;
+  const { multiProvider } = context;
 
   const submissionStrategy: SubmissionStrategy = strategyUrl
     ? readChainSubmissionStrategy(strategyUrl)[chain]
@@ -952,8 +952,7 @@ async function getWarpApplySubmitter({
         },
       };
 
-  const protocol = chainMetadata[chain].protocol;
-  return getSubmitterBuilder<typeof protocol>({
+  return getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
     multiProvider,
   });
