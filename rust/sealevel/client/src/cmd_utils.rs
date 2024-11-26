@@ -27,6 +27,7 @@ pub(crate) fn get_compute_unit_price_micro_lamports_for_chain_name(chain_name: &
 
 fn get_compute_unit_price(is_solanamainnet: bool) -> u64 {
     if is_solanamainnet {
+        // Generally taking a low/medium value from https://www.quicknode.com/gas-tracker/solana
         500_000
     } else {
         0
