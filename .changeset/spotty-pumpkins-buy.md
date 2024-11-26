@@ -2,4 +2,4 @@
 '@hyperlane-xyz/utils': minor
 ---
 
-Add toUpperCamelCase function
+Add toUpperCamelCase and deepFind functionss

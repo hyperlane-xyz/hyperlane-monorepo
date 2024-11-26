@@ -1,7 +1,10 @@
-/* eslint-disable no-case-declarations */
-import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  WithAddress,
+  assert,
+  deepFind,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
-import { deepFind } from '../../../../utils/dist/objects.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import {
   ArbL2ToL1HookConfig,
@@ -13,10 +16,15 @@ import { IsmType } from '../types.js';
 
 import { AggregationMetadataBuilder } from './aggregation.js';
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
+import { decodeIsmMetadata } from './decode.js';
 import { MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadataBuilder } from './null.js';
 import { DefaultFallbackRoutingMetadataBuilder } from './routing.js';
-import type { MetadataBuilder, MetadataContext } from './types.js';
+import type {
+  MetadataBuilder,
+  MetadataContext,
+  StructuredMetadata,
+} from './types.js';
 
 export class BaseMetadataBuilder implements MetadataBuilder {
   public nullMetadataBuilder: NullMetadataBuilder;
@@ -60,6 +68,7 @@ export class BaseMetadataBuilder implements MetadataBuilder {
         if (typeof hook === 'string') {
           throw new Error('Hook context must be an object (for multisig ISM)');
         }
+        // eslint-disable-next-line no-case-declarations
         const merkleTreeHook = deepFind(
           hook,
           (v): v is WithAddress<MerkleTreeHookConfig> =>
@@ -100,5 +109,12 @@ export class BaseMetadataBuilder implements MetadataBuilder {
       default:
         throw new Error(`Unsupported ISM: ${ism}`);
     }
+  }
+
+  static decode(
+    metadata: string,
+    context: MetadataContext,
+  ): StructuredMetadata {
+    return decodeIsmMetadata(metadata, context);
   }
 }

@@ -108,6 +108,7 @@ export {
   arrayToObject,
   deepCopy,
   deepEquals,
+  deepFind,
   diffObjMerge,
   invertKeysAndValues,
   isObjEmpty,
