@@ -331,7 +331,12 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
 
   bsquared: {
     threshold: 1,
-    validators: ['0xcadc90933c9fbe843358a4e70e46ad2db78e28aa'],
+    validators: [
+      {
+        address: '0xcadc90933c9fbe843358a4e70e46ad2db78e28aa',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
   },
 
   camptestnet: {
