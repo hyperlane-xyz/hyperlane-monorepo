@@ -108,6 +108,7 @@ export {
   arrayToObject,
   deepCopy,
   deepEquals,
+  deepFind,
   diffObjMerge,
   invertKeysAndValues,
   isObjEmpty,
@@ -139,6 +140,7 @@ export {
   streamToString,
   toHexString,
   toTitleCase,
+  toUpperCamelCase,
   trimToLength,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';

@@ -82,7 +82,7 @@ export function tryParseAmount(
     const parsed = BigNumber(value);
     if (!parsed || parsed.isNaN() || !parsed.isFinite()) return null;
     else return parsed;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

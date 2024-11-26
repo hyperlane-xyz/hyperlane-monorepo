@@ -5,12 +5,13 @@ import { ChainName } from '../../types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../EvmIsmReader.js';
 import { IsmType, RoutingIsmConfig } from '../types.js';
 
-import {
-  BaseMetadataBuilder,
+import type { BaseMetadataBuilder } from './builder.js';
+import { decodeIsmMetadata } from './decode.js';
+import type {
   MetadataBuilder,
   MetadataContext,
   StructuredMetadata,
-} from './builder.js';
+} from './types.js';
 
 export type RoutingMetadata<T> = {
   type: IsmType.ROUTING;
@@ -45,7 +46,7 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
     const originMetadata =
       typeof ism === 'string'
         ? metadata
-        : BaseMetadataBuilder.decode(metadata, {
+        : decodeIsmMetadata(metadata, {
             ...context,
             ism: ism as DerivedIsmConfig,
           });

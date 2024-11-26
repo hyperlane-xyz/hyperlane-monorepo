@@ -72,6 +72,12 @@ jobs:
             .yarn
           key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           fail-on-cache-miss: true
+      
+      # Build required before linting or the intra-monorepo package cycle checking won't work
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: lint
         run: yarn lint
