@@ -26,6 +26,7 @@
     "zx": "^8.1.4"
   },
   "devDependencies": {
+    "@eslint/js": "^9.15.0",
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
     "@types/chai-as-promised": "^8",
