@@ -46,9 +46,11 @@ export class GcpValidator extends BaseValidator {
       const bucketName = storageLocation.slice(LOCATION_PREFIX.length);
       const pieces = bucketName.split('/');
       if (pieces.length >= 1) {
+        const storageFolder =
+          pieces.length > 1 ? pieces.slice(1).join('/') : undefined;
         const storageConfig = {
           bucket: pieces[0],
-          folder: pieces.slice(1).join('/'),
+          folder: storageFolder,
           caching: true,
         };
         const storage = new GcpStorageWrapper(storageConfig);

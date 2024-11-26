@@ -3,9 +3,8 @@ import { execSync } from 'child_process';
 import { ValidatorAnnounce__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
-  GcpValidator,
-  S3Validator,
   defaultMultisigConfigs,
+  getValidatorFromStorageLocation,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
@@ -143,14 +142,9 @@ async function main() {
 
         // Get metadata from each storage location
         try {
-          let validatorInstance;
-          if (location.startsWith('gs://')) {
-            validatorInstance = await GcpValidator.fromStorageLocation(
-              location,
-            );
-          } else {
-            validatorInstance = await S3Validator.fromStorageLocation(location);
-          }
+          const validatorInstance = await getValidatorFromStorageLocation(
+            location,
+          );
 
           const metadata = await validatorInstance.getMetadata();
           const gitSha = metadata?.git_sha;

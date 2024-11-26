@@ -67,7 +67,9 @@ export class GcpStorageWrapper {
 
       const result = {
         data: JSON.parse(body),
-        modified: new Date(metadata.updated ?? ''),
+        // If no updated date is provided, use the Unix epoch start
+        // 0 = Unix epoch start (1970-01-01T00:00:00.000Z)
+        modified: new Date(metadata.updated ?? 0),
       };
 
       if (this.cache) {
@@ -83,7 +85,7 @@ export class GcpStorageWrapper {
   }
 
   url(key: string): string {
-    const Key = this.formatKey(key);
-    return `https://storage.googleapis.com/${this.bucket}/${Key}`;
+    const formattedKey = this.formatKey(key);
+    return `https://storage.googleapis.com/${this.bucket}/${formattedKey}`;
   }
 }
