@@ -13,6 +13,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { DEPLOYER } from '../../owners.js';
+import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 const ethereumOwner = DEPLOYER;
 const eclipseOwner = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
@@ -26,7 +27,7 @@ export async function getEclipseEthereumApxEthWarpConfig(
     ...getOwnerConfigForAddress(eclipseOwner),
     type: TokenType.synthetic,
     foreignDeployment: '9pEgj7m2VkwLtJHPtTw5d8vbB7kfjzcXXCRgdwruW7C2',
-    gas: 300_000,
+    gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
