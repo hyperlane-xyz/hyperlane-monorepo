@@ -1,6 +1,7 @@
 import { FlatCompat } from '@eslint/eslintrc';
 import js from '@eslint/js';
 import typescriptEslint from '@typescript-eslint/eslint-plugin';
+import importPlugin from 'eslint-plugin-import';
 import tsParser from '@typescript-eslint/parser';
 import jest from 'eslint-plugin-jest';
 import globals from 'globals';
@@ -36,6 +37,7 @@ export default [
   ),
   {
     plugins: {
+      'import': importPlugin,
       '@typescript-eslint': typescriptEslint,
       jest,
     },
