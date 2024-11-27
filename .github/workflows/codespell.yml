@@ -30,4 +30,4 @@ jobs:
         run: pip install -r ./.codespell/requirements.txt
 
       - name: Spell check
-        run: codespell --config=./.codespell/.codespellrc
+        run: codespell --config=./.codespell/.codespellrc .changesets/

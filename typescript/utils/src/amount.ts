@@ -8,7 +8,7 @@ const DEFAULT_TOKEN_DECIMALS = 18;
 /**
  * Convert the given Wei value to Ether value
  * @param value The value to convert.
- * @returns Converted value in string type.
+ * @returns Converted value in string type. functionss
  */
 export function fromWei(
   value: BigNumber.Value | null | undefined,
