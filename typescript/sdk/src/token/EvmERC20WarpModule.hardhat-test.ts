@@ -13,8 +13,6 @@ import {
   Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
-  Proxy__factory,
-  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
