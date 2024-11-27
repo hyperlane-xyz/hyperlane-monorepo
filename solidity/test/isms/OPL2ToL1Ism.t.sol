@@ -22,7 +22,8 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
 
     uint256 internal constant MOCK_NONCE = 0;
     uint256 internal constant GAS_LIMIT = 300_000;
-
+    uint256 internal constant GAS_PRICE = 10;
+    uint256 internal constant OVERRIDE_MULTIPLIER = 2;
     TestInterchainGasPaymaster internal mockOverheadIgp;
     MockOptimismPortal internal portal;
     MockOptimismMessenger internal l1Messenger;
@@ -42,7 +43,7 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
         deployAll();
         super.setUp();
 
-        GAS_QUOTE = GAS_LIMIT * 10;
+        GAS_QUOTE = GAS_LIMIT * GAS_PRICE;
     }
 
     function deployHook() public {
@@ -88,6 +89,16 @@ contract OPL2ToL1IsmTest is ExternalBridgeTest {
             mockOverheadIgp.quoteGasPayment(ORIGIN_DOMAIN, GAS_LIMIT)
         );
         hook.postDispatch{value: quote}(igpMetadata, encodedMessage);
+    }
+
+    function test_quoteDispatch_dontOverrideGasLimit() public {
+        bytes memory igpMetadata = StandardHookMetadata.overrideGasLimit(
+            GAS_LIMIT * OVERRIDE_MULTIPLIER
+        );
+        assertEq(
+            hook.quoteDispatch(igpMetadata, encodedMessage),
+            GAS_LIMIT * GAS_PRICE * OVERRIDE_MULTIPLIER
+        );
     }
 
     /* ============ helper functions ============ */

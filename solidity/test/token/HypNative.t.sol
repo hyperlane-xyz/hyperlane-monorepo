@@ -119,13 +119,7 @@ contract HypNativeTest is HypTokenTest {
     function testRemoteTransfer_invalidAmount() public {
         uint256 quote = localValueRouter.quoteGasPayment(DESTINATION);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                HypNative.InsufficientValue.selector,
-                TRANSFER_AMT + quote,
-                TRANSFER_AMT
-            )
-        );
+        vm.expectRevert("HypNative: insufficient value");
         vm.prank(ALICE);
         localToken.transferRemote{value: TRANSFER_AMT}(
             DESTINATION,
@@ -170,13 +164,7 @@ contract HypNativeTest is HypTokenTest {
         hook.setFee(fee);
 
         vm.prank(ALICE);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                HypNative.InsufficientValue.selector,
-                msgValue,
-                msgValue - 1
-            )
-        );
+        vm.expectRevert("HypNative: insufficient value");
         localToken.transferRemote{value: msgValue - 1}(
             DESTINATION,
             BOB.addressToBytes32(),

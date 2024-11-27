@@ -76,9 +76,7 @@ contract HypNative is TokenRouter {
             _hookMetadata,
             _hook
         );
-        if (msg.value < _amount + quote) {
-            revert InsufficientValue(_amount + quote, msg.value);
-        }
+        require(msg.value >= _amount + quote, "HypNative: insufficient value");
 
         bytes memory hookMetadata = StandardHookMetadata.overrideMsgValue(
             _hookMetadata,
