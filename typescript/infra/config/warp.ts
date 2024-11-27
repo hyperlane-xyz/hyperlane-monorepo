@@ -1,26 +1,29 @@
 import {
   ChainMap,
   MultiProvider,
-  RouterConfig,
+  OwnableConfig,
   TokenRouterConfig,
 } from '@hyperlane-xyz/sdk';
+import { objMap } from '@hyperlane-xyz/utils';
 
-import { getHyperlaneCore } from '../scripts/core-utils.js';
 import {
   EnvironmentConfig,
   getRouterConfigsForAllVms,
 } from '../src/config/environment.js';
+import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
 import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAncient8EthereumUSDCWarpConfig.js';
 import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumZircuitAmphrETHWarpConfig.js';
 import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
+import { getEclipseEthereumApxEthWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumApxETHWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseEthereumWeEthsWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWeETHsWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
 import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBscLumiaLUMIAWarpConfig.js';
+import { getEthereumFlowCbBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFlowCbBTCWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
 import { getEthereumSeiFastUSDWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiFastUSDWarpConfig.js';
@@ -33,16 +36,12 @@ import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGett
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 
-type WarpConfigGetterWithConfig = (
-  routerConfig: ChainMap<RouterConfig>,
+type WarpConfigGetter = (
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ) => Promise<ChainMap<TokenRouterConfig>>;
 
-type WarpConfigGetterWithoutConfig = () => Promise<ChainMap<TokenRouterConfig>>;
-
-export const warpConfigGetterMap: Record<
-  string,
-  WarpConfigGetterWithConfig | WarpConfigGetterWithoutConfig
-> = {
+export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumZircuitAMPHRETH]:
     getArbitrumEthereumZircuitAmphrETHWarpConfig,
@@ -53,6 +52,7 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
+  [WarpRouteIds.EthereumFlowCbBTC]: getEthereumFlowCbBTCWarpConfig,
   [WarpRouteIds.EthereumSeiFastUSD]: getEthereumSeiFastUSDWarpConfig,
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
@@ -60,12 +60,13 @@ export const warpConfigGetterMap: Record<
   [WarpRouteIds.EthereumZircuitPZETH]: getRenzoPZETHWarpConfig,
   [WarpRouteIds.EthereumBscLumiaLUMIA]: getEthereumBscLUMIAWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
-  [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
-  [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
+  [WarpRouteIds.EclipseEthereumApxEth]: getEclipseEthereumApxEthWarpConfig,
   [WarpRouteIds.EclipseEthereumSolanaUSDT]:
     getEclipseEthereumSolanaUSDTWarpConfig,
   [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
   [WarpRouteIds.EclipseEthereumWeETHs]: getEclipseEthereumWeEthsWarpConfig,
+  [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
+  [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
 };
 
 export async function getWarpConfig(
@@ -77,6 +78,19 @@ export async function getWarpConfig(
     envConfig,
     multiProvider,
   );
+  // Strip the owners from the router config
+  const routerConfigWithoutOwner = objMap(routerConfig, (_chain, config) => {
+    const { owner, ownerOverrides, ...configWithoutOwner } = config;
+    return configWithoutOwner;
+  });
+  // Isolate the owners from the router config
+  const abacusWorksEnvOwnerConfig = objMap(routerConfig, (_chain, config) => {
+    const { owner, ownerOverrides } = config;
+    return {
+      owner,
+      ownerOverrides,
+    };
+  });
 
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
   if (!warpConfigGetter) {
@@ -87,9 +101,5 @@ export async function getWarpConfig(
     );
   }
 
-  if (warpConfigGetter.length === 1) {
-    return warpConfigGetter(routerConfig);
-  } else {
-    return (warpConfigGetter as WarpConfigGetterWithoutConfig)();
-  }
+  return warpConfigGetter(routerConfigWithoutOwner, abacusWorksEnvOwnerConfig);
 }

@@ -103,7 +103,7 @@ export async function canProposeSafeTransactions(
   let safeService;
   try {
     safeService = getSafeService(chain, multiProvider);
-  } catch (e) {
+  } catch {
     return false;
   }
   const safe = await getSafe(chain, multiProvider, safeAddress);

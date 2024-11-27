@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { expect } from 'chai';
 import { Signer } from 'ethers';
 import hre from 'hardhat';

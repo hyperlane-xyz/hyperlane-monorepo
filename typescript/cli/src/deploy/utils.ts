@@ -177,10 +177,6 @@ export async function completeDeploy(
   if (isDryRun) await completeDryRun(command);
 }
 
-export function toUpperCamelCase(string: string) {
-  return string.charAt(0).toUpperCase() + string.slice(1);
-}
-
 function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
   return {
     Name: chainMetadata.name,

@@ -25,7 +25,7 @@ function lowerCaseConfig(obj: any): any {
   } else if (obj !== null && typeof obj === 'object') {
     const newObj: any = {};
     for (const key in obj) {
-      if (key !== 'address') {
+      if (key !== 'address' && key !== 'ownerOverrides') {
         newObj[key] = key === 'type' ? obj[key] : normalizeConfig(obj[key]);
       }
     }

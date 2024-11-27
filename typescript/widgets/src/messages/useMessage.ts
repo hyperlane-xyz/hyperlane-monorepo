@@ -1,10 +1,13 @@
 import { useCallback, useState } from 'react';
 
 import { HYPERLANE_EXPLORER_API_URL } from '../consts.js';
+import { widgetLogger } from '../logger.js';
 import { executeExplorerQuery } from '../utils/explorers.js';
 import { useInterval } from '../utils/timeout.js';
 
 import { ApiMessage, MessageStatus } from './types.js';
+
+const logger = widgetLogger.child({ module: 'useMessage' });
 
 interface Params {
   messageId?: string;
@@ -40,7 +43,7 @@ export function useMessage({
       })
       .catch((e) => setError(e.toString()))
       .finally(() => setIsLoading(false));
-  }, [messageId, originTxHash, data]);
+  }, [explorerApiUrl, messageId, originTxHash, data]);
 
   useInterval(fetcher, retryInterval);
 
@@ -66,13 +69,13 @@ async function fetchMessage(
   const result = await executeExplorerQuery<ApiMessage[]>(url, 5000);
 
   if (result.length > 1) {
-    console.warn('More than one message received, should not occur');
+    logger.warn('More than one message received, should not occur');
     return result[0];
   } else if (result.length === 1) {
-    console.debug('Message data found, id:', result[0].id);
+    logger.debug('Message data found, id:', result[0].id);
     return result[0];
   } else {
-    console.debug('Message data not found');
+    logger.debug('Message data not found');
     return null;
   }
 }
