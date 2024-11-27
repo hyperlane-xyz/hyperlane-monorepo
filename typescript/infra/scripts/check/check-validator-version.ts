@@ -158,7 +158,7 @@ async function main() {
               chain,
               validator,
               alias,
-              version: gitSha || 'missing',
+              version: gitSha ? gitSha.slice(0, 7) : 'missing',
               age: getCommitAge(gitSha),
             });
           }
@@ -170,32 +170,39 @@ async function main() {
             chain,
             validator,
             alias,
-            version: `UNKNOWN`,
+            version: `  ???  `,
           });
         }
       }
     }),
   );
 
-  if (mismatchedValidators.length > 0) {
-    console.log(
-      'Expecting validators to have one of the following git SHA:',
-      acceptableValidatorVersions,
-    );
-    console.log('\n⚠️ Validators with mismatched git SHA:');
-    console.table(mismatchedValidators.sort(sortValidatorInfo));
-
+  const showUpdatedValidators = () => {
     if (showUpdated) {
-      console.log('\n✅ Validators with expected git SHA:');
+      console.log(
+        `\n✅ ${upgradedValidators.length} Validators with expected git SHA:`,
+      );
       console.table(upgradedValidators.sort(sortValidatorInfo));
     }
+  };
+
+  if (mismatchedValidators.length > 0) {
+    console.log(
+      'Expecting validators to have one of the following git SHA:\n' +
+        Object.entries(acceptableValidatorVersions)
+          .map(([key, value]) => `  • ${key} (${value})`)
+          .join('\n'),
+    );
+    console.log(
+      `\n⚠️ ${mismatchedValidators.length} Validators with mismatched git SHA:`,
+    );
+    console.table(mismatchedValidators.sort(sortValidatorInfo));
+
+    showUpdatedValidators();
     process.exit(1);
   }
 
-  if (showUpdated) {
-    console.log('\n✅ Validators with expected git SHA:');
-    console.table(upgradedValidators.sort(sortValidatorInfo));
-  }
+  showUpdatedValidators();
   console.log('\n✅ All validators running expected git SHA!');
   process.exit(0);
 }
