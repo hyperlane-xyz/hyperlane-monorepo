@@ -1,12 +1,15 @@
-pub(crate) mod sequence_aware;
-
 use hyperlane_core::{
     Delivery, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion,
 };
+
+pub(crate) mod sequence_aware;
 pub(crate) use sequence_aware::ForwardBackwardSequenceAwareSyncCursor;
 
 pub(crate) mod rate_limited;
 pub(crate) use rate_limited::RateLimitedContractSyncCursor;
+
+pub(crate) mod metrics;
+pub(crate) use metrics::CursorMetrics;
 
 pub enum CursorType {
     SequenceAware,
@@ -44,7 +47,7 @@ impl Indexable for HyperlaneMessage {
     }
 
     fn name() -> &'static str {
-        "HyperlaneMessage"
+        "hyperlane_message"
     }
 }
 
@@ -59,7 +62,7 @@ impl Indexable for InterchainGasPayment {
     }
 
     fn name() -> &'static str {
-        "InterchainGasPayment"
+        "interchain_gas_payment"
     }
 }
 
@@ -74,7 +77,7 @@ impl Indexable for MerkleTreeInsertion {
     }
 
     fn name() -> &'static str {
-        "MerkleTreeInsertion"
+        "merkle_tree_insertion"
     }
 }
 
@@ -89,6 +92,6 @@ impl Indexable for Delivery {
     }
 
     fn name() -> &'static str {
-        "Delivery"
+        "delivery"
     }
 }

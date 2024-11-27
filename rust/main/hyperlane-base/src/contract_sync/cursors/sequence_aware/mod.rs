@@ -1,22 +1,21 @@
+use std::ops::RangeInclusive;
 use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use eyre::Result;
+
 use hyperlane_core::{
     ChainCommunicationError, ContractSyncCursor, CursorAction, HyperlaneDomain,
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
 };
-use std::ops::RangeInclusive;
 
 mod backward;
 mod forward;
-mod metrics;
 
 pub(crate) use backward::BackwardSequenceAwareSyncCursor;
 pub(crate) use forward::ForwardSequenceAwareSyncCursor;
-pub(crate) use metrics::ForwardBackwardCursorMetrics;
 
-use super::Indexable;
+use super::{CursorMetrics, Indexable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LastIndexedSnapshot {
@@ -71,7 +70,7 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,
     last_direction: SyncDirection,
-    metrics: ForwardBackwardCursorMetrics,
+    metrics: Arc<CursorMetrics>,
     domain: HyperlaneDomain,
 }
 
@@ -81,7 +80,7 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
     /// Construct a new contract sync helper.
     pub async fn new(
         domain: &HyperlaneDomain,
-        metrics: ForwardBackwardCursorMetrics,
+        metrics: Arc<CursorMetrics>,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
         store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         chunk_size: u32,
@@ -115,12 +114,12 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
     async fn update_metrics(&self) {
         let (cursor_type, latest_block, sequence) = match self.last_direction {
             SyncDirection::Forward => (
-                "ForwardSequenced",
+                "forward_sequenced",
                 self.forward.latest_queried_block(),
                 self.forward.last_sequence(),
             ),
             SyncDirection::Backward => (
-                "BackwardSequenced",
+                "backward_sequenced",
                 self.backward.latest_queried_block(),
                 self.backward.last_sequence(),
             ),
