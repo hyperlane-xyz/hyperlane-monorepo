@@ -78,7 +78,7 @@ export async function createStrategyConfig({
   try {
     const strategyObj = await readYamlOrJson(outPath);
     strategy = ChainSubmissionStrategySchema.parse(strategyObj);
-  } catch (_) {
+  } catch {
     strategy = writeYamlOrJson(outPath, {}, 'yaml');
   }
 
@@ -177,7 +177,7 @@ export async function createStrategyConfig({
 
     writeYamlOrJson(outPath, strategyConfig);
     logGreen('✅ Successfully created a new strategy configuration.');
-  } catch (_) {
+  } catch {
     // don't log error since it may contain sensitive data
     errorRed(
       `The strategy configuration is invalid. Please review the submitter settings.`,
