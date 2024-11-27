@@ -77,6 +77,13 @@ pub(crate) fn deploy_program(
     for attempt in 0..10 {
         println!("Attempting program deploy Program ID: {}, buffer pubkey: {}, compute unit price: {}, attempt number {}", program_id, buffer_keypair.pubkey(), compute_unit_price, attempt);
 
+        if attempt > 0 {
+            println!(
+                "As this is not the first deploy attempt, the buffer {} is re-used",
+                buffer_keypair.pubkey()
+            );
+        }
+
         let mut command = vec![
             "solana",
             "--url",
