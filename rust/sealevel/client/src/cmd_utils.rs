@@ -1,14 +1,17 @@
 use std::{
     collections::HashMap,
     fs::File,
-    io::Write,
+    io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread::sleep,
     time::Duration,
 };
 
-use solana_client::{client_error::ClientError, rpc_client::RpcClient};
+use solana_client::{
+    client_error::{ClientError, ClientErrorKind},
+    rpc_client::RpcClient,
+};
 use solana_sdk::{
     commitment_config::CommitmentConfig,
     pubkey::Pubkey,
@@ -44,62 +47,86 @@ pub(crate) fn account_exists(client: &RpcClient, account: &Pubkey) -> Result<boo
     Ok(exists)
 }
 
-pub(crate) fn deploy_program_idempotent(
-    payer_keypair_path: &str,
-    program_keypair: &Keypair,
-    program_keypair_path: &str,
-    program_path: &str,
-    url: &str,
-    local_domain: u32,
-) -> Result<(), ClientError> {
-    let client = RpcClient::new(url.to_string());
-    if !account_exists(&client, &program_keypair.pubkey())? {
-        deploy_program(
-            payer_keypair_path,
-            program_keypair_path,
-            program_path,
-            url,
-            local_domain,
-        );
-    } else {
-        println!("Program {} already deployed", program_keypair.pubkey());
-    }
-
-    Ok(())
-}
-
 pub(crate) fn deploy_program(
     payer_keypair_path: &str,
-    program_keypair_path: &str,
+    program_key_dir: &Path,
+    program_name: &str,
     program_path: &str,
     url: &str,
     local_domain: u32,
-) {
-    let mut command = vec![
-        "solana",
-        "--url",
-        url,
-        "-k",
-        payer_keypair_path,
-        "program",
-        "deploy",
-        program_path,
-        "--upgrade-authority",
-        payer_keypair_path,
-        "--program-id",
-        program_keypair_path,
-    ];
+    use_existing_key: bool,
+) -> Result<Pubkey, ClientError> {
+    let (program_keypair, program_keypair_path) = create_and_write_keypair(
+        program_key_dir,
+        format!("{}-keypair.json", program_name).as_str(),
+        use_existing_key,
+    );
+    let program_id = program_keypair.pubkey();
 
-    let compute_unit_price = get_compute_unit_price_micro_lamports_for_id(local_domain).to_string();
-    if local_domain.eq(&SOLANA_DOMAIN) {
-        command.extend(vec!["--with-compute-unit-price", &compute_unit_price]);
+    let client = RpcClient::new(url.to_string());
+    if !account_exists(&client, &program_keypair.pubkey())? {
+        println!("Program {} already deployed", program_keypair.pubkey());
+        return Ok(program_id);
     }
 
-    build_cmd(command.as_slice(), None, None);
+    let (buffer_keypair, buffer_keypair_path) = create_and_write_keypair(
+        program_key_dir,
+        format!("{}-buffer.json", program_name).as_str(),
+        use_existing_key,
+    );
 
-    // TODO: use commitment level instead of just sleeping here?
-    println!("Sleeping for 2 seconds to allow program to be deployed");
-    sleep(Duration::from_secs(2));
+    let mut compute_unit_price = get_compute_unit_price_micro_lamports_for_id(local_domain);
+
+    for attempt in 0..10 {
+        println!("Attempting program deploy Program ID: {}, buffer pubkey: {}, compute unit price: {}, attempt number {}", program_id, buffer_keypair.pubkey(), compute_unit_price, attempt);
+
+        let mut command = vec![
+            "solana",
+            "--url",
+            url,
+            "-k",
+            payer_keypair_path,
+            "program",
+            "deploy",
+            program_path,
+            "--upgrade-authority",
+            payer_keypair_path,
+            "--program-id",
+            program_keypair_path.to_str().unwrap(),
+            "--buffer",
+            buffer_keypair_path.to_str().unwrap(),
+        ];
+
+        let compute_unit_price_str = compute_unit_price.to_string();
+        command.extend(vec!["--with-compute-unit-price", &compute_unit_price_str]);
+
+        // Success!
+        if let Ok(true) = run_cmd(command.as_slice(), None, None) {
+            // TODO: use commitment level instead of just sleeping here?
+            println!("Sleeping for 2 seconds to fully allow program to be deployed");
+            sleep(Duration::from_secs(2));
+
+            return Ok(program_id);
+        }
+
+        println!(
+            "Failed to deploy program with compute unit price {}",
+            compute_unit_price
+        );
+
+        compute_unit_price = if compute_unit_price > 0 {
+            compute_unit_price * 11 / 10
+        } else {
+            1000
+        };
+
+        println!(
+            "Retrying with new compute unit price {}",
+            compute_unit_price
+        );
+    }
+
+    Err(ClientErrorKind::Custom(format!("Failed to deploy program {}", program_name)).into())
 }
 
 pub(crate) fn create_new_directory(parent_dir: &Path, name: &str) -> PathBuf {
@@ -136,8 +163,14 @@ pub(crate) fn create_and_write_keypair(
     (keypair, path)
 }
 
-fn build_cmd(cmd: &[&str], wd: Option<&str>, env: Option<&HashMap<&str, &str>>) {
+fn run_cmd(cmd: &[&str], wd: Option<&str>, env: Option<&HashMap<&str, &str>>) -> io::Result<bool> {
     assert!(!cmd.is_empty(), "Must specify a command!");
+    if cmd.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Must specify a command!",
+        ));
+    }
     let mut c = Command::new(cmd[0]);
     c.args(&cmd[1..]);
     c.stdout(Stdio::inherit());
@@ -149,10 +182,6 @@ fn build_cmd(cmd: &[&str], wd: Option<&str>, env: Option<&HashMap<&str, &str>>) 
         c.envs(env);
     }
     println!("Running command: {:?}", c);
-    let status = c.status().expect("Failed to run command");
-    assert!(
-        status.success(),
-        "Command returned non-zero exit code: {}",
-        cmd.join(" ")
-    );
+    let status = c.status()?;
+    Ok(status.success())
 }

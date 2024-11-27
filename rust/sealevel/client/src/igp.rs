@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::{
     artifacts::{read_json, try_read_json, write_json, SingularProgramIdArtifact},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    cmd_utils::{create_new_directory, deploy_program},
     read_core_program_ids,
     router::ChainMetadata,
     Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
@@ -417,23 +417,19 @@ fn deploy_igp_program(
     key_dir: &Path,
     local_domain: u32,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_igp-keypair.json",
-        use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_igp",
         built_so_dir
             .join("hyperlane_sealevel_igp.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-    );
+        true,
+    )
+    .unwrap();
 
     println!("Deployed IGP at program ID {}", program_id);
 

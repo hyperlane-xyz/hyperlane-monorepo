@@ -3,11 +3,10 @@ use std::{fs::File, path::Path};
 
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
 
 use crate::{
     artifacts::{write_json, SingularProgramIdArtifact},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    cmd_utils::{create_new_directory, deploy_program},
     router::ChainMetadata,
     Context, MultisigIsmMessageIdCmd, MultisigIsmMessageIdSubCmd,
 };
@@ -172,23 +171,19 @@ pub(crate) fn deploy_multisig_ism_message_id(
     key_dir: &Path,
     local_domain: u32,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_multisig_ism_message_id-keypair.json",
-        use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_multisig_ism_message_id",
         built_so_dir
             .join("hyperlane_sealevel_multisig_ism_message_id.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-    );
+        true,
+    )
+    .unwrap();
 
     println!(
         "Deployed Multisig ISM Message ID at program ID {}",
