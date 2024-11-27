@@ -15,7 +15,7 @@ const checkpointWithMessageIdKey = (checkpointIndex: number) =>
 const LATEST_KEY = 'gcsLatestIndexKey';
 const ANNOUNCEMENT_KEY = 'gcsAnnouncementKey';
 const METADATA_KEY = 'gcsMetadataKey';
-const LOCATION_PREFIX = 'gs://';
+export const GCP_LOCATION_PREFIX = 'gs://';
 
 /**
  * Extension of BaseValidator that includes GCP Cloud Storage utilities.
@@ -42,8 +42,8 @@ export class GcpValidator extends BaseValidator {
         storageLocation = storageLocation.slice(0, -1);
       }
     }
-    if (storageLocation.startsWith(LOCATION_PREFIX)) {
-      const bucketName = storageLocation.slice(LOCATION_PREFIX.length);
+    if (storageLocation.startsWith(GCP_LOCATION_PREFIX)) {
+      const bucketName = storageLocation.slice(GCP_LOCATION_PREFIX.length);
       const pieces = bucketName.split('/');
       if (pieces.length >= 1) {
         const storageFolder =
@@ -121,7 +121,7 @@ export class GcpValidator extends BaseValidator {
   }
 
   storageLocation(): string {
-    return `${LOCATION_PREFIX}${this.storage.config.bucket}${
+    return `${GCP_LOCATION_PREFIX}${this.storage.config.bucket}${
       this.storage.config.folder ? '/' + this.storage.config.folder : ''
     }`;
   }
