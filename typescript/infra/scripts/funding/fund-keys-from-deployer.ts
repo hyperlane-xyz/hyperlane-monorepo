@@ -33,7 +33,10 @@ import {
   KeyFunderConfig,
 } from '../../src/config/funding.js';
 import { FundableRole, Role } from '../../src/roles.js';
-import { submitMetrics } from '../../src/utils/metrics.js';
+import {
+  getWalletBalanceGauge,
+  submitMetrics,
+} from '../../src/utils/metrics.js';
 import {
   assertContext,
   assertFundableRole,
@@ -65,30 +68,19 @@ const L2ToL1: ChainMap<ChainName> = {
   base: 'ethereum',
 };
 
+// Manually adding these labels as we are using a push gateway,
+// and ordinarily these labels would be added via K8s annotations
 const constMetricLabels = {
-  // this needs to get set in main because of async reasons
   hyperlane_deployment: '',
   hyperlane_context: 'hyperlane',
 };
 
 const metricsRegister = new Registry();
 
-const walletBalanceGauge = new Gauge({
-  // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
-  name: 'hyperlane_wallet_balance',
-  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
-  registers: [metricsRegister],
-  labelNames: [
-    'chain',
-    'wallet_address',
-    'wallet_name',
-    'token_address',
-    'token_symbol',
-    'token_name',
-    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
-  ],
-});
-metricsRegister.registerMetric(walletBalanceGauge);
+const walletBalanceGauge = getWalletBalanceGauge(
+  metricsRegister,
+  Object.keys(constMetricLabels),
+);
 
 // Min delta is 50% of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);

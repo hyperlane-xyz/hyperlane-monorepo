@@ -9,3 +9,10 @@ export interface WarpRouteBalance {
   balance: number;
   valueUSD?: number;
 }
+
+export interface NativeWalletBalance {
+  chain: string;
+  walletAddress: string;
+  walletName: string;
+  balance: number;
+}
