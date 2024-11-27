@@ -312,7 +312,7 @@ where
         Ok(Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),
-                Arc::clone(&self.metrics.cursor_metrics),
+                self.metrics.cursor_metrics.clone(),
                 self.domain(),
                 self.store.clone(),
                 index_settings.chunk_size,
@@ -355,7 +355,7 @@ where
         Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
                 self.domain(),
-                Arc::clone(&self.metrics.cursor_metrics),
+                self.metrics.cursor_metrics.clone(),
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,
