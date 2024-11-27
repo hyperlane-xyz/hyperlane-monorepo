@@ -23,8 +23,8 @@ import {
   removeEndingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../utils/input.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
+import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {

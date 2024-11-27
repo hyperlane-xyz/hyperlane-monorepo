@@ -22,8 +22,8 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     /// If in sequence mode, this is the max number of sequences to query.
     /// If in block mode, this is the max number of blocks to query.
     chunk_size: u32,
-    /// A DB used to check which logs have already been indexed.
-    db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    /// A store used to check which logs have already been indexed.
+    store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
     /// A snapshot of the last log to be indexed, or if no indexing has occurred yet,
     /// the initial log to start indexing backward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -48,13 +48,13 @@ impl<T> Debug for BackwardSequenceAwareSyncCursor<T> {
 
 impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     #[instrument(
-        skip(db),
+        skip(store),
         fields(chunk_size, next_sequence, start_block, index_mode),
         ret
     )]
     pub fn new(
         chunk_size: u32,
-        db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+        store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         current_sequence_count: u32,
         start_block: u32,
         index_mode: IndexMode,
@@ -69,7 +69,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
 
         Self {
             chunk_size,
-            db,
+            store,
             current_indexing_snapshot: last_indexed_snapshot.previous_target(),
             last_indexed_snapshot,
             index_mode,
@@ -166,10 +166,10 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     /// log for the sequence number hasn't been indexed.
     async fn get_sequence_log_block_number(&self, sequence: u32) -> Result<Option<u32>> {
         // Ensure there's a full entry for the sequence.
-        if self.db.retrieve_by_sequence(sequence).await?.is_some() {
+        if self.store.retrieve_by_sequence(sequence).await?.is_some() {
             // And get the block number.
             if let Some(block_number) = self
-                .db
+                .store
                 .retrieve_log_block_number_by_sequence(sequence)
                 .await?
             {

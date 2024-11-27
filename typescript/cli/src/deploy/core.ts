@@ -1,12 +1,12 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
   ChainName,
   ContractVerifier,
   CoreConfig,
+  DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';

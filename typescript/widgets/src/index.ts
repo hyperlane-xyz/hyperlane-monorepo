@@ -12,6 +12,7 @@ export { ColorPalette, seedToBgColor } from './color.js';
 export { Button } from './components/Button.js';
 export { CopyButton } from './components/CopyButton.js';
 export { DatetimeField } from './components/DatetimeField.js';
+export { ErrorBoundary } from './components/ErrorBoundary.js';
 export { IconButton } from './components/IconButton.js';
 export { LinkButton } from './components/LinkButton.js';
 export { SegmentedControl } from './components/SegmentedControl.js';
@@ -30,6 +31,7 @@ export { DiscordIcon } from './icons/Discord.js';
 export { DocsIcon } from './icons/Docs.js';
 export { EllipsisIcon } from './icons/Ellipsis.js';
 export { EnvelopeIcon } from './icons/Envelope.js';
+export { ErrorIcon } from './icons/Error.js';
 export { FilterIcon } from './icons/Filter.js';
 export { FunnelIcon } from './icons/Funnel.js';
 export { GearIcon } from './icons/Gear.js';
@@ -48,18 +50,23 @@ export { ShieldIcon } from './icons/Shield.js';
 export { SpinnerIcon } from './icons/Spinner.js';
 export { SwapIcon } from './icons/Swap.js';
 export { TwitterIcon } from './icons/Twitter.js';
+export { type DefaultIconProps } from './icons/types.js';
 export { UpDownArrowsIcon } from './icons/UpDownArrows.js';
 export { WalletIcon } from './icons/Wallet.js';
 export { WarningIcon } from './icons/Warning.js';
 export { WebIcon } from './icons/Web.js';
 export { WideChevronIcon } from './icons/WideChevron.js';
-export { XCircleIcon } from './icons/XCircle.js';
 export { XIcon } from './icons/X.js';
-export { type DefaultIconProps } from './icons/types.js';
+export { XCircleIcon } from './icons/XCircle.js';
 export { DropdownMenu, type DropdownMenuProps } from './layout/DropdownMenu.js';
 export { Modal, useModal, type ModalProps } from './layout/Modal.js';
 export { Popover, type PopoverProps } from './layout/Popover.js';
+export { CosmosLogo } from './logos/Cosmos.js';
+export { EthereumLogo } from './logos/Ethereum.js';
 export { HyperlaneLogo } from './logos/Hyperlane.js';
+export { PROTOCOL_TO_LOGO } from './logos/protocols.js';
+export { SolanaLogo } from './logos/Solana.js';
+export { WalletConnectLogo } from './logos/WalletConnect.js';
 export { MessageTimeline } from './messages/MessageTimeline.js';
 export {
   MessageStage,
@@ -75,4 +82,66 @@ export {
   tryClipboardGet,
   tryClipboardSet,
 } from './utils/clipboard.js';
+export { useDebounce } from './utils/debounce.js';
+export { useIsSsr } from './utils/ssr.js';
+export { useInterval, useTimeout } from './utils/timeout.js';
 export { useConnectionHealthTest } from './utils/useChainConnectionTest.js';
+export {
+  AccountList,
+  AccountSummary,
+} from './walletIntegrations/AccountList.js';
+export { ConnectWalletButton } from './walletIntegrations/ConnectWalletButton.js';
+export {
+  getCosmosKitChainConfigs,
+  useCosmosAccount,
+  useCosmosActiveChain,
+  useCosmosConnectFn,
+  useCosmosDisconnectFn,
+  useCosmosTransactionFns,
+  useCosmosWalletDetails,
+} from './walletIntegrations/cosmos.js';
+export {
+  getWagmiChainConfigs,
+  useEthereumAccount,
+  useEthereumActiveChain,
+  useEthereumConnectFn,
+  useEthereumDisconnectFn,
+  useEthereumTransactionFns,
+  useEthereumWalletDetails,
+} from './walletIntegrations/ethereum.js';
+export {
+  getAccountAddressAndPubKey,
+  getAccountAddressForChain,
+  useAccountAddressForChain,
+  useAccountForChain,
+  useAccounts,
+  useActiveChains,
+  useConnectFns,
+  useDisconnectFns,
+  useTransactionFns,
+  useWalletDetails,
+} from './walletIntegrations/multiProtocol.js';
+export { MultiProtocolWalletModal } from './walletIntegrations/MultiProtocolWalletModal.js';
+export {
+  useSolanaAccount,
+  useSolanaActiveChain,
+  useSolanaConnectFn,
+  useSolanaDisconnectFn,
+  useSolanaTransactionFns,
+  useSolanaWalletDetails,
+} from './walletIntegrations/solana.js';
+export type {
+  AccountInfo,
+  ActiveChainInfo,
+  ChainAddress,
+  ChainTransactionFns,
+  SendTransactionFn,
+  SwitchNetworkFn,
+  WalletDetails,
+} from './walletIntegrations/types.js';
+export {
+  ethers5TxToWagmiTx,
+  findChainByRpcUrl,
+  getChainsForProtocol,
+} from './walletIntegrations/utils.js';
+export { WalletLogo } from './walletIntegrations/WalletLogo.js';

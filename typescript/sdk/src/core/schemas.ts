@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
 import { ProxyFactoryFactoriesSchema } from '../deploy/schemas.js';
-import { HookConfigSchema } from '../hook/schemas.js';
+import { HookConfigSchema } from '../hook/types.js';
 import {
   DerivedIcaRouterConfigSchema,
   IcaRouterConfigSchema,
 } from '../ica/schemas.js';
-import { IsmConfigSchema } from '../ism/schemas.js';
+import { IsmConfigSchema } from '../ism/types.js';
 import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
 
 export const CoreConfigSchema = OwnableSchema.extend({

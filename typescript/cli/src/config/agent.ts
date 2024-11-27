@@ -99,7 +99,7 @@ async function getStartBlocks(
       try {
         const deployedBlock = await mailbox.deployedBlock();
         return deployedBlock.toNumber();
-      } catch (err) {
+      } catch {
         errorRed(
           `❌ Failed to get deployed block to set an index for ${chain}, this is potentially an issue with rpc provider or a misconfiguration`,
         );

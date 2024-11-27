@@ -39,7 +39,9 @@ import { EvmIsmReader } from '../EvmIsmReader.js';
 import { randomIsmConfig } from '../HyperlaneIsmFactory.hardhat-test.js';
 import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 
-import { BaseMetadataBuilder, MetadataContext } from './builder.js';
+import { BaseMetadataBuilder } from './builder.js';
+import { decodeIsmMetadata } from './decode.js';
+import { MetadataContext } from './types.js';
 
 const MAX_ISM_DEPTH = 5;
 const MAX_NUM_VALIDATORS = 10;
@@ -198,7 +200,7 @@ describe('BaseMetadataBuilder', () => {
       });
 
       it(`should decode metadata for random ism config (${i})`, async () => {
-        BaseMetadataBuilder.decode(metadata, context);
+        decodeIsmMetadata(metadata, context);
       });
     }
   });

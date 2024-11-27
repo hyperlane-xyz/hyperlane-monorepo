@@ -1,4 +1,4 @@
-import { EthBridger, getL2Network } from '@arbitrum/sdk';
+import { EthBridger, getArbitrumNetwork } from '@arbitrum/sdk';
 import { CrossChainMessenger } from '@eth-optimism/sdk';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
@@ -841,13 +841,13 @@ class ContextFunder {
 
   private async bridgeToArbitrum(l2Chain: ChainName, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    const l2Network = await getL2Network(
+    const l2Network = await getArbitrumNetwork(
       this.multiProvider.getEvmChainId(l2Chain),
     );
     const ethBridger = new EthBridger(l2Network);
     return ethBridger.deposit({
       amount,
-      l1Signer: this.multiProvider.getSigner(l1Chain),
+      parentSigner: this.multiProvider.getSigner(l1Chain),
       overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
   }

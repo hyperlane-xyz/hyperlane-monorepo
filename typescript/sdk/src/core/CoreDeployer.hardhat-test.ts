@@ -228,7 +228,7 @@ describe('core', async () => {
       try {
         await deployer.deploy(coreConfig);
         // eslint-disable-next-line no-empty
-      } catch (e: any) {}
+      } catch {}
     });
 
     afterEach(async () => {
@@ -285,7 +285,7 @@ describe('core', async () => {
       deployer.chainTimeoutMs = 1;
       try {
         await deployer.deploy(coreConfig);
-      } catch (e: any) {
+      } catch {
         // TODO: figure out how to test specific error case
         // expect(e.message).to.include('Timed out in 1ms');
       }
