@@ -11,7 +11,10 @@ import {
   HypERC4626Collateral__factory,
   HypNative__factory,
   Mailbox,
+  MailboxClient__factory,
   Mailbox__factory,
+  Proxy__factory,
+  TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
@@ -23,6 +26,7 @@ import {
   IsmType,
   RouterConfig,
   TestChainName,
+  proxyAdmin,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
@@ -30,6 +34,7 @@ import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { DerivedHookConfig } from '../hook/EvmHookReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -359,7 +364,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(txs.length).to.equal(0);
     });
 
-    it('should deploy and set a new Hook when no hook was set', async () => {
+    it('should update and set a new Hook based on config', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
@@ -381,12 +386,75 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         };
         await sendTxs(await evmERC20WarpModule.update(expectedConfig));
 
-        const updatedConfig = normalizeConfig(
-          (await evmERC20WarpModule.read()).hook,
-        );
-
-        expect(updatedConfig).to.deep.equal(hook);
+        const updatedConfig = (await evmERC20WarpModule.read())
+          .hook as DerivedHookConfig;
+        expect(normalizeConfig(updatedConfig)).to.deep.equal(hook);
       }
+    });
+
+    it('should set new deployed hook mailbox to WarpConfig.owner', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+      const expectedConfig: TokenRouterConfig = {
+        ...actualConfig,
+        hook: hookConfigToUpdate.find(
+          (c: any) => c.type === HookType.MERKLE_TREE,
+        ),
+      };
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = (await evmERC20WarpModule.read())
+        .hook as DerivedHookConfig;
+
+      const hook = MailboxClient__factory.connect(
+        updatedConfig.address,
+        multiProvider.getProvider(chain),
+      );
+      expect(await hook.mailbox()).to.equal(expectedConfig.mailbox);
+    });
+
+    it("should set Proxied Hook's proxyAdmins to WarpConfig.proxyAdmin", async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+      const expectedConfig: TokenRouterConfig = {
+        ...actualConfig,
+        hook: hookConfigToUpdate.find(
+          (c: any) => c.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+        ),
+      };
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = (await evmERC20WarpModule.read())
+        .hook as DerivedHookConfig;
+
+      expect(
+        await proxyAdmin(
+          multiProvider.getProvider(chain),
+          updatedConfig.address,
+        ),
+      ).to.equal(expectedConfig.proxyAdmin?.address);
     });
 
     it('should update a mutable Ism', async () => {

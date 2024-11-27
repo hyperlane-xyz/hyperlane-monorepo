@@ -32,7 +32,7 @@ import {
   HyperlaneModuleParams,
 } from '../core/AbstractHyperlaneModule.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
-import { proxyAdmin, proxyAdminUpdateTxs } from '../deploy/proxy.js';
+import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { EvmHookModule } from '../hook/EvmHookModule.js';
 import { DerivedHookConfig } from '../hook/EvmHookReader.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
@@ -46,10 +46,9 @@ import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
 import { TokenRouterConfig, TokenRouterConfigSchema } from './schemas.js';
 
+``;
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
-  mailbox: Address;
-  proxyAdmin: Address; // Used by IGP
 };
 export class EvmERC20WarpModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -399,16 +398,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     assert(expectedConfig.hook, 'No hook config');
 
     if (!actualConfig.hook) {
-      return this.deployNewHook(expectedConfig.hook);
+      return this.deployNewHook(expectedConfig);
     }
 
-    return this.updateExistingHook(
-      expectedConfig.hook,
-      actualConfig.hook as DerivedHookConfig,
-    );
+    return this.updateExistingHook(expectedConfig, actualConfig);
   }
 
-  async deployNewHook(hookConfig: HookConfig): Promise<{
+  async deployNewHook(expectedConfig: TokenRouterConfig): Promise<{
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
@@ -417,8 +413,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     );
 
     const {
-      mailbox,
-      proxyAdmin,
       staticMerkleRootMultisigIsmFactory,
       staticMessageIdMultisigIsmFactory,
       staticAggregationIsmFactory,
@@ -430,7 +424,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     const hookModule = await EvmHookModule.create({
       chain: this.args.chain,
-      config: hookConfig,
+      config: expectedConfig.hook!,
       proxyFactoryFactories: {
         staticMerkleRootMultisigIsmFactory,
         staticMessageIdMultisigIsmFactory,
@@ -441,8 +435,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         staticMessageIdWeightedMultisigIsmFactory,
       },
       coreAddresses: {
-        mailbox,
-        proxyAdmin,
+        mailbox: expectedConfig.mailbox,
+        proxyAdmin: expectedConfig.proxyAdmin?.address!, // Assume that a proxyAdmin is always deployed with a WarpRoute
       },
       contractVerifier: this.contractVerifier,
       multiProvider: this.multiProvider,
@@ -452,20 +446,37 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   async updateExistingHook(
-    expectedHookConfig: HookConfig,
-    actualHookConfig: DerivedHookConfig,
+    expectedConfig: TokenRouterConfig,
+    actualConfig: TokenRouterConfig,
   ): Promise<{
     deployedHook: Address;
     updateTransactions: AnnotatedEV5Transaction[];
   }> {
+    const {
+      staticMerkleRootMultisigIsmFactory,
+      staticMessageIdMultisigIsmFactory,
+      staticAggregationIsmFactory,
+      staticAggregationHookFactory,
+      domainRoutingIsmFactory,
+      staticMerkleRootWeightedMultisigIsmFactory,
+      staticMessageIdWeightedMultisigIsmFactory,
+    } = this.args.addresses;
     const hookModule = new EvmHookModule(
       this.multiProvider,
       {
         chain: this.args.chain,
-        config: expectedHookConfig,
+        config: actualConfig.hook as HookConfig,
         addresses: {
-          ...this.args.addresses,
-          deployedHook: actualHookConfig.address,
+          staticMerkleRootMultisigIsmFactory,
+          staticMessageIdMultisigIsmFactory,
+          staticAggregationIsmFactory,
+          staticAggregationHookFactory,
+          domainRoutingIsmFactory,
+          staticMerkleRootWeightedMultisigIsmFactory,
+          staticMessageIdWeightedMultisigIsmFactory,
+          mailbox: actualConfig.mailbox,
+          proxyAdmin: actualConfig.proxyAdmin?.address!,
+          deployedHook: (actualConfig.hook as DerivedHookConfig).address,
         },
       },
       this.contractVerifier,
@@ -474,7 +485,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     this.logger.info(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await hookModule.update(expectedHookConfig);
+    const updateTransactions = await hookModule.update(expectedConfig.hook!);
     const { deployedHook } = hookModule.serialize();
 
     return { deployedHook, updateTransactions };
@@ -513,11 +524,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       {
         addresses: {
           ...proxyFactoryFactories,
-          proxyAdmin: await proxyAdmin(
-            multiProvider.getProvider(chain),
-            deployedContract.address,
-          ),
-          mailbox: config.mailbox,
           deployedTokenRoute: deployedContract.address,
         },
         chain,
