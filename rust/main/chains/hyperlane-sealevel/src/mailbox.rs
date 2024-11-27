@@ -4,22 +4,15 @@ use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromS
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use jsonrpc_core::futures_util::TryFutureExt;
-use tracing::{debug, info, instrument, warn};
-
-use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
-    ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
-    Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
-    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
-    H256, H512, U256,
-};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
 };
 use hyperlane_sealevel_mailbox::{
-    accounts::{DispatchedMessageAccount, InboxAccount, OutboxAccount},
+    accounts::{
+        DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessage,
+        ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
+    },
+    instruction,
     instruction::InboxProcess,
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
@@ -27,6 +20,7 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
+use jsonrpc_core::futures_util::TryFutureExt;
 use serializable_account_meta::SimulationReturnData;
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
@@ -39,6 +33,7 @@ use solana_client::{
 use solana_sdk::{
     account::Account,
     bs58,
+    clock::Slot,
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     hash::Hash,
@@ -51,10 +46,28 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta, TransactionStatus,
-    UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction, UiReturnDataEncoding,
-    UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
+    UiCompiledInstruction, UiConfirmedBlock, UiInnerInstructions, UiInstruction, UiMessage,
+    UiParsedInstruction, UiReturnDataEncoding, UiTransaction, UiTransactionReturnData,
+    UiTransactionStatusMeta,
+};
+use tracing::{debug, info, instrument, warn};
+
+use hyperlane_core::{
+    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
+    ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
+    Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
+    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
+    H256, H512, U256,
 };
 
+use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
+use crate::error::HyperlaneSealevelError;
+use crate::log_meta_composer::{
+    is_interchain_payment_instruction, is_message_delivery_instruction,
+    is_message_dispatch_instruction, LogMetaComposer,
+};
+use crate::utils::{decode_h256, decode_h512, from_base58};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -633,15 +646,38 @@ impl Mailbox for SealevelMailbox {
 pub struct SealevelMailboxIndexer {
     mailbox: SealevelMailbox,
     program_id: Pubkey,
+    dispatch_message_log_meta_composer: LogMetaComposer,
+    delivery_message_log_meta_composer: LogMetaComposer,
+    advanced_log_meta: bool,
 }
 
 impl SealevelMailboxIndexer {
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+        advanced_log_meta: bool,
+    ) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let mailbox = SealevelMailbox::new(conf, locator, None)?;
+
+        let dispatch_message_log_meta_composer = LogMetaComposer::new(
+            mailbox.program_id,
+            "message dispatch".to_owned(),
+            is_message_dispatch_instruction,
+        );
+
+        let delivery_message_log_meta_composer = LogMetaComposer::new(
+            mailbox.program_id,
+            "message delivery".to_owned(),
+            is_message_delivery_instruction,
+        );
+
         Ok(Self {
             program_id,
             mailbox,
+            dispatch_message_log_meta_composer,
+            delivery_message_log_meta_composer,
+            advanced_log_meta,
         })
     }
 
@@ -649,77 +685,26 @@ impl SealevelMailboxIndexer {
         &self.mailbox.rpc()
     }
 
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.rpc().get_block_height().await
-    }
-
-    async fn get_message_with_nonce(
+    async fn get_dispatched_message_with_nonce(
         &self,
         nonce: u32,
     ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
-        let target_message_account_bytes = &[
-            &hyperlane_sealevel_mailbox::accounts::DISPATCHED_MESSAGE_DISCRIMINATOR[..],
-            &nonce.to_le_bytes()[..],
-        ]
-        .concat();
-        let target_message_account_bytes = base64::encode(target_message_account_bytes);
+        let nonce_bytes = nonce.to_le_bytes();
+        let unique_dispatched_message_pubkey_offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
+        let unique_dispatch_message_pubkey_length = 32; // the length of the `unique_message_pubkey` field
+        let accounts = search_accounts_by_discriminator(
+            self.rpc(),
+            &self.program_id,
+            &DISPATCHED_MESSAGE_DISCRIMINATOR,
+            &nonce_bytes,
+            unique_dispatched_message_pubkey_offset,
+            unique_dispatch_message_pubkey_length,
+        )
+        .await?;
 
-        // First, find all accounts with the matching account data.
-        // To keep responses small in case there is ever more than 1
-        // match, we don't request the full account data, and just request
-        // the `unique_message_pubkey` field.
-        let memcmp = RpcFilterType::Memcmp(Memcmp {
-            // Ignore the first byte, which is the `initialized` bool flag.
-            offset: 1,
-            bytes: MemcmpEncodedBytes::Base64(target_message_account_bytes),
-            encoding: None,
-        });
-        let config = RpcProgramAccountsConfig {
-            filters: Some(vec![memcmp]),
-            account_config: RpcAccountInfoConfig {
-                encoding: Some(UiAccountEncoding::Base64),
-                // Don't return any data
-                data_slice: Some(UiDataSliceConfig {
-                    offset: 1 + 8 + 4 + 8, // the offset to get the `unique_message_pubkey` field
-                    length: 32,            // the length of the `unique_message_pubkey` field
-                }),
-                commitment: Some(CommitmentConfig::finalized()),
-                min_context_slot: None,
-            },
-            with_context: Some(false),
-        };
-        let accounts = self
-            .rpc()
-            .get_program_accounts_with_config(&self.mailbox.program_id, config)
-            .await?;
-
-        // Now loop through matching accounts and find the one with a valid account pubkey
-        // that proves it's an actual message storage PDA.
-        let mut valid_message_storage_pda_pubkey = Option::<Pubkey>::None;
-
-        for (pubkey, account) in accounts {
-            let unique_message_pubkey = Pubkey::new(&account.data);
-            let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
-                mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
-                &self.mailbox.program_id,
-            )
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find program address for unique_message_pubkey",
-                )
-            })?;
-            if expected_pubkey == pubkey {
-                valid_message_storage_pda_pubkey = Some(pubkey);
-                break;
-            }
-        }
-
-        let valid_message_storage_pda_pubkey =
-            valid_message_storage_pda_pubkey.ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find valid message storage PDA pubkey",
-                )
-            })?;
+        let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
+            self.dispatched_message_account(&account)
+        })?;
 
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
         let account = self
@@ -733,10 +718,16 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
-        Ok((
-            hyperlane_message.into(),
+        let log_meta = if self.advanced_log_meta {
+            self.dispatch_message_log_meta(
+                U256::from(nonce),
+                &valid_message_storage_pda_pubkey,
+                &dispatched_message_account.slot,
+            )
+            .await?
+        } else {
             LogMeta {
-                address: self.mailbox.program_id.to_bytes().into(),
+                address: self.program_id.to_bytes().into(),
                 block_number: dispatched_message_account.slot,
                 // TODO: get these when building out scraper support.
                 // It's inconvenient to get these :|
@@ -744,19 +735,139 @@ impl SealevelMailboxIndexer {
                 transaction_id: H512::zero(),
                 transaction_index: 0,
                 log_index: U256::zero(),
-            },
-        ))
-    }
-}
+            }
+        };
 
-#[async_trait]
-impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    #[instrument(err, skip(self))]
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
-        Ok((Some(count), tip))
+        Ok((hyperlane_message.into(), log_meta))
+    }
+
+    fn dispatched_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        let unique_message_pubkey = Pubkey::new(&account.data);
+        let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+            mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
+            &self.mailbox.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Could not find program address for unique message pubkey",
+            )
+        })?;
+        Ok(expected_pubkey)
+    }
+
+    async fn dispatch_message_log_meta(
+        &self,
+        log_index: U256,
+        message_storage_pda_pubkey: &Pubkey,
+        message_account_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
+        let block = self
+            .mailbox
+            .provider
+            .rpc()
+            .get_block(*message_account_slot)
+            .await?;
+
+        self.dispatch_message_log_meta_composer
+            .log_meta(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+            )
+            .map_err(Into::<ChainCommunicationError>::into)
+    }
+
+    async fn get_delivered_message_with_nonce(
+        &self,
+        nonce: u32,
+    ) -> ChainResult<(Indexed<H256>, LogMeta)> {
+        let nonce_bytes = nonce.to_le_bytes();
+        let delivered_message_id_offset = 1 + 8 + 8; // the offset to get the `message_id` field
+        let delivered_message_id_length = 32;
+        let accounts = search_accounts_by_discriminator(
+            self.rpc(),
+            &self.program_id,
+            &PROCESSED_MESSAGE_DISCRIMINATOR,
+            &nonce_bytes,
+            delivered_message_id_offset,
+            delivered_message_id_length,
+        )
+        .await?;
+
+        debug!(account_len = ?accounts.len(), "Found accounts with processed message discriminator");
+
+        let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
+            self.delivered_message_account(&account)
+        })?;
+
+        // Now that we have the valid delivered message storage PDA pubkey,
+        // we can get the full account data.
+        let account = self
+            .rpc()
+            .get_account_with_finalized_commitment(&valid_message_storage_pda_pubkey)
+            .await?;
+        let delivered_message_account = ProcessedMessageAccount::fetch(&mut account.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        let message_id = delivered_message_account.message_id;
+
+        let log_meta = if self.advanced_log_meta {
+            self.delivered_message_log_meta(
+                U256::from(nonce),
+                &valid_message_storage_pda_pubkey,
+                &delivered_message_account.slot,
+            )
+            .await?
+        } else {
+            LogMeta {
+                address: self.program_id.to_bytes().into(),
+                block_number: delivered_message_account.slot,
+                // TODO: get these when building out scraper support.
+                // It's inconvenient to get these :|
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                transaction_index: 0,
+                log_index: U256::zero(),
+            }
+        };
+
+        Ok((message_id.into(), log_meta))
+    }
+
+    fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        let message_id = H256::from_slice(&account.data);
+        let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
+            mailbox_processed_message_pda_seeds!(message_id),
+            &self.mailbox.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str("Could not find program address for message id")
+        })?;
+        Ok(expected_pubkey)
+    }
+
+    async fn delivered_message_log_meta(
+        &self,
+        log_index: U256,
+        message_storage_pda_pubkey: &Pubkey,
+        message_account_slot: &Slot,
+    ) -> ChainResult<LogMeta> {
+        let block = self
+            .mailbox
+            .provider
+            .rpc()
+            .get_block(*message_account_slot)
+            .await?;
+
+        self.delivery_message_log_meta_composer
+            .log_meta(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+            )
+            .map_err(Into::<ChainCommunicationError>::into)
     }
 }
 
@@ -774,13 +885,27 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
         let message_capacity = range.end().saturating_sub(*range.start());
         let mut messages = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
-            messages.push(self.get_message_with_nonce(nonce).await?);
+            messages.push(self.get_dispatched_message_with_nonce(nonce).await?);
         }
         Ok(messages)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
+    }
+}
+
+#[async_trait]
+impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
+    #[instrument(err, skip(self))]
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.mailbox.provider.rpc().get_slot().await?;
+        // TODO: need to make sure the call and tip are at the same height?
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
+        Ok((Some(count), tip))
     }
 }
 
@@ -788,13 +913,26 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
 impl Indexer<H256> for SealevelMailboxIndexer {
     async fn fetch_logs_in_range(
         &self,
-        _range: RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        todo!()
+        info!(
+            ?range,
+            "Fetching SealevelMailboxIndexer HyperlaneMessage Delivery logs"
+        );
+
+        let message_capacity = range.end().saturating_sub(*range.start());
+        let mut message_ids = Vec::with_capacity(message_capacity as usize);
+        for nonce in range {
+            message_ids.push(self.get_delivered_message_with_nonce(nonce).await?);
+        }
+        Ok(message_ids)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
     }
 }
 
@@ -803,7 +941,7 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");
-        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        let tip = self.mailbox.provider.rpc().get_slot().await?;
         Ok((Some(1), tip))
     }
 }

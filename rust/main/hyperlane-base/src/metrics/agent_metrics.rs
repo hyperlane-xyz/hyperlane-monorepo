@@ -4,7 +4,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use derive_builder::Builder;
 use eyre::Result;
 use hyperlane_core::metrics::agent::decimals_by_protocol;
 use hyperlane_core::metrics::agent::u256_as_scaled_f64;
@@ -45,8 +44,14 @@ pub const GAS_PRICE_LABELS: &[&str] = &["chain"];
 pub const GAS_PRICE_HELP: &str =
     "Tracks the current gas price of the chain, in the lowest denomination (e.g. wei)";
 
+/// Expected label names for the `critical_error` metric.
+pub const CRITICAL_ERROR_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const CRITICAL_ERROR_HELP: &str =
+    "Boolean marker for critical errors on a chain, signalling loss of liveness";
+
 /// Agent-specific metrics
-#[derive(Clone, Builder, Debug)]
+#[derive(Clone, Debug)]
 pub struct AgentMetrics {
     /// Current balance of native tokens for the
     /// wallet address.
@@ -57,27 +62,28 @@ pub struct AgentMetrics {
     /// - `token_address`: Address of the token.
     /// - `token_symbol`: Symbol of the token.
     /// - `token_name`: Full name of the token.
-    #[builder(setter(into, strip_option), default)]
     wallet_balance: Option<GaugeVec>,
 }
 
-pub(crate) fn create_agent_metrics(metrics: &CoreMetrics) -> Result<AgentMetrics> {
-    Ok(AgentMetricsBuilder::default()
-        .wallet_balance(metrics.new_gauge(
-            "wallet_balance",
-            WALLET_BALANCE_HELP,
-            WALLET_BALANCE_LABELS,
-        )?)
-        .build()?)
+impl AgentMetrics {
+    pub(crate) fn new(metrics: &CoreMetrics) -> Result<AgentMetrics> {
+        let agent_metrics = AgentMetrics {
+            wallet_balance: Some(metrics.new_gauge(
+                "wallet_balance",
+                WALLET_BALANCE_HELP,
+                WALLET_BALANCE_LABELS,
+            )?),
+        };
+        Ok(agent_metrics)
+    }
 }
 
 /// Chain-specific metrics
-#[derive(Clone, Builder, Debug)]
+#[derive(Clone, Debug)]
 pub struct ChainMetrics {
     /// Tracks the current block height of the chain.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain
     ///   the block number refers to.
-    #[builder(setter(into))]
     pub block_height: IntGaugeVec,
 
     /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if
@@ -85,19 +91,45 @@ pub struct ChainMetrics {
     /// TODO: use the median of the transactions.
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the
     ///   chain the gas price refers to.
-    #[builder(setter(into, strip_option), default)]
     pub gas_price: Option<GaugeVec>,
+
+    /// Boolean marker for critical errors on a chain, signalling loss of liveness.
+    critical_error: IntGaugeVec,
 }
 
-pub(crate) fn create_chain_metrics(metrics: &CoreMetrics) -> Result<ChainMetrics> {
-    Ok(ChainMetricsBuilder::default()
-        .block_height(metrics.new_int_gauge(
-            "block_height",
-            BLOCK_HEIGHT_HELP,
-            BLOCK_HEIGHT_LABELS,
-        )?)
-        .gas_price(metrics.new_gauge("gas_price", GAS_PRICE_HELP, GAS_PRICE_LABELS)?)
-        .build()?)
+impl ChainMetrics {
+    pub(crate) fn new(metrics: &CoreMetrics) -> Result<ChainMetrics> {
+        let block_height_metrics =
+            metrics.new_int_gauge("block_height", BLOCK_HEIGHT_HELP, BLOCK_HEIGHT_LABELS)?;
+        let gas_price_metrics = metrics.new_gauge("gas_price", GAS_PRICE_HELP, GAS_PRICE_LABELS)?;
+        let critical_error_metrics =
+            metrics.new_int_gauge("critical_error", CRITICAL_ERROR_HELP, CRITICAL_ERROR_LABELS)?;
+        let chain_metrics = ChainMetrics {
+            block_height: block_height_metrics,
+            gas_price: Some(gas_price_metrics),
+            critical_error: critical_error_metrics,
+        };
+        Ok(chain_metrics)
+    }
+
+    pub(crate) fn set_gas_price(&self, chain: &str, price: f64) {
+        if let Some(gas_price) = &self.gas_price {
+            gas_price.with(&hashmap! { "chain" => chain }).set(price);
+        }
+    }
+
+    pub(crate) fn set_block_height(&self, chain: &str, height: i64) {
+        self.block_height
+            .with(&hashmap! { "chain" => chain })
+            .set(height);
+    }
+
+    /// Flag that a critical error has occurred on the chain
+    pub fn set_critical_error(&self, chain: &str, is_critical: bool) {
+        self.critical_error
+            .with(&hashmap! { "chain" => chain })
+            .set(is_critical as i64);
+    }
 }
 
 /// Configuration for the prometheus middleware. This can be loaded via serde.
@@ -174,8 +206,6 @@ impl MetricsUpdater {
     }
 
     async fn update_block_details(&self) {
-        let block_height = self.chain_metrics.block_height.clone();
-        let gas_price = self.chain_metrics.gas_price.clone();
         if let HyperlaneDomain::Unknown { .. } = self.conf.domain {
             return;
         };
@@ -184,7 +214,7 @@ impl MetricsUpdater {
         let chain_metrics = match self.provider.get_chain_metrics().await {
             Ok(Some(chain_metrics)) => chain_metrics,
             Err(err) => {
-                trace!(chain, ?err, "Failed to get chain metrics");
+                warn!(chain, ?err, "Failed to get chain metrics");
                 return;
             }
             _ => {
@@ -195,10 +225,8 @@ impl MetricsUpdater {
 
         let height = chain_metrics.latest_block.number as i64;
         trace!(chain, height, "Fetched block height for metrics");
-        block_height
-            .with(&hashmap! { "chain" => chain })
-            .set(height);
-        if let Some(gas_price) = gas_price {
+        self.chain_metrics.set_block_height(chain, height);
+        if self.chain_metrics.gas_price.is_some() {
             let protocol = self.conf.domain.domain_protocol();
             let decimals_scale = 10f64.powf(decimals_by_protocol(protocol).into());
             let gas = u256_as_scaled_f64(chain_metrics.min_gas_price.unwrap_or_default(), protocol)
@@ -208,7 +236,7 @@ impl MetricsUpdater {
                 gas = format!("{gas:.2}"),
                 "Gas price updated for chain (using lowest denomination)"
             );
-            gas_price.with(&hashmap! { "chain" => chain }).set(gas);
+            self.chain_metrics.set_gas_price(chain, gas);
         }
     }
 

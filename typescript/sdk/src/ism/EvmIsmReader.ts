@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import {
   ArbL2ToL1Ism__factory,
@@ -21,6 +21,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
+import { DispatchedMessage } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -66,6 +67,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     protected readonly concurrency: number = multiProvider.tryGetRpcConcurrency(
       chain,
     ) ?? DEFAULT_CONTRACT_READ_CONCURRENCY,
+    protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
   }
@@ -129,11 +131,14 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       address,
       this.provider,
     );
+
     const owner = await ism.owner();
     this.assertModuleType(await ism.moduleType(), ModuleType.ROUTING);
 
+    const domainIds = this.messageContext
+      ? [BigNumber.from(this.messageContext.parsed.origin)]
+      : await ism.domains();
     const domains: RoutingIsmConfig['domains'] = {};
-    const domainIds = await ism.domains();
 
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
       const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());
@@ -143,7 +148,9 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         );
         return;
       }
-      const module = await ism.module(domainId);
+      const module = this.messageContext
+        ? await ism.route(this.messageContext.message)
+        : await ism.module(domainId);
       domains[chainName] = await this.deriveIsmConfig(module);
     });
 
@@ -151,7 +158,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     let ismType = IsmType.FALLBACK_ROUTING;
     try {
       await ism.mailbox();
-    } catch (error) {
+    } catch {
       ismType = IsmType.ROUTING;
       this.logger.debug(
         'Error accessing mailbox property, implying this is not a fallback routing ISM.',
@@ -241,7 +248,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         relayer,
         type: IsmType.TRUSTED_RELAYER,
       };
-    } catch (error) {
+    } catch {
       this.logger.debug(
         'Error accessing "trustedRelayer" property, implying this is not a Trusted Relayer ISM.',
         address,
@@ -259,7 +266,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         type: IsmType.PAUSABLE,
         paused,
       };
-    } catch (error) {
+    } catch {
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
         address,
@@ -276,7 +283,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         origin: address,
         nativeBridge: '', // no way to extract native bridge from the ism
       };
-    } catch (error) {
+    } catch {
       this.logger.debug(
         'Error accessing "VERIFIED_MASK_INDEX" property, implying this is not an OP Stack ISM.',
         address,

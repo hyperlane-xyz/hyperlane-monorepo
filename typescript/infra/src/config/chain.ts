@@ -16,6 +16,22 @@ import { inCIMode } from '../utils/utils.js';
 
 import { DeployEnvironment } from './environment.js';
 
+// A list of chains to skip during deploy, check-deploy and ICA operations.
+// Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
+// unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. lumia).
+export const chainsToSkip: ChainName[] = [
+  // TODO: remove once zksync PR is merged into main
+  // mainnets
+  'zksync',
+  'zeronetwork',
+  // testnets
+  'abstracttestnet',
+  'treasuretopaz',
+
+  // Oct 16 batch
+  'lumia',
+];
+
 export const defaultRetry: ProviderRetryOptions = {
   maxRetries: 6,
   baseRetryDelayMs: 50,

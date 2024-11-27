@@ -1,10 +1,9 @@
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
     nonblocking::rpc_client::RpcClient, rpc_config::RpcBlockConfig,
-    rpc_config::RpcProgramAccountsConfig, rpc_response::Response,
+    rpc_config::RpcProgramAccountsConfig, rpc_config::RpcTransactionConfig, rpc_response::Response,
 };
 use solana_sdk::{
     account::Account,
@@ -17,8 +16,11 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{
-    TransactionStatus, UiConfirmedBlock, UiReturnDataEncoding, UiTransactionReturnData,
+    EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
+    UiReturnDataEncoding, UiTransactionEncoding, UiTransactionReturnData,
 };
+
+use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 
 use crate::error::HyperlaneSealevelError;
 
@@ -99,29 +101,28 @@ impl SealevelRpcClient {
         Ok(account)
     }
 
-    pub async fn get_block(&self, height: u64) -> ChainResult<UiConfirmedBlock> {
+    pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
+        let balance = self
+            .0
+            .get_balance(pubkey)
+            .await
+            .map_err(Into::<HyperlaneSealevelError>::into)
+            .map_err(ChainCommunicationError::from)?;
+
+        Ok(balance.into())
+    }
+
+    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
         let config = RpcBlockConfig {
             commitment: Some(CommitmentConfig::finalized()),
             max_supported_transaction_version: Some(0),
             ..Default::default()
         };
         self.0
-            .get_block_with_config(height, config)
+            .get_block_with_config(slot, config)
             .await
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
-    }
-
-    pub async fn get_block_height(&self) -> ChainResult<u32> {
-        let height = self
-            .0
-            .get_block_height_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .try_into()
-            // FIXME solana block height is u64...
-            .expect("sealevel block height exceeds u32::MAX");
-        Ok(height)
     }
 
     pub async fn get_multiple_accounts_with_finalized_commitment(
@@ -170,15 +171,32 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
-        let balance = self
+    pub async fn get_slot(&self) -> ChainResult<u32> {
+        let slot = self
             .0
-            .get_balance(pubkey)
+            .get_slot_with_commitment(CommitmentConfig::finalized())
             .await
-            .map_err(Into::<HyperlaneSealevelError>::into)
-            .map_err(ChainCommunicationError::from)?;
+            .map_err(ChainCommunicationError::from_other)?
+            .try_into()
+            // FIXME solana block height is u64...
+            .expect("sealevel block slot exceeds u32::MAX");
+        Ok(slot)
+    }
 
-        Ok(balance.into())
+    pub async fn get_transaction(
+        &self,
+        signature: &Signature,
+    ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta> {
+        let config = RpcTransactionConfig {
+            encoding: Some(UiTransactionEncoding::JsonParsed),
+            commitment: Some(CommitmentConfig::finalized()),
+            ..Default::default()
+        };
+        self.0
+            .get_transaction_with_config(signature, config)
+            .await
+            .map_err(HyperlaneSealevelError::ClientError)
+            .map_err(Into::into)
     }
 
     pub async fn is_blockhash_valid(&self, hash: &Hash) -> ChainResult<bool> {
@@ -255,3 +273,6 @@ impl std::fmt::Debug for SealevelRpcClient {
         f.write_str("RpcClient { ... }")
     }
 }
+
+#[cfg(test)]
+mod tests;

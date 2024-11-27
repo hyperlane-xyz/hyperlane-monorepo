@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import assert from 'assert';
 import { expect } from 'chai';
 import { Signer } from 'ethers';
@@ -466,9 +465,11 @@ describe('EvmIsmModule', async () => {
         );
 
         // update the validators for a domain
-        (
-          exampleRoutingConfig.domains[TestChainName.test2] as MultisigIsmConfig
-        ).validators = [randomAddress(), randomAddress()];
+        exampleRoutingConfig.domains[TestChainName.test2] = {
+          type: IsmType.MERKLE_ROOT_MULTISIG,
+          validators: [randomAddress(), randomAddress()],
+          threshold: 2,
+        };
 
         // expect 1 tx to update validator set for test2 domain
         await expectTxsAndUpdate(ism, exampleRoutingConfig, 1);

@@ -6,8 +6,9 @@ on:
       - '**'
   pull_request:
     paths:
-      # For now, because this image is only used to use `infra`, we just build for infra changes
+      # For now, because this image is only used to use `infra`, we just build for infra or .registryrc changes
       - 'typescript/infra/**'
+      - '.registryrc'
       - 'Dockerfile'
       - '.dockerignore'
       - '.github/workflows/monorepo-docker.yml'

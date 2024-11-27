@@ -1,3 +1,5 @@
+import { $ } from 'zx';
+
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -119,14 +121,18 @@ export async function deployOrUseExistingCore(
 
   return addresses;
 }
-export async function getChainId(chainName: string, key: string) {
+
+export async function getDomainId(
+  chainName: string,
+  key: string,
+): Promise<string> {
   const { registry } = await getContext({
     registryUri: REGISTRY_PATH,
     registryOverrideUri: '',
     key,
   });
   const chainMetadata = await registry.getChainMetadata(chainName);
-  return String(chainMetadata?.chainId);
+  return String(chainMetadata?.domainId);
 }
 
 export async function deployToken(privateKey: string, chain: string) {
@@ -178,4 +184,27 @@ export async function sendWarpRouteMessageRoundTrip(
 ) {
   await hyperlaneWarpSendRelay(chain1, chain2, warpCoreConfigPath);
   return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
+}
+
+export async function hyperlaneSendMessage(
+  origin: string,
+  destination: string,
+) {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane send message \
+        --registry ${REGISTRY_PATH} \
+        --origin ${origin} \
+        --destination ${destination} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
+}
+
+export function hyperlaneRelayer(chains: string[], warp?: string) {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane relayer \
+        --registry ${REGISTRY_PATH} \
+        --chains ${chains.join(',')} \
+        --warp ${warp ?? ''} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
 }

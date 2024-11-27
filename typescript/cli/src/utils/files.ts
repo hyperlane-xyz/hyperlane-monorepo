@@ -42,7 +42,7 @@ export function isFile(filepath: string) {
   if (!filepath) return false;
   try {
     return fs.existsSync(filepath) && fs.lstatSync(filepath).isFile();
-  } catch (error) {
+  } catch {
     log(`Error checking for file: ${filepath}`);
     return false;
   }
@@ -70,7 +70,7 @@ export function readJson<T>(filepath: string): T {
 export function tryReadJson<T>(filepath: string): T | null {
   try {
     return readJson(filepath) as T;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -98,7 +98,7 @@ export function readYaml<T>(filepath: string): T {
 export function tryReadYamlAtPath<T>(filepath: string): T | null {
   try {
     return readYaml(filepath);
-  } catch (error) {
+  } catch {
     return null;
   }
 }

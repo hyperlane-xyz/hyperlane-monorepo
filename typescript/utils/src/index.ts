@@ -103,13 +103,17 @@ export {
   parseLegacyMultisigIsmMetadata,
 } from './multisig.js';
 export {
+  ObjectDiff,
   ValueOf,
   arrayToObject,
   deepCopy,
   deepEquals,
+  deepFind,
+  diffObjMerge,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  mustGet,
   objFilter,
   objKeys,
   objLength,
@@ -117,14 +121,18 @@ export {
   objMapEntries,
   objMerge,
   objOmit,
+  objOmitKeys,
   pick,
   promiseObjAll,
   stringifyObject,
-  diffObjMerge,
-  ObjectDiff,
 } from './objects.js';
 export { Result, failure, success } from './result.js';
-export { difference, setEquality, symmetricDifference } from './sets.js';
+export {
+  difference,
+  intersection,
+  setEquality,
+  symmetricDifference,
+} from './sets.js';
 export {
   errorToString,
   fromHexString,
@@ -132,6 +140,7 @@ export {
   streamToString,
   toHexString,
   toTitleCase,
+  toUpperCamelCase,
   trimToLength,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
@@ -146,6 +155,7 @@ export {
   Checkpoint,
   CheckpointWithId,
   Domain,
+  EvmChainId,
   HexString,
   MerkleProof,
   MessageStatus,
@@ -162,7 +172,7 @@ export {
   TokenCaip19Id,
   WithAddress,
 } from './types.js';
-export { isHttpsUrl, isUrl } from './url.js';
+export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';

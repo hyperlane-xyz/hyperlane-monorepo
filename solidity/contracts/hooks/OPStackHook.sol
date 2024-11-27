@@ -18,6 +18,7 @@ import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 
 // ============ External Imports ============
@@ -32,6 +33,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  */
 contract OPStackHook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ Constants ============
 
@@ -60,21 +62,22 @@ contract OPStackHook is AbstractMessageIdAuthHook {
 
     // ============ Internal functions ============
     function _quoteDispatch(
-        bytes calldata,
+        bytes calldata metadata,
         bytes calldata
     ) internal pure override returns (uint256) {
-        return 0; // gas subsidized by the L2
+        return metadata.msgValue(0); // gas subsidized by the L2
     }
 
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes memory payload
+        bytes calldata message
     ) internal override {
-        require(
-            metadata.msgValue(0) < 2 ** 255,
-            "OPStackHook: msgValue must be less than 2 ** 255"
+        bytes memory payload = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (message.id(), metadata.msgValue(0))
         );
+
         l1Messenger.sendMessage{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload,

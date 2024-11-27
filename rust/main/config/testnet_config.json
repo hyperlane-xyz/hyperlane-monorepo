@@ -31,7 +31,7 @@
       "interchainAccountIsm": "0x6895d3916B94b386fAA6ec9276756e16dAe7480E",
       "interchainAccountRouter": "0xEbA64c8a9b4a61a9210d5fe7E4375380999C821b",
       "interchainGasPaymaster": "0x44769b0f4a6f01339e131a691cc2eebbb519d297",
-      "interchainSecurityModule": "0xC8513429105955cf01669bfD1ac5396Faf0748a5",
+      "interchainSecurityModule": "0xDf1d3c37FfA6134767911B8876305afc187dA207",
       "isTestnet": true,
       "mailbox": "0xEf9F292fcEBC3848bF4bB92a96a04F9ECBb78E59",
       "merkleTreeHook": "0x221FA9CBaFcd6c1C3d206571Cf4427703e023FFa",
@@ -94,7 +94,7 @@
         "from": 49690504
       },
       "interchainGasPaymaster": "0xc756cFc1b7d0d4646589EDf10eD54b201237F5e8",
-      "interchainSecurityModule": "0xA6D6d30c37434b142618eF97AB15a71871d721C6",
+      "interchainSecurityModule": "0x69a84432Ba4FaD95FC5850aCD613C6daD286908C",
       "isTestnet": true,
       "mailbox": "0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8",
       "merkleTreeHook": "0xAD34A66Bf6dB18E858F6B686557075568c6E031C",
@@ -162,7 +162,7 @@
         "from": 13851043
       },
       "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
-      "interchainSecurityModule": "0x3E857CB33b76f680F3dB557Ce3BBf2591A98d92d",
+      "interchainSecurityModule": "0x2945eCB46AE83B1A37b589A9c1219061522A73aD",
       "isTestnet": true,
       "mailbox": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
       "merkleTreeHook": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
@@ -232,7 +232,7 @@
       "interchainAccountIsm": "0xa9D8Ec959F34272B1a56D09AF00eeee58970d3AE",
       "interchainAccountRouter": "0x6d2B3e304E58c2a19f1492E7cf15CaF63Ce6e0d2",
       "interchainGasPaymaster": "0x0dD20e410bdB95404f71c5a4e7Fa67B892A5f949",
-      "interchainSecurityModule": "0x2B3bEc44051C3A0c26360Ae513e98A947E9939b7",
+      "interchainSecurityModule": "0x0c29F3Ce8995b41eB8c2b3E1eC33c3fa10C8cf91",
       "isTestnet": true,
       "mailbox": "0xF9F6F5646F478d5ab4e20B0F910C92F1CCC9Cc6D",
       "merkleTreeHook": "0xc6cbF39A747f5E28d1bDc8D9dfDAb2960Abd5A8f",
@@ -301,7 +301,7 @@
         "from": 4950
       },
       "interchainGasPaymaster": "0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450",
-      "interchainSecurityModule": "0x1e58386A3f012D69568B3E1aB5f8E41169Ba69A9",
+      "interchainSecurityModule": "0xa25786D36B5a5eDeCAf75142dD056B1Ed1473f44",
       "isTestnet": true,
       "mailbox": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
       "merkleTreeHook": "0x4926a10788306D84202A2aDbd290b7743146Cc17",
@@ -402,7 +402,7 @@
         "from": 1606754
       },
       "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
-      "interchainSecurityModule": "0x4c8A96b43fD59a4171b7c79d657AD9FedFb2d7B5",
+      "interchainSecurityModule": "0x1AFC8F84cAE294C3E6d3Ddb031946B93f08272b5",
       "isTestnet": true,
       "mailbox": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
       "merkleTreeHook": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
@@ -468,7 +468,7 @@
       "interchainAccountIsm": "0xfaB4815BDC5c60c6bD625459C8577aFdD79D9311",
       "interchainAccountRouter": "0xeEF6933122894fF217a7dd07510b3D64b747e29b",
       "interchainGasPaymaster": "0x6895d3916B94b386fAA6ec9276756e16dAe7480E",
-      "interchainSecurityModule": "0xe412A2d273c02d6f837532946d1B05A6EAB72B04",
+      "interchainSecurityModule": "0x7b5AD17cdAbdED0C29B161c647DA32dCE51AB13B",
       "isTestnet": true,
       "mailbox": "0x5b6CFf85442B851A8e6eaBd2A4E4507B5135B3B0",
       "merkleTreeHook": "0x9ff6ac3dAf63103620BBf76136eA1AFf43c2F612",
@@ -534,7 +534,7 @@
         "from": 1543015
       },
       "interchainGasPaymaster": "0x5CBf4e70448Ed46c2616b04e9ebc72D29FF0cfA9",
-      "interchainSecurityModule": "0xA4bFAA24c14f0398903E59344F4a36334F47AA50",
+      "interchainSecurityModule": "0x16738b80D39Fa0652F2D853c3E6235Afb7cA6dDc",
       "isTestnet": true,
       "mailbox": "0x46f7C5D896bbeC89bE1B19e4485e59b4Be49e9Cc",
       "merkleTreeHook": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
@@ -599,7 +599,7 @@
         "from": 15833917
       },
       "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
-      "interchainSecurityModule": "0x4c8A96b43fD59a4171b7c79d657AD9FedFb2d7B5",
+      "interchainSecurityModule": "0x81B81B3b296ecf99d5bAC0DE4e5fF7a3ceECf08b",
       "isTestnet": true,
       "mailbox": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
       "merkleTreeHook": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
@@ -727,7 +727,7 @@
         "from": 10634605
       },
       "interchainGasPaymaster": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
-      "interchainSecurityModule": "0xC5117582A9b64B5b3071B7f11943b21A515A84C6",
+      "interchainSecurityModule": "0x428a2384F6013A9c561737E9A58288e071470192",
       "isTestnet": true,
       "mailbox": "0x54148470292C24345fb828B003461a9444414517",
       "merkleTreeHook": "0xddf4C3e791caCaFd26D7fb275549739B38ae6e75",
@@ -802,7 +802,7 @@
       "interchainAccountIsm": "0xE023239c8dfc172FF008D8087E7442d3eBEd9350",
       "interchainAccountRouter": "0xe17c37212d785760E8331D4A4395B17b34Ba8cDF",
       "interchainGasPaymaster": "0x86fb9F1c124fB20ff130C41a79a432F770f67AFD",
-      "interchainSecurityModule": "0x69873c153380149e901b4aD031025Bc195ee1CB8",
+      "interchainSecurityModule": "0xb9A0fa05Fcce52605f0142c1A5Aca32f223eB961",
       "isTestnet": true,
       "mailbox": "0x3C5154a193D6e2955650f9305c8d80c18C814A68",
       "merkleTreeHook": "0x863E8c26621c52ACa1849C53500606e73BA272F0",
@@ -880,7 +880,7 @@
       "interchainAccountIsm": "0x83a3068B719F764d413625dA77468ED74789ae02",
       "interchainAccountRouter": "0x8e131c8aE5BF1Ed38D05a00892b6001a7d37739d",
       "interchainGasPaymaster": "0x6f2756380FD49228ae25Aa7F2817993cB74Ecc56",
-      "interchainSecurityModule": "0x43b6a311BF787241BB71b7aE2a29ef639932b9b8",
+      "interchainSecurityModule": "0x5bC248C8010848067919fA73F4555AeE95Df38a4",
       "isTestnet": true,
       "mailbox": "0xfFAEF09B3cd11D9b20d1a19bECca54EEC2884766",
       "merkleTreeHook": "0x4917a9746A7B6E0A57159cCb7F5a6744247f2d0d",
@@ -990,7 +990,7 @@
         "from": 3111622
       },
       "interchainGasPaymaster": "0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450",
-      "interchainSecurityModule": "0x1e58386A3f012D69568B3E1aB5f8E41169Ba69A9",
+      "interchainSecurityModule": "0x8a833B1230A75712a767e81556F1Ad612A0F76F3",
       "isTestnet": true,
       "mailbox": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
       "merkleTreeHook": "0x4926a10788306D84202A2aDbd290b7743146Cc17",
@@ -1078,7 +1078,7 @@
       "interchainAccountIsm": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
       "interchainAccountRouter": "0xa3AB7E6cE24E6293bD5320A53329Ef2f4DE73fCA",
       "interchainGasPaymaster": "0x04438ef7622f5412f82915F59caD4f704C61eA48",
-      "interchainSecurityModule": "0xDabB212640f59026a861202ca82CDcD8181aD723",
+      "interchainSecurityModule": "0x5e39968B0435332dE915C2FF62fD373fBbbb7C75",
       "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "merkleTreeHook": "0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C",
       "pausableHook": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
@@ -1138,7 +1138,7 @@
       "interchainAccountIsm": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
       "interchainAccountRouter": "0x867f2089D09903f208AeCac84E599B90E5a4A821",
       "interchainGasPaymaster": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
-      "interchainSecurityModule": "0x8214144F223b550E5BFf6164F2136F0Ef30bB8b3",
+      "interchainSecurityModule": "0x97b1e5FBF33d82fAD9C3Aa0fF901e9B9d63090E3",
       "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "merkleTreeHook": "0xD5eB5fa3f470eBBB93a4A58C644c87031268a04A",
       "pausableHook": "0x51A0a100e7BC63Ea7821A3a023B6F17fb94FF011",
@@ -1206,7 +1206,7 @@
       "interchainAccountIsm": "0xFfa913705484C9BAea32Ffe9945BeA099A1DFF72",
       "interchainAccountRouter": "0xB5fB1F5410a2c2b7deD462d018541383968cB01c",
       "interchainGasPaymaster": "0xD5eB5fa3f470eBBB93a4A58C644c87031268a04A",
-      "interchainSecurityModule": "0x792F905736703DCb511066f2E0C4b97504CD2728",
+      "interchainSecurityModule": "0xAfDF88EB9447e412c89304F34813c5564307709b",
       "mailbox": "0xB08d78F439e55D02C398519eef61606A5926245F",
       "merkleTreeHook": "0x783c4a0bB6663359281aD4a637D5af68F83ae213",
       "pausableHook": "0x66b71A4e18FbE09a6977A6520B47fEDdffA82a1c",
@@ -1267,7 +1267,7 @@
       "interchainAccountIsm": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
       "interchainAccountRouter": "0x867f2089D09903f208AeCac84E599B90E5a4A821",
       "interchainGasPaymaster": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
-      "interchainSecurityModule": "0x8214144F223b550E5BFf6164F2136F0Ef30bB8b3",
+      "interchainSecurityModule": "0xe5B27D2198EEacf4FeC7d558CdE3b4fDCe4d37f9",
       "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "merkleTreeHook": "0xD5eB5fa3f470eBBB93a4A58C644c87031268a04A",
       "pausableHook": "0x51A0a100e7BC63Ea7821A3a023B6F17fb94FF011",
@@ -1395,7 +1395,7 @@
       "interchainAccountIsm": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
       "interchainAccountRouter": "0x867f2089D09903f208AeCac84E599B90E5a4A821",
       "interchainGasPaymaster": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
-      "interchainSecurityModule": "0x8214144F223b550E5BFf6164F2136F0Ef30bB8b3",
+      "interchainSecurityModule": "0x8714Caec7020c611DA73811E897A879C22d7C396",
       "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "merkleTreeHook": "0xD5eB5fa3f470eBBB93a4A58C644c87031268a04A",
       "pausableHook": "0x51A0a100e7BC63Ea7821A3a023B6F17fb94FF011",
@@ -1459,7 +1459,7 @@
       "interchainAccountIsm": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
       "interchainAccountRouter": "0x867f2089D09903f208AeCac84E599B90E5a4A821",
       "interchainGasPaymaster": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
-      "interchainSecurityModule": "0x8214144F223b550E5BFf6164F2136F0Ef30bB8b3",
+      "interchainSecurityModule": "0x0511f73F8D734e0fc9df1E6C0937592a3A371B18",
       "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "merkleTreeHook": "0xD5eB5fa3f470eBBB93a4A58C644c87031268a04A",
       "pausableHook": "0x51A0a100e7BC63Ea7821A3a023B6F17fb94FF011",
@@ -1673,7 +1673,7 @@
         "from": 111
       }
     },
-    "arcadiatestnet": {
+    "arcadiatestnet2": {
       "blockExplorers": [
         {
           "apiUrl": "https://explorer.khalani.network/api",
@@ -1688,10 +1688,10 @@
         "reorgPeriod": 1
       },
       "chainId": 1098411886,
-      "displayName": "Arcadia Testnet",
+      "displayName": "Arcadia Testnet v2",
       "domainId": 1098411886,
       "isTestnet": true,
-      "name": "arcadiatestnet",
+      "name": "arcadiatestnet2",
       "nativeToken": {
         "decimals": 18,
         "name": "Ether",
@@ -1703,33 +1703,33 @@
           "http": "https://rpc.khalani.network"
         }
       ],
-      "aggregationHook": "0x862Ce2De59C13a0406c104d317CfaEf6B672D638",
-      "domainRoutingIsm": "0x2a2F4AAaf726abb4B969c2804D38e188555683b5",
-      "domainRoutingIsmFactory": "0x44b764045BfDC68517e10e783E69B376cef196B2",
-      "fallbackRoutingHook": "0xA2cf52064c921C11adCd83588CbEa08cc3bfF5d8",
-      "interchainAccountIsm": "0x54Bd02f0f20677e9846F8E9FdB1Abc7315C49C38",
-      "interchainAccountRouter": "0xBF2C366530C1269d531707154948494D3fF4AcA7",
-      "interchainGasPaymaster": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
-      "interchainSecurityModule": "0xd89063A7e8Eaee25dA8D3b7eBcbAeF9869702A80",
-      "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
-      "merkleTreeHook": "0x7c5B5bdA7F1d1F70A6678ABb4d894612Fc76498F",
-      "pausableHook": "0x628BC518ED1e0E8C6cbcD574EbA0ee29e7F6943E",
-      "pausableIsm": "0xB057Fb841027a8554521DcCdeC3c3474CaC99AB5",
-      "protocolFee": "0x01812D60958798695391dacF092BAc4a715B1718",
-      "proxyAdmin": "0x54148470292C24345fb828B003461a9444414517",
-      "staticAggregationHookFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
-      "staticAggregationIsm": "0x206789B0d838568eaFDcCa1e551FCF5c00bF99E2",
-      "staticAggregationIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
-      "staticMerkleRootMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
-      "staticMerkleRootWeightedMultisigIsmFactory": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
-      "staticMessageIdMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-      "staticMessageIdWeightedMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
-      "storageGasOracle": "0xFfa913705484C9BAea32Ffe9945BeA099A1DFF72",
-      "testRecipient": "0xfBeaF07855181f8476B235Cf746A7DF3F9e386Fb",
+      "aggregationHook": "0x602160148F2e2A40bc42BADD5f5936aCFd431a35",
+      "domainRoutingIsm": "0x2589992a07E664c20123c6232620Af479F9ba7DC",
+      "domainRoutingIsmFactory": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
+      "fallbackRoutingHook": "0x7483faD0Bc297667664A43A064bA7c9911659f57",
+      "interchainAccountIsm": "0x39c85C84876479694A2470c0E8075e9d68049aFc",
+      "interchainAccountRouter": "0x80fE4Cb8c70fc60B745d4ffD4403c27a8cBC9e02",
+      "interchainGasPaymaster": "0xfBeaF07855181f8476B235Cf746A7DF3F9e386Fb",
+      "interchainSecurityModule": "0x3865c419335B36d9CE240b515124Ab1c33927004",
+      "mailbox": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
+      "merkleTreeHook": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
+      "pausableHook": "0x4fE19d49F45854Da50b6009258929613EC92C147",
+      "pausableIsm": "0xc76E477437065093D353b7d56c81ff54D167B0Ab",
+      "protocolFee": "0xA0aB1750b4F68AE5E8C42d936fa78871eae52643",
+      "proxyAdmin": "0x589C201a07c26b4725A4A829d772f24423da480B",
+      "staticAggregationHookFactory": "0x44b764045BfDC68517e10e783E69B376cef196B2",
+      "staticAggregationIsm": "0x0b071Eb80757Dd347B3B8736C7ba9e5324c37D77",
+      "staticAggregationIsmFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "staticMerkleRootMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
+      "staticMessageIdMultisigIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x54148470292C24345fb828B003461a9444414517",
+      "storageGasOracle": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
+      "testRecipient": "0xCB3c489a2FB67a7Cd555D47B3a9A0E654784eD16",
       "timelockController": "0x0000000000000000000000000000000000000000",
-      "validatorAnnounce": "0x867f2089D09903f208AeCac84E599B90E5a4A821",
+      "validatorAnnounce": "0x843908541D24d9F6Fa30C8Bb1c39038C947D08fC",
       "index": {
-        "from": 5243565
+        "from": 251532
       },
       "deployer": {
         "name": "Abacus Works",
@@ -1773,7 +1773,7 @@
       "interchainAccountIsm": "0xc08675806BA844467E559E45E4bB59e66778bDcd",
       "interchainAccountRouter": "0x39c85C84876479694A2470c0E8075e9d68049aFc",
       "interchainGasPaymaster": "0xa3AB7E6cE24E6293bD5320A53329Ef2f4DE73fCA",
-      "interchainSecurityModule": "0x8a5D09753Ab5571fa78131EF839C70AFa3c45bFd",
+      "interchainSecurityModule": "0x4B310268158B842cbE65A216714C6A7D1d087155",
       "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "merkleTreeHook": "0x086E902d2f99BcCEAa28B31747eC6Dc5fd43B1bE",
       "pausableHook": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
@@ -1836,7 +1836,7 @@
       "interchainAccountIsm": "0x3ca332A585FDB9d4FF51f2FA8999eA32184D3606",
       "interchainAccountRouter": "0x4eC139a771eBdD3b0a0b67bb7E08960210882d44",
       "interchainGasPaymaster": "0xa3AB7E6cE24E6293bD5320A53329Ef2f4DE73fCA",
-      "interchainSecurityModule": "0x4B2e8f63E345Db18973E46cE70972cE3D76585Bf",
+      "interchainSecurityModule": "0xAd6172DA241CE5DC38a32E0E375FD0A1889b9E48",
       "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "merkleTreeHook": "0x086E902d2f99BcCEAa28B31747eC6Dc5fd43B1bE",
       "pausableHook": "0xe0B988062A0C6492177d64823Ab95a9c256c2a5F",
@@ -1899,7 +1899,7 @@
       "interchainAccountIsm": "0xBF2C366530C1269d531707154948494D3fF4AcA7",
       "interchainAccountRouter": "0xBdf49bE2201A1c4B13023F0a407196C6Adb32680",
       "interchainGasPaymaster": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
-      "interchainSecurityModule": "0x9e71cC1A91E48CfFA2F7D2956eB5c3b730bD8605",
+      "interchainSecurityModule": "0xa6570241124A6534801d1eba13F46078Dc7d1974",
       "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
       "merkleTreeHook": "0xFfa913705484C9BAea32Ffe9945BeA099A1DFF72",
       "pausableHook": "0xc76E477437065093D353b7d56c81ff54D167B0Ab",
@@ -1923,6 +1923,246 @@
       "deployer": {
         "name": "Abacus Works",
         "url": "https://www.hyperlane.xyz"
+      }
+    },
+    "alephzeroevmtestnet": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://evm-explorer-testnet.alephzero.org/api",
+          "family": "blockscout",
+          "name": "Aleph Zero EVM Testnet Explorer",
+          "url": "https://evm-explorer-testnet.alephzero.org"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 3,
+        "reorgPeriod": 5
+      },
+      "chainId": 2039,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Aleph Zero EVM Testnet",
+      "domainId": 2039,
+      "index": {
+        "from": 1380870
+      },
+      "isTestnet": true,
+      "name": "alephzeroevmtestnet",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Testnet AZERO",
+        "symbol": "TZERO"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.alephzero-testnet.gelato.digital"
+        }
+      ],
+      "technicalStack": "arbitrumnitro",
+      "aggregationHook": "0xf63f12A71d730794F8de247c65a40E5BF8fA590A",
+      "domainRoutingIsm": "0x2a2F4AAaf726abb4B969c2804D38e188555683b5",
+      "domainRoutingIsmFactory": "0x44b764045BfDC68517e10e783E69B376cef196B2",
+      "fallbackRoutingHook": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
+      "interchainAccountIsm": "0x342B5630Ba1C1e4d3048E51Dad208201aF52692c",
+      "interchainAccountRouter": "0xe036768e48Cb0D42811d2bF0748806FCcBfCd670",
+      "interchainGasPaymaster": "0x867f2089D09903f208AeCac84E599B90E5a4A821",
+      "interchainSecurityModule": "0xbe84F098eE49c32395edA629737AD3f4c0542ADA",
+      "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
+      "merkleTreeHook": "0xB5fB1F5410a2c2b7deD462d018541383968cB01c",
+      "pausableHook": "0x7483faD0Bc297667664A43A064bA7c9911659f57",
+      "pausableIsm": "0xa3AB7E6cE24E6293bD5320A53329Ef2f4DE73fCA",
+      "protocolFee": "0x5e65279Fb7293a058776e37587398fcc3E9184b1",
+      "proxyAdmin": "0x54148470292C24345fb828B003461a9444414517",
+      "staticAggregationHookFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "staticAggregationIsm": "0x1897d03A682C0AA04e2C018B8Edc33A379bf9610",
+      "staticAggregationIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
+      "staticMerkleRootMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
+      "staticMessageIdMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
+      "storageGasOracle": "0x4fE19d49F45854Da50b6009258929613EC92C147",
+      "testRecipient": "0x843908541D24d9F6Fa30C8Bb1c39038C947D08fC",
+      "timelockController": "0x0000000000000000000000000000000000000000",
+      "validatorAnnounce": "0xBF2C366530C1269d531707154948494D3fF4AcA7"
+    },
+    "inksepolia": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer-sepolia.inkonchain.com/api",
+          "family": "blockscout",
+          "name": "https://explorer-sepolia.inkonchain.com",
+          "url": "https://explorer-sepolia.inkonchain.com"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 1,
+        "reorgPeriod": 1
+      },
+      "chainId": 763373,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Ink Sepolia",
+      "domainId": 763373,
+      "isTestnet": true,
+      "name": "inksepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc-qnd-sepolia.inkonchain.com"
+        }
+      ],
+      "technicalStack": "opstack",
+      "aggregationHook": "0xDd77EFE606DD4e9601D8E13CF3caAcCcacD6bb3c",
+      "domainRoutingIsm": "0x2a2F4AAaf726abb4B969c2804D38e188555683b5",
+      "domainRoutingIsmFactory": "0x44b764045BfDC68517e10e783E69B376cef196B2",
+      "fallbackRoutingHook": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f",
+      "interchainGasPaymaster": "0x54Bd02f0f20677e9846F8E9FdB1Abc7315C49C38",
+      "interchainSecurityModule": "0x3490059390DDc4de38822488A1D63B4e131D0Aaf",
+      "mailbox": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD",
+      "merkleTreeHook": "0x4fE19d49F45854Da50b6009258929613EC92C147",
+      "pausableHook": "0x01812D60958798695391dacF092BAc4a715B1718",
+      "pausableIsm": "0xEa7e618Bee8927fBb2fA20Bc41eE8DEA51838aAD",
+      "protocolFee": "0x843908541D24d9F6Fa30C8Bb1c39038C947D08fC",
+      "proxyAdmin": "0x54148470292C24345fb828B003461a9444414517",
+      "staticAggregationHookFactory": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "staticAggregationIsm": "0x16977B194B3d61aA30F70A5521ac6bbfaa4CF460",
+      "staticAggregationIsmFactory": "0xeb6f11189197223c656807a83B0DD374f9A6dF44",
+      "staticMerkleRootMultisigIsmFactory": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
+      "staticMessageIdMultisigIsmFactory": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x6966b0E55883d49BFB24539356a2f8A673E02039",
+      "storageGasOracle": "0xE67CfA164cDa449Ae38a0a09391eF6bCDf8e4e2c",
+      "testRecipient": "0x0e91088824Fa6E2675b2a53DA3491a9B098bD868",
+      "validatorAnnounce": "0xBdf49bE2201A1c4B13023F0a407196C6Adb32680",
+      "index": {
+        "from": 1915290
+      }
+    },
+    "abstracttestnet": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://api-explorer-verify.testnet.abs.xyz/contract_verification",
+          "family": "etherscan",
+          "name": "Abstract Block Explorer",
+          "url": "https://explorer.testnet.abs.xyz"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 1,
+        "reorgPeriod": 0
+      },
+      "chainId": 11124,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Abstract Testnet",
+      "domainId": 11124,
+      "isTestnet": true,
+      "name": "abstracttestnet",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ethereum",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://api.testnet.abs.xyz"
+        }
+      ],
+      "technicalStack": "zksync",
+      "domainRoutingIsm": "0x7ca1b3fa385F3585f8ab58c0bC90A421689141B8",
+      "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000",
+      "fallbackDomainRoutingHook": "0x623f284257f133E8bE7c74f6D4D684B61FE8923a",
+      "fallbackRoutingHook": "0x623f284257f133E8bE7c74f6D4D684B61FE8923a",
+      "interchainGasPaymaster": "0xbAaE1B4e953190b05C757F69B2F6C46b9548fa4f",
+      "interchainSecurityModule": "0x7ca1b3fa385F3585f8ab58c0bC90A421689141B8",
+      "mailbox": "0x28f448885bEaaF662f8A9A6c9aF20fAd17A5a1DC",
+      "merkleTreeHook": "0x7fa6009b59F139813eA710dB5496976eE8D80E64",
+      "proxyAdmin": "0xfbA0c57A6BA24B5440D3e2089222099b4663B98B",
+      "staticAggregationHookFactory": "0x0000000000000000000000000000000000000000",
+      "staticAggregationIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMerkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMessageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "storageGasOracle": "0x5F1bADC7e28B9b4C98f58dB4e5841e5bf63A7A52",
+      "testRecipient": "0x9EC79CA89DeF61BFa2f38cD4fCC137b9e49d60dD",
+      "validatorAnnounce": "0xfE9a467831a28Ec3D54deCCf0A2A41fa77dDD1D7",
+      "index": {
+        "from": 964305
+      }
+    },
+    "treasuretopaz": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://rpc-explorer-verify.topaz.treasure.lol/contract_verification",
+          "family": "etherscan",
+          "name": "Treasure Topaz Block Explorer",
+          "url": "https://topaz.treasurescan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 1,
+        "reorgPeriod": 0
+      },
+      "chainId": 978658,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Treasure Topaz Testnet",
+      "displayNameShort": "Treasure Testnet",
+      "domainId": 978658,
+      "isTestnet": true,
+      "name": "treasuretopaz",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "MAGIC",
+        "symbol": "MAGIC"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.topaz.treasure.lol"
+        }
+      ],
+      "technicalStack": "zksync",
+      "domainRoutingIsm": "0x7ca1b3fa385F3585f8ab58c0bC90A421689141B8",
+      "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000",
+      "fallbackDomainRoutingHook": "0x623f284257f133E8bE7c74f6D4D684B61FE8923a",
+      "fallbackRoutingHook": "0x623f284257f133E8bE7c74f6D4D684B61FE8923a",
+      "interchainGasPaymaster": "0xbAaE1B4e953190b05C757F69B2F6C46b9548fa4f",
+      "interchainSecurityModule": "0x7ca1b3fa385F3585f8ab58c0bC90A421689141B8",
+      "mailbox": "0x28f448885bEaaF662f8A9A6c9aF20fAd17A5a1DC",
+      "merkleTreeHook": "0x7fa6009b59F139813eA710dB5496976eE8D80E64",
+      "proxyAdmin": "0xfbA0c57A6BA24B5440D3e2089222099b4663B98B",
+      "staticAggregationHookFactory": "0x0000000000000000000000000000000000000000",
+      "staticAggregationIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMerkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMessageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "storageGasOracle": "0x5F1bADC7e28B9b4C98f58dB4e5841e5bf63A7A52",
+      "testRecipient": "0x9EC79CA89DeF61BFa2f38cD4fCC137b9e49d60dD",
+      "validatorAnnounce": "0xfE9a467831a28Ec3D54deCCf0A2A41fa77dDD1D7",
+      "index": {
+        "from": 86008
       }
     }
   },

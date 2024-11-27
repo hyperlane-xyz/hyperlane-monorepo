@@ -20,7 +20,11 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { getChain, getDomainId } from '../../../config/registry.js';
+import {
+  getChain,
+  getDomainId,
+  getWarpAddresses,
+} from '../../../config/registry.js';
 import { AgentAwsUser } from '../../agents/aws/user.js';
 import { Role } from '../../roles.js';
 import { HelmStatefulSetValues } from '../infrastructure.js';
@@ -45,17 +49,31 @@ export interface BaseRelayerConfig {
   addressBlacklist?: string;
   transactionGasLimit?: BigNumberish;
   skipTransactionGasLimitFor?: string[];
-  metricAppContexts?: MetricAppContext[];
+  metricAppContextsGetter?: () => MetricAppContext[];
 }
 
 // Full relayer-specific agent config for a single chain
 export type RelayerConfig = Omit<RelayerAgentConfig, keyof AgentConfig>;
+// Config intended to be set as configMap values, these are usually really long
+// and are intended to derisk hitting max env var length limits.
+export type RelayerConfigMapConfig = Pick<
+  RelayerConfig,
+  'addressBlacklist' | 'gasPaymentEnforcement' | 'metricAppContexts'
+>;
+// The rest of the config is intended to be set as env vars.
+export type RelayerEnvConfig = Omit<
+  RelayerConfig,
+  keyof RelayerConfigMapConfig
+>;
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
 // This is at `.hyperlane.relayer` in the values file.
 export interface HelmRelayerValues extends HelmStatefulSetValues {
   aws: boolean;
-  config?: RelayerConfig;
+  // Config intended to be set as env vars
+  envConfig?: RelayerEnvConfig;
+  // Config intended to be set as configMap values
+  configMapConfig?: RelayerConfigMapConfig;
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -105,9 +123,9 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       relayerConfig.skipTransactionGasLimitFor =
         baseConfig.skipTransactionGasLimitFor.join(',');
     }
-    if (baseConfig.metricAppContexts) {
+    if (baseConfig.metricAppContextsGetter) {
       relayerConfig.metricAppContexts = JSON.stringify(
-        baseConfig.metricAppContexts,
+        baseConfig.metricAppContextsGetter(),
       );
     }
 
@@ -213,10 +231,27 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
   }
 }
 
+// Gets the matching list for the given warp route using addresses from the registry.
+export function warpRouteMatchingList(warpRouteId: string): MatchingList {
+  return matchingList(getWarpAddresses(warpRouteId));
+}
+
 export function routerMatchingList(
   routers: ChainMap<{ router: Address }>,
 ): MatchingList {
   return matchingList(routers);
+}
+
+// Create a matching list for the given senders to any destination or recipient
+export function senderMatchingList(
+  senders: ChainMap<{ sender: Address }>,
+): MatchingList {
+  return Object.entries(senders).map(([chain, { sender }]) => ({
+    originDomain: getDomainId(chain),
+    senderAddress: addressToBytes32(sender),
+    destinationDomain: '*',
+    recipientAddress: '*',
+  }));
 }
 
 // Create a matching list for the given contract addresses
