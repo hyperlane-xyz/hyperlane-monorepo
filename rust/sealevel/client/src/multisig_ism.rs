@@ -63,7 +63,6 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
                 &deploy.built_so_dir,
-                true,
                 &key_dir,
                 local_domain,
             );
@@ -167,7 +166,6 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
 pub(crate) fn deploy_multisig_ism_message_id(
     ctx: &mut Context,
     built_so_dir: &Path,
-    use_existing_keys: bool,
     key_dir: &Path,
     local_domain: u32,
 ) -> Pubkey {
@@ -181,7 +179,6 @@ pub(crate) fn deploy_multisig_ism_message_id(
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-        true,
     )
     .unwrap();
 

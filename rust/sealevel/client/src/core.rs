@@ -88,7 +88,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
                 &core.built_so_dir,
-                core.use_existing_keys,
                 &key_dir,
                 core.local_domain,
             );
@@ -132,7 +131,6 @@ fn deploy_mailbox(
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-        true,
     )
     .unwrap();
 
@@ -187,7 +185,6 @@ fn deploy_validator_announce(
             .unwrap(),
         &ctx.client.url(),
         core.local_domain,
-        true,
     )
     .unwrap();
 
@@ -269,7 +266,6 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
             .unwrap(),
         &ctx.client.url(),
         core.local_domain,
-        true,
     )
     .unwrap();
 

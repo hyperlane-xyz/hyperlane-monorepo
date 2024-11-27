@@ -75,7 +75,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 .expect("Invalid chain name");
 
             let program_id =
-                deploy_igp_program(&mut ctx, &deploy.built_so_dir, true, &key_dir, local_domain);
+                deploy_igp_program(&mut ctx, &deploy.built_so_dir, &key_dir, local_domain);
 
             write_json::<SingularProgramIdArtifact>(
                 &chain_dir.join("program-ids.json"),
@@ -413,7 +413,6 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
 fn deploy_igp_program(
     ctx: &mut Context,
     built_so_dir: &Path,
-    use_existing_keys: bool,
     key_dir: &Path,
     local_domain: u32,
 ) -> Pubkey {
@@ -427,7 +426,6 @@ fn deploy_igp_program(
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-        true,
     )
     .unwrap();
 

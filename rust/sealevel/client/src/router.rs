@@ -195,7 +195,6 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
                         .unwrap(),
                     &chain_config.rpc_urls[0].http,
                     chain_config.domain_id(),
-                    true,
                 )
                 .unwrap();
 

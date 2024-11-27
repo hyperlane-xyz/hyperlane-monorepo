@@ -54,12 +54,10 @@ pub(crate) fn deploy_program(
     program_path: &str,
     url: &str,
     local_domain: u32,
-    use_existing_key: bool,
 ) -> Result<Pubkey, ClientError> {
-    let (program_keypair, program_keypair_path) = create_and_write_keypair(
+    let (program_keypair, program_keypair_path) = create_or_get_keypair(
         program_key_dir,
         format!("{}-keypair.json", program_name).as_str(),
-        use_existing_key,
     );
     let program_id = program_keypair.pubkey();
 
@@ -69,10 +67,9 @@ pub(crate) fn deploy_program(
         return Ok(program_id);
     }
 
-    let (buffer_keypair, buffer_keypair_path) = create_and_write_keypair(
+    let (buffer_keypair, buffer_keypair_path) = create_or_get_keypair(
         program_key_dir,
         format!("{}-buffer.json", program_name).as_str(),
-        use_existing_key,
     );
 
     let mut compute_unit_price = get_compute_unit_price_micro_lamports_for_id(local_domain);
@@ -136,20 +133,14 @@ pub(crate) fn create_new_directory(parent_dir: &Path, name: &str) -> PathBuf {
     path
 }
 
-pub(crate) fn create_and_write_keypair(
-    key_dir: &Path,
-    key_name: &str,
-    use_existing_key: bool,
-) -> (Keypair, PathBuf) {
+pub(crate) fn create_or_get_keypair(key_dir: &Path, key_name: &str) -> (Keypair, PathBuf) {
     let path = key_dir.join(key_name);
 
-    if use_existing_key {
-        if let Ok(file) = File::open(path.clone()) {
-            println!("Using existing key at path {}", path.display());
-            let keypair_bytes: Vec<u8> = serde_json::from_reader(file).unwrap();
-            let keypair = Keypair::from_bytes(&keypair_bytes[..]).unwrap();
-            return (keypair, path);
-        }
+    if let Ok(file) = File::open(path.clone()) {
+        println!("Using existing key at path {}", path.display());
+        let keypair_bytes: Vec<u8> = serde_json::from_reader(file).unwrap();
+        let keypair = Keypair::from_bytes(&keypair_bytes[..]).unwrap();
+        return (keypair, path);
     }
 
     let keypair = Keypair::new();
