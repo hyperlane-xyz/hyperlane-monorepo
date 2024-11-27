@@ -118,9 +118,10 @@ pub(crate) fn deploy_program(
         };
 
         println!(
-            "Retrying with new compute unit price {}",
+            "Sleeping 1s, then retrying with new compute unit price {}",
             compute_unit_price
         );
+        sleep(Duration::from_secs(1));
     }
 
     Err(ClientErrorKind::Custom(format!("Failed to deploy program {}", program_name)).into())
