@@ -134,13 +134,12 @@ type BaseRoutingIsmConfig<
     | IsmType.ICA_FALLBACK_ROUTING,
 > = {
   type: T;
-  domains: ChainMap<IsmConfig>;
 };
 
 export type OwnableRoutingIsmConfig = BaseRoutingIsmConfig<
   IsmType.ROUTING | IsmType.FALLBACK_ROUTING
 > &
-  OwnableConfig;
+  OwnableConfig & { domains: ChainMap<IsmConfig> };
 
 export type RoutingIsmConfig =
   | BaseRoutingIsmConfig<IsmType.ICA_FALLBACK_ROUTING>

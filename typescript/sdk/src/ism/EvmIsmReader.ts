@@ -35,6 +35,7 @@ import {
   ModuleType,
   MultisigIsmConfig,
   NullIsmConfig,
+  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
 
@@ -149,14 +150,13 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       return {
         type: IsmType.ICA_FALLBACK_ROUTING,
         address,
-        domains: {},
       };
     }
 
     const domainIds = this.messageContext
       ? [BigNumber.from(this.messageContext.parsed.origin)]
       : await defaultFallbackIsmInstance.domains();
-    const domains: RoutingIsmConfig['domains'] = {};
+    const domains: OwnableRoutingIsmConfig['domains'] = {};
 
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
       const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());

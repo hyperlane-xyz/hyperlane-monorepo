@@ -14,6 +14,7 @@ import {
   IMultisigIsm__factory,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
+  InterchainAccountIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
@@ -56,6 +57,7 @@ import {
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
+  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
   WeightedMultisigIsmConfig,
@@ -318,6 +320,45 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     existingIsmAddress?: Address;
     logger: Logger;
   }): Promise<IRoutingIsm> {
+    const { config } = params;
+
+    if (config.type === IsmType.ICA_FALLBACK_ROUTING) {
+      return this.deployIcaIsm(params);
+    }
+
+    return this.deployOwnableRoutingIsm({
+      ...params,
+      config: config,
+    });
+  }
+
+  private async deployIcaIsm(params: {
+    destination: ChainName;
+    config: RoutingIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+    existingIsmAddress?: Address;
+    logger: Logger;
+  }): Promise<IRoutingIsm> {
+    if (!params.mailbox) {
+      throw new Error('Mailbox address is required for deploying ICA ISM');
+    }
+
+    return this.multiProvider.handleDeploy(
+      params.destination,
+      new InterchainAccountIsm__factory(),
+      [params.mailbox],
+    );
+  }
+
+  private async deployOwnableRoutingIsm(params: {
+    destination: ChainName;
+    config: OwnableRoutingIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+    existingIsmAddress?: Address;
+    logger: Logger;
+  }): Promise<IRoutingIsm> {
     const { destination, config, mailbox, existingIsmAddress, logger } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
     const domainRoutingIsmFactory =
@@ -360,6 +401,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       ).owner();
       isOwner = eqAddress(await signer.getAddress(), owner);
     }
+
     // reconfiguring existing routing ISM
     if (existingIsmAddress && isOwner && !delta.mailbox) {
       const isms: Record<Domain, Address> = {};
@@ -438,7 +480,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
             overrides,
           ),
         );
-      } else if (config.type === IsmType.ROUTING) {
+      } else {
         // deploying new domain routing ISM
         const owner = config.owner;
         // estimate gas
@@ -482,9 +524,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           moduleAddress,
           this.multiProvider.getSigner(destination),
         );
-      } else {
-        // TODO: configure the ICA ISM
-        throw new Error('Not supported yet');
       }
     }
     return routingIsm;

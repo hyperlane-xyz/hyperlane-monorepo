@@ -6,7 +6,11 @@ import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../EvmIsmReader.js';
-import { IsmType, RoutingIsmConfig } from '../types.js';
+import {
+  IsmType,
+  OwnableRoutingIsmConfig,
+  RoutingIsmConfig,
+} from '../types.js';
 
 import {
   BaseMetadataBuilder,
@@ -25,7 +29,7 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
   constructor(protected baseMetadataBuilder: BaseMetadataBuilder) {}
 
   public async build(
-    context: MetadataContext<WithAddress<RoutingIsmConfig>>,
+    context: MetadataContext<WithAddress<OwnableRoutingIsmConfig>>,
     maxDepth = 10,
   ): Promise<string> {
     const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
@@ -35,16 +39,18 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
       ...context,
       ism: context.ism.domains[originChain] as DerivedIsmConfig,
     };
+
     return this.baseMetadataBuilder.build(originContext, maxDepth - 1);
   }
 
   static decode(
     metadata: string,
-    context: MetadataContext<WithAddress<RoutingIsmConfig>>,
+    context: MetadataContext<WithAddress<OwnableRoutingIsmConfig>>,
   ): RoutingMetadata<StructuredMetadata | string> {
     // TODO: this is a naive implementation, we should support domain ID keys
     assert(context.message.parsed.originChain, 'originChain is required');
     const ism = context.ism.domains[context.message.parsed.originChain];
+
     const originMetadata =
       typeof ism === 'string'
         ? metadata
@@ -70,9 +76,18 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
       context.message.parsed.origin,
     );
 
-    const isRouted = !!context.ism.domains[originChain];
-    if (isRouted) {
-      return super.build(context, maxDepth);
+    const isRouted =
+      context.ism.type === IsmType.ICA_FALLBACK_ROUTING
+        ? false
+        : !!context.ism.domains[originChain];
+    // If the chain is routed then we are 100% sure that the ism is not an ICA ISM
+    if (isRouted && context.ism.type !== IsmType.ICA_FALLBACK_ROUTING) {
+      return super.build(
+        // Typescript is not clever enough to understand that after the conditional check
+        // the ism type will be of the same expected type
+        context as MetadataContext<WithAddress<OwnableRoutingIsmConfig>>,
+        maxDepth,
+      );
     }
 
     if (

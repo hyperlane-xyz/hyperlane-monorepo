@@ -31,6 +31,7 @@ import {
   IsmConfig,
   IsmType,
   ModuleType,
+  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
   ismTypeToModuleType,
@@ -41,8 +42,8 @@ const logger = rootLogger.child({ module: 'IsmUtils' });
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
 export function calculateDomainRoutingDelta(
-  current: RoutingIsmConfig,
-  target: RoutingIsmConfig,
+  current: OwnableRoutingIsmConfig,
+  target: OwnableRoutingIsmConfig,
 ): { domainsToEnroll: ChainName[]; domainsToUnenroll: ChainName[] } {
   const domainsToEnroll = [];
   for (const origin of Object.keys(target.domains)) {
@@ -412,10 +413,6 @@ export async function routingModuleDelta(
   const deployedDomains = (await routingIsm.domains()).map((domain) =>
     domain.toNumber(),
   );
-  // config.domains is already filtered to only include domains in the multiprovider
-  const safeConfigDomains = objMap(config.domains, (chainName) =>
-    multiProvider.getDomainId(chainName),
-  );
 
   const delta: RoutingIsmDelta = {
     domainsToUnenroll: [],
@@ -435,32 +432,41 @@ export async function routingModuleDelta(
     const mailboxAddress = await client.mailbox();
     if (mailbox && !eqAddress(mailboxAddress, mailbox)) delta.mailbox = mailbox;
   }
-  // check for exclusion of domains in the config
-  delta.domainsToUnenroll = deployedDomains.filter(
-    (domain) => !Object.values(safeConfigDomains).includes(domain),
-  );
-  // check for inclusion of domains in the config
-  for (const [origin, subConfig] of Object.entries(config.domains)) {
-    const originDomain = safeConfigDomains[origin];
-    if (!deployedDomains.includes(originDomain)) {
-      delta.domainsToEnroll.push(originDomain);
-    } else {
-      const subModule = await routingIsm.module(originDomain);
-      // Recursively check that the submodule for each configured
-      // domain matches the submodule config.
-      const subModuleMatches = await moduleMatchesConfig(
-        destination,
-        subModule,
-        subConfig,
-        multiProvider,
-        contracts,
-        mailbox,
-      );
-      if (!subModuleMatches) {
+
+  if (config.type !== IsmType.ICA_FALLBACK_ROUTING) {
+    // config.domains is already filtered to only include domains in the multiprovider
+    const safeConfigDomains = objMap(config.domains, (chainName) =>
+      multiProvider.getDomainId(chainName),
+    );
+
+    // check for exclusion of domains in the config
+    delta.domainsToUnenroll = deployedDomains.filter(
+      (domain) => !Object.values(safeConfigDomains).includes(domain),
+    );
+    // check for inclusion of domains in the config
+    for (const [origin, subConfig] of Object.entries(config.domains)) {
+      const originDomain = safeConfigDomains[origin];
+      if (!deployedDomains.includes(originDomain)) {
         delta.domainsToEnroll.push(originDomain);
+      } else {
+        const subModule = await routingIsm.module(originDomain);
+        // Recursively check that the submodule for each configured
+        // domain matches the submodule config.
+        const subModuleMatches = await moduleMatchesConfig(
+          destination,
+          subModule,
+          subConfig,
+          multiProvider,
+          contracts,
+          mailbox,
+        );
+        if (!subModuleMatches) {
+          delta.domainsToEnroll.push(originDomain);
+        }
       }
     }
   }
+
   return delta;
 }
 

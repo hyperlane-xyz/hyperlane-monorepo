@@ -319,7 +319,7 @@ describe('EvmIsmModule', async () => {
 
         // keep track of the domains before deleting
         const numDomainsBefore = Object.keys(
-          ((await ism.read()) as RoutingIsmConfig).domains,
+          ((await ism.read()) as OwnableRoutingIsmConfig).domains,
         ).length;
 
         // deleting the domain and removing from multiprovider should unenroll the domain
@@ -334,7 +334,7 @@ describe('EvmIsmModule', async () => {
 
         // domains should have decreased by 1
         const numDomainsAfter = Object.keys(
-          ((await ism.read()) as RoutingIsmConfig).domains,
+          ((await ism.read()) as OwnableRoutingIsmConfig).domains,
         ).length;
         expect(numDomainsBefore - 1).to.equal(numDomainsAfter);
       });

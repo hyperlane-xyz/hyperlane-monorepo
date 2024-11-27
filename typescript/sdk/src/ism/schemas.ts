@@ -71,13 +71,13 @@ export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
     z.discriminatedUnion('type', [
       z.object({
         type: z.literal(IsmType.ICA_FALLBACK_ROUTING),
+      }),
+      OwnableSchema.extend({
+        type: z.literal(IsmType.ROUTING),
         domains: z.record(IsmConfigSchema),
       }),
       OwnableSchema.extend({
-        type: z.union([
-          z.literal(IsmType.ROUTING),
-          z.literal(IsmType.FALLBACK_ROUTING),
-        ]),
+        type: z.literal(IsmType.FALLBACK_ROUTING),
         domains: z.record(IsmConfigSchema),
       }),
     ]),
