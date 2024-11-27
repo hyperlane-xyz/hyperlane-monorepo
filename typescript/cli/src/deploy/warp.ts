@@ -577,22 +577,12 @@ async function updateExistingWarpRoute(
           staticMessageIdWeightedMultisigIsmFactory,
         } = registryAddresses[chain];
 
-        const existingConfig = new EvmERC20WarpRouteReader(
-          multiProvider,
-          chain,
-        ).deriveWarpRouteConfig(deployedTokenRoute);
-        const existingProxyAdmin = (await existingConfig).proxyAdmin?.address;
-        const existingMailbox = (await existingConfig).mailbox;
-        assert(existingProxyAdmin, 'Proxy Admin undefined');
-
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
             config,
             chain,
             addresses: {
-              proxyAdmin: existingProxyAdmin,
-              mailbox: existingMailbox,
               deployedTokenRoute,
               staticMerkleRootMultisigIsmFactory,
               staticMessageIdMultisigIsmFactory,
@@ -720,21 +710,11 @@ async function enrollRemoteRouters(
           staticMessageIdWeightedMultisigIsmFactory,
         } = registryAddresses[chain];
 
-        const existingConfig = new EvmERC20WarpRouteReader(
-          multiProvider,
-          chain,
-        ).deriveWarpRouteConfig(deployedTokenRoute);
-        const existingProxyAdmin = (await existingConfig).proxyAdmin?.address;
-        const existingMailbox = (await existingConfig).mailbox;
-        assert(existingProxyAdmin, 'Proxy Admin undefined');
-
         const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
           config: mutatedWarpRouteConfig,
           chain,
           addresses: {
             deployedTokenRoute,
-            mailbox: existingMailbox,
-            proxyAdmin: existingProxyAdmin,
             staticMerkleRootMultisigIsmFactory,
             staticMessageIdMultisigIsmFactory,
             staticAggregationIsmFactory,
