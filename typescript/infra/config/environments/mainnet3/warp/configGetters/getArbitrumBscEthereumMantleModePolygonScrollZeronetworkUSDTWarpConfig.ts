@@ -10,7 +10,7 @@ import {
 
 import { tokens } from '../../../../../src/config/warp.js';
 
-export const getArbitrumBscEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig =
+export const getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig =
   async (
     routerConfig: ChainMap<RouterConfig>,
   ): Promise<ChainMap<TokenRouterConfig>> => {
@@ -20,13 +20,6 @@ export const getArbitrumBscEthereumMantleModePolygonScrollZeroNetworkUSDTWarpCon
       ...routerConfig.arbitrum,
       type: TokenType.collateral,
       token: tokens.arbitrum.USDT,
-      interchainSecurityModule: ISM_CONFIG,
-    };
-
-    const bsc: TokenRouterConfig = {
-      ...routerConfig.bsc,
-      type: TokenType.collateral,
-      token: tokens.bsc.USDT,
       interchainSecurityModule: ISM_CONFIG,
     };
 
@@ -73,7 +66,6 @@ export const getArbitrumBscEthereumMantleModePolygonScrollZeroNetworkUSDTWarpCon
 
     return {
       arbitrum,
-      bsc,
       ethereum,
       mantle,
       mode,
