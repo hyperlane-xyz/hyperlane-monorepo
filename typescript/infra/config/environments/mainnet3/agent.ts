@@ -66,6 +66,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     bsc: true,
+    bsquared: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -159,6 +160,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     bsc: true,
+    bsquared: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -253,6 +255,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     bsc: true,
+    bsquared: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -444,7 +447,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e70431a-20241121-160243',
+      tag: 'd834d81-20241125-135658',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -453,7 +456,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'e70431a-20241121-160243',
+      tag: 'd834d81-20241125-135658',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -463,7 +466,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e70431a-20241121-160243',
+      tag: 'd834d81-20241125-135658',
     },
     resources: scraperResources,
   },

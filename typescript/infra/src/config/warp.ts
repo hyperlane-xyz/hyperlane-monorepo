@@ -10,6 +10,7 @@ import { Address } from '@hyperlane-xyz/utils';
 export const tokens: ChainMap<Record<string, Address>> = {
   ethereum: {
     amphrETH: '0x5fD13359Ba15A84B76f7F87568309040176167cd',
+    apxETH: '0x9ba021b0a9b958b5e75ce9f6dff97c7ee52cb3e6',
     cbBTC: '0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf',
     deUSD: '0x15700B564Ca08D9439C58cA5053166E8317aa138',
     USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',

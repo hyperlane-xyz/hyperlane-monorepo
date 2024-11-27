@@ -2,8 +2,9 @@ import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { logGreen, logRed } from '../logger.js';
+import { logGray, logGreen, logRed } from '../logger.js';
 
 export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
@@ -15,6 +16,12 @@ export async function nativeBalancesAreSufficient(
 
   const sufficientBalances: boolean[] = [];
   for (const chain of chains) {
+    // Only Ethereum chains are supported
+    if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+      logGray(`Skipping balance check for non-EVM chain: ${chain}`);
+      continue;
+    }
+
     const provider = multiProvider.getProvider(chain);
     const gasPrice = await provider.getGasPrice();
     const minBalanceWei = gasPrice.mul(minGas).toString();

@@ -5,11 +5,10 @@ import {
   resetFork,
   setFork,
 } from '@hyperlane-xyz/sdk';
+import { toUpperCamelCase } from '@hyperlane-xyz/utils';
 
 import { logGray, logGreen, warnYellow } from '../logger.js';
 import { ENV } from '../utils/env.js';
-
-import { toUpperCamelCase } from './utils.js';
 
 /**
  * Forks a provided network onto MultiProvider

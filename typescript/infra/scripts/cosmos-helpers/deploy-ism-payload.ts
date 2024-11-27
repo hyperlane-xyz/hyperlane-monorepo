@@ -47,7 +47,7 @@ async function main() {
         multiProvider.getDomainId(chain),
         {
           // Must strip 0x from addresses for compatibility with cosmos tooling
-          addrs: multisig.validators.map(strip0x),
+          addrs: multisig.validators.map(({ address }) => strip0x(address)),
           threshold: multisig.threshold,
         },
       ];

@@ -56,13 +56,13 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
-import { HookConfigSchema } from './schemas.js';
 import {
   AggregationHookConfig,
   ArbL2ToL1HookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
+  HookConfigSchema,
   HookType,
   IgpHookConfig,
   MUTABLE_HOOK_TYPE,
