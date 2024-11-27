@@ -422,9 +422,15 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       staticMessageIdWeightedMultisigIsmFactory,
     } = this.args.addresses;
 
+    assert(expectedConfig.hook, 'Hook is undefined');
+    assert(
+      expectedConfig.proxyAdmin?.address,
+      'ProxyAdmin address is undefined',
+    );
+
     const hookModule = await EvmHookModule.create({
       chain: this.args.chain,
-      config: expectedConfig.hook!,
+      config: expectedConfig.hook,
       proxyFactoryFactories: {
         staticMerkleRootMultisigIsmFactory,
         staticMessageIdMultisigIsmFactory,
@@ -436,7 +442,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       },
       coreAddresses: {
         mailbox: expectedConfig.mailbox,
-        proxyAdmin: expectedConfig.proxyAdmin?.address!, // Assume that a proxyAdmin is always deployed with a WarpRoute
+        proxyAdmin: expectedConfig.proxyAdmin?.address, // Assume that a proxyAdmin is always deployed with a WarpRoute
       },
       contractVerifier: this.contractVerifier,
       multiProvider: this.multiProvider,
@@ -461,6 +467,9 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       staticMerkleRootWeightedMultisigIsmFactory,
       staticMessageIdWeightedMultisigIsmFactory,
     } = this.args.addresses;
+
+    assert(actualConfig.proxyAdmin?.address, 'ProxyAdmin address is undefined');
+
     const hookModule = new EvmHookModule(
       this.multiProvider,
       {
@@ -475,7 +484,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           staticMerkleRootWeightedMultisigIsmFactory,
           staticMessageIdWeightedMultisigIsmFactory,
           mailbox: actualConfig.mailbox,
-          proxyAdmin: actualConfig.proxyAdmin?.address!,
+          proxyAdmin: actualConfig.proxyAdmin?.address,
           deployedHook: (actualConfig.hook as DerivedHookConfig).address,
         },
       },
