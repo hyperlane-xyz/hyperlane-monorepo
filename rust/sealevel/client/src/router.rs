@@ -183,7 +183,7 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
                 })
             })
             .unwrap_or_else(|| {
-                let chain_program_name = format!("{}-{}.json", program_name, chain_config.name);
+                let chain_program_name = format!("{}-{}", program_name, chain_config.name);
 
                 let program_id = deploy_program(
                     ctx.payer_keypair_path(),

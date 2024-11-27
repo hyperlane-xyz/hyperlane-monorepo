@@ -62,7 +62,7 @@ pub(crate) fn deploy_program(
     let program_id = program_keypair.pubkey();
 
     let client = RpcClient::new(url.to_string());
-    if !account_exists(&client, &program_keypair.pubkey())? {
+    if account_exists(&client, &program_keypair.pubkey())? {
         println!("Program {} already deployed", program_keypair.pubkey());
         return Ok(program_id);
     }
