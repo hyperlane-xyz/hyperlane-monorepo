@@ -1,5 +1,22 @@
 # @hyperlane-xyz/sdk
 
+## 7.1.0
+
+### Minor Changes
+
+- 6f2d50fbd: Updated Fraxtal set to include Superlane validators, updated Flow set
+- 1159e0f4b: Enroll new validators for alephzeroevmmainnet, chilizmainnet, flowmainnet, immutablezkevmmainnet, metal, polynomialfi, rarichain, rootstockmainnet, superpositionmainnet, flame, prom, inevm.
+- ff2b4e2fb: Added helpers to Token and token adapters to get bridged supply of tokens"
+- 0e285a443: Add a validateZodResult util function
+- 5db46bd31: Implements persistent relayer for use in CLI
+- 0cd65c571: Add chainMetadataToCosmosChain function
+
+### Patch Changes
+
+- Updated dependencies [0e285a443]
+  - @hyperlane-xyz/utils@7.1.0
+  - @hyperlane-xyz/core@5.8.1
+
 ## 7.0.0
 
 ### Major Changes

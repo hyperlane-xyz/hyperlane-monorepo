@@ -16,6 +16,7 @@ import {
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
   defaultMultisigConfigs,
+  multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
@@ -32,15 +33,11 @@ export const core: ChainMap<CoreConfig> = objMap(
         .map((origin) => [origin, defaultMultisigConfigs[origin]]),
     );
 
-    const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
-      type: IsmType.MERKLE_ROOT_MULTISIG,
-      ...multisig,
-    });
+    const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig =>
+      multisigConfigToIsmConfig(IsmType.MERKLE_ROOT_MULTISIG, multisig);
 
-    const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
-      type: IsmType.MESSAGE_ID_MULTISIG,
-      ...multisig,
-    });
+    const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig =>
+      multisigConfigToIsmConfig(IsmType.MESSAGE_ID_MULTISIG, multisig);
 
     const routingIsm: RoutingIsmConfig = {
       type: IsmType.ROUTING,

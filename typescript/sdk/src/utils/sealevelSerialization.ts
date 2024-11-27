@@ -10,7 +10,6 @@ export class SealevelAccountDataWrapper<T> {
   initialized!: boolean;
   discriminator?: unknown;
   data!: T;
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
   }
