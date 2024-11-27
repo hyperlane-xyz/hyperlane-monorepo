@@ -23,6 +23,10 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
   const base: TokenRouterConfig = {
     ...routerConfig.base,
     ...abacusWorksEnvOwnerConfig.base,
+    proxyAdmin: {
+      ...abacusWorksEnvOwnerConfig.base,
+      address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0',
+    },
     type: TokenType.collateral,
     token: tokens.base.cbBTC,
     interchainSecurityModule: ISM_CONFIG,
@@ -31,6 +35,10 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
   const zeronetwork: TokenRouterConfig = {
     ...routerConfig.zeronetwork,
     ...abacusWorksEnvOwnerConfig.zeronetwork,
+    proxyAdmin: {
+      ...abacusWorksEnvOwnerConfig.zeronetwork,
+      address: '0xDb0F69187750b52A637938Ea790fAE667123367c',
+    },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
