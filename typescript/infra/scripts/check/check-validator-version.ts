@@ -82,9 +82,11 @@ function getCommitAge(sha: string): string | undefined {
     (msToNow % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
   );
 
+  const dayText = days === 1 ? 'day' : 'days';
+  const hourText = hours === 1 ? 'hour' : 'hours';
   return days > 0
-    ? `${days} ${days === 1 ? 'day' : 'days'} ${hours} hours old`
-    : `${hours} hours old`;
+    ? `${days} ${dayText} ${hours} ${hourText} old`
+    : `${hours} ${hourText} old`;
 }
 
 async function main() {
