@@ -515,16 +515,14 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     } = params;
     const chainName = multiProvider.getChainName(chain);
     const deployer = new HypERC20Deployer(multiProvider);
-    const deployedContract = (
-      await deployer.deployContracts(chainName, config)
-    )[config.type];
+    const deployedContracts = await deployer.deployContracts(chainName, config);
 
     const warpModule = new EvmERC20WarpModule(
       multiProvider,
       {
         addresses: {
           ...proxyFactoryFactories,
-          deployedTokenRoute: deployedContract.address,
+          deployedTokenRoute: deployedContracts[config.type].address,
         },
         chain,
         config,
