@@ -66,57 +66,25 @@ function getCommitDate(sha: string): string | undefined {
 }
 
 function getCommitAge(sha: string): string | undefined {
-  // Get raw commit date via git
   const commitDateString = getCommitDate(sha);
   if (!commitDateString) {
     return undefined;
   }
 
-  // Parse commit date string into a Date object
   const commitDate = new Date(commitDateString);
-  const dateNow = new Date();
-
-  // Check if commit date is valid
   if (isNaN(commitDate.getTime())) {
     return undefined;
   }
 
-  // Get time difference in milliseconds
-  const diffMs = dateNow.getTime() - commitDate.getTime();
+  const msToNow = Date.now() - commitDate.getTime();
+  const days = Math.floor(msToNow / (1000 * 60 * 60 * 24));
+  const hours = Math.floor(
+    (msToNow % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+  );
 
-  // Calculate months accurately
-  let months = (dateNow.getFullYear() - commitDate.getFullYear()) * 12;
-  months += dateNow.getMonth() - commitDate.getMonth();
-
-  // Adjust for month boundaries
-  // E.g. Feb 20 -> March 15 would give a month diff of 1, but should be 0
-  // because we've not completed a full month yet
-  if (dateNow.getDate() < commitDate.getDate()) {
-    months--;
-  }
-
-  // If we have months, calculate remaining days
-  if (months > 0) {
-    // Move date forward by calculated months
-    const tempDate = new Date(commitDate);
-    tempDate.setMonth(tempDate.getMonth() + months);
-
-    // Get remaining time
-    const remainingMs = dateNow.getTime() - tempDate.getTime();
-    const remainingDays = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
-    const remainingHours = Math.floor((remainingMs / (1000 * 60 * 60)) % 24);
-
-    return `${months} months ${remainingDays} days ${remainingHours} hours old`;
-  }
-
-  // If less than a month, calculate days and hours
-  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
-
-  if (days > 0) {
-    return `${days} days ${hours} hours old`;
-  }
-  return `${hours} hours old`;
+  return days > 0
+    ? `${days} ${days === 1 ? 'day' : 'days'} ${hours} hours old`
+    : `${hours} hours old`;
 }
 
 async function main() {
