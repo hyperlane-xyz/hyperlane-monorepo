@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 7.2.0
+
+### Minor Changes
+
+- fa6d5f5c6: Add toUpperCamelCase and deepFind functionss
+
 ## 7.1.0
 
 ### Minor Changes
