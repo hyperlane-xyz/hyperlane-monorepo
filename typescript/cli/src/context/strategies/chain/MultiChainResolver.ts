@@ -14,7 +14,7 @@ import {
   readYamlOrJson,
   runFileSelectionStep,
 } from '../../../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../../../utils/input.js';
+import { getWarpCoreConfigOrExit } from '../../../utils/warp.js';
 
 import { ChainResolver } from './types.js';
 
