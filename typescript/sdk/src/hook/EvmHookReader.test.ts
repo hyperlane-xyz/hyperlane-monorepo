@@ -148,7 +148,6 @@ describe('EvmHookReader', () => {
     expect(config).to.deep.equal(hookConfig);
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   it('should derive op stack config correctly', async () => {
     const mockAddress = randomAddress();
     const mockOwner = randomAddress();

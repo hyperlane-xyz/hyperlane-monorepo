@@ -11,6 +11,7 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 export const getEclipseEthereumWBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -21,7 +22,7 @@ export const getEclipseEthereumWBTCWarpConfig = async (
     ...abacusWorksEnvOwnerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'A7EGCDYFw5R7Jfm6cYtKvY8dmkrYMgwRCJFkyQwpHTYu',
-    gas: 300_000,
+    gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
