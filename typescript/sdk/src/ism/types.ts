@@ -94,8 +94,13 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   }
 }
 
+export type ValidatorConfig = {
+  address: Address;
+  alias: string;
+};
+
 export type MultisigConfig = {
-  validators: Array<Address>;
+  validators: Array<ValidatorConfig>;
   threshold: number;
 };
 

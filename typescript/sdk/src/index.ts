@@ -13,7 +13,10 @@ export {
   TOKEN_EXCHANGE_RATE_SCALE,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
-export { defaultMultisigConfigs } from './consts/multisigIsm.js';
+export {
+  AW_VALIDATOR_ALIAS,
+  defaultMultisigConfigs,
+} from './consts/multisigIsm.js';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
 export {
   TestChainName,
@@ -154,6 +157,7 @@ export { decodeIsmMetadata } from './ism/metadata/decode.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
+  multisigConfigToIsmConfig,
 } from './ism/multisig.js';
 export {
   AggregationIsmConfig,
