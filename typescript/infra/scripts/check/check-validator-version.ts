@@ -66,33 +66,57 @@ function getCommitDate(sha: string): string | undefined {
 }
 
 function getCommitAge(sha: string): string | undefined {
-  const commitDate = getCommitDate(sha);
-  if (!commitDate) {
+  // Get raw commit date via git
+  const commitDateString = getCommitDate(sha);
+  if (!commitDateString) {
     return undefined;
   }
 
-  const commitTime = new Date(commitDate).getTime();
-  const now = Date.now();
+  // Parse commit date string into a Date object
+  const commitDate = new Date(commitDateString);
+  const dateNow = new Date();
 
-  if (isNaN(commitTime)) {
+  // Check if commit date is valid
+  if (isNaN(commitDate.getTime())) {
     return undefined;
   }
 
-  const diffMilliseconds = now - commitTime;
-  const diffHours = Math.floor(diffMilliseconds / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffHours / 24);
-  const diffMonths = Math.floor(diffDays / 30); // Approximation assuming 30 days in a month
+  // Get time difference in milliseconds
+  const diffMs = dateNow.getTime() - commitDate.getTime();
 
-  const remainingDays = diffDays % 30;
-  const remainingHours = diffHours % 24;
+  // Calculate months accurately
+  let months = (dateNow.getFullYear() - commitDate.getFullYear()) * 12;
+  months += dateNow.getMonth() - commitDate.getMonth();
 
-  if (diffMonths > 0) {
-    return `${diffMonths} months ${remainingDays} days ${remainingHours} hours old`;
+  // Adjust for month boundaries
+  // E.g. Feb 20 -> March 15 would give a month diff of 1, but should be 0
+  // because we've not completed a full month yet
+  if (dateNow.getDate() < commitDate.getDate()) {
+    months--;
   }
-  if (diffDays > 0) {
-    return `${diffDays} days ${remainingHours} hours old`;
+
+  // If we have months, calculate remaining days
+  if (months > 0) {
+    // Move date forward by calculated months
+    const tempDate = new Date(commitDate);
+    tempDate.setMonth(tempDate.getMonth() + months);
+
+    // Get remaining time
+    const remainingMs = dateNow.getTime() - tempDate.getTime();
+    const remainingDays = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
+    const remainingHours = Math.floor((remainingMs / (1000 * 60 * 60)) % 24);
+
+    return `${months} months ${remainingDays} days ${remainingHours} hours old`;
   }
-  return `${remainingHours} hours old`;
+
+  // If less than a month, calculate days and hours
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+
+  if (days > 0) {
+    return `${days} days ${hours} hours old`;
+  }
+  return `${hours} hours old`;
 }
 
 async function main() {
