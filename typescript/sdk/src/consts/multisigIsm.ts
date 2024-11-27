@@ -11,6 +11,26 @@ const DEFAULT_MITOSIS_VALIDATOR: ValidatorConfig = {
   address: '0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36',
   alias: 'Mitosis',
 };
+const DEFAULT_ZEE_PRIME_VALIDATOR: ValidatorConfig = {
+  address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
+  alias: 'Zee Prime',
+};
+const DEFAULT_EVERSTAKE_VALIDATOR: ValidatorConfig = {
+  address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
+  alias: 'Everstake',
+};
+const DEFAULT_STAKED_VALIDATOR: ValidatorConfig = {
+  address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
+  alias: 'Staked',
+};
+const DEFAULT_TESSELLATED_VALIDATOR: ValidatorConfig = {
+  address: '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4',
+  alias: 'Tessellated',
+};
+const DEFAULT_BWARE_LABS_VALIDATOR: ValidatorConfig = {
+  address: '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3',
+  alias: 'Bware Labs',
+};
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
@@ -102,18 +122,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0xec68258a7c882ac2fc46b81ce80380054ffb4ef2', alias: 'DSRV' },
-      {
-        address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
-        alias: 'Zee Prime',
-      },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
-      {
-        address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
-        alias: 'Staked',
-      },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      DEFAULT_EVERSTAKE_VALIDATOR,
+      DEFAULT_STAKED_VALIDATOR,
     ],
   },
 
@@ -181,10 +192,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x402e0f8c6e4210d408b6ac00d197d4a099fcd25a', alias: 'DSRV' },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
     ],
   },
 
@@ -207,19 +215,10 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9',
         alias: AW_VALIDATOR_ALIAS,
       },
-      {
-        address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
-        alias: 'Staked',
-      },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
+      DEFAULT_STAKED_VALIDATOR,
+      DEFAULT_EVERSTAKE_VALIDATOR,
       { address: '0xcff391b4e516452d424db66beb9052b041a9ed79', alias: 'DSRV' },
-      {
-        address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
-        alias: 'Zee Prime',
-      },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -300,14 +299,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x8292b1a53907ece0f76af8a50724e9492bcdc8a3', alias: 'DSRV' },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
-      {
-        address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
-        alias: 'Zee Prime',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -357,18 +350,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x622e43baf06ad808ca8399360d9a2d9a1a12688b', alias: 'DSRV' },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
-      {
-        address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
-        alias: 'Staked',
-      },
-      {
-        address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
-        alias: 'Zee Prime',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
+      DEFAULT_STAKED_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -560,18 +544,9 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x94438a7de38d4548ae54df5c6010c4ebc5239eae', alias: 'DSRV' },
-      {
-        address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
-        alias: 'Zee Prime',
-      },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
-      {
-        address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
-        alias: 'Staked',
-      },
+      DEFAULT_ZEE_PRIME_VALIDATOR,
+      DEFAULT_EVERSTAKE_VALIDATOR,
+      DEFAULT_STAKED_VALIDATOR,
       {
         address: '0xb683b742b378632a5f73a2a5a45801b3489bba44',
         alias: 'AVS: Luganodes',
@@ -621,10 +596,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xa6c998f0db2b56d7a63faf30a9b677c8b9b6faab',
         alias: 'P-OPS',
       },
-      {
-        address: '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4',
-        alias: 'Tessellated',
-      },
+      DEFAULT_TESSELLATED_VALIDATOR,
     ],
   },
 
@@ -673,10 +645,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1',
         alias: AW_VALIDATOR_ALIAS,
       },
-      {
-        address: '0x0d4c1394a255568ec0ecd11795B28D1BdA183Ca4',
-        alias: 'Superlane: Tessellated',
-      },
+      DEFAULT_TESSELLATED_VALIDATOR,
       {
         address: '0x1c3C3013B863Cf666499Da1A61949AE396E3Ab82',
         alias: 'Superlane: Enigma',
@@ -685,10 +654,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x573e960e07ad74ea2c5f1e3c31b2055994b12797',
         alias: 'Superlane: Imperator',
       },
-      {
-        address: '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3',
-        alias: 'Superlane: Bware',
-      },
+      DEFAULT_BWARE_LABS_VALIDATOR,
       {
         address: '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91',
         alias: 'Superlane: Luganodes',
@@ -734,14 +700,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x19fb7e04a1be6b39b6966a0b0c60b929a93ed672', alias: 'DSRV' },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
-      {
-        address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
-        alias: 'Zee Prime',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -890,10 +850,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5',
         alias: AW_VALIDATOR_ALIAS,
       },
-      {
-        address: '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4',
-        alias: 'Superlane: Tessellated',
-      },
+      DEFAULT_TESSELLATED_VALIDATOR,
       {
         address: '0x3DA4ee2801Ec6CC5faD73DBb94B10A203ADb3d9e',
         alias: 'Superlane: Enigma',
@@ -902,10 +859,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x4df6e8878992c300e7bfe98cac6bf7d3408b9cbf',
         alias: 'Superlane: Imperator',
       },
-      {
-        address: '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3',
-        alias: 'Superlane: Bware',
-      },
+      DEFAULT_BWARE_LABS_VALIDATOR,
       {
         address: '0xf0da628f3fb71652d48260bad4691054045832ce',
         alias: 'Superlane: Luganodes',
@@ -1032,10 +986,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7',
         alias: AW_VALIDATOR_ALIAS,
       },
-      {
-        address: '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4',
-        alias: 'Superlane: Tessellated',
-      },
+      DEFAULT_TESSELLATED_VALIDATOR,
       {
         address: '0x65C140e3a05F33192384AffEF985696Fe3cDDE42',
         alias: 'Superlane: Enigma',
@@ -1044,10 +995,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x20eade18ea2af6dfd54d72b3b5366b40fcb47f4b',
         alias: 'Superlane: Imperator',
       },
-      {
-        address: '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3',
-        alias: 'Superlane: Bware',
-      },
+      DEFAULT_BWARE_LABS_VALIDATOR,
       {
         address: '0x485a4f0009d9afbbf44521016f9b8cdd718e36ea',
         alias: 'Superlane: Luganodes',
@@ -1075,14 +1023,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x645428d198d2e76cbd9c1647f5c80740bb750b97', alias: 'DSRV' },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
-      {
-        address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
-        alias: 'Staked',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
+      DEFAULT_STAKED_VALIDATOR,
     ],
   },
 
@@ -1152,10 +1094,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x20349eadc6c72e94ce38268b96692b1a5c20de4f',
         alias: AW_VALIDATOR_ALIAS,
       },
-      {
-        address: '0x0d4c1394a255568ec0ecd11795b28d1bda183ca4',
-        alias: 'Superlane: Tessellated',
-      },
+      DEFAULT_TESSELLATED_VALIDATOR,
       {
         address: '0xd8c1cCbfF28413CE6c6ebe11A3e29B0D8384eDbB',
         alias: 'Superlane: Enigma',
@@ -1164,10 +1103,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x1b9e5f36c4bfdb0e3f0df525ef5c888a4459ef99',
         alias: 'Superlane: Imperator',
       },
-      {
-        address: '0x14d0B24d3a8F3aAD17DB4b62cBcEC12821c98Cb3',
-        alias: 'Superlane: Bware',
-      },
+      DEFAULT_BWARE_LABS_VALIDATOR,
       {
         address: '0xf9dfaa5c20ae1d84da4b2696b8dc80c919e48b12',
         alias: 'Superlane: Luganodes',
@@ -1225,14 +1161,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x008f24cbb1cc30ad0f19f2516ca75730e37efb5f', alias: 'DSRV' },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
-      {
-        address: '0x5450447aee7b544c462c9352bef7cad049b0c2dc',
-        alias: 'Zee Prime',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
+      DEFAULT_ZEE_PRIME_VALIDATOR,
     ],
   },
 
@@ -1254,10 +1184,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: AW_VALIDATOR_ALIAS,
       },
       { address: '0x865818fe1db986036d5fd0466dcd462562436d1a', alias: 'DSRV' },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
     ],
   },
 
@@ -1368,14 +1295,8 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0xad557170a9f2f21c35e03de07cb30dcbcc3dff63',
         alias: AW_VALIDATOR_ALIAS,
       },
-      {
-        address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
-        alias: 'Staked',
-      },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
+      DEFAULT_STAKED_VALIDATOR,
+      DEFAULT_EVERSTAKE_VALIDATOR,
       { address: '0xbac4ac39f1d8b5ef15f26fdb1294a7c9aba3f948', alias: 'DSRV' },
     ],
   },
@@ -1486,10 +1407,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Luganodes',
       },
       { address: '0xd90ea26ff731d967c5ea660851f7d63cb04ab820', alias: 'DSRV' },
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
       {
         address: '0xcb6bcbd0de155072a7ff486d9d7286b0f71dcc2d',
         alias: 'Eclipse',
@@ -1530,10 +1448,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   stride: {
     threshold: 6,
     validators: [
-      {
-        address: '0x38c7a4ca1273ead2e867d096adbcdd0e2acb21d8',
-        alias: 'Everstake',
-      },
+      DEFAULT_EVERSTAKE_VALIDATOR,
       {
         address: '0x88f0E5528131b10e3463C4c68108217Dd33462ac',
         alias: 'Cosmostation',
@@ -1560,10 +1475,7 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x5937b7cE1029C3Ec4bD8e1AaCc0C0f9422654D7d',
         alias: 'Stakecito',
       },
-      {
-        address: '0xb3ac35d3988bca8c2ffd195b1c6bee18536b317b',
-        alias: 'Staked',
-      },
+      DEFAULT_STAKED_VALIDATOR,
     ],
   },
 
