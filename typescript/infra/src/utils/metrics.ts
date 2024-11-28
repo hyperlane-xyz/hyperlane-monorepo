@@ -74,7 +74,7 @@ export function getWalletBalanceGauge(
   return new Gauge({
     // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
     name: 'hyperlane_wallet_balance',
-    help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
+    help: 'Current balance of a wallet for a token',
     registers: [register],
     labelNames: [
       'chain',
