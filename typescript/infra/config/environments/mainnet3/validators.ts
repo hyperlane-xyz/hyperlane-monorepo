@@ -1202,5 +1202,16 @@ export const validatorChainConfig = (
         'bsquared',
       ),
     },
+
+    lumiaprism: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('lumiaprism'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xb69731640ffd4338a2c9358a935b0274c6463f85'],
+        },
+        'lumiaprism',
+      ),
+    },
   };
 };

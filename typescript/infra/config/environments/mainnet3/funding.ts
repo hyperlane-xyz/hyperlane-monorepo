@@ -70,6 +70,7 @@ export const keyFunderConfig: KeyFunderConfig<
     lisk: '0.05',
     lukso: '20',
     lumia: '1',
+    lumiaprism: '1',
     mantapacific: '0.2',
     mantle: '20',
     merlin: '0.002',
