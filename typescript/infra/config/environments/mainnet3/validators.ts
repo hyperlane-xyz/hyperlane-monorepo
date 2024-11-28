@@ -1213,5 +1213,15 @@ export const validatorChainConfig = (
         'lumiaprism',
       ),
     },
+    swell: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('swell'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed'],
+        },
+        'swell',
+      ),
+    },
   };
 };

@@ -319,6 +319,10 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "swell": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
   "taiko": {
     "amount": "0.1243284",
     "decimals": 9

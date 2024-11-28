@@ -81,6 +81,7 @@ export const mainnet3SupportedChainNames = [
   'stride',
   'superseed',
   'superpositionmainnet',
+  'swell',
   'taiko',
   'tangle',
   'unichain',

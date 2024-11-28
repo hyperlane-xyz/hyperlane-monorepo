@@ -102,6 +102,7 @@ export const keyFunderConfig: KeyFunderConfig<
     stride: '0',
     superseed: '0.05',
     superpositionmainnet: '0.05',
+    swell: '0.05',
     taiko: '0.2',
     tangle: '2',
     unichain: '0.05',

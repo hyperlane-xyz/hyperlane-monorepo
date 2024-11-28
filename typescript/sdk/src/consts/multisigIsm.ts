@@ -1531,6 +1531,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  swell: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   taiko: {
     threshold: 3,
     validators: [
