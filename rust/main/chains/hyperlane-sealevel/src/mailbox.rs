@@ -967,14 +967,3 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
         Ok((Some(1), tip))
     }
 }
-
-// struct SealevelMailboxAbi;
-
-// // TODO figure out how this is used and if we can support it for sealevel.
-// impl HyperlaneAbi for SealevelMailboxAbi {
-//     const SELECTOR_SIZE_BYTES: usize = 8;
-
-//     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-//         todo!()
-//     }
-// }
