@@ -171,6 +171,7 @@ export {
   S3CheckpointWithId,
   SignatureLike,
   TokenCaip19Id,
+  ValidatorMetadata,
   WithAddress,
 } from './types.js';
 export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
