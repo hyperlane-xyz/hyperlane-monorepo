@@ -108,6 +108,9 @@ export function updateNativeWalletBalanceMetrics(balance: NativeWalletBalance) {
       token_name: 'Native',
     })
     .set(balance.balance);
+  logger.info('Native wallet balance updated', {
+    balanceInfo: balance,
+  });
 }
 
 export function updateXERC20LimitsMetrics(token: Token, limits: XERC20Limit) {
