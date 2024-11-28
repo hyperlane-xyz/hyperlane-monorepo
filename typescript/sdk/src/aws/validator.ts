@@ -4,6 +4,7 @@ import {
   S3Announcement,
   S3CheckpointWithId,
   ValidatorConfig,
+  ValidatorMetadata,
   isS3CheckpointWithId,
 } from '@hyperlane-xyz/utils';
 
@@ -13,6 +14,7 @@ const checkpointWithMessageIdKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}_with_id.json`;
 const LATEST_KEY = 'checkpoint_latest_index.json';
 const ANNOUNCEMENT_KEY = 'announcement.json';
+const METADATA_KEY = 'metadata_latest.json';
 const LOCATION_PREFIX = 's3://';
 
 /**
@@ -71,6 +73,15 @@ export class S3Validator extends BaseValidator {
     const resp = await this.s3Bucket.getS3Obj<S3Announcement>(ANNOUNCEMENT_KEY);
     if (!resp) {
       throw new Error(`No announcement found for ${this.config.localDomain}`);
+    }
+
+    return resp.data;
+  }
+
+  async getMetadata(): Promise<ValidatorMetadata> {
+    const resp = await this.s3Bucket.getS3Obj<ValidatorMetadata>(METADATA_KEY);
+    if (!resp) {
+      throw new Error(`No metadata found for ${this.config.localDomain}`);
     }
 
     return resp.data;
