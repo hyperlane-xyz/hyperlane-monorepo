@@ -3,6 +3,7 @@ import { ethers } from 'ethers';
 
 import { AccountConfig, InterchainAccount } from '@hyperlane-xyz/sdk';
 import {
+  Address,
   LogFormat,
   LogLevel,
   assert,
@@ -100,7 +101,7 @@ async function main() {
     });
     if (!eqAddress(expected.ica, actualAccount)) {
       mismatchedResults[chain] = {
-        Expected: expectedAddress,
+        Expected: expected.ica,
         Actual: actualAccount,
       };
     }

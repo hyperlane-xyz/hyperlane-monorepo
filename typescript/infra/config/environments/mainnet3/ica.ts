@@ -5,6 +5,7 @@ import {
   MultisigConfig,
   MultisigIsmConfig,
   defaultMultisigConfigs,
+  multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
@@ -12,15 +13,11 @@ import awValidators from './aw-validators/hyperlane.json';
 
 // -- ISM config generation --
 
-const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
-  type: IsmType.MERKLE_ROOT_MULTISIG,
-  ...multisig,
-});
+const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig =>
+  multisigConfigToIsmConfig(IsmType.MERKLE_ROOT_MULTISIG, multisig);
 
-const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
-  type: IsmType.MESSAGE_ID_MULTISIG,
-  ...multisig,
-});
+const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig =>
+  multisigConfigToIsmConfig(IsmType.MESSAGE_ID_MULTISIG, multisig);
 
 const aggregationIsm = (multisig: MultisigConfig): AggregationIsmConfig => ({
   type: IsmType.AGGREGATION,
@@ -39,7 +36,7 @@ export function getIcaIsm(
   // Ensure the AW validator was found and is in the multisig.
   if (
     !awValidator ||
-    !multisig.validators.find((v) => eqAddress(v, awValidator))
+    !multisig.validators.find((v) => eqAddress(v.address, awValidator))
   ) {
     throw new Error(
       `AW validator for ${originChain} (address: ${awValidator}) found in the validator set`,
@@ -67,7 +64,10 @@ export function getIcaIsm(
             modules: [
               aggregationIsm(multisig),
               messageIdIsm({
-                validators: [awValidator, deployer],
+                validators: [
+                  { address: awValidator, alias: 'Abacus Works' },
+                  { address: deployer, alias: 'Abacus Works Deployer' },
+                ],
                 threshold: 1,
               }),
             ],
