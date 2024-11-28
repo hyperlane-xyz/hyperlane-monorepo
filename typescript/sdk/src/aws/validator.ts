@@ -15,7 +15,7 @@ const checkpointWithMessageIdKey = (checkpointIndex: number) =>
 const LATEST_KEY = 'checkpoint_latest_index.json';
 const ANNOUNCEMENT_KEY = 'announcement.json';
 const METADATA_KEY = 'metadata_latest.json';
-const LOCATION_PREFIX = 's3://';
+export const S3_LOCATION_PREFIX = 's3://';
 
 /**
  * Extension of BaseValidator that includes AWS S3 utilities.
@@ -34,8 +34,8 @@ export class S3Validator extends BaseValidator {
   static async fromStorageLocation(
     storageLocation: string,
   ): Promise<S3Validator> {
-    if (storageLocation.startsWith(LOCATION_PREFIX)) {
-      const suffix = storageLocation.slice(LOCATION_PREFIX.length);
+    if (storageLocation.startsWith(S3_LOCATION_PREFIX)) {
+      const suffix = storageLocation.slice(S3_LOCATION_PREFIX.length);
       const pieces = suffix.split('/');
       if (pieces.length >= 2) {
         const s3Config = {
@@ -112,7 +112,7 @@ export class S3Validator extends BaseValidator {
   }
 
   storageLocation(): string {
-    return `${LOCATION_PREFIX}/${this.s3Bucket.config.bucket}/${this.s3Bucket.config.region}`;
+    return `${S3_LOCATION_PREFIX}/${this.s3Bucket.config.bucket}/${this.s3Bucket.config.region}`;
   }
 
   getLatestCheckpointUrl(): string {
