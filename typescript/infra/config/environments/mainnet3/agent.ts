@@ -22,6 +22,7 @@ import { getDomainId } from '../../registry.js';
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
+import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
@@ -412,6 +413,12 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       // more poorly documented.
       name: 'aave',
       matchingList: senderMatchingList(aaveSenderAddresses),
+    },
+    {
+      // https://docs.everclear.org/resources/contracts/mainnet
+      // Messages between HubGateway (Everclear hub) <> EverclearSpoke (all other spoke chains)
+      name: 'everclear_gateway',
+      matchingList: senderMatchingList(everclearSenderAddresses),
     },
   ];
 };
