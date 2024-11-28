@@ -122,6 +122,10 @@ async function updateTokenMetrics(
     }, 'Getting bridged balance and value'),
   ];
 
+  // For Sealevel collateral and synthetic tokens, there is an
+  // "Associated Token Account" (ATA) rent payer that has a balance
+  // that's used to pay for rent for the accounts that store user balances.
+  // This is necessary if the recipient has never received any tokens before.
   if (token.protocol === ProtocolType.Sealevel && !token.isNative()) {
     promises.push(
       tryFn(async () => {
