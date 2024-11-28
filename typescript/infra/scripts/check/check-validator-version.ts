@@ -14,15 +14,24 @@ import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 // prettier-ignore
 const acceptableValidatorVersions: Record<string, string> = {
-  '72d498fa984750b9137c1211fef6c80a3e594ce7': 'aug-27-batch', // Aug 27 deploy
-  'd71dd4e5ed7eb69cc4041813ef444e37d881cdda': 'sep-9-batch', // Sep 9 deploy
-  '45399a314cec85723bbb5d2360531c96a3aa261e': 'oct-27-batch', // Oct 27 deploy
-  '75d62ae7bbdeb77730c6d343c4fc1df97a08abe4': 'nov-7-batch', // Nov 7 deploy
-  'e70431a85965d8d21681e6f4856ed3ac9bd2ba27': 'nov-21-batch', // Nov 21 deploy
-  'd834d8147628584acd78a81e344bff76472d707e': 'nov-21-bsquared', // Nov 21 bsquared deploy
-  'a64af8be9a76120d0cfc727bb70660fa07e70cce': 'pre-1.0.0', // pre-1.0.0
-  'ffbe1dd82e2452dbc111b6fb469a34fb870da8f1': '1.0.0', // 1.0.0
-  '79453fcd972a1e62ba8ee604f0a4999c7b938582': 'tesselated-special-build', // Tessellated's Own Build
+  // Aug 27 deploy
+  '72d498fa984750b9137c1211fef6c80a3e594ce7': 'aug-27-batch',
+  // Sep 9 deploy
+  'd71dd4e5ed7eb69cc4041813ef444e37d881cdda': 'sep-9-batch',
+  // Oct 27 deploy
+  '45399a314cec85723bbb5d2360531c96a3aa261e': 'oct-27-batch',
+  // Nov 7 deploy
+  '75d62ae7bbdeb77730c6d343c4fc1df97a08abe4': 'nov-7-batch',
+  // Nov 21 deploy
+  'e70431a85965d8d21681e6f4856ed3ac9bd2ba27': 'nov-21-batch',
+  // Nov 21 bsquared deploy
+  'd834d8147628584acd78a81e344bff76472d707e': 'nov-21-bsquared',
+  // Rolled out only to AW infra before 1.0.0, just 1 commit behind 1.0.0
+  'a64af8be9a76120d0cfc727bb70660fa07e70cce': 'pre-1.0.0',
+  // 1.0.0
+  'ffbe1dd82e2452dbc111b6fb469a34fb870da8f1': '1.0.0',
+  // Tessellated's Own Build
+  '79453fcd972a1e62ba8ee604f0a4999c7b938582': 'tesselated-special-build',
 };
 
 type ValidatorInfo = {
