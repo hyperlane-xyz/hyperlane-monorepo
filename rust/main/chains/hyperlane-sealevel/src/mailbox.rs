@@ -1,11 +1,4 @@
-#![allow(warnings)] // FIXME remove
-
-use std::{
-    collections::{HashMap, HashSet},
-    num::NonZeroU64,
-    ops::RangeInclusive,
-    str::FromStr as _,
-};
+use std::{collections::HashMap, ops::RangeInclusive, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -14,10 +7,9 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{
-        DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessage,
-        ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
+        DispatchedMessageAccount, InboxAccount, ProcessedMessageAccount,
+        DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
     },
-    instruction,
     instruction::InboxProcess,
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
@@ -25,17 +17,9 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
-use jsonrpc_core::futures_util::TryFutureExt;
 use lazy_static::lazy_static;
 use serializable_account_meta::SimulationReturnData;
-use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
-use solana_client::{
-    nonblocking::rpc_client::RpcClient,
-    rpc_client::SerializableTransaction,
-    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
-    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
-    rpc_response::Response,
-};
+use solana_client::{rpc_client::SerializableTransaction, rpc_response::Response};
 use solana_program::pubkey;
 use solana_sdk::{
     account::Account,
@@ -43,38 +27,26 @@ use solana_sdk::{
     clock::Slot,
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
-    hash::Hash,
     instruction::{AccountMeta, Instruction},
-    message::Message,
     pubkey::Pubkey,
     signature::Signature,
     signer::{keypair::Keypair, Signer as _},
-    transaction::{Transaction, VersionedTransaction},
+    transaction::Transaction,
 };
-use solana_transaction_status::{
-    EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta, TransactionStatus,
-    UiCompiledInstruction, UiConfirmedBlock, UiInnerInstructions, UiInstruction, UiMessage,
-    UiParsedInstruction, UiReturnDataEncoding, UiTransaction, UiTransactionReturnData,
-    UiTransactionStatusMeta,
-};
+use solana_transaction_status::TransactionStatus;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
-    ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
-    Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
-    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
-    H256, H512, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, Decode as _, Encode as _,
+    FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
+    HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain, LogMeta, Mailbox, MerkleTreeHook,
+    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
-use crate::error::HyperlaneSealevelError;
 use crate::log_meta_composer::{
-    is_interchain_payment_instruction, is_message_delivery_instruction,
-    is_message_dispatch_instruction, LogMetaComposer,
+    is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
 };
-use crate::utils::{decode_h256, decode_h512, from_base58};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -94,13 +66,13 @@ const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 500000;
 /// In micro-lamports. Multiply this by the compute units to figure out
 /// the additional cost of processing a message, in addition to the mandatory
 /// "base" cost of signature verification.
+/// Unused at the moment, but kept for future reference.
+#[allow(dead_code)]
 const PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS: u64 =
-    (
-        // Convert to micro-lamports
-        (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
-        // Divide by the max compute units
-        / PROCESS_COMPUTE_UNITS as u64
-    );
+    // Convert to micro-lamports
+    (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
+    // Divide by the max compute units
+    / PROCESS_COMPUTE_UNITS as u64;
 
 // Earlier versions of collateral warp routes were deployed off a version where the mint
 // was requested as a writeable account for handle instruction. This is not necessary,
@@ -157,13 +129,17 @@ impl SealevelMailbox {
         })
     }
 
+    /// Get the Inbox account pubkey and bump seed.
     pub fn inbox(&self) -> (Pubkey, u8) {
         self.inbox
     }
+
+    /// Get the Outbox account pubkey and bump seed.
     pub fn outbox(&self) -> (Pubkey, u8) {
         self.outbox
     }
 
+    /// Get the provider RPC client.
     pub fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
@@ -345,7 +321,8 @@ impl SealevelMailbox {
         }
     }
 
-    // Stolen from Solana's non-blocking client, but with Jito!
+    /// Send a transaction to Jito and wait for it to be confirmed.
+    /// Logic stolen from Solana's non-blocking client.
     pub async fn send_and_confirm_transaction_with_jito(
         &self,
         transaction: &impl SerializableTransaction,
@@ -696,6 +673,7 @@ pub struct SealevelMailboxIndexer {
 }
 
 impl SealevelMailboxIndexer {
+    /// Create a new SealevelMailboxIndexer
     pub fn new(
         conf: &ConnectionConf,
         locator: ContractLocator,
@@ -990,13 +968,13 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     }
 }
 
-struct SealevelMailboxAbi;
+// struct SealevelMailboxAbi;
 
-// TODO figure out how this is used and if we can support it for sealevel.
-impl HyperlaneAbi for SealevelMailboxAbi {
-    const SELECTOR_SIZE_BYTES: usize = 8;
+// // TODO figure out how this is used and if we can support it for sealevel.
+// impl HyperlaneAbi for SealevelMailboxAbi {
+//     const SELECTOR_SIZE_BYTES: usize = 8;
 
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        todo!()
-    }
-}
+//     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
+//         todo!()
+//     }
+// }
