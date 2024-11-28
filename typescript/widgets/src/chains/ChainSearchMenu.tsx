@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 
 import {
   ChainMap,
@@ -77,11 +77,11 @@ export function ChainSearchMenu({
   showAddChainMenu,
   defaultSortField,
 }: ChainSearchMenuProps) {
-  const [drilldownChain, setDrilldownChain] = React.useState<
-    ChainName | undefined
-  >(showChainDetails);
+  const [drilldownChain, setDrilldownChain] = useState<ChainName | undefined>(
+    showChainDetails,
+  );
 
-  const [addChain, setAddChain] = React.useState(showAddChainMenu || false);
+  const [addChain, setAddChain] = useState(showAddChainMenu || false);
 
   const { listData, mergedMetadata } = useMemo(() => {
     const mergedMetadata = mergeChainMetadataMap(
@@ -89,7 +89,7 @@ export function ChainSearchMenu({
       overrideChainMetadata,
     );
     return { mergedMetadata, listData: Object.values(mergedMetadata) };
-  }, [chainMetadata]);
+  }, [chainMetadata, overrideChainMetadata]);
 
   const { ListComponent, searchFn, sortOptions, defaultSortState } =
     useCustomizedListItems(customListItemField, defaultSortField);
@@ -297,7 +297,7 @@ function useCustomizedListItems(
     ({ data }: { data: ChainMetadata<{ disabled?: boolean }> }) => (
       <ChainListItem data={data} customField={customListItemField} />
     ),
-    [ChainListItem, customListItemField],
+    [customListItemField],
   );
 
   // Bind the custom field to the search function

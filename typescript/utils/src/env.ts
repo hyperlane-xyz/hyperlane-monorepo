@@ -3,7 +3,7 @@
 export function safelyAccessEnvVar(name: string, toLowerCase = false) {
   try {
     return toLowerCase ? process.env[name]?.toLowerCase() : process.env[name];
-  } catch (error) {
+  } catch {
     return undefined;
   }
 }

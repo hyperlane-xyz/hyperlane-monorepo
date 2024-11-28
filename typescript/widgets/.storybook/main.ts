@@ -10,6 +10,11 @@ const config: StorybookConfig = {
     '@storybook/addon-onboarding',
     '@storybook/addon-interactions',
   ],
+  refs: {
+    '@chakra-ui/react': {
+      disable: true,
+    },
+  },
   framework: {
     name: '@storybook/react-vite',
     options: {},

@@ -33,7 +33,11 @@ use super::ChainSigner;
 #[async_trait]
 pub trait TryFromWithMetrics<T>: Sized {
     /// Try to convert the chain configuration into the type
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self>;
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self>;
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
@@ -72,22 +76,38 @@ pub type MerkleTreeHookIndexer = Arc<dyn SequenceAwareIndexer<MerkleTreeInsertio
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for MessageIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_message_indexer(metrics).await.map(Into::into)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_message_indexer(metrics, advanced_log_meta)
+            .await
+            .map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for DeliveryIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_delivery_indexer(metrics).await.map(Into::into)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_delivery_indexer(metrics, advanced_log_meta)
+            .await
+            .map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for IgpIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_interchain_gas_payment_indexer(metrics)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_interchain_gas_payment_indexer(metrics, advanced_log_meta)
             .await
             .map(Into::into)
     }
@@ -95,8 +115,12 @@ impl TryFromWithMetrics<ChainConf> for IgpIndexer {
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_merkle_tree_hook_indexer(metrics)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_merkle_tree_hook_indexer(metrics, advanced_log_meta)
             .await
             .map(Into::into)
     }
@@ -266,6 +290,7 @@ impl ChainConf {
     pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<HyperlaneMessage>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
@@ -284,7 +309,11 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    conf,
+                    locator,
+                    advanced_log_meta,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
@@ -306,6 +335,7 @@ impl ChainConf {
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<H256>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
@@ -324,7 +354,11 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    conf,
+                    locator,
+                    advanced_log_meta,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
@@ -385,6 +419,7 @@ impl ChainConf {
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
@@ -407,7 +442,12 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(
-                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
+                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
+                        conf,
+                        locator,
+                        advanced_log_meta,
+                    )
+                    .await?,
                 );
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
@@ -428,6 +468,7 @@ impl ChainConf {
     pub async fn build_merkle_tree_hook_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>> {
         let ctx = "Building merkle tree hook indexer";
         let locator = self.locator(self.addresses.merkle_tree_hook);
@@ -446,8 +487,11 @@ impl ChainConf {
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let mailbox_indexer =
-                    Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let mailbox_indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    conf,
+                    locator,
+                    advanced_log_meta,
+                )?);
                 let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
                     *mailbox_indexer,
                 ));

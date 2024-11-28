@@ -1,18 +1,8 @@
+import { CommandType } from '../../../commands/signCommands.js';
+
 import { MultiChainResolver } from './MultiChainResolver.js';
 import { SingleChainResolver } from './SingleChainResolver.js';
 import { ChainResolver } from './types.js';
-
-enum CommandType {
-  WARP_DEPLOY = 'warp:deploy',
-  WARP_SEND = 'warp:send',
-  WARP_APPLY = 'warp:apply',
-  WARP_READ = 'warp:read',
-  SEND_MESSAGE = 'send:message',
-  AGENT_KURTOSIS = 'deploy:kurtosis-agents',
-  STATUS = 'status:',
-  SUBMIT = 'submit:',
-  RELAYER = 'relayer:',
-}
 
 /**
  * @class ChainResolverFactory

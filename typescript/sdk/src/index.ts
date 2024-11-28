@@ -135,12 +135,12 @@ export {
 } from './gas/types.js';
 export { EvmHookReader } from './hook/EvmHookReader.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
-export { HookConfigSchema } from './hook/schemas.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
+  HookConfigSchema,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
@@ -148,8 +148,9 @@ export {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types.js';
-export { EvmIsmReader } from './ism/EvmIsmReader.js';
+export { DerivedIsmConfig, EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
+export { decodeIsmMetadata } from './ism/metadata/decode.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
@@ -371,6 +372,10 @@ export { EV5InterchainAccountTxTransformerPropsSchema } from './providers/transa
 export { EV5InterchainAccountTxTransformerProps } from './providers/transactions/transformer/ethersV5/types.js';
 
 export {
+  chainMetadataToCosmosChain,
+  chainMetadataToViemChain,
+} from './metadata/chainMetadataConversion.js';
+export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
 } from './router/adapters/EvmRouterAdapter.js';
@@ -496,6 +501,7 @@ export {
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
+export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export {
   SealevelAccountDataWrapper,
@@ -503,7 +509,6 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
-export { chainMetadataToViemChain } from './utils/viem.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -518,8 +523,8 @@ export {
   AggregationIsmConfigSchema,
   IsmConfigSchema,
   MultisigIsmConfigSchema,
-} from './ism/schemas.js';
-export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
+} from './ism/types.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/types.js';
 export {
   CollateralConfig,
   NativeConfig,

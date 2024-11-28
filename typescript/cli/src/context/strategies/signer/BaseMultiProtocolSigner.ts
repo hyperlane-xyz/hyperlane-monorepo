@@ -1,10 +1,11 @@
 import { Signer } from 'ethers';
 
 import { ChainName, ChainSubmissionStrategy } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 export interface SignerConfig {
   privateKey: string;
-  address?: string; // For chains like StarkNet that require address
+  address?: Address; // For chains like StarkNet that require address
   extraParams?: Record<string, any>; // For any additional chain-specific params
 }
 
