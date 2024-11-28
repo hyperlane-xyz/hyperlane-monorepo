@@ -31,7 +31,7 @@ const acceptableValidatorVersions: Record<string, string> = {
   // 1.0.0
   'ffbe1dd82e2452dbc111b6fb469a34fb870da8f1': '1.0.0',
   // Tessellated's Own Build
-  '79453fcd972a1e62ba8ee604f0a4999c7b938582': 'tesselated-special-build',
+  '9b855686d3e2b3d6b81238ce51a576ff5e0f770f': 'tesselated-special-build',
 };
 
 type ValidatorInfo = {
@@ -167,7 +167,7 @@ async function main() {
           }
         } catch (error) {
           console.warn(
-            `Error getting metadata for validator ${validator} on chain ${chain}: ${error}`,
+            `Error getting metadata for ${validator} on chain ${chain}: ${error}`,
           );
           mismatchedValidators.push({
             chain,
@@ -191,7 +191,7 @@ async function main() {
 
   if (mismatchedValidators.length > 0) {
     console.log(
-      'Expecting validators to have one of the following git SHA:\n' +
+      '\nExpecting validators to have one of the following git SHA:\n' +
         Object.entries(acceptableValidatorVersions)
           .map(([key, value]) => `  • ${key} (${value})`)
           .join('\n'),
