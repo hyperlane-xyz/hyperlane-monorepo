@@ -89,8 +89,6 @@ contract HypNativeTest is HypTokenTest {
     }
 
     function testRemoteTransfer_invalidAmount() public {
-        uint256 quote = localValueRouter.quoteGasPayment(DESTINATION);
-
         vm.expectRevert("HypNative: insufficient value");
         vm.prank(ALICE);
         localToken.transferRemote{value: TRANSFER_AMT}(
