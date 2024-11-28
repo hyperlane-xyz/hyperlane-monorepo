@@ -1,7 +1,13 @@
 import { Gauge, Registry } from 'prom-client';
 
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
-import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  Token,
+  TokenStandard,
+  WarpCore,
+  defaultMultisigConfigs,
+} from '@hyperlane-xyz/sdk';
 
 import { getWalletBalanceGauge } from '../../../src/utils/metrics.js';
 
@@ -20,6 +26,7 @@ interface WarpRouteMetrics {
   token_standard: TokenStandard;
   warp_route_id: string;
   related_chain_names: string;
+  validator_names?: string;
 }
 
 const warpRouteMetricLabels: WarpRouteMetricLabels[] = [
@@ -30,6 +37,7 @@ const warpRouteMetricLabels: WarpRouteMetricLabels[] = [
   'token_standard',
   'warp_route_id',
   'related_chain_names',
+  'validator_names',
 ];
 
 const warpRouteTokenBalance = new Gauge({
@@ -74,6 +82,10 @@ export function updateTokenBalanceMetrics(
     related_chain_names: warpCore
       .getTokenChains()
       .filter((chainName) => chainName !== token.chainName)
+      .sort()
+      .join(','),
+    validator_names: defaultMultisigConfigs[token.chainName]?.validators
+      .map((v) => v.alias)
       .sort()
       .join(','),
   };
