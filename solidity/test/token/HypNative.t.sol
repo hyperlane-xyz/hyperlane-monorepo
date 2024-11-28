@@ -6,37 +6,19 @@ import {HypTokenTest} from "./HypERC20.t.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {HypNative} from "../../contracts/token/HypNative.sol";
-import {OPL2ToL1Hook} from "../../contracts/hooks/OPL2ToL1Hook.sol";
-import {OPL2ToL1Ism} from "../../contracts/isms/hook/OPL2ToL1Ism.sol";
-import {IOptimismPortal} from "../../contracts/interfaces/optimism/IOptimismPortal.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
-import {ICrossDomainMessenger} from "../../contracts/interfaces/optimism/ICrossDomainMessenger.sol";
-import {AbstractMessageIdAuthorizedIsm} from "../../contracts/isms/hook/AbstractMessageIdAuthorizedIsm.sol";
-import {MockOptimismMessenger, MockOptimismPortal} from "../../contracts/mock/MockOptimism.sol";
-import {TestInterchainGasPaymaster} from "../../contracts/test/TestInterchainGasPaymaster.sol";
+import {TestIsm} from "../../contracts/test/TestIsm.sol";
 
 contract HypNativeTest is HypTokenTest {
     using TypeCasts for address;
 
-    address internal constant L2_MESSENGER_ADDRESS =
-        0x4200000000000000000000000000000000000007;
-    uint256 internal constant OP_BRIDGE_GAS_LIMIT = 100_000;
-    uint256 internal constant MOCK_NONCE = 0;
-
     HypNative internal localValueRouter;
     HypNative internal remoteValueRouter;
-    OPL2ToL1Hook internal valueHook;
-    OPL2ToL1Ism internal ism;
-    TestInterchainGasPaymaster internal mockOverheadIgp;
-    MockOptimismPortal internal portal;
-    MockOptimismMessenger internal l1Messenger;
+    TestPostDispatchHook internal valueHook;
+    TestIsm internal ism;
 
     function setUp() public override {
         super.setUp();
-        vm.etch(
-            L2_MESSENGER_ADDRESS,
-            address(new MockOptimismMessenger()).code
-        );
 
         localValueRouter = new HypNative(address(localMailbox));
         remoteValueRouter = new HypNative(address(remoteMailbox));
@@ -44,19 +26,10 @@ contract HypNativeTest is HypTokenTest {
         localToken = TokenRouter(payable(address(localValueRouter)));
         remoteToken = HypERC20(payable(address(remoteValueRouter)));
 
-        l1Messenger = new MockOptimismMessenger();
-        portal = new MockOptimismPortal();
-        l1Messenger.setPORTAL(address(portal));
-        ism = new OPL2ToL1Ism(address(l1Messenger));
+        ism = new TestIsm();
 
-        mockOverheadIgp = new TestInterchainGasPaymaster();
-        valueHook = new OPL2ToL1Hook(
-            address(localMailbox),
-            DESTINATION,
-            address(localMailbox).addressToBytes32(),
-            L2_MESSENGER_ADDRESS,
-            address(mockOverheadIgp)
-        );
+        valueHook = new TestPostDispatchHook();
+        valueHook.setFee(1e10);
 
         localValueRouter.initialize(
             address(valueHook),
@@ -93,27 +66,26 @@ contract HypNativeTest is HypTokenTest {
         );
 
         vm.prank(ALICE);
-        bytes32 messageId = localToken.transferRemote{value: msgValue}(
+        localToken.transferRemote{value: msgValue}(
             DESTINATION,
             BOB.addressToBytes32(),
             TRANSFER_AMT
         );
 
         vm.assertEq(address(localToken).balance, 0);
-        vm.assertEq(address(valueHook).balance, 0);
+        vm.assertEq(address(valueHook).balance, msgValue);
 
-        _externalBridgeDestinationCall(messageId, msgValue);
+        vm.deal(address(remoteToken), TRANSFER_AMT);
+        vm.prank(address(remoteMailbox));
 
-        vm.expectEmit(true, true, false, true);
-        emit ReceivedTransferRemote(
+        remoteToken.handle(
             ORIGIN,
-            BOB.addressToBytes32(),
-            TRANSFER_AMT
+            address(localToken).addressToBytes32(),
+            abi.encodePacked(BOB.addressToBytes32(), TRANSFER_AMT)
         );
-        remoteMailbox.processNextInboundMessage();
 
         assertEq(BOB.balance, TRANSFER_AMT);
-        assertEq(address(mockOverheadIgp).balance, quote);
+        assertEq(address(valueHook).balance, msgValue);
     }
 
     function testRemoteTransfer_invalidAmount() public {
@@ -177,39 +149,5 @@ contract HypNativeTest is HypTokenTest {
     function testBenchmark_overheadGasUsage() public override {
         vm.deal(address(localValueRouter), TRANSFER_AMT);
         super.testBenchmark_overheadGasUsage();
-    }
-
-    // helper function to simulate the external bridge destination call using OP L2 -> L1 bridge
-    function _externalBridgeDestinationCall(
-        bytes32 _messageId,
-        uint256 _msgValue
-    ) internal {
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
-            (_messageId, _msgValue)
-        );
-
-        bytes memory messengerCalldata = abi.encodeCall(
-            ICrossDomainMessenger.relayMessage,
-            (
-                MOCK_NONCE,
-                address(valueHook),
-                address(ism),
-                _msgValue,
-                OP_BRIDGE_GAS_LIMIT,
-                encodedHookData
-            )
-        );
-        vm.deal(address(portal), _msgValue);
-        IOptimismPortal.WithdrawalTransaction
-            memory withdrawal = IOptimismPortal.WithdrawalTransaction({
-                nonce: MOCK_NONCE,
-                sender: L2_MESSENGER_ADDRESS,
-                target: address(l1Messenger),
-                value: _msgValue,
-                gasLimit: OP_BRIDGE_GAS_LIMIT,
-                data: messengerCalldata
-            });
-        portal.finalizeWithdrawalTransaction(withdrawal);
     }
 }
