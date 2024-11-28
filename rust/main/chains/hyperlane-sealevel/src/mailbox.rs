@@ -1,6 +1,11 @@
 #![allow(warnings)] // FIXME remove
 
-use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromStr as _};
+use std::{
+    collections::{HashMap, HashSet},
+    num::NonZeroU64,
+    ops::RangeInclusive,
+    str::FromStr as _,
+};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -21,6 +26,7 @@ use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
 use jsonrpc_core::futures_util::TryFutureExt;
+use lazy_static::lazy_static;
 use serializable_account_meta::SimulationReturnData;
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
@@ -30,6 +36,7 @@ use solana_client::{
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
     rpc_response::Response,
 };
+use solana_program::pubkey;
 use solana_sdk::{
     account::Account,
     bs58,
@@ -95,6 +102,25 @@ const PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS: u64 =
         / PROCESS_COMPUTE_UNITS as u64
     );
 
+// Earlier versions of collateral warp routes were deployed off a version where the mint
+// was requested as a writeable account for handle instruction. This is not necessary,
+// and generally requires a higher priority fee to be paid.
+// This is a HashMap of of (collateral warp route recipient -> mint address) that is
+// used to force the mint address to be readonly.
+lazy_static! {
+    static ref RECIPIENT_FORCED_READONLY_ACCOUNTS: HashMap<Pubkey, Pubkey> = HashMap::from([
+        // EZSOL
+        (pubkey!("b5pMgizA9vrGRt3hVqnU7vUVGBQUnLpwPzcJhG1ucyQ"), pubkey!("ezSoL6fY1PVdJcJsUpe5CM3xkfmy3zoVCABybm5WtiC")),
+        // ORCA
+        (pubkey!("8acihSm2QTGswniKgdgr4JBvJihZ1cakfvbqWCPBLoSp"), pubkey!("orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE")),
+        // USDC
+        (pubkey!("3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm"), pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")),
+        // USDT
+        (pubkey!("Bk79wMjvpPCh5iQcCEjPWFcG1V2TfgdwaBsWBEYFYSNU"), pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")),
+        // USDT
+        (pubkey!("CuQmsT4eSF4dYiiGUGYYQxJ7c58pUAD5ADE3BbFGzQKx"), pubkey!("EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm")),
+    ]);
+}
 /// A reference to a Mailbox contract on some Sealevel chain
 pub struct SealevelMailbox {
     pub(crate) program_id: Pubkey,
@@ -257,14 +283,27 @@ impl SealevelMailbox {
             message: message.body.clone(),
         });
 
-        self.get_account_metas_with_instruction_bytes(
-            recipient_program_id,
-            &instruction
-                .encode()
-                .map_err(ChainCommunicationError::from_other)?,
-            hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
-        )
-        .await
+        let mut account_metas = self
+            .get_account_metas_with_instruction_bytes(
+                recipient_program_id,
+                &instruction
+                    .encode()
+                    .map_err(ChainCommunicationError::from_other)?,
+                hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+            )
+            .await?;
+
+        if let Some(forced_readonly_account) =
+            RECIPIENT_FORCED_READONLY_ACCOUNTS.get(&recipient_program_id)
+        {
+            for account_meta in account_metas.iter_mut() {
+                if account_meta.pubkey == *forced_readonly_account {
+                    account_meta.is_writable = false;
+                }
+            }
+        }
+
+        Ok(account_metas)
     }
 
     async fn get_account_metas_with_instruction_bytes(
