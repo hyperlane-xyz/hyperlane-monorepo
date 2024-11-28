@@ -1,3 +1,6 @@
+// Silence a clippy bug https://github.com/rust-lang/rust-clippy/issues/12281
+#![allow(clippy::blocks_in_conditions)]
+
 use std::{collections::HashMap, ops::RangeInclusive, str::FromStr as _};
 
 use async_trait::async_trait;
@@ -426,7 +429,7 @@ impl HyperlaneContract for SealevelMailbox {
 
 impl HyperlaneChain for SealevelMailbox {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.provider.domain()
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -704,7 +707,7 @@ impl SealevelMailboxIndexer {
     }
 
     fn rpc(&self) -> &SealevelRpcClient {
-        &self.mailbox.rpc()
+        self.mailbox.rpc()
     }
 
     async fn get_dispatched_message_with_nonce(
@@ -717,7 +720,7 @@ impl SealevelMailboxIndexer {
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
-            &DISPATCHED_MESSAGE_DISCRIMINATOR,
+            DISPATCHED_MESSAGE_DISCRIMINATOR,
             &nonce_bytes,
             unique_dispatched_message_pubkey_offset,
             unique_dispatch_message_pubkey_length,
@@ -725,7 +728,7 @@ impl SealevelMailboxIndexer {
         .await?;
 
         let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
-            self.dispatched_message_account(&account)
+            self.dispatched_message_account(account)
         })?;
 
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
@@ -810,7 +813,7 @@ impl SealevelMailboxIndexer {
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
-            &PROCESSED_MESSAGE_DISCRIMINATOR,
+            PROCESSED_MESSAGE_DISCRIMINATOR,
             &nonce_bytes,
             delivered_message_id_offset,
             delivered_message_id_length,
@@ -820,7 +823,7 @@ impl SealevelMailboxIndexer {
         debug!(account_len = ?accounts.len(), "Found accounts with processed message discriminator");
 
         let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
-            self.delivered_message_account(&account)
+            self.delivered_message_account(account)
         })?;
 
         // Now that we have the valid delivered message storage PDA pubkey,
