@@ -11,6 +11,7 @@ import {
   addressToBytes32,
   ensure0x,
   eqAddress,
+  rootLogger,
   strip0x,
 } from '@hyperlane-xyz/utils';
 
@@ -22,6 +23,8 @@ import { fetchWithTimeout } from '../../utils/fetch.js';
 
 import { BridgeAdapterConfig } from './LiquidityLayerRouterDeployer.js';
 import { liquidityLayerFactories } from './contracts.js';
+
+const logger = rootLogger.child({ module: 'LiquidityLayerApp' });
 
 const PORTAL_VAA_SERVICE_TESTNET_BASE_URL =
   'https://wormhole-v2-testnet-api.certus.one/v1/signed_vaa/';
@@ -77,7 +80,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
   }
 
   async fetchCircleMessageTransactions(chain: ChainName): Promise<string[]> {
-    console.log(`Fetch circle messages for ${chain}`);
+    logger.info(`Fetch circle messages for ${chain}`);
     const url = new URL(this.multiProvider.getExplorerApiUrl(chain));
     url.searchParams.set('module', 'logs');
     url.searchParams.set('action', 'getLogs');
@@ -140,7 +143,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
     chain: ChainName,
     txHash: string,
   ): Promise<CircleBridgeMessage[]> {
-    console.debug(`Parse Circle messages for chain ${chain} ${txHash}`);
+    logger.debug(`Parse Circle messages for chain ${chain} ${txHash}`);
     const provider = this.multiProvider.getProvider(chain);
     const receipt = await provider.getTransactionReceipt(txHash);
     const matchingLogs = receipt.logs
@@ -207,7 +210,7 @@ export class LiquidityLayerApp extends HyperlaneApp<
       await destinationPortalAdapter.portalTransfersProcessed(transferId);
 
     if (!eqAddress(transferTokenAddress, ethers.constants.AddressZero)) {
-      console.log(
+      logger.info(
         `Transfer with nonce ${message.nonce} from ${message.origin} to ${message.destination} already processed`,
       );
       return;
@@ -229,11 +232,11 @@ export class LiquidityLayerApp extends HyperlaneApp<
     ).then((response) => response.json());
 
     if (vaa.code && vaa.code === PORTAL_VAA_SERVICE_SUCCESS_CODE) {
-      console.log(`VAA not yet found for nonce ${message.nonce}`);
+      logger.info(`VAA not yet found for nonce ${message.nonce}`);
       return;
     }
 
-    console.debug(
+    logger.debug(
       `Complete portal transfer for nonce ${message.nonce} on ${message.destination}`,
     );
 
@@ -246,10 +249,10 @@ export class LiquidityLayerApp extends HyperlaneApp<
       );
     } catch (error: any) {
       if (error?.error?.reason?.includes('no wrapper for this token')) {
-        console.log(
+        logger.info(
           'No wrapper for this token, you should register the token at https://wormhole-foundation.github.io/example-token-bridge-ui/#/register',
         );
-        console.log(message);
+        logger.info(message);
         return;
       }
       throw error;
@@ -268,11 +271,11 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const alreadyProcessed = await transmitter.usedNonces(message.nonceHash);
 
     if (alreadyProcessed) {
-      console.log(`Message sent on ${message.txHash} was already processed`);
+      logger.info(`Message sent on ${message.txHash} was already processed`);
       return;
     }
 
-    console.log(`Attempt Circle message delivery`, JSON.stringify(message));
+    logger.info(`Attempt Circle message delivery`, JSON.stringify(message));
 
     const messageHash = ethers.utils.keccak256(message.message);
     const baseurl = this.multiProvider.getChainMetadata(message.chain).isTestnet
@@ -282,19 +285,19 @@ export class LiquidityLayerApp extends HyperlaneApp<
     const attestations = await attestationsB.json();
 
     if (attestations.status !== 'complete') {
-      console.log(
+      logger.info(
         `Attestations not available for message nonce ${message.nonce} on ${message.txHash}`,
       );
       return;
     }
-    console.log(`Ready to submit attestations for message ${message.nonce}`);
+    logger.info(`Ready to submit attestations for message ${message.nonce}`);
 
     const tx = await transmitter.receiveMessage(
       message.message,
       attestations.attestation,
     );
 
-    console.log(
+    logger.info(
       `Submitted attestations in ${this.multiProvider.tryGetExplorerTxUrl(
         message.remoteChain,
         tx,

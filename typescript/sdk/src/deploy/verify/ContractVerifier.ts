@@ -221,7 +221,7 @@ export class ContractVerifier extends BaseContractVerifier {
         'Parsing response from explorer...',
       );
       responseJson = JSON.parse(responseTextString);
-    } catch (error) {
+    } catch {
       verificationLogger.trace(
         {
           failure: response.statusText,
