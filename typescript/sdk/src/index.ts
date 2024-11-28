@@ -446,6 +446,7 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
+  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
