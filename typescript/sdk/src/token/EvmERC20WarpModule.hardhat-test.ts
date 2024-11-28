@@ -123,6 +123,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       chain,
       config,
       multiProvider,
+      proxyFactoryFactories: ismFactoryAddresses,
     });
 
     // Let's derive it's onchain token type
@@ -151,6 +152,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       chain,
       config,
       multiProvider,
+      proxyFactoryFactories: ismFactoryAddresses,
     });
 
     // Let's derive it's onchain token type
@@ -187,6 +189,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       chain,
       config,
       multiProvider,
+      proxyFactoryFactories: ismFactoryAddresses,
     });
 
     // Let's derive it's onchain token type
@@ -219,6 +222,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       chain,
       config,
       multiProvider,
+      proxyFactoryFactories: ismFactoryAddresses,
     });
 
     // Let's derive it's onchain token type
@@ -249,6 +253,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       chain,
       config,
       multiProvider,
+      proxyFactoryFactories: ismFactoryAddresses,
     });
     const { remoteRouters } = await evmERC20WarpModule.read();
     expect(Object.keys(remoteRouters!).length).to.equal(numOfRouters);
@@ -271,6 +276,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         paused: false,
       },
     ];
+
     it('should deploy and set a new Ism', async () => {
       const config = {
         ...baseConfig,
@@ -284,13 +290,14 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         chain,
         config,
         multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
       });
       const actualConfig = await evmERC20WarpModule.read();
 
       for (const interchainSecurityModule of ismConfigToUpdate) {
         const expectedConfig: TokenRouterConfig = {
           ...actualConfig,
-          ismFactoryAddresses,
+
           interchainSecurityModule,
         };
         await sendTxs(await evmERC20WarpModule.update(expectedConfig));
@@ -315,6 +322,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         chain,
         config,
         multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
       });
       const actualConfig = await evmERC20WarpModule.read();
 
@@ -326,7 +334,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
       const expectedConfig: TokenRouterConfig = {
         ...actualConfig,
-        ismFactoryAddresses,
         interchainSecurityModule,
       };
 
@@ -373,11 +380,11 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         chain,
         config,
         multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
       });
       const actualConfig = await evmERC20WarpModule.read();
       const expectedConfig: TokenRouterConfig = {
         ...actualConfig,
-        ismFactoryAddresses,
         interchainSecurityModule: {
           type: IsmType.ROUTING,
           owner: randomAddress(),
@@ -414,6 +421,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           interchainSecurityModule: ismAddress,
         },
         multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
       });
       const numOfRouters = Math.floor(Math.random() * 10);
       await sendTxs(
@@ -445,6 +453,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           interchainSecurityModule: ismAddress,
         },
         multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
       });
       const remoteRouters = randomRemoteRouters(1);
       await sendTxs(
@@ -489,7 +498,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         ismFactoryAddresses,
       } as TokenRouterConfig;
 
-      const owner = randomAddress();
+      const owner = signer.address.toLowerCase();
       const evmERC20WarpModule = await EvmERC20WarpModule.create({
         chain,
         config: {
@@ -497,8 +506,11 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           interchainSecurityModule: ismAddress,
         },
         multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
       });
-      expect(owner).to.equal(owner);
+
+      const currentConfig = await evmERC20WarpModule.read();
+      expect(currentConfig.owner.toLowerCase()).to.equal(owner);
 
       const newOwner = randomAddress();
       await sendTxs(
@@ -519,13 +531,55 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(txs.length).to.equal(0);
     });
 
+    it('should update the ProxyAdmin owner only if they are different', async () => {
+      const config: TokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+        hook: hookAddress,
+      };
+
+      const owner = signer.address.toLowerCase();
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+          interchainSecurityModule: ismAddress,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      const currentConfig = await evmERC20WarpModule.read();
+      expect(currentConfig.proxyAdmin?.owner.toLowerCase()).to.equal(owner);
+
+      const newOwner = randomAddress();
+      const updatedWarpCoreConfig: TokenRouterConfig = {
+        ...config,
+        proxyAdmin: {
+          address: currentConfig.proxyAdmin!.address,
+          owner: newOwner,
+        },
+      };
+      await sendTxs(await evmERC20WarpModule.update(updatedWarpCoreConfig));
+
+      const latestConfig: TokenRouterConfig = normalizeConfig(
+        await evmERC20WarpModule.read(),
+      );
+      expect(latestConfig.proxyAdmin?.owner).to.equal(newOwner);
+      // Sanity check to be sure that the owner of the warp route token has not been updated if not changed
+      expect(latestConfig.owner).to.equal(owner);
+
+      // No op if the same owner
+      const txs = await evmERC20WarpModule.update(updatedWarpCoreConfig);
+      expect(txs.length).to.equal(0);
+    });
+
     it('should update the destination gas', async () => {
       const domain = 3;
       const config: TokenRouterConfig = {
         ...baseConfig,
         type: TokenType.native,
         hook: hookAddress,
-        ismFactoryAddresses,
         remoteRouters: {
           [domain]: randomAddress(),
         },
@@ -538,6 +592,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           ...config,
         },
         multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
       });
       await sendTxs(
         await evmERC20WarpModule.update({

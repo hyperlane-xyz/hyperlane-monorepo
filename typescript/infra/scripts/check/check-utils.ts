@@ -14,6 +14,7 @@ import {
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  MultiProvider,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
   proxiedFactories,
@@ -24,6 +25,7 @@ import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import { getWarpAddresses } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
+import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
@@ -71,9 +73,13 @@ export async function getGovernor(
   chains?: string[],
   fork?: string,
   govern?: boolean,
+  multiProvider: MultiProvider | undefined = undefined,
 ) {
   const envConfig = getEnvironmentConfig(environment);
-  let multiProvider = await envConfig.getMultiProvider();
+  // If the multiProvider is not passed in, get it from the environment
+  if (!multiProvider) {
+    multiProvider = await envConfig.getMultiProvider();
+  }
 
   // must rotate to forked provider before building core contracts
   if (fork) {
@@ -116,6 +122,7 @@ export async function getGovernor(
   );
 
   if (module === Modules.CORE) {
+    chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const checker = new HyperlaneCoreChecker(
       multiProvider,
       core,
@@ -139,6 +146,7 @@ export async function getGovernor(
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.HAAS) {
+    chainsToSkip.forEach((chain) => delete routerConfig[chain]);
     const icaChecker = new InterchainAccountChecker(
       multiProvider,
       ica,
@@ -147,6 +155,7 @@ export async function getGovernor(
         (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
       ),
     );
+    chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
       multiProvider,
       core,

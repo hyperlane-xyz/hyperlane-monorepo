@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  DeployedOwnableConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -20,6 +21,8 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
@@ -28,9 +31,13 @@ import {
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { detectAndConfirmOrPrompt } from '../utils/input.js';
+import {
+  detectAndConfirmOrPrompt,
+  setProxyAdminConfig,
+} from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
+import { readChainSubmissionStrategyConfig } from './strategy.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
@@ -118,24 +125,39 @@ export async function createWarpRouteDeployConfig({
 }) {
   logBlue('Creating a new warp route deployment config...');
 
-  const owner = await detectAndConfirmOrPrompt(
-    async () => context.signer?.getAddress(),
-    'Enter the desired',
-    'owner address',
-    'signer',
-  );
-
   const warpChains = await runMultiChainSelectionStep({
     chainMetadata: context.chainMetadata,
     message: 'Select chains to connect',
     requireNumber: 1,
-    requiresConfirmation: true,
+    // If the user supplied the --yes flag we skip asking selection
+    // confirmation
+    requiresConfirmation: !context.skipConfirmation,
   });
+
+  const strategyConfig = await readChainSubmissionStrategyConfig(
+    context.strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
+  );
+
+  const multiProtocolSigner = new MultiProtocolSignerManager(
+    strategyConfig,
+    warpChains,
+    context.multiProvider,
+    { key: context.key },
+  );
+
+  const multiProviderWithSigners = await multiProtocolSigner.getMultiProvider();
 
   const result: WarpRouteDeployConfig = {};
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
+
+    const owner = await detectAndConfirmOrPrompt(
+      async () => multiProviderWithSigners.getSigner(chain).getAddress(),
+      'Enter the desired',
+      'owner address',
+      'signer',
+    );
 
     // default to the mailbox from the registry and if not found ask to the user to submit one
     const chainAddresses = await context.registry.getChainAddresses(chain);
@@ -146,6 +168,12 @@ export async function createWarpRouteDeployConfig({
         validate: isAddress,
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
+
+    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
+      context,
+      chain,
+      owner,
+    );
 
     /**
      * The logic from the cli is as follows:
@@ -190,6 +218,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -203,6 +232,7 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           isNft,
+          proxyAdmin,
           collateralChainName: '', // This will be derived correctly by zod.parse() below
           interchainSecurityModule,
         };
@@ -216,6 +246,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -230,6 +261,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -242,6 +274,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
         };

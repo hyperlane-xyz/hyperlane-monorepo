@@ -1,5 +1,102 @@
 # @hyperlane-xyz/widgets
 
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [81ab4332f]
+- Updated dependencies [4b3537470]
+- Updated dependencies [fa6d5f5c6]
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/sdk@7.2.0
+  - @hyperlane-xyz/utils@7.2.0
+
+## 7.1.0
+
+### Minor Changes
+
+- 0cd65c571: Add multi-protocol wallet integration hooks and types
+- 186663505: New Icons
+  Updated modal with new props
+  Updated storybook for modal and icon list
+- 0e285a443: Add various utility hooks: useIsSsr, useTimeout, useDebounce, useInterval
+- 92b5fe777: Props and style update: IconButton and Tooltip
+  New Icons: XCircleIcon and SwapIcon
+
+### Patch Changes
+
+- 794501ba6: Prevent propagation of form submissions from ChainSearchMenu
+- Updated dependencies [6f2d50fbd]
+- Updated dependencies [1159e0f4b]
+- Updated dependencies [0e285a443]
+- Updated dependencies [ff2b4e2fb]
+- Updated dependencies [0e285a443]
+- Updated dependencies [5db46bd31]
+- Updated dependencies [0cd65c571]
+  - @hyperlane-xyz/sdk@7.1.0
+  - @hyperlane-xyz/utils@7.1.0
+
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [bbb970a44]
+- Updated dependencies [fa424826c]
+- Updated dependencies [f48cf8766]
+- Updated dependencies [40d59a2f4]
+- Updated dependencies [0264f709e]
+- Updated dependencies [836060240]
+- Updated dependencies [ba0122279]
+- Updated dependencies [e6f9d5c4f]
+- Updated dependencies [f24835438]
+- Updated dependencies [5f41b1134]
+  - @hyperlane-xyz/sdk@7.0.0
+  - @hyperlane-xyz/utils@7.0.0
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Patch Changes
+
+- Updated dependencies [7b3b07900]
+- Updated dependencies [30d92c319]
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/sdk@6.0.0
+  - @hyperlane-xyz/utils@6.0.0
+
+## 5.7.0
+
+### Minor Changes
+
+- f438d442a: Update widgets with components from explorer and warp ui
+
+  - Add icons: Discord, Docs, Github, History, LinkedIn, Medium, Twitter, Wallet and Web
+  - Add animation component: Fade component
+  - Add components: DatetimeField and SelectField
+  - New stories: IconList and Fade
+  - Add "Icon" suffix for icons that did not have it
+
+### Patch Changes
+
+- 86a0bb919: - Update ChainSearchMenu with improvements
+- Updated dependencies [5dabdf388]
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [d9505ab58]
+- Updated dependencies [04108155d]
+- Updated dependencies [7e9e248be]
+- Updated dependencies [4c0605dca]
+- Updated dependencies [db9196837]
+- Updated dependencies [db5875cc2]
+- Updated dependencies [56328e6e1]
+- Updated dependencies [956ff752a]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/sdk@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+
 ## 5.6.2
 
 ### Patch Changes

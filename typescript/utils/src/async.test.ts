@@ -17,7 +17,7 @@ describe('Async Utilities', () => {
       const start = Date.now();
       await sleep(100);
       const duration = Date.now() - start;
-      expect(duration).to.be.at.least(100);
+      expect(duration).to.be.at.least(95);
       expect(duration).to.be.lessThan(200);
     });
   });

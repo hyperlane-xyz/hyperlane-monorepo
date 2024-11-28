@@ -26,6 +26,7 @@ export {
   isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
+  isPrivateKeyEvm,
   isValidTransactionHash,
   isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
@@ -108,10 +109,12 @@ export {
   arrayToObject,
   deepCopy,
   deepEquals,
+  deepFind,
   diffObjMerge,
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  mustGet,
   objFilter,
   objKeys,
   objLength,
@@ -119,6 +122,7 @@ export {
   objMapEntries,
   objMerge,
   objOmit,
+  objOmitKeys,
   pick,
   promiseObjAll,
   stringifyObject,
@@ -137,6 +141,7 @@ export {
   streamToString,
   toHexString,
   toTitleCase,
+  toUpperCamelCase,
   trimToLength,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
@@ -151,6 +156,7 @@ export {
   Checkpoint,
   CheckpointWithId,
   Domain,
+  EvmChainId,
   HexString,
   MerkleProof,
   MessageStatus,
@@ -167,7 +173,7 @@ export {
   TokenCaip19Id,
   WithAddress,
 } from './types.js';
-export { isHttpsUrl, isUrl } from './url.js';
+export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';
 export { assert } from './validation.js';
 export { BaseValidator, ValidatorConfig } from './validator.js';
 export { tryParseJsonOrYaml } from './yaml.js';

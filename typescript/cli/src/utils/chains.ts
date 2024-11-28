@@ -90,7 +90,7 @@ export async function runMultiChainSelectionStep({
           ? { ...choice, checked: true }
           : choice,
       ),
-      instructions: `Use TAB key to select at least ${requireNumber} chains, then press ENTER to proceed. Type to search for a specific chain.`,
+      instructions: `Use the TAB or the SPACE key to select at least ${requireNumber} chains, then press ENTER to proceed. Type to search for a specific chain.`,
       theme: {
         style: {
           // The leading space is needed because the help tip will be tightly close to the message header
@@ -170,4 +170,37 @@ function handleNewChain(chainNames: string[]) {
     );
     process.exit(0);
   }
+}
+
+/**
+ * @notice Extracts chain names from a nested configuration object
+ * @param config Object to search for chain names
+ * @return Array of discovered chain names
+ */
+export function extractChainsFromObj(config: Record<string, any>): string[] {
+  const chains: string[] = [];
+
+  // Recursively search for chain/chainName fields
+  function findChainFields(obj: any) {
+    if (obj === null || typeof obj !== 'object') return;
+
+    if (Array.isArray(obj)) {
+      obj.forEach((item) => findChainFields(item));
+      return;
+    }
+
+    if ('chain' in obj) {
+      chains.push(obj.chain);
+    }
+
+    if ('chainName' in obj) {
+      chains.push(obj.chainName);
+    }
+
+    // Recursively search in all nested values
+    Object.values(obj).forEach((value) => findChainFields(value));
+  }
+
+  findChainFields(config);
+  return chains;
 }

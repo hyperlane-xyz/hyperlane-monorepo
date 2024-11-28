@@ -1,5 +1,13 @@
-import clsx from 'clsx';
-import React, { ComponentType, useMemo, useState } from 'react';
+import { clsx } from 'clsx';
+import React, {
+  ComponentType,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { deepEquals, isObject, toTitleCase } from '@hyperlane-xyz/utils';
 
@@ -79,6 +87,7 @@ export function SearchMenu<
   );
   const [filterState, setFilterState] =
     useState<FilterState>(defaultFilterState);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(
     () =>
@@ -91,13 +100,32 @@ export function SearchMenu<
     [data, searchQuery, sortState, filterState, searchFn],
   );
 
+  const handleSubmit = useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (results.length === 1) {
+        const item = results[0];
+        isEditMode ? onClickEditItem(item) : onClickItem(item);
+      }
+    },
+    [results, isEditMode, onClickEditItem, onClickItem],
+  );
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   return (
     <div className="htw-flex htw-flex-col htw-gap-2">
-      <SearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder={placeholder}
-      />
+      <form onSubmit={handleSubmit}>
+        <SearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={placeholder}
+          ref={inputRef}
+        />
+      </form>
       <div className="htw-flex htw-items-center htw-justify-between">
         <div className="htw-flex htw-items-center htw-gap-5">
           <SortDropdown
@@ -157,7 +185,10 @@ export function SearchMenu<
   );
 }
 
-function SearchBar(props: InputProps) {
+const SearchBar = forwardRef(function SearchBar(
+  { onChange, value, ...props }: InputProps,
+  ref: React.Ref<HTMLInputElement>,
+) {
   return (
     <div className="htw-relative">
       <SearchIcon
@@ -165,13 +196,25 @@ function SearchBar(props: InputProps) {
         height={18}
         className="htw-absolute htw-left-4 htw-top-1/2 -htw-translate-y-1/2 htw-opacity-50"
       />
+
       <TextInput
+        onChange={onChange}
+        value={value}
+        ref={ref}
         {...props}
-        className="htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
+        className="htw-bg-inherit focus:htw-bg-inherit htw-border htw-border-gray-200 focus:htw-border-gray-400 htw-w-full htw-rounded-lg htw-px-11 htw-py-3"
       />
+      {value && onChange && (
+        <IconButton
+          className="htw-absolute htw-right-4 htw-top-1/3 htw-opacity-50"
+          onClick={() => onChange('')}
+        >
+          <XIcon width={14} height={14} />
+        </IconButton>
+      )}
     </div>
   );
-}
+});
 
 function SortDropdown<SortBy extends string>({
   options,
@@ -213,6 +256,7 @@ function SortDropdown<SortBy extends string>({
         buttonClassname="htw-flex htw-items-stretch hover:htw-bg-gray-100 active:htw-scale-95"
         menuClassname="htw-py-1.5 htw-px-2 htw-flex htw-flex-col htw-gap-2 htw-text-sm htw-border htw-border-gray-100"
         menuItems={options.map((o) => (
+          // eslint-disable-next-line react/jsx-key
           <div
             className="htw-rounded htw-p-1.5 hover:htw-bg-gray-200"
             onClick={() => onSetSortBy(o)}
@@ -257,7 +301,7 @@ function FilterDropdown<FilterState>({
       (k) => !deepEquals(value[k], defaultValue[k]),
     );
     return modifiedKeys.map((k) => value[k]);
-  }, [value]);
+  }, [value, defaultValue]);
   const hasFilters = filterValues.length > 0;
 
   const onClear = () => {

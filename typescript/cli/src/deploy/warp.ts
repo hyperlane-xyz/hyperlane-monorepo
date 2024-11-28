@@ -64,7 +64,7 @@ import {
 
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
-import { getOrRequestApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
@@ -100,7 +100,7 @@ export async function runWarpRouteDeploy({
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
 }) {
-  const { signer, skipConfirmation, chainMetadata } = context;
+  const { skipConfirmation, chainMetadata, registry } = context;
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -127,7 +127,7 @@ export async function runWarpRouteDeploy({
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+    apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
 
   const deploymentParams = {
     context,
@@ -136,15 +136,18 @@ export async function runWarpRouteDeploy({
 
   await runDeployPlanStep(deploymentParams);
 
+  // Some of the below functions throw if passed non-EVM chains
+  const ethereumChains = chains.filter(
+    (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
+  );
+
   await runPreflightChecksForChains({
     context,
-    chains,
+    chains: ethereumChains,
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const userAddress = await signer.getAddress();
-
-  const initialBalances = await prepareDeploy(context, userAddress, chains);
+  const initialBalances = await prepareDeploy(context, null, ethereumChains);
 
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
@@ -155,7 +158,7 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context);
 
-  await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
+  await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -446,7 +449,11 @@ export async function runWarpRouteApply(
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys(chains, chainMetadata);
+    apiKeys = await requestAndSaveApiKeys(
+      chains,
+      chainMetadata,
+      context.registry,
+    );
 
   const transactions: AnnotatedEV5Transaction[] = [
     ...(await extendWarpRoute(
@@ -530,7 +537,8 @@ async function updateExistingWarpRoute(
 ) {
   logBlue('Updating deployed Warp Routes');
   const { multiProvider, registry } = params.context;
-  const addresses = await registry.getAddresses();
+  const registryAddresses =
+    (await registry.getAddresses()) as ChainMap<ProxyFactoryFactoriesAddresses>;
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
@@ -549,15 +557,13 @@ async function updateExistingWarpRoute(
             `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
           );
 
-        config.ismFactoryAddresses = addresses[
-          chain
-        ] as ProxyFactoryFactoriesAddresses;
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
             config,
             chain,
             addresses: {
+              ...registryAddresses[chain],
               deployedTokenRoute: deployedConfig.addressOrDenom!,
             },
           },
@@ -642,7 +648,9 @@ async function enrollRemoteRouters(
   deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
 ): Promise<AnnotatedEV5Transaction[]> {
   logBlue(`Enrolling deployed routers with each other...`);
-  const { multiProvider } = params.context;
+  const { multiProvider, registry } = params.context;
+  const registryAddresses =
+    (await registry.getAddresses()) as ChainMap<ProxyFactoryFactoriesAddresses>;
   const deployedRoutersAddresses: ChainMap<Address> = objMap(
     deployedContractsMap,
     (_, contracts) => getRouter(contracts).address,
@@ -670,7 +678,10 @@ async function enrollRemoteRouters(
         const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
           config: mutatedWarpRouteConfig,
           chain,
-          addresses: { deployedTokenRoute: router.address },
+          addresses: {
+            ...registryAddresses[chain],
+            deployedTokenRoute: router.address,
+          },
         });
 
         const otherChains = multiProvider
@@ -881,12 +892,20 @@ async function submitWarpApplyTransactions(
   params: WarpApplyParams,
   chainTransactions: Record<string, AnnotatedEV5Transaction[]>,
 ): Promise<void> {
-  const { multiProvider } = params.context;
+  // Create mapping of chain ID to chain name for all chains in warpDeployConfig
+  const chains = Object.keys(params.warpDeployConfig);
+  const chainIdToName = Object.fromEntries(
+    chains.map((chain) => [
+      params.context.multiProvider.getChainId(chain),
+      chain,
+    ]),
+  );
+
   await promiseObjAll(
     objMap(chainTransactions, async (chainId, transactions) => {
       await retryAsync(
         async () => {
-          const chain = multiProvider.getChainName(chainId);
+          const chain = chainIdToName[chainId];
           const submitter: TxSubmitterBuilder<ProtocolType> =
             await getWarpApplySubmitter({
               chain,
@@ -925,18 +944,18 @@ async function getWarpApplySubmitter({
   context: WriteCommandContext;
   strategyUrl?: string;
 }): Promise<TxSubmitterBuilder<ProtocolType>> {
-  const { chainMetadata, multiProvider } = context;
+  const { multiProvider } = context;
 
   const submissionStrategy: SubmissionStrategy = strategyUrl
     ? readChainSubmissionStrategy(strategyUrl)[chain]
     : {
         submitter: {
+          chain,
           type: TxSubmitterType.JSON_RPC,
         },
       };
 
-  const protocol = chainMetadata[chain].protocol;
-  return getSubmitterBuilder<typeof protocol>({
+  return getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
     multiProvider,
   });

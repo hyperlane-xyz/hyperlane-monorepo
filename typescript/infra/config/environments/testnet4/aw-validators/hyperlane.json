@@ -1,4 +1,10 @@
 {
+  "abstracttestnet": {
+    "validators": ["0x7655bc4c9802bfcb3132b8822155b60a4fbbce3e"]
+  },
+  "alephzeroevmtestnet": {
+    "validators": ["0x556cd94bcb6e5773e8df75e7eb3f91909d266a26"]
+  },
   "alfajores": {
     "validators": [
       "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
@@ -8,6 +14,9 @@
   },
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
+  },
+  "arcadiatestnet2": {
+    "validators": ["0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"]
   },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
@@ -47,6 +56,9 @@
   "holesky": {
     "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
   },
+  "inksepolia": {
+    "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
+  },
   "odysseytestnet": {
     "validators": ["0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3"]
   },
@@ -81,6 +93,9 @@
   },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
+  },
+  "treasuretopaz": {
+    "validators": ["0x9750849beda0a7870462d4685f953fe39033a5ae"]
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
