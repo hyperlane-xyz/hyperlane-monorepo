@@ -24,7 +24,11 @@ import {
 } from '../../../src/config/environment.js';
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 import { startMetricsServer } from '../../../src/utils/metrics.js';
-import { getArgs, withWarpRouteIdRequired } from '../../agent-utils.js';
+import {
+  getArgs,
+  getWarpRouteIdInteractive,
+  withWarpRouteId,
+} from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 import {
@@ -37,13 +41,18 @@ import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
 import { logger, tryFn } from './utils.js';
 
 async function main() {
-  const { checkFrequency, environment, warpRouteId } =
-    await withWarpRouteIdRequired(getArgs())
-      .describe('checkFrequency', 'frequency to check balances in ms')
-      .demandOption('checkFrequency')
-      .alias('v', 'checkFrequency') // v as in Greek letter nu
-      .number('checkFrequency')
-      .parse();
+  const {
+    checkFrequency,
+    environment,
+    warpRouteId: warpRouteIdArg,
+  } = await withWarpRouteId(getArgs())
+    .describe('checkFrequency', 'frequency to check balances in ms')
+    .demandOption('checkFrequency')
+    .alias('v', 'checkFrequency') // v as in Greek letter nu
+    .number('checkFrequency')
+    .parse();
+
+  const warpRouteId = warpRouteIdArg || (await getWarpRouteIdInteractive());
 
   startMetricsServer(metricsRegister);
 

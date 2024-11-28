@@ -38,6 +38,7 @@ import { logViolationDetails } from '../../src/utils/violation.js';
 import {
   Modules,
   getArgs as getRootArgs,
+  getWarpRouteIdInteractive,
   withAsDeployer,
   withChains,
   withContext,
@@ -192,7 +193,7 @@ export async function getGovernor(
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
     if (!warpRouteId) {
-      throw new Error('Warp route id required for warp module');
+      warpRouteId = await getWarpRouteIdInteractive();
     }
     const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
     const warpAddresses = getWarpAddresses(warpRouteId);
