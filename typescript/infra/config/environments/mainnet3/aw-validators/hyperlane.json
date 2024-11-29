@@ -169,6 +169,9 @@
   "lumia": {
     "validators": ["0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f"]
   },
+  "lumiaprism": {
+    "validators": ["0xb69731640ffd4338a2c9358a935b0274c6463f85"]
+  },
   "mantapacific": {
     "validators": [
       "0x8e668c97ad76d0e28375275c41ece4972ab8a5bc",
@@ -292,6 +295,9 @@
   },
   "superpositionmainnet": {
     "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
+  },
+  "swell": {
+    "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]

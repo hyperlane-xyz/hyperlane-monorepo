@@ -448,6 +448,7 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
+  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
@@ -515,6 +516,7 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
+export { getValidatorFromStorageLocation } from './utils/validator.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -578,3 +580,4 @@ export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export { GcpValidator } from './gcp/validator.js';

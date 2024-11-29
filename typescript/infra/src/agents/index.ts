@@ -2,7 +2,7 @@ import fs from 'fs';
 import { join } from 'path';
 
 import { ChainName, RelayerConfig, RpcConsensusType } from '@hyperlane-xyz/sdk';
-import { objFilter, objOmit, objOmitKeys, pick } from '@hyperlane-xyz/utils';
+import { objOmitKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
