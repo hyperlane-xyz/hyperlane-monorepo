@@ -144,7 +144,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     this.cachedAllActualDecimals = Object.fromEntries(entries);
 
-    return Object.fromEntries(entries);
+    return this.cachedAllActualDecimals!;
   }
 
   async getActualDecimals(
@@ -164,7 +164,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       decimals = await collateralToken.decimals();
     }
 
-    if (!decimals) {
+    if (decimals === undefined) {
       throw new Error('Actual decimals not found');
     }
 
