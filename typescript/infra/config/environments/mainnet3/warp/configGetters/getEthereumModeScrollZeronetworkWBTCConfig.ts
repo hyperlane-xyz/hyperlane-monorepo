@@ -2,11 +2,14 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  OwnableConfig,
   RouterConfig,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
+
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 const collateralAddresses: ChainMap<Address> = {
   ethereum: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
@@ -15,10 +18,16 @@ const collateralAddresses: ChainMap<Address> = {
 };
 
 export const getEthereumModeScrollZeronetworkWBTCConfig = async (
-  routerConfig: ChainMap<RouterConfig>,
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
+    proxyAdmin: {
+      ...abacusWorksEnvOwnerConfig.ethereum,
+      address: '0x67eB139588813Eb311C539Ac51C2638f3A318Ba7',
+    },
     type: TokenType.collateral,
     token: collateralAddresses.ethereum,
     interchainSecurityModule: ethers.constants.AddressZero,
@@ -26,6 +35,11 @@ export const getEthereumModeScrollZeronetworkWBTCConfig = async (
 
   const mode: TokenRouterConfig = {
     ...routerConfig.mode,
+    ...abacusWorksEnvOwnerConfig.mode,
+    proxyAdmin: {
+      ...abacusWorksEnvOwnerConfig.mode,
+      address: '0xEfad3f079048bE2765b6bCfAa3E9d99e9A2C3Df6',
+    },
     type: TokenType.collateral,
     token: collateralAddresses.mode,
     interchainSecurityModule: ethers.constants.AddressZero,
@@ -33,6 +47,11 @@ export const getEthereumModeScrollZeronetworkWBTCConfig = async (
 
   const scroll: TokenRouterConfig = {
     ...routerConfig.scroll,
+    ...abacusWorksEnvOwnerConfig.scroll,
+    proxyAdmin: {
+      ...abacusWorksEnvOwnerConfig.scroll,
+      address: '0xD5EBCD7473bf128Ac6B2EB487c707Aa33436e5Dd',
+    },
     type: TokenType.collateral,
     token: collateralAddresses.scroll,
     interchainSecurityModule: ethers.constants.AddressZero,
@@ -40,6 +59,11 @@ export const getEthereumModeScrollZeronetworkWBTCConfig = async (
 
   const zeronetwork: TokenRouterConfig = {
     ...routerConfig.zeronetwork,
+    ...abacusWorksEnvOwnerConfig.zeronetwork,
+    proxyAdmin: {
+      ...abacusWorksEnvOwnerConfig.zeronetwork,
+      address: '0x62F55b3a17267bf704D1E1824D4a2316e4fd9Ba3',
+    },
     type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
