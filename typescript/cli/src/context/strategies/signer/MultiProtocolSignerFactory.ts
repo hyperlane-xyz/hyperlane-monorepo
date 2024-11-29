@@ -1,5 +1,6 @@
 import { password } from '@inquirer/prompts';
 import { Signer, Wallet } from 'ethers';
+import { Account as StarknetAccount } from 'starknet';
 
 import {
   ChainName,
@@ -8,7 +9,7 @@ import {
   MultiProvider,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   BaseMultiProtocolSigner,
@@ -29,6 +30,8 @@ export class MultiProtocolSignerFactory {
         if (technicalStack === ChainTechnicalStack.ZkSync)
           return new ZKSyncSignerStrategy(strategyConfig);
         return new EthereumSignerStrategy(strategyConfig);
+      case ProtocolType.Starknet:
+        return new StarknetSignerStrategy(strategyConfig);
       default:
         throw new Error(`Unsupported protocol: ${protocol}`);
     }
@@ -75,5 +78,40 @@ class ZKSyncSignerStrategy extends BaseMultiProtocolSigner {
 
   getSigner(config: SignerConfig): Signer {
     return new Wallet(config.privateKey);
+  }
+}
+
+class StarknetSignerStrategy extends BaseMultiProtocolSigner {
+  async getSignerConfig(chain: ChainName): Promise<SignerConfig> {
+    const submitter = this.config[chain]?.submitter as {
+      privateKey?: string;
+      address?: string;
+    };
+
+    const privateKey =
+      submitter?.privateKey ??
+      (await password({
+        message: `Please enter the private key for chain ${chain}`,
+      }));
+
+    const address =
+      submitter?.address ??
+      (await password({
+        message: `Please enter the signer address for chain ${chain}`,
+      }));
+
+    return { privateKey, address };
+  }
+
+  getSigner({
+    privateKey,
+    address,
+    extraParams,
+  }: SignerConfig): StarknetAccount {
+    assert(
+      address && extraParams?.provider,
+      'Missing StarknetAccount arguments',
+    );
+    return new StarknetAccount(extraParams.provider, address, privateKey);
   }
 }

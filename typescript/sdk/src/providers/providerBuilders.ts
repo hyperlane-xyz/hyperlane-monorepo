@@ -138,7 +138,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.Viem]: defaultViemProviderBuilder,
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
-  [ProviderType.CosmJsWasm]: defaultStarknetJsProviderBuilder,
+  [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
   [ProviderType.Starknet]: defaultStarknetJsProviderBuilder,
 };
 
