@@ -109,6 +109,7 @@ export {
   arrayToObject,
   deepCopy,
   deepEquals,
+  deepFind,
   diffObjMerge,
   invertKeysAndValues,
   isObjEmpty,
@@ -140,6 +141,7 @@ export {
   streamToString,
   toHexString,
   toTitleCase,
+  toUpperCamelCase,
   trimToLength,
 } from './strings.js';
 export { isNullish, isNumeric } from './typeof.js';
@@ -169,6 +171,7 @@ export {
   S3CheckpointWithId,
   SignatureLike,
   TokenCaip19Id,
+  ValidatorMetadata,
   WithAddress,
 } from './types.js';
 export { isHttpsUrl, isRelativeUrl, isUrl } from './url.js';

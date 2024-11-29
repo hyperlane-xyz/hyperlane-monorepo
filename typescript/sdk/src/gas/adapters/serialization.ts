@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { PublicKey } from '@solana/web3.js';
 
 import { Domain } from '@hyperlane-xyz/utils';

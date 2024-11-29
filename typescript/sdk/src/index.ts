@@ -13,7 +13,10 @@ export {
   TOKEN_EXCHANGE_RATE_SCALE,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
-export { defaultMultisigConfigs } from './consts/multisigIsm.js';
+export {
+  AW_VALIDATOR_ALIAS,
+  defaultMultisigConfigs,
+} from './consts/multisigIsm.js';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
 export {
   TestChainName,
@@ -135,12 +138,12 @@ export {
 } from './gas/types.js';
 export { EvmHookReader } from './hook/EvmHookReader.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
-export { HookConfigSchema } from './hook/schemas.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
+  HookConfigSchema,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
@@ -150,9 +153,11 @@ export {
 } from './hook/types.js';
 export { DerivedIsmConfig, EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
+export { decodeIsmMetadata } from './ism/metadata/decode.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
+  multisigConfigToIsmConfig,
 } from './ism/multisig.js';
 export {
   AggregationIsmConfig,
@@ -441,6 +446,7 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
+  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
@@ -508,6 +514,7 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
+export { getValidatorFromStorageLocation } from './utils/validator.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -522,8 +529,8 @@ export {
   AggregationIsmConfigSchema,
   IsmConfigSchema,
   MultisigIsmConfigSchema,
-} from './ism/schemas.js';
-export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
+} from './ism/types.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/types.js';
 export {
   CollateralConfig,
   NativeConfig,
@@ -570,3 +577,4 @@ export {
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export { GcpValidator } from './gcp/validator.js';

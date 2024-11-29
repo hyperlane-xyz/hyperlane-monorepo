@@ -526,6 +526,14 @@ export abstract class SealevelHypTokenAdapter
     );
   }
 
+  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/4b3537470eff0139163a2a7aa1d19fc708a992c6/rust/sealevel/programs/hyperlane-sealevel-token/src/plugin.rs#L43-L51
+  deriveAtaPayerAccount(): PublicKey {
+    return super.derivePda(
+      ['hyperlane_token', '-', 'ata_payer'],
+      this.warpProgramPubKey,
+    );
+  }
+
   /**
    * Fetches the median prioritization fee for transfers of the collateralAddress token.
    * @returns The median prioritization fee in micro-lamports
@@ -632,6 +640,10 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
       ['hyperlane_token', '-', 'native_collateral'],
       this.warpProgramPubKey,
     );
+  }
+
+  deriveAtaPayerAccount(): PublicKey {
+    throw new Error('No ATA payer is used for native warp routes');
   }
 }
 

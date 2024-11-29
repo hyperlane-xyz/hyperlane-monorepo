@@ -1,5 +1,19 @@
 # @hyperlane-xyz/sdk
 
+## 7.2.0
+
+### Minor Changes
+
+- 81ab4332f: Remove ismFactoryAddresses from warpConfig
+- 4b3537470: Changed the type of defaultMultisigConfigs, to track validator aliases in addition to their addresses.
+- fa6d5f5c6: Add decodeIsmMetadata function
+
+### Patch Changes
+
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/utils@7.2.0
+  - @hyperlane-xyz/core@5.8.2
+
 ## 7.1.0
 
 ### Minor Changes

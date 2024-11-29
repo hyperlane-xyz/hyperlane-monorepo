@@ -136,13 +136,18 @@ export async function runWarpRouteDeploy({
 
   await runDeployPlanStep(deploymentParams);
 
+  // Some of the below functions throw if passed non-EVM chains
+  const ethereumChains = chains.filter(
+    (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
+  );
+
   await runPreflightChecksForChains({
     context,
-    chains,
+    chains: ethereumChains,
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const initialBalances = await prepareDeploy(context, null, chains);
+  const initialBalances = await prepareDeploy(context, null, ethereumChains);
 
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
@@ -153,7 +158,7 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context);
 
-  await completeDeploy(context, 'warp', initialBalances, null, chains!);
+  await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -939,7 +944,7 @@ async function getWarpApplySubmitter({
   context: WriteCommandContext;
   strategyUrl?: string;
 }): Promise<TxSubmitterBuilder<ProtocolType>> {
-  const { chainMetadata, multiProvider } = context;
+  const { multiProvider } = context;
 
   const submissionStrategy: SubmissionStrategy = strategyUrl
     ? readChainSubmissionStrategy(strategyUrl)[chain]
@@ -950,8 +955,7 @@ async function getWarpApplySubmitter({
         },
       };
 
-  const protocol = chainMetadata[chain].protocol;
-  return getSubmitterBuilder<typeof protocol>({
+  return getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
     multiProvider,
   });

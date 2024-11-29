@@ -124,7 +124,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
         return tokenType as TokenType;
-      } catch (e) {
+      } catch {
         continue;
       } finally {
         this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
