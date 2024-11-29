@@ -95,7 +95,6 @@ export const DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH =
   './configs/warp-route-deployment.yaml';
 
 export const DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH = './configs/core-config.yaml';
-export const DEFAULT_STRATEGY_CONFIG_PATH = `${os.homedir()}/.hyperlane/strategies/default-strategy.yaml`;
 
 export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
@@ -197,8 +196,8 @@ export const transactionsCommandOption: Options = {
 export const strategyCommandOption: Options = {
   type: 'string',
   description: 'The submission strategy input file path.',
-  alias: ['s', 'strategy'],
-  demandOption: false,
+  alias: 's',
+  demandOption: true,
 };
 
 export const addressCommandOption = (
