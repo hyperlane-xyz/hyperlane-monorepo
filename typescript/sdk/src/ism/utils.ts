@@ -270,7 +270,7 @@ export async function moduleMatchesConfig(
         let mailboxAddress;
         try {
           mailboxAddress = await client.mailbox();
-        } catch (error) {
+        } catch {
           matches = false;
           break;
         }

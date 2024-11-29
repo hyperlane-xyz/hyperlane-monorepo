@@ -14,24 +14,18 @@ import {
 } from '@inquirer/core';
 import figures from '@inquirer/figures';
 import { KeypressEvent, confirm, input, isSpaceKey } from '@inquirer/prompts';
-import type { PartialDeep } from '@inquirer/type';
+import type { PartialDeep, Prompt } from '@inquirer/type';
 import ansiEscapes from 'ansi-escapes';
 import chalk from 'chalk';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import {
-  ChainName,
-  DeployedOwnableConfig,
-  WarpCoreConfig,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, DeployedOwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address, isAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { readWarpCoreConfig } from '../config/warp.js';
 import { CommandContext } from '../context/types.js';
-import { logGray, logRed } from '../logger.js';
+import { logGray } from '../logger.js';
 
 import { indentYamlOrJson } from './files.js';
-import { selectRegistryWarpRoute } from './tokens.js';
 
 export async function detectAndConfirmOrPrompt(
   detect: () => Promise<string | undefined>,
@@ -52,8 +46,9 @@ export async function detectAndConfirmOrPrompt(
         return detectedValue;
       }
     }
-    // eslint-disable-next-line no-empty
-  } catch (e) {}
+  } catch {
+    // Fallback to input prompt
+  }
   return input({ message: `${prompt} ${label}:`, default: detectedValue });
 }
 
@@ -134,34 +129,6 @@ export async function setProxyAdminConfig(
       `Failed to read owner address from ProxyAdmin contract at ${proxy.address}. Are you sure this is a ProxyAdmin contract?`,
     );
   }
-}
-
-/**
- * Gets a {@link WarpCoreConfig} based on the provided path or prompts the user to choose one:
- * - if `symbol` is provided the user will have to select one of the available warp routes.
- * - if `warp` is provided the config will be read by the provided file path.
- * - if none is provided the CLI will exit.
- */
-export async function getWarpCoreConfigOrExit({
-  context,
-  symbol,
-  warp,
-}: {
-  context: CommandContext;
-  symbol?: string;
-  warp?: string;
-}): Promise<WarpCoreConfig> {
-  let warpCoreConfig: WarpCoreConfig;
-  if (symbol) {
-    warpCoreConfig = await selectRegistryWarpRoute(context.registry, symbol);
-  } else if (warp) {
-    warpCoreConfig = readWarpCoreConfig(warp);
-  } else {
-    logRed(`Please specify either a symbol or warp config`);
-    process.exit(0);
-  }
-
-  return warpCoreConfig;
 }
 
 /**
@@ -497,7 +464,10 @@ function isDownKey(key: KeypressEvent): boolean {
   return key.name === 'down';
 }
 
-export const searchableCheckBox = createPrompt(
+export const searchableCheckBox: Prompt<
+  any,
+  SearchableCheckboxConfig<any>
+> = createPrompt(
   <Value>(
     config: SearchableCheckboxConfig<Value>,
     done: (value: Array<Value>) => void,

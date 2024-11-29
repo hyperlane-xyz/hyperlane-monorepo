@@ -1,5 +1,6 @@
 import { PopulatedTransaction } from 'ethers';
 
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
@@ -9,11 +10,12 @@ import {
   IHypXERC20Adapter,
   MultiProtocolProvider,
   RouterConfig,
+  SealevelHypTokenAdapter,
   Token,
   TokenStandard,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, objMerge } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../../config/registry.js';
 import {
@@ -22,25 +24,35 @@ import {
 } from '../../../src/config/environment.js';
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 import { startMetricsServer } from '../../../src/utils/metrics.js';
-import { getArgs, withWarpRouteIdRequired } from '../../agent-utils.js';
+import {
+  getArgs,
+  getWarpRouteIdInteractive,
+  withWarpRouteId,
+} from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 import {
   metricsRegister,
+  updateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
-import { WarpRouteBalance, XERC20Limit } from './types.js';
+import { NativeWalletBalance, WarpRouteBalance, XERC20Limit } from './types.js';
 import { logger, tryFn } from './utils.js';
 
 async function main() {
-  const { checkFrequency, environment, warpRouteId } =
-    await withWarpRouteIdRequired(getArgs())
-      .describe('checkFrequency', 'frequency to check balances in ms')
-      .demandOption('checkFrequency')
-      .alias('v', 'checkFrequency') // v as in Greek letter nu
-      .number('checkFrequency')
-      .parse();
+  const {
+    checkFrequency,
+    environment,
+    warpRouteId: warpRouteIdArg,
+  } = await withWarpRouteId(getArgs())
+    .describe('checkFrequency', 'frequency to check balances in ms')
+    .demandOption('checkFrequency')
+    .alias('v', 'checkFrequency') // v as in Greek letter nu
+    .number('checkFrequency')
+    .parse();
+
+  const warpRouteId = warpRouteIdArg || (await getWarpRouteIdInteractive());
 
   startMetricsServer(metricsRegister);
 
@@ -78,7 +90,7 @@ async function pollAndUpdateWarpRouteMetrics(
     apiKey: await getCoinGeckoApiKey(),
   });
 
-  setInterval(async () => {
+  while (true) {
     await tryFn(async () => {
       await Promise.all(
         warpCore.tokens.map((token) =>
@@ -86,7 +98,8 @@ async function pollAndUpdateWarpRouteMetrics(
         ),
       );
     }, 'Updating warp route metrics');
-  }, checkFrequency);
+    await sleep(checkFrequency);
+  }
 }
 
 // Updates the metrics for a single token in a warp route.
@@ -108,6 +121,19 @@ async function updateTokenMetrics(
       updateTokenBalanceMetrics(warpCore, token, balanceInfo);
     }, 'Getting bridged balance and value'),
   ];
+
+  // For Sealevel collateral and synthetic tokens, there is an
+  // "Associated Token Account" (ATA) rent payer that has a balance
+  // that's used to pay for rent for the accounts that store user balances.
+  // This is necessary if the recipient has never received any tokens before.
+  if (token.protocol === ProtocolType.Sealevel && !token.isNative()) {
+    promises.push(
+      tryFn(async () => {
+        const balance = await getSealevelAtaPayerBalance(warpCore, token);
+        updateNativeWalletBalanceMetrics(balance);
+      }, 'Getting ATA payer balance'),
+    );
+  }
 
   if (token.isXerc20()) {
     promises.push(
@@ -152,6 +178,44 @@ async function getTokenBridgedBalance(
   return {
     balance,
     valueUSD: tokenPrice ? balance * tokenPrice : undefined,
+  };
+}
+
+// Gets the native balance of the ATA payer, which is used to pay for
+// rent when delivering tokens to an account that previously didn't
+// have a balance.
+// Only intended for Collateral or Synthetic Sealevel tokens.
+async function getSealevelAtaPayerBalance(
+  warpCore: WarpCore,
+  token: Token,
+): Promise<NativeWalletBalance> {
+  if (token.protocol !== ProtocolType.Sealevel || token.isNative()) {
+    throw new Error(
+      `Unsupported ATA payer protocol type ${token.protocol} or standard ${token.standard}`,
+    );
+  }
+  const adapter = token.getHypAdapter(
+    warpCore.multiProvider,
+  ) as SealevelHypTokenAdapter;
+
+  const ataPayer = adapter.deriveAtaPayerAccount().toString();
+  const nativeToken = Token.FromChainMetadataNativeToken(
+    warpCore.multiProvider.getChainMetadata(token.chainName),
+  );
+  const ataPayerBalance = await nativeToken.getBalance(
+    warpCore.multiProvider,
+    ataPayer,
+  );
+
+  const warpRouteId = createWarpRouteConfigId(
+    token.symbol,
+    warpCore.getTokenChains(),
+  );
+  return {
+    chain: token.chainName,
+    walletAddress: ataPayer.toString(),
+    walletName: `${warpRouteId}/ata-payer`,
+    balance: ataPayerBalance.getDecimalFormattedAmount(),
   };
 }
 
@@ -246,9 +310,7 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
   return apiKey;
 }
 
-main()
-  .then(logger.info)
-  .catch((err) => {
-    logger.error('Error in main', err);
-    process.exit(1);
-  });
+main().catch((err) => {
+  logger.error('Error in main:', err);
+  process.exit(1);
+});

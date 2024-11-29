@@ -1,5 +1,40 @@
 # @hyperlane-xyz/cli
 
+## 7.2.0
+
+### Minor Changes
+
+- d51815760: Support using the CLI to deploy warp routes that involve foreign deployments
+- 81ab4332f: Remove ismFactoryAddresses from warpConfig
+- 4b3537470: Changed the type of defaultMultisigConfigs, to track validator aliases in addition to their addresses.
+
+### Patch Changes
+
+- Updated dependencies [81ab4332f]
+- Updated dependencies [4b3537470]
+- Updated dependencies [fa6d5f5c6]
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/sdk@7.2.0
+  - @hyperlane-xyz/utils@7.2.0
+
+## 7.1.0
+
+### Minor Changes
+
+- 5db46bd31: Implements persistent relayer for use in CLI
+
+### Patch Changes
+
+- Updated dependencies [6f2d50fbd]
+- Updated dependencies [1159e0f4b]
+- Updated dependencies [0e285a443]
+- Updated dependencies [ff2b4e2fb]
+- Updated dependencies [0e285a443]
+- Updated dependencies [5db46bd31]
+- Updated dependencies [0cd65c571]
+  - @hyperlane-xyz/sdk@7.1.0
+  - @hyperlane-xyz/utils@7.1.0
+
 ## 7.0.0
 
 ### Minor Changes

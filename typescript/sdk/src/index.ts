@@ -13,7 +13,10 @@ export {
   TOKEN_EXCHANGE_RATE_SCALE,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
-export { defaultMultisigConfigs } from './consts/multisigIsm.js';
+export {
+  AW_VALIDATOR_ALIAS,
+  defaultMultisigConfigs,
+} from './consts/multisigIsm.js';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
 export {
   TestChainName,
@@ -26,7 +29,6 @@ export {
   testCosmosChain,
   testSealevelChain,
 } from './consts/testChains.js';
-export { randomAddress } from './test/testUtils.js';
 export {
   attachAndConnectContracts,
   attachContracts,
@@ -137,12 +139,12 @@ export {
 } from './gas/types.js';
 export { EvmHookReader } from './hook/EvmHookReader.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
-export { HookConfigSchema } from './hook/schemas.js';
 export {
   AggregationHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
+  HookConfigSchema,
   HookType,
   IgpHookConfig,
   MerkleTreeHookConfig,
@@ -150,11 +152,13 @@ export {
   PausableHookConfig,
   ProtocolFeeHookConfig,
 } from './hook/types.js';
-export { EvmIsmReader } from './ism/EvmIsmReader.js';
+export { DerivedIsmConfig, EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
+export { decodeIsmMetadata } from './ism/metadata/decode.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
+  multisigConfigToIsmConfig,
 } from './ism/multisig.js';
 export {
   AggregationIsmConfig,
@@ -330,6 +334,7 @@ export {
   SmartProviderOptions,
 } from './providers/SmartProvider/types.js';
 export { CallData } from './providers/transactions/types.js';
+export { randomAddress } from './test/testUtils.js';
 
 export { SubmitterMetadataSchema } from './providers/transactions/submitter/schemas.js';
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -371,6 +376,10 @@ export { EV5TxTransformerInterface } from './providers/transactions/transformer/
 export { EV5InterchainAccountTxTransformerPropsSchema } from './providers/transactions/transformer/ethersV5/schemas.js';
 export { EV5InterchainAccountTxTransformerProps } from './providers/transactions/transformer/ethersV5/types.js';
 
+export {
+  chainMetadataToCosmosChain,
+  chainMetadataToViemChain,
+} from './metadata/chainMetadataConversion.js';
 export {
   EvmGasRouterAdapter,
   EvmRouterAdapter,
@@ -438,6 +447,7 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
+  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
@@ -497,6 +507,7 @@ export {
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
+export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export {
   SealevelAccountDataWrapper,
@@ -504,7 +515,7 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
-export { chainMetadataToViemChain } from './utils/viem.js';
+export { getValidatorFromStorageLocation } from './utils/validator.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -519,8 +530,8 @@ export {
   AggregationIsmConfigSchema,
   IsmConfigSchema,
   MultisigIsmConfigSchema,
-} from './ism/schemas.js';
-export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/schemas.js';
+} from './ism/types.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/types.js';
 export {
   CollateralConfig,
   NativeConfig,
@@ -534,7 +545,7 @@ export {
   isSyntheticRebaseConfig,
   isTokenMetadata,
 } from './token/schemas.js';
-export { isCompliant } from './utils/schemas.js';
+export { isCompliant, validateZodResult } from './utils/schemas.js';
 
 export {
   canProposeSafeTransactions,
@@ -568,4 +579,5 @@ export {
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export { GcpValidator } from './gcp/validator.js';
 export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';

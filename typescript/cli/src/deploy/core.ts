@@ -3,12 +3,12 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
   ChainName,
   ContractVerifier,
   CoreConfig,
+  DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
   StarknetCoreModule,
@@ -47,7 +47,6 @@ export async function runCoreDeploy(params: DeployParams) {
   let chain = params.chain;
 
   const {
-    signer,
     isDryRun,
     chainMetadata,
     dryRunChain,
@@ -66,13 +65,14 @@ export async function runCoreDeploy(params: DeployParams) {
       'Select chain to connect:',
     );
   }
-
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
 
+  const signer = multiProvider.getSigner(chain);
+
   const deploymentParams: DeployParams = {
-    context,
+    context: { ...context, signer },
     chain,
     config,
   };

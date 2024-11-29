@@ -501,6 +501,11 @@ impl Mailbox for SealevelMailbox {
         // If we're using Jito, we need to send a tip to the Jito fee account.
         // Otherwise, we need to set the compute unit price.
         if self.use_jito() {
+            let tip: u64 = std::env::var("JITO_TIP_LAMPORTS")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX);
+
             // The tip is a standalone transfer to a Jito fee account.
             // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
             instructions.push(solana_sdk::system_instruction::transfer(
@@ -508,7 +513,7 @@ impl Mailbox for SealevelMailbox {
                 // A random Jito fee account, taken from the getFeeAccount RPC response:
                 // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
                 &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
-                PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX,
+                tip,
             ));
         }
         // "processed" level commitment does not guarantee finality.
@@ -648,10 +653,15 @@ pub struct SealevelMailboxIndexer {
     program_id: Pubkey,
     dispatch_message_log_meta_composer: LogMetaComposer,
     delivery_message_log_meta_composer: LogMetaComposer,
+    advanced_log_meta: bool,
 }
 
 impl SealevelMailboxIndexer {
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+        advanced_log_meta: bool,
+    ) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let mailbox = SealevelMailbox::new(conf, locator, None)?;
 
@@ -672,15 +682,12 @@ impl SealevelMailboxIndexer {
             mailbox,
             dispatch_message_log_meta_composer,
             delivery_message_log_meta_composer,
+            advanced_log_meta,
         })
     }
 
     fn rpc(&self) -> &SealevelRpcClient {
         &self.mailbox.rpc()
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.rpc().get_block_height().await
     }
 
     async fn get_dispatched_message_with_nonce(
@@ -716,23 +723,24 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
-        // let log_meta = self
-        //     .dispatch_message_log_meta(
-        //         U256::from(nonce),
-        //         &valid_message_storage_pda_pubkey,
-        //         &dispatched_message_account.slot,
-        //     )
-        //     .await?;
-
-        let log_meta = LogMeta {
-            address: self.program_id.to_bytes().into(),
-            block_number: dispatched_message_account.slot,
-            // TODO: get these when building out scraper support.
-            // It's inconvenient to get these :|
-            block_hash: H256::zero(),
-            transaction_id: H512::zero(),
-            transaction_index: 0,
-            log_index: U256::zero(),
+        let log_meta = if self.advanced_log_meta {
+            self.dispatch_message_log_meta(
+                U256::from(nonce),
+                &valid_message_storage_pda_pubkey,
+                &dispatched_message_account.slot,
+            )
+            .await?
+        } else {
+            LogMeta {
+                address: self.program_id.to_bytes().into(),
+                block_number: dispatched_message_account.slot,
+                // TODO: get these when building out scraper support.
+                // It's inconvenient to get these :|
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                transaction_index: 0,
+                log_index: U256::zero(),
+            }
         };
 
         Ok((hyperlane_message.into(), log_meta))
@@ -752,7 +760,7 @@ impl SealevelMailboxIndexer {
         Ok(expected_pubkey)
     }
 
-    async fn _dispatch_message_log_meta(
+    async fn dispatch_message_log_meta(
         &self,
         log_index: U256,
         message_storage_pda_pubkey: &Pubkey,
@@ -809,23 +817,24 @@ impl SealevelMailboxIndexer {
             .into_inner();
         let message_id = delivered_message_account.message_id;
 
-        // let log_meta = self
-        //     .delivered_message_log_meta(
-        //         U256::from(nonce),
-        //         &valid_message_storage_pda_pubkey,
-        //         &delivered_message_account.slot,
-        //     )
-        //     .await?;
-
-        let log_meta = LogMeta {
-            address: self.program_id.to_bytes().into(),
-            block_number: delivered_message_account.slot,
-            // TODO: get these when building out scraper support.
-            // It's inconvenient to get these :|
-            block_hash: H256::zero(),
-            transaction_id: H512::zero(),
-            transaction_index: 0,
-            log_index: U256::zero(),
+        let log_meta = if self.advanced_log_meta {
+            self.delivered_message_log_meta(
+                U256::from(nonce),
+                &valid_message_storage_pda_pubkey,
+                &delivered_message_account.slot,
+            )
+            .await?
+        } else {
+            LogMeta {
+                address: self.program_id.to_bytes().into(),
+                block_number: delivered_message_account.slot,
+                // TODO: get these when building out scraper support.
+                // It's inconvenient to get these :|
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                transaction_index: 0,
+                log_index: U256::zero(),
+            }
         };
 
         Ok((message_id.into(), log_meta))
@@ -843,7 +852,7 @@ impl SealevelMailboxIndexer {
         Ok(expected_pubkey)
     }
 
-    async fn _delivered_message_log_meta(
+    async fn delivered_message_log_meta(
         &self,
         log_index: U256,
         message_storage_pda_pubkey: &Pubkey,
@@ -868,17 +877,6 @@ impl SealevelMailboxIndexer {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    #[instrument(err, skip(self))]
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
-        Ok((Some(count), tip))
-    }
-}
-
-#[async_trait]
 impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     async fn fetch_logs_in_range(
         &self,
@@ -898,7 +896,21 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
+    }
+}
+
+#[async_trait]
+impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
+    #[instrument(err, skip(self))]
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.mailbox.provider.rpc().get_slot().await?;
+        // TODO: need to make sure the call and tip are at the same height?
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
+        Ok((Some(count), tip))
     }
 }
 
@@ -922,7 +934,10 @@ impl Indexer<H256> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
     }
 }
 
@@ -931,7 +946,7 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         // TODO: implement when sealevel scraper support is implemented
         info!("Message delivery indexing not implemented");
-        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        let tip = self.mailbox.provider.rpc().get_slot().await?;
         Ok((Some(1), tip))
     }
 }

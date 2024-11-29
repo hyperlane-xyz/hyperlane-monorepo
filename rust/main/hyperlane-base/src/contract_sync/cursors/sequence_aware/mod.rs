@@ -73,7 +73,7 @@ impl<T: Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
     /// Construct a new contract sync helper.
     pub async fn new(
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-        db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+        store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         chunk_size: u32,
         mode: IndexMode,
     ) -> Result<Self> {
@@ -86,13 +86,13 @@ impl<T: Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
         let forward_cursor = ForwardSequenceAwareSyncCursor::new(
             chunk_size,
             latest_sequence_querier.clone(),
-            db.clone(),
+            store.clone(),
             sequence_count,
             tip,
             mode,
         );
         let backward_cursor =
-            BackwardSequenceAwareSyncCursor::new(chunk_size, db, sequence_count, tip, mode);
+            BackwardSequenceAwareSyncCursor::new(chunk_size, store, sequence_count, tip, mode);
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,
