@@ -4,6 +4,7 @@ import { Gauge, Registry } from 'prom-client';
 import { warpConfigGetterMap } from '../../config/warp.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules, getWarpRouteIdsInteractive } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
   getCheckWarpDeployArgs,
@@ -22,6 +23,10 @@ async function main() {
     pushMetrics,
     interactive,
   } = await getCheckWarpDeployArgs().argv;
+
+  const envConfig = getEnvironmentConfig(environment);
+  // Get the multiprovider once to avoid recreating it for each warp route
+  const multiProvider = await envConfig.getMultiProvider();
 
   const metricsRegister = new Registry();
   const checkerViolationsGauge = new Gauge(
@@ -50,6 +55,8 @@ async function main() {
         warpRouteId,
         chains,
         fork,
+        false,
+        multiProvider,
       );
 
       await governor.check();

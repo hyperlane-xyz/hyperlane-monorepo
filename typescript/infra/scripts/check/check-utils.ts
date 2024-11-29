@@ -14,6 +14,7 @@ import {
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  MultiProvider,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
   proxiedFactories,
@@ -37,12 +38,12 @@ import { logViolationDetails } from '../../src/utils/violation.js';
 import {
   Modules,
   getArgs as getRootArgs,
+  getWarpRouteIdInteractive,
   withAsDeployer,
   withChains,
   withContext,
   withFork,
   withGovern,
-  withInteractive,
   withModule,
   withPushMetrics,
   withWarpRouteId,
@@ -57,7 +58,7 @@ export function getCheckBaseArgs() {
 }
 
 export function getCheckWarpDeployArgs() {
-  return withInteractive(withPushMetrics(getCheckBaseArgs()));
+  return withPushMetrics(getCheckBaseArgs());
 }
 
 export function getCheckDeployArgs() {
@@ -73,9 +74,13 @@ export async function getGovernor(
   chains?: string[],
   fork?: string,
   govern?: boolean,
+  multiProvider: MultiProvider | undefined = undefined,
 ) {
   const envConfig = getEnvironmentConfig(environment);
-  let multiProvider = await envConfig.getMultiProvider();
+  // If the multiProvider is not passed in, get it from the environment
+  if (!multiProvider) {
+    multiProvider = await envConfig.getMultiProvider();
+  }
 
   // must rotate to forked provider before building core contracts
   if (fork) {
@@ -188,7 +193,7 @@ export async function getGovernor(
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
     if (!warpRouteId) {
-      throw new Error('Warp route id required for warp module');
+      warpRouteId = await getWarpRouteIdInteractive();
     }
     const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
     const warpAddresses = getWarpAddresses(warpRouteId);

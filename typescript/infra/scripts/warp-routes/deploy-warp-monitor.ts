@@ -1,5 +1,4 @@
 import { checkbox } from '@inquirer/prompts';
-import yargs from 'yargs';
 
 import { Contexts } from '../../config/contexts.js';
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';

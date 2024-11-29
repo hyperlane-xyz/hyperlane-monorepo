@@ -1,4 +1,4 @@
-import { checkbox } from '@inquirer/prompts';
+import { checkbox, select } from '@inquirer/prompts';
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
@@ -272,23 +272,45 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .alias('r', 'rpcUrls');
 }
 
-export function withInteractive<T>(args: Argv<T>) {
+export function withTxHashes<T>(args: Argv<T>) {
   return args
-    .describe('interactive', 'If enabled, runs in interactive mode')
-    .boolean('interactive')
-    .default('interactive', false);
+    .describe('txHashes', 'transaction hash')
+    .string('txHashes')
+    .array('txHashes')
+    .demandOption('txHashes')
+    .alias('t', 'txHashes');
 }
 
+// Interactively gets a single warp route ID
+export async function getWarpRouteIdInteractive() {
+  const choices = Object.values(WarpRouteIds).map((id) => ({
+    value: id,
+  }));
+  return select({
+    message: 'Select Warp Route ID',
+    choices,
+    pageSize: 30,
+  });
+}
+
+// Interactively gets multiple warp route IDs
 export async function getWarpRouteIdsInteractive() {
   const choices = Object.values(WarpRouteIds).map((id) => ({
     value: id,
   }));
 
-  const selection = await checkbox({
-    message: 'Select Warp Route IDs to deploy',
-    choices,
-    pageSize: 30,
-  });
+  let selection: WarpRouteIds[] = [];
+
+  while (!selection.length) {
+    selection = await checkbox({
+      message: 'Select Warp Route IDs',
+      choices,
+      pageSize: 30,
+    });
+    if (!selection.length) {
+      console.log('Please select at least one Warp Route ID');
+    }
+  }
 
   return selection;
 }

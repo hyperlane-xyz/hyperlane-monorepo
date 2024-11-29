@@ -98,7 +98,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
           from: await this.multiProvider.getSignerAddress(chain),
           value: BigNumber.from(1),
         });
-      } catch (e) {
+      } catch {
         const violation: TokenMismatchViolation = {
           type: 'deployed token not payable',
           chain,
