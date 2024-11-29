@@ -661,7 +661,6 @@ export class WarpCore {
 
   /**
    * Ensure the sender has sufficient balances for transfer and interchain gas
-   * probably here?
    */
   protected async validateTokenBalances(
     originTokenAmount: TokenAmount,
