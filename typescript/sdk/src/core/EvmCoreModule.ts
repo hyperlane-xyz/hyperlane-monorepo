@@ -21,8 +21,6 @@ import {
   HyperlaneAddresses,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
-import { DeployedCoreAddresses } from '../core/schemas.js';
-import { CoreConfig } from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
   ProxyFactoryFactories,
@@ -47,7 +45,8 @@ import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
-import { CoreConfigSchema } from './schemas.js';
+import { CoreConfigSchema, DeployedCoreAddresses } from './schemas.js';
+import { CoreConfig } from './types.js';
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,

@@ -1,4 +1,4 @@
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, { ButtonHTMLAttributes, PropsWithChildren } from 'react';
 
 type Props = PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>;

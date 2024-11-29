@@ -1,16 +1,20 @@
 import {
   ChainMap,
-  RouterConfig,
+  OwnableConfig,
   TokenRouterConfig,
   TokenType,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-import { tokens } from '../../../../../src/config/warp.js';
+import {
+  RouterConfigWithoutOwner,
+  tokens,
+} from '../../../../../src/config/warp.js';
 
 export const getEthereumVictionUSDTWarpConfig = async (
-  routerConfig: ChainMap<RouterConfig>,
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
   const ismConfig = buildAggregationIsmConfigs(
     'ethereum',
@@ -20,6 +24,7 @@ export const getEthereumVictionUSDTWarpConfig = async (
 
   const viction: TokenRouterConfig = {
     ...routerConfig.viction,
+    ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
     name: 'USDT',
     symbol: 'USDT',
@@ -30,6 +35,7 @@ export const getEthereumVictionUSDTWarpConfig = async (
 
   const ethereum: TokenRouterConfig = {
     ...routerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDT,
     gas: 65_000,
