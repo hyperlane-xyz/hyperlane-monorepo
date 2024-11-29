@@ -39,7 +39,11 @@ export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getRouterAddress(domain: Domain): Promise<Buffer>;
   getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>>;
   getBridgedSupply(): Promise<bigint | undefined>;
-  quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote>;
+  // Sender is only required for Sealevel origins.
+  quoteTransferRemoteGas(
+    destination: Domain,
+    sender?: Address,
+  ): Promise<InterchainGasQuote>;
   populateTransferRemoteTx(p: TransferRemoteParams): Promise<Tx>;
 }
 
