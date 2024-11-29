@@ -21,7 +21,6 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -37,7 +36,6 @@ import {
 } from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
-import { readChainSubmissionStrategyConfig } from './strategy.js';
 
 const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
@@ -118,10 +116,12 @@ export async function createWarpRouteDeployConfig({
   context,
   outPath,
   advanced = false,
+  multiProtocolSigner,
 }: {
   context: CommandContext;
   outPath: string;
   advanced: boolean;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }) {
   logBlue('Creating a new warp route deployment config...');
 
@@ -134,26 +134,12 @@ export async function createWarpRouteDeployConfig({
     requiresConfirmation: !context.skipConfirmation,
   });
 
-  const strategyConfig = await readChainSubmissionStrategyConfig(
-    context.strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
-  );
-
-  const multiProtocolSigner = new MultiProtocolSignerManager(
-    strategyConfig,
-    warpChains,
-    context.multiProvider,
-    { key: context.key },
-  );
-
-  const multiProviderWithSigners = await multiProtocolSigner.getMultiProvider();
-
   const result: WarpRouteDeployConfig = {};
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
-
     const owner = await detectAndConfirmOrPrompt(
-      async () => multiProviderWithSigners.getSigner(chain).getAddress(),
+      async () => (await multiProtocolSigner?.initSigner(chain))?.getAddress(),
       'Enter the desired',
       'owner address',
       'signer',
