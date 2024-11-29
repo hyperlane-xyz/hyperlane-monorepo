@@ -567,7 +567,7 @@ export class WarpCore {
     const recipientError = this.validateRecipient(recipient, destination);
     if (recipientError) return recipientError;
 
-    const amountError = await this.validateAmount(originTokenAmount);
+    const amountError = this.validateAmount(originTokenAmount);
     if (amountError) return amountError;
 
     const destinationCollateralError = await this.validateDestinationCollateral(

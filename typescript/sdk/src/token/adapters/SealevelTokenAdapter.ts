@@ -306,7 +306,7 @@ export abstract class SealevelHypTokenAdapter
     }
 
     if (sender === undefined) {
-      throw new Error('Sender required for Sealevel remote gas quote');
+      throw new Error('Sender required for Sealevel transfer remote gas quote');
     }
 
     return {
@@ -387,7 +387,7 @@ export abstract class SealevelHypTokenAdapter
     return tx;
   }
 
-  async getIgpKeys(): Promise<KeyListParams['igp']> {
+  async getIgpKeys(): Promise<IgpPaymentKeys | undefined> {
     const tokenData = await this.getTokenAccountData();
     const igpAdapter = this.getIgpAdapter(tokenData);
     return igpAdapter?.getPaymentKeys();
