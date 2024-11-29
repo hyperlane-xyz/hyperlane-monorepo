@@ -9,6 +9,8 @@ import type {
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 
+import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
+
 export interface ContextSettings {
   registryUri: string;
   registryOverrideUri: string;
@@ -36,6 +38,7 @@ export interface WriteCommandContext extends CommandContext {
   signer: ethers.Signer;
   isDryRun?: boolean;
   dryRunChain?: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }
 
 export type CommandModuleWithContext<Args> = CommandModule<
@@ -45,5 +48,7 @@ export type CommandModuleWithContext<Args> = CommandModule<
 
 export type CommandModuleWithWriteContext<Args> = CommandModule<
   {},
-  Args & { context: WriteCommandContext }
+  Args & { context: WriteCommandContext } & {
+    multiProtocolSigner?: MultiProtocolSignerManager;
+  }
 >;

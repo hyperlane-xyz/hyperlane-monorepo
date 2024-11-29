@@ -119,7 +119,13 @@ export const deploy: CommandModuleWithWriteContext<{
     'from-address': fromAddressCommandOption,
     'skip-confirmation': skipConfirmationOption,
   },
-  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    dryRun,
+    multiProtocolSigner,
+  }) => {
     logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
 
     try {
@@ -127,6 +133,7 @@ export const deploy: CommandModuleWithWriteContext<{
         context,
         chain,
         config: readYamlOrJson(configFilePath),
+        multiProtocolSigner,
       });
     } catch (error: any) {
       evaluateIfDryRunFailure(error, dryRun);
