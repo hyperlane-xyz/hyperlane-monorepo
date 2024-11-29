@@ -22,6 +22,7 @@ import { getDomainId } from '../../registry.js';
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
+import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
 import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
 import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
@@ -66,6 +67,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     bsc: true,
+    bsquared: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -95,6 +97,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lisk: true,
     lukso: true,
     lumia: true,
+    lumiaprism: true,
     mantapacific: true,
     mantle: true,
     merlin: true,
@@ -128,6 +131,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: false,
     superseed: true,
     superpositionmainnet: true,
+    swell: true,
     taiko: true,
     tangle: true,
     unichain: true,
@@ -159,6 +163,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     bsc: true,
+    bsquared: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -188,6 +193,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lisk: true,
     lukso: true,
     lumia: true,
+    lumiaprism: true,
     mantapacific: true,
     mantle: true,
     merlin: true,
@@ -222,6 +228,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: true,
     superseed: true,
     superpositionmainnet: true,
+    swell: true,
     taiko: true,
     tangle: true,
     unichain: true,
@@ -253,6 +260,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     bob: true,
     boba: true,
     bsc: true,
+    bsquared: true,
     celo: true,
     cheesechain: true,
     chilizmainnet: true,
@@ -283,6 +291,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lisk: true,
     lukso: true,
     lumia: true,
+    lumiaprism: true,
     mantapacific: true,
     mantle: true,
     merlin: true,
@@ -317,6 +326,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: true,
     superseed: true,
     superpositionmainnet: true,
+    swell: true,
     taiko: true,
     tangle: true,
     unichain: true,
@@ -410,6 +420,12 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       name: 'aave',
       matchingList: senderMatchingList(aaveSenderAddresses),
     },
+    {
+      // https://docs.everclear.org/resources/contracts/mainnet
+      // Messages between HubGateway (Everclear hub) <> EverclearSpoke (all other spoke chains)
+      name: 'everclear_gateway',
+      matchingList: senderMatchingList(everclearSenderAddresses),
+    },
   ];
 };
 
@@ -444,7 +460,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e70431a-20241121-160243',
+      tag: 'b35c105-20241128-172842',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -453,7 +469,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'e70431a-20241121-160243',
+      tag: 'b35c105-20241128-172842',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -463,7 +479,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e70431a-20241121-160243',
+      tag: 'b35c105-20241128-172842',
     },
     resources: scraperResources,
   },

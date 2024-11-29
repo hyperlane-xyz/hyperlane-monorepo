@@ -138,7 +138,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
     try {
       owner = await defaultFallbackIsmInstance.owner();
-    } catch (error) {
+    } catch {
       this.logger.debug(
         'Error accessing owner property, implying this is an ICA routing ISM.',
         address,
@@ -176,7 +176,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     let ismType = IsmType.FALLBACK_ROUTING;
     try {
       await defaultFallbackIsmInstance.mailbox();
-    } catch (error) {
+    } catch {
       ismType = IsmType.ROUTING;
       this.logger.debug(
         'Error accessing mailbox property, implying this is not a fallback routing ISM.',
@@ -266,7 +266,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         relayer,
         type: IsmType.TRUSTED_RELAYER,
       };
-    } catch (error) {
+    } catch {
       this.logger.debug(
         'Error accessing "trustedRelayer" property, implying this is not a Trusted Relayer ISM.',
         address,
@@ -284,7 +284,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         type: IsmType.PAUSABLE,
         paused,
       };
-    } catch (error) {
+    } catch {
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
         address,
@@ -301,7 +301,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         origin: address,
         nativeBridge: '', // no way to extract native bridge from the ism
       };
-    } catch (error) {
+    } catch {
       this.logger.debug(
         'Error accessing "VERIFIED_MASK_INDEX" property, implying this is not an OP Stack ISM.',
         address,

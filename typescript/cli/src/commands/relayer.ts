@@ -9,7 +9,7 @@ import { Address } from '@hyperlane-xyz/utils';
 import { CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
 import { tryReadJson, writeJson } from '../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../utils/input.js';
+import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 import {
   agentTargetsCommandOption,

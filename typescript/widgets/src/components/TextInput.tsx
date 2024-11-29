@@ -1,4 +1,4 @@
-import React, { ChangeEvent, InputHTMLAttributes } from 'react';
+import React, { ChangeEvent, InputHTMLAttributes, forwardRef } from 'react';
 
 export type InputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -28,4 +28,4 @@ export function _TextInput(
   );
 }
 
-export const TextInput = React.forwardRef(_TextInput);
+export const TextInput = forwardRef(_TextInput);

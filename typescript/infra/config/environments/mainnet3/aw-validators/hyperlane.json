@@ -63,6 +63,9 @@
       "0x03047213365800f065356b4a2fe97c3c3a52296a"
     ]
   },
+  "bsquared": {
+    "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
+  },
   "celo": {
     "validators": [
       "0x63478422679303c3e4fc611b771fa4a707ef7f4a",
@@ -165,6 +168,9 @@
   },
   "lumia": {
     "validators": ["0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f"]
+  },
+  "lumiaprism": {
+    "validators": ["0xb69731640ffd4338a2c9358a935b0274c6463f85"]
   },
   "mantapacific": {
     "validators": [
@@ -289,6 +295,9 @@
   },
   "superpositionmainnet": {
     "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
+  },
+  "swell": {
+    "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]
   },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
