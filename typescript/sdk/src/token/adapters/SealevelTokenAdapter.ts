@@ -27,6 +27,7 @@ import {
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
 import {
+  IgpPaymentKeys,
   SealevelIgpAdapter,
   SealevelIgpProgramAdapter,
   SealevelOverheadIgpAdapter,
@@ -388,35 +389,8 @@ export abstract class SealevelHypTokenAdapter
 
   async getIgpKeys(): Promise<KeyListParams['igp']> {
     const tokenData = await this.getTokenAccountData();
-    if (!tokenData.interchain_gas_paymaster) return undefined;
-    const igpConfig = tokenData.interchain_gas_paymaster;
-    if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
-      return {
-        programId: igpConfig.program_id_pubkey,
-      };
-    } else if (
-      igpConfig.type === SealevelInterchainGasPaymasterType.OverheadIgp
-    ) {
-      if (!igpConfig.igp_account_pub_key) {
-        throw new Error('igpAccount field expected for Sealevel Overhead IGP');
-      }
-      const overheadAdapter = new SealevelOverheadIgpAdapter(
-        this.chainName,
-        this.multiProvider,
-        {
-          overheadIgp: igpConfig.igp_account_pub_key.toBase58(),
-          programId: igpConfig.program_id_pubkey.toBase58(),
-        },
-      );
-      const overheadAccountInfo = await overheadAdapter.getAccountInfo();
-      return {
-        programId: igpConfig.program_id_pubkey,
-        igpAccount: igpConfig.igp_account_pub_key,
-        innerIgpAccount: overheadAccountInfo.inner_pub_key,
-      };
-    } else {
-      throw new Error(`Unsupported IGP type ${igpConfig.type}`);
-    }
+    const igpAdapter = this.getIgpAdapter(tokenData);
+    return igpAdapter?.getPaymentKeys();
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#L257-L274
@@ -487,33 +461,26 @@ export abstract class SealevelHypTokenAdapter
           isWritable: true,
         },
       ];
-      if (igp.igpAccount && igp.innerIgpAccount) {
+      if (igp.overheadIgpAccount) {
         keys = [
           ...keys,
           // 12.   [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP
           {
-            pubkey: igp.igpAccount,
+            pubkey: igp.overheadIgpAccount,
             isSigner: false,
             isWritable: false,
           },
-          // 13.   [writeable] The Overhead's inner IGP account
-          {
-            pubkey: igp.innerIgpAccount,
-            isSigner: false,
-            isWritable: true,
-          },
-        ];
-      } else {
-        keys = [
-          ...keys,
-          // 12.   [writeable] The IGP account.
-          {
-            pubkey: igp.programId,
-            isSigner: false,
-            isWritable: true,
-          },
         ];
       }
+      keys = [
+        ...keys,
+        // 13.   [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
+        {
+          pubkey: igp.igpAccount,
+          isSigner: false,
+          isWritable: true,
+        },
+      ];
     }
     return keys;
   }
@@ -826,9 +793,5 @@ interface KeyListParams {
   sender: PublicKey;
   mailbox: PublicKey;
   randomWallet: PublicKey;
-  igp?: {
-    programId: PublicKey;
-    igpAccount?: PublicKey;
-    innerIgpAccount?: PublicKey;
-  };
+  igp?: IgpPaymentKeys;
 }

@@ -27,6 +27,12 @@ import {
   SealevelOverheadIgpDataSchema,
 } from './serialization.js';
 
+export interface IgpPaymentKeys {
+  programId: PublicKey;
+  igpAccount: PublicKey;
+  overheadIgpAccount?: PublicKey;
+}
+
 export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
   protected readonly programId: PublicKey;
 
@@ -40,34 +46,29 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
     this.programId = new PublicKey(addresses.programId);
   }
 
-  abstract quoteGasPayment(
-    destination: Domain,
-    gasAmount: bigint,
-    payerKey: PublicKey,
-  ): Promise<bigint>;
+  abstract getPaymentKeys(): Promise<IgpPaymentKeys>;
 
   // Simulating a transaction requires a payer to have sufficient balance to pay for tx fees.
-  protected async quoteGasPaymentForIgpAccounts(
+  async quoteGasPayment(
     destination: Domain,
     gasAmount: bigint,
     payerKey: PublicKey,
-    igpAccount: PublicKey,
-    overheadIgpAccount?: PublicKey,
   ): Promise<bigint> {
+    const paymentKeys = await this.getPaymentKeys();
     let keys = [
       // 0. `[executable]` The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       // 1. `[]` The IGP account.
       {
-        pubkey: igpAccount,
+        pubkey: paymentKeys.igpAccount,
         isSigner: false,
         isWritable: false,
       },
     ];
-    if (overheadIgpAccount) {
+    if (paymentKeys.overheadIgpAccount) {
       // 2. `[]` The overhead IGP account (optional).
       keys.push({
-        pubkey: overheadIgpAccount,
+        pubkey: paymentKeys.overheadIgpAccount,
         isSigner: false,
         isWritable: false,
       });
@@ -152,17 +153,11 @@ export class SealevelIgpAdapter extends SealevelIgpProgramAdapter {
     this.igp = new PublicKey(addresses.igp);
   }
 
-  override async quoteGasPayment(
-    destination: Domain,
-    gasAmount: bigint,
-    payerKey: PublicKey,
-  ): Promise<bigint> {
-    return super.quoteGasPaymentForIgpAccounts(
-      destination,
-      gasAmount,
-      payerKey,
-      this.igp,
-    );
+  override async getPaymentKeys(): Promise<IgpPaymentKeys> {
+    return {
+      programId: this.programId,
+      igpAccount: this.igp,
+    };
   }
 }
 
@@ -194,19 +189,12 @@ export class SealevelOverheadIgpAdapter extends SealevelIgpProgramAdapter {
     return accountData.data as SealevelOverheadIgpData;
   }
 
-  // Simulating a transaction requires a payer to have sufficient balance to pay for tx fees.
-  override async quoteGasPayment(
-    destination: Domain,
-    gasAmount: bigint,
-    payerKey: PublicKey,
-  ): Promise<bigint> {
+  override async getPaymentKeys(): Promise<IgpPaymentKeys> {
     const igpData = await this.getAccountInfo();
-    return super.quoteGasPaymentForIgpAccounts(
-      destination,
-      gasAmount,
-      payerKey,
-      igpData.inner_pub_key,
-      this.overheadIgp,
-    );
+    return {
+      programId: this.programId,
+      igpAccount: igpData.inner_pub_key,
+      overheadIgpAccount: this.overheadIgp,
+    };
   }
 }
