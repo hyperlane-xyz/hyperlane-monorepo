@@ -60,7 +60,7 @@ export class EvmCoreReader implements CoreReader {
     interchainAccountRouter,
   }: {
     mailbox: Address;
-    interchainAccountRouter: Address;
+    interchainAccountRouter?: Address;
   }): Promise<DerivedCoreConfig> {
     const mailboxInstance = Mailbox__factory.connect(mailbox, this.provider);
     const [defaultIsm, defaultHook, requiredHook, mailboxProxyAdmin] =
@@ -79,9 +79,9 @@ export class EvmCoreReader implements CoreReader {
           defaultIsm: this.evmIsmReader.deriveIsmConfig(defaultIsm),
           defaultHook: this.evmHookReader.deriveHookConfig(defaultHook),
           requiredHook: this.evmHookReader.deriveHookConfig(requiredHook),
-          interchainAccountRouter: this.evmIcaRouterReader.deriveConfig(
-            interchainAccountRouter,
-          ),
+          interchainAccountRouter: interchainAccountRouter
+            ? this.evmIcaRouterReader.deriveConfig(interchainAccountRouter)
+            : undefined,
           proxyAdmin: this.getProxyAdminConfig(mailboxProxyAdmin),
         },
         async (_, readerCall) => {

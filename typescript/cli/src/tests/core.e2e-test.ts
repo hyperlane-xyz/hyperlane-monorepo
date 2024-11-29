@@ -208,87 +208,93 @@ describe('hyperlane core e2e tests', async function () {
     });
 
     it('should enroll a remote ICA Router and update the config on all involved chains', async () => {
-      await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
-      await hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH);
+      await Promise.all([
+        hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH),
+        hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH),
+      ]);
 
-      const coreConfigChain2: DerivedCoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CHAIN_2_CONFIG_PATH,
-      );
-      const coreConfigChain3: DerivedCoreConfig = await readCoreConfig(
-        CHAIN_NAME_3,
-        CORE_READ_CHAIN_3_CONFIG_PATH,
-      );
+      const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
+        await Promise.all([
+          readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH),
+          readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
+        ]);
+
       expect(coreConfigChain2.owner).to.equal(initialOwnerAddress);
       expect(coreConfigChain3.owner).to.equal(initialOwnerAddress);
 
+      expect(coreConfigChain2.interchainAccountRouter).not.to.be.undefined;
+      expect(coreConfigChain3.interchainAccountRouter).not.to.be.undefined;
+
+      const coreConfigChain2IcaConfig =
+        coreConfigChain2.interchainAccountRouter!;
+      const coreConfigChain3IcaConfig =
+        coreConfigChain3.interchainAccountRouter!;
+
       // Add the remote ica on chain anvil3
-      coreConfigChain2.interchainAccountRouter.remoteIcaRouters = {
+      coreConfigChain2IcaConfig.remoteIcaRouters = {
         [chain3DomainId]: {
-          address: coreConfigChain3.interchainAccountRouter.address,
+          address: coreConfigChain3IcaConfig.address,
         },
       };
 
       const expectedChain2RemoteRoutersConfig = {
         [chain3DomainId]: {
-          address: addressToBytes32(
-            coreConfigChain3.interchainAccountRouter.address,
-          ),
+          address: addressToBytes32(coreConfigChain3IcaConfig.address),
         },
       };
 
       const expectedChain3RemoteRoutersConfig = {
         [chain2DomainId]: {
-          address: addressToBytes32(
-            coreConfigChain2.interchainAccountRouter.address,
-          ),
+          address: addressToBytes32(coreConfigChain2IcaConfig.address),
         },
       };
 
       writeYamlOrJson(CORE_READ_CHAIN_2_CONFIG_PATH, coreConfigChain2);
       await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH);
 
-      const updatedChain2Config: DerivedCoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CHAIN_2_CONFIG_PATH,
-      );
+      const [updatedChain2Config, updatedChain3Config]: DerivedCoreConfig[] =
+        await Promise.all([
+          readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH),
+          readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
+        ]);
       expect(
-        updatedChain2Config.interchainAccountRouter.remoteIcaRouters,
+        updatedChain2Config.interchainAccountRouter?.remoteIcaRouters,
       ).to.deep.equal(expectedChain2RemoteRoutersConfig);
 
-      const updatedChain3Config: DerivedCoreConfig = await readCoreConfig(
-        CHAIN_NAME_3,
-        CORE_READ_CHAIN_3_CONFIG_PATH,
-      );
       expect(
-        updatedChain3Config.interchainAccountRouter.remoteIcaRouters,
+        updatedChain3Config.interchainAccountRouter?.remoteIcaRouters,
       ).to.deep.equal(expectedChain3RemoteRoutersConfig);
     });
 
     it('should unenroll a remote ICA Router and update the config on all involved chains', async () => {
-      await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
-      await hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH);
+      await Promise.all([
+        hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH),
+        hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH),
+      ]);
 
-      const coreConfigChain2: DerivedCoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CHAIN_2_CONFIG_PATH,
-      );
-      const coreConfigChain3: DerivedCoreConfig = await readCoreConfig(
-        CHAIN_NAME_3,
-        CORE_READ_CHAIN_2_CONFIG_PATH,
-      );
+      const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
+        await Promise.all([
+          readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH),
+          readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
+        ]);
 
-      coreConfigChain2.interchainAccountRouter.remoteIcaRouters = {
+      expect(coreConfigChain2.interchainAccountRouter).not.to.be.undefined;
+      expect(coreConfigChain3.interchainAccountRouter).not.to.be.undefined;
+
+      const coreConfigChain2IcaConfig =
+        coreConfigChain2.interchainAccountRouter!;
+      const coreConfigChain3IcaConfig =
+        coreConfigChain3.interchainAccountRouter!;
+
+      coreConfigChain2IcaConfig.remoteIcaRouters = {
         [chain3DomainId]: {
-          address: coreConfigChain3.interchainAccountRouter.address,
+          address: coreConfigChain3IcaConfig.address,
         },
       };
 
       const expectedRemoteRoutersConfigAfterEnrollment = {
         [chain3DomainId]: {
-          address: addressToBytes32(
-            coreConfigChain3.interchainAccountRouter.address,
-          ),
+          address: addressToBytes32(coreConfigChain3IcaConfig.address),
         },
       };
 
@@ -299,11 +305,11 @@ describe('hyperlane core e2e tests', async function () {
         await readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH);
       expect(
         updatedChain2ConfigAfterEnrollment.interchainAccountRouter
-          .remoteIcaRouters,
+          ?.remoteIcaRouters,
       ).to.deep.equal(expectedRemoteRoutersConfigAfterEnrollment);
 
       // Remove all remote ICAs
-      updatedChain2ConfigAfterEnrollment.interchainAccountRouter.remoteIcaRouters =
+      updatedChain2ConfigAfterEnrollment.interchainAccountRouter!.remoteIcaRouters =
         {};
       writeYamlOrJson(
         CORE_READ_CHAIN_2_CONFIG_PATH,
@@ -312,20 +318,18 @@ describe('hyperlane core e2e tests', async function () {
 
       await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH);
 
-      const updatedChain2Config: DerivedCoreConfig = await readCoreConfig(
-        CHAIN_NAME_2,
-        CORE_READ_CHAIN_2_CONFIG_PATH,
-      );
+      const [updatedChain2Config, updatedChain3Config]: DerivedCoreConfig[] =
+        await Promise.all([
+          readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH),
+          readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
+        ]);
+
       expect(
-        updatedChain2Config.interchainAccountRouter.remoteIcaRouters,
+        updatedChain2Config.interchainAccountRouter?.remoteIcaRouters,
       ).to.deep.equal({});
 
-      const updatedChain3Config: DerivedCoreConfig = await readCoreConfig(
-        CHAIN_NAME_3,
-        CORE_READ_CHAIN_2_CONFIG_PATH,
-      );
       expect(
-        updatedChain3Config.interchainAccountRouter.remoteIcaRouters,
+        updatedChain3Config.interchainAccountRouter?.remoteIcaRouters,
       ).to.deep.equal({});
     });
   });

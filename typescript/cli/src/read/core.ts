@@ -27,11 +27,6 @@ export async function executeCoreRead({
 
   if (!interchainAccountRouter) {
     interchainAccountRouter = addresses?.interchainAccountRouter;
-
-    assert(
-      interchainAccountRouter,
-      `${chain} interchainAccountRouter not provided and none found in registry.`,
-    );
   }
 
   const evmCoreReader = new EvmCoreReader(context.multiProvider, chain);

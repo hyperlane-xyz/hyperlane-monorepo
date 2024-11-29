@@ -21,7 +21,7 @@ export const CoreConfigSchema = OwnableSchema.extend({
 
 export const DerivedCoreConfigSchema = CoreConfigSchema.merge(
   z.object({
-    interchainAccountRouter: DerivedIcaRouterConfigSchema,
+    interchainAccountRouter: DerivedIcaRouterConfigSchema.optional(),
   }),
 );
 
