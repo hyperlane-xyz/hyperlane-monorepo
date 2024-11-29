@@ -85,7 +85,7 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
   async getSignerConfig(chain: ChainName): Promise<SignerConfig> {
     const submitter = this.config[chain]?.submitter as {
       privateKey?: string;
-      address?: string;
+      userAddress?: string;
     };
 
     const privateKey =
@@ -95,7 +95,7 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
       }));
 
     const address =
-      submitter?.address ??
+      submitter?.userAddress ??
       (await password({
         message: `Please enter the signer address for chain ${chain}`,
       }));
