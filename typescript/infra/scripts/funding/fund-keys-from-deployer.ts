@@ -194,35 +194,25 @@ async function main() {
     );
   }
 
-  // Returns a promise that rejects after the context funding timeout
-  const timeoutPromise = (context: Contexts) =>
-    new Promise<boolean>((_, reject) => {
-      setTimeout(
-        () =>
-          reject(
-            new Error(
-              `Funding timed out for context ${context} after ${
-                CONTEXT_FUNDING_TIMEOUT_MS / 1000
-              }s`,
-            ),
-          ),
-        CONTEXT_FUNDING_TIMEOUT_MS,
-      );
-    });
-
   let failureOccurred = false;
   for (const funder of contextFunders) {
+    const { promise, cleanup } = createTimeoutPromise(
+      CONTEXT_FUNDING_TIMEOUT_MS,
+      `Funding timed out for context ${funder.context} after ${
+        CONTEXT_FUNDING_TIMEOUT_MS / 1000
+      }s`,
+    );
+
     try {
-      const result = await Promise.race([
-        funder.fund(),
-        timeoutPromise(funder.context),
-      ]);
+      const result = await Promise.race([funder.fund(), promise]);
       if (result) {
         failureOccurred = true;
       }
     } catch (error) {
-      logger.error('Error funding context', { error });
+      logger.error('Error funding context', { error: format(error) });
       failureOccurred = true;
+    } finally {
+      cleanup();
     }
   }
 
@@ -467,26 +457,15 @@ class ContextFunder {
   ): Promise<boolean> {
     let failureOccurred = false;
 
-    // Add timeout for funding operations
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(
-        () =>
-          reject(
-            new Error(
-              `Timed out funding chain ${chain} after ${
-                CHAIN_FUNDING_TIMEOUT_MS / 1000
-              }s`,
-            ),
-          ),
-        CHAIN_FUNDING_TIMEOUT_MS,
-      );
-    });
+    const { promise, cleanup } = createTimeoutPromise(
+      CHAIN_FUNDING_TIMEOUT_MS,
+      `Timed out funding chain ${chain} after ${
+        CHAIN_FUNDING_TIMEOUT_MS / 1000
+      }s`,
+    );
 
     try {
-      await Promise.race([
-        this.executeFundingOperations(chain, keys),
-        timeoutPromise,
-      ]);
+      await Promise.race([this.executeFundingOperations(chain, keys), promise]);
     } catch (error) {
       failureOccurred = true;
       logger.error(
@@ -494,6 +473,8 @@ class ContextFunder {
         `Funding operations failed for chain ${chain}.`,
         error,
       );
+    } finally {
+      cleanup();
     }
 
     return failureOccurred;
@@ -981,6 +962,22 @@ async function gracefullyHandleError(
     );
   }
   return true;
+}
+
+// Utility function to create a timeout promise
+function createTimeoutPromise(
+  timeoutMs: number,
+  errorMessage: string,
+): { promise: Promise<void>; cleanup: () => void } {
+  let cleanup: () => void;
+  const promise = new Promise<void>((_, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error(errorMessage)),
+      timeoutMs,
+    );
+    cleanup = () => clearTimeout(timeout);
+  });
+  return { promise, cleanup: cleanup! };
 }
 
 main().catch((err) => {
