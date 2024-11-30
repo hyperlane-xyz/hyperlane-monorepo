@@ -1,8 +1,7 @@
 import { EthBridger, getArbitrumNetwork } from '@arbitrum/sdk';
 import { CrossChainMessenger } from '@eth-optimism/sdk';
-import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
-import { Gauge, Registry } from 'prom-client';
+import { Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
@@ -15,7 +14,6 @@ import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';
-import { getSecretRpcEndpoints } from '../../src/agents/index.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
@@ -89,6 +87,9 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 // Don't send the full amount over to RC keys
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
+
+const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
@@ -193,9 +194,36 @@ async function main() {
     );
   }
 
+  // Returns a promise that rejects after the context funding timeout
+  const timeoutPromise = (context: Contexts) =>
+    new Promise<boolean>((_, reject) => {
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Funding timed out for context ${context} after ${
+                CONTEXT_FUNDING_TIMEOUT_MS / 1000
+              }s`,
+            ),
+          ),
+        CONTEXT_FUNDING_TIMEOUT_MS,
+      );
+    });
+
   let failureOccurred = false;
   for (const funder of contextFunders) {
-    failureOccurred ||= await funder.fund();
+    try {
+      const result = await Promise.race([
+        funder.fund(),
+        timeoutPromise(funder.context),
+      ]);
+      if (result) {
+        failureOccurred = true;
+      }
+    } catch (error) {
+      logger.error('Error funding context', { error });
+      failureOccurred = true;
+    }
   }
 
   await submitMetrics(metricsRegister, `key-funder-${environment}`);
@@ -421,52 +449,90 @@ class ContextFunder {
   // Returns whether a failure occurred.
   async fund(): Promise<boolean> {
     const chainKeyEntries = Object.entries(this.keysToFundPerChain);
-    const promises = chainKeyEntries.map(async ([chain, keys]) => {
-      let failureOccurred = false;
-
-      if (keys.length > 0) {
-        if (!this.skipIgpClaim) {
-          failureOccurred ||= await gracefullyHandleError(
-            () => this.attemptToClaimFromIgp(chain),
-            chain,
-            'Error claiming from IGP',
-          );
-        }
-
-        failureOccurred ||= await gracefullyHandleError(
-          () => this.bridgeIfL2(chain),
-          chain,
-          'Error bridging to L2',
-        );
-      }
-      for (const key of keys) {
-        const failure = await this.attemptToFundKey(key, chain);
-        failureOccurred ||= failure;
-      }
-      return failureOccurred;
-    });
-
-    // A failure occurred if any of the promises rejected or
-    // if any of them resolved with true, indicating a failure
-    // somewhere along the way
-    const failureOccurred = (await Promise.allSettled(promises)).reduce(
-      (failureAgg, result, i) => {
-        if (result.status === 'rejected') {
-          logger.error(
-            {
-              chain: chainKeyEntries[i][0],
-              error: format(result.reason),
-            },
-            'Funding promise for chain rejected',
-          );
-          return true;
-        }
-        return result.value || failureAgg;
-      },
-      false,
+    const results = await Promise.allSettled(
+      chainKeyEntries.map(([chain, keys]) => this.fundChain(chain, keys)),
     );
 
+    return results.some((result) => {
+      if (result.status === 'rejected') {
+        return true;
+      }
+      return result.value;
+    });
+  }
+
+  private async fundChain(
+    chain: string,
+    keys: BaseAgentKey[],
+  ): Promise<boolean> {
+    let failureOccurred = false;
+
+    // Add timeout for funding operations
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `Timed out funding chain ${chain} after ${
+                CHAIN_FUNDING_TIMEOUT_MS / 1000
+              }s`,
+            ),
+          ),
+        CHAIN_FUNDING_TIMEOUT_MS,
+      );
+    });
+
+    try {
+      await Promise.race([
+        this.executeFundingOperations(chain, keys),
+        timeoutPromise,
+      ]);
+    } catch (error) {
+      failureOccurred = true;
+      logger.error(
+        { chain },
+        `Funding operations failed for chain ${chain}.`,
+        error,
+      );
+    }
+
     return failureOccurred;
+  }
+
+  private async executeFundingOperations(
+    chain: string,
+    keys: BaseAgentKey[],
+  ): Promise<void> {
+    if (keys.length === 0) {
+      return;
+    }
+
+    if (!this.skipIgpClaim) {
+      const igpClaimFailed = await gracefullyHandleError(
+        () => this.attemptToClaimFromIgp(chain),
+        chain,
+        'Error claiming from IGP',
+      );
+      if (igpClaimFailed) {
+        throw new Error('IGP claim failed');
+      }
+    }
+
+    const bridgingFailed = await gracefullyHandleError(
+      () => this.bridgeIfL2(chain),
+      chain,
+      'Error bridging to L2',
+    );
+    if (bridgingFailed) {
+      throw new Error('L2 bridging failed');
+    }
+
+    for (const key of keys) {
+      const keyFundingFailed = await this.attemptToFundKey(key, chain);
+      if (keyFundingFailed) {
+        throw new Error(`Failed to fund key ${key.address}`);
+      }
+    }
   }
 
   private async attemptToFundKey(
@@ -488,6 +554,7 @@ class ContextFunder {
     } catch (err) {
       logger.error(
         {
+          chain,
           key: await getKeyInfo(
             key,
             chain,
@@ -697,6 +764,8 @@ class ContextFunder {
     const l1Chain = L2ToL1[l2Chain];
     logger.info(
       {
+        l1Chain,
+        l2Chain,
         amount: ethers.utils.formatEther(amount),
         l1Funder: await getAddressInfo(
           await this.multiProvider.getSignerAddress(l1Chain),
