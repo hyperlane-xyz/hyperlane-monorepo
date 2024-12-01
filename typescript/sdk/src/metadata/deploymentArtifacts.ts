@@ -16,6 +16,9 @@ export const HyperlaneDeploymentArtifactsSchema = z.object({
   interchainSecurityModule: ZHash.optional().describe(
     'The address of the Interchain Security Module (ISM) contract.',
   ),
+  checkpointStorage: ZHash.optional().describe(
+    'The address of the Checkpoint Storage contract.',
+  ),
 });
 
 export type HyperlaneDeploymentArtifacts = z.infer<

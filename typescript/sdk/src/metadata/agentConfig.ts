@@ -402,6 +402,13 @@ export const ValidatorAgentConfigSchema = AgentConfigSchema.extend({
           .describe('The path to GCS user secret file'),
       })
       .describe('A checkpoint syncer that uses Google Cloud Storage'),
+    z
+      .object({
+        type: z.literal('onchain'),
+        chainName: z.string().min(1),
+        contractAddress: z.string().min(1),
+      })
+      .describe('A checkpoint syncer that uses onchain Storage'),
   ]),
   interval: ZUint.optional().describe(
     'How long to wait between checking for new checkpoints in seconds.',
