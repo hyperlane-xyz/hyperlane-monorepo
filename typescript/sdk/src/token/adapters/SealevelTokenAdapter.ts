@@ -90,6 +90,24 @@ export class SealevelNativeTokenAdapter
     throw new Error('Metadata not available to native tokens');
   }
 
+  // Require a minimum transfer amount to cover rent for the recipient.
+  async getMinimumTransferAmount(recipient: Address): Promise<bigint> {
+    const recipientPubkey = new PublicKey(recipient);
+    const provider = this.getProvider();
+    const recipientAccount = await provider.getAccountInfo(recipientPubkey);
+    const recipientDataLength = recipientAccount?.data.length ?? 0;
+    const recipientLamports = recipientAccount?.lamports ?? 0;
+
+    const minRequiredLamports =
+      await provider.getMinimumBalanceForRentExemption(recipientDataLength);
+
+    if (recipientLamports < minRequiredLamports) {
+      return BigInt(minRequiredLamports - recipientLamports);
+    }
+
+    return 0n;
+  }
+
   async isApproveRequired(): Promise<boolean> {
     return false;
   }
@@ -153,6 +171,10 @@ export class SealevelTokenAdapter
   async getMetadata(_isNft?: boolean): Promise<TokenMetadata> {
     // TODO solana support
     return { decimals: 9, symbol: 'SPL', name: 'SPL Token', totalSupply: '' };
+  }
+
+  async getMinimumTransferAmount(recipient: Address): Promise<bigint> {
+    return 0n;
   }
 
   async isApproveRequired(): Promise<boolean> {

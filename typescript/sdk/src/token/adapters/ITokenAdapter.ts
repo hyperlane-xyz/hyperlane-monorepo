@@ -25,6 +25,7 @@ export interface ITokenAdapter<Tx> {
   getBalance(address: Address): Promise<bigint>;
   getTotalSupply(): Promise<bigint | undefined>;
   getMetadata(isNft?: boolean): Promise<TokenMetadata>;
+  getMinimumTransferAmount(recipient: Address): Promise<bigint>;
   isApproveRequired(
     owner: Address,
     spender: Address,

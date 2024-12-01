@@ -46,6 +46,10 @@ export class CosmNativeTokenAdapter
     throw new Error('Metadata not available to native tokens');
   }
 
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
   async isApproveRequired(): Promise<boolean> {
     return false;
   }

@@ -561,7 +561,11 @@ export class WarpCore {
     const recipientError = this.validateRecipient(recipient, destination);
     if (recipientError) return recipientError;
 
-    const amountError = this.validateAmount(originTokenAmount);
+    const amountError = await this.validateAmount(
+      originTokenAmount,
+      destination,
+      recipient,
+    );
     if (amountError) return amountError;
 
     const destinationCollateralError = await this.validateDestinationCollateral(
@@ -645,11 +649,21 @@ export class WarpCore {
    */
   protected validateAmount(
     originTokenAmount: TokenAmount,
+    destination: ChainNameOrId,
+    recipient: Address,
   ): Record<string, string> | null {
     if (!originTokenAmount.amount || originTokenAmount.amount < 0n) {
       const isNft = originTokenAmount.token.isNft();
       return { amount: isNft ? 'Invalid Token Id' : 'Invalid amount' };
     }
+
+    const destinationName = this.multiProvider.getChainName(destination);
+    const destinationToken =
+      originTokenAmount.token.getConnectionForChain(destinationName)?.token;
+    assert(destinationToken, `No connection found for ${destinationName}`);
+
+    const adapter = destinationToken.getAdapter(this.multiProvider);
+
     return null;
   }
 
