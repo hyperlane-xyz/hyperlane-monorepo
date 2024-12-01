@@ -894,6 +894,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  lumiaprism: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xb69731640ffd4338a2c9358a935b0274c6463f85',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   mantapacific: {
     threshold: 5,
     validators: [
@@ -1516,6 +1526,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  swell: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

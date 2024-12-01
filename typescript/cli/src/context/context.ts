@@ -16,18 +16,14 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
-import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
-import { getImpersonatedSigner } from '../utils/keys.js';
+import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
-import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
-import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandContext,
   ContextSettings,
@@ -45,7 +41,6 @@ export async function contextMiddleware(argv: Record<string, any>) {
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
-    strategyPath: argv.strategy,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
@@ -55,44 +50,6 @@ export async function contextMiddleware(argv: Record<string, any>) {
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
   argv.context = context;
-}
-
-export async function signerMiddleware(argv: Record<string, any>) {
-  const { key, requiresKey, multiProvider, strategyPath } = argv.context;
-
-  if (!requiresKey && !key) return argv;
-
-  const strategyConfig = await safeReadChainSubmissionStrategyConfig(
-    strategyPath ?? DEFAULT_STRATEGY_CONFIG_PATH,
-  );
-
-  /**
-   * Intercepts Hyperlane command to determine chains.
-   */
-  const chainStrategy = ChainResolverFactory.getStrategy(argv);
-
-  /**
-   * Resolves chains based on the chain strategy.
-   */
-  const chains = await chainStrategy.resolveChains(argv);
-
-  /**
-   * Extracts signer config
-   */
-  const multiProtocolSigner = new MultiProtocolSignerManager(
-    strategyConfig,
-    chains,
-    multiProvider,
-    { key },
-  );
-
-  /**
-   * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
-   */
-  argv.multiProvider = await multiProtocolSigner.getMultiProvider();
-  argv.multiProtocolSigner = multiProtocolSigner;
-
-  return argv;
 }
 
 /**
@@ -109,14 +66,18 @@ export async function getContext({
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
-  const multiProvider = await getMultiProvider(registry);
+  let signer: ethers.Wallet | undefined = undefined;
+  if (key || requiresKey) {
+    ({ key, signer } = await getSigner({ key, skipConfirmation }));
+  }
+  const multiProvider = await getMultiProvider(registry, signer);
 
   return {
     registry,
-    requiresKey,
     chainMetadata: multiProvider.metadata,
     multiProvider,
     key,
+    signer,
     skipConfirmation: !!skipConfirmation,
   } as CommandContext;
 }

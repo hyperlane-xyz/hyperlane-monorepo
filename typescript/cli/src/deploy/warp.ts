@@ -100,7 +100,7 @@ export async function runWarpRouteDeploy({
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
 }) {
-  const { skipConfirmation, chainMetadata, registry } = context;
+  const { signer, skipConfirmation, chainMetadata, registry } = context;
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -147,8 +147,13 @@ export async function runWarpRouteDeploy({
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const initialBalances = await prepareDeploy(context, null, ethereumChains);
+  const userAddress = await signer.getAddress();
 
+  const initialBalances = await prepareDeploy(
+    context,
+    userAddress,
+    ethereumChains,
+  );
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
   const warpCoreConfig = await getWarpCoreConfig(
@@ -158,7 +163,13 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context);
 
-  await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
+  await completeDeploy(
+    context,
+    'warp',
+    initialBalances,
+    userAddress,
+    ethereumChains,
+  );
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
