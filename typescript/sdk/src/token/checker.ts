@@ -206,7 +206,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     chainDecimals: Record<ChainName, number | undefined>,
     decimalType: string,
     nonEmpty: boolean,
-  ): Promise<void> {
+  ) {
     const uniqueChainDecimals = new Set(
       Object.values(chainDecimals).filter((decimals) => !!decimals),
     );
