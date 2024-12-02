@@ -18,11 +18,11 @@ import { EvmIsmModule } from './EvmIsmModule.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
-  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
   TrustedRelayerIsmConfig,
 } from './types.js';
@@ -110,7 +110,7 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): any => {
 
 describe('EvmIsmModule', async () => {
   let multiProvider: MultiProvider;
-  let exampleRoutingConfig: OwnableRoutingIsmConfig;
+  let exampleRoutingConfig: DomainRoutingIsmConfig;
   let mailboxAddress: Address;
   let fundingAccount: Signer;
 
@@ -325,7 +325,7 @@ describe('EvmIsmModule', async () => {
 
         // keep track of the domains before deleting
         const numDomainsBefore = Object.keys(
-          ((await ism.read()) as OwnableRoutingIsmConfig).domains,
+          ((await ism.read()) as DomainRoutingIsmConfig).domains,
         ).length;
 
         // deleting the domain and removing from multiprovider should unenroll the domain
@@ -340,7 +340,7 @@ describe('EvmIsmModule', async () => {
 
         // domains should have decreased by 1
         const numDomainsAfter = Object.keys(
-          ((await ism.read()) as OwnableRoutingIsmConfig).domains,
+          ((await ism.read()) as DomainRoutingIsmConfig).domains,
         ).length;
         expect(numDomainsBefore - 1).to.equal(numDomainsAfter);
       });

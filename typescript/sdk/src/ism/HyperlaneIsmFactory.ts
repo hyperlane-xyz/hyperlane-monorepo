@@ -54,10 +54,10 @@ import {
   AggregationIsmConfig,
   DeployedIsm,
   DeployedIsmType,
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
-  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
   WeightedMultisigIsmConfig,
@@ -354,7 +354,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
   private async deployOwnableRoutingIsm(params: {
     destination: ChainName;
-    config: OwnableRoutingIsmConfig;
+    config: DomainRoutingIsmConfig;
     origin?: ChainName;
     mailbox?: Address;
     existingIsmAddress?: Address;

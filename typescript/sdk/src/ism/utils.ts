@@ -28,10 +28,10 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import {
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
-  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
   RoutingIsmDelta,
   ismTypeToModuleType,
@@ -42,8 +42,8 @@ const logger = rootLogger.child({ module: 'IsmUtils' });
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
 export function calculateDomainRoutingDelta(
-  current: OwnableRoutingIsmConfig,
-  target: OwnableRoutingIsmConfig,
+  current: DomainRoutingIsmConfig,
+  target: DomainRoutingIsmConfig,
 ): { domainsToEnroll: ChainName[]; domainsToUnenroll: ChainName[] } {
   const domainsToEnroll = [];
   for (const origin of Object.keys(target.domains)) {

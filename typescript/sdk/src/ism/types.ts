@@ -132,14 +132,15 @@ type BaseRoutingIsmConfig<
   type: T;
 };
 
-export type OwnableRoutingIsmConfig = BaseRoutingIsmConfig<
+export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
   IsmType.ROUTING | IsmType.FALLBACK_ROUTING
 > &
   OwnableConfig & { domains: ChainMap<IsmConfig> };
 
-export type RoutingIsmConfig =
-  | BaseRoutingIsmConfig<IsmType.ICA_FALLBACK_ROUTING>
-  | OwnableRoutingIsmConfig;
+export type IcaRoutingIsmConfig =
+  BaseRoutingIsmConfig<IsmType.ICA_FALLBACK_ROUTING>;
+
+export type RoutingIsmConfig = IcaRoutingIsmConfig | DomainRoutingIsmConfig;
 
 export type AggregationIsmConfig = {
   type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;

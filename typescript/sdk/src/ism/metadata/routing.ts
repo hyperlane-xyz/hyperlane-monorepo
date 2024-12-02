@@ -6,11 +6,7 @@ import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../EvmIsmReader.js';
-import {
-  IsmType,
-  OwnableRoutingIsmConfig,
-  RoutingIsmConfig,
-} from '../types.js';
+import { DomainRoutingIsmConfig, IsmType, RoutingIsmConfig } from '../types.js';
 
 import type { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';
@@ -30,7 +26,7 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
   constructor(protected baseMetadataBuilder: BaseMetadataBuilder) {}
 
   public async build(
-    context: MetadataContext<WithAddress<OwnableRoutingIsmConfig>>,
+    context: MetadataContext<WithAddress<DomainRoutingIsmConfig>>,
     maxDepth = 10,
   ): Promise<string> {
     const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
@@ -46,7 +42,7 @@ export class RoutingMetadataBuilder implements MetadataBuilder {
 
   static decode(
     metadata: string,
-    context: MetadataContext<WithAddress<OwnableRoutingIsmConfig>>,
+    context: MetadataContext<WithAddress<DomainRoutingIsmConfig>>,
   ): RoutingMetadata<StructuredMetadata | string> {
     // TODO: this is a naive implementation, we should support domain ID keys
     assert(context.message.parsed.originChain, 'originChain is required');
@@ -86,7 +82,7 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
       return super.build(
         // Typescript is not clever enough to understand that after the conditional check
         // the ism type will be of the same expected type
-        context as MetadataContext<WithAddress<OwnableRoutingIsmConfig>>,
+        context as MetadataContext<WithAddress<DomainRoutingIsmConfig>>,
         maxDepth,
       );
     }

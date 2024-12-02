@@ -30,12 +30,12 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   AggregationIsmConfig,
   ArbL2ToL1IsmConfig,
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
   MultisigIsmConfig,
   NullIsmConfig,
-  OwnableRoutingIsmConfig,
   RoutingIsmConfig,
 } from './types.js';
 
@@ -156,7 +156,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     const domainIds = this.messageContext
       ? [BigNumber.from(this.messageContext.parsed.origin)]
       : await defaultFallbackIsmInstance.domains();
-    const domains: OwnableRoutingIsmConfig['domains'] = {};
+    const domains: DomainRoutingIsmConfig['domains'] = {};
 
     await concurrentMap(this.concurrency, domainIds, async (domainId) => {
       const chainName = this.multiProvider.tryGetChainName(domainId.toNumber());
