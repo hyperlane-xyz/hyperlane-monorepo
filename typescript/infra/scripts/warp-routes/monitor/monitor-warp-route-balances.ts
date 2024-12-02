@@ -1,4 +1,3 @@
-import { PublicKey } from '@solana/web3.js';
 import { PopulatedTransaction } from 'ethers';
 
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
@@ -16,13 +15,7 @@ import {
   TokenStandard,
   WarpCore,
 } from '@hyperlane-xyz/sdk';
-import {
-  ProtocolType,
-  assert,
-  objMap,
-  objMerge,
-  sleep,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../../config/registry.js';
 import {
@@ -96,25 +89,6 @@ async function pollAndUpdateWarpRouteMetrics(
     chainMetadata,
     apiKey: await getCoinGeckoApiKey(),
   });
-
-  // console.log('token', token);
-  console.log('before');
-  const origin = warpCore.getTokensForChain('eclipsemainnet')[0];
-
-  assert(origin, 'origin token not found');
-
-  const valid = await warpCore.validateTransfer({
-    originTokenAmount: origin.amount(1n),
-    destination: 'solanamainnet',
-    sender: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
-    recipient: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWng',
-    // senderPubKey: new PublicKey('G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp'),
-  });
-  console.log('valid', valid);
-
-  if (1 + 1 == 2) {
-    return;
-  }
 
   while (true) {
     await tryFn(async () => {
