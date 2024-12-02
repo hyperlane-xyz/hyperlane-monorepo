@@ -329,17 +329,15 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     return this.deployOwnableRoutingIsm({
       ...params,
-      config: config,
+      // Can't pass params directly because ts will complain that the types do not match
+      config,
     });
   }
 
   private async deployIcaIsm(params: {
     destination: ChainName;
     config: RoutingIsmConfig;
-    origin?: ChainName;
     mailbox?: Address;
-    existingIsmAddress?: Address;
-    logger: Logger;
   }): Promise<IRoutingIsm> {
     if (!params.mailbox) {
       throw new Error('Mailbox address is required for deploying ICA ISM');
