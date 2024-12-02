@@ -137,7 +137,7 @@ export abstract class HyperlaneAppChecker<
             const actualProxyAdminOwner =
               await actualProxyAdminContract.owner();
             const expectedOwner = this.getOwner(
-              actualProxyAdminOwner,
+              owner,
               'proxyAdmin',
               ownableOverrides,
             );
