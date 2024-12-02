@@ -690,18 +690,18 @@ impl SealevelMailboxIndexer {
         &self.mailbox.rpc()
     }
 
-    async fn get_dispatched_message_with_sequence(
+    async fn get_dispatched_message_with_nonce(
         &self,
-        sequence: u32,
+        nonce: u32,
     ) -> ChainResult<(Indexed<HyperlaneMessage>, LogMeta)> {
-        let sequence_bytes = sequence.to_le_bytes();
+        let nonce_bytes = nonce.to_le_bytes();
         let unique_dispatched_message_pubkey_offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
         let unique_dispatch_message_pubkey_length = 32; // the length of the `unique_message_pubkey` field
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
             &DISPATCHED_MESSAGE_DISCRIMINATOR,
-            &sequence_bytes,
+            &nonce_bytes,
             unique_dispatched_message_pubkey_offset,
             unique_dispatch_message_pubkey_length,
         )
@@ -725,7 +725,7 @@ impl SealevelMailboxIndexer {
 
         let log_meta = if self.advanced_log_meta {
             self.dispatch_message_log_meta(
-                U256::from(sequence),
+                U256::from(nonce),
                 &valid_message_storage_pda_pubkey,
                 &dispatched_message_account.slot,
             )
@@ -893,7 +893,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
         let message_capacity = range.end().saturating_sub(*range.start());
         let mut messages = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
-            messages.push(self.get_dispatched_message_with_sequence(nonce).await?);
+            messages.push(self.get_dispatched_message_with_nonce(nonce).await?);
         }
         Ok(messages)
     }
