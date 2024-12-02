@@ -8,6 +8,7 @@ import {
   createWarpRouteDeployConfig,
   readWarpRouteDeployConfig,
 } from '../config/warp.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
@@ -154,6 +155,7 @@ export const deploy: CommandModuleWithWriteContext<{
 export const init: CommandModuleWithContext<{
   advanced: boolean;
   out: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }> = {
   command: 'init',
   describe: 'Create a warp route configuration.',
@@ -165,13 +167,14 @@ export const init: CommandModuleWithContext<{
     },
     out: outputFileCommandOption(DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH),
   },
-  handler: async ({ context, advanced, out }) => {
+  handler: async ({ context, advanced, out, multiProtocolSigner }) => {
     logCommandHeader('Hyperlane Warp Configure');
 
     await createWarpRouteDeployConfig({
       context,
       outPath: out,
       advanced,
+      multiProtocolSigner,
     });
     process.exit(0);
   },
