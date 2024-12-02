@@ -647,22 +647,47 @@ export class WarpCore {
   /**
    * Ensure token amount is valid
    */
-  protected validateAmount(
+  protected async validateAmount(
     originTokenAmount: TokenAmount,
     destination: ChainNameOrId,
     recipient: Address,
-  ): Record<string, string> | null {
+  ): Promise<Record<string, string> | null> {
     if (!originTokenAmount.amount || originTokenAmount.amount < 0n) {
       const isNft = originTokenAmount.token.isNft();
       return { amount: isNft ? 'Invalid Token Id' : 'Invalid amount' };
     }
 
+    const validateMinimumTransfer = async (
+      token: IToken,
+      originOrDest: string,
+    ) => {
+      const adapter = token.getAdapter(this.multiProvider);
+      const minAmount = await adapter.getMinimumTransferAmount(recipient);
+      if (originTokenAmount.amount < minAmount) {
+        return `${originOrDest} amount below minimum, must transfer at least ${token.amount(
+          minAmount,
+        )}`;
+      }
+      return null;
+    };
+
+    // Validate the minimim transfer on the origin side
+    const originError = await validateMinimumTransfer(
+      originTokenAmount.token,
+      'Origin',
+    );
+    if (originError) return { amount: originError };
+
+    // Validate the minimum transfer on the destination side
     const destinationName = this.multiProvider.getChainName(destination);
     const destinationToken =
       originTokenAmount.token.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
-
-    const adapter = destinationToken.getAdapter(this.multiProvider);
+    const destinationError = await validateMinimumTransfer(
+      destinationToken,
+      'Destination',
+    );
+    if (destinationError) return { amount: destinationError };
 
     return null;
   }

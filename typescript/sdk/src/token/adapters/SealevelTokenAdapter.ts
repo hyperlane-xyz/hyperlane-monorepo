@@ -636,6 +636,10 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     return this.wrappedNative.getMetadata();
   }
 
+  override async getMinimumTransferAmount(recipient: Address): Promise<bigint> {
+    return this.wrappedNative.getMinimumTransferAmount(recipient);
+  }
+
   override async getMedianPriorityFee(): Promise<number | undefined> {
     // Native tokens don't have a collateral address, so we don't fetch
     // prioritization fee history
