@@ -1,6 +1,6 @@
 import { confirm, input, select } from '@inquirer/prompts';
 import { Signer } from 'ethers';
-import { Account } from 'starknet';
+import { Account as StarknetAccount } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -145,7 +145,8 @@ export async function createWarpRouteDeployConfig({
         (
           (await multiProtocolSigner?.initSigner(chain)) as Signer
         )?.getAddress() ||
-        ((await multiProtocolSigner?.initSigner(chain)) as Account)?.address,
+        ((await multiProtocolSigner?.initSigner(chain)) as StarknetAccount)
+          ?.address,
       'Enter the desired',
       'owner address',
       'signer',

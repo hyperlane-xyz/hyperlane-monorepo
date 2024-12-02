@@ -1,6 +1,5 @@
 import { confirm } from '@inquirer/prompts';
 import { groupBy } from 'lodash-es';
-import { Account, RpcProvider } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -67,6 +66,7 @@ import {
 import { readWarpRouteDeployConfig } from '../config/warp.js';
 import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
@@ -94,12 +94,15 @@ interface WarpApplyParams extends DeployParams {
 export async function runWarpRouteDeploy({
   context,
   warpRouteDeploymentConfigPath,
+  multiProtocolSigner,
 }: {
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }) {
-  const { signer, skipConfirmation, chainMetadata, registry, multiProvider } =
-    context;
+  const { skipConfirmation, chainMetadata, registry } = context;
+  const multiProvider = await multiProtocolSigner?.getMultiProvider();
+  assert(multiProvider, 'Multiprovider failed!');
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -142,13 +145,12 @@ export async function runWarpRouteDeploy({
     switch (protocol) {
       case ProtocolType.Ethereum:
         {
-          const userAddress = await signer.getAddress();
           await runPreflightChecksForChains({
             context,
             chains: protocolChains,
             minGas: MINIMUM_WARP_DEPLOY_GAS,
           });
-          await prepareDeploy(context, userAddress, protocolChains);
+          await prepareDeploy(context, null, protocolChains);
           const deployedContracts = await executeDeploy(
             { context, warpDeployConfig: warpRouteConfig },
             apiKeys,
@@ -170,12 +172,18 @@ export async function runWarpRouteDeploy({
         break;
 
       case ProtocolType.Starknet:
+        assert(
+          multiProtocolSigner,
+          'multi protocol signer is required for starknet chain deployment',
+        );
         const addresses = await executeStarknetDeployments({
           warpRouteConfig,
-          context,
+          multiProvider,
+          multiProtocolSigner,
         });
         const warpCoreConfig = await getWarpCoreConfigForStarknet(
-          { context, warpDeployConfig: warpRouteConfig },
+          warpRouteConfig,
+          multiProvider,
           addresses,
         );
         deployments.tokens = [...deployments.tokens, ...warpCoreConfig.tokens];
@@ -1010,41 +1018,34 @@ function groupChainsByProtocol(
 
 async function executeStarknetDeployments({
   warpRouteConfig,
-  context,
+  multiProvider,
+  multiProtocolSigner,
 }: {
   warpRouteConfig: WarpRouteDeployConfig;
-  context: WriteCommandContext;
+  multiProvider: MultiProvider;
+  multiProtocolSigner: MultiProtocolSignerManager;
 }): Promise<ChainMap<string>> {
-  const provider = new RpcProvider({
-    nodeUrl: 'http://127.0.0.1:5050',
-  });
-  const account = new Account(
-    provider,
-    '0x4acc9b79dae485fb71f309f5b62501a1329789f4418bb4c25353ad5617be4d4',
-    '0x000000000000000000000000000000002f663fafebbee32e0698f7e13f886c73',
-  );
-  logBlue('🚀 Beginning Starknet warp deployments...');
-
   assert(!warpRouteConfig.isNft, 'NFT routes not supported yet!');
 
   const starknetDeployer = new StarknetERC20WarpModule(
-    account,
+    async (chain: string) => await multiProtocolSigner.initSigner(chain),
     warpRouteConfig,
-    context.multiProvider,
+    multiProvider,
   );
 
   return await starknetDeployer.deployToken();
 }
 
 async function getWarpCoreConfigForStarknet(
-  { warpDeployConfig, context }: DeployParams,
+  warpDeployConfig: WarpRouteDeployConfig,
+  multiProvider: MultiProvider,
   contracts: ChainMap<string>,
 ): Promise<WarpCoreConfig> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
   const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    context.multiProvider,
+    multiProvider,
     warpDeployConfig,
   );
   assert(

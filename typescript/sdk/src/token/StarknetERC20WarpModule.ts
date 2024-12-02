@@ -1,3 +1,4 @@
+import { Signer } from 'ethers';
 import { Account, byteArray, getChecksumAddress } from 'starknet';
 
 import { TokenType } from '@hyperlane-xyz/sdk';
@@ -13,15 +14,12 @@ import { WarpRouteDeployConfig } from './types.js';
 
 export class StarknetERC20WarpModule {
   protected logger = rootLogger.child({ module: 'StarknetERC20WarpModule' });
-  protected deployer: StarknetDeployer;
 
   constructor(
-    protected readonly signer: Account,
+    protected readonly getAccount: (chain: string) => Promise<Account | Signer>,
     protected readonly config: WarpRouteDeployConfig,
     protected readonly multiProvider: MultiProvider,
-  ) {
-    this.deployer = new StarknetDeployer(signer);
-  }
+  ) {}
 
   public async deployToken(): Promise<ChainMap<string>> {
     // TODO: manage this in a multi-protocol way, for now works as we just support native-synthetic pair
@@ -45,14 +43,18 @@ export class StarknetERC20WarpModule {
       )
         continue;
 
+      const account = (await this.getAccount(chain)) as Account;
+      const deployer = new StarknetDeployer(account);
+
       let ismAddress = await this.getStarknetDeploymentISMAddress({
         ismConfig: interchainSecurityModule,
         mailbox: mailbox,
         chain,
+        deployer,
       });
       switch (type) {
         case TokenType.synthetic: {
-          const tokenAddress = await this.deployer.deployContract('HypErc20', {
+          const tokenAddress = await deployer.deployContract('HypErc20', {
             decimals: tokenMetadata.decimals,
             mailbox: mailbox,
             total_supply: tokenMetadata.totalSupply,
@@ -60,17 +62,17 @@ export class StarknetERC20WarpModule {
             symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
             hook: getChecksumAddress(0),
             interchain_security_module: ismAddress,
-            owner: this.signer.address, //TODO: use config.owner, and in warp init ask for starknet owner
+            owner: account.address, //TODO: use config.owner, and in warp init ask for starknet owner
           });
           addresses[chain] = tokenAddress;
           break;
         }
         case TokenType.native: {
-          const tokenAddress = await this.deployer.deployContract('HypNative', {
+          const tokenAddress = await deployer.deployContract('HypNative', {
             mailbox: mailbox,
             hook: getChecksumAddress(0),
             interchain_security_module: ismAddress,
-            owner: this.signer.address, //TODO: use config.owner, and in warp init ask for starknet owner
+            owner: account.address, //TODO: use config.owner, and in warp init ask for starknet owner
           });
           addresses[chain] = tokenAddress;
           break;
@@ -86,14 +88,16 @@ export class StarknetERC20WarpModule {
     ismConfig,
     chain,
     mailbox,
+    deployer,
   }: {
     ismConfig?: IsmConfig;
     chain: string;
     mailbox: string;
+    deployer: StarknetDeployer;
   }): Promise<string> {
     if (!ismConfig) return getChecksumAddress(0);
     if (typeof ismConfig === 'string') return ismConfig;
-    return await this.deployer.deployIsm({
+    return await deployer.deployIsm({
       chain,
       ismConfig,
       mailbox,
