@@ -54,7 +54,7 @@ impl HyperlaneLogStore<Delivery> for HyperlaneDbStore {
 
 #[async_trait]
 impl HyperlaneSequenceAwareIndexerStoreReader<Delivery> for HyperlaneDbStore {
-    /// Gets a delivered message by its nonce.
+    /// Gets a delivered message by its sequence.
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<Delivery>> {
         let delivery = self
             .db
