@@ -499,7 +499,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           .map((log) => {
             try {
               return domainRoutingIsmFactory.interface.parseLog(log);
-            } catch (e) {
+            } catch {
               return undefined;
             }
           })

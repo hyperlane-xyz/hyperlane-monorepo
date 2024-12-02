@@ -29,7 +29,7 @@ import {
   HyperlaneFactories,
 } from '../contracts/types.js';
 import { HookConfig } from '../hook/types.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import type { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';

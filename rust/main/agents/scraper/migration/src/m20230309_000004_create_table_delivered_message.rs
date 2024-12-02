@@ -47,6 +47,7 @@ impl MigrationTrait for Migration {
                             .big_integer()
                             .not_null(),
                     )
+                    .col(ColumnDef::new(DeliveredMessage::Sequence).big_integer())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(DeliveredMessage::Domain)
@@ -105,4 +106,6 @@ pub enum DeliveredMessage {
     DestinationMailbox,
     /// Transaction the delivery was included in
     DestinationTxId,
+    /// Sequence when message was delivered
+    Sequence,
 }

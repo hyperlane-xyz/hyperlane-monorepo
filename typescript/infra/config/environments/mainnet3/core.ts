@@ -18,6 +18,7 @@ import {
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
   defaultMultisigConfigs,
+  multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
 import { Address, objMap } from '@hyperlane-xyz/utils';
 
@@ -43,20 +44,22 @@ export const core: ChainMap<CoreConfig> = objMap(
       getChain(local).technicalStack === ChainTechnicalStack.ZKSync;
 
     // zkSync uses a different ISM for the merkle root
-    const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
-      type: isZksyncChain
-        ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
-        : IsmType.MERKLE_ROOT_MULTISIG,
-      ...multisig,
-    });
+    const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig =>
+      multisigConfigToIsmConfig(
+        isZksyncChain
+          ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+          : IsmType.MERKLE_ROOT_MULTISIG,
+        multisig,
+      );
 
     // zkSync uses a different ISM for the message ID
-    const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
-      type: isZksyncChain
-        ? IsmType.STORAGE_MESSAGE_ID_MULTISIG
-        : IsmType.MESSAGE_ID_MULTISIG,
-      ...multisig,
-    });
+    const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig =>
+      multisigConfigToIsmConfig(
+        isZksyncChain
+          ? IsmType.STORAGE_MESSAGE_ID_MULTISIG
+          : IsmType.MESSAGE_ID_MULTISIG,
+        multisig,
+      );
 
     const routingIsm: RoutingIsmConfig = {
       type: IsmType.ROUTING,

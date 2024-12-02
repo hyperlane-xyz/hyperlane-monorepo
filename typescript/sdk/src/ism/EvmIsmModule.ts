@@ -28,10 +28,10 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
-import { IsmConfigSchema } from './schemas.js';
 import {
   DeployedIsm,
   IsmConfig,
+  IsmConfigSchema,
   IsmType,
   MUTABLE_ISM_TYPE,
   RoutingIsmConfig,
