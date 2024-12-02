@@ -5,8 +5,9 @@ import {
   ERC20__factory,
   HypERC20Collateral,
   IXERC20Lockbox__factory,
+  TokenRouter,
 } from '@hyperlane-xyz/core';
-import { eqAddress } from '@hyperlane-xyz/utils';
+import { eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { TokenMismatchViolation } from '../deploy/types.js';
 import { ProxiedRouterChecker } from '../router/ProxiedRouterChecker.js';
@@ -66,6 +67,30 @@ export class HypERC20Checker extends ProxiedRouterChecker<
 
     const expectedConfig = this.configMap[chain];
     const hypToken = this.app.router(this.app.getContracts(chain));
+
+    // Check all actual decimals are consistent
+    const actualChainDecimals = await this.getEvmActualDecimals();
+    this.checkDecimalConsistency(
+      chain,
+      hypToken,
+      actualChainDecimals,
+      'actual',
+      true,
+    );
+
+    // Check all config decimals are consistent as well
+    const configDecimals = objMap(
+      this.configMap,
+      (_chain, config) => config.decimals,
+    );
+    this.checkDecimalConsistency(
+      chain,
+      hypToken,
+      configDecimals,
+      'config',
+      false,
+    );
+
     if (isNativeConfig(expectedConfig)) {
       try {
         await this.multiProvider.estimateGas(chain, {
@@ -86,24 +111,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     } else if (isSyntheticConfig(expectedConfig)) {
       await checkERC20(hypToken as unknown as ERC20, expectedConfig);
     } else if (isCollateralConfig(expectedConfig)) {
-      const provider = this.multiProvider.getProvider(chain);
-      let collateralToken: ERC20;
-
-      if (expectedConfig.type === TokenType.XERC20Lockbox) {
-        const collateralTokenAddress = await IXERC20Lockbox__factory.connect(
-          expectedConfig.token,
-          provider,
-        ).callStatic.ERC20();
-        collateralToken = await ERC20__factory.connect(
-          collateralTokenAddress,
-          provider,
-        );
-      } else {
-        collateralToken = await ERC20__factory.connect(
-          expectedConfig.token,
-          provider,
-        );
-      }
+      const collateralToken = await this.getCollateralToken(chain);
       const actualToken = await (
         hypToken as unknown as HypERC20Collateral
       ).wrappedToken();
@@ -117,6 +125,105 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         };
         this.addViolation(violation);
       }
+    }
+  }
+
+  private cachedAllActualDecimals: Record<ChainName, number> | undefined =
+    undefined;
+
+  async getEvmActualDecimals(): Promise<Record<ChainName, number>> {
+    if (this.cachedAllActualDecimals) {
+      return this.cachedAllActualDecimals;
+    }
+    const entries = await Promise.all(
+      this.getEvmChains().map(async (chain) => {
+        const token = this.app.router(this.app.getContracts(chain));
+        return [chain, await this.getActualDecimals(chain, token)];
+      }),
+    );
+
+    this.cachedAllActualDecimals = Object.fromEntries(entries);
+
+    return this.cachedAllActualDecimals!;
+  }
+
+  async getActualDecimals(
+    chain: ChainName,
+    hypToken: TokenRouter,
+  ): Promise<number> {
+    const expectedConfig = this.configMap[chain];
+    let decimals: number | undefined = undefined;
+
+    if (isNativeConfig(expectedConfig)) {
+      decimals =
+        this.multiProvider.getChainMetadata(chain).nativeToken?.decimals;
+    } else if (isSyntheticConfig(expectedConfig)) {
+      decimals = await (hypToken as unknown as ERC20).decimals();
+    } else if (isCollateralConfig(expectedConfig)) {
+      const collateralToken = await this.getCollateralToken(chain);
+      decimals = await collateralToken.decimals();
+    }
+
+    if (decimals === undefined) {
+      throw new Error('Actual decimals not found');
+    }
+
+    return decimals;
+  }
+
+  async getCollateralToken(chain: ChainName): Promise<ERC20> {
+    const expectedConfig = this.configMap[chain];
+    let collateralToken: ERC20 | undefined = undefined;
+
+    if (isCollateralConfig(expectedConfig)) {
+      const provider = this.multiProvider.getProvider(chain);
+
+      if (expectedConfig.type === TokenType.XERC20Lockbox) {
+        const collateralTokenAddress = await IXERC20Lockbox__factory.connect(
+          expectedConfig.token,
+          provider,
+        ).callStatic.ERC20();
+        collateralToken = ERC20__factory.connect(
+          collateralTokenAddress,
+          provider,
+        );
+      } else {
+        collateralToken = ERC20__factory.connect(
+          expectedConfig.token,
+          provider,
+        );
+      }
+    }
+    if (!collateralToken) {
+      throw new Error('Collateral token not found');
+    }
+    return collateralToken;
+  }
+
+  checkDecimalConsistency(
+    chain: ChainName,
+    hypToken: TokenRouter,
+    chainDecimals: Record<ChainName, number | undefined>,
+    decimalType: string,
+    nonEmpty: boolean,
+  ) {
+    const uniqueChainDecimals = new Set(
+      Object.values(chainDecimals).filter((decimals) => !!decimals),
+    );
+    if (
+      uniqueChainDecimals.size > 1 ||
+      (nonEmpty && uniqueChainDecimals.size === 0)
+    ) {
+      const violation: TokenMismatchViolation = {
+        type: 'TokenDecimalsMismatch',
+        chain,
+        expected: `${
+          nonEmpty ? 'non-empty and ' : ''
+        }consistent ${decimalType} decimals`,
+        actual: JSON.stringify(chainDecimals),
+        tokenAddress: hypToken.address,
+      };
+      this.addViolation(violation);
     }
   }
 }
