@@ -207,9 +207,14 @@ async function main() {
       const result = await Promise.race([funder.fund(), promise]);
       if (result) {
         failureOccurred = true;
+        throw new Error('Failure occurred when funding');
       }
     } catch (error) {
-      logger.error('Error funding context', { error: format(error) });
+      logger.error('Error funding context', {
+        error: format(error),
+        context: funder.context,
+        timeoutMs: CONTEXT_FUNDING_TIMEOUT_MS,
+      });
       failureOccurred = true;
     } finally {
       cleanup();
@@ -469,9 +474,13 @@ class ContextFunder {
     } catch (error) {
       failureOccurred = true;
       logger.error(
-        { chain },
+        {
+          chain,
+          error: format(error),
+          timeoutMs: CHAIN_FUNDING_TIMEOUT_MS,
+          keysCount: keys.length,
+        },
         `Funding operations failed for chain ${chain}.`,
-        error,
       );
     } finally {
       cleanup();
@@ -508,11 +517,22 @@ class ContextFunder {
       throw new Error('L2 bridging failed');
     }
 
+    const failedKeys: BaseAgentKey[] = [];
     for (const key of keys) {
       const keyFundingFailed = await this.attemptToFundKey(key, chain);
       if (keyFundingFailed) {
-        throw new Error(`Failed to fund key ${key.address}`);
+        failedKeys.push(key);
       }
+    }
+
+    if (failedKeys.length > 0) {
+      throw new Error(
+        `Failed to fund ${
+          failedKeys.length
+        } keys on chain ${chain}: ${failedKeys
+          .map(({ address, role }) => `${address} (${role})`)
+          .join(', ')}`,
+      );
     }
   }
 
