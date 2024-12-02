@@ -1,5 +1,6 @@
 import {
   ChainMap,
+  HookType,
   IsmType,
   MultisigConfig,
   TokenRouterConfig,
@@ -164,6 +165,16 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0x952df7f0cb8611573a53dd7cbf29768871d9f8b0', alias: 'Renzo' },
     ],
   },
+  swell: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x7a0f4a8672f603e0c12468551db03f3956d10910',
+        alias: 'Luganodes',
+      },
+      { address: '0x952df7f0cb8611573a53dd7cbf29768871d9f8b0', alias: 'Renzo' },
+    ],
+  },
 };
 
 export const ezEthSafes: Record<string, string> = {
@@ -179,6 +190,7 @@ export const ezEthSafes: Record<string, string> = {
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  swell: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
 };
 
 export const getRenzoEZETHWarpConfig = async (): Promise<
@@ -253,6 +265,13 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                     owner: ezEthSafes[chain],
                   },
                 ],
+              },
+              hook: {
+                type: HookType.PROTOCOL_FEE,
+                owner: ezEthSafes[chain],
+                beneficiary: ezEthSafes[chain],
+                maxProtocolFee: 'x',
+                protocolFee: 'x',
               },
             },
           ];
