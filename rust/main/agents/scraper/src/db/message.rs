@@ -50,7 +50,7 @@ impl ScraperDb {
             .one(&self.0)
             .await?
         {
-            let delivery = bytes_to_address(delivery.msg_id)?;
+            let delivery = H256::from_slice(&delivery.msg_id);
             Ok(Some(delivery))
         } else {
             Ok(None)
