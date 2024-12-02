@@ -9,7 +9,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{
-        DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessage,
+        DispatchedMessageAccount, Inbox, InboxAccount, OutboxAccount, ProcessedMessage,
         ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
     },
     instruction,
