@@ -400,6 +400,17 @@ impl SealevelMailbox {
             ),
         ))
     }
+
+    async fn get_inbox(&self) -> ChainResult<Box<Inbox>> {
+        let account = self
+            .rpc()
+            .get_account_with_finalized_commitment(&self.inbox.0)
+            .await?;
+        let inbox = InboxAccount::fetch(&mut account.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        Ok(inbox)
+    }
 }
 
 impl HyperlaneContract for SealevelMailbox {
@@ -451,11 +462,7 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        let inbox_account = self.rpc().get_account(&self.inbox.0).await?;
-        let inbox = InboxAccount::fetch(&mut inbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-
+        let inbox = self.get_inbox().await?;
         Ok(inbox.default_ism.to_bytes().into())
     }
 
@@ -947,16 +954,8 @@ impl Indexer<H256> for SealevelMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let inbox = self
-            .mailbox
-            .provider
-            .rpc()
-            .get_account_with_finalized_commitment(&self.mailbox.inbox.0)
-            .await?;
-        let inbox_data = InboxAccount::fetch(&mut inbox.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-        let sequence = inbox_data
+        let inbox = self.mailbox.get_inbox().await?;
+        let sequence = inbox
             .processed_count
             .try_into()
             .map_err(StrOrIntParseError::from)?;
