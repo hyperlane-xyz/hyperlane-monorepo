@@ -244,9 +244,9 @@ describe('EvmIsmModule', async () => {
       });
     }
 
-    it(`deploys ${IsmType.ICA_FALLBACK_ROUTING}`, async () => {
+    it(`deploys ${IsmType.ICA_ROUTING}`, async () => {
       await createIsm({
-        type: IsmType.ICA_FALLBACK_ROUTING,
+        type: IsmType.ICA_ROUTING,
       });
     });
 

@@ -407,7 +407,7 @@ export async function routingModuleDelta(
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
 ): Promise<RoutingIsmDelta> {
-  if (config.type === IsmType.ICA_FALLBACK_ROUTING) {
+  if (config.type === IsmType.ICA_ROUTING) {
     return {
       domainsToEnroll: [],
       domainsToUnenroll: [],

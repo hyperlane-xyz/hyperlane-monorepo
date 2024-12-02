@@ -148,7 +148,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     // If the current ISM does not have an owner then it is an ICA Router
     if (!owner) {
       return {
-        type: IsmType.ICA_FALLBACK_ROUTING,
+        type: IsmType.ICA_ROUTING,
         address,
       };
     }

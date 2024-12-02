@@ -42,7 +42,7 @@ export enum IsmType {
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
-  ICA_FALLBACK_ROUTING = 'icaFallbackRoutingIsm',
+  ICA_ROUTING = 'icaRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
   STORAGE_AGGREGATION = 'storageAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
@@ -69,7 +69,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
     case IsmType.ROUTING:
     case IsmType.FALLBACK_ROUTING:
-    case IsmType.ICA_FALLBACK_ROUTING:
+    case IsmType.ICA_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
@@ -124,10 +124,7 @@ export type NullIsmConfig =
   | TrustedRelayerIsmConfig;
 
 type BaseRoutingIsmConfig<
-  T extends
-    | IsmType.ROUTING
-    | IsmType.FALLBACK_ROUTING
-    | IsmType.ICA_FALLBACK_ROUTING,
+  T extends IsmType.ROUTING | IsmType.FALLBACK_ROUTING | IsmType.ICA_ROUTING,
 > = {
   type: T;
 };
@@ -137,8 +134,7 @@ export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
 > &
   OwnableConfig & { domains: ChainMap<IsmConfig> };
 
-export type IcaRoutingIsmConfig =
-  BaseRoutingIsmConfig<IsmType.ICA_FALLBACK_ROUTING>;
+export type IcaRoutingIsmConfig = BaseRoutingIsmConfig<IsmType.ICA_ROUTING>;
 
 export type RoutingIsmConfig = IcaRoutingIsmConfig | DomainRoutingIsmConfig;
 
@@ -154,7 +150,7 @@ export type DeployedIsmType = {
   [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
-  [IsmType.ICA_FALLBACK_ROUTING]: IRoutingIsm;
+  [IsmType.ICA_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.STORAGE_AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
@@ -245,7 +241,7 @@ export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
   () =>
     z.discriminatedUnion('type', [
       z.object({
-        type: z.literal(IsmType.ICA_FALLBACK_ROUTING),
+        type: z.literal(IsmType.ICA_ROUTING),
       }),
       OwnableSchema.extend({
         type: z.literal(IsmType.ROUTING),
