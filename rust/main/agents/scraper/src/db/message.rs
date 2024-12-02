@@ -34,7 +34,7 @@ pub struct StorableMessage<'a> {
 impl ScraperDb {
     /// Get the delivered message associated with a sequence.
     #[instrument(skip(self))]
-    pub async fn retrieve_delivered_message_by_sequence(
+    pub async fn retrieve_delivery_by_sequence(
         &self,
         destination_domain: u32,
         destination_mailbox: &H256,

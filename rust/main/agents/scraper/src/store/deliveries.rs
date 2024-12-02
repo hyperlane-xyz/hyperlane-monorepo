@@ -58,11 +58,7 @@ impl HyperlaneSequenceAwareIndexerStoreReader<Delivery> for HyperlaneDbStore {
     async fn retrieve_by_sequence(&self, sequence: u32) -> Result<Option<Delivery>> {
         let delivery = self
             .db
-            .retrieve_delivered_message_by_sequence(
-                self.domain.id(),
-                &self.mailbox_address,
-                sequence,
-            )
+            .retrieve_delivery_by_sequence(self.domain.id(), &self.mailbox_address, sequence)
             .await?;
         Ok(delivery)
     }
