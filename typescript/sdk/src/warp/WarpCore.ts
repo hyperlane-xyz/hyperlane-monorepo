@@ -663,7 +663,7 @@ export class WarpCore {
 
     const destinationName = this.multiProvider.getChainName(destination);
     const destinationToken =
-      originTokenAmount.token.getConnectionForChain(destinationName)?.token;
+      originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
     const destinationAdapter = destinationToken.getAdapter(this.multiProvider);
 
