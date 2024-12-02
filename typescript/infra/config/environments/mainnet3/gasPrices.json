@@ -183,6 +183,10 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "lumiaprism": {
+    "amount": "1.0",
+    "decimals": 9
+  },
   "mantapacific": {
     "amount": "0.0030005",
     "decimals": 9
@@ -313,6 +317,10 @@
   },
   "superpositionmainnet": {
     "amount": "0.01",
+    "decimals": 9
+  },
+  "swell": {
+    "amount": "0.001000251",
     "decimals": 9
   },
   "taiko": {

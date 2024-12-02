@@ -33,7 +33,10 @@ import {
   KeyFunderConfig,
 } from '../../src/config/funding.js';
 import { FundableRole, Role } from '../../src/roles.js';
-import { submitMetrics } from '../../src/utils/metrics.js';
+import {
+  getWalletBalanceGauge,
+  submitMetrics,
+} from '../../src/utils/metrics.js';
 import {
   assertContext,
   assertFundableRole,
@@ -65,30 +68,19 @@ const L2ToL1: ChainMap<ChainName> = {
   base: 'ethereum',
 };
 
+// Manually adding these labels as we are using a push gateway,
+// and ordinarily these labels would be added via K8s annotations
 const constMetricLabels = {
-  // this needs to get set in main because of async reasons
   hyperlane_deployment: '',
   hyperlane_context: 'hyperlane',
 };
 
 const metricsRegister = new Registry();
 
-const walletBalanceGauge = new Gauge({
-  // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
-  name: 'hyperlane_wallet_balance',
-  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
-  registers: [metricsRegister],
-  labelNames: [
-    'chain',
-    'wallet_address',
-    'wallet_name',
-    'token_address',
-    'token_symbol',
-    'token_name',
-    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
-  ],
-});
-metricsRegister.registerMetric(walletBalanceGauge);
+const walletBalanceGauge = getWalletBalanceGauge(
+  metricsRegister,
+  Object.keys(constMetricLabels),
+);
 
 // Min delta is 50% of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
@@ -97,88 +89,6 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 // Don't send the full amount over to RC keys
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
-
-interface SealevelAccount {
-  pubkey: PublicKey;
-  walletName: string;
-}
-
-const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
-  solanamainnet: [
-    {
-      // WIF warp route ATA payer
-      pubkey: new PublicKey('R5oMfxcbjx4ZYK1B2Aic1weqwt2tQsRzFEGe5WJfAxh'),
-      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // USDC warp route ATA payer
-      pubkey: new PublicKey('A1XtL9mAzkNEpBPinrCpDRrPqVAFjgaxDk4ATFVoQVyc'),
-      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // USDT warp route ATA payer
-      pubkey: new PublicKey('9i3kYQqMtkm4sw1w5SQ8ebKMmh4LPVYKZRMPaZeRfn37'),
-      walletName: 'USDT/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // ORCA warp route ATA payer
-      pubkey: new PublicKey('HqAVwQA6rh1TGdyUHi2XqmCtBSyG3DZjjsCLRXWqyNuU'),
-      walletName: 'ORCA/eclipsemainnet-solanamainnet/ata-payer',
-    },
-  ],
-  eclipsemainnet: [
-    {
-      // WIF warp route ATA payer
-      pubkey: new PublicKey('HCQAfDd5ytAEidzR9g7CipjEGv2ZrSSZq1UY34oDFv8h'),
-      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // USDC warp route ATA payer
-      pubkey: new PublicKey('7arS1h8nwVVmmTVWSsu9rQ4WjLBN8iAi4DvHi8gWjBNC'),
-      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // tETH warp route ATA payer
-      pubkey: new PublicKey('Hyy4jryRxgZm5pvuSx29fXxJ9J55SuDtXiCo89kmNuz5'),
-      walletName: 'tETH/eclipsemainnet-ethereum/ata-payer',
-    },
-    {
-      // SOL warp route ATA payer
-      pubkey: new PublicKey('CijxTbPs9JZxTUfo8Hmz2imxzHtKnDFD3kZP3RPy34uJ'),
-      walletName: 'SOL/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // stTIA warp route ATA payer
-      pubkey: new PublicKey('Bg3bAM3gEhdam5mbPqkiMi3mLZkoAieakMRdMHo6mbcn'),
-      walletName: 'stTIA/eclipsemainnet-stride/ata-payer',
-    },
-    {
-      // TIA warp route ATA payer
-      pubkey: new PublicKey('AZs4Rw6H6YwJBKoHBCfChCitHnHvQcVGgrJwGh4bKmAf'),
-      walletName: 'TIA/eclipsemainnet-stride/ata-payer',
-    },
-    {
-      // USDT warp route ATA payer
-      pubkey: new PublicKey('78s5TD48q89EZqHNC2bfsswQXn6n3sn1ecGgqXgJe4hL'),
-      walletName: 'USDT/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // ORCA warp route ATA payer
-      pubkey: new PublicKey('3ZyZHoDRzfYg4ug6Tx4Zywe6M5Vt19vPZFx9Ag8qqnXu'),
-      walletName: 'ORCA/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // WBTC warp route ATA payer
-      pubkey: new PublicKey('BH9VfgYaCWbwuupzsTfSy67yR4dwuCbXmFRrm6aAH2NQ'),
-      walletName: 'WBTC/eclipsemainnet-ethereum/ata-payer',
-    },
-    // weETHs warp route ATA payer
-    {
-      pubkey: new PublicKey('F4Y6kHrq9qVnmkQhQibxh8nCU2quw5y25z7u8jSHMvtq'),
-      walletName: 'weETHs/eclipsemainnet-ethereum/ata-payer',
-    },
-  ],
-};
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
@@ -556,13 +466,6 @@ class ContextFunder {
       false,
     );
 
-    if (
-      this.environment === 'mainnet3' &&
-      this.context === Contexts.Hyperlane
-    ) {
-      await this.updateSolanaWalletBalanceGauge();
-    }
-
     return failureOccurred;
   }
 
@@ -908,54 +811,6 @@ class ContextFunder {
           ),
         ),
       );
-  }
-
-  private async updateSolanaWalletBalanceGauge() {
-    for (const chain of Object.keys(sealevelAccountsToTrack) as ChainName[]) {
-      await this.updateSealevelWalletBalanceAccounts(
-        chain,
-        sealevelAccountsToTrack[chain],
-      );
-    }
-  }
-
-  private async updateSealevelWalletBalanceAccounts(
-    chain: ChainName,
-    accounts: SealevelAccount[],
-  ) {
-    const rpcUrls = await getSecretRpcEndpoints(this.environment, chain);
-    const provider = new Connection(rpcUrls[0], 'confirmed');
-
-    for (const { pubkey, walletName } of accounts) {
-      logger.info(
-        {
-          chain,
-          pubkey: pubkey.toString(),
-          walletName,
-        },
-        'Fetching sealevel wallet balance',
-      );
-      const balance = await provider.getBalance(pubkey);
-      logger.info(
-        {
-          balance,
-          chain,
-          pubkey: pubkey.toString(),
-          walletName,
-        },
-        'Retrieved sealevel chain wallet balance',
-      );
-      walletBalanceGauge
-        .labels({
-          chain,
-          wallet_address: pubkey.toString(),
-          wallet_name: walletName,
-          token_symbol: 'Native',
-          token_name: 'Native',
-          ...constMetricLabels,
-        })
-        .set(balance / 1e9);
-    }
   }
 }
 
