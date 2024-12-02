@@ -57,7 +57,7 @@ impl ScraperDb {
         }
     }
 
-    /// Get the delivered message associated with a sequence.
+    /// Get the tx id of a delivered message associated with a sequence.
     #[instrument(skip(self))]
     pub async fn retrieve_delivered_message_tx_id(
         &self,
