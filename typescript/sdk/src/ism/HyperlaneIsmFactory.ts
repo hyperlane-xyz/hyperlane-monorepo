@@ -154,6 +154,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
+      case IsmType.ICA_FALLBACK_ROUTING:
         contract = await this.deployRoutingIsm({
           destination,
           config,

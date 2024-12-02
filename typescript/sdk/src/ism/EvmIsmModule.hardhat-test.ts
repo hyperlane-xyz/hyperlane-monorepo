@@ -197,6 +197,7 @@ describe('EvmIsmModule', async () => {
   // expect that the ISM matches the config after all tests
   afterEach(async () => {
     const derivedConfiig = await testIsm.read();
+
     const normalizedDerivedConfig = normalizeConfig(derivedConfiig);
     const normalizedConfig = normalizeConfig(testConfig);
 
@@ -242,6 +243,12 @@ describe('EvmIsmModule', async () => {
         await createIsm(exampleRoutingConfig);
       });
     }
+
+    it(`deploys ${IsmType.ICA_FALLBACK_ROUTING}`, async () => {
+      await createIsm({
+        type: IsmType.ICA_FALLBACK_ROUTING,
+      });
+    });
 
     for (let i = 0; i < 16; i++) {
       it(`deploys a random ism config #${i}`, async () => {
