@@ -54,7 +54,10 @@ function randomNonNestedModuleType(): ModuleType {
   return NonNestedModuleTypes[randomInt(NonNestedModuleTypes.length)];
 }
 
-const randomIsmConfig = (depth = 0, maxDepth = 2): any => {
+const randomIsmConfig = (
+  depth = 0,
+  maxDepth = 2,
+): Exclude<IsmConfig, string> => {
   const moduleType =
     depth === maxDepth ? randomNonNestedModuleType() : randomModuleType();
 
@@ -77,8 +80,8 @@ const randomIsmConfig = (depth = 0, maxDepth = 2): any => {
       const n = randomInt(2, 1);
       const moduleTypes = new Set();
       const modules = new Array<number>(n).fill(0).map(() => {
-        let moduleConfig;
-        let moduleType;
+        let moduleConfig: Exclude<IsmConfig, string>;
+        let moduleType: IsmType;
 
         // Ensure that we do not add the same module type more than once per level
         do {
