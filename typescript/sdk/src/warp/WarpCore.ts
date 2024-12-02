@@ -657,37 +657,43 @@ export class WarpCore {
       return { amount: isNft ? 'Invalid Token Id' : 'Invalid amount' };
     }
 
-    const validateMinimumTransfer = async (
-      token: IToken,
-      originOrDest: string,
-    ) => {
-      const adapter = token.getAdapter(this.multiProvider);
-      const minAmount = await adapter.getMinimumTransferAmount(recipient);
-      if (originTokenAmount.amount < minAmount) {
-        return `${originOrDest} amount below minimum, must transfer at least ${token.amount(
-          minAmount,
-        )}`;
-      }
-      return null;
-    };
+    // Check the transfer amount is sufficient on the destination side
 
-    // Validate the minimim transfer on the origin side
-    const originError = await validateMinimumTransfer(
-      originTokenAmount.token,
-      'Origin',
-    );
-    if (originError) return { amount: originError };
+    const originToken = originTokenAmount.token;
 
-    // Validate the minimum transfer on the destination side
     const destinationName = this.multiProvider.getChainName(destination);
     const destinationToken =
       originTokenAmount.token.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
-    const destinationError = await validateMinimumTransfer(
-      destinationToken,
-      'Destination',
+    const destinationAdapter = destinationToken.getAdapter(this.multiProvider);
+
+    // Convert the originTokenAmount to a destination amount
+    const destinationTokenAmount = destinationToken.amount(
+      convertDecimals(
+        originToken.decimals,
+        destinationToken.decimals,
+        originTokenAmount.amount.toString(),
+      ),
     );
-    if (destinationError) return { amount: destinationError };
+    // Get the min required destination amount
+    const minDestinationTransferAmount =
+      await destinationAdapter.getMinimumTransferAmount(recipient);
+
+    if (minDestinationTransferAmount > destinationTokenAmount.amount) {
+      // Surface the min required amount to the user as an origin amount
+      const minOriginTransferAmount = originToken.amount(
+        convertDecimals(
+          destinationToken.decimals,
+          originToken.decimals,
+          minDestinationTransferAmount.toString(),
+        ),
+      );
+      return {
+        amount: `Minimum transfer amount is ${minOriginTransferAmount.getDecimalFormattedAmount()} ${
+          originToken.symbol
+        }`,
+      };
+    }
 
     return null;
   }
