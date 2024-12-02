@@ -108,7 +108,7 @@ export async function encodeArguments(
     deployArgumentsEncoded = contractInterface
       .encodeDeploy(constructorArgs)
       .replace('0x', '');
-  } catch (error: any) {
+  } catch {
     throw new Error('Cant encode constructor args');
   }
   return deployArgumentsEncoded;
