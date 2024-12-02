@@ -191,7 +191,7 @@ export class ZKSyncContractVerifier {
         { apiUrl, chain },
         'Parsing response from explorer...',
       );
-    } catch (error) {
+    } catch {
       verificationLogger.trace(
         {
           failure: response.statusText,
