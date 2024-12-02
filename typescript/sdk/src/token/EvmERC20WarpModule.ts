@@ -299,7 +299,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       updateTransactions: hookUpdateTransactions,
     } = await this.deployOrUpdateHook(actualConfig, expectedConfig);
 
-    // If an Hook is updated in-place, push the update txs
+    // If a Hook is updated in-place, push the update txs
     updateTransactions.push(...hookUpdateTransactions);
 
     // If a new Hook is deployed, push the setHook tx
