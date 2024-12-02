@@ -1,3 +1,5 @@
+import { parseUnits } from 'ethers/lib/utils.js';
+
 import {
   ChainMap,
   HookType,
@@ -24,6 +26,7 @@ const chainsToDeploy = [
   'zircuit',
   'taiko',
   'sei',
+  'swell',
 ];
 const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
@@ -42,6 +45,7 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   zircuit: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   taiko: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   sei: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // redEth
+  swell: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -270,8 +274,8 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                 type: HookType.PROTOCOL_FEE,
                 owner: ezEthSafes[chain],
                 beneficiary: ezEthSafes[chain],
-                maxProtocolFee: 'x',
-                protocolFee: 'x',
+                maxProtocolFee: parseUnits('100', 'ether').toString(),
+                protocolFee: parseUnits('100', 'ether').toString(),
               },
             },
           ];
