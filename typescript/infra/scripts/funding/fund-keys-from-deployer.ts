@@ -204,11 +204,7 @@ async function main() {
     );
 
     try {
-      const result = await Promise.race([funder.fund(), promise]);
-      if (result) {
-        failureOccurred = true;
-        throw new Error('Failure occurred when funding');
-      }
+      await Promise.race([funder.fund(), promise]);
     } catch (error) {
       logger.error('Error funding context', {
         error: format(error),
@@ -439,29 +435,21 @@ class ContextFunder {
       igpClaimThresholdPerChain,
     );
   }
-
-  // Funds all the roles in this.rolesToFund
-  // Returns whether a failure occurred.
-  async fund(): Promise<boolean> {
+  // Funds all the roles in this.keysToFundPerChain.
+  // Throws if any funding operations fail.
+  async fund(): Promise<void> {
     const chainKeyEntries = Object.entries(this.keysToFundPerChain);
     const results = await Promise.allSettled(
       chainKeyEntries.map(([chain, keys]) => this.fundChain(chain, keys)),
     );
 
-    return results.some((result) => {
-      if (result.status === 'rejected') {
-        return true;
-      }
-      return result.value;
-    });
+    if (results.some((result) => result.status === 'rejected')) {
+      logger.error('One or more chains failed to fund');
+      throw new Error('One or more chains failed to fund');
+    }
   }
 
-  private async fundChain(
-    chain: string,
-    keys: BaseAgentKey[],
-  ): Promise<boolean> {
-    let failureOccurred = false;
-
+  private async fundChain(chain: string, keys: BaseAgentKey[]): Promise<void> {
     const { promise, cleanup } = createTimeoutPromise(
       CHAIN_FUNDING_TIMEOUT_MS,
       `Timed out funding chain ${chain} after ${
@@ -472,7 +460,6 @@ class ContextFunder {
     try {
       await Promise.race([this.executeFundingOperations(chain, keys), promise]);
     } catch (error) {
-      failureOccurred = true;
       logger.error(
         {
           chain,
@@ -482,11 +469,10 @@ class ContextFunder {
         },
         `Funding operations failed for chain ${chain}.`,
       );
+      throw error;
     } finally {
       cleanup();
     }
-
-    return failureOccurred;
   }
 
   private async executeFundingOperations(
@@ -498,29 +484,50 @@ class ContextFunder {
     }
 
     if (!this.skipIgpClaim) {
-      const igpClaimFailed = await gracefullyHandleError(
-        () => this.attemptToClaimFromIgp(chain),
-        chain,
-        'Error claiming from IGP',
-      );
-      if (igpClaimFailed) {
-        throw new Error('IGP claim failed');
+      try {
+        await this.attemptToClaimFromIgp(chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            error: err,
+          },
+          `Error claiming from IGP on chain ${chain}`,
+        );
       }
     }
 
-    const bridgingFailed = await gracefullyHandleError(
-      () => this.bridgeIfL2(chain),
-      chain,
-      'Error bridging to L2',
-    );
-    if (bridgingFailed) {
-      throw new Error('L2 bridging failed');
+    try {
+      await this.bridgeIfL2(chain);
+    } catch (err) {
+      logger.error(
+        {
+          chain,
+          error: err,
+        },
+        `Error bridging to L2 chain ${chain}`,
+      );
+      throw err;
     }
 
     const failedKeys: BaseAgentKey[] = [];
     for (const key of keys) {
-      const keyFundingFailed = await this.attemptToFundKey(key, chain);
-      if (keyFundingFailed) {
+      try {
+        await this.attemptToFundKey(key, chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            key: await getKeyInfo(
+              key,
+              chain,
+              this.multiProvider.getProvider(chain),
+            ),
+            context: this.context,
+            error: err,
+          },
+          `Error funding key ${key.address} on chain ${chain}`,
+        );
         failedKeys.push(key);
       }
     }
@@ -539,41 +546,18 @@ class ContextFunder {
   private async attemptToFundKey(
     key: BaseAgentKey,
     chain: ChainName,
-  ): Promise<boolean> {
+  ): Promise<void> {
     const provider = this.multiProvider.tryGetProvider(chain);
     if (!provider) {
-      logger.error({ chain }, 'Cannot get chain connection');
-      // Consider this an error, but don't throw and prevent all future funding attempts
-      return true;
+      throw new Error(`Cannot get chain connection for ${chain}`);
     }
+
     const desiredBalance = this.getDesiredBalanceForRole(chain, key.role);
-
-    let failureOccurred = false;
-
-    try {
-      await this.fundKeyIfRequired(chain, key, desiredBalance);
-    } catch (err) {
-      logger.error(
-        {
-          chain,
-          key: await getKeyInfo(
-            key,
-            chain,
-            this.multiProvider.getProvider(chain),
-          ),
-          context: this.context,
-          error: err,
-        },
-        'Error funding key',
-      );
-      failureOccurred = true;
-    }
+    await this.fundKeyIfRequired(chain, key, desiredBalance);
     await this.updateWalletBalanceGauge(chain);
-
-    return failureOccurred;
   }
 
-  private async bridgeIfL2(chain: ChainName) {
+  private async bridgeIfL2(chain: ChainName): Promise<void> {
     if (L2Chains.includes(chain)) {
       const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
@@ -596,7 +580,7 @@ class ContextFunder {
 
   // Attempts to claim from the IGP if the balance exceeds the claim threshold.
   // If no threshold is set, infer it by reading the desired balance and dividing that by 5.
-  private async attemptToClaimFromIgp(chain: ChainName) {
+  private async attemptToClaimFromIgp(chain: ChainName): Promise<void> {
     // Determine the IGP claim threshold in Ether for the given chain.
     // If a specific threshold is not set, use the desired balance for the chain.
     const igpClaimThresholdEther =
@@ -961,27 +945,6 @@ function parseBalancePerChain(strs: string[]): ChainMap<string> {
     balanceMap[chain] = balance;
   });
   return balanceMap;
-}
-
-// Returns whether an error occurred
-async function gracefullyHandleError(
-  fn: () => Promise<void>,
-  chain: ChainName,
-  errorMessage: string,
-): Promise<boolean> {
-  try {
-    await fn();
-    return false;
-  } catch (err) {
-    logger.error(
-      {
-        chain,
-        error: format(err),
-      },
-      errorMessage,
-    );
-  }
-  return true;
 }
 
 // Utility function to create a timeout promise
