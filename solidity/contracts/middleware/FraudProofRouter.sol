@@ -21,7 +21,7 @@ import {GasRouter} from "../client/GasRouter.sol";
 contract FraudProofRouter is GasRouter {
     // ===================== State Variables =======================
 
-    AttributeCheckpointFraud public attributeCheckpointFraud;
+    AttributeCheckpointFraud public immutable attributeCheckpointFraud;
 
     // store origin => signer => merkleTree => digest => {timestamp, fraudType}
     mapping(uint32 origin => mapping(bytes32 signer => mapping(bytes32 merkleTree => mapping(bytes32 digest => Attribution))))
