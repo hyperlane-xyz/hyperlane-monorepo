@@ -530,3 +530,5 @@ export {
 } from './deploy/schemas.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { proxyAdmin } from './deploy/proxy.js';
+export { CheckpointDeployer } from './checkpoint/CheckpointDeployer.js';
+export { EvmCheckpointModule } from './checkpoint/EvmCheckpointModule.js';

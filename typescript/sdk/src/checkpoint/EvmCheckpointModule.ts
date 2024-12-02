@@ -26,12 +26,14 @@ export type CheckpointModuleAddresses = {
   mailbox: string;
 };
 
-export class CheckpointModule extends HyperlaneModule<
+export class EvmCheckpointModule extends HyperlaneModule<
   ProtocolType.Ethereum,
   CheckpointStorageConfig,
   HyperlaneAddresses<CheckpointStorageFactories> & CheckpointModuleAddresses
 > {
-  protected readonly logger = rootLogger.child({ module: 'CheckpointModule' });
+  protected readonly logger = rootLogger.child({
+    module: 'EvmCheckpointModule',
+  });
   protected readonly deployer: EvmModuleDeployer<CheckpointStorageFactories>;
 
   // Adding these to reduce how often we need to grab from MultiProvider
@@ -72,8 +74,8 @@ export class CheckpointModule extends HyperlaneModule<
     coreAddresses: { mailbox: string };
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
-  }): Promise<CheckpointModule> {
-    const module = new CheckpointModule(
+  }): Promise<EvmCheckpointModule> {
+    const module = new EvmCheckpointModule(
       multiProvider,
       {
         addresses: {
@@ -109,12 +111,10 @@ export class CheckpointModule extends HyperlaneModule<
   }
 
   async read(): Promise<CheckpointStorageConfig> {
-    // Implement reading the current configuration from the deployed contract
     throw new Error('Method not implemented.');
   }
 
   async update(): Promise<AnnotatedEV5Transaction[]> {
-    // Implement updating the contract configuration
     throw new Error('Method not implemented.');
   }
 }

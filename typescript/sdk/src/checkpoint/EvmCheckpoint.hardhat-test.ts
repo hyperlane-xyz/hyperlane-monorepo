@@ -15,7 +15,7 @@ import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDe
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { CheckpointModule } from './CheckpointModule.js';
+import { EvmCheckpointModule } from './EvmCheckpointModule.js';
 
 describe('CheckpointModule', async () => {
   const chain = TestChainName.test1;
@@ -23,7 +23,7 @@ describe('CheckpointModule', async () => {
   let multiProvider: MultiProvider;
   let coreAddresses: CoreAddresses;
   let signer: Signer;
-  let checkpointModule: CheckpointModule;
+  let checkpointModule: EvmCheckpointModule;
   let checkpointStorage: CheckpointStorage;
 
   before(async () => {
@@ -60,8 +60,7 @@ describe('CheckpointModule', async () => {
   });
 
   beforeEach(async () => {
-    // Create a new CheckpointModule before each test
-    checkpointModule = await CheckpointModule.create({
+    checkpointModule = await EvmCheckpointModule.create({
       chain,
       config: { chain },
       coreAddresses: { mailbox: coreAddresses.mailbox },
