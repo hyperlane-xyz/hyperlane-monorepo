@@ -205,7 +205,7 @@ pub trait BuildableWithProvider {
 
     /// Wrap the provider creation with a signing provider if signers were
     /// provided, and then create the associated trait.
-    #[instrument(skip(self, provider, conn, locator, signer), fields(domain=?locator.domain.name()), level = "debug")]
+    #[instrument(skip(self, provider, conn, locator, signer), fields(domain=locator.domain.name()), level = "debug")]
     async fn build_with_signer<M>(
         &self,
         provider: M,
@@ -300,10 +300,10 @@ fn wrap_with_gas_escalator<M>(provider: M) -> GasEscalatorMiddleware<M>
 where
     M: Middleware + 'static,
 {
-    // Increase the gas price by 12.5% every 60 seconds
+    // Increase the gas price by 12.5% every 90 seconds
     // (These are the default values from ethers doc comments)
     const COEFFICIENT: f64 = 1.125;
-    const EVERY_SECS: u64 = 60u64;
+    const EVERY_SECS: u64 = 90u64;
     // 550 gwei is the limit we also use for polygon, so we reuse for consistency
     const MAX_GAS_PRICE: u128 = 550 * 10u128.pow(9);
     let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, MAX_GAS_PRICE.into());
