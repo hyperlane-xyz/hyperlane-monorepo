@@ -9,6 +9,7 @@ import {
 } from 'ethers';
 import { Logger } from 'pino';
 
+import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   Address,
   addBufferToGasLimit,
@@ -17,6 +18,9 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
+import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { ExplorerLicenseType } from '../deploy/verify/types.js';
+import { getContractVerificationInput } from '../deploy/verify/utils.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
@@ -46,7 +50,6 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   signers: ChainMap<Signer>;
   useSharedSigner = false; // A single signer to be used for all chains
   readonly logger: Logger;
-
   /**
    * Create a new MultiProvider with the given chainMetadata,
    * or the SDK's default metadata if not provided
@@ -335,6 +338,30 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     // wait for deploy tx to be confirmed
     await this.handleTx(chainNameOrId, contract.deployTransaction);
+
+    // verify deployed contracts
+    try {
+      const chain = this.getChainName(chainNameOrId);
+      const explorerApi = this.getExplorerApi(chain);
+      const contractVerifier = new ContractVerifier(
+        this as MultiProvider,
+        { [chain]: explorerApi.apiKey ?? '' },
+        coreBuildArtifact,
+        ExplorerLicenseType.MIT,
+      );
+      const factoryName = factory.constructor.name;
+      console.log(`trying to verify ${factoryName}`);
+      const verificationInput = getContractVerificationInput({
+        name: factoryName.substring(0, factoryName.indexOf('__factory')),
+        contract,
+        bytecode: factory.bytecode,
+        expectedimplementation: contract.address,
+      });
+
+      contractVerifier.verifyContract(chain, verificationInput, this.logger);
+    } catch (e) {
+      this.logger.debug(`Failed to verify contracts in MultiProvider ${e}`);
+    }
 
     // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;

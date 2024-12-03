@@ -1,4 +1,4 @@
-import { parseUnits } from 'ethers/lib/utils.js';
+import { parseEther } from 'ethers/lib/utils.js';
 
 import {
   ChainMap,
@@ -28,6 +28,10 @@ const chainsToDeploy = [
   'sei',
   'swell',
 ];
+
+const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
+const CURRENT_ETH_PRICE = 3500; // Changing this will update the existing PROTOCOL_FEE hook
+const protocolFee = (0.5 / CURRENT_ETH_PRICE).toFixed(10).toString(); // ~$0.50 USD
 const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
 const warpRouteOverheadGas = 200_000;
@@ -45,7 +49,7 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   zircuit: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   taiko: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   sei: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // redEth
-  swell: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703',
+  swell: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // TODO: NOT READY
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -173,10 +177,10 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
     threshold: 1,
     validators: [
       {
-        address: '0x7a0f4a8672f603e0c12468551db03f3956d10910',
+        address: '0x7a0f4a8672f603e0c12468551db03f3956d10910', // TODO: NOT READY
         alias: 'Luganodes',
       },
-      { address: '0x952df7f0cb8611573a53dd7cbf29768871d9f8b0', alias: 'Renzo' },
+      { address: '0xb6b9b4bd4eb6eb3aef5e9826e7f8b8455947f67c', alias: 'Renzo' },
     ],
   },
 };
@@ -194,7 +198,7 @@ export const ezEthSafes: Record<string, string> = {
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
-  swell: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  swell: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5', // TODO: NOT READY
 };
 
 export const getRenzoEZETHWarpConfig = async (): Promise<
@@ -274,8 +278,8 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                 type: HookType.PROTOCOL_FEE,
                 owner: ezEthSafes[chain],
                 beneficiary: ezEthSafes[chain],
-                maxProtocolFee: parseUnits('100', 'ether').toString(),
-                protocolFee: parseUnits('100', 'ether').toString(),
+                protocolFee: parseEther(protocolFee).toString(),
+                maxProtocolFee: MAX_PROTOCOL_FEE,
               },
             },
           ];
