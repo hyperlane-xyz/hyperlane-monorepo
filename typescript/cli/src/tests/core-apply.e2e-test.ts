@@ -16,26 +16,24 @@ import {
   hyperlaneCoreDeploy,
   readCoreConfig,
 } from './commands/core.js';
-import { ANVIL_KEY, REGISTRY_PATH } from './commands/helpers.js';
+import {
+  ANVIL_KEY,
+  CHAIN_NAME_2,
+  CORE_CONFIG_PATH,
+  CORE_READ_CONFIG_PATH_2,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  REGISTRY_PATH,
+} from './commands/helpers.js';
 
-const CHAIN_NAME = 'anvil2';
-
-const EXAMPLES_PATH = './examples';
-const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
-
-const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
-const CORE_READ_CONFIG_PATH = `${TEMP_PATH}/anvil2/core-config-read.yaml`;
-
-const TEST_TIMEOUT = 200_000; // Long timeout since these tests can take a while
 describe('hyperlane core apply e2e tests', async function () {
-  this.timeout(TEST_TIMEOUT);
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
   let signer: Signer;
   let initialOwnerAddress: Address;
 
   before(async () => {
     const chainMetadata: any = readYamlOrJson(
-      `${REGISTRY_PATH}/chains/${CHAIN_NAME}/metadata.yaml`,
+      `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`,
     );
 
     const provider = new ethers.providers.JsonRpcProvider(
@@ -49,20 +47,20 @@ describe('hyperlane core apply e2e tests', async function () {
   });
 
   it('should update the mailbox owner', async () => {
-    await hyperlaneCoreDeploy(CHAIN_NAME, CORE_CONFIG_PATH);
+    await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
     const coreConfig: CoreConfig = await readCoreConfig(
-      CHAIN_NAME,
-      CORE_READ_CONFIG_PATH,
+      CHAIN_NAME_2,
+      CORE_READ_CONFIG_PATH_2,
     );
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
     const newOwner = randomAddress().toLowerCase();
     coreConfig.owner = newOwner;
-    writeYamlOrJson(CORE_READ_CONFIG_PATH, coreConfig);
-    await hyperlaneCoreApply(CHAIN_NAME, CORE_READ_CONFIG_PATH);
+    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
+    await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2);
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await readCoreConfig(
-      CHAIN_NAME,
-      CORE_READ_CONFIG_PATH,
+      CHAIN_NAME_2,
+      CORE_READ_CONFIG_PATH_2,
     );
     expect(updatedConfig.owner.toLowerCase()).to.equal(newOwner);
     expect(updatedConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
@@ -73,10 +71,10 @@ describe('hyperlane core apply e2e tests', async function () {
   });
 
   it('should update the ProxyAdmin to a new one for the mailbox', async () => {
-    await hyperlaneCoreDeploy(CHAIN_NAME, CORE_CONFIG_PATH);
+    await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
     const coreConfig: CoreConfig = await readCoreConfig(
-      CHAIN_NAME,
-      CORE_READ_CONFIG_PATH,
+      CHAIN_NAME_2,
+      CORE_READ_CONFIG_PATH_2,
     );
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
 
@@ -85,13 +83,13 @@ describe('hyperlane core apply e2e tests', async function () {
     const newProxyAdmin = await deployTx.deployed();
     coreConfig.proxyAdmin!.address = newProxyAdmin.address;
 
-    writeYamlOrJson(CORE_READ_CONFIG_PATH, coreConfig);
-    await hyperlaneCoreApply(CHAIN_NAME, CORE_READ_CONFIG_PATH);
+    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
+    await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2);
 
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await readCoreConfig(
-      CHAIN_NAME,
-      CORE_READ_CONFIG_PATH,
+      CHAIN_NAME_2,
+      CORE_READ_CONFIG_PATH_2,
     );
     expect(updatedConfig.owner).to.equal(initialOwnerAddress);
     expect(updatedConfig.proxyAdmin?.address).to.equal(newProxyAdmin.address);
@@ -102,22 +100,22 @@ describe('hyperlane core apply e2e tests', async function () {
   });
 
   it('should update the ProxyAdmin owner for the mailbox', async () => {
-    await hyperlaneCoreDeploy(CHAIN_NAME, CORE_CONFIG_PATH);
+    await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
     const coreConfig: CoreConfig = await readCoreConfig(
-      CHAIN_NAME,
-      CORE_READ_CONFIG_PATH,
+      CHAIN_NAME_2,
+      CORE_READ_CONFIG_PATH_2,
     );
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
 
     const newOwner = randomAddress().toLowerCase();
     coreConfig.proxyAdmin!.owner = newOwner;
-    writeYamlOrJson(CORE_READ_CONFIG_PATH, coreConfig);
-    await hyperlaneCoreApply(CHAIN_NAME, CORE_READ_CONFIG_PATH);
+    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
+    await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2);
 
     // Verify that the owner has been set correctly without modifying any other owner values
     const updatedConfig: CoreConfig = await readCoreConfig(
-      CHAIN_NAME,
-      CORE_READ_CONFIG_PATH,
+      CHAIN_NAME_2,
+      CORE_READ_CONFIG_PATH_2,
     );
     expect(updatedConfig.owner).to.equal(initialOwnerAddress);
     expect(updatedConfig.proxyAdmin?.owner.toLowerCase()).to.equal(newOwner);

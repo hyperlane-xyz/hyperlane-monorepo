@@ -9,9 +9,9 @@ import { readYamlOrJson } from '../utils/files.js';
 import { hyperlaneCoreDeploy, readCoreConfig } from './commands/core.js';
 import {
   ANVIL_KEY,
-  CHAIN_2_CORE_READ_CONFIG_PATH,
   CHAIN_NAME_2,
   CORE_CONFIG_PATH,
+  CORE_READ_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
 } from './commands/helpers.js';
@@ -42,7 +42,7 @@ describe('hyperlane core read e2e tests', async function () {
 
     const coreConfig: CoreConfig = await readCoreConfig(
       CHAIN_NAME_2,
-      CHAIN_2_CORE_READ_CONFIG_PATH,
+      CORE_READ_CONFIG_PATH_2,
     );
 
     expect(coreConfig.owner).to.equal(initialOwnerAddress);
