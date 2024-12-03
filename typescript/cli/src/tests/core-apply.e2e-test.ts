@@ -3,6 +3,7 @@ import { Signer, Wallet, ethers } from 'ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
+  ChainMetadata,
   CoreConfig,
   ProtocolFeeHookConfig,
   randomAddress,
@@ -18,11 +19,11 @@ import {
 } from './commands/core.js';
 import {
   ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
   CHAIN_NAME_2,
   CORE_CONFIG_PATH,
   CORE_READ_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
-  REGISTRY_PATH,
 } from './commands/helpers.js';
 
 describe('hyperlane core apply e2e tests', async function () {
@@ -32,9 +33,7 @@ describe('hyperlane core apply e2e tests', async function () {
   let initialOwnerAddress: Address;
 
   before(async () => {
-    const chainMetadata: any = readYamlOrJson(
-      `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`,
-    );
+    const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
 
     const provider = new ethers.providers.JsonRpcProvider(
       chainMetadata.rpcUrls[0].http,
