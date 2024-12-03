@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 
-import {FraudType, Attribution} from "../contracts/libs/FraudMessage.sol";
+import {FraudType} from "../contracts/libs/FraudMessage.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {TestAttributeCheckpointFraud} from "../contracts/test/TestAttributeCheckpointFraud.sol";
 import {FraudProofRouter} from "../contracts/middleware/FraudProofRouter.sol";
@@ -63,16 +63,25 @@ contract FraudProofRouterTest is Test {
         new FraudProofRouter(address(localMailbox), address(0));
     }
 
-    function test_sendFraudProof() public {
-        FraudType fraudType = FraudType.Whitelist;
+    function test_sendFraudProof(
+        address _signer,
+        bytes32 _digest,
+        bytes32 _merkleTree,
+        uint8 _fraudType,
+        uint48 _timestamp
+    ) public {
+        vm.assume(_fraudType <= uint8(FraudType.Root));
+        vm.assume(_timestamp > 0);
+        vm.warp(_timestamp);
+        FraudType fraudTypeEnum = FraudType(_fraudType);
 
-        testAcf.mockSetAttribution(SIGNER, DIGEST, fraudType);
+        testAcf.mockSetAttribution(_signer, _digest, fraudTypeEnum);
 
         originFpr.sendFraudProof(
             DESTINATION_DOMAIN,
-            SIGNER,
-            TypeCasts.addressToBytes32(address(testMerkleHook)),
-            DIGEST
+            _signer,
+            _merkleTree,
+            _digest
         );
 
         remoteMailbox.processNextInboundMessage();
@@ -80,12 +89,12 @@ contract FraudProofRouterTest is Test {
         (FraudType actualFraudType, uint48 actualTimestamp) = remoteFpr
             .fraudAttributions(
                 LOCAL_DOMAIN,
-                SIGNER.addressToBytes32(),
-                address(testMerkleHook).addressToBytes32(),
-                DIGEST
+                _signer.addressToBytes32(),
+                _merkleTree,
+                _digest
             );
 
-        assert(actualFraudType == fraudType);
+        assert(actualFraudType == fraudTypeEnum);
         assertEq(actualTimestamp, block.timestamp);
     }
 

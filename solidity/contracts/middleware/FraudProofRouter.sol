@@ -113,7 +113,7 @@ contract FraudProofRouter is GasRouter {
         bytes32,
         /*_sender*/
         bytes calldata _message
-    ) internal override onlyMailbox {
+    ) internal override {
         (
             bytes32 signer,
             bytes32 merkleTree,
