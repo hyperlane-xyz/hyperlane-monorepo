@@ -19,11 +19,21 @@ import {
   readWarpConfig,
 } from './warp.js';
 
-export const TEST_CONFIGS_PATH = './test-configs';
-export const REGISTRY_PATH = `${TEST_CONFIGS_PATH}/anvil`;
+export const E2E_TEST_CONFIGS_PATH = './test-configs';
+export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/anvil`;
 
 export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
+export const CHAIN_NAME_2 = 'anvil2';
+
+export const EXAMPLES_PATH = './examples';
+export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
+
+export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
+export const CHAIN_2_CORE_READ_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
+
+export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.
