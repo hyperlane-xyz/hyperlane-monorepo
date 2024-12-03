@@ -229,7 +229,7 @@ contract CircleBridgeAdapter is ILiquidityLayerAdapter, Router {
      * @notice Gets the Circle nonce ID by hashing _originCircleDomain and _nonce.
      * @param _originCircleDomain Domain of chain where the transfer originated
      * @param _nonce The unique identifier for the message from source to
-              destination
+     *           destination
      * @return hash of source and nonce
      */
     function _circleNonceId(

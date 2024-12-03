@@ -24,8 +24,8 @@ contract HypERC721Collateral is TokenRouter {
     /**
      * @notice Initializes the Hyperlane router
      * @param _hook The post-dispatch hook contract.
-       @param _interchainSecurityModule The interchain security module contract.
-       @param _owner The this contract.
+     *    @param _interchainSecurityModule The interchain security module contract.
+     *    @param _owner The this contract.
      */
     function initialize(
         address _hook,

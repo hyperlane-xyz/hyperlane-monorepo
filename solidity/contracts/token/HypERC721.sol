@@ -20,8 +20,8 @@ contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
      * @param _name The name of the token.
      * @param _symbol The symbol of the token.
      * @param _hook The post-dispatch hook contract.
-       @param _interchainSecurityModule The interchain security module contract.
-       @param _owner The this contract.
+     *    @param _interchainSecurityModule The interchain security module contract.
+     *    @param _owner The this contract.
      */
     function initialize(
         uint256 _mintAmount,

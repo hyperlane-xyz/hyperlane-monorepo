@@ -27,7 +27,6 @@ struct Attribution {
  * @title AttributeCheckpointFraud
  * @dev The AttributeCheckpointFraud contract is used to attribute fraud to a specific ECDSA checkpoint signer.
  */
-
 contract AttributeCheckpointFraud is Ownable, PackageVersioned {
     using CheckpointLib for Checkpoint;
     using Address for address;
