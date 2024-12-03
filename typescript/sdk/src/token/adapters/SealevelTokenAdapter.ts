@@ -113,6 +113,11 @@ export class SealevelNativeTokenAdapter
       }),
     );
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
+  }
 }
 
 // Interacts with SPL token programs
@@ -190,6 +195,13 @@ export class SealevelTokenAdapter
       this.getTokenProgramId(),
     );
   }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    const response = await this.getProvider().getTokenSupply(
+      this.tokenMintPubKey,
+    );
+    return BigInt(response.value.amount);
+  }
 }
 
 interface HypTokenAddresses {
@@ -264,6 +276,11 @@ export abstract class SealevelHypTokenAdapter
       domain,
       address: pubKey.toBuffer(),
     }));
+  }
+
+  // Intended to be overridden by subclasses
+  async getBridgedSupply(): Promise<bigint | undefined> {
+    return undefined;
   }
 
   async quoteTransferRemoteGas(
@@ -509,6 +526,14 @@ export abstract class SealevelHypTokenAdapter
     );
   }
 
+  // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/4b3537470eff0139163a2a7aa1d19fc708a992c6/rust/sealevel/programs/hyperlane-sealevel-token/src/plugin.rs#L43-L51
+  deriveAtaPayerAccount(): PublicKey {
+    return super.derivePda(
+      ['hyperlane_token', '-', 'ata_payer'],
+      this.warpProgramPubKey,
+    );
+  }
+
   /**
    * Fetches the median prioritization fee for transfers of the collateralAddress token.
    * @returns The median prioritization fee in micro-lamports
@@ -581,6 +606,10 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
     return this.wrappedNative.getBalance(owner);
   }
 
+  override async getBridgedSupply(): Promise<bigint> {
+    return this.getBalance(this.addresses.warpRouter);
+  }
+
   override async getMetadata(): Promise<TokenMetadata> {
     return this.wrappedNative.getMetadata();
   }
@@ -612,6 +641,10 @@ export class SealevelHypNativeAdapter extends SealevelHypTokenAdapter {
       this.warpProgramPubKey,
     );
   }
+
+  deriveAtaPayerAccount(): PublicKey {
+    throw new Error('No ATA payer is used for native warp routes');
+  }
 }
 
 // Interacts with Hyp Collateral token programs
@@ -630,6 +663,10 @@ export class SealevelHypCollateralAdapter extends SealevelHypTokenAdapter {
     }
 
     return super.getBalance(owner);
+  }
+
+  override async getBridgedSupply(): Promise<bigint> {
+    return this.getBalance(this.addresses.warpRouter);
   }
 
   override getTransferInstructionKeyList(
@@ -695,6 +732,10 @@ export class SealevelHypSyntheticAdapter extends SealevelHypTokenAdapter {
       if (error.message?.includes(NON_EXISTENT_ACCOUNT_ERROR)) return 0n;
       throw error;
     }
+  }
+
+  override async getBridgedSupply(): Promise<bigint> {
+    return this.getTotalSupply();
   }
 
   async getTotalSupply(): Promise<bigint> {

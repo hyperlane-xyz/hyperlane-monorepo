@@ -104,3 +104,13 @@ export async function getRouterConfigsForAllVms(
   // Merge, giving evmRouterConfig precedence
   return objMerge(allRouterConfigs, evmRouterConfig);
 }
+
+export function getOwnerConfigForAddress(owner: string): OwnableConfig {
+  return {
+    owner,
+    // To ensure that any other overrides aren't applied
+    ownerOverrides: {
+      proxyAdmin: owner,
+    },
+  };
+}

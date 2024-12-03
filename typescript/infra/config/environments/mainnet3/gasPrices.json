@@ -12,7 +12,7 @@
     "decimals": 9
   },
   "arbitrum": {
-    "amount": "0.01",
+    "amount": "0.123544",
     "decimals": 9
   },
   "arbitrumnova": {
@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.105",
+    "amount": "0.24",
     "decimals": 9
   },
   "flame": {
@@ -40,7 +40,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.010198987",
+    "amount": "0.024525952",
     "decimals": 9
   },
   "bitlayer": {
@@ -48,15 +48,23 @@
     "decimals": 9
   },
   "blast": {
-    "amount": "0.005065432",
+    "amount": "0.005892268",
     "decimals": 9
   },
   "bob": {
     "amount": "0.001000252",
     "decimals": 9
   },
+  "boba": {
+    "amount": "0.001000047",
+    "decimals": 9
+  },
   "bsc": {
     "amount": "1.0",
+    "decimals": 9
+  },
+  "bsquared": {
+    "amount": "0.001000252",
     "decimals": 9
   },
   "celo": {
@@ -87,6 +95,10 @@
     "amount": "250.0",
     "decimals": 9
   },
+  "duckchain": {
+    "amount": "10.0",
+    "decimals": 9
+  },
   "eclipsemainnet": {
     "amount": "0.0000001",
     "decimals": 1
@@ -96,7 +108,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "13.154482028",
+    "amount": "30.088451558",
     "decimals": 9
   },
   "everclear": {
@@ -104,7 +116,7 @@
     "decimals": 9
   },
   "fantom": {
-    "amount": "6.313597562",
+    "amount": "6.971582929",
     "decimals": 9
   },
   "flare": {
@@ -112,7 +124,7 @@
     "decimals": 9
   },
   "flowmainnet": {
-    "amount": "0.0000001",
+    "amount": "0.1",
     "decimals": 9
   },
   "fraxtal": {
@@ -136,7 +148,7 @@
     "decimals": 9
   },
   "immutablezkevmmainnet": {
-    "amount": "10.000000051",
+    "amount": "10.00000005",
     "decimals": 9
   },
   "inevm": {
@@ -156,7 +168,7 @@
     "decimals": 9
   },
   "linea": {
-    "amount": "0.327116635",
+    "amount": "0.548523195",
     "decimals": 9
   },
   "lisk": {
@@ -164,15 +176,19 @@
     "decimals": 9
   },
   "lukso": {
-    "amount": "0.323509518",
+    "amount": "0.475094399",
     "decimals": 9
   },
   "lumia": {
     "amount": "1.0",
     "decimals": 9
   },
+  "lumiaprism": {
+    "amount": "1.0",
+    "decimals": 9
+  },
   "mantapacific": {
-    "amount": "0.003000426",
+    "amount": "0.0030005",
     "decimals": 9
   },
   "mantle": {
@@ -208,7 +224,7 @@
     "decimals": 9
   },
   "morph": {
-    "amount": "0.201",
+    "amount": "0.014614332",
     "decimals": 9
   },
   "neutron": {
@@ -220,7 +236,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.001000638",
+    "amount": "0.001065045",
     "decimals": 9
   },
   "orderly": {
@@ -232,11 +248,11 @@
     "decimals": 1
   },
   "polygon": {
-    "amount": "36.937366533",
+    "amount": "260.197309239",
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "0.217",
+    "amount": "0.451",
     "decimals": 9
   },
   "polynomialfi": {
@@ -244,7 +260,7 @@
     "decimals": 9
   },
   "prom": {
-    "amount": "13.1",
+    "amount": "75.2",
     "decimals": 9
   },
   "proofofplay": {
@@ -280,7 +296,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "0.542811448",
+    "amount": "3.89327567",
     "decimals": 9
   },
   "snaxchain": {
@@ -295,16 +311,32 @@
     "amount": "0.005",
     "decimals": 1
   },
+  "superseed": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "superpositionmainnet": {
     "amount": "0.01",
     "decimals": 9
   },
+  "swell": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
   "taiko": {
-    "amount": "0.1323",
+    "amount": "0.1243284",
     "decimals": 9
   },
   "tangle": {
     "amount": "1.0",
+    "decimals": 9
+  },
+  "unichain": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
+  "vana": {
+    "amount": "0.001000007",
     "decimals": 9
   },
   "viction": {
@@ -312,7 +344,7 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001000279",
+    "amount": "0.00100026",
     "decimals": 9
   },
   "xai": {
@@ -320,7 +352,7 @@
     "decimals": 9
   },
   "xlayer": {
-    "amount": "10.982428125",
+    "amount": "23.05",
     "decimals": 9
   },
   "zeronetwork": {

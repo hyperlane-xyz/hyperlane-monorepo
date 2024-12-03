@@ -9,7 +9,7 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{
-        DispatchedMessageAccount, InboxAccount, OutboxAccount, ProcessedMessage,
+        DispatchedMessageAccount, Inbox, InboxAccount, OutboxAccount, ProcessedMessage,
         ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
     },
     instruction,
@@ -46,24 +46,26 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta, TransactionStatus,
-    UiCompiledInstruction, UiInnerInstructions, UiInstruction, UiMessage, UiParsedInstruction,
-    UiReturnDataEncoding, UiTransaction, UiTransactionReturnData, UiTransactionStatusMeta,
+    UiCompiledInstruction, UiConfirmedBlock, UiInnerInstructions, UiInstruction, UiMessage,
+    UiParsedInstruction, UiReturnDataEncoding, UiTransaction, UiTransactionReturnData,
+    UiTransactionStatusMeta,
 };
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, BatchItem, ChainCommunicationError,
-    ChainCommunicationError::ContractError, ChainResult, Checkpoint, ContractLocator, Decode as _,
-    Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain,
-    LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome,
-    H256, H512, U256,
+    accumulator::incremental::IncrementalMerkle, config::StrOrIntParseError, BatchItem,
+    ChainCommunicationError, ChainCommunicationError::ContractError, ChainResult, Checkpoint,
+    ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer,
+    KnownHyperlaneDomain, LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer,
+    TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
 use crate::error::HyperlaneSealevelError;
-use crate::transaction::{
-    is_message_delivery_instruction, is_message_dispatch_instruction, search_message_transactions,
+use crate::log_meta_composer::{
+    is_interchain_payment_instruction, is_message_delivery_instruction,
+    is_message_dispatch_instruction, LogMetaComposer,
 };
 use crate::utils::{decode_h256, decode_h512, from_base58};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
@@ -398,6 +400,17 @@ impl SealevelMailbox {
             ),
         ))
     }
+
+    async fn get_inbox(&self) -> ChainResult<Box<Inbox>> {
+        let account = self
+            .rpc()
+            .get_account_with_finalized_commitment(&self.inbox.0)
+            .await?;
+        let inbox = InboxAccount::fetch(&mut account.data.as_ref())
+            .map_err(ChainCommunicationError::from_other)?
+            .into_inner();
+        Ok(inbox)
+    }
 }
 
 impl HyperlaneContract for SealevelMailbox {
@@ -449,11 +462,7 @@ impl Mailbox for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
-        let inbox_account = self.rpc().get_account(&self.inbox.0).await?;
-        let inbox = InboxAccount::fetch(&mut inbox_account.data.as_ref())
-            .map_err(ChainCommunicationError::from_other)?
-            .into_inner();
-
+        let inbox = self.get_inbox().await?;
         Ok(inbox.default_ism.to_bytes().into())
     }
 
@@ -499,6 +508,11 @@ impl Mailbox for SealevelMailbox {
         // If we're using Jito, we need to send a tip to the Jito fee account.
         // Otherwise, we need to set the compute unit price.
         if self.use_jito() {
+            let tip: u64 = std::env::var("JITO_TIP_LAMPORTS")
+                .ok()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX);
+
             // The tip is a standalone transfer to a Jito fee account.
             // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
             instructions.push(solana_sdk::system_instruction::transfer(
@@ -506,7 +520,7 @@ impl Mailbox for SealevelMailbox {
                 // A random Jito fee account, taken from the getFeeAccount RPC response:
                 // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
                 &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
-                PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX,
+                tip,
             ));
         }
         // "processed" level commitment does not guarantee finality.
@@ -644,24 +658,43 @@ impl Mailbox for SealevelMailbox {
 pub struct SealevelMailboxIndexer {
     mailbox: SealevelMailbox,
     program_id: Pubkey,
+    dispatch_message_log_meta_composer: LogMetaComposer,
+    delivery_message_log_meta_composer: LogMetaComposer,
+    advanced_log_meta: bool,
 }
 
 impl SealevelMailboxIndexer {
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
+    pub fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+        advanced_log_meta: bool,
+    ) -> ChainResult<Self> {
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         let mailbox = SealevelMailbox::new(conf, locator, None)?;
+
+        let dispatch_message_log_meta_composer = LogMetaComposer::new(
+            mailbox.program_id,
+            "message dispatch".to_owned(),
+            is_message_dispatch_instruction,
+        );
+
+        let delivery_message_log_meta_composer = LogMetaComposer::new(
+            mailbox.program_id,
+            "message delivery".to_owned(),
+            is_message_delivery_instruction,
+        );
+
         Ok(Self {
             program_id,
             mailbox,
+            dispatch_message_log_meta_composer,
+            delivery_message_log_meta_composer,
+            advanced_log_meta,
         })
     }
 
     fn rpc(&self) -> &SealevelRpcClient {
         &self.mailbox.rpc()
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.rpc().get_block_height().await
     }
 
     async fn get_dispatched_message_with_nonce(
@@ -697,13 +730,25 @@ impl SealevelMailboxIndexer {
         let hyperlane_message =
             HyperlaneMessage::read_from(&mut &dispatched_message_account.encoded_message[..])?;
 
-        let log_meta = self
-            .dispatch_message_log_meta(
+        let log_meta = if self.advanced_log_meta {
+            self.dispatch_message_log_meta(
                 U256::from(nonce),
                 &valid_message_storage_pda_pubkey,
                 &dispatched_message_account.slot,
             )
-            .await?;
+            .await?
+        } else {
+            LogMeta {
+                address: self.program_id.to_bytes().into(),
+                block_number: dispatched_message_account.slot,
+                // TODO: get these when building out scraper support.
+                // It's inconvenient to get these :|
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                transaction_index: 0,
+                log_index: U256::zero(),
+            }
+        };
 
         Ok((hyperlane_message.into(), log_meta))
     }
@@ -728,34 +773,35 @@ impl SealevelMailboxIndexer {
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
     ) -> ChainResult<LogMeta> {
-        let error_msg_no_txn = "block which should contain message dispatch transaction does not contain any transaction".to_owned();
-        let error_msg_too_many_txns = "block contains more than one dispatch message transaction operating on the same dispatch message store PDA".to_owned();
-        let error_msg_no_txn_after_filtering = "block which should contain message dispatch transaction does not contain any after filtering".to_owned();
+        let block = self
+            .mailbox
+            .provider
+            .rpc()
+            .get_block(*message_account_slot)
+            .await?;
 
-        self.log_meta(
-            log_index,
-            message_storage_pda_pubkey,
-            message_account_slot,
-            &is_message_dispatch_instruction,
-            error_msg_no_txn,
-            error_msg_too_many_txns,
-            error_msg_no_txn_after_filtering,
-        )
-        .await
+        self.dispatch_message_log_meta_composer
+            .log_meta(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+            )
+            .map_err(Into::<ChainCommunicationError>::into)
     }
 
-    async fn get_delivered_message_with_nonce(
+    async fn get_delivered_message_with_sequence(
         &self,
-        nonce: u32,
+        sequence: u32,
     ) -> ChainResult<(Indexed<H256>, LogMeta)> {
-        let nonce_bytes = nonce.to_le_bytes();
+        let sequence_bytes = sequence.to_le_bytes();
         let delivered_message_id_offset = 1 + 8 + 8; // the offset to get the `message_id` field
         let delivered_message_id_length = 32;
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
             &PROCESSED_MESSAGE_DISCRIMINATOR,
-            &nonce_bytes,
+            &sequence_bytes,
             delivered_message_id_offset,
             delivered_message_id_length,
         )
@@ -778,15 +824,30 @@ impl SealevelMailboxIndexer {
             .into_inner();
         let message_id = delivered_message_account.message_id;
 
-        let log_meta = self
-            .delivered_message_log_meta(
-                U256::from(nonce),
+        let log_meta = if self.advanced_log_meta {
+            self.delivered_message_log_meta(
+                U256::from(sequence),
                 &valid_message_storage_pda_pubkey,
                 &delivered_message_account.slot,
             )
-            .await?;
+            .await?
+        } else {
+            LogMeta {
+                address: self.program_id.to_bytes().into(),
+                block_number: delivered_message_account.slot,
+                // TODO: get these when building out scraper support.
+                // It's inconvenient to get these :|
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                transaction_index: 0,
+                log_index: U256::zero(),
+            }
+        };
 
-        Ok((message_id.into(), log_meta))
+        let mut indexed = Indexed::from(message_id);
+        indexed.sequence = Some(sequence);
+
+        Ok((indexed, log_meta))
     }
 
     fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
@@ -807,35 +868,6 @@ impl SealevelMailboxIndexer {
         message_storage_pda_pubkey: &Pubkey,
         message_account_slot: &Slot,
     ) -> ChainResult<LogMeta> {
-        let error_msg_no_txn = "block which should contain message delivery transaction does not contain any transaction".to_owned();
-        let error_msg_too_many_txns = "block contains more than one deliver message transaction operating on the same delivery message store PDA".to_owned();
-        let error_msg_no_txn_after_filtering = "block which should contain message delivery transaction does not contain any after filtering".to_owned();
-
-        self.log_meta(
-            log_index,
-            message_storage_pda_pubkey,
-            message_account_slot,
-            &is_message_delivery_instruction,
-            error_msg_no_txn,
-            error_msg_too_many_txns,
-            error_msg_no_txn_after_filtering,
-        )
-        .await
-    }
-
-    async fn log_meta<F>(
-        &self,
-        log_index: U256,
-        message_storage_pda_pubkey: &Pubkey,
-        message_account_slot: &Slot,
-        is_message_instruction: &F,
-        error_msg_no_txn: String,
-        error_msg_too_many_txns: String,
-        error_msg_no_txn_after_filtering: String,
-    ) -> ChainResult<LogMeta>
-    where
-        F: Fn(instruction::Instruction) -> bool,
-    {
         let block = self
             .mailbox
             .provider
@@ -843,55 +875,14 @@ impl SealevelMailboxIndexer {
             .get_block(*message_account_slot)
             .await?;
 
-        let block_hash = decode_h256(&block.blockhash)?;
-
-        let transactions = block
-            .transactions
-            .ok_or(HyperlaneSealevelError::NoTransactions(error_msg_no_txn))?;
-
-        let transaction_hashes = search_message_transactions(
-            &self.mailbox.program_id,
-            &message_storage_pda_pubkey,
-            transactions,
-            &is_message_instruction,
-        );
-
-        // We expect to see that there is only one message dispatch transaction
-        if transaction_hashes.len() > 1 {
-            Err(HyperlaneSealevelError::TooManyTransactions(
-                error_msg_too_many_txns,
-            ))?
-        }
-
-        let (transaction_index, transaction_hash) =
-            transaction_hashes
-                .into_iter()
-                .next()
-                .ok_or(HyperlaneSealevelError::NoTransactions(
-                    error_msg_no_txn_after_filtering,
-                ))?;
-
-        let log_meta = LogMeta {
-            address: self.mailbox.program_id.to_bytes().into(),
-            block_number: *message_account_slot,
-            block_hash,
-            transaction_id: transaction_hash,
-            transaction_index: transaction_index as u64,
-            log_index,
-        };
-
-        Ok(log_meta)
-    }
-}
-
-#[async_trait]
-impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
-    #[instrument(err, skip(self))]
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        // TODO: need to make sure the call and tip are at the same height?
-        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
-        Ok((Some(count), tip))
+        self.delivery_message_log_meta_composer
+            .log_meta(
+                block,
+                log_index,
+                message_storage_pda_pubkey,
+                message_account_slot,
+            )
+            .map_err(Into::<ChainCommunicationError>::into)
     }
 }
 
@@ -915,7 +906,21 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
+    }
+}
+
+#[async_trait]
+impl SequenceAwareIndexer<HyperlaneMessage> for SealevelMailboxIndexer {
+    #[instrument(err, skip(self))]
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = self.mailbox.provider.rpc().get_slot().await?;
+        // TODO: need to make sure the call and tip are at the same height?
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
+        Ok((Some(count), tip))
     }
 }
 
@@ -933,23 +938,31 @@ impl Indexer<H256> for SealevelMailboxIndexer {
         let message_capacity = range.end().saturating_sub(*range.start());
         let mut message_ids = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
-            message_ids.push(self.get_delivered_message_with_nonce(nonce).await?);
+            message_ids.push(self.get_delivered_message_with_sequence(nonce).await?);
         }
         Ok(message_ids)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.get_finalized_block_number().await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
     }
 }
 
 #[async_trait]
 impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when sealevel scraper support is implemented
-        info!("Message delivery indexing not implemented");
-        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
-        Ok((Some(1), tip))
+        let inbox = self.mailbox.get_inbox().await?;
+        let sequence = inbox
+            .processed_count
+            .try_into()
+            .map_err(StrOrIntParseError::from)?;
+
+        let tip = self.mailbox.provider.rpc().get_slot().await?;
+
+        Ok((Some(sequence), tip))
     }
 }
 

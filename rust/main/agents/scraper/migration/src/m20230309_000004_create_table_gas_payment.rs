@@ -1,3 +1,5 @@
+use std::borrow::BorrowMut as _;
+
 use sea_orm::ConnectionTrait;
 use sea_orm_migration::prelude::*;
 
@@ -39,6 +41,13 @@ impl MigrationTrait for Migration {
                             .big_unsigned()
                             .not_null(),
                     )
+                    .col(ColumnDef::new(GasPayment::Origin).unsigned())
+                    .col(ColumnDef::new(GasPayment::Destination).unsigned())
+                    .col(
+                        ColumnDef::new_with_type(GasPayment::InterchainGasPaymaster, Address)
+                            .borrow_mut(),
+                    )
+                    .col(ColumnDef::new(GasPayment::Sequence).big_integer())
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(GasPayment::TxId)
@@ -47,6 +56,16 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(GasPayment::Domain)
+                            .to(Domain::Table, Domain::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(GasPayment::Origin)
+                            .to(Domain::Table, Domain::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from_col(GasPayment::Destination)
                             .to(Domain::Table, Domain::Id),
                     )
                     .index(
@@ -136,6 +155,16 @@ pub enum GasPayment {
     /// Used to disambiguate duplicate payments from multiple payments made in
     /// same transaction.
     LogIndex,
+    /// Domain ID of the chain the payment was made on; technically duplicating
+    /// field Domain, but Domain becomes ambiguous as we add Destination domain as well.
+    Origin,
+    /// Domain ID of the chain the payment was made for.
+    Destination,
+    /// Interchain Gas Paymaster contract address
+    InterchainGasPaymaster,
+    /// Sequence of this payment for indexing by agent. It can be null if agent
+    /// does not use sequence-aware indexing.
+    Sequence,
 }
 
 #[derive(Iden)]
