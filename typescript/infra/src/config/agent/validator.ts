@@ -64,13 +64,15 @@ export interface HelmValidatorValues extends HelmStatefulSetValues {
 export type CheckpointSyncerConfig =
   | LocalCheckpointSyncerConfig
   | S3CheckpointSyncerConfig
-  | GcsCheckpointSyncerConfig;
+  | GcsCheckpointSyncerConfig
+  | OnChainCheckpointSyncerConfig;
 
 // These values are eventually passed to Rust, which expects the values to be camelCase
 export const enum CheckpointSyncerType {
   LocalStorage = 'localStorage',
   S3 = 's3',
   Gcs = 'gcs',
+  OnChain = 'onchain',
 }
 
 export interface LocalCheckpointSyncerConfig {
@@ -88,6 +90,12 @@ export type GcsCheckpointSyncerConfig = {
   folder?: string;
   service_account_key?: string;
   user_secrets?: string;
+};
+
+export type OnChainCheckpointSyncerConfig = {
+  type: CheckpointSyncerType.OnChain;
+  chainName: ChainName;
+  contractAddress: string;
 };
 
 export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {

@@ -72,6 +72,7 @@ export enum Modules {
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
+  CHECKPOINT = 'checkpoint',
 }
 
 export const REGISTRY_MODULES = [
@@ -82,6 +83,7 @@ export const REGISTRY_MODULES = [
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
   Modules.HOOK,
+  Modules.CHECKPOINT,
 ];
 
 export function getArgs() {

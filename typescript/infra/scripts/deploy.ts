@@ -6,6 +6,7 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
+  CheckpointDeployer,
   ContractVerifier,
   ExplorerLicenseType,
   HypERC20Deployer,
@@ -240,6 +241,18 @@ async function main() {
     config = {
       ethereum: coreConfig.ethereum.defaultHook,
     };
+  } else if (module === Modules.CHECKPOINT) {
+    const { core } = await getHyperlaneCore(environment, multiProvider);
+    config = {
+      ...multiProvider.mapKnownChains((chain) => ({
+        mailbox: core.contractsMap[chain].mailbox.address,
+      })),
+    };
+    deployer = new CheckpointDeployer(
+      multiProvider,
+      contractVerifier,
+      concurrentDeploy,
+    );
   } else {
     console.log(`Skipping ${module}, deployer unimplemented`);
     return;
