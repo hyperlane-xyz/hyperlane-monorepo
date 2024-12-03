@@ -662,16 +662,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_TESSELLATED_VALIDATOR,
       {
         address: '0x1c3C3013B863Cf666499Da1A61949AE396E3Ab82',
-        alias: 'Superlane: Enigma',
+        alias: 'Enigma',
       },
       {
         address: '0x573e960e07ad74ea2c5f1e3c31b2055994b12797',
-        alias: 'Superlane: Imperator',
+        alias: 'Imperator',
       },
       DEFAULT_BWARE_LABS_VALIDATOR,
       {
         address: '0x25b3a88f7cfd3c9f7d7e32b295673a16a6ddbd91',
-        alias: 'Superlane: Luganodes',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -867,16 +867,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_TESSELLATED_VALIDATOR,
       {
         address: '0x3DA4ee2801Ec6CC5faD73DBb94B10A203ADb3d9e',
-        alias: 'Superlane: Enigma',
+        alias: 'Enigma',
       },
       {
         address: '0x4df6e8878992c300e7bfe98cac6bf7d3408b9cbf',
-        alias: 'Superlane: Imperator',
+        alias: 'Imperator',
       },
       DEFAULT_BWARE_LABS_VALIDATOR,
       {
         address: '0xf0da628f3fb71652d48260bad4691054045832ce',
-        alias: 'Superlane: Luganodes',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -976,16 +976,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       {
         address: '0x01e3909133d20c05bbc94247769235d30101f748',
-        alias: 'Superlane: Imperator',
+        alias: 'Imperator',
       },
 
       {
         address: '0xaba06266f47e3ef554d218b879bd86114a8dabd4',
-        alias: 'Superlane: Enigma',
+        alias: 'Enigma',
       },
       {
         address: '0x05d91f80377ff5e9c6174025ffaf094c57a4766a',
-        alias: 'Superlane: Luganodes',
+        alias: 'Luganodes',
       },
       DEFAULT_BWARE_LABS_VALIDATOR,
       DEFAULT_TESSELLATED_VALIDATOR,
@@ -1026,16 +1026,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_TESSELLATED_VALIDATOR,
       {
         address: '0x65C140e3a05F33192384AffEF985696Fe3cDDE42',
-        alias: 'Superlane: Enigma',
+        alias: 'Enigma',
       },
       {
         address: '0x20eade18ea2af6dfd54d72b3b5366b40fcb47f4b',
-        alias: 'Superlane: Imperator',
+        alias: 'Imperator',
       },
       DEFAULT_BWARE_LABS_VALIDATOR,
       {
         address: '0x485a4f0009d9afbbf44521016f9b8cdd718e36ea',
-        alias: 'Superlane: Luganodes',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -1134,16 +1134,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_TESSELLATED_VALIDATOR,
       {
         address: '0xd8c1cCbfF28413CE6c6ebe11A3e29B0D8384eDbB',
-        alias: 'Superlane: Enigma',
+        alias: 'Enigma',
       },
       {
         address: '0x1b9e5f36c4bfdb0e3f0df525ef5c888a4459ef99',
-        alias: 'Superlane: Imperator',
+        alias: 'Imperator',
       },
       DEFAULT_BWARE_LABS_VALIDATOR,
       {
         address: '0xf9dfaa5c20ae1d84da4b2696b8dc80c919e48b12',
-        alias: 'Superlane: Luganodes',
+        alias: 'Luganodes',
       },
     ],
   },
@@ -1557,15 +1557,15 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       {
         address: '0x68f3a3b244f6ddc135130200a6b8729e290b4240',
-        alias: 'Superlane: Imperator',
+        alias: 'Imperator',
       },
       {
         address: '0x6ff4554cffbc2e4e4230b78e526eab255101d05a',
-        alias: 'Superlane: Enigma',
+        alias: 'Enigma',
       },
       {
         address: '0x55880ac03fdf15fccff54ed6f8a83455033edd22',
-        alias: 'Superlane: Luganodes',
+        alias: 'Luganodes',
       },
       DEFAULT_BWARE_LABS_VALIDATOR,
       DEFAULT_TESSELLATED_VALIDATOR,
