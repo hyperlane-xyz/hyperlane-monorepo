@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.0;
 
 /*@@@@@@@       @@@@@@@@@
  @@@@@@@@@       @@@@@@@@@
@@ -21,9 +21,10 @@ import {GasRouter} from "../client/GasRouter.sol";
 contract FraudProofRouter is GasRouter {
     // ===================== State Variables =======================
 
+    // The AttributeCheckpointFraud contract to obtain the attributions from
     AttributeCheckpointFraud public immutable attributeCheckpointFraud;
 
-    // store origin => signer => merkleTree => digest => {timestamp, fraudType}
+    // Mapping to store the fraud attributions for a given origin, signer, merkle tree, and digest for easy access for client contracts to aide slashing
     mapping(uint32 origin => mapping(bytes32 signer => mapping(bytes32 merkleTree => mapping(bytes32 digest => Attribution))))
         public fraudAttributions;
 
@@ -32,9 +33,14 @@ contract FraudProofRouter is GasRouter {
     event FraudProofSent(
         address indexed signer,
         bytes32 indexed digest,
-        FraudType fraudType,
-        uint48 timestamp,
-        bytes32 indexed messageId
+        Attribution attribution
+    );
+
+    event FraudProofReceived(
+        uint32 indexed origin,
+        bytes32 indexed signer,
+        bytes32 indexed digest,
+        Attribution attribution
     );
 
     // ===================== Constructor =======================
@@ -55,21 +61,22 @@ contract FraudProofRouter is GasRouter {
         attributeCheckpointFraud = AttributeCheckpointFraud(
             _attributeCheckpointFraud
         );
+        hook = mailbox.defaultHook();
     }
 
     /**
      * @notice Sends a fraud proof attribution.
      * @param _signer The address of the signer attributed with fraud.
      * @param _digest The digest associated with the fraud.
-     * @param _fraudType The type of fraud.
+     * @param _merkleTree The merkle tree associated with the fraud.
+     * @return The message ID of the sent fraud proof.
      */
     function sendFraudProof(
         uint32 _destination,
         address _signer,
         bytes32 _merkleTree,
-        bytes32 _digest,
-        FraudType _fraudType
-    ) external onlyOwner {
+        bytes32 _digest
+    ) external returns (bytes32) {
         Attribution memory attribution = attributeCheckpointFraud.attributions(
             _signer,
             _digest
@@ -84,21 +91,28 @@ contract FraudProofRouter is GasRouter {
             attribution
         );
 
-        bytes32 messageId = _dispatchFraudProof(_destination, encodedMessage);
+        emit FraudProofSent(_signer, _digest, attribution);
 
-        emit FraudProofSent(
-            _signer,
-            _digest,
-            _fraudType,
-            attribution.timestamp,
-            messageId
-        );
+        return
+            _Router_dispatch(
+                _destination,
+                0,
+                encodedMessage,
+                "",
+                address(hook)
+            );
     }
 
+    /**
+     * @notice Handles by decoding the inbound fraud proof message.
+     * @param _origin The origin domain of the fraud proof.
+     * @param _message The encoded fraud proof message.
+     */
     function _handle(
         uint32 _origin,
         bytes32,
-        /*_sender*/ bytes calldata _message
+        /*_sender*/
+        bytes calldata _message
     ) internal override onlyMailbox {
         (
             bytes32 signer,
@@ -108,31 +122,7 @@ contract FraudProofRouter is GasRouter {
         ) = FraudMessage.decode(_message);
 
         fraudAttributions[_origin][signer][merkleTree][digest] = attribution;
-    }
 
-    // ===================== Internal Functions =======================
-
-    /**
-     * @notice Dispatches the encoded fraud proof message using the Router.
-     * @param _body The ABI-encoded fraud proof message.
-     * @return The ID of the dispatched message.
-     */
-    function _dispatchFraudProof(
-        uint32 _destination,
-        bytes memory _body
-    ) internal returns (bytes32) {
-        bytes32 _router = routers(_destination);
-
-        require(_router != bytes32(0), "Remote router not enrolled");
-
-        bytes32 messageId = mailbox.dispatch{value: msg.value}(
-            _destination,
-            _router,
-            _body,
-            "",
-            hook
-        );
-
-        return messageId;
+        emit FraudProofReceived(_origin, signer, digest, attribution);
     }
 }
