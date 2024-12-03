@@ -10,12 +10,14 @@ uint256 constant MAX_LEAVES = 2 ** TREE_DEPTH - 1;
  * @title MerkleLib
  * @author Celo Labs Inc.
  * @notice An incremental merkle tree modeled on the eth2 deposit contract.
- **/
+ *
+ */
 library MerkleLib {
     /**
      * @notice Struct representing incremental merkle tree. Contains current
      * branch and the number of inserted leaves in the tree.
-     **/
+     *
+     */
     struct Tree {
         bytes32[TREE_DEPTH] branch;
         uint256 count;
@@ -25,7 +27,8 @@ library MerkleLib {
      * @notice Inserts `_node` into merkle tree
      * @dev Reverts if tree is full
      * @param _node Element to insert into tree
-     **/
+     *
+     */
     function insert(Tree storage _tree, bytes32 _node) internal {
         require(_tree.count < MAX_LEAVES, "merkle tree full");
 
@@ -49,7 +52,8 @@ library MerkleLib {
      * hashes
      * @param _zeroes Array of zero hashes
      * @return _current Calculated root of `_tree`
-     **/
+     *
+     */
     function rootWithCtx(
         Tree storage _tree,
         bytes32[TREE_DEPTH] memory _zeroes
@@ -120,7 +124,8 @@ library MerkleLib {
      * @param _branch Merkle proof
      * @param _index Index of `_item` in tree
      * @return _current Calculated merkle root
-     **/
+     *
+     */
     function branchRoot(
         bytes32 _item,
         bytes32[TREE_DEPTH] memory _branch, // cheaper than calldata indexing
@@ -148,7 +153,8 @@ library MerkleLib {
      * @param _index Index of `_item` in tree
      * @dev Replaces siblings greater than the index (right subtrees) with zeroes.
      * @return _current Calculated merkle root
-     **/
+     *
+     */
     function reconstructRoot(
         bytes32 _item,
         bytes32[TREE_DEPTH] memory _branch, // cheaper than calldata indexing

@@ -71,7 +71,6 @@ interface IXERC20 is IERC20 {
      * @param _bridge the bridge we are viewing the limits of
      * @return _limit The limit the bridge has
      */
-
     function burningMaxLimitOf(
         address _bridge
     ) external view returns (uint256 _limit);
