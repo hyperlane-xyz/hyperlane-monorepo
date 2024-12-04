@@ -84,6 +84,7 @@ export const mainnet3SupportedChainNames = [
   'swell',
   'taiko',
   'tangle',
+  'treasure',
   'unichain',
   'vana',
   'viction',
@@ -93,6 +94,7 @@ export const mainnet3SupportedChainNames = [
   'zeronetwork',
   'zetachain',
   'zircuit',
+  'zklink',
   'zksync',
   'zoramainnet',
 ] as const;
