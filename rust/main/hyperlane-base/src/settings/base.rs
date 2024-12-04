@@ -250,6 +250,7 @@ impl Settings {
             .collect()
     }
 
+    /// Build an onchain checkpoint storage
     pub async fn build_onchain_checkpoint_storage(
         &self,
         checkpoint_address: H256,

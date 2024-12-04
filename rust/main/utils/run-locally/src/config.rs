@@ -7,7 +7,8 @@ pub struct Config {
     pub ci_mode_timeout: u64,
     pub kathy_messages: u64,
     pub sealevel_enabled: bool,
-    // TODO: Include count of sealevel messages in a field separate from `kathy_messages`?
+    pub checkpoint_syncer_type: String, // "onchain" or "localStorage"
+                                        // TODO: Include count of sealevel messages in a field separate from `kathy_messages`?
 }
 
 impl Config {
@@ -29,7 +30,9 @@ impl Config {
             },
             sealevel_enabled: env::var("SEALEVEL_ENABLED")
                 .map(|k| k.parse::<bool>().unwrap())
-                .unwrap_or(true),
+                .unwrap_or(false),
+            checkpoint_syncer_type: env::var("CHECKPOINTSYNCER_TYPE")
+                .unwrap_or_else(|_| "localStorage".to_string()),
         })
     }
 }

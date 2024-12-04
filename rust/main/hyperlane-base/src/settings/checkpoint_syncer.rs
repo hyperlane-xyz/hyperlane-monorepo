@@ -39,8 +39,11 @@ pub enum CheckpointSyncerConf {
         /// `gcloud auth application-default login`
         user_secrets: Option<String>,
     },
+    /// A checkpoint syncer on an onchain storage contract
     OnChain {
+        /// The name of the chain
         chain_name: String,
+        /// The contract address of the checkpoint storage contract
         contract_address: H256,
     },
 }
@@ -118,9 +121,9 @@ impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
     pub async fn build(
         &self,
-        latest_index_gauge: Option<IntGauge>,
         chain_setup: Option<&ChainConf>,
         metrics: Option<&CoreMetrics>,
+        latest_index_gauge: Option<IntGauge>,
     ) -> Result<Box<dyn CheckpointSyncer>, Report> {
         Ok(match self {
             CheckpointSyncerConf::LocalStorage { path } => {

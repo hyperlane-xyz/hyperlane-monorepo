@@ -261,7 +261,7 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_BLOCKS_REORGPERIOD", "0")
         .hyp_env("CHAINS_TEST3_BLOCKS_REORGPERIOD", "0")
         .hyp_env("INTERVAL", "5")
-        .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
+        .hyp_env("CHECKPOINTSYNCER_TYPE", &config.checkpoint_syncer_type);
 
     let validator_envs = (0..validator_count)
         .map(|i| {

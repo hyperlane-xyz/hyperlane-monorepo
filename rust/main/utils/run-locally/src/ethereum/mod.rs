@@ -64,6 +64,10 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
         .unwrap()
         .block_on(deploy_multicall());
 
+    if config.checkpoint_syncer_type == "onchain" {
+        deploy_checkpoint_contracts(&yarn_infra);
+    }
+
     anvil
 }
 
@@ -91,4 +95,10 @@ pub async fn deploy_multicall() {
         .await
         .unwrap();
     log!("Successfully deployed multicall contract...");
+}
+
+pub fn deploy_checkpoint_contracts(yarn_infra: &Program) {
+    log!("Deploying checkpoint contracts...");
+    yarn_infra.clone().cmd("deploy-checkpoint").run().join();
+    log!("Successfully deployed checkpoint contracts...");
 }

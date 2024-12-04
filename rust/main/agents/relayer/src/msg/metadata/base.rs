@@ -402,7 +402,7 @@ impl BaseMetadataBuilder {
                 }
 
                 match config
-                    .build(None, self.origin_chain_setup.clone(), self.metrics.clone())
+                    .build(Some(&self.origin_chain_setup), Some(&self.metrics), None)
                     .await
                 {
                     Ok(checkpoint_syncer) => {

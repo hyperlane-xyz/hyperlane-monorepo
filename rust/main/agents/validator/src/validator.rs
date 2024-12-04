@@ -80,12 +80,14 @@ impl BaseAgent for Validator {
         let checkpoint_syncer = settings
             .checkpoint_syncer
             .build(
+                Some(
+                    &settings
+                        .chain_setup(&settings.origin_chain)
+                        .unwrap()
+                        .clone(),
+                ),
+                Some(&metrics),
                 None,
-                settings
-                    .chain_setup(&settings.origin_chain)
-                    .unwrap()
-                    .clone(),
-                &metrics,
             )
             .await?
             .into();

@@ -232,11 +232,10 @@ fn parse_checkpoint_syncer(syncer: ValueParser) -> ConfigResult<CheckpointSyncer
                 .chain(&mut err)
                 .get_key("contractAddress")
                 .parse_address_hash()
-                .end()
-                .map(str::to_owned);
+                .end();
             cfg_unwrap_all!(&syncer.cwp, err: [chain_name, contract_address]);
             err.into_result(CheckpointSyncerConf::OnChain {
-                chain_name: chain_name.unwrap().to_string(),
+                chain_name: chain_name.to_string(),
                 contract_address,
             })
         }

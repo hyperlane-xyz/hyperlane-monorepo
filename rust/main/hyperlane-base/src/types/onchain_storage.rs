@@ -23,7 +23,7 @@ impl fmt::Debug for OnchainStorageClient {
 #[async_trait]
 impl CheckpointSyncer for OnchainStorageClient {
     async fn latest_index(&self) -> Result<Option<u32>> {
-        self.fetch_latest_index().await
+        todo!() // self.fetch_latest_index().await
     }
 
     async fn write_latest_index(&self, index: u32) -> Result<()> {
@@ -53,17 +53,3 @@ impl CheckpointSyncer for OnchainStorageClient {
         self.storage.announcement_location()
     }
 }
-
-/*
-// TODO: modify this test
-#[tokio::test]
-async fn public_landset_no_auth_works_test() {
-    const LANDSAT_BUCKET: &str = "gcp-public-data-landsat";
-    const LANDSAT_KEY: &str = "LC08/01/001/003/LC08_L1GT_001003_20140812_20170420_01_T2/LC08_L1GT_001003_20140812_20170420_01_T2_B3.TIF";
-    let client = GcsStorageClientBuilder::new(AuthFlow::NoAuth)
-        .build(LANDSAT_BUCKET, None)
-        .await
-        .unwrap();
-    assert!(client.get_by_path(LANDSAT_KEY).await.is_ok());
-}
-*/
