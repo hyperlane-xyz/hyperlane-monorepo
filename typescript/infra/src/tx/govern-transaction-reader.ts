@@ -4,6 +4,7 @@ import {
   MetaTransactionData,
   OperationType,
 } from '@safe-global/safe-core-sdk-types';
+import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
@@ -24,7 +25,7 @@ import {
   bytes32ToAddress,
   deepEquals,
   eqAddress,
-  retryAsync,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -77,6 +78,10 @@ interface IcaRemoteCallInsight {
 
 export class GovernTransactionReader {
   errors: any[] = [];
+
+  protected readonly logger = rootLogger.child({
+    module: 'GovernTransactionReader',
+  });
 
   constructor(
     readonly environment: DeployEnvironment,
@@ -247,26 +252,30 @@ export class GovernTransactionReader {
 
     // Start recording some info about the deriving
     const startTime = Date.now();
-    console.log('Deriving ISM config...', chain);
+    this.logger.info(chalk.italic.gray(`Deriving ISM config for ${chain}...`));
     this.ismDerivationsInProgress[chain] = true;
 
     const derivedConfig = await reader.deriveIsmConfig(module);
 
     // Deriving is done, remove from in progress
     delete this.ismDerivationsInProgress[chain];
-    console.log(
-      'Finished deriving ISM config',
-      chain,
-      'in',
-      (Date.now() - startTime) / (1000 * 60),
-      'mins',
+    this.logger.info(
+      chalk.italic.blue(
+        'Finished deriving ISM config',
+        chain,
+        'in',
+        (Date.now() - startTime) / (1000 * 60),
+        'mins',
+      ),
     );
     const remainingInProgress = Object.keys(this.ismDerivationsInProgress);
-    console.log(
-      'Remaining derivations in progress:',
-      remainingInProgress.length,
-      'chains',
-      remainingInProgress,
+    this.logger.info(
+      chalk.italic.gray(
+        'Remaining derivations in progress:',
+        remainingInProgress.length,
+        'chains',
+        remainingInProgress,
+      ),
     );
 
     return derivedConfig;
@@ -278,7 +287,7 @@ export class GovernTransactionReader {
   ): Promise<SetDefaultIsmInsight> {
     const { _module: module } = args;
 
-    const derivedConfig = this.deriveIsmConfig(chain, module);
+    const derivedConfig = await this.deriveIsmConfig(chain, module);
     const expectedIsmConfig = this.coreConfig[chain].defaultIsm;
 
     let insight = '✅ matches expected ISM config';
@@ -293,11 +302,8 @@ export class GovernTransactionReader {
         info: 'Incorrect default ISM being set',
       });
       insight = `❌ fatal mismatch of ISM config`;
-      console.log(
-        'Mismatch of ISM config',
-        chain,
-        JSON.stringify(normalizedDerived),
-        JSON.stringify(normalizedExpected),
+      this.logger.error(
+        chalk.bold.red(`Mismatch of ISM config for chain ${chain}!`),
       );
     }
 

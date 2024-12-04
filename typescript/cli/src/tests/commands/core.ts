@@ -1,6 +1,6 @@
 import { $ } from 'zx';
 
-import { CoreConfig } from '@hyperlane-xyz/sdk';
+import { DerivedCoreConfig } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson } from '../../utils/files.js';
 
@@ -56,7 +56,7 @@ export async function hyperlaneCoreApply(
 export async function readCoreConfig(
   chain: string,
   coreConfigPath: string,
-): Promise<CoreConfig> {
+): Promise<DerivedCoreConfig> {
   await hyperlaneCoreRead(chain, coreConfigPath);
   return readYamlOrJson(coreConfigPath);
 }
