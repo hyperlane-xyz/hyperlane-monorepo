@@ -126,7 +126,7 @@ pub fn termination_invariants_met(
         "Verbose logs not expected at the log level set in e2e"
     );
 
-    let gas_payment_sealevel_events_count = fetch_metric(
+    let _gas_payment_sealevel_events_count = fetch_metric(
         RELAYER_METRICS_PORT,
         "hyperlane_contract_sync_stored_events",
         &hashmap! {
