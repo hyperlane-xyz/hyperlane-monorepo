@@ -556,21 +556,27 @@ where
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
         let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
-            Some(
-                arbitrum_node_interface
-                    .estimate_retryable_ticket(
-                        H160::zero().into(),
-                        // Give the sender a deposit, otherwise it reverts
-                        U256::MAX.into(),
-                        self.contract.address(),
-                        U256::zero().into(),
-                        H160::zero().into(),
-                        H160::zero().into(),
-                        contract_call.calldata().unwrap_or_default(),
-                    )
-                    .estimate_gas()
-                    .await?,
-            )
+            if self.domain().id() == 33139 {
+                // apechain returns errors when estimating the L1 cost, even though it's an arbitrum
+                // nitro chain. So we skip the L1 gas estimation for now.
+                None
+            } else {
+                Some(
+                    arbitrum_node_interface
+                        .estimate_retryable_ticket(
+                            H160::zero().into(),
+                            // Give the sender a deposit, otherwise it reverts
+                            U256::MAX.into(),
+                            self.contract.address(),
+                            U256::zero().into(),
+                            H160::zero().into(),
+                            H160::zero().into(),
+                            contract_call.calldata().unwrap_or_default(),
+                        )
+                        .estimate_gas()
+                        .await?,
+                )
+            }
         } else {
             None
         };
