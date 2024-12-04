@@ -28,9 +28,10 @@ const CHUNK_SIZE: usize = 50;
 /// connections needed to scrape the contracts on a single blockchain.
 #[derive(Clone, Debug)]
 pub struct HyperlaneDbStore {
-    pub(crate) mailbox_address: H256,
-    pub(crate) domain: HyperlaneDomain,
     pub(crate) db: ScraperDb,
+    pub(crate) domain: HyperlaneDomain,
+    pub(crate) mailbox_address: H256,
+    pub(crate) interchain_gas_paymaster_address: H256,
     provider: Arc<dyn HyperlaneProvider>,
     cursor: Arc<BlockCursor>,
 }
@@ -39,8 +40,9 @@ pub struct HyperlaneDbStore {
 impl HyperlaneDbStore {
     pub async fn new(
         db: ScraperDb,
-        mailbox_address: H256,
         domain: HyperlaneDomain,
+        mailbox_address: H256,
+        interchain_gas_paymaster_address: H256,
         provider: Arc<dyn HyperlaneProvider>,
         index_settings: &IndexSettings,
     ) -> Result<Self> {
@@ -51,8 +53,9 @@ impl HyperlaneDbStore {
         Ok(Self {
             db,
             domain,
-            provider,
             mailbox_address,
+            interchain_gas_paymaster_address,
+            provider,
             cursor,
         })
     }

@@ -1,6 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { constants } from 'ethers';
 import hre from 'hardhat';
 
 import {
@@ -12,16 +11,20 @@ import {
   HypERC4626Collateral__factory,
   HypNative__factory,
   Mailbox,
+  MailboxClient__factory,
   Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
   EvmIsmModule,
+  HookConfig,
+  HookType,
   HyperlaneAddresses,
   HyperlaneContractsMap,
   IsmConfig,
   IsmType,
   RouterConfig,
   TestChainName,
+  proxyAdmin,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
 
@@ -29,6 +32,7 @@ import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
+import { DerivedHookConfig } from '../hook/EvmHookReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -55,7 +59,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   const TOKEN_DECIMALS = 18;
   const chain = TestChainName.test4;
   let mailbox: Mailbox;
-  let hookAddress: string;
   let ismAddress: string;
   let ismFactory: HyperlaneIsmFactory;
   let factories: HyperlaneContractsMap<ProxyFactoryFactories>;
@@ -70,10 +73,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
   async function validateCoreValues(deployedToken: GasRouter) {
     expect(await deployedToken.mailbox()).to.equal(mailbox.address);
-    expect(await deployedToken.hook()).to.equal(hookAddress);
-    expect(await deployedToken.interchainSecurityModule()).to.equal(
-      constants.AddressZero,
-    );
     expect(await deployedToken.owner()).to.equal(signer.address);
   }
 
@@ -106,7 +105,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     baseConfig = routerConfigMap[chain];
 
     mailbox = Mailbox__factory.connect(baseConfig.mailbox, signer);
-    hookAddress = await mailbox.defaultHook();
     ismAddress = await mailbox.defaultIsm();
   });
 
@@ -115,7 +113,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       ...baseConfig,
       type: TokenType.collateral,
       token: token.address,
-      hook: hookAddress,
     };
 
     // Deploy using WarpModule
@@ -143,7 +140,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     const config: TokenRouterConfig = {
       type: TokenType.collateralVault,
       token: vault.address,
-      hook: hookAddress,
       ...baseConfig,
     };
 
@@ -175,13 +171,12 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
   it('should create with a synthetic config', async () => {
     const config: TokenRouterConfig = {
+      ...baseConfig,
       type: TokenType.synthetic,
-      hook: hookAddress,
       name: TOKEN_NAME,
       symbol: TOKEN_NAME,
       decimals: TOKEN_DECIMALS,
       totalSupply: TOKEN_SUPPLY,
-      ...baseConfig,
     };
 
     // Deploy using WarpModule
@@ -213,7 +208,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   it('should create with a native config', async () => {
     const config = {
       type: TokenType.native,
-      hook: hookAddress,
       ...baseConfig,
     } as TokenRouterConfig;
 
@@ -244,7 +238,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     const config = {
       ...baseConfig,
       type: TokenType.native,
-      hook: hookAddress,
       remoteRouters: randomRemoteRouters(numOfRouters),
     } as TokenRouterConfig;
 
@@ -260,20 +253,41 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   });
 
   describe('Update', async () => {
+    const owner = randomAddress();
     const ismConfigToUpdate: IsmConfig[] = [
       {
         type: IsmType.TRUSTED_RELAYER,
-        relayer: randomAddress(),
+        relayer: owner,
       },
       {
         type: IsmType.FALLBACK_ROUTING,
-        owner: randomAddress(),
+        owner: owner,
         domains: {},
       },
       {
         type: IsmType.PAUSABLE,
-        owner: randomAddress(),
+        owner: owner,
         paused: false,
+      },
+    ];
+    const hookConfigToUpdate: HookConfig[] = [
+      {
+        type: HookType.PROTOCOL_FEE,
+        beneficiary: owner,
+        owner: owner,
+        maxProtocolFee: '1337',
+        protocolFee: '1337',
+      },
+      {
+        type: HookType.INTERCHAIN_GAS_PAYMASTER,
+        owner: owner,
+        beneficiary: owner,
+        oracleKey: owner,
+        overhead: {},
+        oracleConfig: {},
+      },
+      {
+        type: HookType.MERKLE_TREE,
       },
     ];
 
@@ -281,7 +295,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
-        hook: hookAddress,
         interchainSecurityModule: ismAddress,
       } as TokenRouterConfig;
 
@@ -297,7 +310,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       for (const interchainSecurityModule of ismConfigToUpdate) {
         const expectedConfig: TokenRouterConfig = {
           ...actualConfig,
-
           interchainSecurityModule,
         };
         await sendTxs(await evmERC20WarpModule.update(expectedConfig));
@@ -313,7 +325,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
-        hook: hookAddress,
         interchainSecurityModule: ismAddress,
       } as TokenRouterConfig;
 
@@ -351,6 +362,99 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(txs.length).to.equal(0);
     });
 
+    it('should update and set a new Hook based on config', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+
+      for (const hook of hookConfigToUpdate) {
+        const expectedConfig: TokenRouterConfig = {
+          ...actualConfig,
+          hook,
+        };
+        await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+        const updatedConfig = (await evmERC20WarpModule.read())
+          .hook as DerivedHookConfig;
+        expect(normalizeConfig(updatedConfig)).to.deep.equal(hook);
+      }
+    });
+
+    it('should set new deployed hook mailbox to WarpConfig.owner', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+      const expectedConfig: TokenRouterConfig = {
+        ...actualConfig,
+        hook: hookConfigToUpdate.find(
+          (c: any) => c.type === HookType.MERKLE_TREE,
+        ),
+      };
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = (await evmERC20WarpModule.read())
+        .hook as DerivedHookConfig;
+
+      const hook = MailboxClient__factory.connect(
+        updatedConfig.address,
+        multiProvider.getProvider(chain),
+      );
+      expect(await hook.mailbox()).to.equal(expectedConfig.mailbox);
+    });
+
+    it("should set Proxied Hook's proxyAdmins to WarpConfig.proxyAdmin", async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const actualConfig = await evmERC20WarpModule.read();
+      const expectedConfig: TokenRouterConfig = {
+        ...actualConfig,
+        hook: hookConfigToUpdate.find(
+          (c: any) => c.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+        ),
+      };
+      await sendTxs(await evmERC20WarpModule.update(expectedConfig));
+
+      const updatedConfig = (await evmERC20WarpModule.read())
+        .hook as DerivedHookConfig;
+
+      expect(
+        await proxyAdmin(
+          multiProvider.getProvider(chain),
+          updatedConfig.address,
+        ),
+      ).to.equal(expectedConfig.proxyAdmin?.address);
+    });
+
     it('should update a mutable Ism', async () => {
       const ismConfig: IsmConfig = {
         type: IsmType.ROUTING,
@@ -372,7 +476,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
-        hook: hookAddress,
         interchainSecurityModule: deployedIsm,
       } as TokenRouterConfig;
 
@@ -409,7 +512,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
-        hook: hookAddress,
         ismFactoryAddresses,
       } as TokenRouterConfig;
 
@@ -441,7 +543,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
-        hook: hookAddress,
         ismFactoryAddresses,
       } as TokenRouterConfig;
 
@@ -494,7 +595,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
-        hook: hookAddress,
         ismFactoryAddresses,
       } as TokenRouterConfig;
 
@@ -535,7 +635,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config: TokenRouterConfig = {
         ...baseConfig,
         type: TokenType.native,
-        hook: hookAddress,
       };
 
       const owner = signer.address.toLowerCase();
@@ -579,7 +678,6 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config: TokenRouterConfig = {
         ...baseConfig,
         type: TokenType.native,
-        hook: hookAddress,
         remoteRouters: {
           [domain]: randomAddress(),
         },
