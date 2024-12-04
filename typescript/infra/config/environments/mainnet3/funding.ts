@@ -105,6 +105,7 @@ export const keyFunderConfig: KeyFunderConfig<
     swell: '0.05',
     taiko: '0.2',
     tangle: '2',
+    treasure: '1',
     unichain: '0.05',
     // temporarily low until we're able to fund more
     vana: '0.001',
@@ -115,6 +116,7 @@ export const keyFunderConfig: KeyFunderConfig<
     zeronetwork: '0.05',
     zetachain: '20',
     zircuit: '0.02',
+    zklink: '0.05',
     zksync: '0.05',
     zoramainnet: '0.2',
     // ignore non-evm chains

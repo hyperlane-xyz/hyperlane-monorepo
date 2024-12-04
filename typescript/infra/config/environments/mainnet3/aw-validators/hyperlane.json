@@ -337,5 +337,11 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "treasure": {
+    "validators": ["0x6ad994819185553e8baa01533f0cd2c7cadfe6cc"]
+  },
+  "zklink": {
+    "validators": ["0x217a8cb4789fc45abf56cb6e2ca96f251a5ac181"]
   }
 }
