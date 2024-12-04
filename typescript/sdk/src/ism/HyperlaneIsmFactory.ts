@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
-  ArbL2ToL1Ism__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
@@ -14,16 +13,12 @@ import {
   IMultisigIsm__factory,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
-  OPStackIsm__factory,
-  PausableIsm__factory,
   StaticAddressSetFactory,
   StaticThresholdAddressSetFactory,
   StaticWeightedValidatorSetFactory,
   StorageAggregationIsm__factory,
   StorageMerkleRootMultisigIsm__factory,
   StorageMessageIdMultisigIsm__factory,
-  TestIsm__factory,
-  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -49,6 +44,7 @@ import {
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { ismFactories } from './contracts.js';
 import {
   AggregationIsmConfig,
   DeployedIsm,
@@ -61,14 +57,6 @@ import {
   WeightedMultisigIsmConfig,
 } from './types.js';
 import { routingModuleDelta } from './utils.js';
-
-const ismFactories = {
-  [IsmType.PAUSABLE]: new PausableIsm__factory(),
-  [IsmType.TRUSTED_RELAYER]: new TrustedRelayerIsm__factory(),
-  [IsmType.TEST_ISM]: new TestIsm__factory(),
-  [IsmType.OP_STACK]: new OPStackIsm__factory(),
-  [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
-};
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
   protected readonly cachingEnabled = false;
