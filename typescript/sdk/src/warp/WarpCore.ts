@@ -667,27 +667,20 @@ export class WarpCore {
     assert(destinationToken, `No connection found for ${destinationName}`);
     const destinationAdapter = destinationToken.getAdapter(this.multiProvider);
 
-    // Convert the originTokenAmount to a destination amount
-    const destinationTokenAmount = destinationToken.amount(
-      convertDecimals(
-        originToken.decimals,
-        destinationToken.decimals,
-        originTokenAmount.amount.toString(),
-      ),
-    );
     // Get the min required destination amount
     const minDestinationTransferAmount =
       await destinationAdapter.getMinimumTransferAmount(recipient);
 
-    if (minDestinationTransferAmount > destinationTokenAmount.amount) {
-      // Surface the min required amount to the user as an origin amount
-      const minOriginTransferAmount = originToken.amount(
-        convertDecimals(
-          destinationToken.decimals,
-          originToken.decimals,
-          minDestinationTransferAmount.toString(),
-        ),
-      );
+    // Convert the minDestinationTransferAmount to an origin amount
+    const minOriginTransferAmount = destinationToken.amount(
+      convertDecimals(
+        originToken.decimals,
+        destinationToken.decimals,
+        minDestinationTransferAmount.toString(),
+      ),
+    );
+
+    if (minOriginTransferAmount.amount > originTokenAmount.amount) {
       return {
         amount: `Minimum transfer amount is ${minOriginTransferAmount.getDecimalFormattedAmount()} ${
           originToken.symbol

@@ -173,7 +173,7 @@ export class SealevelTokenAdapter
     return { decimals: 9, symbol: 'SPL', name: 'SPL Token', totalSupply: '' };
   }
 
-  async getMinimumTransferAmount(recipient: Address): Promise<bigint> {
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
     return 0n;
   }
 
