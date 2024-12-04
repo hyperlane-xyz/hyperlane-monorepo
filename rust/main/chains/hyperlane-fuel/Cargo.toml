@@ -19,8 +19,14 @@ tracing.workspace = true
 hex.workspace = true
 url.workspace = true
 tokio.workspace = true
+cynic.workspace = true
+fuel-core-client.workspace = true
+fuel-core-types.workspace = true
+derive_more = { workspace = true, features = ["into", "from"] }
+reqwest.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 
 [build-dependencies]
 abigen = { path = "../../utils/abigen", features = ["fuels"] }
+cynic-codegen = { workspace = true }

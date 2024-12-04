@@ -1,3 +1,14 @@
+use std::ops::RangeInclusive;
+
+use async_trait::async_trait;
+use fuels::{accounts::wallet::WalletUnlocked, types::bech32::Bech32ContractId};
+
+use hyperlane_core::{
+    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    SequenceAwareIndexer, H256,
+};
+
 use crate::{
     contracts::interchain_gas_paymaster::{
         GasPaymentEvent, InterchainGasPaymaster as InterchainGasPaymasterContract,
@@ -5,14 +16,6 @@ use crate::{
     conversions::*,
     ConnectionConf, FuelIndexer, FuelProvider,
 };
-use async_trait::async_trait;
-use fuels::{accounts::wallet::WalletUnlocked, types::bech32::Bech32ContractId};
-use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H256,
-};
-use std::ops::RangeInclusive;
 
 /// A reference to an IGP contract on some Fuel chain
 #[derive(Debug)]
@@ -78,7 +81,6 @@ impl FuelInterchainGasPaymasterIndexer {
         wallet: WalletUnlocked,
     ) -> ChainResult<Self> {
         let indexer = FuelIndexer::new(conf, locator, wallet).await;
-
         Ok(Self { indexer })
     }
 }
@@ -100,7 +102,7 @@ impl Indexer<InterchainGasPayment> for FuelInterchainGasPaymasterIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for FuelInterchainGasPaymasterIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // TODO: implement when fuel scraper support is implemented
+        // No sequence for gas payments
         let tip = self.get_finalized_block_number().await?;
         Ok((None, tip))
     }

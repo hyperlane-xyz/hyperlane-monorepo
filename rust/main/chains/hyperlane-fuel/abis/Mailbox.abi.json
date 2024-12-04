@@ -76,34 +76,39 @@
       "metadataTypeId": 12
     },
     {
+      "type": "struct interfaces::mailbox::events::ProcessIdEvent",
+      "concreteTypeId": "e473e91ab8fc9b72d6833e3c5ffc45bff9a6da162b5dcec87a0fbd31858b6ee0",
+      "metadataTypeId": 13
+    },
+    {
       "type": "struct interfaces::mailbox::events::RequiredHookSetEvent",
       "concreteTypeId": "be7aa440073b70d771ca9ed0e1520ed742cf67643ad38de897637be76a2fe6ea",
-      "metadataTypeId": 13
+      "metadataTypeId": 14
     },
     {
       "type": "struct std::bytes::Bytes",
       "concreteTypeId": "cdd87b7d12fe505416570c294c884bca819364863efe3bf539245fa18515fbbb",
-      "metadataTypeId": 16
+      "metadataTypeId": 17
     },
     {
       "type": "struct std::contract_id::ContractId",
       "concreteTypeId": "29c10735d33b5159f0c71ee1dbd17b36a3e69e41f00fab0d42e1bd9f428d8a54",
-      "metadataTypeId": 18
+      "metadataTypeId": 19
     },
     {
       "type": "struct sway_libs::ownership::events::OwnershipRenounced",
       "concreteTypeId": "43c4fa7b3297401afbf300127e59ea913e5c8f0c7ae69abbec789ab0bb872bed",
-      "metadataTypeId": 19
+      "metadataTypeId": 20
     },
     {
       "type": "struct sway_libs::ownership::events::OwnershipSet",
       "concreteTypeId": "e1ef35033ea9d2956f17c3292dea4a46ce7d61fdf37bbebe03b7b965073f43b5",
-      "metadataTypeId": 20
+      "metadataTypeId": 21
     },
     {
       "type": "struct sway_libs::ownership::events::OwnershipTransferred",
       "concreteTypeId": "b3fffbcb3158d7c010c31b194b60fb7857adb4ad61bdcf4b8b42958951d9f308",
-      "metadataTypeId": 21
+      "metadataTypeId": 22
     },
     {
       "type": "u32",
@@ -129,7 +134,7 @@
         },
         {
           "name": "InvalidProtocolVersion",
-          "typeId": 22
+          "typeId": 23
         },
         {
           "name": "InvalidMessageOrigin",
@@ -187,11 +192,11 @@
       "components": [
         {
           "name": "Address",
-          "typeId": 15
+          "typeId": 16
         },
         {
           "name": "ContractId",
-          "typeId": 18
+          "typeId": 19
         }
       ]
     },
@@ -239,7 +244,7 @@
       "components": [
         {
           "name": "module",
-          "typeId": 18
+          "typeId": 19
         }
       ]
     },
@@ -249,7 +254,7 @@
       "components": [
         {
           "name": "module",
-          "typeId": 18
+          "typeId": 19
         }
       ]
     },
@@ -258,7 +263,7 @@
       "metadataTypeId": 10,
       "components": [
         {
-          "name": "message_id",
+          "name": "sender",
           "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
         },
         {
@@ -271,7 +276,7 @@
         },
         {
           "name": "message",
-          "typeId": 14
+          "typeId": 15
         }
       ]
     },
@@ -290,10 +295,6 @@
       "metadataTypeId": 12,
       "components": [
         {
-          "name": "message_id",
-          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
-        },
-        {
           "name": "origin",
           "typeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
         },
@@ -308,28 +309,38 @@
       ]
     },
     {
-      "type": "struct interfaces::mailbox::events::RequiredHookSetEvent",
+      "type": "struct interfaces::mailbox::events::ProcessIdEvent",
       "metadataTypeId": 13,
       "components": [
         {
+          "name": "message_id",
+          "typeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+        }
+      ]
+    },
+    {
+      "type": "struct interfaces::mailbox::events::RequiredHookSetEvent",
+      "metadataTypeId": 14,
+      "components": [
+        {
           "name": "module",
-          "typeId": 18
+          "typeId": 19
         }
       ]
     },
     {
       "type": "struct message::EncodedMessage",
-      "metadataTypeId": 14,
+      "metadataTypeId": 15,
       "components": [
         {
           "name": "bytes",
-          "typeId": 16
+          "typeId": 17
         }
       ]
     },
     {
       "type": "struct std::address::Address",
-      "metadataTypeId": 15,
+      "metadataTypeId": 16,
       "components": [
         {
           "name": "bits",
@@ -339,11 +350,11 @@
     },
     {
       "type": "struct std::bytes::Bytes",
-      "metadataTypeId": 16,
+      "metadataTypeId": 17,
       "components": [
         {
           "name": "buf",
-          "typeId": 17
+          "typeId": 18
         },
         {
           "name": "len",
@@ -353,7 +364,7 @@
     },
     {
       "type": "struct std::bytes::RawBytes",
-      "metadataTypeId": 17,
+      "metadataTypeId": 18,
       "components": [
         {
           "name": "ptr",
@@ -367,7 +378,7 @@
     },
     {
       "type": "struct std::contract_id::ContractId",
-      "metadataTypeId": 18,
+      "metadataTypeId": 19,
       "components": [
         {
           "name": "bits",
@@ -377,7 +388,7 @@
     },
     {
       "type": "struct sway_libs::ownership::events::OwnershipRenounced",
-      "metadataTypeId": 19,
+      "metadataTypeId": 20,
       "components": [
         {
           "name": "previous_owner",
@@ -387,7 +398,7 @@
     },
     {
       "type": "struct sway_libs::ownership::events::OwnershipSet",
-      "metadataTypeId": 20,
+      "metadataTypeId": 21,
       "components": [
         {
           "name": "new_owner",
@@ -397,7 +408,7 @@
     },
     {
       "type": "struct sway_libs::ownership::events::OwnershipTransferred",
-      "metadataTypeId": 21,
+      "metadataTypeId": 22,
       "components": [
         {
           "name": "new_owner",
@@ -411,7 +422,7 @@
     },
     {
       "type": "u8",
-      "metadataTypeId": 22
+      "metadataTypeId": 23
     }
   ],
   "functions": [
@@ -917,12 +928,6 @@
           "arguments": [
             " * [u32] - The domain of the contract."
           ]
-        },
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
         }
       ]
     },
@@ -1315,8 +1320,7 @@
         {
           "name": "storage",
           "arguments": [
-            "read",
-            "write"
+            "read"
           ]
         }
       ]
@@ -1750,6 +1754,10 @@
       "concreteTypeId": "019ee4dbd8a5c577232b95d738e0bbcb2898c0417c9e0b05694284994582a199"
     },
     {
+      "logId": "16461757363951278962",
+      "concreteTypeId": "e473e91ab8fc9b72d6833e3c5ffc45bff9a6da162b5dcec87a0fbd31858b6ee0"
+    },
+    {
       "logId": "4571204900286667806",
       "concreteTypeId": "3f702ea3351c9c1ece2b84048006c8034a24cbc2bad2e740d0412b4172951d3d"
     },
@@ -1779,7 +1787,7 @@
     {
       "name": "LOCAL_DOMAIN",
       "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc",
-      "offset": 55856
+      "offset": 56264
     }
   ]
 }

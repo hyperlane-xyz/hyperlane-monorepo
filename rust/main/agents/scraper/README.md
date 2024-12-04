@@ -11,19 +11,19 @@ docker stop scraper
 docker rm -v scraper
 ```
 
-To init the database, run from `rust` dir
+To init the database, run from `rust/main` dir
 
 ```bash
 cargo run --package migration --bin init-db
 ```
 
-To re-create the database, run from `rust` dir
+To re-create the database, run from `rust/main` dir
 
 ```bash
 cargo run --package migration --bin recreate-db
 ```
 
-To re-generate the sea-orm entity code, when no database is running in docker and from the `rust` dir, run
+To re-generate the sea-orm entity code, when no database is running in docker and from the `rust/main` dir, run
 
 ```bash
 cargo run --package migration --bin generate-entities

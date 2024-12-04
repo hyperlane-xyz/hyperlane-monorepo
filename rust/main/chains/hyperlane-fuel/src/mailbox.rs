@@ -1,8 +1,8 @@
-use crate::{
-    contracts::mailbox::{DispatchEvent, Mailbox as FuelMailboxContract},
-    conversions::*,
-    ConnectionConf, FuelIndexer, FuelProvider,
+use std::{
+    fmt::{Debug, Formatter},
+    ops::RangeInclusive,
 };
+
 use async_trait::async_trait;
 use fuels::{
     prelude::{Bech32ContractId, WalletUnlocked},
@@ -10,18 +10,20 @@ use fuels::{
     tx::{Receipt, ScriptExecutionResult},
     types::{transaction::TxPolicies, transaction_builders::VariableOutputPolicy, Bytes},
 };
+use tracing::{instrument, warn};
+
 use hyperlane_core::{
-    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi,
+    utils::bytes_to_hex, ChainCommunicationError, ChainResult, ContractLocator, Delivery,
     HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
     Indexed, Indexer, LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H256, H512, U256,
 };
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-    ops::RangeInclusive,
+
+use crate::{
+    contracts::mailbox::{DispatchEvent, Mailbox as FuelMailboxContract, ProcessIdEvent},
+    conversions::*,
+    ConnectionConf, FuelIndexer, FuelProvider,
 };
-use tracing::{instrument, warn};
 
 const GAS_ESTIMATE_MULTIPLIER: f64 = 1.3;
 /// A reference to a Mailbox contract on some Fuel chain
@@ -232,17 +234,17 @@ impl Mailbox for FuelMailbox {
 }
 
 // ----------------------------------------------------------
-// ---------------------- Indexer ---------------------------
+// ------------------ Dispatch Indexer ----------------------
 // ----------------------------------------------------------
 
-/// Struct that retrieves event data for a Fuel Mailbox contract
+/// Struct that retrieves Dispatch events from a Fuel Mailbox contract
 #[derive(Debug)]
-pub struct FuelMailboxIndexer {
+pub struct FuelDispatchIndexer {
     indexer: FuelIndexer<DispatchEvent>,
     contract: FuelMailboxContract<WalletUnlocked>,
 }
 
-impl FuelMailboxIndexer {
+impl FuelDispatchIndexer {
     /// Create a new FuelMailboxIndexer
     pub async fn new(
         conf: &ConnectionConf,
@@ -260,7 +262,7 @@ impl FuelMailboxIndexer {
 }
 
 #[async_trait]
-impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
+impl Indexer<HyperlaneMessage> for FuelDispatchIndexer {
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -274,31 +276,7 @@ impl Indexer<HyperlaneMessage> for FuelMailboxIndexer {
 }
 
 #[async_trait]
-impl Indexer<H256> for FuelMailboxIndexer {
-    async fn fetch_logs_in_range(
-        &self,
-        _range: RangeInclusive<u32>,
-    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        todo!() // Needed for scraper
-    }
-
-    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        self.indexer.provider().get_finalized_block_number().await
-    }
-}
-
-#[async_trait]
-impl SequenceAwareIndexer<H256> for FuelMailboxIndexer {
-    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<H256>::get_finalized_block_number(&self).await?;
-
-        // No sequence for message deliveries.
-        Ok((None, tip))
-    }
-}
-
-#[async_trait]
-impl SequenceAwareIndexer<HyperlaneMessage> for FuelMailboxIndexer {
+impl SequenceAwareIndexer<HyperlaneMessage> for FuelDispatchIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
 
@@ -313,14 +291,47 @@ impl SequenceAwareIndexer<HyperlaneMessage> for FuelMailboxIndexer {
     }
 }
 
-#[allow(dead_code)]
-struct FuelMailboxAbi;
+// ----------------------------------------------------------
+// ------------------ Delivery Indexer ----------------------
+// ----------------------------------------------------------
 
-impl HyperlaneAbi for FuelMailboxAbi {
-    const SELECTOR_SIZE_BYTES: usize = 8;
+/// Struct that retrieves ProcessId events from a Fuel Mailbox contract
+#[derive(Debug)]
+pub struct FuelDeliveryIndexer {
+    indexer: FuelIndexer<ProcessIdEvent>,
+}
 
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        // Can't support this without Fuels exporting it in the generated code
-        todo!()
+impl FuelDeliveryIndexer {
+    /// Create a new FuelMailboxIndexer
+    pub async fn new(
+        conf: &ConnectionConf,
+        locator: ContractLocator<'_>,
+        wallet: WalletUnlocked,
+    ) -> ChainResult<Self> {
+        let indexer = FuelIndexer::new(conf, locator, wallet).await;
+        Ok(Self { indexer })
+    }
+}
+
+#[async_trait]
+impl Indexer<Delivery> for FuelDeliveryIndexer {
+    async fn fetch_logs_in_range(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<Delivery>, LogMeta)>> {
+        self.indexer.index_logs_in_range(range).await
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        self.indexer.provider().get_finalized_block_number().await
+    }
+}
+
+#[async_trait]
+impl SequenceAwareIndexer<Delivery> for FuelDeliveryIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = Indexer::<Delivery>::get_finalized_block_number(&self).await?;
+        // No sequence for message deliveries.
+        Ok((None, tip))
     }
 }

@@ -292,7 +292,7 @@ impl ChainConf {
             ChainConnectionConf::Fuel(conf) => {
                 let wallet = self.fuel_signer().await.context(ctx)?;
                 let indexer =
-                    Box::new(h_fuel::FuelMailboxIndexer::new(conf, locator, wallet).await?);
+                    Box::new(h_fuel::FuelDispatchIndexer::new(conf, locator, wallet).await?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Sealevel(conf) => {
@@ -334,7 +334,12 @@ impl ChainConf {
                 )
                 .await
             }
-            ChainConnectionConf::Fuel(_) => todo!("Fuel does not have scraper support yet"),
+            ChainConnectionConf::Fuel(conf) => {
+                let wallet = self.fuel_signer().await.context(ctx)?;
+                let indexer =
+                    Box::new(h_fuel::FuelDeliveryIndexer::new(conf, locator, wallet).await?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
+            }
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)

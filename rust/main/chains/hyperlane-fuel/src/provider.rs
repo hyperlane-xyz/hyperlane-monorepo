@@ -1,14 +1,15 @@
-use crate::{make_client, make_provider, ConnectionConf};
+use crate::{make_client, make_provider, prelude::FuelIntoH256, ConnectionConf};
+
 use async_trait::async_trait;
 use fuels::{
     client::FuelClient,
     prelude::Provider,
-    tx::Receipt,
-    types::{transaction::TransactionType, tx_status::TxStatus, Address, BlockHeight, ContractId},
+    types::{Address, BlockHeight, ContractId},
 };
 use hyperlane_core::{
     h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, HyperlaneChain,
-    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, H256, H512, U256,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
+    H512, U256,
 };
 
 /// A wrapper around a fuel provider to get generic blockchain information.
@@ -54,34 +55,6 @@ impl FuelProvider {
             .await
             .map_err(ChainCommunicationError::from_other)
     }
-
-    /// Extract transaction data from receipts
-    fn extract_transaction_data(receipts: Vec<Receipt>) -> (H256, Option<H256>, u64) {
-        let valid_receipt = receipts
-            .into_iter()
-            .find(|receipt| matches!(receipt, Receipt::MessageOut { .. }));
-
-        match valid_receipt {
-            Some(Receipt::MessageOut {
-                sender,
-                recipient,
-                nonce,
-                ..
-            }) => {
-                let mut arr = [0u8; 8];
-                let nonce_bytes = <[u8; 32]>::from(nonce);
-                arr.copy_from_slice(&nonce_bytes[0..8]);
-                let parsed_nonce = u64::from_be_bytes(arr);
-
-                (
-                    <[u8; 32]>::from(sender).into(),
-                    Some(<[u8; 32]>::from(recipient).into()),
-                    parsed_nonce,
-                )
-            }
-            _ => (H256::zero(), None, 0),
-        }
-    }
 }
 
 impl HyperlaneChain for FuelProvider {
@@ -106,7 +79,7 @@ impl HyperlaneProvider for FuelProvider {
 
         let block_info = match block_res {
             Some(block) => BlockInfo {
-                hash: H256::from_slice(block.id.as_slice()),
+                hash: block.id.into_h256(),
                 timestamp: block.header.time.map_or(0, |t| t.timestamp() as u64),
                 number: block.header.height.into(),
             },
@@ -123,54 +96,75 @@ impl HyperlaneProvider for FuelProvider {
         Ok(block_info)
     }
 
-    /// Used by scraper
+    /// Get a transaction by its hash
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let hash_parsed = H256::from_slice(&h512_to_bytes(hash));
 
-        let transaction_res = self
+        let transaction = self
             .provider
             .get_transaction_by_id(&hash_parsed.0.into())
             .await
-            .map_err(|_| HyperlaneProviderError::CouldNotFindTransactionByHash(*hash))?;
+            .map_err(|_| HyperlaneProviderError::CouldNotFindTransactionByHash(*hash))?
+            .ok_or_else(|| HyperlaneProviderError::CouldNotFindTransactionByHash(*hash))?;
 
-        match transaction_res {
-            Some(transaction) => {
-                let block_number = transaction.block_height.unwrap();
+        let block_number = transaction.block_height.ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Could not get block number from transaction data",
+            )
+        })?;
 
-                let gas_price = self
-                    .provider
-                    .estimate_gas_price(block_number.into())
-                    .await
-                    .map_or(0, |estimate| estimate.gas_price);
+        let gas_price = self
+            .provider
+            .estimate_gas_price(block_number.into())
+            .await
+            .map_or(0, |estimate| estimate.gas_price);
 
-                let gas_limit = match transaction.transaction {
-                    TransactionType::Script(tx) => tx.gas_limit(),
-                    _ => 0,
-                };
+        let receipts = transaction.status.take_receipts();
 
-                let (sender, recipient, nonce) = match transaction.status {
-                    TxStatus::Success { receipts } => Self::extract_transaction_data(receipts),
-                    _ => (H256::zero(), None, 0),
-                };
+        let gas_used = receipts
+            .iter()
+            .filter_map(|receipt| receipt.gas_used())
+            .next()
+            .unwrap_or(0);
+        let sender = receipts
+            .iter()
+            .filter_map(|receipt| receipt.sender())
+            .next()
+            .map(|sender| H256::from_slice(&sender.as_slice()))
+            .unwrap_or(H256::zero());
+        let recipient = receipts
+            .iter()
+            .filter_map(|receipt| receipt.recipient())
+            .next()
+            .map(|recipient| H256::from_slice(&recipient.as_slice()));
+        let nonce = receipts
+            .iter()
+            .filter_map(|receipt| receipt.nonce())
+            .next()
+            .map(|nonce| {
+                let mut arr = [0u8; 8];
+                let nonce_bytes = <[u8; 32]>::from(*nonce);
+                arr.copy_from_slice(&nonce_bytes[0..8]);
+                u64::from_be_bytes(arr)
+            })
+            .unwrap_or(0);
 
-                Ok(TxnInfo {
-                    hash: *hash,
-                    gas_limit: gas_limit.into(),
-                    max_priority_fee_per_gas: None,
-                    max_fee_per_gas: None,
-                    nonce,
-                    sender,
-                    gas_price: Some(gas_price.into()),
-                    recipient,
-                    receipt: None,
-                    raw_input_data: None,
-                })
-            }
-            None => Err(ChainCommunicationError::CustomError(format!(
-                "Transaction not found: {}",
-                hash
-            ))),
-        }
+        Ok(TxnInfo {
+            hash: *hash,
+            gas_limit: gas_used.into(),
+            max_priority_fee_per_gas: None,
+            max_fee_per_gas: None,
+            nonce,
+            sender,
+            gas_price: Some(gas_price.into()),
+            recipient,
+            receipt: Some(TxnReceiptInfo {
+                gas_used: gas_used.into(),
+                cumulative_gas_used: gas_used.into(),
+                effective_gas_price: Some(gas_price.into()),
+            }),
+            raw_input_data: None,
+        })
     }
 
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
@@ -185,6 +179,7 @@ impl HyperlaneProvider for FuelProvider {
         }
     }
 
+    /// Get the base asset balance of an address
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
         let base = self.provider.base_asset_id();
         let address_bytes = hex::decode(&address)?;
@@ -201,8 +196,31 @@ impl HyperlaneProvider for FuelProvider {
             })?
     }
 
-    /// Used by hyperlane base metrics (scraper)
+    /// Get the chain metrics for the latest block
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Ok(None)
+        let metrics = self
+            .provider
+            .latest_gas_price()
+            .await
+            .map_err(|_| ChainCommunicationError::from_other_str("Failed to get gas price"))?;
+        let block_info = self
+            .provider
+            .block_by_height(metrics.block_height)
+            .await
+            .map_err(|_| {
+                HyperlaneProviderError::CouldNotFindBlockByHeight(*metrics.block_height as u64)
+            })?
+            .ok_or_else(|| {
+                HyperlaneProviderError::CouldNotFindBlockByHeight(*metrics.block_height as u64)
+            })?;
+
+        Ok(Some(ChainInfo {
+            latest_block: BlockInfo {
+                hash: block_info.id.into_h256(),
+                timestamp: block_info.header.time.map_or(0, |t| t.timestamp() as u64),
+                number: block_info.header.height.into(),
+            },
+            min_gas_price: Some(U256::from(metrics.gas_price)),
+        }))
     }
 }

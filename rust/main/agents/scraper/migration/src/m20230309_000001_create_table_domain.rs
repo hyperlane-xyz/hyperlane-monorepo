@@ -462,6 +462,22 @@ const DOMAINS: &[RawDomain] = &[
         is_test_net: true,
         is_deprecated: false,
     },
+    RawDomain {
+        name: "fueltestnet",
+        token: "ETH",
+        domain: 1717982312,
+        chain_id: 1717982312,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "fuelignition",
+        token: "ETH",
+        domain: 1717982311,
+        chain_id: 1717982311,
+        is_test_net: false,
+        is_deprecated: false,
+    },
 ];
 
 #[derive(DeriveMigrationName)]

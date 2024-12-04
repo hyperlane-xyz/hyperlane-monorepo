@@ -12,7 +12,6 @@ mod aggregation_ism;
 mod contracts;
 mod conversions;
 mod indexer;
-mod indexer_events;
 mod interchain_gas;
 mod interchain_security_module;
 mod mailbox;
