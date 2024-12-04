@@ -63,6 +63,7 @@ export {
 export { HyperlaneLifecyleEvent } from './core/events.js';
 export { EvmCoreReader } from './core/EvmCoreReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
+export { StarknetCore } from './core/StarknetCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
 export {

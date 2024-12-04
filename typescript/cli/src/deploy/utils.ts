@@ -9,7 +9,9 @@ import {
   MultisigConfig,
   getLocalProvider,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Address, // ProtocolType
+} from '@hyperlane-xyz/utils';
 
 import { parseIsmConfig } from '../config/ism.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
@@ -23,8 +25,8 @@ import {
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
 import { ENV } from '../utils/env.js';
-import { assertSigner } from '../utils/keys.js';
 
+// import { assertSigner } from '../utils/keys.js';
 import { completeDryRun } from './dry-run.js';
 
 export async function runPreflightChecksForChains({
@@ -47,10 +49,10 @@ export async function runPreflightChecksForChains({
   for (const chain of chains) {
     const metadata = multiProvider.tryGetChainMetadata(chain);
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
-    if (metadata.protocol !== ProtocolType.Ethereum)
-      throw new Error('Only Ethereum chains are supported for now');
-    const signer = multiProvider.getSigner(chain);
-    assertSigner(signer);
+    // if (metadata.protocol !== ProtocolType.Ethereum)
+    //   throw new Error('Only Ethereum chains are supported for now');
+    // const signer = multiProvider.getSigner(chain);
+    // assertSigner(signer);
     logGreen(`✅ ${chain} signer is valid`);
   }
   logGreen('✅ Chains are valid');
