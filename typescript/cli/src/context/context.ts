@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { Signer, ethers } from 'ethers';
 
 import {
   DEFAULT_GITHUB_REGISTRY,
@@ -111,13 +111,13 @@ export async function getContext({
 
   //Just for backward compability
   let signerAddress: string | undefined = undefined;
+  let signer: Signer | undefined;
   if (key) {
-    let signer;
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
     signerAddress = await signer.getAddress();
   }
 
-  const multiProvider = await getMultiProvider(registry);
+  const multiProvider = await getMultiProvider(registry, signer);
 
   return {
     registry,
