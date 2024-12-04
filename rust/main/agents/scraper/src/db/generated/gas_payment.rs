@@ -57,7 +57,6 @@ impl PrimaryKeyTrait for PrimaryKey {
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
-    Destination,
     Domain,
     Origin,
     Transaction,
@@ -88,10 +87,6 @@ impl ColumnTrait for Column {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
-            Self::Destination => Entity::belongs_to(super::domain::Entity)
-                .from(Column::Destination)
-                .to(super::domain::Column::Id)
-                .into(),
             Self::Domain => Entity::belongs_to(super::domain::Entity)
                 .from(Column::Domain)
                 .to(super::domain::Column::Id)

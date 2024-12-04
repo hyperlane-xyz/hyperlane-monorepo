@@ -65,11 +65,6 @@ impl MigrationTrait for Migration {
                             .from_col(GasPayment::Origin)
                             .to(Domain::Table, Domain::Id),
                     )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .from_col(GasPayment::Destination)
-                            .to(Domain::Table, Domain::Id),
-                    )
                     .index(
                         Index::create()
                             // don't need domain because TxId includes it
