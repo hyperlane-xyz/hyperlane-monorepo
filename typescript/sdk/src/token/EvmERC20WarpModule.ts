@@ -145,13 +145,24 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    // We normalize the addresses for comparison
-    actualConfig.remoteRouters = normalizeConfig(actualConfig.remoteRouters);
-    expectedConfig.remoteRouters = normalizeConfig(
-      expectedConfig.remoteRouters,
-    );
     assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
     assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
+
+    // We normalize the addresses for comparison
+    actualConfig.remoteRouters = Object.fromEntries(
+      Object.entries(actualConfig.remoteRouters).map(([key, value]) => [
+        key,
+        // normalizeConfig removes the address property but we don't want to lose that info
+        { ...normalizeConfig(value), address: normalizeConfig(value.address) },
+      ]),
+    );
+    expectedConfig.remoteRouters = Object.fromEntries(
+      Object.entries(expectedConfig.remoteRouters).map(([key, value]) => [
+        key,
+        // normalizeConfig removes the address property but we don't want to lose that info
+        { ...normalizeConfig(value), address: normalizeConfig(value.address) },
+      ]),
+    );
 
     const { remoteRouters: actualRemoteRouters } = actualConfig;
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
@@ -171,7 +182,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           [
             Object.keys(expectedRemoteRouters).map((k) => Number(k)),
             Object.values(expectedRemoteRouters).map((a) =>
-              addressToBytes32(a),
+              addressToBytes32(a.address),
             ),
           ],
         ),
