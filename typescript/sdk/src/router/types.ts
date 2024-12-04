@@ -75,8 +75,8 @@ export const ForeignDeploymentConfigSchema = z.object({
   foreignDeployment: z.string().optional(),
 });
 
-const RemoteRouterDomain = z.string();
-const RemoteRouterRouter = z.object({
+export const RemoteRouterDomain = z.string();
+export const RemoteRouterRouter = z.object({
   address: z.string().startsWith('0x'),
 });
 export const RemoteRoutersSchema = z.record(
