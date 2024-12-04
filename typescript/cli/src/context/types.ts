@@ -26,7 +26,8 @@ export interface CommandContext {
   multiProvider: MultiProvider;
   skipConfirmation: boolean;
   key?: string;
-  signer?: ethers.Signer;
+  // just for evm chains backward compability
+  signerAddress?: string;
   warpCoreConfig?: WarpCoreConfig;
   strategyPath?: string;
 }
