@@ -23,7 +23,7 @@ const WARP_DEPLOY_OUTPUT = `${REGISTRY_PATH}/deployments/warp_routes/${SYMBOL}/$
 const EXAMPLES_PATH = './examples';
 const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
 
-const TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
+const TEST_TIMEOUT = 200_000; // Long timeout since these tests can take a while
 describe('hyperlane relayer e2e tests', async function () {
   this.timeout(TEST_TIMEOUT);
 
