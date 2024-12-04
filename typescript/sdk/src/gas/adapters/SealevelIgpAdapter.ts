@@ -7,7 +7,7 @@ import {
 } from '@solana/web3.js';
 import { deserializeUnchecked, serialize } from 'borsh';
 
-import { Address, Domain } from '@hyperlane-xyz/utils';
+import { Address, Domain, assert } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -55,7 +55,7 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
     payerKey: PublicKey,
   ): Promise<bigint> {
     const paymentKeys = await this.getPaymentKeys();
-    let keys = [
+    const keys = [
       // 0. `[executable]` The system program.
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       // 1. `[]` The IGP account.
@@ -104,11 +104,10 @@ export abstract class SealevelIgpProgramAdapter extends BaseSealevelAdapter {
     });
 
     const base64Data = simulationResponse.value.returnData?.data?.[0];
-    if (base64Data === undefined) {
-      throw Error(
-        'No return data when quoting gas payment, may happen if the payer has insufficient funds',
-      );
-    }
+    assert(
+      base64Data,
+      'No return data when quoting gas payment, may happen if the payer has insufficient funds',
+    );
 
     const data = Buffer.from(base64Data, 'base64');
     const quote = deserializeUnchecked(
@@ -179,7 +178,7 @@ export class SealevelOverheadIgpAdapter extends SealevelIgpProgramAdapter {
     const connection = this.getProvider();
 
     const accountInfo = await connection.getAccountInfo(new PublicKey(address));
-    if (!accountInfo) throw new Error(`No account info found for ${address}}`);
+    assert(accountInfo, `No account info found for ${address}}`);
 
     const accountData = deserializeUnchecked(
       SealevelOverheadIgpDataSchema,

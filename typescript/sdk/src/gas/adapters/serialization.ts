@@ -113,7 +113,7 @@ export enum SealeveIgpInstruction {
 
 export class SealevelIgpQuoteGasPaymentInstruction {
   destination_domain!: number;
-  gas_amount!: BigInt;
+  gas_amount!: bigint;
   constructor(public readonly fields: any) {
     Object.assign(this, fields);
   }

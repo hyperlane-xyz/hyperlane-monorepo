@@ -19,7 +19,9 @@ import {
   Address,
   Domain,
   addressToBytes,
+  assert,
   eqAddress,
+  isNullish,
   median,
   padBytesToLength,
 } from '@hyperlane-xyz/utils';
@@ -296,7 +298,7 @@ export abstract class SealevelHypTokenAdapter
   ): Promise<InterchainGasQuote> {
     const tokenData = await this.getTokenAccountData();
     const destinationGas = tokenData.destination_gas?.get(destination);
-    if (destinationGas === undefined) {
+    if (isNullish(destinationGas)) {
       return { amount: 0n };
     }
 
@@ -305,9 +307,7 @@ export abstract class SealevelHypTokenAdapter
       return { amount: 0n };
     }
 
-    if (sender === undefined) {
-      throw new Error('Sender required for Sealevel transfer remote gas quote');
-    }
+    assert(sender, 'Sender required for Sealevel transfer remote gas quote');
 
     return {
       amount: await igp.quoteGasPayment(
