@@ -204,14 +204,17 @@ export async function getGovernor(
           ...warpAddresses[key],
         };
 
-        // if the owner in the config is an AW account, set the proxyAdmin to the AW singleton proxyAdmin
-        // this will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin
-        const proxyAdmin = eqAddress(
-          config[key].owner,
-          envConfig.owners[key]?.owner,
-        )
-          ? chainAddresses[key]?.proxyAdmin
-          : undefined;
+        // Use the specified proxyAdmin if it is set in the config
+        let proxyAdmin = config[key].proxyAdmin?.address;
+        // If the owner in the config is an AW account and there is no proxyAdmin in the config,
+        // set the proxyAdmin to the AW singleton proxyAdmin.
+        // This will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin.
+        if (
+          !proxyAdmin &&
+          eqAddress(config[key].owner, envConfig.owners[key]?.owner)
+        ) {
+          proxyAdmin = chainAddresses[key]?.proxyAdmin;
+        }
 
         if (proxyAdmin) {
           obj[key].proxyAdmin = proxyAdmin;
