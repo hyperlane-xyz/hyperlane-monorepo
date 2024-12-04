@@ -286,7 +286,10 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
         .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
-        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
+        .hyp_env(
+            "CHAINSTOSCRAPE",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
+        )
         .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
         .hyp_env(
             "DB",
