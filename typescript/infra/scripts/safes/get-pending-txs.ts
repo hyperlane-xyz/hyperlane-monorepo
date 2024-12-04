@@ -1,8 +1,10 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
+import { formatUnits } from 'ethers/lib/utils.js';
 import yargs from 'yargs';
 
 import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { LogFormat, LogLevel, configureRootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { safes } from '../../config/environments/mainnet3/owners.js';
@@ -27,6 +29,7 @@ type SafeStatus = {
   confs: number;
   threshold: number;
   status: string;
+  balance: string;
 };
 
 export async function getPendingTxsForChains(
@@ -72,6 +75,10 @@ export async function getPendingTxsForChains(
         return;
       }
 
+      const balance = await safeSdk.getBalance();
+      const nativeToken = await multiProvider.getNativeToken(chain);
+      const formattedBalance = formatUnits(balance, nativeToken.decimals);
+
       pendingTxs.results.forEach(
         ({ nonce, submissionDate, safeTxHash, confirmations }) => {
           const confs = confirmations?.length ?? 0;
@@ -93,6 +100,9 @@ export async function getPendingTxsForChains(
             confs,
             threshold,
             status,
+            balance: `${Number(formattedBalance).toFixed(5)} ${
+              nativeToken.symbol
+            }`,
           });
         },
       );
@@ -105,7 +115,8 @@ export async function getPendingTxsForChains(
 
 async function main() {
   const safeChains = Object.keys(safes);
-  const { chains, fullTxHash, execute } = await withChains(
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+  const { chains, fullTxHash } = await withChains(
     yargs(process.argv.slice(2)),
     safeChains,
   )
@@ -114,13 +125,7 @@ async function main() {
       'If enabled, include the full tx hash in the output',
     )
     .boolean('fullTxHash')
-    .default('fullTxHash', false)
-    .describe(
-      'execute',
-      'If enabled, execute transactions that have enough confirmations',
-    )
-    .boolean('execute')
-    .default('execute', false).argv;
+    .default('fullTxHash', false).argv;
 
   const chainsToCheck = chains || safeChains;
   if (chainsToCheck.length === 0) {
@@ -149,29 +154,37 @@ async function main() {
     'confs',
     'threshold',
     'status',
+    'balance',
   ]);
 
   const executableTxs = pendingTxs.filter(
     (tx) => tx.status === SafeTxStatus.READY_TO_EXECUTE,
   );
-  if (
-    executableTxs.length === 0 ||
-    !execute ||
-    !(await confirm({
-      message: 'Execute transactions?',
-      default: execute,
-    }))
-  ) {
+  if (executableTxs.length === 0) {
     console.info(chalk.green('No transactions to execute!'));
     process.exit(0);
-  } else {
-    console.info(chalk.blueBright('Executing transactions...'));
   }
+
+  const shouldExecute = await confirm({
+    message: 'Execute transactions?',
+    default: false,
+  });
+
+  if (!shouldExecute) {
+    console.info(
+      chalk.blue(
+        `${executableTxs.length} transactions available for execution`,
+      ),
+    );
+    process.exit(0);
+  }
+
+  console.info(chalk.blueBright('Executing transactions...'));
 
   for (const tx of executableTxs) {
     const confirmExecuteTx = await confirm({
       message: `Execute transaction ${tx.shortTxHash} on chain ${tx.chain}?`,
-      default: execute,
+      default: false,
     });
     if (confirmExecuteTx) {
       console.log(

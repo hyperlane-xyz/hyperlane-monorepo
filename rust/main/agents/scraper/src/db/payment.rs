@@ -1,7 +1,7 @@
 use eyre::{eyre, Result};
 use itertools::Itertools;
 use sea_orm::{prelude::*, ActiveValue::*, Insert, QuerySelect};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, instrument};
 
 use hyperlane_core::{address_to_bytes, h256_to_bytes, InterchainGasPayment, LogMeta, H256};
 use migration::OnConflict;
@@ -12,6 +12,7 @@ use crate::db::ScraperDb;
 
 use super::generated::gas_payment;
 
+#[derive(Debug)]
 pub struct StorablePayment<'a> {
     pub payment: &'a InterchainGasPayment,
     pub sequence: Option<i64>,
@@ -26,13 +27,14 @@ impl ScraperDb {
         &self,
         domain: u32,
         interchain_gas_paymaster: &H256,
-        payments: impl Iterator<Item = StorablePayment<'_>>,
+        payments: &[StorablePayment<'_>],
     ) -> Result<u64> {
         let latest_id_before = self.latest_payment_id(domain).await?;
         let interchain_gas_paymaster = address_to_bytes(interchain_gas_paymaster);
 
         // we have a race condition where a message may not have been scraped yet even
         let models = payments
+            .iter()
             .map(|storable| gas_payment::ActiveModel {
                 id: NotSet,
                 time_created: Set(date_time::now()),
@@ -49,7 +51,7 @@ impl ScraperDb {
             })
             .collect_vec();
 
-        trace!(?models, "Writing gas payments to database");
+        debug!(?models, "Writing gas payments to database");
 
         if models.is_empty() {
             debug!("Wrote zero new gas payments to database");
