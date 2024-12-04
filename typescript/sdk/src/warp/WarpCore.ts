@@ -567,7 +567,11 @@ export class WarpCore {
     const recipientError = this.validateRecipient(recipient, destination);
     if (recipientError) return recipientError;
 
-    const amountError = this.validateAmount(originTokenAmount);
+    const amountError = await this.validateAmount(
+      originTokenAmount,
+      destination,
+      recipient,
+    );
     if (amountError) return amountError;
 
     const destinationCollateralError = await this.validateDestinationCollateral(
@@ -649,13 +653,47 @@ export class WarpCore {
   /**
    * Ensure token amount is valid
    */
-  protected validateAmount(
+  protected async validateAmount(
     originTokenAmount: TokenAmount,
-  ): Record<string, string> | null {
+    destination: ChainNameOrId,
+    recipient: Address,
+  ): Promise<Record<string, string> | null> {
     if (!originTokenAmount.amount || originTokenAmount.amount < 0n) {
       const isNft = originTokenAmount.token.isNft();
       return { amount: isNft ? 'Invalid Token Id' : 'Invalid amount' };
     }
+
+    // Check the transfer amount is sufficient on the destination side
+
+    const originToken = originTokenAmount.token;
+
+    const destinationName = this.multiProvider.getChainName(destination);
+    const destinationToken =
+      originToken.getConnectionForChain(destinationName)?.token;
+    assert(destinationToken, `No connection found for ${destinationName}`);
+    const destinationAdapter = destinationToken.getAdapter(this.multiProvider);
+
+    // Get the min required destination amount
+    const minDestinationTransferAmount =
+      await destinationAdapter.getMinimumTransferAmount(recipient);
+
+    // Convert the minDestinationTransferAmount to an origin amount
+    const minOriginTransferAmount = destinationToken.amount(
+      convertDecimals(
+        originToken.decimals,
+        destinationToken.decimals,
+        minDestinationTransferAmount.toString(),
+      ),
+    );
+
+    if (minOriginTransferAmount.amount > originTokenAmount.amount) {
+      return {
+        amount: `Minimum transfer amount is ${minOriginTransferAmount.getDecimalFormattedAmount()} ${
+          originToken.symbol
+        }`,
+      };
+    }
+
     return null;
   }
 
