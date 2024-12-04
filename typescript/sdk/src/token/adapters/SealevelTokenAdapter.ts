@@ -19,14 +19,21 @@ import {
   Address,
   Domain,
   addressToBytes,
+  assert,
   eqAddress,
+  isNullish,
   median,
   padBytesToLength,
 } from '@hyperlane-xyz/utils';
 
 import { BaseSealevelAdapter } from '../../app/MultiProtocolApp.js';
 import { SEALEVEL_SPL_NOOP_ADDRESS } from '../../consts/sealevel.js';
-import { SealevelOverheadIgpAdapter } from '../../gas/adapters/SealevelIgpAdapter.js';
+import {
+  IgpPaymentKeys,
+  SealevelIgpAdapter,
+  SealevelIgpProgramAdapter,
+  SealevelOverheadIgpAdapter,
+} from '../../gas/adapters/SealevelIgpAdapter.js';
 import { SealevelInterchainGasPaymasterType } from '../../gas/adapters/serialization.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
@@ -283,11 +290,32 @@ export abstract class SealevelHypTokenAdapter
     return undefined;
   }
 
+  // The sender is required, as simulating a transaction on Sealevel requires
+  // a payer to be specified that has sufficient funds to cover the transaction fee.
   async quoteTransferRemoteGas(
-    _destination: Domain,
+    destination: Domain,
+    sender?: Address,
   ): Promise<InterchainGasQuote> {
-    // TODO Solana support
-    return { amount: 0n };
+    const tokenData = await this.getTokenAccountData();
+    const destinationGas = tokenData.destination_gas?.get(destination);
+    if (isNullish(destinationGas)) {
+      return { amount: 0n };
+    }
+
+    const igp = this.getIgpAdapter(tokenData);
+    if (!igp) {
+      return { amount: 0n };
+    }
+
+    assert(sender, 'Sender required for Sealevel transfer remote gas quote');
+
+    return {
+      amount: await igp.quoteGasPayment(
+        destination,
+        destinationGas,
+        new PublicKey(sender),
+      ),
+    };
   }
 
   async populateTransferRemoteTx({
@@ -359,34 +387,10 @@ export abstract class SealevelHypTokenAdapter
     return tx;
   }
 
-  async getIgpKeys(): Promise<KeyListParams['igp']> {
+  async getIgpKeys(): Promise<IgpPaymentKeys | undefined> {
     const tokenData = await this.getTokenAccountData();
-    if (!tokenData.interchain_gas_paymaster) return undefined;
-    const igpConfig = tokenData.interchain_gas_paymaster;
-    if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
-      return {
-        programId: igpConfig.program_id_pubkey,
-      };
-    } else if (
-      igpConfig.type === SealevelInterchainGasPaymasterType.OverheadIgp
-    ) {
-      if (!igpConfig.igp_account_pub_key) {
-        throw new Error('igpAccount field expected for Sealevel Overhead IGP');
-      }
-      const overheadAdapter = new SealevelOverheadIgpAdapter(
-        this.chainName,
-        this.multiProvider,
-        { igp: igpConfig.igp_account_pub_key.toBase58() },
-      );
-      const overheadAccountInfo = await overheadAdapter.getAccountInfo();
-      return {
-        programId: igpConfig.program_id_pubkey,
-        igpAccount: igpConfig.igp_account_pub_key,
-        innerIgpAccount: overheadAccountInfo.inner_pub_key,
-      };
-    } else {
-      throw new Error(`Unsupported IGP type ${igpConfig.type}`);
-    }
+    const igpAdapter = this.getIgpAdapter(tokenData);
+    return igpAdapter?.getPaymentKeys();
   }
 
   // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#L257-L274
@@ -457,33 +461,26 @@ export abstract class SealevelHypTokenAdapter
           isWritable: true,
         },
       ];
-      if (igp.igpAccount && igp.innerIgpAccount) {
+      if (igp.overheadIgpAccount) {
         keys = [
           ...keys,
           // 12.   [] OPTIONAL - The Overhead IGP account, if the configured IGP is an Overhead IGP
           {
-            pubkey: igp.igpAccount,
+            pubkey: igp.overheadIgpAccount,
             isSigner: false,
             isWritable: false,
           },
-          // 13.   [writeable] The Overhead's inner IGP account
-          {
-            pubkey: igp.innerIgpAccount,
-            isSigner: false,
-            isWritable: true,
-          },
-        ];
-      } else {
-        keys = [
-          ...keys,
-          // 12.   [writeable] The IGP account.
-          {
-            pubkey: igp.programId,
-            isSigner: false,
-            isWritable: true,
-          },
         ];
       }
+      keys = [
+        ...keys,
+        // 13.   [writeable] The Overhead's inner IGP account (or the normal IGP account if there's no Overhead IGP).
+        {
+          pubkey: igp.igpAccount,
+          isSigner: false,
+          isWritable: true,
+        },
+      ];
     }
     return keys;
   }
@@ -564,6 +561,36 @@ export abstract class SealevelHypTokenAdapter
 
     this.logger.debug(`Median priority fee: ${medianFee}`);
     return medianFee;
+  }
+
+  protected getIgpAdapter(
+    tokenData: SealevelHyperlaneTokenData,
+  ): SealevelIgpProgramAdapter | undefined {
+    const igpConfig = tokenData.interchain_gas_paymaster;
+
+    if (!igpConfig || igpConfig.igp_account_pub_key === undefined) {
+      return undefined;
+    }
+
+    if (igpConfig.type === SealevelInterchainGasPaymasterType.Igp) {
+      return new SealevelIgpAdapter(this.chainName, this.multiProvider, {
+        igp: igpConfig.igp_account_pub_key.toBase58(),
+        programId: igpConfig.program_id_pubkey.toBase58(),
+      });
+    } else if (
+      igpConfig.type === SealevelInterchainGasPaymasterType.OverheadIgp
+    ) {
+      return new SealevelOverheadIgpAdapter(
+        this.chainName,
+        this.multiProvider,
+        {
+          overheadIgp: igpConfig.igp_account_pub_key.toBase58(),
+          programId: igpConfig.program_id_pubkey.toBase58(),
+        },
+      );
+    } else {
+      throw new Error(`Unsupported IGP type ${igpConfig.type}`);
+    }
   }
 }
 
@@ -766,9 +793,5 @@ interface KeyListParams {
   sender: PublicKey;
   mailbox: PublicKey;
   randomWallet: PublicKey;
-  igp?: {
-    programId: PublicKey;
-    igpAccount?: PublicKey;
-    innerIgpAccount?: PublicKey;
-  };
+  igp?: IgpPaymentKeys;
 }
