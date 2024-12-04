@@ -48,7 +48,9 @@ import { TokenRouterConfig } from './schemas.js';
 const randomRemoteRouters = (n: number) => {
   const routers: RemoteRouters = {};
   for (let domain = 0; domain < n; domain++) {
-    routers[domain] = randomAddress();
+    routers[domain] = {
+      address: randomAddress(),
+    };
   }
   return routers;
 };
@@ -580,7 +582,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       txs = await evmERC20WarpModule.update({
         ...config,
         remoteRouters: {
-          3: randomAddress(),
+          3: {
+            address: randomAddress(),
+          },
         },
       });
 
@@ -679,7 +683,9 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         ...baseConfig,
         type: TokenType.native,
         remoteRouters: {
-          [domain]: randomAddress(),
+          [domain]: {
+            address: randomAddress(),
+          },
         },
       };
 
