@@ -109,7 +109,7 @@ export async function getContext({
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
-  //Just for backward compability
+  //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
   if (key) {
     let signer: Signer | undefined;
