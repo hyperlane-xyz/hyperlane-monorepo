@@ -1,3 +1,4 @@
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   EV5GnosisSafeTxBuilder,
   EV5GnosisSafeTxSubmitter,
@@ -14,17 +15,19 @@ import {
   TxTransformerInterface,
   TxTransformerType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { SubmitterBuilderSettings } from './types.js';
 
 export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
   submissionStrategy,
   multiProvider,
+  registry,
 }: SubmitterBuilderSettings): Promise<TxSubmitterBuilder<TProtocol>> {
   const submitter = await getSubmitter<TProtocol>(
     multiProvider,
     submissionStrategy.submitter,
+    registry,
   );
   const transformers = await getTransformers<TProtocol>(
     multiProvider,
@@ -37,7 +40,17 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
 async function getSubmitter<TProtocol extends ProtocolType>(
   multiProvider: MultiProvider,
   submitterMetadata: SubmitterMetadata,
+  registry: IRegistry,
 ): Promise<TxSubmitterInterface<TProtocol>> {
+  let interchainAccountRouterAddress: Address | undefined;
+  if (submitterMetadata.type === TxSubmitterType.INTERCHAIN_ACCOUNT) {
+    const metadata = await registry.getChainAddresses(submitterMetadata.chain);
+
+    interchainAccountRouterAddress =
+      submitterMetadata.originInterchainAccountRouter ??
+      metadata?.interchainAccountRouter;
+  }
+
   switch (submitterMetadata.type) {
     case TxSubmitterType.JSON_RPC:
       return new EV5JsonRpcTxSubmitter(multiProvider, {
@@ -56,9 +69,16 @@ async function getSubmitter<TProtocol extends ProtocolType>(
         ...submitterMetadata,
       });
     case TxSubmitterType.INTERCHAIN_ACCOUNT:
+      if (!interchainAccountRouterAddress) {
+        throw new Error(
+          `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${submitterMetadata.chain}`,
+        );
+      }
+
       return EvmIcaTxSubmitter.fromConfig(
         {
           ...submitterMetadata,
+          originInterchainAccountRouter: interchainAccountRouterAddress,
         },
         multiProvider,
       );

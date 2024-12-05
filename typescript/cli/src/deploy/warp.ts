@@ -987,7 +987,7 @@ async function getWarpApplySubmitter({
   context: WriteCommandContext;
   strategyUrl?: string;
 }): Promise<TxSubmitterBuilder<ProtocolType>> {
-  const { multiProvider } = context;
+  const { multiProvider, registry } = context;
 
   const submissionStrategy: SubmissionStrategy = strategyUrl
     ? SubmissionStrategySchema.parse(
@@ -1003,5 +1003,6 @@ async function getWarpApplySubmitter({
   return getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
     multiProvider,
+    registry,
   });
 }

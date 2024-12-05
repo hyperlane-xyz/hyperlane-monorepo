@@ -22,7 +22,7 @@ interface EvmIcaTxSubmitterConfig {
   chain: ChainName;
   destinationChain: ChainName;
   owner: Address;
-  originInterchainAccountRouter?: Address;
+  originInterchainAccountRouter: Address;
   destinationInterchainAccountRouter?: Address;
   interchainSecurityModule?: Address;
 }
@@ -41,7 +41,7 @@ export class EvmIcaTxSubmitter
       chain: ChainName;
       owner: string;
       destinationChain: ChainName;
-      originInterchainAccountRouter?: Address;
+      originInterchainAccountRouter: Address;
       destinationInterchainAccountRouter?: Address;
       interchainSecurityModule?: Address;
     },
