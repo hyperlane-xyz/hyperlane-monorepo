@@ -3,17 +3,13 @@ import {
   EV5GnosisSafeTxBuilder,
   EV5GnosisSafeTxSubmitter,
   EV5ImpersonatedAccountTxSubmitter,
-  EV5InterchainAccountTxTransformer,
   EV5JsonRpcTxSubmitter,
   EvmIcaTxSubmitter,
   MultiProvider,
   SubmitterMetadata,
-  TransformerMetadata,
   TxSubmitterBuilder,
   TxSubmitterInterface,
   TxSubmitterType,
-  TxTransformerInterface,
-  TxTransformerType,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -29,12 +25,8 @@ export async function getSubmitterBuilder<TProtocol extends ProtocolType>({
     submissionStrategy.submitter,
     registry,
   );
-  const transformers = await getTransformers<TProtocol>(
-    multiProvider,
-    submissionStrategy.transforms ?? [],
-  );
 
-  return new TxSubmitterBuilder<TProtocol>(submitter, transformers);
+  return new TxSubmitterBuilder<TProtocol>(submitter, []);
 }
 
 async function getSubmitter<TProtocol extends ProtocolType>(
@@ -84,30 +76,5 @@ async function getSubmitter<TProtocol extends ProtocolType>(
       );
     default:
       throw new Error(`Invalid TxSubmitterType.`);
-  }
-}
-
-async function getTransformers<TProtocol extends ProtocolType>(
-  multiProvider: MultiProvider,
-  transformersMetadata: TransformerMetadata[],
-): Promise<TxTransformerInterface<TProtocol>[]> {
-  return Promise.all(
-    transformersMetadata.map((transformerMetadata) =>
-      getTransformer<TProtocol>(multiProvider, transformerMetadata),
-    ),
-  );
-}
-
-async function getTransformer<TProtocol extends ProtocolType>(
-  multiProvider: MultiProvider,
-  transformerMetadata: TransformerMetadata,
-): Promise<TxTransformerInterface<TProtocol>> {
-  switch (transformerMetadata.type) {
-    case TxTransformerType.INTERCHAIN_ACCOUNT:
-      return new EV5InterchainAccountTxTransformer(multiProvider, {
-        ...transformerMetadata,
-      });
-    default:
-      throw new Error('Invalid TxTransformerType.');
   }
 }
