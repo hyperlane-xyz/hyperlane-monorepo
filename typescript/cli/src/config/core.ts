@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import {
+  CoreConfig,
   CoreConfigSchema,
   HookConfig,
   IsmConfig,
@@ -95,7 +96,7 @@ export async function createCoreDeployConfig({
   }
 }
 
-export async function readCoreDeployConfigs(filePath: string) {
+export function readCoreDeployConfigs(filePath: string): CoreConfig {
   const config = readYamlOrJson(filePath);
   return CoreConfigSchema.parse(config);
 }

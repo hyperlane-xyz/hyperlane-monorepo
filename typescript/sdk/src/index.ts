@@ -13,7 +13,10 @@ export {
   TOKEN_EXCHANGE_RATE_SCALE,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
-export { defaultMultisigConfigs } from './consts/multisigIsm.js';
+export {
+  AW_VALIDATOR_ALIAS,
+  defaultMultisigConfigs,
+} from './consts/multisigIsm.js';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
 export {
   TestChainName,
@@ -71,6 +74,7 @@ export {
   CoreConfigSchema,
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
+  DerivedCoreConfigSchema,
 } from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
@@ -81,6 +85,7 @@ export {
 export {
   CoreConfig,
   CoreViolationType,
+  DerivedCoreConfig,
   DispatchedMessage,
   MailboxMultisigIsmViolation,
   MailboxViolation,
@@ -154,6 +159,7 @@ export { decodeIsmMetadata } from './ism/metadata/decode.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
+  multisigConfigToIsmConfig,
 } from './ism/multisig.js';
 export {
   AggregationIsmConfig,
@@ -442,6 +448,7 @@ export {
   SealevelHypCollateralAdapter,
   SealevelHypNativeAdapter,
   SealevelHypSyntheticAdapter,
+  SealevelHypTokenAdapter,
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
@@ -509,6 +516,7 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
+export { getValidatorFromStorageLocation } from './utils/validator.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -568,6 +576,8 @@ export {
   getLocalStorageGasOracleConfig,
   getTokenExchangeRateFromValues,
 } from './gas/utils.js';
+export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export { GcpValidator } from './gcp/validator.js';

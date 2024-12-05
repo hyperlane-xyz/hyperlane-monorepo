@@ -38,7 +38,7 @@ export const getEthereumBscLUMIAWarpConfig = async (
     mailbox: '0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7',
     proxyAdmin: {
       owner: owner,
-      address: '0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D',
+      address: '0xBC53dACd8c0ac0d2bAC461479EAaf5519eCC8853',
     },
   };
 

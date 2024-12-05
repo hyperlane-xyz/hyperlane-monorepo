@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Add decodeIsmMetadata function
+Implement Sealevel IGP quoting

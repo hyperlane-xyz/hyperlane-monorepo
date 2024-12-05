@@ -8,12 +8,14 @@ import type { CheckerViolation } from '../deploy/types.js';
 import type { IsmConfig } from '../ism/types.js';
 import type { ChainName } from '../types.js';
 
-import { CoreConfigSchema } from './schemas.js';
+import { CoreConfigSchema, DerivedCoreConfigSchema } from './schemas.js';
 
 export type CoreConfig = z.infer<typeof CoreConfigSchema> & {
   remove?: boolean;
   upgrade?: UpgradeConfig;
 };
+
+export type DerivedCoreConfig = z.infer<typeof DerivedCoreConfigSchema>;
 
 export enum CoreViolationType {
   Mailbox = 'Mailbox',

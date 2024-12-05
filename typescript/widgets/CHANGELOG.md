@@ -1,5 +1,16 @@
 # @hyperlane-xyz/widgets
 
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [81ab4332f]
+- Updated dependencies [4b3537470]
+- Updated dependencies [fa6d5f5c6]
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/sdk@7.2.0
+  - @hyperlane-xyz/utils@7.2.0
+
 ## 7.1.0
 
 ### Minor Changes

@@ -94,7 +94,11 @@ export async function checkMessageStatus({
     const merkleAddress = chainAddresses[origin].merkleTreeHook;
     stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
 
-    deliveredTx = await relayer.relayMessage(dispatchedReceipt);
+    deliveredTx = await relayer.relayMessage(
+      dispatchedReceipt,
+      undefined,
+      message,
+    );
   }
 
   logGreen(
