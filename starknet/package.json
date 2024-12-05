@@ -7,8 +7,8 @@
   "author": "",
   "license": "Apache-2.0",
   "scripts": {
-    "compile": "cd cairo && scarb build && cp -R ./target ../src/target && cd ..",
-    "build": "yarn compile && tsc && cp -R ./src/target ./dist/target"
+    "compile": "cd cairo && scarb build && cp -R ./target ../src && cd ..",
+    "build": "yarn compile && tsc && cp -R ./src/target ./dist"
   },
   "devDependencies": {
     "@types/node": "^22.7.9",
