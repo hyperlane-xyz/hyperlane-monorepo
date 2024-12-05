@@ -114,6 +114,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  appchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   arbitrum: {
     threshold: 3,
     validators: [
@@ -1613,6 +1623,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  treasure: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x6ad994819185553e8baa01533f0cd2c7cadfe6cc',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   treasuretopaz: {
     threshold: 1,
     validators: [
@@ -1758,6 +1778,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         alias: 'Hashkey Cloud',
       },
       { address: '0x1da9176C2CE5cC7115340496fa7D1800a98911CE', alias: 'Renzo' },
+    ],
+  },
+
+  zklink: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x217a8cb4789fc45abf56cb6e2ca96f251a5ac181',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
