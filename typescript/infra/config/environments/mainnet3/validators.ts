@@ -1244,5 +1244,15 @@ export const validatorChainConfig = (
         'zklink',
       ),
     },
+    appchain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('appchain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be'],
+        },
+        'appchain',
+      ),
+    },
   };
 };

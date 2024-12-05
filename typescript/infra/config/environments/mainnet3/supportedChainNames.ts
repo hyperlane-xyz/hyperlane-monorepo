@@ -4,6 +4,7 @@ export const mainnet3SupportedChainNames = [
   'ancient8',
   'alephzeroevmmainnet',
   'apechain',
+  'appchain',
   'arbitrum',
   'arbitrumnova',
   'astar',
