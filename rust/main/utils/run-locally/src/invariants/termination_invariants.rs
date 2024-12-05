@@ -126,16 +126,6 @@ pub fn termination_invariants_met(
         "Verbose logs not expected at the log level set in e2e"
     );
 
-    let _gas_payment_sealevel_events_count = fetch_metric(
-        RELAYER_METRICS_PORT,
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {
-                "data_type" => "gas_payments",
-                "chain" => "sealeveltest",
-        },
-    )?
-    .iter()
-    .sum::<u32>();
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
     if gas_payment_events_count < total_messages_expected {
