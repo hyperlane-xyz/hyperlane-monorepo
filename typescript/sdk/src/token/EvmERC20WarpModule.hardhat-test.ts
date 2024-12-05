@@ -27,6 +27,7 @@ import {
   proxyAdmin,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
+import { randomInt } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -527,7 +528,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         multiProvider,
         proxyFactoryFactories: ismFactoryAddresses,
       });
-      const numOfRouters = Math.floor(Math.random() * 10);
+      const numOfRouters = randomInt(10, 0);
       await sendTxs(
         await evmERC20WarpModule.update({
           ...config,
@@ -539,6 +540,43 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(
         numOfRouters,
       );
+    });
+
+    it('should unenroll connected routers', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+        ismFactoryAddresses,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+          interchainSecurityModule: ismAddress,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const numOfRouters = randomInt(10, 0);
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          remoteRouters: randomRemoteRouters(numOfRouters),
+        }),
+      );
+      // Read config & delete remoteRouters
+      const existingConfig = await evmERC20WarpModule.read();
+      for (let i = 0; i < numOfRouters; i++) {
+        delete existingConfig.remoteRouters?.[i.toString()];
+        await sendTxs(await evmERC20WarpModule.update(existingConfig));
+
+        const updatedConfig = await evmERC20WarpModule.read();
+        expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(
+          numOfRouters - (i + 1),
+        );
+      }
     });
 
     it('should only extend routers if they are new ones are different', async () => {

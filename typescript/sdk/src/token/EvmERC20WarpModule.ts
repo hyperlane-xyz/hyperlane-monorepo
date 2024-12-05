@@ -116,6 +116,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
       ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createUnenrollRemoteRoutersUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      ),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
@@ -179,6 +183,50 @@ export class EvmERC20WarpModule extends HyperlaneModule<
             addressToBytes32(expectedRemoteRouters[a].address),
           ),
         ],
+      ),
+    });
+
+    return updateTransactions;
+  }
+
+  createUnenrollRemoteRoutersUpdateTxs(
+    actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!expectedConfig.remoteRouters) {
+      return [];
+    }
+
+    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
+    assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
+
+    const { remoteRouters: actualRemoteRouters } = actualConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+
+    const routesToEnroll = Array.from(
+      difference(
+        new Set(Object.keys(actualRemoteRouters)),
+        new Set(Object.keys(expectedRemoteRouters)),
+      ),
+    );
+
+    if (routesToEnroll.length === 0) {
+      return updateTransactions;
+    }
+
+    const contractToUpdate = TokenRouter__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.domainId),
+    );
+
+    updateTransactions.push({
+      annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+      chainId: this.chainId,
+      to: contractToUpdate.address,
+      data: contractToUpdate.interface.encodeFunctionData(
+        'unenrollRemoteRouter(uint32)',
+        [routesToEnroll.map((k) => Number(k))],
       ),
     });
 
