@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use eyre::Result;
+use itertools::Itertools;
+use tracing::debug;
 
 use hyperlane_core::{HyperlaneLogStore, Indexed, InterchainGasPayment, LogMeta, H512};
 
@@ -28,16 +30,38 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneDbStore {
         let storable = payments
             .iter()
             .filter_map(|(payment, meta)| {
-                txns.get(&meta.transaction_id)
-                    .map(|txn| (payment.inner(), meta, txn.id))
+                txns.get(&meta.transaction_id).map(|txn| {
+                    (
+                        payment.inner(),
+                        payment.sequence.map(|v| v as i64),
+                        meta,
+                        txn.id,
+                    )
+                })
             })
-            .map(|(payment, meta, txn_id)| StorablePayment {
+            .map(|(payment, sequence, meta, txn_id)| StorablePayment {
                 payment,
+                sequence,
                 meta,
                 txn_id,
-            });
+            })
+            .collect_vec();
 
-        let stored = self.db.store_payments(self.domain.id(), storable).await?;
+        debug!(
+            domain = self.domain.id(),
+            interchain_gas_paymaster_address = ?self.interchain_gas_paymaster_address,
+            ?storable,
+            "storable payments",
+        );
+
+        let stored = self
+            .db
+            .store_payments(
+                self.domain.id(),
+                &self.interchain_gas_paymaster_address,
+                &storable,
+            )
+            .await?;
         Ok(stored as u32)
     }
 }

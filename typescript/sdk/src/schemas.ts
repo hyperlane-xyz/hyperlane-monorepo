@@ -11,6 +11,10 @@ export const DeployedOwnableSchema = OwnableSchema.extend({
   address: ZHash.optional(),
 });
 
+export const DerivedOwnableSchema = DeployedOwnableSchema.omit({
+  ownerOverrides: true,
+}).required();
+
 export const PausableSchema = OwnableSchema.extend({
   paused: z.boolean(),
 });

@@ -62,8 +62,9 @@ impl BaseAgent for Scraper {
             let chain_setup = settings.chain_setup(domain).expect("Missing chain config");
             let store = HyperlaneDbStore::new(
                 db.clone(),
-                chain_setup.addresses.mailbox,
                 domain.clone(),
+                chain_setup.addresses.mailbox,
+                chain_setup.addresses.interchain_gas_paymaster,
                 settings
                     .build_provider(domain, &metrics.clone())
                     .await?
