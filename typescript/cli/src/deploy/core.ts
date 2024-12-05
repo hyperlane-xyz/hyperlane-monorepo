@@ -138,7 +138,11 @@ export async function runCoreApply(params: ApplyParams) {
   if (transactions.length) {
     logGray('Updating deployed core contracts');
     for (const transaction of transactions) {
-      await multiProvider.sendTransaction(chain, transaction);
+      await multiProvider.sendTransaction(
+        // Using the provided chain id because there might be remote chain transactions included in the batch
+        transaction.chainId ?? chain,
+        transaction,
+      );
     }
 
     logGreen(`Core config updated on ${chain}.`);

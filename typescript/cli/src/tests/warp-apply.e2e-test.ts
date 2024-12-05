@@ -15,7 +15,17 @@ import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
   ANVIL_KEY,
+  CHAIN_NAME_2,
+  CHAIN_NAME_3,
+  CORE_CONFIG_PATH,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  E2E_TEST_BURN_ADDRESS,
+  EXAMPLES_PATH,
   REGISTRY_PATH,
+  TEMP_PATH,
+  WARP_CONFIG_PATH_2,
+  WARP_CONFIG_PATH_EXAMPLE,
+  WARP_CORE_CONFIG_PATH_2,
   deployOrUseExistingCore,
   extendWarpConfig,
   getDomainId,
@@ -27,22 +37,11 @@ import {
   readWarpConfig,
 } from './commands/warp.js';
 
-const CHAIN_NAME_2 = 'anvil2';
-const CHAIN_NAME_3 = 'anvil3';
+describe('hyperlane warp apply e2e tests', async function () {
+  this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
-const BURN_ADDRESS = '0x0000000000000000000000000000000000000001';
-const EXAMPLES_PATH = './examples';
-const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
-const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
-
-const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
-const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/anvil2/warp-route-deployment-anvil2.yaml`;
-const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
-
-const TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
-describe('WarpApply e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
-  this.timeout(TEST_TIMEOUT);
+
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
     chain2Addresses = await deployOrUseExistingCore(
@@ -66,7 +65,7 @@ describe('WarpApply e2e tests', async function () {
   it('should burn owner address', async function () {
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     await updateOwner(
-      BURN_ADDRESS,
+      E2E_TEST_BURN_ADDRESS,
       CHAIN_NAME_2,
       warpConfigPath,
       WARP_CORE_CONFIG_PATH_2,
@@ -76,19 +75,21 @@ describe('WarpApply e2e tests', async function () {
       WARP_CORE_CONFIG_PATH_2,
       warpConfigPath,
     );
-    expect(updatedWarpDeployConfig.anvil2.owner).to.equal(BURN_ADDRESS);
+    expect(updatedWarpDeployConfig.anvil2.owner).to.equal(
+      E2E_TEST_BURN_ADDRESS,
+    );
   });
 
   it('should not update the same owner', async () => {
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     await updateOwner(
-      BURN_ADDRESS,
+      E2E_TEST_BURN_ADDRESS,
       CHAIN_NAME_2,
       warpConfigPath,
       WARP_CORE_CONFIG_PATH_2,
     );
     const { stdout } = await updateOwner(
-      BURN_ADDRESS,
+      E2E_TEST_BURN_ADDRESS,
       CHAIN_NAME_2,
       warpConfigPath,
       WARP_CORE_CONFIG_PATH_2,
@@ -252,7 +253,7 @@ describe('WarpApply e2e tests', async function () {
       WARP_CORE_CONFIG_PATH_2,
       warpDeployPath,
     );
-    warpDeployConfig[CHAIN_NAME_2].owner = BURN_ADDRESS;
+    warpDeployConfig[CHAIN_NAME_2].owner = E2E_TEST_BURN_ADDRESS;
 
     // Extend with new config
     const randomOwner = new Wallet(ANVIL_KEY).address;
@@ -283,7 +284,9 @@ describe('WarpApply e2e tests', async function () {
       warpDeployPath,
     );
     // Check that anvil2 owner is burned
-    expect(updatedWarpDeployConfig_2.anvil2.owner).to.equal(BURN_ADDRESS);
+    expect(updatedWarpDeployConfig_2.anvil2.owner).to.equal(
+      E2E_TEST_BURN_ADDRESS,
+    );
 
     // Also, anvil3 owner is not burned
     expect(updatedWarpDeployConfig_3.anvil3.owner).to.equal(randomOwner);

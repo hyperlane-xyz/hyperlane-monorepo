@@ -74,6 +74,7 @@ export {
   CoreConfigSchema,
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
+  DerivedCoreConfigSchema,
 } from './core/schemas.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
@@ -84,6 +85,7 @@ export {
 export {
   CoreConfig,
   CoreViolationType,
+  DerivedCoreConfig,
   DispatchedMessage,
   MailboxMultisigIsmViolation,
   MailboxViolation,
@@ -579,4 +581,5 @@ export {
   getLocalStorageGasOracleConfig,
   getTokenExchangeRateFromValues,
 } from './gas/utils.js';
+export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';
 export { GcpValidator } from './gcp/validator.js';
