@@ -112,7 +112,7 @@ export async function getContext({
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
   if (key) {
-    let signer: Signer | undefined;
+    let signer: Signer;
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
     signerAddress = await signer.getAddress();
   }
