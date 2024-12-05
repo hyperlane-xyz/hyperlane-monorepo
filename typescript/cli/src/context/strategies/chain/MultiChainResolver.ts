@@ -3,7 +3,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import { logRed } from '../../../logger.js';
+import { log } from '../../../logger.js';
 import {
   extractChainsFromObj,
   runMultiChainSelectionStep,
@@ -156,7 +156,7 @@ export class MultiChainResolver implements ChainResolver {
         'warp',
       );
     } else {
-      logRed(`Using warp route deployment config at ${configPath}`);
+      log(`Using warp route deployment config at ${configPath}`);
     }
 
     // Alternative to readWarpRouteDeployConfig that doesn't use context for signer and zod validation

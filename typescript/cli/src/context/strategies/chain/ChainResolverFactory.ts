@@ -14,6 +14,7 @@ export class ChainResolverFactory {
     [CommandType.WARP_SEND, () => MultiChainResolver.forOriginDestination()],
     [CommandType.WARP_APPLY, () => MultiChainResolver.forWarpRouteConfig()],
     [CommandType.WARP_READ, () => MultiChainResolver.forWarpCoreConfig()],
+    [CommandType.WARP_CHECK, () => MultiChainResolver.forWarpCoreConfig()],
     [CommandType.SEND_MESSAGE, () => MultiChainResolver.forOriginDestination()],
     [CommandType.AGENT_KURTOSIS, () => MultiChainResolver.forAgentKurtosis()],
     [CommandType.STATUS, () => MultiChainResolver.forOriginDestination()],
