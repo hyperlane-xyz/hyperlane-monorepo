@@ -562,7 +562,7 @@ where
                     .estimate_retryable_ticket(
                         H160::zero().into(),
                         // Give the sender a deposit (100 ETH), otherwise it reverts
-                        WEI_IN_ETHER.mul(100u32).into(),
+                        WEI_IN_ETHER.mul(100u32),
                         self.contract.address(),
                         U256::zero().into(),
                         H160::zero().into(),
