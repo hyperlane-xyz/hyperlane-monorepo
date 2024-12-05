@@ -57,11 +57,12 @@ export class EV5InterchainAccountTxTransformer
       {},
     );
 
-    const interchainAccountApp: InterchainAccount = buildInterchainAccountApp(
-      this.multiProvider,
-      this.props.chain,
-      this.props.config,
-    );
+    const interchainAccountApp: InterchainAccount =
+      await buildInterchainAccountApp(
+        this.multiProvider,
+        this.props.chain,
+        this.props.config,
+      );
 
     const transformedTxs: AnnotatedEV5Transaction[] = [];
     objMap(txChainsToInnerCalls, async (destination, innerCalls) => {

@@ -365,6 +365,7 @@ export { EV5GnosisSafeTxBuilder } from './providers/transactions/submitter/ether
 export { EV5GnosisSafeTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5GnosisSafeTxSubmitter.js';
 export { EV5ImpersonatedAccountTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 export { EV5JsonRpcTxSubmitter } from './providers/transactions/submitter/ethersV5/EV5JsonRpcTxSubmitter.js';
+export { EvmIcaTxSubmitter } from './providers/transactions/submitter/IcaTxSubmitter.js';
 export { EV5TxSubmitterInterface } from './providers/transactions/submitter/ethersV5/EV5TxSubmitterInterface.js';
 
 export { TransformerMetadataSchema } from './providers/transactions/transformer/schemas.js';

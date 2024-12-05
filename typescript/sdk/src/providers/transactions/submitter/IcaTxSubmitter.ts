@@ -20,6 +20,8 @@ import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
 interface EvmIcaTxSubmitterConfig {
   type: TxSubmitterType.INTERCHAIN_ACCOUNT;
   chain: ChainName;
+  destinationChain: ChainName;
+  owner: Address;
   originInterchainAccountRouter?: Address;
   destinationInterchainAccountRouter?: Address;
   interchainSecurityModule?: Address;
@@ -38,8 +40,10 @@ export class EvmIcaTxSubmitter
     private readonly config: {
       chain: ChainName;
       owner: string;
-      origin: string;
       destinationChain: ChainName;
+      originInterchainAccountRouter?: Address;
+      destinationInterchainAccountRouter?: Address;
+      interchainSecurityModule?: Address;
     },
     private readonly submitter: TxSubmitterInterface<ProtocolType.Ethereum>,
     private readonly multiProvider: MultiProvider,
@@ -51,21 +55,22 @@ export class EvmIcaTxSubmitter
     multiProvider: MultiProvider,
   ): Promise<EvmIcaTxSubmitter> {
     const jsonRpcSubmitter = new EV5JsonRpcTxSubmitter(multiProvider, {
-      chain: '',
+      chain: config.chain,
     });
 
     const interchainAccountApp: InterchainAccount =
-      await buildInterchainAccountApp(multiProvider, '', {
-        origin: '',
-        owner: '',
+      await buildInterchainAccountApp(multiProvider, config.chain, {
+        origin: config.chain,
+        owner: config.owner,
+        localRouter: config.originInterchainAccountRouter,
       });
 
     return new EvmIcaTxSubmitter(
       {
-        chain: '',
-        destinationChain: '',
-        origin: '',
-        owner: '',
+        chain: config.chain,
+        destinationChain: config.destinationChain,
+        owner: config.owner,
+        originInterchainAccountRouter: config.originInterchainAccountRouter,
       },
       jsonRpcSubmitter,
       multiProvider,
@@ -86,18 +91,24 @@ export class EvmIcaTxSubmitter
 
     const transactionChains = new Set(txs.map((tx) => tx.chainId));
     if (transactionChains.size !== 1) {
-      throw new Error('');
+      throw new Error(
+        'ICA transactions should have all the same destination chain',
+      );
     }
 
     const [domainId] = transactionChains.values();
 
     if (!domainId) {
-      throw new Error('BOBO');
+      throw new Error(
+        'Destination domain for ICA transactions should be defined',
+      );
     }
 
     const chainName = this.multiProvider.getChainName(domainId);
-    if (chainName !== this.config.chain) {
-      throw new Error('BOBO');
+    if (chainName !== this.config.destinationChain) {
+      throw new Error(
+        `Destination chain mismatch expected ${this.config.destinationChain} but received ${chainName}`,
+      );
     }
 
     const innerCalls: CallData[] = txs.map(
@@ -114,9 +125,18 @@ export class EvmIcaTxSubmitter
       chain: this.config.chain,
       destination: this.config.destinationChain,
       innerCalls,
-      config: this.config,
+      config: {
+        origin: this.config.chain,
+        owner: this.config.owner,
+        ismOverride: this.config.interchainSecurityModule,
+        routerOverride: this.config.destinationInterchainAccountRouter,
+        localRouter: this.config.originInterchainAccountRouter,
+      },
     });
 
-    return this.submitter.submit(icaTx);
+    return this.submitter.submit({
+      chainId: this.multiProvider.getDomainId(this.config.chain),
+      ...icaTx,
+    });
   }
 }

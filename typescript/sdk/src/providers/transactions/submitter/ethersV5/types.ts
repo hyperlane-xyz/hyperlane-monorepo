@@ -5,6 +5,7 @@ import {
   EV5GnosisSafeTxSubmitterPropsSchema,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
   EV5JsonRpcTxSubmitterPropsSchema,
+  EvmIcaTxSubmitterPropsSchema,
 } from './schemas.js';
 
 export type EV5GnosisSafeTxSubmitterProps = z.infer<
@@ -18,4 +19,7 @@ export type EV5JsonRpcTxSubmitterProps = z.infer<
 >;
 export type EV5ImpersonatedAccountTxSubmitterProps = z.infer<
   typeof EV5ImpersonatedAccountTxSubmitterPropsSchema
+>;
+export type EvmIcaTxSubmitterProps = z.infer<
+  typeof EvmIcaTxSubmitterPropsSchema
 >;

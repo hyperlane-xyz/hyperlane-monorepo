@@ -1,6 +1,9 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
 
-import { InterchainAccountRouter } from '@hyperlane-xyz/core';
+import {
+  InterchainAccountRouter,
+  InterchainAccountRouter__factory,
+} from '@hyperlane-xyz/core';
 import {
   Address,
   addressToBytes32,
@@ -222,16 +225,38 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   }
 }
 
-export function buildInterchainAccountApp(
+export async function buildInterchainAccountApp(
   multiProvider: MultiProvider,
   chain: ChainName,
   config: AccountConfig,
-): InterchainAccount {
+): Promise<InterchainAccount> {
   if (!config.localRouter) {
     throw new Error('localRouter is required for account deployment');
   }
+
+  const currentIca = InterchainAccountRouter__factory.connect(
+    config.localRouter,
+    multiProvider.getSigner(chain),
+  );
+
+  const knownDomains = await currentIca.domains();
+
+  const remoteIcaAddresses = await Promise.all(
+    knownDomains.map((domainId) =>
+      currentIca
+        .routers(domainId)
+        .then((address) => [
+          multiProvider.getChainName(domainId),
+          { interchainAccountRouter: bytes32ToAddress(address) },
+        ]),
+    ),
+  );
+
   const addressesMap: HyperlaneAddressesMap<any> = {
-    [chain]: { interchainAccountRouter: config.localRouter },
+    [chain]: {
+      interchainAccountRouter: config.localRouter,
+    },
+    ...Object.fromEntries(remoteIcaAddresses),
   };
   return InterchainAccount.fromAddressesMap(addressesMap, multiProvider);
 }
@@ -241,10 +266,7 @@ export async function deployInterchainAccount(
   chain: ChainName,
   config: AccountConfig,
 ): Promise<Address> {
-  const interchainAccountApp: InterchainAccount = buildInterchainAccountApp(
-    multiProvider,
-    chain,
-    config,
-  );
+  const interchainAccountApp: InterchainAccount =
+    await buildInterchainAccountApp(multiProvider, chain, config);
   return interchainAccountApp.deployAccount(chain, config);
 }
