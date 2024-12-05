@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
@@ -10,7 +10,6 @@ import { ChainName } from '../../../types.js';
 import { MultiProvider } from '../../MultiProvider.js';
 import {
   AnnotatedEV5Transaction,
-  ProtocolTypedProvider,
   ProtocolTypedReceipt,
 } from '../../ProviderType.js';
 import { CallData } from '../types.js';
@@ -24,26 +23,71 @@ const EvmIcaTxSubmitterConfigSchema = EvmIcaTxSubmitterPropsSchema.required({
   originInterchainAccountRouter: true,
 });
 
+/* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+const EvmIcaTxSubmitterConstructorConfigSchema =
+  EvmIcaTxSubmitterConfigSchema.omit({ internalSubmitter: true }).required({
+    owner: true,
+  });
+
 type EvmIcaTxSubmitterConfig = z.infer<typeof EvmIcaTxSubmitterConfigSchema>;
+type EvmIcaTxSubmitterConstructorConfig = z.infer<
+  typeof EvmIcaTxSubmitterConstructorConfigSchema
+>;
+
+function getInternalSubmitter(
+  chain: ChainName,
+  multiProvider: MultiProvider,
+  config: EvmIcaTxSubmitterConfig['internalSubmitter'],
+): TxSubmitterInterface<ProtocolType.Ethereum> {
+  const internalSubmitterMap: Record<
+    EvmIcaTxSubmitterConfig['internalSubmitter']['type'],
+    () => TxSubmitterInterface<ProtocolType.Ethereum>
+  > = {
+    [TxSubmitterType.GNOSIS_SAFE]: () => {
+      return new EV5JsonRpcTxSubmitter(multiProvider, {
+        chain,
+        ...config,
+      });
+    },
+    [TxSubmitterType.GNOSIS_TX_BUILDER]: () => {
+      return new EV5JsonRpcTxSubmitter(multiProvider, {
+        chain,
+        ...config,
+      });
+    },
+    [TxSubmitterType.IMPERSONATED_ACCOUNT]: () => {
+      return new EV5JsonRpcTxSubmitter(multiProvider, {
+        chain,
+        ...config,
+      });
+    },
+    [TxSubmitterType.JSON_RPC]: () => {
+      return new EV5JsonRpcTxSubmitter(multiProvider, {
+        chain,
+        ...config,
+      });
+    },
+  };
+
+  const internalSubmitterFactory = internalSubmitterMap[config.type];
+  // Sanity check
+  if (!internalSubmitterFactory) {
+    throw new Error(
+      `Internal submitter factory not found for type: ${config.type}`,
+    );
+  }
+
+  return internalSubmitterFactory();
+}
 
 export class EvmIcaTxSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
 {
-  provider?:
-    | ProtocolTypedProvider<ProtocolType.Ethereum>['provider']
-    | undefined;
   readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.INTERCHAIN_ACCOUNT;
 
   private constructor(
-    private readonly config: {
-      chain: ChainName;
-      owner: string;
-      destinationChain: ChainName;
-      originInterchainAccountRouter: Address;
-      destinationInterchainAccountRouter?: Address;
-      interchainSecurityModule?: Address;
-    },
+    private readonly config: EvmIcaTxSubmitterConstructorConfig,
     private readonly submitter: TxSubmitterInterface<ProtocolType.Ethereum>,
     private readonly multiProvider: MultiProvider,
     private readonly interchainAccountApp: InterchainAccount,
@@ -53,10 +97,11 @@ export class EvmIcaTxSubmitter
     config: EvmIcaTxSubmitterConfig,
     multiProvider: MultiProvider,
   ): Promise<EvmIcaTxSubmitter> {
-    // TODO: configure the internal submitter based on the config
-    const jsonRpcSubmitter = new EV5JsonRpcTxSubmitter(multiProvider, {
-      chain: config.chain,
-    });
+    const internalSubmitter = getInternalSubmitter(
+      config.chain,
+      multiProvider,
+      config.internalSubmitter,
+    );
 
     const owner =
       config.owner ?? (await multiProvider.getSignerAddress(config.chain));
@@ -75,7 +120,7 @@ export class EvmIcaTxSubmitter
         destinationChain: config.destinationChain,
         originInterchainAccountRouter: config.originInterchainAccountRouter,
       },
-      jsonRpcSubmitter,
+      internalSubmitter,
       multiProvider,
       interchainAccountApp,
     );
@@ -93,7 +138,6 @@ export class EvmIcaTxSubmitter
     }
 
     // TODO: add checks to verify that the ica can send the txs on the destination chain
-
     const transactionChains = new Set(txs.map((tx) => tx.chainId));
     if (transactionChains.size !== 1) {
       throw new Error(
@@ -102,7 +146,6 @@ export class EvmIcaTxSubmitter
     }
 
     const [domainId] = transactionChains.values();
-
     if (!domainId) {
       throw new Error(
         'Destination domain for ICA transactions should be defined',
