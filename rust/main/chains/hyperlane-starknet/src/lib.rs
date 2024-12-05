@@ -17,7 +17,6 @@ pub use utils::*;
 pub use validator_announce::*;
 
 /// Generated contract bindings.
-#[cfg(not(doctest))]
 mod contracts;
 
 mod error;
