@@ -33,6 +33,7 @@ import {
   RemoteRouters,
   RoutingIsmConfig,
   SubmissionStrategy,
+  SubmissionStrategySchema,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TrustedRelayerIsmConfig,
@@ -989,7 +990,9 @@ async function getWarpApplySubmitter({
   const { multiProvider } = context;
 
   const submissionStrategy: SubmissionStrategy = strategyUrl
-    ? readChainSubmissionStrategy(strategyUrl)[chain]
+    ? SubmissionStrategySchema.parse(
+        readChainSubmissionStrategy(strategyUrl)[chain],
+      )
     : {
         submitter: {
           chain,

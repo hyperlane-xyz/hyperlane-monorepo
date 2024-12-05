@@ -4,6 +4,7 @@ import {
   EV5ImpersonatedAccountTxSubmitter,
   EV5InterchainAccountTxTransformer,
   EV5JsonRpcTxSubmitter,
+  EvmIcaTxSubmitter,
   MultiProvider,
   SubmitterMetadata,
   TransformerMetadata,
@@ -54,6 +55,13 @@ async function getSubmitter<TProtocol extends ProtocolType>(
       return EV5GnosisSafeTxBuilder.create(multiProvider, {
         ...submitterMetadata,
       });
+    case TxSubmitterType.INTERCHAIN_ACCOUNT:
+      return EvmIcaTxSubmitter.fromConfig(
+        {
+          ...submitterMetadata,
+        },
+        multiProvider,
+      );
     default:
       throw new Error(`Invalid TxSubmitterType.`);
   }
