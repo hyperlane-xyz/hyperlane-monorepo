@@ -26,7 +26,6 @@ export {
   isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
-  isPrivateKeyEvm,
   isValidTransactionHash,
   isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
