@@ -460,7 +460,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd0e53f5-20241203-171412',
+      tag: '4cb2c9a-20241205-142854',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -494,7 +494,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd0e53f5-20241203-171412',
+      tag: '4cb2c9a-20241205-142854',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
