@@ -11,6 +11,10 @@
     "amount": "25.42069",
     "decimals": 9
   },
+  "appchain": {
+    "amount": "0.01",
+    "decimals": 9
+  },
   "arbitrum": {
     "amount": "0.123544",
     "decimals": 9

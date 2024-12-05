@@ -29,6 +29,7 @@ export const keyFunderConfig: KeyFunderConfig<
     ancient8: '0.5',
     alephzeroevmmainnet: '100',
     apechain: '50',
+    appchain: '0.05',
     arbitrum: '0.5',
     arbitrumnova: '0.05',
     astar: '100',

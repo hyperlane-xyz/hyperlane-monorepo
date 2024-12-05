@@ -305,6 +305,9 @@
   "tangle": {
     "validators": ["0x1ee52cbbfacd7dcb0ba4e91efaa6fbc61602b15b"]
   },
+  "treasure": {
+    "validators": ["0x6ad994819185553e8baa01533f0cd2c7cadfe6cc"]
+  },
   "unichain": {
     "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
   },
@@ -332,16 +335,16 @@
   "zircuit": {
     "validators": ["0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb"]
   },
+  "zklink": {
+    "validators": ["0x217a8cb4789fc45abf56cb6e2ca96f251a5ac181"]
+  },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
   },
-  "treasure": {
-    "validators": ["0x6ad994819185553e8baa01533f0cd2c7cadfe6cc"]
-  },
-  "zklink": {
-    "validators": ["0x217a8cb4789fc45abf56cb6e2ca96f251a5ac181"]
+  "appchain": {
+    "validators": ["0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be"]
   }
 }
