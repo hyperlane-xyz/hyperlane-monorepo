@@ -6254,7 +6254,8 @@
       "validatorAnnounce": "0x4D50044335dc1d4D26c343AdeDf6E47808475Deb",
       "index": {
         "from": 57794
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://trx-swell.safe.protofire.io"
     },
     "appchain": {
       "blockExplorers": [
