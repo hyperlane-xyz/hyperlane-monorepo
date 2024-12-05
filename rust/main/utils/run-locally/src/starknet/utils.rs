@@ -14,8 +14,8 @@ pub(crate) const KEYPAIR_PASSWORD: &str = "test";
 
 pub(crate) fn untar(output: &str, dir: &str) {
     Program::new("tar")
-        .flag("extract")
-        .arg("file", output)
+        .raw_arg("-xzvf")
+        .cmd(output)
         .working_dir(dir)
         .run()
         .join();
