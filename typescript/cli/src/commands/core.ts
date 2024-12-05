@@ -82,7 +82,7 @@ export const apply: CommandModuleWithWriteContext<{
     )) as DeployedCoreAddresses;
     DeployedCoreAddressesSchema.parse(addresses);
 
-    const config = await readCoreDeployConfigs(configFilePath);
+    const config = readCoreDeployConfigs(configFilePath);
 
     await runCoreApply({
       context,
@@ -171,6 +171,7 @@ export const read: CommandModuleWithContext<{
   chain: string;
   config: string;
   mailbox?: string;
+  interchainAccountRouter?: string;
 }> = {
   command: 'read',
   describe: 'Reads onchain Core configuration for a given mailbox address',
@@ -192,7 +193,11 @@ export const read: CommandModuleWithContext<{
   handler: async ({ context, chain, mailbox, config: configFilePath }) => {
     logCommandHeader('Hyperlane Core Read');
 
-    const coreConfig = await executeCoreRead({ context, chain, mailbox });
+    const coreConfig = await executeCoreRead({
+      context,
+      chain,
+      mailbox,
+    });
 
     writeYamlOrJson(configFilePath, coreConfig, 'yaml');
     logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);

@@ -3,16 +3,17 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use derive_more::AsRef;
 use futures::future::try_join_all;
+use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
+use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle};
+use tracing::{info_span, instrument::Instrumented, trace, Instrument};
+
 use hyperlane_base::{
     broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
     BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics, HyperlaneAgentCore,
     MetricsUpdater, SyncOptions,
 };
-use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
-use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle};
-use tracing::{info_span, instrument::Instrumented, trace, Instrument};
 
-use crate::{chain_scraper::HyperlaneSqlDb, db::ScraperDb, settings::ScraperSettings};
+use crate::{db::ScraperDb, settings::ScraperSettings, store::HyperlaneDbStore};
 
 /// A message explorer scraper agent
 #[derive(Debug, AsRef)]
@@ -31,7 +32,7 @@ pub struct Scraper {
 #[derive(Debug)]
 struct ChainScraper {
     index_settings: IndexSettings,
-    db: HyperlaneSqlDb,
+    store: HyperlaneDbStore,
     domain: HyperlaneDomain,
 }
 
@@ -59,10 +60,11 @@ impl BaseAgent for Scraper {
 
         for domain in settings.chains_to_scrape.iter() {
             let chain_setup = settings.chain_setup(domain).expect("Missing chain config");
-            let db = HyperlaneSqlDb::new(
+            let store = HyperlaneDbStore::new(
                 db.clone(),
-                chain_setup.addresses.mailbox,
                 domain.clone(),
+                chain_setup.addresses.mailbox,
+                chain_setup.addresses.interchain_gas_paymaster,
                 settings
                     .build_provider(domain, &metrics.clone())
                     .await?
@@ -74,7 +76,7 @@ impl BaseAgent for Scraper {
                 domain.id(),
                 ChainScraper {
                     domain: domain.clone(),
-                    db,
+                    store,
                     index_settings: chain_setup.index.clone(),
                 },
             );
@@ -132,7 +134,7 @@ impl Scraper {
     /// This will spawn long-running contract sync tasks
     async fn scrape(&self, domain_id: u32) -> Instrumented<JoinHandle<()>> {
         let scraper = self.scrapers.get(&domain_id).unwrap();
-        let db = scraper.db.clone();
+        let store = scraper.store.clone();
         let index_settings = scraper.index_settings.clone();
         let domain = scraper.domain.clone();
 
@@ -142,7 +144,7 @@ impl Scraper {
                 domain.clone(),
                 self.core_metrics.clone(),
                 self.contract_sync_metrics.clone(),
-                db.clone(),
+                store.clone(),
                 index_settings.clone(),
             )
             .await;
@@ -152,7 +154,7 @@ impl Scraper {
                 domain.clone(),
                 self.core_metrics.clone(),
                 self.contract_sync_metrics.clone(),
-                db.clone(),
+                store.clone(),
                 index_settings.clone(),
             )
             .await,
@@ -162,7 +164,7 @@ impl Scraper {
                 domain,
                 self.core_metrics.clone(),
                 self.contract_sync_metrics.clone(),
-                db,
+                store,
                 index_settings.clone(),
                 BroadcastMpscSender::<H512>::map_get_receiver(maybe_broadcaster.as_ref()).await,
             )
@@ -183,7 +185,7 @@ impl Scraper {
         domain: HyperlaneDomain,
         metrics: Arc<CoreMetrics>,
         contract_sync_metrics: Arc<ContractSyncMetrics>,
-        db: HyperlaneSqlDb,
+        store: HyperlaneDbStore,
         index_settings: IndexSettings,
     ) -> (
         Instrumented<JoinHandle<()>>,
@@ -196,7 +198,8 @@ impl Scraper {
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
-                db.into(),
+                store.into(),
+                true,
             )
             .await
             .unwrap();
@@ -217,7 +220,7 @@ impl Scraper {
         domain: HyperlaneDomain,
         metrics: Arc<CoreMetrics>,
         contract_sync_metrics: Arc<ContractSyncMetrics>,
-        db: HyperlaneSqlDb,
+        store: HyperlaneDbStore,
         index_settings: IndexSettings,
     ) -> Instrumented<JoinHandle<()>> {
         let sync = self
@@ -227,7 +230,8 @@ impl Scraper {
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
-                Arc::new(db.clone()) as _,
+                Arc::new(store.clone()) as _,
+                true,
             )
             .await
             .unwrap();
@@ -248,7 +252,7 @@ impl Scraper {
         domain: HyperlaneDomain,
         metrics: Arc<CoreMetrics>,
         contract_sync_metrics: Arc<ContractSyncMetrics>,
-        db: HyperlaneSqlDb,
+        store: HyperlaneDbStore,
         index_settings: IndexSettings,
         tx_id_receiver: Option<MpscReceiver<H512>>,
     ) -> Instrumented<JoinHandle<()>> {
@@ -259,7 +263,8 @@ impl Scraper {
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
-                Arc::new(db.clone()),
+                Arc::new(store.clone()),
+                true,
             )
             .await
             .unwrap();

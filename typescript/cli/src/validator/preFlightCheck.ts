@@ -44,7 +44,7 @@ export const checkValidatorSetup = async (
   try {
     validatorStorageLocations =
       await validatorAnnounce.getAnnouncedStorageLocations(validatorsArray);
-  } catch (e) {
+  } catch {
     errorSet.add('Failed to read announced storage locations on chain.');
   }
 
@@ -64,7 +64,7 @@ export const checkValidatorSetup = async (
       let s3Validator: S3Validator;
       try {
         s3Validator = await S3Validator.fromStorageLocation(s3StorageLocation);
-      } catch (e) {
+      } catch {
         errorRed(
           `❌ Failed to fetch storage locations for validator ${validator}, this may be due to the storage location not being an S3 bucket\n\n`,
         );

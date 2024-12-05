@@ -52,7 +52,7 @@ export async function checkMessageStatus({
   } else {
     try {
       dispatchedReceipt = await core.getDispatchTx(origin, messageId);
-    } catch (e) {
+    } catch {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
 
       dispatchTx = await input({
@@ -94,7 +94,11 @@ export async function checkMessageStatus({
     const merkleAddress = chainAddresses[origin].merkleTreeHook;
     stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
 
-    deliveredTx = await relayer.relayMessage(dispatchedReceipt);
+    deliveredTx = await relayer.relayMessage(
+      dispatchedReceipt,
+      undefined,
+      message,
+    );
   }
 
   logGreen(

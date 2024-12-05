@@ -46,6 +46,10 @@ export class CosmNativeTokenAdapter
     throw new Error('Metadata not available to native tokens');
   }
 
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
   async isApproveRequired(): Promise<boolean> {
     return false;
   }
@@ -60,6 +64,11 @@ export class CosmNativeTokenAdapter
     _transferParams: TransferParams,
   ): Promise<MsgTransferEncodeObject> {
     throw new Error('TODO not yet implemented');
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
   }
 }
 
@@ -103,6 +112,11 @@ export class CosmIbcTokenAdapter
   > {
     throw new Error('Method not applicable to IBC adapters');
   }
+
+  getBridgedSupply(): Promise<bigint | undefined> {
+    throw new Error('Method not applicable to IBC adapters');
+  }
+
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {

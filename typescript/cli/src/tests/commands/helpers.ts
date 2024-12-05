@@ -1,3 +1,5 @@
+import { $ } from 'zx';
+
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
@@ -17,11 +19,29 @@ import {
   readWarpConfig,
 } from './warp.js';
 
-export const TEST_CONFIGS_PATH = './test-configs';
-export const REGISTRY_PATH = `${TEST_CONFIGS_PATH}/anvil`;
+export const E2E_TEST_CONFIGS_PATH = './test-configs';
+export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/anvil`;
+export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
 export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+export const E2E_TEST_BURN_ADDRESS =
+  '0x0000000000000000000000000000000000000001';
+
+export const CHAIN_NAME_2 = 'anvil2';
+export const CHAIN_NAME_3 = 'anvil3';
+
+export const EXAMPLES_PATH = './examples';
+export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
+export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
+export const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`;
+export const CHAIN_3_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_3}/metadata.yaml`;
+
+export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
+export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
+export const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
+
+export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.
@@ -119,14 +139,18 @@ export async function deployOrUseExistingCore(
 
   return addresses;
 }
-export async function getChainId(chainName: string, key: string) {
+
+export async function getDomainId(
+  chainName: string,
+  key: string,
+): Promise<string> {
   const { registry } = await getContext({
     registryUri: REGISTRY_PATH,
     registryOverrideUri: '',
     key,
   });
   const chainMetadata = await registry.getChainMetadata(chainName);
-  return String(chainMetadata?.chainId);
+  return String(chainMetadata?.domainId);
 }
 
 export async function deployToken(privateKey: string, chain: string) {
@@ -178,4 +202,27 @@ export async function sendWarpRouteMessageRoundTrip(
 ) {
   await hyperlaneWarpSendRelay(chain1, chain2, warpCoreConfigPath);
   return hyperlaneWarpSendRelay(chain2, chain1, warpCoreConfigPath);
+}
+
+export async function hyperlaneSendMessage(
+  origin: string,
+  destination: string,
+) {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane send message \
+        --registry ${REGISTRY_PATH} \
+        --origin ${origin} \
+        --destination ${destination} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
+}
+
+export function hyperlaneRelayer(chains: string[], warp?: string) {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane relayer \
+        --registry ${REGISTRY_PATH} \
+        --chains ${chains.join(',')} \
+        --warp ${warp ?? ''} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
 }

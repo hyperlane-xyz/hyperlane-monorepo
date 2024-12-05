@@ -40,9 +40,9 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-cache-
+            ${{ runner.os }}-yarn-4.5.1-cache-
 
       - name: yarn-install
         run: |
@@ -53,6 +53,10 @@ jobs:
             git diff
             exit 1
           fi
+
+      # Check for mismatched dep versions across the monorepo
+      - name: syncpack
+        run: yarn syncpack list-mismatches
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -70,8 +74,14 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           fail-on-cache-miss: true
+
+      # Build required before linting or the intra-monorepo package cycle checking won't work
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: lint
         run: yarn lint
@@ -109,9 +119,20 @@ jobs:
       - name: Unit Tests
         run: yarn test:ci
 
-  cli-e2e:
+  cli-e2e-matrix:
     runs-on: ubuntu-latest
     needs: [yarn-install]
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - core-apply
+          - core-deploy
+          - core-read
+          - relay
+          - warp-read
+          - warp-apply
+          - warp-deploy
     steps:
       - uses: actions/checkout@v4
         with:
@@ -130,8 +151,21 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI e2e tests
+      - name: CLI e2e tests (${{ matrix.test }})
         run: yarn --cwd typescript/cli test:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-e2e:
+    runs-on: ubuntu-latest
+    needs: cli-e2e-matrix
+    if: always()
+    steps:
+      - name: Check cli-e2e matrix status
+        if: ${{ needs.cli-e2e-matrix.result != 'success' }}
+        run: |
+          echo "CLI E2E tests failed"
+          exit 1
 
   agent-configs:
     runs-on: ubuntu-latest
