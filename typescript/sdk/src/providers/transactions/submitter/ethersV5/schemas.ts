@@ -25,7 +25,7 @@ export const EV5ImpersonatedAccountTxSubmitterPropsSchema =
 
 export const EvmIcaTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
-  owner: ZHash,
+  owner: ZHash.optional(),
   destinationChain: ZChainName,
   originInterchainAccountRouter: ZHash.optional(),
   destinationInterchainAccountRouter: ZHash.optional(),

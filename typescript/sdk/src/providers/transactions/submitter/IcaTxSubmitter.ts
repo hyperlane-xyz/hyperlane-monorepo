@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -16,16 +18,13 @@ import { CallData } from '../types.js';
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
+import { EvmIcaTxSubmitterPropsSchema } from './ethersV5/schemas.js';
 
-interface EvmIcaTxSubmitterConfig {
-  type: TxSubmitterType.INTERCHAIN_ACCOUNT;
-  chain: ChainName;
-  destinationChain: ChainName;
-  owner: Address;
-  originInterchainAccountRouter: Address;
-  destinationInterchainAccountRouter?: Address;
-  interchainSecurityModule?: Address;
-}
+const EvmIcaTxSubmitterConfigSchema = EvmIcaTxSubmitterPropsSchema.required({
+  originInterchainAccountRouter: true,
+});
+
+type EvmIcaTxSubmitterConfig = z.infer<typeof EvmIcaTxSubmitterConfigSchema>;
 
 export class EvmIcaTxSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
@@ -54,22 +53,26 @@ export class EvmIcaTxSubmitter
     config: EvmIcaTxSubmitterConfig,
     multiProvider: MultiProvider,
   ): Promise<EvmIcaTxSubmitter> {
+    // TODO: configure the internal submitter based on the config
     const jsonRpcSubmitter = new EV5JsonRpcTxSubmitter(multiProvider, {
       chain: config.chain,
     });
 
+    const owner =
+      config.owner ?? (await multiProvider.getSignerAddress(config.chain));
+
     const interchainAccountApp: InterchainAccount =
       await buildInterchainAccountApp(multiProvider, config.chain, {
+        owner,
         origin: config.chain,
-        owner: config.owner,
         localRouter: config.originInterchainAccountRouter,
       });
 
     return new EvmIcaTxSubmitter(
       {
+        owner,
         chain: config.chain,
         destinationChain: config.destinationChain,
-        owner: config.owner,
         originInterchainAccountRouter: config.originInterchainAccountRouter,
       },
       jsonRpcSubmitter,
@@ -88,6 +91,8 @@ export class EvmIcaTxSubmitter
     if (txs.length === 0) {
       return [];
     }
+
+    // TODO: add checks to verify that the ica can send the txs on the destination chain
 
     const transactionChains = new Set(txs.map((tx) => tx.chainId));
     if (transactionChains.size !== 1) {
