@@ -204,14 +204,14 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     const { remoteRouters: actualRemoteRouters } = actualConfig;
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-    const routesToEnroll = Array.from(
+    const routesToUnenroll = Array.from(
       difference(
         new Set(Object.keys(actualRemoteRouters)),
         new Set(Object.keys(expectedRemoteRouters)),
       ),
     );
 
-    if (routesToEnroll.length === 0) {
+    if (routesToUnenroll.length === 0) {
       return updateTransactions;
     }
 
@@ -225,8 +225,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       chainId: this.chainId,
       to: contractToUpdate.address,
       data: contractToUpdate.interface.encodeFunctionData(
-        'unenrollRemoteRouter(uint32)',
-        [routesToEnroll.map((k) => Number(k))],
+        'unenrollRemoteRouters(uint32[])',
+        [routesToUnenroll.map((k) => Number(k))],
       ),
     });
 
