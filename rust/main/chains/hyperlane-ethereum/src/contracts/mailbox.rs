@@ -2,7 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::ops::RangeInclusive;
+use std::ops::{Mul, RangeInclusive};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -11,6 +11,7 @@ use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
+use ethers_core::utils::WEI_IN_ETHER;
 use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
@@ -556,27 +557,21 @@ where
 
         // If we have a ArbitrumNodeInterface, we need to set the l2_gas_limit.
         let l2_gas_limit = if let Some(arbitrum_node_interface) = &self.arbitrum_node_interface {
-            if self.domain().id() == 33139 {
-                // apechain returns errors when estimating the L1 cost, even though it's an arbitrum
-                // nitro chain. So we skip the L1 gas estimation for now.
-                None
-            } else {
-                Some(
-                    arbitrum_node_interface
-                        .estimate_retryable_ticket(
-                            H160::zero().into(),
-                            // Give the sender a deposit, otherwise it reverts
-                            U256::MAX.into(),
-                            self.contract.address(),
-                            U256::zero().into(),
-                            H160::zero().into(),
-                            H160::zero().into(),
-                            contract_call.calldata().unwrap_or_default(),
-                        )
-                        .estimate_gas()
-                        .await?,
-                )
-            }
+            Some(
+                arbitrum_node_interface
+                    .estimate_retryable_ticket(
+                        H160::zero().into(),
+                        // Give the sender a deposit (100 ETH), otherwise it reverts
+                        WEI_IN_ETHER.mul(100u32).into(),
+                        self.contract.address(),
+                        U256::zero().into(),
+                        H160::zero().into(),
+                        H160::zero().into(),
+                        contract_call.calldata().unwrap_or_default(),
+                    )
+                    .estimate_gas()
+                    .await?,
+            )
         } else {
             None
         };
