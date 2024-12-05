@@ -94,14 +94,9 @@ impl HyperlaneContract for StarknetMultisigIsm {
     }
 }
 
-#[async_trait]
-impl MultisigIsm for StarknetMultisigIsm {
-    #[instrument(err)]
-    async fn validators_and_threshold(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> ChainResult<(Vec<H256>, u8)> {
-        let message = &StarknetMessage {
+impl From<&HyperlaneMessage> for StarknetMessage {
+    fn from(message: &HyperlaneMessage) -> Self {
+        StarknetMessage {
             version: message.version,
             nonce: message.nonce,
             origin: message.origin,
@@ -112,7 +107,19 @@ impl MultisigIsm for StarknetMultisigIsm {
                 size: message.body.len() as u32,
                 data: message.body.iter().map(|b| *b as u128).collect(),
             },
-        };
+        }
+    }
+}
+
+#[async_trait]
+impl MultisigIsm for StarknetMultisigIsm {
+    #[instrument(err)]
+    async fn validators_and_threshold(
+        &self,
+        message: &HyperlaneMessage,
+    ) -> ChainResult<(Vec<H256>, u8)> {
+        let message = &message.into();
+
         let (validator_addresses, threshold) = self
             .contract
             .validators_and_threshold(message)

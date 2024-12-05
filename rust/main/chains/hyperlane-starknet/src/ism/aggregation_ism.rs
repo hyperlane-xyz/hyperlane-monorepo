@@ -95,14 +95,9 @@ impl HyperlaneContract for StarknetAggregationIsm {
     }
 }
 
-#[async_trait]
-impl AggregationIsm for StarknetAggregationIsm {
-    #[instrument(err)]
-    async fn modules_and_threshold(
-        &self,
-        message: &HyperlaneMessage,
-    ) -> ChainResult<(Vec<H256>, u8)> {
-        let message = &StarknetMessage {
+impl From<&HyperlaneMessage> for StarknetMessage {
+    fn from(message: &HyperlaneMessage) -> Self {
+        StarknetMessage {
             version: message.version,
             nonce: message.nonce,
             origin: message.origin,
@@ -113,11 +108,22 @@ impl AggregationIsm for StarknetAggregationIsm {
                 size: message.body.len() as u32,
                 data: message.body.iter().map(|b| *b as u128).collect(),
             },
-        };
+        }
+    }
+}
+
+#[async_trait]
+impl AggregationIsm for StarknetAggregationIsm {
+    #[instrument(err)]
+    async fn modules_and_threshold(
+        &self,
+        message: &HyperlaneMessage,
+    ) -> ChainResult<(Vec<H256>, u8)> {
+        let message: StarknetMessage = message.into();
 
         let (isms, threshold) = self
             .contract
-            .modules_and_threshold(message)
+            .modules_and_threshold(&message)
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;

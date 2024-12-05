@@ -44,6 +44,9 @@ pub enum HyperlaneStarknetError {
     /// Error during a Starknet RPC call
     #[error(transparent)]
     ProviderError(#[from] starknet::providers::ProviderError),
+    /// Other error
+    #[error("{0}")]
+    Other(String),
 }
 
 impl From<HyperlaneStarknetError> for ChainCommunicationError {

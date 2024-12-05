@@ -7,17 +7,16 @@ use std::sync::Arc;
 use byteorder::{BigEndian, ByteOrder};
 
 use async_trait::async_trait;
-use hyperlane_core::ReorgPeriod;
 use hyperlane_core::{
     utils::bytes_to_hex, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
     HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Mailbox,
     TxCostEstimate, TxOutcome, H256, U256,
 };
+use hyperlane_core::{FixedPointNumber, ReorgPeriod};
 use starknet::accounts::{Execution, SingleOwnerAccount};
-use starknet::core::types::{
-    FieldElement, MaybePendingTransactionReceipt, PendingTransactionReceipt, TransactionReceipt,
-};
-use starknet::providers::AnyProvider;
+use starknet::core::types::FieldElement;
+
+use starknet::providers::{AnyProvider, Provider};
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
@@ -25,7 +24,7 @@ use crate::contracts::mailbox::{Mailbox as StarknetMailboxInternal, Message as S
 use crate::error::HyperlaneStarknetError;
 use crate::utils::to_mailbox_bytes;
 use crate::{
-    build_single_owner_account, get_block_height_for_reorg_period, get_transaction_receipt,
+    build_single_owner_account, get_block_height_for_reorg_period, send_and_confirm,
     ConnectionConf, Signer, StarknetProvider,
 };
 use cainome::cairo_serde::U256 as StarknetU256;
@@ -36,6 +35,20 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{self:?}")
+    }
+}
+
+impl From<&HyperlaneMessage> for StarknetMessage {
+    fn from(message: &HyperlaneMessage) -> Self {
+        StarknetMessage {
+            version: message.version,
+            nonce: message.nonce,
+            origin: message.origin,
+            sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
+            destination: message.destination,
+            recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
+            body: to_mailbox_bytes(&message.body),
+        }
     }
 }
 
@@ -87,18 +100,9 @@ impl StarknetMailbox {
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
-        let tx = self.contract.process(
-            &to_mailbox_bytes(metadata),
-            &StarknetMessage {
-                version: message.version,
-                nonce: message.nonce,
-                origin: message.origin,
-                sender: StarknetU256::from_bytes_be(&message.sender.to_fixed_bytes()),
-                destination: message.destination,
-                recipient: StarknetU256::from_bytes_be(&message.recipient.to_fixed_bytes()),
-                body: to_mailbox_bytes(&message.body),
-            },
-        );
+        let tx = self
+            .contract
+            .process(&to_mailbox_bytes(metadata), &message.into());
 
         let gas_estimate = match tx_gas_estimate {
             Some(estimate) => estimate
@@ -143,23 +147,25 @@ impl Mailbox for StarknetMailbox {
     #[instrument(skip(self))]
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let block_number =
-            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
+            match get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period)
+                .await?
+            {
+                Some(b) => b,
+                None => self
+                    .provider
+                    .rpc_client()
+                    .block_number()
+                    .await
+                    .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?,
+            };
 
-        let nonce = match block_number {
-            Some(b) => self
-                .contract
-                .nonce()
-                .block_id(starknet::core::types::BlockId::Number(b))
-                .call()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-            None => self
-                .contract
-                .nonce()
-                .call()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-        };
+        let nonce = self
+            .contract
+            .nonce()
+            .block_id(starknet::core::types::BlockId::Number(block_number))
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         Ok(nonce)
     }
@@ -210,25 +216,7 @@ impl Mailbox for StarknetMailbox {
         let contract_call = self
             .process_contract_call(message, metadata, tx_gas_limit)
             .await?;
-        let tx = contract_call
-            .send()
-            .await
-            .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
-        let invoke_tx_receipt =
-            get_transaction_receipt(&self.provider.rpc_client(), tx.transaction_hash).await;
-        match invoke_tx_receipt {
-            Ok(MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(receipt))) => {
-                return Ok(receipt.try_into()?);
-            }
-            Ok(MaybePendingTransactionReceipt::PendingReceipt(
-                PendingTransactionReceipt::Invoke(receipt),
-            )) => {
-                return Ok(receipt.try_into()?);
-            }
-            _ => {
-                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
-            }
-        }
+        send_and_confirm(&self.provider.rpc_client(), contract_call).await
     }
 
     #[instrument(skip(self), fields(msg=%message, metadata=%bytes_to_hex(metadata)))]
@@ -237,9 +225,25 @@ impl Mailbox for StarknetMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        let _contract_call = self.process_contract_call(message, metadata, None).await?;
+        let contract_call = self.process_contract_call(message, metadata, None).await?;
 
-        Ok(TxCostEstimate::default())
+        // Get fee estimate from the provider
+        let fee_estimate = contract_call
+            .estimate_fee()
+            .await
+            .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
+
+        Ok(TxCostEstimate {
+            gas_limit: fee_estimate.gas_consumed.into(),
+            gas_price: FixedPointNumber::try_from(U256::from(fee_estimate.gas_price)).map_err(
+                |e| {
+                    HyperlaneStarknetError::AccountError(format!(
+                        "Failed to convert gas price to FixedPointNumber: {e}"
+                    ))
+                },
+            )?,
+            l2_gas_limit: Some(fee_estimate.overall_fee.into()),
+        })
     }
 
     fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {

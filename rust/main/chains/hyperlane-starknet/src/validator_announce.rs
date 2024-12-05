@@ -11,17 +11,18 @@ use hyperlane_core::{
 };
 use hyperlane_core::{Announcement, Encode, SignedType, ValidatorAnnounce};
 use starknet::accounts::{Execution, SingleOwnerAccount};
-use starknet::core::types::{FieldElement, MaybePendingTransactionReceipt, TransactionReceipt};
+use starknet::core::types::FieldElement;
 use starknet::core::utils::{parse_cairo_short_string, ParseCairoShortStringError};
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
-use tracing::{instrument, trace};
+use tracing::{instrument, warn};
 
 use crate::contracts::validator_announce::ValidatorAnnounce as StarknetValidatorAnnounceInternal;
 use crate::error::HyperlaneStarknetError;
+use crate::utils::send_and_confirm;
 use crate::{
-    build_single_owner_account, get_transaction_receipt, string_to_cairo_long_string,
-    to_strk_message_bytes, ConnectionConf, Signer, StarknetProvider,
+    build_single_owner_account, string_to_cairo_long_string, to_strk_message_bytes, ConnectionConf,
+    Signer, StarknetProvider,
 };
 use cainome::cairo_serde::EthAddress;
 
@@ -151,6 +152,9 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
+        // In cairo, long strings are represented as an array of Field elements.
+        // Storage locations is an array of long strings, so we just need to parse each
+        // inner vector of Field elements into a string.
         let storage_locations = storage_locations_res
             .into_iter()
             .map(|validator_vec| {
@@ -181,12 +185,12 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
         let validator = bytes_to_hex(&announcement.value.validator.to_vec());
 
         let Ok((_, max_cost)) = self.announce_contract_call(announcement).await else {
-            trace!("Unable to get announce contract call");
+            warn!("Unable to get announce contract call");
             return None;
         };
 
         let Ok(balance) = self.provider.get_balance(validator).await else {
-            trace!("Unable to query balance");
+            warn!("Unable to query balance");
             return None;
         };
 
@@ -197,20 +201,7 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let (contract_call, _) = self.announce_contract_call(announcement).await?;
-        let tx = contract_call
-            .send()
-            .await
-            .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
-        let invoke_tx_receipt =
-            get_transaction_receipt(&self.provider.rpc_client(), tx.transaction_hash).await;
-        match invoke_tx_receipt {
-            Ok(MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(receipt))) => {
-                return Ok(receipt.try_into()?);
-            }
-            _ => {
-                return Err(HyperlaneStarknetError::InvalidTransactionReceipt.into());
-            }
-        }
+        send_and_confirm(&self.provider.rpc_client(), contract_call).await
     }
 }
 

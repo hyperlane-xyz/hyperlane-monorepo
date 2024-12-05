@@ -1,17 +1,19 @@
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 
 use cainome::cairo_serde::CairoSerde;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneMessage, ModuleType, ReorgPeriod,
+    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ChainResult, HyperlaneMessage,
+    ModuleType, ReorgPeriod, TxOutcome,
 };
+use starknet::accounts::Execution;
 use starknet::{
     accounts::SingleOwnerAccount,
     core::{
         chain_id::{MAINNET, SEPOLIA},
-        types::{EmittedEvent, FieldElement, MaybePendingTransactionReceipt},
+        types::{EmittedEvent, FieldElement, MaybePendingTransactionReceipt, TransactionReceipt},
         utils::{cairo_short_string_to_felt, CairoShortStringToFeltError},
     },
-    providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider, ProviderError},
+    providers::{jsonrpc::HttpTransport, AnyProvider, JsonRpcClient, Provider},
     signers::LocalWallet,
 };
 use url::Url;
@@ -25,40 +27,31 @@ use crate::{
     HyperlaneStarknetError,
 };
 
-/// Polls a function until it returns true or the max poll count is exceeded.
-pub async fn assert_poll<F, Fut>(f: F, polling_time_ms: u64, max_poll_count: u32)
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = bool>,
-{
-    for _poll_count in 0..max_poll_count {
-        if f().await {
-            return; // The provided function returned true, exit safely.
-        }
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(polling_time_ms)).await;
-    }
-
-    panic!("Max poll count exceeded.");
-}
-
-type TransactionReceiptResult = Result<MaybePendingTransactionReceipt, ProviderError>;
+type TransactionReceiptResult = ChainResult<MaybePendingTransactionReceipt>;
 
 /// Polls the rpc client until the transaction receipt is available.
 pub async fn get_transaction_receipt(
-    rpc: &AnyProvider,
+    rpc: &Arc<AnyProvider>,
     transaction_hash: FieldElement,
 ) -> TransactionReceiptResult {
     // there is a delay between the transaction being available at the client
     // and the sealing of the block, hence sleeping for 100ms
-    assert_poll(
-        || async { rpc.get_transaction_receipt(transaction_hash).await.is_ok() },
+    call_and_retry_n_times(
+        || {
+            let rpc = rpc.clone();
+            Box::pin(async move {
+                let receipt = rpc
+                    .get_transaction_receipt(transaction_hash)
+                    .await
+                    .map_err(|_| {
+                        ChainCommunicationError::from_other_str("Failed to get transaction receipt")
+                    })?;
+                Ok(receipt)
+            })
+        },
         100,
-        20,
     )
-    .await;
-
-    rpc.get_transaction_receipt(transaction_hash).await
+    .await
 }
 
 const KATANA: FieldElement = FieldElement::from_mont([
@@ -266,6 +259,27 @@ pub(crate) async fn get_block_height_for_reorg_period(
     };
 
     Ok(block_height)
+}
+
+/// Sends a transaction and gets the transaction receipt.
+/// Returns the transaction outcome if the receipt is available.
+pub async fn send_and_confirm(
+    rpc_client: &Arc<AnyProvider>,
+    contract_call: Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>,
+) -> ChainResult<TxOutcome> {
+    let tx = contract_call
+        .send()
+        .await
+        .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
+
+    let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
+
+    match receipt {
+        MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(receipt)) => {
+            Ok(receipt.try_into()?)
+        }
+        _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
+    }
 }
 
 #[cfg(test)]

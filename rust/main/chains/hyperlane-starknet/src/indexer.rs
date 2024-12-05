@@ -141,7 +141,8 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let key = get_selector_from_name("Dispatch").unwrap(); // safe to unwrap
+        let key = get_selector_from_name("Dispatch")
+            .map_err(|_| HyperlaneStarknetError::Other("get selector cannot fail".to_string()))?;
 
         let filter = EventFilter {
             from_block: Some(BlockId::Number((*range.start()).into())),
@@ -161,27 +162,34 @@ impl Indexer<HyperlaneMessage> for StarknetMailboxIndexer {
             .events
             .into_iter()
             .map(|event| {
-                // TODO: remove unwraps
-                let message: Indexed<HyperlaneMessage> =
-                    try_parse_hyperlane_message_from_event(&event)
-                        .unwrap()
-                        .into(); // message is the 4/5th element
+                let message = try_parse_hyperlane_message_from_event(&event)
+                    .map_err(|e| {
+                        HyperlaneStarknetError::Other(format!("Failed to parse message: {}", e))
+                    })?
+                    .into();
+
+                let block_number = event
+                    .block_number
+                    .ok_or_else(|| HyperlaneStarknetError::InvalidBlock)?;
+
+                let block_hash = event
+                    .block_hash
+                    .ok_or_else(|| HyperlaneStarknetError::InvalidBlock)?;
+
                 let meta = LogMeta {
                     address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
-                    block_number: event.block_number.unwrap(),
-                    block_hash: H256::from_slice(
-                        event.block_hash.unwrap().to_bytes_be().as_slice(),
-                    ),
+                    block_number,
+                    block_hash: H256::from_slice(block_hash.to_bytes_be().as_slice()),
                     transaction_id: H256::from_slice(
                         event.transaction_hash.to_bytes_be().as_slice(),
                     )
                     .into(),
-                    transaction_index: 0,   // TODO: what to put here?
-                    log_index: U256::one(), // TODO: what to put here?
+                    transaction_index: 0,
+                    log_index: U256::one(),
                 };
-                (message, meta)
+                Ok((message, meta))
             })
-            .collect();
+            .collect::<Result<Vec<_>, HyperlaneStarknetError>>()?;
 
         events.sort_by(|a, b| a.0.inner().nonce.cmp(&b.0.inner().nonce));
 

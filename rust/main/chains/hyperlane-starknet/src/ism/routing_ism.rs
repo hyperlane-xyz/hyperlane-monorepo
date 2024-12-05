@@ -94,11 +94,9 @@ impl HyperlaneContract for StarknetRoutingIsm {
     }
 }
 
-#[async_trait]
-impl RoutingIsm for StarknetRoutingIsm {
-    #[instrument(err)]
-    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
-        let message = &StarknetMessage {
+impl From<&HyperlaneMessage> for StarknetMessage {
+    fn from(message: &HyperlaneMessage) -> Self {
+        StarknetMessage {
             version: message.version,
             nonce: message.nonce,
             origin: message.origin,
@@ -109,7 +107,15 @@ impl RoutingIsm for StarknetRoutingIsm {
                 size: message.body.len() as u32,
                 data: message.body.iter().map(|b| *b as u128).collect(),
             },
-        };
+        }
+    }
+}
+
+#[async_trait]
+impl RoutingIsm for StarknetRoutingIsm {
+    #[instrument(err)]
+    async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
+        let message = &message.into();
 
         let ism = self
             .contract

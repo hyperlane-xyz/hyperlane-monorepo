@@ -99,26 +99,9 @@ impl HyperlaneContract for StarknetInterchainSecurityModule {
     }
 }
 
-#[async_trait]
-impl InterchainSecurityModule for StarknetInterchainSecurityModule {
-    #[instrument]
-    async fn module_type(&self) -> ChainResult<ModuleType> {
-        let module = self
-            .contract
-            .module_type()
-            .call()
-            .await
-            .map_err(Into::<HyperlaneStarknetError>::into)?;
-        Ok(to_hpl_module_type(module))
-    }
-
-    #[instrument]
-    async fn dry_run_verify(
-        &self,
-        message: &HyperlaneMessage,
-        metadata: &[u8],
-    ) -> ChainResult<Option<U256>> {
-        let message = &StarknetMessage {
+impl From<&HyperlaneMessage> for StarknetMessage {
+    fn from(message: &HyperlaneMessage) -> Self {
+        StarknetMessage {
             version: message.version,
             nonce: message.nonce,
             origin: message.origin,
@@ -129,7 +112,30 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
                 size: message.body.len() as u32,
                 data: message.body.iter().map(|b| *b as u128).collect(),
             },
-        };
+        }
+    }
+}
+
+#[async_trait]
+impl InterchainSecurityModule for StarknetInterchainSecurityModule {
+    #[instrument(skip(self))]
+    async fn module_type(&self) -> ChainResult<ModuleType> {
+        let module = self
+            .contract
+            .module_type()
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
+        Ok(to_hpl_module_type(module))
+    }
+
+    #[instrument(skip(self))]
+    async fn dry_run_verify(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+    ) -> ChainResult<Option<U256>> {
+        let message = &message.into();
 
         let tx = self.contract.verify(
             &StarknetBytes {
