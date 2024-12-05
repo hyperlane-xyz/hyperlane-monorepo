@@ -97,6 +97,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lisk: true,
     lukso: true,
     lumia: true,
+    lumiaprism: true,
     mantapacific: true,
     mantle: true,
     merlin: true,
@@ -130,6 +131,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: false,
     superseed: true,
     superpositionmainnet: true,
+    swell: true,
     taiko: true,
     tangle: true,
     unichain: true,
@@ -191,6 +193,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lisk: true,
     lukso: true,
     lumia: true,
+    lumiaprism: true,
     mantapacific: true,
     mantle: true,
     merlin: true,
@@ -225,6 +228,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: true,
     superseed: true,
     superpositionmainnet: true,
+    swell: true,
     taiko: true,
     tangle: true,
     unichain: true,
@@ -287,6 +291,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lisk: true,
     lukso: true,
     lumia: true,
+    lumiaprism: true,
     mantapacific: true,
     mantle: true,
     merlin: true,
@@ -321,6 +326,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     stride: true,
     superseed: true,
     superpositionmainnet: true,
+    swell: true,
     taiko: true,
     tangle: true,
     unichain: true,
@@ -454,7 +460,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd834d81-20241125-135658',
+      tag: 'd0e53f5-20241203-171412',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -463,7 +469,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'd834d81-20241125-135658',
+      tag: 'b35c105-20241128-172842',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -473,7 +479,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd834d81-20241125-135658',
+      tag: 'ae2c3a8-20241203-123123',
     },
     resources: scraperResources,
   },
@@ -488,7 +494,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '25a927d-20241114-171323',
+      tag: 'd0e53f5-20241203-171412',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
