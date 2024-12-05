@@ -82,7 +82,7 @@ export const apply: CommandModuleWithWriteContext<{
     )) as DeployedCoreAddresses;
     DeployedCoreAddressesSchema.parse(addresses);
 
-    const config = await readCoreDeployConfigs(configFilePath);
+    const config = readCoreDeployConfigs(configFilePath);
 
     await runCoreApply({
       context,
