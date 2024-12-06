@@ -16,6 +16,9 @@ import { CallData } from '../types.js';
 
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
+import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
+import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
+import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
 import { EvmIcaTxSubmitterPropsSchema } from './ethersV5/schemas.js';
 
@@ -34,34 +37,45 @@ type EvmIcaTxSubmitterConstructorConfig = z.infer<
   typeof EvmIcaTxSubmitterConstructorConfigSchema
 >;
 
-function getInternalSubmitter(
+type SubmitterFactoryMapping<
+  E extends TxSubmitterType,
+  TConfig extends { type: E },
+  TResult,
+> = {
+  [K in E]: (
+    config: Extract<TConfig, { type: K }>,
+  ) => Promise<TResult> | TResult;
+};
+
+async function getInternalSubmitter(
   chain: ChainName,
   multiProvider: MultiProvider,
   config: EvmIcaTxSubmitterConfig['internalSubmitter'],
-): TxSubmitterInterface<ProtocolType.Ethereum> {
-  const internalSubmitterMap: Record<
+): Promise<TxSubmitterInterface<ProtocolType.Ethereum>> {
+  const internalSubmitterMap: SubmitterFactoryMapping<
     EvmIcaTxSubmitterConfig['internalSubmitter']['type'],
-    () => TxSubmitterInterface<ProtocolType.Ethereum>
+    EvmIcaTxSubmitterConfig['internalSubmitter'],
+    TxSubmitterInterface<ProtocolType.Ethereum>
   > = {
-    [TxSubmitterType.GNOSIS_SAFE]: () => {
-      return new EV5JsonRpcTxSubmitter(multiProvider, {
+    [TxSubmitterType.GNOSIS_SAFE]: (config) => {
+      return EV5GnosisSafeTxSubmitter.create(multiProvider, {
         chain,
         ...config,
       });
     },
-    [TxSubmitterType.GNOSIS_TX_BUILDER]: () => {
-      return new EV5JsonRpcTxSubmitter(multiProvider, {
+    [TxSubmitterType.GNOSIS_TX_BUILDER]: (config) => {
+      return EV5GnosisSafeTxBuilder.create(multiProvider, {
         chain,
         ...config,
       });
     },
-    [TxSubmitterType.IMPERSONATED_ACCOUNT]: () => {
-      return new EV5JsonRpcTxSubmitter(multiProvider, {
+    [TxSubmitterType.IMPERSONATED_ACCOUNT]: (config) => {
+      return new EV5ImpersonatedAccountTxSubmitter(multiProvider, {
         chain,
         ...config,
       });
     },
-    [TxSubmitterType.JSON_RPC]: () => {
+    [TxSubmitterType.JSON_RPC]: (config) => {
       return new EV5JsonRpcTxSubmitter(multiProvider, {
         chain,
         ...config,
@@ -77,7 +91,7 @@ function getInternalSubmitter(
     );
   }
 
-  return internalSubmitterFactory();
+  return internalSubmitterFactory(config as any);
 }
 
 export class EvmIcaTxSubmitter
@@ -97,7 +111,7 @@ export class EvmIcaTxSubmitter
     config: EvmIcaTxSubmitterConfig,
     multiProvider: MultiProvider,
   ): Promise<EvmIcaTxSubmitter> {
-    const internalSubmitter = getInternalSubmitter(
+    const internalSubmitter = await getInternalSubmitter(
       config.chain,
       multiProvider,
       config.internalSubmitter,

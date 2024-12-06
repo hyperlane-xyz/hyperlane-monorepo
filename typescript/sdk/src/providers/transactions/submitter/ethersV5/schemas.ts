@@ -23,6 +23,33 @@ export const EV5ImpersonatedAccountTxSubmitterPropsSchema =
     userAddress: ZHash,
   });
 
+export const EvmIcaTxSubmitterInternalSubmitterConfigSchema = z
+  .discriminatedUnion('type', [
+    z.object({
+      type: z.literal(TxSubmitterType.JSON_RPC),
+    }),
+    z
+      .object({
+        type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
+      })
+      .merge(EV5GnosisSafeTxBuilderPropsSchema.omit({ chain: true })),
+    z
+      .object({
+        type: z.literal(TxSubmitterType.GNOSIS_SAFE),
+      })
+      .merge(EV5GnosisSafeTxSubmitterPropsSchema.omit({ chain: true })),
+    z
+      .object({
+        type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
+      })
+      .merge(
+        EV5ImpersonatedAccountTxSubmitterPropsSchema.omit({ chain: true }),
+      ),
+  ])
+  .default({
+    type: TxSubmitterType.JSON_RPC,
+  });
+
 export const EvmIcaTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
   owner: ZHash.optional(),
@@ -30,30 +57,5 @@ export const EvmIcaTxSubmitterPropsSchema = z.object({
   originInterchainAccountRouter: ZHash.optional(),
   destinationInterchainAccountRouter: ZHash.optional(),
   interchainSecurityModule: ZHash.optional(),
-  internalSubmitter: z
-    .discriminatedUnion('type', [
-      z.object({
-        type: z.literal(TxSubmitterType.JSON_RPC),
-      }),
-      z
-        .object({
-          type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
-        })
-        .merge(EV5GnosisSafeTxBuilderPropsSchema.omit({ chain: true })),
-      z
-        .object({
-          type: z.literal(TxSubmitterType.GNOSIS_SAFE),
-        })
-        .merge(EV5GnosisSafeTxSubmitterPropsSchema.omit({ chain: true })),
-      z
-        .object({
-          type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
-        })
-        .merge(
-          EV5ImpersonatedAccountTxSubmitterPropsSchema.omit({ chain: true }),
-        ),
-    ])
-    .default({
-      type: TxSubmitterType.JSON_RPC,
-    }),
+  internalSubmitter: EvmIcaTxSubmitterInternalSubmitterConfigSchema,
 });
