@@ -21,9 +21,9 @@ pub struct Model {
     pub gas_amount: BigDecimal,
     pub tx_id: i64,
     pub log_index: i64,
-    pub origin: Option<i32>,
-    pub destination: Option<i32>,
-    pub interchain_gas_paymaster: Option<Vec<u8>>,
+    pub origin: i32,
+    pub destination: i32,
+    pub interchain_gas_paymaster: Vec<u8>,
     pub sequence: Option<i64>,
 }
 
@@ -57,7 +57,6 @@ impl PrimaryKeyTrait for PrimaryKey {
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
-    Destination,
     Domain,
     Origin,
     Transaction,
@@ -75,12 +74,10 @@ impl ColumnTrait for Column {
             Self::GasAmount => ColumnType::Decimal(Some((78u32, 0u32))).def(),
             Self::TxId => ColumnType::BigInteger.def(),
             Self::LogIndex => ColumnType::BigInteger.def(),
-            Self::Origin => ColumnType::Integer.def().null(),
-            Self::Destination => ColumnType::Integer.def().null(),
+            Self::Origin => ColumnType::Integer.def(),
+            Self::Destination => ColumnType::Integer.def(),
             Self::InterchainGasPaymaster => {
-                ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None))
-                    .def()
-                    .null()
+                ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None)).def()
             }
             Self::Sequence => ColumnType::BigInteger.def().null(),
         }
@@ -90,10 +87,6 @@ impl ColumnTrait for Column {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
-            Self::Destination => Entity::belongs_to(super::domain::Entity)
-                .from(Column::Destination)
-                .to(super::domain::Column::Id)
-                .into(),
             Self::Domain => Entity::belongs_to(super::domain::Entity)
                 .from(Column::Domain)
                 .to(super::domain::Column::Id)
