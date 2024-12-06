@@ -11,6 +11,10 @@
     "amount": "25.42069",
     "decimals": 9
   },
+  "appchain": {
+    "amount": "0.01",
+    "decimals": 9
+  },
   "arbitrum": {
     "amount": "0.123544",
     "decimals": 9
@@ -331,6 +335,10 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "treasure": {
+    "amount": "10000.0",
+    "decimals": 9
+  },
   "unichain": {
     "amount": "0.001000252",
     "decimals": 9
@@ -365,6 +373,10 @@
   },
   "zircuit": {
     "amount": "0.001000253",
+    "decimals": 9
+  },
+  "zklink": {
+    "amount": "0.125",
     "decimals": 9
   },
   "zksync": {
