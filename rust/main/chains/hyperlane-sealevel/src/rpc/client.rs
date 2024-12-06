@@ -3,7 +3,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
-    rpc_config::{RpcBlockConfig, RpcProgramAccountsConfig, RpcTransactionConfig},
+    rpc_config::{
+        RpcBlockConfig, RpcProgramAccountsConfig, RpcSimulateTransactionConfig,
+        RpcTransactionConfig,
+    },
     rpc_response::{Response, RpcSimulateTransactionResult},
 };
 use solana_sdk::{
@@ -252,7 +255,13 @@ impl SealevelRpcClient {
     ) -> ChainResult<RpcSimulateTransactionResult> {
         let result = self
             .0
-            .simulate_transaction(transaction)
+            .simulate_transaction_with_config(
+                transaction,
+                RpcSimulateTransactionConfig {
+                    sig_verify: false,
+                    ..Default::default()
+                },
+            )
             .await
             .map_err(ChainCommunicationError::from_other)?
             .value;

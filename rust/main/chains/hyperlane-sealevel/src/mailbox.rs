@@ -310,12 +310,7 @@ impl SealevelMailbox {
         // for the compute unit limit and price because we want to include the instructions that
         // set these in the cost estimate.
         let simulation_tx = self
-            .create_transaction_for_instruction(
-                MAX_COMPUTE_UNITS,
-                0,
-                Some(Hash::default()),
-                instruction.clone(),
-            )
+            .create_transaction_for_instruction(MAX_COMPUTE_UNITS, 0, instruction.clone(), false)
             .await?;
 
         let simulation_result = self
@@ -345,8 +340,8 @@ impl SealevelMailbox {
             .create_transaction_for_instruction(
                 simulation_compute_units,
                 priority_fee,
-                None,
                 instruction,
+                true,
             )
             .await?;
 
@@ -359,8 +354,8 @@ impl SealevelMailbox {
         &self,
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
-        blockhash: Option<Hash>,
         instruction: Instruction,
+        sign: bool,
     ) -> ChainResult<Transaction> {
         let payer = self.get_payer()?;
 
@@ -392,21 +387,22 @@ impl SealevelMailbox {
 
         instructions.push(instruction);
 
-        let recent_blockhash = if let Some(blockhash) = blockhash {
-            blockhash
-        } else {
-            self.rpc()
+        let tx = if sign {
+            let recent_blockhash = self
+                .rpc()
                 .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
                 .await
-                .map_err(ChainCommunicationError::from_other)?
-        };
+                .map_err(ChainCommunicationError::from_other)?;
 
-        let tx = Transaction::new_signed_with_payer(
-            &instructions,
-            Some(&payer.pubkey()),
-            &[payer],
-            recent_blockhash,
-        );
+            Transaction::new_signed_with_payer(
+                &instructions,
+                Some(&payer.pubkey()),
+                &[payer],
+                Hash::default(),
+            )
+        } else {
+            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
+        };
 
         Ok(tx)
     }
