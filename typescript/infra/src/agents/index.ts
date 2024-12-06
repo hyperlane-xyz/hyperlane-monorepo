@@ -1,8 +1,15 @@
 import fs from 'fs';
 import { join } from 'path';
 
-import { ChainName, RelayerConfig, RpcConsensusType } from '@hyperlane-xyz/sdk';
-import { objOmitKeys } from '@hyperlane-xyz/utils';
+import {
+  AgentChainMetadata,
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracleType,
+  ChainName,
+  RelayerConfig,
+  RpcConsensusType,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, objOmitKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -87,12 +94,32 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
           }
+
+          let priorityFeeOracle: AgentChainMetadata['priorityFeeOracle'];
+
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            if (chain === 'solanamainnet') {
+              priorityFeeOracle = {
+                type: AgentSealevelPriorityFeeOracleType.Helius,
+                feeLevel: AgentSealevelHeliusFeeLevel.Medium,
+                // URL is populated by the external secrets in the helm chart
+                url: '',
+              };
+            } else {
+              priorityFeeOracle = {
+                type: AgentSealevelPriorityFeeOracleType.Constant,
+                fee: '0',
+              };
+            }
+          }
+
           return {
             name: chain,
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
             maxBatchSize: 32,
+            priorityFeeOracle,
           };
         }),
       },

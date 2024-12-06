@@ -318,6 +318,7 @@ impl SealevelMailbox {
             .rpc()
             .simulate_transaction(&simulation_tx)
             .await?;
+        tracing::warn!(?simulation_result, "Got simulation result for transaction");
         let simulation_compute_units: u32 = simulation_result
             .units_consumed
             .ok_or_else(|| {
@@ -335,7 +336,7 @@ impl SealevelMailbox {
             .get_priority_fee(&simulation_tx)
             .await?;
 
-        tracing::debug!(
+        tracing::warn!(
             ?priority_fee,
             ?simulation_compute_units,
             "Got priority fee and compute units for transaction"

@@ -51,6 +51,20 @@ export enum AgentSignerKeyType {
   Cosmos = 'cosmosKey',
 }
 
+export enum AgentSealevelPriorityFeeOracleType {
+  Helius = 'helius',
+  Constant = 'constant',
+}
+
+export enum AgentSealevelHeliusFeeLevel {
+  Min = 'min',
+  Low = 'low',
+  Medium = 'medium',
+  High = 'high',
+  VeryHigh = 'veryHigh',
+  UnsafeMax = 'unsafeMax',
+}
+
 const AgentSignerHexKeySchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Hex).optional(),
@@ -124,13 +138,13 @@ const AgentSealevelChainMetadataSchema = z.object({
   priorityFeeOracle: z
     .union([
       z.object({
-        type: z.literal('helius'),
-        url: z.string().optional(),
+        type: z.literal(AgentSealevelPriorityFeeOracleType.Helius),
+        url: z.string(),
         // TODO add options
-        feeLevel: z.string().optional(),
+        feeLevel: z.nativeEnum(AgentSealevelHeliusFeeLevel),
       }),
       z.object({
-        type: z.literal('constant'),
+        type: z.literal(AgentSealevelPriorityFeeOracleType.Constant),
         // In microlamports
         fee: ZUWei,
       }),

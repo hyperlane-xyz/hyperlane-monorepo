@@ -184,6 +184,8 @@ export {
   AgentCosmosGasPrice,
   AgentLogFormat,
   AgentLogLevel,
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracleType,
   AgentSigner,
   AgentSignerAwsKey,
   AgentSignerHexKey,

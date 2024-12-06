@@ -259,6 +259,7 @@ impl SealevelRpcClient {
                 transaction,
                 RpcSimulateTransactionConfig {
                     sig_verify: false,
+                    replace_recent_blockhash: true,
                     ..Default::default()
                 },
             )
