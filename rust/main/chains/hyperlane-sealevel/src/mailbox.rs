@@ -405,7 +405,7 @@ impl SealevelMailbox {
                 &instructions,
                 Some(&payer.pubkey()),
                 &[payer],
-                Hash::default(),
+                recent_blockhash,
             )
         } else {
             Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
