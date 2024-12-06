@@ -209,21 +209,21 @@ fn parse_priority_fee_oracle_config(
         .get_opt_key("priorityFeeOracle")
         .end()
         .map(|value_parser| {
-            let priority_fee_oracle = value_parser
+            let oracle_type = value_parser
                 .chain(err)
                 .get_key("type")
                 .parse_string()
                 .end()
                 .or_else(|| {
                     err.push(
-                        &chain.cwp + "priorityFeeOracle.type",
+                        &value_parser.cwp + "type",
                         eyre!("Missing priority fee oracle type"),
                     );
                     None
                 })
                 .unwrap_or_default();
 
-            match priority_fee_oracle {
+            match oracle_type {
                 "constant" => {
                     let fee = value_parser
                         .chain(err)
@@ -241,13 +241,13 @@ fn parse_priority_fee_oracle_config(
                             .parse_from_str("Invalid url")
                             .end()
                             .unwrap(),
-                        fee_level: HeliusPriorityFeeLevel::Medium,
+                        fee_level: parse_helius_priority_fee_level(&value_parser, err),
                     };
                     PriorityFeeOracleConfig::Helius(config)
                 }
                 _ => {
                     err.push(
-                        &chain.cwp + "priorityFeeOracle.type",
+                        &value_parser.cwp + "type",
                         eyre!("Unknown priority fee oracle type"),
                     );
                     PriorityFeeOracleConfig::Constant(0)
@@ -257,6 +257,34 @@ fn parse_priority_fee_oracle_config(
         .unwrap_or_default();
 
     priority_fee_oracle
+}
+
+fn parse_helius_priority_fee_level(
+    value_parser: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> HeliusPriorityFeeLevel {
+    let level = value_parser
+        .chain(err)
+        .get_key("fee_level")
+        .parse_string()
+        .end()
+        .unwrap_or_default();
+
+    match level.to_lowercase().as_str() {
+        "min" => HeliusPriorityFeeLevel::Min,
+        "low" => HeliusPriorityFeeLevel::Low,
+        "medium" => HeliusPriorityFeeLevel::Medium,
+        "high" => HeliusPriorityFeeLevel::High,
+        "veryhigh" => HeliusPriorityFeeLevel::VeryHigh,
+        "unsafemax" => HeliusPriorityFeeLevel::UnsafeMax,
+        _ => {
+            err.push(
+                &value_parser.cwp + "level",
+                eyre!("Unknown priority fee level"),
+            );
+            HeliusPriorityFeeLevel::Medium
+        }
+    }
 }
 
 pub fn build_connection_conf(
