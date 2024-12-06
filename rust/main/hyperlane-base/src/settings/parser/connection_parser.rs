@@ -265,7 +265,7 @@ fn parse_helius_priority_fee_level(
 ) -> HeliusPriorityFeeLevel {
     let level = value_parser
         .chain(err)
-        .get_key("fee_level")
+        .get_key("feeLevel")
         .parse_string()
         .end()
         .unwrap_or_default();
@@ -279,7 +279,7 @@ fn parse_helius_priority_fee_level(
         "unsafemax" => HeliusPriorityFeeLevel::UnsafeMax,
         _ => {
             err.push(
-                &value_parser.cwp + "fee_level",
+                &value_parser.cwp + "feeLevel",
                 eyre!("Unknown priority fee level"),
             );
             HeliusPriorityFeeLevel::Medium

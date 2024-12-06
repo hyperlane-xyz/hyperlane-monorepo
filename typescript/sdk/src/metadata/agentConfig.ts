@@ -120,6 +120,24 @@ export type AgentCosmosGasPrice = z.infer<
   typeof AgentCosmosChainMetadataSchema
 >['gasPrice'];
 
+const AgentSealevelChainMetadataSchema = z.object({
+  priorityFeeOracle: z
+    .union([
+      z.object({
+        type: z.literal('helius'),
+        url: z.string().optional(),
+        // TODO add options
+        feeLevel: z.string().optional(),
+      }),
+      z.object({
+        type: z.literal('constant'),
+        // In microlamports
+        fee: ZUWei,
+      }),
+    ])
+    .optional(),
+});
+
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 )
@@ -155,6 +173,7 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
       .optional(),
   })
   .merge(AgentCosmosChainMetadataSchema.partial())
+  .merge(AgentSealevelChainMetadataSchema.partial())
   .refine((metadata) => {
     // Make sure that the signer is valid for the protocol
 
@@ -197,6 +216,13 @@ export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
     // If the protocol type is Cosmos, require everything in AgentCosmosChainMetadataSchema
     if (metadata.protocol === ProtocolType.Cosmos) {
       if (!AgentCosmosChainMetadataSchema.safeParse(metadata).success) {
+        return false;
+      }
+    }
+
+    // If the protocol type is Sealevel, require everything in AgentSealevelChainMetadataSchema
+    if (metadata.protocol === ProtocolType.Sealevel) {
+      if (!AgentSealevelChainMetadataSchema.safeParse(metadata).success) {
         return false;
       }
     }
