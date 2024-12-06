@@ -15,8 +15,9 @@ import {
 import { DEPLOYER } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
-const ethereumOwner = DEPLOYER;
-const eclipseOwner = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
+// Redacted / Dinero team
+const ethereumOwner = '0xA52Fd396891E7A74b641a2Cb1A6999Fcf56B077e';
+const eclipseOwner = 'BwYL3jLky8oHLeQp1S48cVRfZPmcXtg1V33UPmnZK3Jk';
 
 export async function getEclipseEthereumApxEthWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
