@@ -1,8 +1,6 @@
 CHAIN=$1
 ADDRESS=$2
 
-set -x
-
 RPC_URL=$(cat ~/.hyperlane/chains/$CHAIN/metadata.yaml | yq '.rpcUrls[0].http')
 API_KEY=$(gcloud secrets versions access latest --secret "explorer-api-keys" | jq -r ".$CHAIN")
 
