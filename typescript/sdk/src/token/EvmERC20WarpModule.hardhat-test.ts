@@ -27,6 +27,7 @@ import {
   proxyAdmin,
   serializeContracts,
 } from '@hyperlane-xyz/sdk';
+import { randomInt } from '@hyperlane-xyz/utils';
 
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
@@ -510,7 +511,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       );
     });
 
-    it('should update connected routers', async () => {
+    it('should enroll connected routers', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
@@ -527,7 +528,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         multiProvider,
         proxyFactoryFactories: ismFactoryAddresses,
       });
-      const numOfRouters = Math.floor(Math.random() * 10);
+      const numOfRouters = randomInt(10, 0);
       await sendTxs(
         await evmERC20WarpModule.update({
           ...config,
@@ -541,7 +542,44 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       );
     });
 
-    it('should only extend routers if they are new ones are different', async () => {
+    it('should unenroll connected routers', async () => {
+      const config = {
+        ...baseConfig,
+        type: TokenType.native,
+        ismFactoryAddresses,
+      } as TokenRouterConfig;
+
+      // Deploy using WarpModule
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config: {
+          ...config,
+          interchainSecurityModule: ismAddress,
+        },
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+      const numOfRouters = randomInt(10, 0);
+      await sendTxs(
+        await evmERC20WarpModule.update({
+          ...config,
+          remoteRouters: randomRemoteRouters(numOfRouters),
+        }),
+      );
+      // Read config & delete remoteRouters
+      const existingConfig = await evmERC20WarpModule.read();
+      for (let i = 0; i < numOfRouters; i++) {
+        delete existingConfig.remoteRouters?.[i.toString()];
+        await sendTxs(await evmERC20WarpModule.update(existingConfig));
+
+        const updatedConfig = await evmERC20WarpModule.read();
+        expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(
+          numOfRouters - (i + 1),
+        );
+      }
+    });
+
+    it('should replace an enrollment if they are new one different, if the config lengths are the same', async () => {
       const config = {
         ...baseConfig,
         type: TokenType.native,
@@ -579,20 +617,24 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       await sendTxs(txs);
 
       // Try to extend with the different remoteRouters, but same length
+      const extendedRemoteRouter = {
+        3: {
+          address: randomAddress(),
+        },
+      };
       txs = await evmERC20WarpModule.update({
         ...config,
-        remoteRouters: {
-          3: {
-            address: randomAddress(),
-          },
-        },
+        remoteRouters: extendedRemoteRouter,
       });
 
-      expect(txs.length).to.equal(1);
+      expect(txs.length).to.equal(2);
       await sendTxs(txs);
 
       updatedConfig = await evmERC20WarpModule.read();
-      expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(2);
+      expect(Object.keys(updatedConfig.remoteRouters!).length).to.be.equal(1);
+      expect(updatedConfig.remoteRouters?.['3'].address.toLowerCase()).to.be.eq(
+        extendedRemoteRouter['3'].address.toLowerCase(),
+      );
     });
 
     it('should update the owner only if they are different', async () => {
