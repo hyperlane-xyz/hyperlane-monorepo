@@ -1,4 +1,10 @@
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  DeployedCoreAddresses,
+  DeployedCoreAddressesSchema,
+  EvmCoreModule,
+} from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
@@ -178,15 +184,39 @@ export class MultiChainResolver implements ChainResolver {
     return chains;
   }
 
-  private resolveCoreApplyChains(argv: Record<string, any>): ChainName[] {
-    const config = readCoreDeployConfigs(argv.config);
-    if (config?.interchainAccountRouter?.remoteIcaRouters)
-      return [
-        ...Object.keys(config?.interchainAccountRouter?.remoteIcaRouters),
-        argv.chain,
-      ] as ChainName[];
+  private async resolveCoreApplyChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    try {
+      const config = readCoreDeployConfigs(argv.config);
 
-    return [argv.chain];
+      if (!config?.interchainAccountRouter) {
+        return [argv.chain];
+      }
+
+      const addresses = await argv.context.registry.getChainAddresses(
+        argv.chain,
+      );
+      const coreAddresses = DeployedCoreAddressesSchema.parse(
+        addresses,
+      ) as DeployedCoreAddresses;
+
+      const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
+        chain: argv.chain,
+        config,
+        addresses: coreAddresses,
+      });
+
+      const transactions = await evmCoreModule.update(config);
+
+      return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
+        (chainId) => argv.context.multiProvider.getChainName(chainId),
+      );
+    } catch (error) {
+      throw new Error(`Failed to resolve core apply chains`, {
+        cause: error,
+      });
+    }
   }
 
   static forAgentKurtosis(): MultiChainResolver {
