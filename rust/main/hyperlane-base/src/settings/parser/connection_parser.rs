@@ -279,7 +279,7 @@ fn parse_helius_priority_fee_level(
         "unsafemax" => HeliusPriorityFeeLevel::UnsafeMax,
         _ => {
             err.push(
-                &value_parser.cwp + "level",
+                &value_parser.cwp + "fee_level",
                 eyre!("Unknown priority fee level"),
             );
             HeliusPriorityFeeLevel::Medium
