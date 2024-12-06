@@ -664,11 +664,11 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       DEFAULT_STAKED_VALIDATOR,
       {
         address: '0xb683b742b378632a5f73a2a5a45801b3489bba44',
-        alias: 'AVS: Luganodes',
+        alias: 'Luganodes',
       },
       {
         address: '0xbf1023eff3dba21263bf2db2add67a0d6bcda2de',
-        alias: 'AVS: Pier Two',
+        alias: 'Pier Two',
       },
     ],
   },
