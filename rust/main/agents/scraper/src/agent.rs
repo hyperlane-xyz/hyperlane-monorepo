@@ -232,7 +232,7 @@ impl Scraper {
         let sync = self
             .as_ref()
             .settings
-            .watermark_contract_sync::<Delivery, _>(
+            .contract_sync::<Delivery, _>(
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
@@ -265,11 +265,11 @@ impl Scraper {
         let sync = self
             .as_ref()
             .settings
-            .watermark_contract_sync::<InterchainGasPayment, _>(
+            .contract_sync::<InterchainGasPayment, _>(
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
-                Arc::new(store.clone()),
+                Arc::new(store.clone()) as _,
                 true,
             )
             .await
