@@ -153,6 +153,8 @@ fn main() -> ExitCode {
     .unwrap();
 
     let config = Config::load();
+    log!("Running with config: {:?}", config);
+
     let mut validator_origin_chains = ["test1", "test2", "test3"].to_vec();
     let mut validator_keys = ETH_VALIDATOR_KEYS.to_vec();
     let mut validator_count: usize = validator_keys.len();
