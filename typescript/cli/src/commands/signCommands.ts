@@ -32,4 +32,5 @@ export enum CommandType {
   STATUS = 'status:',
   SUBMIT = 'submit:',
   RELAYER = 'relayer:',
+  CORE_APPLY = 'core:apply',
 }

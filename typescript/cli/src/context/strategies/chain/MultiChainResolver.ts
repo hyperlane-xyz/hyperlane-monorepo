@@ -2,6 +2,7 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
+import { readCoreDeployConfigs } from '../../../config/core.js';
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { log } from '../../../logger.js';
 import {
@@ -25,6 +26,7 @@ enum ChainSelectionMode {
   WARP_READ,
   STRATEGY,
   RELAYER,
+  CORE_APPLY,
 }
 
 // This class could be broken down into multiple strategies
@@ -48,6 +50,8 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveStrategyChains(argv);
       case ChainSelectionMode.RELAYER:
         return this.resolveRelayerChains(argv);
+      case ChainSelectionMode.CORE_APPLY:
+        return this.resolveCoreApplyChains(argv);
       case ChainSelectionMode.ORIGIN_DESTINATION:
       default:
         return this.resolveOriginDestinationChains(argv);
@@ -174,6 +178,17 @@ export class MultiChainResolver implements ChainResolver {
     return chains;
   }
 
+  private resolveCoreApplyChains(argv: Record<string, any>): ChainName[] {
+    const config = readCoreDeployConfigs(argv.config);
+    if (config?.interchainAccountRouter?.remoteIcaRouters)
+      return [
+        ...Object.keys(config?.interchainAccountRouter?.remoteIcaRouters),
+        argv.chain,
+      ] as ChainName[];
+
+    return [argv.chain];
+  }
+
   static forAgentKurtosis(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.AGENT_KURTOSIS);
   }
@@ -196,5 +211,9 @@ export class MultiChainResolver implements ChainResolver {
 
   static forWarpCoreConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_READ);
+  }
+
+  static forCoreApply(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
   }
 }
