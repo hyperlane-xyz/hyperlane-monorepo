@@ -4,7 +4,7 @@ import {
   DialogPanel,
   DialogTitle,
 } from '@headlessui/react';
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, { ComponentProps, PropsWithChildren, useState } from 'react';
 
 import { IconButton } from '../components/IconButton.js';

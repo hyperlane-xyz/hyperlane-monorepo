@@ -1,4 +1,4 @@
-import z from 'zod';
+import { z } from 'zod';
 
 const envScheme = z.object({
   HYP_KEY: z.string().optional(),

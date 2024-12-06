@@ -2623,7 +2623,8 @@ dependencies = [
 [[package]]
 name = "ed25519-dalek"
 version = "1.0.1"
-source = "git+https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek?branch=main#7529d65506147b6cb24ca6d8f4fc062cac33b395"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c762bae6dcaf24c4c84667b8579785430908723d5c889f469d76a41d59cc7a9d"
 dependencies = [
  "curve25519-dalek 3.2.2",
  "ed25519 1.5.3",
@@ -2959,7 +2960,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -2973,7 +2974,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -2984,7 +2985,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -3002,7 +3003,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -3026,7 +3027,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -3040,7 +3041,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -3070,7 +3071,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.15",
@@ -3086,7 +3087,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -3134,7 +3135,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "async-trait",
  "auto_impl 1.2.0",
@@ -3170,7 +3171,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-04-25#361b69b9561e11eb3cf8000a51de1985e2571785"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
 dependencies = [
  "async-trait",
  "coins-bip32 0.7.0",
@@ -8532,7 +8533,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "Inflector",
  "base64 0.13.1",
@@ -8556,7 +8557,7 @@ dependencies = [
 [[package]]
 name = "solana-address-lookup-table-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "bincode",
  "bytemuck",
@@ -8576,7 +8577,7 @@ dependencies = [
 [[package]]
 name = "solana-clap-utils"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "chrono",
  "clap 2.34.0",
@@ -8593,7 +8594,7 @@ dependencies = [
 [[package]]
 name = "solana-cli-config"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "dirs-next",
  "lazy_static",
@@ -8608,7 +8609,7 @@ dependencies = [
 [[package]]
 name = "solana-client"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "async-mutex",
  "async-trait",
@@ -8661,7 +8662,7 @@ dependencies = [
 [[package]]
 name = "solana-config-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "bincode",
  "chrono",
@@ -8674,7 +8675,7 @@ dependencies = [
 [[package]]
 name = "solana-faucet"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "bincode",
  "byteorder",
@@ -8697,7 +8698,7 @@ dependencies = [
 [[package]]
 name = "solana-frozen-abi"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "ahash 0.7.8",
  "blake3",
@@ -8730,7 +8731,7 @@ dependencies = [
 [[package]]
 name = "solana-frozen-abi-macro"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
@@ -8741,7 +8742,7 @@ dependencies = [
 [[package]]
 name = "solana-logger"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "env_logger",
  "lazy_static",
@@ -8751,7 +8752,7 @@ dependencies = [
 [[package]]
 name = "solana-measure"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "log",
  "solana-sdk",
@@ -8760,7 +8761,7 @@ dependencies = [
 [[package]]
 name = "solana-metrics"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "crossbeam-channel",
  "gethostname",
@@ -8773,7 +8774,7 @@ dependencies = [
 [[package]]
 name = "solana-net-utils"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "bincode",
  "clap 3.2.25",
@@ -8794,7 +8795,7 @@ dependencies = [
 [[package]]
 name = "solana-perf"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "ahash 0.7.8",
  "bincode",
@@ -8820,7 +8821,7 @@ dependencies = [
 [[package]]
 name = "solana-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "base64 0.13.1",
  "bincode",
@@ -8868,7 +8869,7 @@ dependencies = [
 [[package]]
 name = "solana-program-runtime"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "base64 0.13.1",
  "bincode",
@@ -8894,7 +8895,7 @@ dependencies = [
 [[package]]
 name = "solana-rayon-threadlimit"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "lazy_static",
  "num_cpus",
@@ -8903,7 +8904,7 @@ dependencies = [
 [[package]]
 name = "solana-remote-wallet"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "console",
  "dialoguer",
@@ -8921,7 +8922,7 @@ dependencies = [
 [[package]]
 name = "solana-sdk"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "assert_matches",
  "base64 0.13.1",
@@ -8971,7 +8972,7 @@ dependencies = [
 [[package]]
 name = "solana-sdk-macro"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "bs58 0.4.0",
  "proc-macro2 1.0.86",
@@ -8983,7 +8984,7 @@ dependencies = [
 [[package]]
 name = "solana-streamer"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "crossbeam-channel",
  "futures-util",
@@ -9011,7 +9012,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "Inflector",
  "base64 0.13.1",
@@ -9039,7 +9040,7 @@ dependencies = [
 [[package]]
 name = "solana-version"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "log",
  "rustc_version",
@@ -9054,7 +9055,7 @@ dependencies = [
 [[package]]
 name = "solana-vote-program"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "bincode",
  "log",
@@ -9074,7 +9075,7 @@ dependencies = [
 [[package]]
 name = "solana-zk-token-sdk"
 version = "1.14.13"
-source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2023-07-04#62a6421cab862c77b9ac7a8d93f54f8b5b223af7"
+source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
  "aes-gcm-siv",
  "arrayref",

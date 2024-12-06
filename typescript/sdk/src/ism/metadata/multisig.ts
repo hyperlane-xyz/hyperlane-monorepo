@@ -26,7 +26,7 @@ import { MerkleTreeHookConfig } from '../../hook/types.js';
 import { ChainName } from '../../types.js';
 import { IsmType, MultisigIsmConfig } from '../types.js';
 
-import { MetadataBuilder, MetadataContext } from './builder.js';
+import type { MetadataBuilder, MetadataContext } from './types.js';
 
 interface MessageIdMultisigMetadata {
   type: IsmType.MESSAGE_ID_MULTISIG;

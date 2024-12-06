@@ -28,7 +28,11 @@ import { DeployedOwnableConfig } from '../deploy/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { DestinationGas, RemoteRouters } from '../router/types.js';
+import {
+  DestinationGas,
+  RemoteRouters,
+  RemoteRoutersSchema,
+} from '../router/types.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
@@ -124,7 +128,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
         const warpRoute = factory.connect(warpRouteAddress, this.provider);
         await warpRoute[method]();
         return tokenType as TokenType;
-      } catch (e) {
+      } catch {
         continue;
       } finally {
         this.setSmartProviderLogLevel(getLogLevel()); // returns to original level defined by rootLogger
@@ -267,13 +271,18 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
     );
     const domains = await warpRoute.domains();
 
-    return Object.fromEntries(
+    const routers = Object.fromEntries(
       await Promise.all(
         domains.map(async (domain) => {
-          return [domain, bytes32ToAddress(await warpRoute.routers(domain))];
+          return [
+            domain,
+            { address: bytes32ToAddress(await warpRoute.routers(domain)) },
+          ];
         }),
       ),
     );
+
+    return RemoteRoutersSchema.parse(routers);
   }
 
   async fetchProxyAdminConfig(

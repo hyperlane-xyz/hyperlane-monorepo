@@ -242,6 +242,18 @@ export function routerMatchingList(
   return matchingList(routers);
 }
 
+// Create a matching list for the given senders to any destination or recipient
+export function senderMatchingList(
+  senders: ChainMap<{ sender: Address }>,
+): MatchingList {
+  return Object.entries(senders).map(([chain, { sender }]) => ({
+    originDomain: getDomainId(chain),
+    senderAddress: addressToBytes32(sender),
+    destinationDomain: '*',
+    recipientAddress: '*',
+  }));
+}
+
 // Create a matching list for the given contract addresses
 export function matchingList<F extends HyperlaneFactories>(
   addressesMap: HyperlaneAddressesMap<F>,
