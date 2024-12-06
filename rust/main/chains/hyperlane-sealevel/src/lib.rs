@@ -23,6 +23,7 @@ mod log_meta_composer;
 mod mailbox;
 mod merkle_tree_hook;
 mod multisig_ism;
+mod priority_fee;
 mod provider;
 mod rpc;
 mod trait_builder;

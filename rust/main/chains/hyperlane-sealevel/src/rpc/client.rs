@@ -2,8 +2,9 @@ use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
-    nonblocking::rpc_client::RpcClient, rpc_config::RpcBlockConfig,
-    rpc_config::RpcProgramAccountsConfig, rpc_config::RpcTransactionConfig, rpc_response::Response,
+    nonblocking::rpc_client::RpcClient,
+    rpc_config::{RpcBlockConfig, RpcProgramAccountsConfig, RpcTransactionConfig},
+    rpc_response::{Response, RpcSimulateTransactionResult},
 };
 use solana_sdk::{
     account::Account,
@@ -17,7 +18,7 @@ use solana_sdk::{
 };
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
-    UiReturnDataEncoding, UiTransactionEncoding, UiTransactionReturnData,
+    UiReturnDataEncoding, UiTransactionEncoding,
 };
 
 use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
@@ -227,9 +228,9 @@ impl SealevelRpcClient {
             Some(&payer.pubkey()),
             &recent_blockhash,
         ));
-        let return_data = self.simulate_transaction(&transaction).await?;
+        let simulation = self.simulate_transaction(&transaction).await?;
 
-        if let Some(return_data) = return_data {
+        if let Some(return_data) = simulation.return_data {
             let bytes = match return_data.data.1 {
                 UiReturnDataEncoding::Base64 => base64::engine::general_purpose::STANDARD
                     .decode(return_data.data.0)
@@ -245,19 +246,18 @@ impl SealevelRpcClient {
         Ok(None)
     }
 
-    async fn simulate_transaction(
+    pub async fn simulate_transaction(
         &self,
         transaction: &Transaction,
-    ) -> ChainResult<Option<UiTransactionReturnData>> {
-        let return_data = self
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        let result = self
             .0
             .simulate_transaction(transaction)
             .await
             .map_err(ChainCommunicationError::from_other)?
-            .value
-            .return_data;
+            .value;
 
-        Ok(return_data)
+        Ok(result)
     }
 }
 

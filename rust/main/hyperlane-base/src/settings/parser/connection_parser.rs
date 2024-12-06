@@ -1,4 +1,7 @@
 use eyre::eyre;
+use hyperlane_sealevel::{
+    HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
+};
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -168,6 +171,7 @@ fn build_sealevel_connection_conf(
         url: url.clone(),
         operation_batch,
         native_token,
+        priority_fee_oracle: parse_priority_fee_oracle_config(chain, err),
     }
 }
 
@@ -194,6 +198,65 @@ fn parse_native_token(
         decimals: native_token_decimals,
         denom: native_token_denom.to_owned(),
     }
+}
+
+fn parse_priority_fee_oracle_config(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> PriorityFeeOracleConfig {
+    let priority_fee_oracle = chain
+        .chain(err)
+        .get_opt_key("priorityFeeOracle")
+        .end()
+        .map(|value_parser| {
+            let priority_fee_oracle = value_parser
+                .chain(err)
+                .get_key("type")
+                .parse_string()
+                .end()
+                .or_else(|| {
+                    err.push(
+                        &chain.cwp + "priorityFeeOracle.type",
+                        eyre!("Missing priority fee oracle type"),
+                    );
+                    None
+                })
+                .unwrap_or_default();
+
+            match priority_fee_oracle {
+                "constant" => {
+                    let fee = value_parser
+                        .chain(err)
+                        .get_key("fee")
+                        .parse_u64()
+                        .end()
+                        .unwrap_or(0);
+                    PriorityFeeOracleConfig::Constant(fee)
+                }
+                "helius" => {
+                    let config = HeliusPriorityFeeOracleConfig {
+                        url: value_parser
+                            .chain(err)
+                            .get_key("url")
+                            .parse_from_str("Invalid url")
+                            .end()
+                            .unwrap(),
+                        fee_level: HeliusPriorityFeeLevel::Medium,
+                    };
+                    PriorityFeeOracleConfig::Helius(config)
+                }
+                _ => {
+                    err.push(
+                        &chain.cwp + "priorityFeeOracle.type",
+                        eyre!("Unknown priority fee oracle type"),
+                    );
+                    PriorityFeeOracleConfig::Constant(0)
+                }
+            }
+        })
+        .unwrap_or_default();
+
+    priority_fee_oracle
 }
 
 pub fn build_connection_conf(
