@@ -9,7 +9,12 @@ import { writeYamlOrJson } from '../utils/files.js';
 
 import {
   ANVIL_KEY,
+  CHAIN_NAME_2,
+  CHAIN_NAME_3,
+  CORE_CONFIG_PATH,
+  DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
+  TEMP_PATH,
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
@@ -21,37 +26,22 @@ chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
 
-const CHAIN_NAME_2 = 'anvil2';
-const CHAIN_NAME_3 = 'anvil3';
-
-const EXAMPLES_PATH = './examples';
-const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
-
-const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
 const WARP_CONFIG_PATH = `${TEMP_PATH}/warp-route-deployment-deploy.yaml`;
 const WARP_CORE_CONFIG_PATH_2_3 = `${REGISTRY_PATH}/deployments/warp_routes/VAULT/anvil2-anvil3-config.yaml`;
 
-const TEST_TIMEOUT = 60_000; // Long timeout since these tests can take a while
-describe('WarpDeploy e2e tests', async function () {
+describe('hyperlane warp deploy e2e tests', async function () {
+  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: any;
   let vault: any;
 
-  this.timeout(TEST_TIMEOUT);
-
   before(async function () {
-    chain2Addresses = await deployOrUseExistingCore(
-      CHAIN_NAME_2,
-      CORE_CONFIG_PATH,
-      ANVIL_KEY,
-    );
-
-    chain3Addresses = await deployOrUseExistingCore(
-      CHAIN_NAME_3,
-      CORE_CONFIG_PATH,
-      ANVIL_KEY,
-    );
+    [chain2Addresses, chain3Addresses] = await Promise.all([
+      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+    ]);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     vault = await deploy4626Vault(ANVIL_KEY, CHAIN_NAME_2, token.address);

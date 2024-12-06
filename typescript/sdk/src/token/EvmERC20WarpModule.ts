@@ -19,6 +19,7 @@ import {
   addressToBytes32,
   assert,
   deepEquals,
+  difference,
   eqAddress,
   isObjEmpty,
   objMap,
@@ -39,7 +40,6 @@ import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
-import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -115,7 +115,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     transactions.push(
       ...(await this.createIsmUpdateTxs(actualConfig, expectedConfig)),
       ...(await this.createHookUpdateTxs(actualConfig, expectedConfig)),
-      ...this.createRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createUnenrollRemoteRoutersUpdateTxs(
+        actualConfig,
+        expectedConfig,
+      ),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
@@ -136,7 +140,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
    * @param expectedConfig - The expected token router configuration.
    * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
    */
-  createRemoteRoutersUpdateTxs(
+  createEnrollRemoteRoutersUpdateTxs(
     actualConfig: TokenRouterConfig,
     expectedConfig: TokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
@@ -145,38 +149,87 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       return [];
     }
 
-    // We normalize the addresses for comparison
-    actualConfig.remoteRouters = normalizeConfig(actualConfig.remoteRouters);
-    expectedConfig.remoteRouters = normalizeConfig(
-      expectedConfig.remoteRouters,
-    );
     assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
     assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
 
     const { remoteRouters: actualRemoteRouters } = actualConfig;
     const { remoteRouters: expectedRemoteRouters } = expectedConfig;
 
-    if (!deepEquals(actualRemoteRouters, expectedRemoteRouters)) {
-      const contractToUpdate = TokenRouter__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.domainId),
-      );
+    const routesToEnroll = Array.from(
+      difference(
+        new Set(Object.keys(expectedRemoteRouters)),
+        new Set(Object.keys(actualRemoteRouters)),
+      ),
+    );
 
-      updateTransactions.push({
-        chainId: this.chainId,
-        annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-        to: contractToUpdate.address,
-        data: contractToUpdate.interface.encodeFunctionData(
-          'enrollRemoteRouters',
-          [
-            Object.keys(expectedRemoteRouters).map((k) => Number(k)),
-            Object.values(expectedRemoteRouters).map((a) =>
-              addressToBytes32(a),
-            ),
-          ],
-        ),
-      });
+    if (routesToEnroll.length === 0) {
+      return updateTransactions;
     }
+
+    const contractToUpdate = TokenRouter__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.domainId),
+    );
+
+    updateTransactions.push({
+      chainId: this.chainId,
+      annotation: `Enrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+      to: contractToUpdate.address,
+      data: contractToUpdate.interface.encodeFunctionData(
+        'enrollRemoteRouters',
+        [
+          routesToEnroll.map((k) => Number(k)),
+          routesToEnroll.map((a) =>
+            addressToBytes32(expectedRemoteRouters[a].address),
+          ),
+        ],
+      ),
+    });
+
+    return updateTransactions;
+  }
+
+  createUnenrollRemoteRoutersUpdateTxs(
+    actualConfig: TokenRouterConfig,
+    expectedConfig: TokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    const updateTransactions: AnnotatedEV5Transaction[] = [];
+    if (!expectedConfig.remoteRouters) {
+      return [];
+    }
+
+    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
+    assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
+
+    const { remoteRouters: actualRemoteRouters } = actualConfig;
+    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
+
+    const routesToUnenroll = Array.from(
+      difference(
+        new Set(Object.keys(actualRemoteRouters)),
+        new Set(Object.keys(expectedRemoteRouters)),
+      ),
+    );
+
+    if (routesToUnenroll.length === 0) {
+      return updateTransactions;
+    }
+
+    const contractToUpdate = TokenRouter__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.domainId),
+    );
+
+    updateTransactions.push({
+      annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+      chainId: this.chainId,
+      to: contractToUpdate.address,
+      data: contractToUpdate.interface.encodeFunctionData(
+        'unenrollRemoteRouters(uint32[])',
+        [routesToUnenroll.map((k) => Number(k))],
+      ),
+    });
+
     return updateTransactions;
   }
 

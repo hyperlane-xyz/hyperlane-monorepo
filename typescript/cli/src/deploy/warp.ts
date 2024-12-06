@@ -731,8 +731,9 @@ async function enrollRemoteRouters(
 
         mutatedWarpRouteConfig.remoteRouters =
           otherChains.reduce<RemoteRouters>((remoteRouters, otherChain) => {
-            remoteRouters[multiProvider.getDomainId(otherChain)] =
-              deployedRoutersAddresses[otherChain];
+            remoteRouters[multiProvider.getDomainId(otherChain)] = {
+              address: deployedRoutersAddresses[otherChain],
+            };
             return remoteRouters;
           }, {});
 
