@@ -98,19 +98,10 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           let priorityFeeOracle: AgentChainMetadata['priorityFeeOracle'];
 
           if (getChain(chain).protocol === ProtocolType.Sealevel) {
-            if (chain === 'solanamainnet') {
-              priorityFeeOracle = {
-                type: AgentSealevelPriorityFeeOracleType.Helius,
-                feeLevel: AgentSealevelHeliusFeeLevel.Medium,
-                // URL is populated by the external secrets in the helm chart
-                url: '',
-              };
-            } else {
-              priorityFeeOracle = {
-                type: AgentSealevelPriorityFeeOracleType.Constant,
-                fee: '0',
-              };
-            }
+            priorityFeeOracle =
+              this.config.rawConfig.sealevelPriorityFeeOracleConfigGetter?.(
+                chain,
+              );
           }
 
           return {

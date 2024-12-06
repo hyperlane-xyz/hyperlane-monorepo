@@ -1,5 +1,6 @@
 import {
   AgentChainMetadata,
+  AgentSealevelPriorityFeeOracle,
   AgentSignerAwsKey,
   AgentSignerKeyType,
   ChainName,
@@ -85,6 +86,9 @@ export interface AgentContextConfig extends AgentEnvConfig {
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
   contextChainNames: AgentChainNames;
+  sealevelPriorityFeeOracleConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelPriorityFeeOracle;
 }
 
 // incomplete common agent configuration for a role

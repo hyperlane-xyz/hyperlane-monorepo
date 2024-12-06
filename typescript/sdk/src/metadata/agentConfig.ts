@@ -152,6 +152,12 @@ const AgentSealevelChainMetadataSchema = z.object({
     .optional(),
 });
 
+export type AgentSealevelChainMetadata = z.infer<
+  typeof AgentSealevelChainMetadataSchema
+>;
+export type AgentSealevelPriorityFeeOracle =
+  AgentSealevelChainMetadata['priorityFeeOracle'];
+
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
 )

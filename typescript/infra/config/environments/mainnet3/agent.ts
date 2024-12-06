@@ -1,4 +1,8 @@
 import {
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelPriorityFeeOracleType,
+  ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
@@ -438,6 +442,26 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
   ];
 };
 
+const sealevelPriorityFeeOracleConfigGetter = (
+  chain: ChainName,
+): AgentSealevelPriorityFeeOracle => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelPriorityFeeOracleType.Helius,
+      feeLevel: AgentSealevelHeliusFeeLevel.Medium,
+      // URL is populated by the external secrets in the helm chart
+      url: '',
+    };
+  }
+
+  // For all other chains, we use the constant fee oracle with a fee of 0
+  return {
+    type: AgentSealevelPriorityFeeOracleType.Constant,
+    fee: '0',
+  };
+};
+
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
@@ -465,6 +489,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: ALL_KEY_ROLES,
+  sealevelPriorityFeeOracleConfigGetter,
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
