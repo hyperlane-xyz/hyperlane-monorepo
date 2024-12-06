@@ -137,11 +137,10 @@ export abstract class ProxiedRouterDeployer<
       return;
     });
 
-    const proxiedRouter = await this.deployProxiedContract(
+    const proxiedRouter = await this.deployContractWithName(
       chain,
       this.routerContractKey(config),
       this.routerContractName(config),
-      proxyAdmin.address,
       await this.constructorArgs(chain, config),
       await this.initializeArgs(chain, config),
     );

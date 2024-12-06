@@ -999,11 +999,10 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     // Deploy the InterchainGasPaymaster
-    const igp = await this.deployer.deployProxiedContract(
+    const igp = await this.deployer.deployContractWithName(
       this.chain,
       HookType.INTERCHAIN_GAS_PAYMASTER,
       HookType.INTERCHAIN_GAS_PAYMASTER,
-      this.args.addresses.proxyAdmin,
       [],
       [deployerAddress, config.beneficiary],
     );

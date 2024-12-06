@@ -39,7 +39,6 @@ import { ChainMap, ChainName } from '../types.js';
 
 import {
   UpgradeConfig,
-  isInitialized,
   isProxy,
   proxyAdmin,
   proxyConstructorArgs,
@@ -404,36 +403,25 @@ export abstract class HyperlaneDeployer<
     );
 
     if (initializeArgs) {
-      if (
-        await isInitialized(
-          this.multiProvider.getProvider(chain),
-          contract.address,
-        )
-      ) {
-        this.logger.debug(
-          `Skipping: Contract ${contractName} (${contract.address}) on ${chain} is already initialized`,
-        );
-      } else {
-        this.logger.debug(
-          `Initializing ${contractName} (${contract.address}) on ${chain}...`,
-        );
+      this.logger.debug(
+        `Initializing ${contractName} (${contract.address}) on ${chain}...`,
+      );
 
-        // Estimate gas for the initialize transaction
-        const estimatedGas = await contract.estimateGas.initialize(
-          ...initializeArgs,
-        );
+      // Estimate gas for the initialize transaction
+      const estimatedGas = await contract.estimateGas.initialize(
+        ...initializeArgs,
+      );
 
-        // deploy with buffer on gas limit
-        const overrides = this.multiProvider.getTransactionOverrides(chain);
-        const initTx = await contract.initialize(...initializeArgs, {
-          gasLimit: addBufferToGasLimit(estimatedGas),
-          ...overrides,
-        });
-        const receipt = await this.multiProvider.handleTx(chain, initTx);
-        this.logger.debug(
-          `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
-        );
-      }
+      // deploy with buffer on gas limit
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
+      const initTx = await contract.initialize(...initializeArgs, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...overrides,
+      });
+      const receipt = await this.multiProvider.handleTx(chain, initTx);
+      this.logger.debug(
+        `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
+      );
     }
 
     const verificationInput = getContractVerificationInput({

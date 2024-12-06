@@ -449,11 +449,10 @@ export class EvmCoreModule extends HyperlaneModule<
     const chainName = multiProvider.getChainName(chain);
 
     const domain = multiProvider.getDomainId(chainName);
-    const mailbox = await deployer.deployProxiedContract(
+    const mailbox = await deployer.deployContractWithName(
       chainName,
       'mailbox',
       'mailbox',
-      proxyAdmin,
       [domain],
     );
 

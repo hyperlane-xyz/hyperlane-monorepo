@@ -68,11 +68,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     proxyAdmin: Address,
   ): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(chain);
-    const mailbox = await this.deployProxiedContract(
+    const mailbox = await this.deployContractWithName(
       chain,
       'mailbox',
       'mailbox',
-      proxyAdmin,
       [domain],
     );
 
