@@ -335,6 +335,12 @@ impl SealevelMailbox {
             .get_priority_fee(&simulation_tx)
             .await?;
 
+        tracing::debug!(
+            ?priority_fee,
+            ?simulation_compute_units,
+            "Got priority fee and compute units for transaction"
+        );
+
         // Build the final transaction with the correct compute unit limit and price.
         let tx = self
             .create_transaction_for_instruction(
