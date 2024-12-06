@@ -1,6 +1,6 @@
 CHAIN=$1
 
-KEYS="domainRoutingIsmFactory staticAggregationIsmFactory staticMerkleRootMultisigIsmFactory staticMessageIdMultisigIsmFactory"
+KEYS="staticAggregationHookFactory domainRoutingIsmFactory staticAggregationIsmFactory staticMerkleRootMultisigIsmFactory staticMessageIdMultisigIsmFactory"
 
 for KEY in $KEYS; do
   ADDRESS=$(cat ~/.hyperlane/chains/$CHAIN/addresses.yaml | yq -r ".$KEY")

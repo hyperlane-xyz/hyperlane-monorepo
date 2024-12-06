@@ -24,8 +24,9 @@ ISM_TYPE=$(cast call $IMPLEMENTATION --rpc-url $RPC_URL "moduleType()(uint8)")
 # 11   OP_L2_TO_L1
 # }
 
-CONTRACT_NAME=""
-if [ $ISM_TYPE -eq 1 ]; then
+if [ $? -ne 0 ]; then
+    CONTRACT_NAME="StaticAggregationHook"
+elif [ $ISM_TYPE -eq 1 ]; then
     CONTRACT_NAME="DomainRoutingIsm"
 elif [ $ISM_TYPE -eq 2 ]; then
     CONTRACT_NAME="StaticAggregationIsm"
