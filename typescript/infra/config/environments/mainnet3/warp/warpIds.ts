@@ -1,6 +1,6 @@
 export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
-  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH = 'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-taiko-zircuit',
+  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH = 'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
