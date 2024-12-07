@@ -56,11 +56,18 @@ async function printAbacusVsThirdParty() {
   const abacusChains = new Set<string>();
   const thirdPartyChains = new Set<string>();
 
-  for (const [chain, { validators }] of Object.entries(
+  for (const [chain, { threshold, validators }] of Object.entries(
     defaultMultisigConfigs,
   )) {
     const chainMetadata = await registry.getChainMetadata(chain);
+    // Don't log testnets
     if (chainMetadata?.isTestnet) {
+      continue;
+    }
+
+    // Skip non-production chains
+    if (threshold === 1) {
+      console.log(`Skipping ${chain} with threshold ${threshold}`);
       continue;
     }
 
@@ -98,11 +105,18 @@ async function printChainDistribution() {
     }
   > = {};
 
-  for (const [chain, { validators }] of Object.entries(
+  for (const [chain, { threshold, validators }] of Object.entries(
     defaultMultisigConfigs,
   )) {
     const chainMetadata = await registry.getChainMetadata(chain);
+    // Don't log testnets
     if (chainMetadata?.isTestnet) {
+      continue;
+    }
+
+    // Skip non-production chains
+    if (threshold === 1) {
+      console.log(`Skipping ${chain} with threshold ${threshold}`);
       continue;
     }
 

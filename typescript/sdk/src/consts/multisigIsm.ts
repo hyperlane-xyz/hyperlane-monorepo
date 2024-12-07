@@ -448,24 +448,6 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  chiado: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x06c3757a4b7a912828e523bb8a5f980ddc297356',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0x0874967a145d70b799ebe9ed861ab7c93faef95a',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-      {
-        address: '0xd767ea1206b8295d7e1267ddd00e56d34f278db6',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
-
   chilizmainnet: {
     threshold: 2,
     validators: [
