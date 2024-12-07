@@ -362,6 +362,26 @@ export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   mainnet3SupportedChainNames,
 );
 
+const sealevelPriorityFeeOracleConfigGetter = (
+  chain: ChainName,
+): AgentSealevelPriorityFeeOracle => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelPriorityFeeOracleType.Helius,
+      feeLevel: AgentSealevelHeliusFeeLevel.High,
+      // URL is populated by the external secrets in the helm chart
+      url: '',
+    };
+  }
+
+  // For all other chains, we use the constant fee oracle with a fee of 0
+  return {
+    type: AgentSealevelPriorityFeeOracleType.Constant,
+    fee: '0',
+  };
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
@@ -369,6 +389,7 @@ const contextBase = {
   aws: {
     region: 'us-east-1',
   },
+  sealevelPriorityFeeOracleConfigGetter,
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
@@ -442,26 +463,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
   ];
 };
 
-const sealevelPriorityFeeOracleConfigGetter = (
-  chain: ChainName,
-): AgentSealevelPriorityFeeOracle => {
-  // Special case for Solana mainnet
-  if (chain === 'solanamainnet') {
-    return {
-      type: AgentSealevelPriorityFeeOracleType.Helius,
-      feeLevel: AgentSealevelHeliusFeeLevel.Medium,
-      // URL is populated by the external secrets in the helm chart
-      url: '',
-    };
-  }
-
-  // For all other chains, we use the constant fee oracle with a fee of 0
-  return {
-    type: AgentSealevelPriorityFeeOracleType.Constant,
-    fee: '0',
-  };
-};
-
 // Resource requests are based on observed usage found in https://abacusworks.grafana.net/d/FSR9YWr7k
 const relayerResources = {
   requests: {
@@ -489,7 +490,6 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   contextChainNames: hyperlaneContextAgentChainNames,
   rolesWithKeys: ALL_KEY_ROLES,
-  sealevelPriorityFeeOracleConfigGetter,
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
@@ -499,6 +499,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     resources: relayerResources,
+    blacklist: [...warpRouteMatchingList('WIF/eclipsemainnet-solanamainnet')],
   },
   validators: {
     docker: {
@@ -528,7 +529,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4cb2c9a-20241205-142854',
+      tag: '8e6427c-20241206-202715',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
