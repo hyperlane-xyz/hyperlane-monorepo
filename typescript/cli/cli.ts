@@ -19,15 +19,17 @@ import {
   overrideRegistryUriCommandOption,
   registryUriCommandOption,
   skipConfirmationOption,
+  strategyCommandOption,
 } from './src/commands/options.js';
 import { registryCommand } from './src/commands/registry.js';
 import { relayerCommand } from './src/commands/relayer.js';
 import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
+import { strategyCommand } from './src/commands/strategy.js';
 import { submitCommand } from './src/commands/submit.js';
 import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
-import { contextMiddleware } from './src/context/context.js';
+import { contextMiddleware, signerMiddleware } from './src/context/context.js';
 import { configureLogger, errorRed } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
@@ -49,12 +51,14 @@ try {
     .option('key', keyCommandOption)
     .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
+    .option('strategy', strategyCommandOption)
     .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
     .middleware([
       (argv) => {
         configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
       },
       contextMiddleware,
+      signerMiddleware,
     ])
     .command(avsCommand)
     .command(configCommand)
@@ -66,6 +70,7 @@ try {
     .command(relayerCommand)
     .command(sendCommand)
     .command(statusCommand)
+    .command(strategyCommand)
     .command(submitCommand)
     .command(validatorCommand)
     .command(warpCommand)
