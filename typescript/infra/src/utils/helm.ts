@@ -13,12 +13,13 @@ export enum HelmCommand {
 }
 
 export function helmifyValues(config: any, prefix?: string): string[] {
+  if (config === null || config === undefined) {
+    return [];
+  }
+
   if (typeof config !== 'object') {
     // Helm incorrectly splits on unescaped commas.
-    const value =
-      config !== undefined
-        ? JSON.stringify(config).replaceAll(',', '\\,')
-        : undefined;
+    const value = JSON.stringify(config).replaceAll(',', '\\,');
     return [`--set ${prefix}=${value}`];
   }
 
