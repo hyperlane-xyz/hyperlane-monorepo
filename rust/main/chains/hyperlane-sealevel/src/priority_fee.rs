@@ -82,7 +82,7 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
-        tracing::trace!(priority_fee_levels = ?response.result.priority_fee_levels, "Fetched priority fee levels");
+        tracing::warn!(priority_fee_levels = ?response.result.priority_fee_levels, "Fetched priority fee levels");
 
         let fee = response
             .result
