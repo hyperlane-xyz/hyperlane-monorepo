@@ -15,6 +15,11 @@ use num::CheckedDiv;
 use num_traits::Zero;
 use uint::construct_uint;
 
+#[cfg(feature = "starknet")]
+use cainome::cairo_serde::U256 as StarknetU256;
+#[cfg(feature = "starknet")]
+use starknet::core::types::{FieldElement, FromByteArrayError, FromStrError, ValueOutOfRangeError};
+
 use crate::{types::serialize, ChainCommunicationError};
 
 /// Error type for conversion.
@@ -98,6 +103,54 @@ impl_fixed_hash_conversions!(H512, EthersH256);
 impl_fixed_hash_conversions!(H256, H160);
 impl_fixed_hash_conversions!(H512, H256);
 impl_fixed_hash_conversions!(H512, H160);
+
+#[cfg(feature = "starknet")]
+impl From<FieldElement> for H256 {
+    fn from(val: FieldElement) -> Self {
+        H256::from_slice(val.to_bytes_be().as_slice())
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl TryInto<FieldElement> for H256 {
+    type Error = FromByteArrayError;
+    fn try_into(self) -> Result<FieldElement, Self::Error> {
+        FieldElement::from_bytes_be(&self.to_fixed_bytes())
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl TryFrom<(FieldElement, FieldElement)> for H256 {
+    type Error = ValueOutOfRangeError;
+    fn try_from(val: (FieldElement, FieldElement)) -> Result<H256, Self::Error> {
+        let value: StarknetU256 = val.try_into()?;
+        Ok(H256::from_slice(&value.to_bytes_be().as_slice()))
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl From<FieldElement> for U256 {
+    fn from(val: FieldElement) -> Self {
+        U256::from_big_endian(val.to_bytes_be().as_slice())
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl TryFrom<(FieldElement, FieldElement)> for U256 {
+    type Error = ValueOutOfRangeError;
+    fn try_from(val: (FieldElement, FieldElement)) -> Result<U256, Self::Error> {
+        let value: StarknetU256 = val.try_into()?;
+        Ok(U256::from_big_endian(&value.to_bytes_be()))
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl TryInto<FieldElement> for U256 {
+    type Error = FromStrError;
+    fn try_into(self) -> Result<FieldElement, Self::Error> {
+        FieldElement::from_dec_str(&self.to_string())
+    }
+}
 
 macro_rules! impl_fixed_uint_conversions {
     ($larger:ty, $smaller:ty) => {

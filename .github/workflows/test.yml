@@ -205,7 +205,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, non-cosmwasm]
+        e2e-type: [starknet, cosmwasm, non-cosmwasm]
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -265,6 +265,13 @@ jobs:
         run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
+      - name: agent tests with Starknet
+        run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
+        if: matrix.e2e-type == 'starknet'
+        working-directory: ./rust
         env:
           RUST_BACKTRACE: 'full'
 

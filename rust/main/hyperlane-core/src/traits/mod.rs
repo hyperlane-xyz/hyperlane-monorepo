@@ -1,5 +1,6 @@
 pub use aggregation_ism::*;
 pub use ccip_read_ism::*;
+
 pub use cursor::*;
 pub use db::*;
 pub use deployed::*;
@@ -14,8 +15,18 @@ pub use pending_operation::*;
 pub use provider::*;
 pub use routing_ism::*;
 pub use signing::*;
+
 pub use validator_announce::*;
 
+#[cfg(feature = "cosmos")]
+use cosmrs::proto::cosmos::base::abci::v1beta1::TxResponse;
+#[cfg(feature = "starknet")]
+use starknet::core::types::{
+    ExecutionResult, InvokeTransactionReceipt, PendingInvokeTransactionReceipt,
+};
+
+#[cfg(any(feature = "cosmos", feature = "starknet"))]
+use crate::{ChainCommunicationError, ChainResult, H256};
 use crate::{FixedPointNumber, H512, U256};
 
 mod aggregation_ism;
@@ -62,5 +73,49 @@ impl From<ethers_core::types::TransactionReceipt> for TxOutcome {
                 .and_then(|price| U256::from(price).try_into().ok())
                 .unwrap_or(FixedPointNumber::zero()),
         }
+    }
+}
+
+#[cfg(feature = "cosmos")]
+impl TryFrom<TxResponse> for TxOutcome {
+    type Error = ChainCommunicationError;
+
+    fn try_from(response: TxResponse) -> ChainResult<Self> {
+        Ok(Self {
+            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
+            executed: response.code == 0,
+            gas_used: U256::from(response.gas_used),
+            gas_price: U256::one().try_into()?,
+        })
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl TryFrom<InvokeTransactionReceipt> for TxOutcome {
+    type Error = ChainCommunicationError;
+
+    fn try_from(receipt: InvokeTransactionReceipt) -> ChainResult<Self> {
+        Ok(Self {
+            transaction_id: H256::from_slice(receipt.transaction_hash.to_bytes_be().as_slice())
+                .into(),
+            executed: receipt.execution_result == ExecutionResult::Succeeded,
+            gas_used: U256::from_big_endian(receipt.actual_fee.amount.to_bytes_be().as_slice()),
+            gas_price: U256::one().try_into()?,
+        })
+    }
+}
+
+#[cfg(feature = "starknet")]
+impl TryFrom<PendingInvokeTransactionReceipt> for TxOutcome {
+    type Error = ChainCommunicationError;
+
+    fn try_from(receipt: PendingInvokeTransactionReceipt) -> ChainResult<Self> {
+        Ok(Self {
+            transaction_id: H256::from_slice(receipt.transaction_hash.to_bytes_be().as_slice())
+                .into(),
+            executed: receipt.execution_result == ExecutionResult::Succeeded,
+            gas_used: U256::from_big_endian(receipt.actual_fee.amount.to_bytes_be().as_slice()),
+            gas_price: U256::one().try_into()?,
+        })
     }
 }
