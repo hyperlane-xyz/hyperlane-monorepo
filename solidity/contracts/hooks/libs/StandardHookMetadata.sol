@@ -165,4 +165,45 @@ library StandardHookMetadata {
     ) internal pure returns (bytes memory) {
         return formatMetadata(uint256(0), uint256(0), _refundAddress, "");
     }
+
+    /**
+     * @notice Overrides the msg.value in the metadata.
+     * @param _metadata encoded standard hook metadata.
+     * @param _msgValue msg.value for the message.
+     * @return encoded standard hook metadata.
+     */
+    function overrideMsgValue(
+        bytes calldata _metadata,
+        uint256 _msgValue
+    ) internal view returns (bytes memory) {
+        return
+            formatMetadata(
+                _msgValue,
+                gasLimit(_metadata, 0),
+                refundAddress(_metadata, msg.sender),
+                getCustomMetadata(_metadata)
+            );
+    }
+
+    /**
+     * @notice Overrides the gas limit in the metadata if _gasLimit is higher than the current gas limit.
+     * @param _metadata encoded standard hook metadata.
+     * @param _gasLimit gas limit for the message.
+     * @return encoded standard hook metadata.
+     */
+    function overrideGasLimit(
+        bytes calldata _metadata,
+        uint256 _gasLimit
+    ) internal view returns (bytes memory) {
+        if (gasLimit(_metadata, 0) < _gasLimit) {
+            return
+                formatMetadata(
+                    msgValue(_metadata, 0),
+                    _gasLimit,
+                    refundAddress(_metadata, msg.sender),
+                    getCustomMetadata(_metadata)
+                );
+        }
+        return _metadata;
+    }
 }
