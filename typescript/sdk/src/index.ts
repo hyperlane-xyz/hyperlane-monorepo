@@ -456,6 +456,7 @@ export {
   DestinationGas,
   GasRouterConfig,
   MailboxClientConfig,
+  MailboxClientConfigSchema,
   ProxiedFactories,
   ProxiedRouterConfig,
   RemoteRouters,
@@ -463,7 +464,6 @@ export {
   RouterConfig,
   RouterViolation,
   RouterViolationType,
-  MailboxClientConfigSchema as mailboxClientConfigSchema,
   proxiedFactories,
 } from './router/types.js';
 export {
