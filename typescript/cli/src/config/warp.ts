@@ -21,6 +21,7 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
+import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import { runMultiChainSelectionStep } from '../utils/chains.js';
@@ -82,7 +83,7 @@ async function fillDefaults(
       let owner = config.owner;
       if (!owner) {
         owner =
-          (await context.signer?.getAddress()) ??
+          context.signerAddress ??
           (await context.multiProvider.getSignerAddress(chain));
       }
       return {
@@ -115,19 +116,14 @@ export async function createWarpRouteDeployConfig({
   context,
   outPath,
   advanced = false,
+  multiProtocolSigner,
 }: {
   context: CommandContext;
   outPath: string;
   advanced: boolean;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }) {
   logBlue('Creating a new warp route deployment config...');
-
-  const owner = await detectAndConfirmOrPrompt(
-    async () => context.signer?.getAddress(),
-    'Enter the desired',
-    'owner address',
-    'signer',
-  );
 
   const warpChains = await runMultiChainSelectionStep({
     chainMetadata: context.chainMetadata,
@@ -142,6 +138,12 @@ export async function createWarpRouteDeployConfig({
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
+    const owner = await detectAndConfirmOrPrompt(
+      async () => context.signerAddress,
+      'Enter the desired',
+      'owner address',
+      'signer',
+    );
 
     // default to the mailbox from the registry and if not found ask to the user to submit one
     const chainAddresses = await context.registry.getChainAddresses(chain);

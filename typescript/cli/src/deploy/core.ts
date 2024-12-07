@@ -10,6 +10,7 @@ import {
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
@@ -20,6 +21,7 @@ import { indentYamlOrJson } from '../utils/files.js';
 
 import {
   completeDeploy,
+  isIsmCompatible,
   prepareDeploy,
   runDeployPlanStep,
   runPreflightChecksForChains,
@@ -43,7 +45,6 @@ export async function runCoreDeploy(params: DeployParams) {
   let chain = params.chain;
 
   const {
-    signer,
     isDryRun,
     chainMetadata,
     dryRunChain,
@@ -62,13 +63,14 @@ export async function runCoreDeploy(params: DeployParams) {
       'Select chain to connect:',
     );
   }
-
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
 
+  const signer = multiProvider.getSigner(chain);
+
   const deploymentParams: DeployParams = {
-    context,
+    context: { ...context, signer },
     chain,
     config,
   };
@@ -81,6 +83,19 @@ export async function runCoreDeploy(params: DeployParams) {
   });
 
   const userAddress = await signer.getAddress();
+
+  const { technicalStack: chainTechnicalStack } =
+    context.multiProvider.getChainMetadata(chain);
+
+  if (typeof config.defaultIsm !== 'string') {
+    assert(
+      isIsmCompatible({
+        chainTechnicalStack,
+        ismType: config.defaultIsm?.type,
+      }),
+      `ERROR: Selected ISM of type ${config.defaultIsm?.type} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack}!`,
+    );
+  }
 
   const initialBalances = await prepareDeploy(context, userAddress, [chain]);
 

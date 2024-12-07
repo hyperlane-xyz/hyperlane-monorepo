@@ -99,7 +99,7 @@ export async function runWarpRouteDeploy({
   context: WriteCommandContext;
   warpRouteDeploymentConfigPath?: string;
 }) {
-  const { signer, skipConfirmation, chainMetadata, registry } = context;
+  const { skipConfirmation, chainMetadata, registry } = context;
 
   if (
     !warpRouteDeploymentConfigPath ||
@@ -146,13 +146,8 @@ export async function runWarpRouteDeploy({
     minGas: MINIMUM_WARP_DEPLOY_GAS,
   });
 
-  const userAddress = await signer.getAddress();
+  const initialBalances = await prepareDeploy(context, null, ethereumChains);
 
-  const initialBalances = await prepareDeploy(
-    context,
-    userAddress,
-    ethereumChains,
-  );
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
   const warpCoreConfig = await getWarpCoreConfig(
@@ -162,13 +157,7 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context);
 
-  await completeDeploy(
-    context,
-    'warp',
-    initialBalances,
-    userAddress,
-    ethereumChains,
-  );
+  await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
@@ -195,21 +184,20 @@ async function executeDeploy(
     context: { registry, multiProvider, isDryRun, dryRunChain },
   } = params;
 
-  const deployer = warpDeployConfig.isNft
-    ? new HypERC721Deployer(multiProvider)
-    : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
-
-  const config: WarpRouteDeployConfig =
-    isDryRun && dryRunChain
-      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
-      : warpDeployConfig;
-
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
+  const deployer = warpDeployConfig.isNft
+    ? new HypERC721Deployer(multiProvider)
+    : new HypERC20Deployer(multiProvider, undefined, contractVerifier); // TODO: replace with EvmERC20WarpModule
+
+  const config: WarpRouteDeployConfig =
+    isDryRun && dryRunChain
+      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
+      : warpDeployConfig;
 
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(
     multiProvider,

@@ -107,6 +107,7 @@ export {
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
+export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
   BuildArtifact,
@@ -567,6 +568,11 @@ export {
   ProxyFactoryFactoriesAddresses,
   ProxyFactoryFactoriesSchema,
 } from './deploy/schemas.js';
+export {
+  isStaticDeploymentSupported,
+  isIsmStatic,
+  skipStaticDeployment,
+} from './deploy/protocolDeploymentConfig.js';
 export {
   ChainGasOracleParams,
   GasPriceConfig,

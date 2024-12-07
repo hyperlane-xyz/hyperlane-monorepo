@@ -1,5 +1,6 @@
 import { ethers, utils } from 'ethers';
 
+import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
@@ -71,6 +72,45 @@ export function getContractVerificationInput({
   );
 }
 
+export async function getContractVerificationInputForZKSync({
+  name,
+  contract,
+  constructorArgs,
+  artifact,
+  isProxy,
+  expectedimplementation,
+}: {
+  name: string;
+  contract: ethers.Contract;
+  constructorArgs: any[];
+  artifact: ZKSyncArtifact;
+  isProxy?: boolean;
+  expectedimplementation?: Address;
+}): Promise<ContractVerificationInput> {
+  const args = encodeArguments(artifact.abi, constructorArgs);
+  return buildVerificationInput(
+    name,
+    contract.address,
+    args,
+    isProxy,
+    expectedimplementation,
+  );
+}
+
+export function encodeArguments(abi: any, constructorArgs: any[]): string {
+  const contractInterface = new utils.Interface(abi);
+  let deployArgumentsEncoded;
+  try {
+    deployArgumentsEncoded = contractInterface
+      .encodeDeploy(constructorArgs)
+      .replace('0x', '');
+  } catch (error: any) {
+    throw new Error('Cant encode constructor args');
+  }
+
+  return deployArgumentsEncoded;
+}
+
 /**
  * Check if the artifact should be added to the verification inputs.
  * @param verificationInputs - The verification inputs for the chain.
@@ -93,7 +133,14 @@ export function shouldAddVerificationInput(
 }
 
 /**
- * Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
+ * @notice Defines verification delay times for different blockchain explorer families.
+ * @dev This constant object associates explorer families with specific delay times (in milliseconds)
+ */
+export const FamilyVerificationDelay = {
+  [ExplorerFamily.Etherscan]: 40000,
+} as const;
+
+/** Retrieves the constructor args using their respective Explorer and/or RPC (eth_getTransactionByHash)
  */
 export async function getConstructorArgumentsApi({
   chainName,

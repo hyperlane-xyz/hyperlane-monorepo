@@ -5,9 +5,13 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  ChainTechnicalStack,
   IsmConfig,
+  IsmType,
   MultisigConfig,
   getLocalProvider,
+  isIsmStatic,
+  isStaticDeploymentSupported,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -41,7 +45,7 @@ export async function runPreflightChecksForChains({
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { signer, multiProvider } = context;
+  const { multiProvider } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -49,15 +53,14 @@ export async function runPreflightChecksForChains({
     if (!metadata) throw new Error(`No chain config found for ${chain}`);
     if (metadata.protocol !== ProtocolType.Ethereum)
       throw new Error('Only Ethereum chains are supported for now');
+    const signer = multiProvider.getSigner(chain);
+    assertSigner(signer);
+    logGreen(`✅ ${chain} signer is valid`);
   }
   logGreen('✅ Chains are valid');
 
-  assertSigner(signer);
-  logGreen('✅ Signer is valid');
-
   await nativeBalancesAreSufficient(
     multiProvider,
-    signer,
     chainsToGasCheck ?? chains,
     minGas,
   );
@@ -70,8 +73,13 @@ export async function runDeployPlanStep({
   context: WriteCommandContext;
   chain: ChainName;
 }) {
-  const { signer, chainMetadata: chainMetadataMap, skipConfirmation } = context;
-  const address = await signer.getAddress();
+  const {
+    chainMetadata: chainMetadataMap,
+    multiProvider,
+    skipConfirmation,
+  } = context;
+
+  const address = await multiProvider.getSigner(chain).getAddress();
 
   logBlue('\nDeployment plan');
   logGray('===============');
@@ -124,7 +132,7 @@ export function isZODISMConfig(filepath: string): boolean {
 
 export async function prepareDeploy(
   context: WriteCommandContext,
-  userAddress: Address,
+  userAddress: Address | null,
   chains: ChainName[],
 ): Promise<Record<string, BigNumber>> {
   const { multiProvider, isDryRun } = context;
@@ -134,7 +142,9 @@ export async function prepareDeploy(
       const provider = isDryRun
         ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
         : multiProvider.getProvider(chain);
-      const currentBalance = await provider.getBalance(userAddress);
+      const address =
+        userAddress ?? (await multiProvider.getSigner(chain).getAddress());
+      const currentBalance = await provider.getBalance(address);
       initialBalances[chain] = currentBalance;
     }),
   );
@@ -145,7 +155,7 @@ export async function completeDeploy(
   context: WriteCommandContext,
   command: string,
   initialBalances: Record<string, BigNumber>,
-  userAddress: Address,
+  userAddress: Address | null,
   chains: ChainName[],
 ) {
   const { multiProvider, isDryRun } = context;
@@ -154,7 +164,9 @@ export async function completeDeploy(
     const provider = isDryRun
       ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
       : multiProvider.getProvider(chain);
-    const currentBalance = await provider.getBalance(userAddress);
+    const address =
+      userAddress ?? (await multiProvider.getSigner(chain).getAddress());
+    const currentBalance = await provider.getBalance(address);
     const balanceDelta = initialBalances[chain].sub(currentBalance);
     if (isDryRun && balanceDelta.lt(0)) break;
     logPink(
@@ -181,4 +193,23 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
     'Native Token: Name': chainMetadata.nativeToken?.name,
     'Native Token: Decimals': chainMetadata.nativeToken?.decimals,
   };
+}
+
+/**
+ * Checks if the given chain technical stack is compatible with the core configuration.
+ *
+ * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain.
+ * @param {CoreConfig} params.config - The core configuration to check.
+ * @returns {boolean} True if the configuration is compatible, false otherwise.
+ */
+export function isIsmCompatible({
+  chainTechnicalStack,
+  ismType,
+}: {
+  chainTechnicalStack: ChainTechnicalStack | undefined;
+  ismType: IsmType;
+}): boolean {
+  // Static deployment is not available on certain chains (e.g., ZKSync) for aggregation ISMs.
+  if (!isIsmStatic[ismType]) return true;
+  return isStaticDeploymentSupported(chainTechnicalStack);
 }

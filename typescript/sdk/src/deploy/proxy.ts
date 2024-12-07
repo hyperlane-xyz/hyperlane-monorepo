@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { Provider as ZKSyncProvider } from 'zksync-ethers';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
@@ -7,6 +8,8 @@ import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 
 import { DeployedOwnableConfig } from './types.js';
+
+type Provider = ethers.providers.Provider | ZKSyncProvider;
 
 export type UpgradeConfig = {
   timelock: {
@@ -20,7 +23,7 @@ export type UpgradeConfig = {
 };
 
 export async function proxyImplementation(
-  provider: ethers.providers.Provider,
+  provider: Provider,
   proxy: Address,
 ): Promise<Address> {
   // Hardcoded storage slot for implementation per EIP-1967
@@ -32,7 +35,7 @@ export async function proxyImplementation(
 }
 
 export async function isInitialized(
-  provider: ethers.providers.Provider,
+  provider: Provider,
   contract: Address,
 ): Promise<boolean> {
   // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
@@ -44,7 +47,7 @@ export async function isInitialized(
 }
 
 export async function proxyAdmin(
-  provider: ethers.providers.Provider,
+  provider: Provider,
   proxy: Address,
 ): Promise<Address> {
   // Hardcoded storage slot for admin per EIP-1967
@@ -67,7 +70,7 @@ export function proxyConstructorArgs<C extends ethers.Contract>(
 }
 
 export async function isProxy(
-  provider: ethers.providers.Provider,
+  provider: Provider,
   proxy: Address,
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
