@@ -28,15 +28,16 @@ import {
   hypERC721factories,
 } from './contracts.js';
 import {
+  TokenMetadata,
   TokenMetadataSchema,
   TokenRouterConfig,
+  WarpRouteDeployConfig,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
   isSyntheticRebaseConfig,
   isTokenMetadata,
-} from './schemas.js';
-import { TokenMetadata, WarpRouteDeployConfig } from './types.js';
+} from './types.js';
 
 abstract class TokenDeployer<
   Factories extends TokenFactories,

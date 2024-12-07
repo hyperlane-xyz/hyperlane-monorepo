@@ -18,12 +18,12 @@ import { HypERC20App } from './app.js';
 import { TokenType } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import {
+  TokenMetadata,
   TokenRouterConfig,
   isCollateralConfig,
   isNativeConfig,
   isSyntheticConfig,
-} from './schemas.js';
-import { TokenMetadata } from './types.js';
+} from './types.js';
 
 export class HypERC20Checker extends ProxiedRouterChecker<
   HypERC20Factories & ProxiedFactories,

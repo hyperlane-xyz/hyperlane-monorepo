@@ -5,11 +5,11 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { TokenType } from './config.js';
 import {
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
   isCollateralConfig,
-} from './schemas.js';
-import { WarpRouteDeployConfig } from './types.js';
+} from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [

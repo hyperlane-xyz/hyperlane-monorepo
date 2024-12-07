@@ -15,8 +15,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { TokenRouterConfig } from './schemas.js';
-import { WarpRouteDeployConfig } from './types.js';
+import { TokenRouterConfig, WarpRouteDeployConfig } from './types.js';
 
 const chain = TestChainName.test1;
 

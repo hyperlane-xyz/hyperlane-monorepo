@@ -43,7 +43,7 @@ import { ChainName, ChainNameOrId } from '../types.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
-import { TokenRouterConfig, TokenRouterConfigSchema } from './schemas.js';
+import { TokenRouterConfig, TokenRouterConfigSchema } from './types.js';
 
 type WarpRouteAddresses = HyperlaneAddresses<ProxyFactoryFactories> & {
   deployedTokenRoute: Address;
