@@ -17,11 +17,15 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
 
+  const registry = await config.getRegistry();
+  const warpRoutes = await registry.getWarpRoutes();
+
   const reader = new GovernTransactionReader(
     environment,
     multiProvider,
     chainAddresses,
     config.core,
+    warpRoutes,
   );
 
   const chainResultEntries = await Promise.all(
