@@ -30,7 +30,7 @@ import {
 
 import {
   icaOwnerChain,
-  icas,
+  oldIcas,
   safes,
 } from '../../config/environments/mainnet3/owners.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -365,7 +365,8 @@ export class GovernTransactionReader {
       routerOverride: router,
       ismOverride: ism,
     });
-    const expectedRemoteIcaAddress = icas[remoteChainName as keyof typeof icas];
+    const expectedRemoteIcaAddress =
+      oldIcas[remoteChainName as keyof typeof oldIcas];
     let remoteIcaInsight = '✅ matches expected ICA';
     if (
       !expectedRemoteIcaAddress ||

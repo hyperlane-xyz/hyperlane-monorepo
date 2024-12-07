@@ -371,20 +371,40 @@ export abstract class HyperlaneAppGovernor<
       chain,
       account.address,
     );
-    const origin = this.interchainAccount.multiProvider.getChainName(
-      accountConfig.origin,
-    );
     console.info(
       chalk.gray(
         `Inferred call for ICA remote owner ${bytes32ToAddress(
           accountConfig.owner,
-        )} on ${origin} to ${chain}`,
+        )} on ${accountConfig.origin} to ${chain}`,
       ),
     );
 
+    // Ensure that we can derive the ICA using the ISM we're aware of.
+    const ismOverride =
+      this.checker.configMap[chain].ownerOverrides?._icaIsmAddress;
+    const recoveredAccount = await this.interchainAccount.getAccount(chain, {
+      owner: accountConfig.owner,
+      origin: accountConfig.origin,
+      ismOverride,
+    });
+    if (!eqAddress(recoveredAccount, account.address)) {
+      console.error(
+        chalk.red(
+          `Failed to recover the target owner ICA: (chain: ${chain}, remote owner: ${accountConfig.owner}, origin: ${accountConfig.origin}).
+          Used ISM override: ${ismOverride}, recovered account: ${recoveredAccount}. Is the ICA's ISM override correct?
+          Defaulting to manual submission.`,
+        ),
+      );
+      return {
+        type: SubmissionType.MANUAL,
+        chain,
+        call,
+      };
+    }
+
     // Get the encoded call to the remote ICA
     const callRemote = await this.interchainAccount.getCallRemote({
-      chain: origin,
+      chain: accountConfig.origin,
       destination: chain,
       innerCalls: [
         {
@@ -417,12 +437,12 @@ export abstract class HyperlaneAppGovernor<
 
     // Try to infer the submission type for the ICA call
     const { type: subType } = await this.inferCallSubmissionType(
-      origin,
+      accountConfig.origin,
       encodedCall,
       (chain: ChainName, submitterAddress: Address) => {
         // Require the submitter to be the owner of the ICA on the origin chain.
         return (
-          chain === origin &&
+          chain === accountConfig.origin &&
           eqAddress(bytes32ToAddress(accountConfig.owner), submitterAddress)
         );
       },
@@ -434,7 +454,7 @@ export abstract class HyperlaneAppGovernor<
     if (subType !== SubmissionType.MANUAL) {
       return {
         type: subType,
-        chain: origin,
+        chain: accountConfig.origin,
         call: encodedCall,
         icaTargetChain: chain,
       };
