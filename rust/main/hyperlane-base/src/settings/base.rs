@@ -3,10 +3,11 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 use eyre::{eyre, Context, Result};
 use futures_util::future::try_join_all;
 use hyperlane_core::{
-    HyperlaneChain, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
+    HyperlaneChain, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
     Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
+use tracing::warn;
 
 use crate::{
     cursors::{CursorType, Indexable},
@@ -79,6 +80,20 @@ impl Settings {
         self.chains
             .get(domain.name())
             .ok_or_else(|| eyre!("No chain setup found for {domain}"))
+    }
+
+    /// Check and warn if reorg period is set for FuelVM domains.
+    pub fn check_fuel_reorg(&self) {
+        self.chains.values().into_iter().for_each(|conf| {
+            if conf.domain.domain_protocol() == HyperlaneDomainProtocol::Fuel {
+                if !conf.reorg_period.is_none() {
+                    warn!(
+                        "Reorg period is set for fuel domain {:?}. FuelVM chains are implemented with instant finality",
+                        conf.domain
+                    );
+                }
+            }
+        });
     }
 
     /// Try to get the domain for a given chain by name.
