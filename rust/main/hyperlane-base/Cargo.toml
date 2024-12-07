@@ -44,6 +44,7 @@ warp.workspace = true
 ya-gcp.workspace = true
 
 backtrace = { workspace = true, optional = true }
+cc = { workspace = true, optional = true }
 backtrace-oneline = { path = "../utils/backtrace-oneline", optional = true }
 
 ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
@@ -73,6 +74,6 @@ vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 
 [features]
 default = ["oneline-errors", "color-eyre"]
-oneline-eyre = ["backtrace-oneline", "backtrace"]
+oneline-eyre = ["backtrace-oneline", "backtrace", "cc"]
 oneline-errors = ["oneline-eyre"]
 test-utils = ["dep:tempfile"]
