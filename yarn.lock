@@ -7398,6 +7398,7 @@ __metadata:
     typescript: "npm:5.3.3"
     yaml: "npm:2.4.5"
     yargs: "npm:^17.7.2"
+    zksync-ethers: "npm:^5.10.0"
     zod: "npm:^3.21.2"
     zod-validation-error: "npm:^3.3.0"
     zx: "npm:^8.1.4"
@@ -22700,7 +22701,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^5.1.0, ethers@npm:^5.3.1, ethers@npm:^5.7.0, ethers@npm:^5.7.1, ethers@npm:^5.7.2":
+"ethers@npm:^5.1.0, ethers@npm:^5.3.1, ethers@npm:^5.7.0, ethers@npm:^5.7.1, ethers@npm:^5.7.2, ethers@npm:~5.7.0":
   version: 5.7.2
   resolution: "ethers@npm:5.7.2"
   dependencies:
@@ -37990,6 +37991,17 @@ __metadata:
     mustache: "npm:^4.2.0"
     stacktracey: "npm:^2.1.8"
   checksum: 10/d13fb6f1e756823397ba02dd0c6f8a1b060a21327238872b46677ea1e1570b6b90fe216560a2ff9f34ba2eead6c442403b70df44354c6224bbfe31cc9a182c38
+  languageName: node
+  linkType: hard
+
+"zksync-ethers@npm:^5.10.0":
+  version: 5.10.0
+  resolution: "zksync-ethers@npm:5.10.0"
+  dependencies:
+    ethers: "npm:~5.7.0"
+  peerDependencies:
+    ethers: ~5.7.0
+  checksum: 10/826719e2e40731e1104cf8a0c16c758526de6ca9e907d0483eb5bd80b635f02e3cce012115b75d68976a8dd746d63d4f83d576cc3bddc18a02a49d2bc023347f
   languageName: node
   linkType: hard
 
