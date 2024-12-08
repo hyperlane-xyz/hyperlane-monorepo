@@ -8,7 +8,7 @@ import {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  isCollateralConfig,
+  isCollateralTokenConfig,
 } from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
@@ -65,7 +65,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
   it('should throw if collateral type and token is empty', async () => {
     for (const type of COLLATERAL_TYPES) {
       config.arbitrum.type = type;
-      assert(isCollateralConfig(config.arbitrum), 'must be collateral');
+      assert(isCollateralTokenConfig(config.arbitrum), 'must be collateral');
 
       //@ts-ignore
       config.arbitrum.token = undefined;
