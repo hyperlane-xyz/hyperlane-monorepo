@@ -4,8 +4,10 @@ import { Address } from '@hyperlane-xyz/utils';
 
 import { ChainName } from '../../../../types.js';
 
-import { EV5InterchainAccountTxTransformerPropsSchema } from './schemas.js';
-import { EV5InterchainAccountTxTransformerProps } from './types.js';
+import {
+  EV5InterchainAccountTxTransformerProps,
+  EV5InterchainAccountTxTransformerPropsSchema,
+} from './types.js';
 
 describe('ethersV5 transformer props schemas', () => {
   const CHAIN_MOCK: ChainName = 'ethereum';

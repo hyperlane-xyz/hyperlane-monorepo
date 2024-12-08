@@ -8,12 +8,21 @@ import type {
 } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
 import type { ChainName } from '../types.js';
 
-export type OwnableConfig = z.infer<typeof OwnableSchema>;
+export const ProxyFactoryFactoriesSchema = z.object({
+  staticMerkleRootMultisigIsmFactory: z.string(),
+  staticMessageIdMultisigIsmFactory: z.string(),
+  staticAggregationIsmFactory: z.string(),
+  staticAggregationHookFactory: z.string(),
+  domainRoutingIsmFactory: z.string(),
+  staticMerkleRootWeightedMultisigIsmFactory: z.string(),
+  staticMessageIdWeightedMultisigIsmFactory: z.string(),
+});
 
-export type DeployedOwnableConfig = z.infer<typeof DeployedOwnableSchema>;
+export type ProxyFactoryFactoriesAddresses = z.infer<
+  typeof ProxyFactoryFactoriesSchema
+>;
 
 export interface CheckerViolation {
   chain: ChainName;

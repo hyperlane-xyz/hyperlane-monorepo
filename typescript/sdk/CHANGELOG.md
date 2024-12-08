@@ -11,7 +11,7 @@
 - 24784af95: Introduce GcpValidator for retrieving announcements, checkpoints and metadata for a Validator posting to a GCP bucket. Uses GcpStorageWrapper for bucket operations.
 - 3e8dd70ac: Update validators for boba, duckchain, unichain, vana, bsquared, superseed. Update oort's own validator. Update blockpi's viction validator. Adad luganodes/dsrv to flame validator set.
 - aa1ea9a48: updates the warp deployment config schema to be closer to the ica routing schema
-- f0b98fdef: Updated the derivation logic to enable ICA ISM metdata building from on chain data to enable self relaying of ICA messages
+- f0b98fdef: Updated the derivation logic to enable ICA ISM metadata building from on chain data to enable self relaying of ICA messages
 - ff9e8a72b: Added a getter to derive ATA payer accounts on Sealevel warp routes
 - 97c1f80b7: Implement Sealevel IGP quoting
 - 323f0f158: Add ICAs management in core apply command
