@@ -3,6 +3,7 @@ import { StargateClient } from '@cosmjs/stargate';
 import { Connection } from '@solana/web3.js';
 import { providers } from 'ethers';
 import { createPublicClient, http } from 'viem';
+import * as zk from 'zksync-ethers';
 
 import { ProtocolType, isNumeric } from '@hyperlane-xyz/utils';
 
@@ -16,6 +17,7 @@ import {
   SolanaWeb3Provider,
   TypedProvider,
   ViemProvider,
+  ZKSyncProvider,
 } from './ProviderType.js';
 import { HyperlaneSmartProvider } from './SmartProvider/SmartProvider.js';
 import { ProviderRetryOptions } from './SmartProvider/types.js';
@@ -109,12 +111,29 @@ export function defaultCosmJsWasmProviderBuilder(
   };
 }
 
+export function defaultZKSyncProviderBuilder(
+  rpcUrls: RpcUrl[],
+  network: providers.Networkish,
+): ZKSyncProvider {
+  if (!rpcUrls.length) throw new Error('No RPC URLs provided');
+  const url = rpcUrls[0].http;
+  const provider = new zk.Provider(url, network);
+  return { type: ProviderType.ZKSync, provider };
+}
+
 // Kept for backwards compatibility
 export function defaultProviderBuilder(
   rpcUrls: RpcUrl[],
   _network: number | string,
 ): providers.Provider {
   return defaultEthersV5ProviderBuilder(rpcUrls, _network).provider;
+}
+// Kept for backwards compatibility
+export function defaultZKProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: number | string,
+): zk.Provider {
+  return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
 }
 
 export type ProviderBuilderMap = Record<
@@ -128,6 +147,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
+  [ProviderType.ZKSync]: defaultZKSyncProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<

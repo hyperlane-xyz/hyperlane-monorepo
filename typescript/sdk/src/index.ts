@@ -107,6 +107,7 @@ export {
   ViolationType,
 } from './deploy/types.js';
 export { ContractVerifier } from './deploy/verify/ContractVerifier.js';
+export { ZKSyncContractVerifier } from './deploy/verify/ZKSyncContractVerifier.js';
 export { PostDeploymentContractVerifier } from './deploy/verify/PostDeploymentContractVerifier.js';
 export {
   BuildArtifact,
@@ -567,6 +568,10 @@ export {
   ProxyFactoryFactoriesAddresses,
   ProxyFactoryFactoriesSchema,
 } from './deploy/schemas.js';
+export { EvmIsmModule } from './ism/EvmIsmModule.js';
+export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
+export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
+export { shouldSkipStaticDeployment } from './deploy/protocolDeploymentConfig.js';
 export {
   ChainGasOracleParams,
   GasPriceConfig,
@@ -577,7 +582,4 @@ export {
   getTokenExchangeRateFromValues,
 } from './gas/utils.js';
 export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';
-export { EvmIsmModule } from './ism/EvmIsmModule.js';
-export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
-export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { GcpValidator } from './gcp/validator.js';
