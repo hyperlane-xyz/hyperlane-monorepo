@@ -8,7 +8,7 @@ import assert from 'assert';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
-import { TokenRouter__factory } from '@hyperlane-xyz/core';
+import { ProxyAdmin__factory, TokenRouter__factory } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
   ChainMap,
@@ -121,6 +121,11 @@ export class GovernTransactionReader {
     // If it's to a Mailbox
     if (this.isMailboxTransaction(chain, tx)) {
       return this.readMailboxTransaction(chain, tx);
+    }
+
+    // If it's to a Proxy Admin
+    if (this.isProxyAdminTransaction(chain, tx)) {
+      return this.readProxyAdminTransaction(chain, tx);
     }
 
     // If it's a Multisend
@@ -382,6 +387,43 @@ export class GovernTransactionReader {
     };
   }
 
+  private async readProxyAdminTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('⚠️ No data in mailbox transaction');
+    }
+
+    const proxyAdminInterface = ProxyAdmin__factory.createInterface();
+    const decoded = proxyAdminInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    let insight;
+    if (
+      decoded.functionFragment.name ===
+      proxyAdminInterface.functions['transferOwnership(address)'].name
+    ) {
+      const [newOwner] = decoded.args;
+      insight = `Transfer ownership to ${newOwner}`;
+    }
+
+    return {
+      chain,
+      to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
+      insight,
+      signature: decoded.signature,
+      args,
+    };
+  }
+
   private ismDerivationsInProgress: ChainMap<boolean> = {};
 
   private async deriveIsmConfig(
@@ -598,6 +640,16 @@ export class GovernTransactionReader {
     return (
       tx.to !== undefined &&
       eqAddress(tx.to, this.chainAddresses[chain].mailbox)
+    );
+  }
+
+  isProxyAdminTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    return (
+      tx.to !== undefined &&
+      eqAddress(tx.to, this.chainAddresses[chain].proxyAdmin)
     );
   }
 
