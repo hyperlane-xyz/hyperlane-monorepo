@@ -136,6 +136,14 @@ const DOMAINS: &[RawDomain] = &[
         is_deprecated: false,
     },
     RawDomain {
+        name: "eclipsetestnet",
+        token: "ETH",
+        domain: 239092742,
+        chain_id: 239092742,
+        is_test_net: true,
+        is_deprecated: false,
+    },
+    RawDomain {
         name: "ecotestnet",
         token: "ETH",
         domain: 471923,
@@ -357,6 +365,14 @@ const DOMAINS: &[RawDomain] = &[
         domain: 1399811149,
         chain_id: 1399811149,
         is_test_net: false,
+        is_deprecated: false,
+    },
+    RawDomain {
+        name: "solanatestnet",
+        token: "SOL",
+        domain: 1399811150,
+        chain_id: 1399811150,
+        is_test_net: true,
         is_deprecated: false,
     },
     RawDomain {
