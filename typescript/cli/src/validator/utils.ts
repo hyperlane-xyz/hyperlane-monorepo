@@ -47,7 +47,7 @@ export const getLatestValidatorCheckpointIndexAndUrl = async (
     validator = await getValidatorFromStorageLocation(s3StorageLocation);
   } catch (err) {
     logDebug(
-      `Failed to instantiate S3Validator at location ${s3StorageLocation}: ${err}`,
+      `Failed to instantiate S3/GCP Validator at location ${s3StorageLocation}: ${err}`,
     );
     return undefined;
   }
@@ -56,7 +56,7 @@ export const getLatestValidatorCheckpointIndexAndUrl = async (
     return [latestCheckpointIndex, validator.getLatestCheckpointUrl()];
   } catch (err) {
     logDebug(
-      `Failed to get latest checkpoint index from S3Validator at location ${s3StorageLocation}: ${err}`,
+      `Failed to get latest checkpoint index from S3/GCP Validator at location ${s3StorageLocation}: ${err}`,
     );
     return undefined;
   }
