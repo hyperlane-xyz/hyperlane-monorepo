@@ -56,6 +56,7 @@ export const safes: ChainMap<Address> = {
   endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
   zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 };
 
 export const icaOwnerChain = 'ethereum';
@@ -166,6 +167,12 @@ export const icas: Partial<
   vana: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   bsquared: '0xd9564EaaA68A327933f758A54450D3A0531E60BB',
   superseed: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
+
+  // Dec 4, 2024 batch
+  // ----------------------------------------------------------
+  // swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687', // already has a safe
+  lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
+  appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
