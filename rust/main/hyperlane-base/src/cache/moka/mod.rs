@@ -73,19 +73,22 @@ impl BaseCache {
 
     /// Get the number of entries in the cache
     /// This will run any pending tasks before returning the entry count
-    /// which ensures that the count is accurate
+    /// which ensures that the count is accurate.
+    /// Used only in test code.
     pub async fn _entries(&self) -> u64 {
         self.cache.run_pending_tasks().await;
         self.cache.entry_count()
     }
 
     /// Check if the cache contains a value for the given key
+    /// Used only in test code.
     pub fn _contains_key(&self, key: &impl Serialize) -> CacheResult<bool> {
         let key = self.serialize(key)?;
         Ok(self.cache.contains_key(&key))
     }
 
     /// Remove the value for the given key
+    /// Used only in test code.
     pub async fn _remove(&self, key: &impl Serialize) -> CacheResult<()> {
         let key = self.serialize(key)?;
         self.cache.invalidate(&key).await;
