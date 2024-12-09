@@ -1,5 +1,17 @@
 # @hyperlane-xyz/utils
 
+## 7.2.0
+
+### Minor Changes
+
+- fa6d5f5c6: Add toUpperCamelCase and deepFind functions
+
+## 7.1.0
+
+### Minor Changes
+
+- 0e285a443: Add an isRelativeUrl function
+
 ## 7.0.0
 
 ### Major Changes

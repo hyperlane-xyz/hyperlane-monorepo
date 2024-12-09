@@ -1,59 +1,50 @@
 import {
   ChainMap,
-  RouterConfig,
+  OwnableConfig,
   TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+
+import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
+import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 // Lumia Team
 const owner = '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863';
-
-const ownerConfig = {
-  owner,
-  // The proxyAdmins are warp-route specific
-  ownerOverrides: {
-    proxyAdmin: owner,
-  },
-};
+const ownerConfig = getOwnerConfigForAddress(owner);
 
 export const getEthereumBscLUMIAWarpConfig = async (
-  routerConfig: ChainMap<RouterConfig>,
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<TokenRouterConfig>> => {
-  const ethereum = {
+  const ethereum: TokenRouterConfig = {
+    ...routerConfig.ethereum,
+    ...ownerConfig,
     type: TokenType.collateral,
     token: '0xD9343a049D5DBd89CD19DC6BcA8c48fB3a0a42a7',
-    ownerOverrides: {
-      proxyAdmin: owner,
-    },
   };
 
-  const bsc = {
+  const bsc: TokenRouterConfig = {
+    ...routerConfig.bsc,
+    ...ownerConfig,
     type: TokenType.synthetic,
-    ownerOverrides: {
-      proxyAdmin: owner,
-    },
   };
 
-  const lumia = {
+  const lumia: TokenRouterConfig = {
+    ...routerConfig.lumia,
+    ...ownerConfig,
     type: TokenType.native,
     // As this has been removed from the registry in https://github.com/hyperlane-xyz/hyperlane-registry/pull/348,
     // we must specify this explicitly.
     mailbox: '0x3a867fCfFeC2B790970eeBDC9023E75B0a172aa7',
-    proxyAdmin: '0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D',
+    proxyAdmin: {
+      owner: owner,
+      address: '0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D',
+    },
   };
 
-  const configMap = {
+  return {
     ethereum,
     bsc,
     lumia,
   };
-
-  const merged = objMap(configMap, (chain, config) => ({
-    ...routerConfig[chain],
-    ...config,
-    ...ownerConfig,
-  }));
-
-  return merged as ChainMap<TokenRouterConfig>;
 };

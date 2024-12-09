@@ -34,4 +34,4 @@ async function main() {
   }
 }
 
-main().catch(console.error).then(console.log);
+main().catch((err) => console.error('Error:', err));
