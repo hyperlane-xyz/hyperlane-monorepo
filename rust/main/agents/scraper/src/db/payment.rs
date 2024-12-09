@@ -6,7 +6,7 @@ use tracing::{debug, instrument};
 use hyperlane_core::{address_to_bytes, h256_to_bytes, InterchainGasPayment, LogMeta, H256};
 use migration::OnConflict;
 
-use crate::conversions::u256_to_decimal;
+use crate::conversions::{decimal_to_u256, u256_to_decimal};
 use crate::date_time;
 use crate::db::ScraperDb;
 
@@ -22,6 +22,61 @@ pub struct StorablePayment<'a> {
 }
 
 impl ScraperDb {
+    /// Get the payment associated with a sequence.
+    #[instrument(skip(self))]
+    pub async fn retrieve_payment_by_sequence(
+        &self,
+        origin: u32,
+        interchain_gas_paymaster: &H256,
+        sequence: u32,
+    ) -> Result<Option<InterchainGasPayment>> {
+        if let Some(payment) = gas_payment::Entity::find()
+            .filter(gas_payment::Column::Origin.eq(origin))
+            .filter(
+                gas_payment::Column::InterchainGasPaymaster
+                    .eq(address_to_bytes(interchain_gas_paymaster)),
+            )
+            .filter(gas_payment::Column::Sequence.eq(sequence))
+            .one(&self.0)
+            .await?
+        {
+            let payment = InterchainGasPayment {
+                message_id: H256::from_slice(&payment.msg_id),
+                destination: payment.destination as u32,
+                payment: decimal_to_u256(payment.payment),
+                gas_amount: decimal_to_u256(payment.gas_amount),
+            };
+            Ok(Some(payment))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get the transaction id of the gas payment associated with a sequence.
+    #[instrument(skip(self))]
+    pub async fn retrieve_payment_tx_id(
+        &self,
+        origin: u32,
+        interchain_gas_paymaster: &H256,
+        sequence: u32,
+    ) -> Result<Option<i64>> {
+        if let Some(payment) = gas_payment::Entity::find()
+            .filter(gas_payment::Column::Origin.eq(origin))
+            .filter(
+                gas_payment::Column::InterchainGasPaymaster
+                    .eq(address_to_bytes(interchain_gas_paymaster)),
+            )
+            .filter(gas_payment::Column::Sequence.eq(sequence))
+            .one(&self.0)
+            .await?
+        {
+            let txn_id = payment.tx_id;
+            Ok(Some(txn_id))
+        } else {
+            Ok(None)
+        }
+    }
+
     #[instrument(skip_all)]
     pub async fn store_payments(
         &self,
@@ -44,9 +99,9 @@ impl ScraperDb {
                 gas_amount: Set(u256_to_decimal(storable.payment.gas_amount)),
                 tx_id: Unchanged(storable.txn_id),
                 log_index: Unchanged(storable.meta.log_index.as_u64() as i64),
-                origin: Set(Some(domain as i32)),
-                destination: Set(Some(storable.payment.destination as i32)),
-                interchain_gas_paymaster: Set(Some(interchain_gas_paymaster.clone())),
+                origin: Set(domain as i32),
+                destination: Set(storable.payment.destination as i32),
+                interchain_gas_paymaster: Set(interchain_gas_paymaster.clone()),
                 sequence: Set(storable.sequence),
             })
             .collect_vec();
