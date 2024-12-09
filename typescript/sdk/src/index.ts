@@ -516,7 +516,10 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
-export { getValidatorFromStorageLocation } from './utils/validator.js';
+export {
+  getValidatorFromStorageLocation,
+  isValidatorStorageLocationValid,
+} from './utils/validator.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
