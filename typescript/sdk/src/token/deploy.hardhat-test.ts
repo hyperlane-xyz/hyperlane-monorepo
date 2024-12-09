@@ -90,7 +90,7 @@ describe('TokenDeployer', async () => {
         routerAddress = warpRoute[chain][type].address;
       });
 
-      it(`should derive TokenRouterConfig correctly`, async () => {
+      it(`should derive HypTokenRouterConfig correctly`, async () => {
         const derivedConfig = await reader.deriveWarpRouteConfig(routerAddress);
         expect(derivedConfig.type).to.equal(config[chain].type);
       });
