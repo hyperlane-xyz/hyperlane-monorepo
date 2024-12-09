@@ -166,6 +166,12 @@ export const icas: Partial<
   vana: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
   bsquared: '0xd9564EaaA68A327933f758A54450D3A0531E60BB',
   superseed: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
+
+  // Dec 4, 2024 batch
+  // ----------------------------------------------------------
+  swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687',
+  lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
+  appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
