@@ -625,3 +625,4 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export { EvmHookModule } from './hook/EvmHookModule.js';
