@@ -406,17 +406,15 @@ async function createWarpHook({
   };
 
   // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
-  let proxyAdminAddress: Address;
-  if (warpConfig.proxyAdmin?.address)
-    proxyAdminAddress = warpConfig.proxyAdmin.address;
-
-  proxyAdminAddress = (
-    await context.multiProvider.handleDeploy(
-      chain,
-      new ProxyAdmin__factory(),
-      [],
-    )
-  ).address;
+  const proxyAdminAddress: Address = warpConfig.proxyAdmin?.address
+    ? warpConfig.proxyAdmin.address
+    : (
+        await context.multiProvider.handleDeploy(
+          chain,
+          new ProxyAdmin__factory(),
+          [],
+        )
+      ).address;
 
   const evmHookModule = await EvmHookModule.create({
     chain,
