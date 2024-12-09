@@ -423,7 +423,7 @@ async function createWarpHook({
       mailbox,
       proxyAdmin: proxyAdminAddress,
     },
-    config: hook!,
+    config: hook,
     contractVerifier,
     proxyFactoryFactories,
   });
