@@ -135,6 +135,7 @@ impl BaseAgent for Relayer {
             .map(|origin| (origin.clone(), HyperlaneRocksDB::new(origin, db.clone())))
             .collect::<HashMap<_, _>>();
 
+        settings.check_fuel_reorg();
         let mailboxes = settings
             .build_mailboxes(settings.destination_chains.iter(), &core_metrics)
             .await?;

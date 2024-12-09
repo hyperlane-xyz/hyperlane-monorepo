@@ -116,7 +116,7 @@ impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
 
 impl ChainSigner for fuels::prelude::WalletUnlocked {
     fn address_string(&self) -> String {
-        self.address().to_string()
+        fuels::types::Address::from(self.address()).to_string()
     }
 }
 
