@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cli
 
+## 8.0.0
+
+### Minor Changes
+
+- bb44f9b51: Add support for deploying Hooks using a HookConfig within a WarpConfig
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- Updated dependencies [472b34670]
+- Updated dependencies [26fbec8f6]
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 7.3.0
 
 ### Minor Changes
