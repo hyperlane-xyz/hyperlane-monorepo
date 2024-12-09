@@ -17,6 +17,12 @@ use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
 
 impl MerkleRootMultisigMetadataBuilder {
+    /// Returns highest known leaf index.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from merkle tree prover. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `highest_known_leaf_index` matches
+    /// the name of the method `highest_known_leaf_index`.
     async fn call_highest_known_leaf_index(&self) -> Result<Option<u32>> {
         let fn_name = "highest_known_leaf_index";
 
