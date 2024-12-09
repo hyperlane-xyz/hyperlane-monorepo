@@ -44,6 +44,12 @@ impl MerkleRootMultisigMetadataBuilder {
         }
     }
 
+    /// Returns the merkle leaf id by message id.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from merkle tree prover. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `get_merkle_leaf_id_by_message_id` matches
+    /// the name of the method `get_merkle_leaf_id_by_message_id`.
     async fn call_get_merkle_leaf_id_by_message_id(
         &self,
         message: &HyperlaneMessage,

@@ -116,6 +116,12 @@ impl AggregationIsmMetadataBuilder {
         Some(Self::n_cheapest_metas(metas_and_gas, threshold))
     }
 
+    /// Returns modules and threshold from the aggregation ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `modules_and_threshold` matches
+    /// the name of the method `modules_and_threshold`.
     async fn call_modules_and_threshold(
         &self,
         ism: &dyn AggregationIsm,

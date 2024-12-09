@@ -33,6 +33,12 @@ pub struct CcipReadIsmMetadataBuilder {
 }
 
 impl CcipReadIsmMetadataBuilder {
+    /// Returns info on how to query for offchain information
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `get_offchain_verify_info` matches
+    /// the name of the method `get_offchain_verify_info`.
     async fn call_get_offchain_verify_info(
         &self,
         ism: &dyn CcipReadIsm,

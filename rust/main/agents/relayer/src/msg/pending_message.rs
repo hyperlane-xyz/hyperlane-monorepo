@@ -517,6 +517,12 @@ impl PendingMessage {
         pm
     }
 
+    /// Checks if a message has already been delivered.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the Mailbox contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `delivered` matches
+    /// the name of the method `delivered`.
     async fn is_message_delivered(&mut self) -> Result<bool, PendingOperationResult> {
         let contract_address = Some(self.ctx.destination_mailbox.address());
         let fn_name = "delivered";
@@ -547,6 +553,12 @@ impl PendingMessage {
         Ok(is_delivered)
     }
 
+    /// Checks if the recipient is a contract.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the provider. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `is_contract` matches
+    /// the name of the method `is_contract`.
     async fn is_recipient_contract(&mut self) -> Result<bool, PendingOperationResult> {
         let contract_address = None;
         let method = "is_contract";
@@ -576,6 +588,12 @@ impl PendingMessage {
         Ok(is_contract)
     }
 
+    /// Fetches the recipient ISM address.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the Mailbox contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `recipient_ism` matches
+    /// the name of the method `recipient_ism`.
     async fn recipient_ism_address(&mut self) -> Result<H256, PendingOperationResult> {
         let contract_address = None;
         let method = "recipient_ism";

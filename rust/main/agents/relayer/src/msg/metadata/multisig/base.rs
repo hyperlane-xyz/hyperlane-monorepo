@@ -90,6 +90,12 @@ pub trait MultisigIsmMetadataBuilder: AsRef<MessageMetadataBuilder> + Send + Syn
         Ok(metas?.into_iter().flatten().collect())
     }
 
+    /// Returns the validators and threshold for the given multisig ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `validators_and_threshold` matches
+    /// the name of the method `validators_and_threshold`.
     async fn call_validators_and_threshold(
         &self,
         multisig_ism: &dyn MultisigIsm,

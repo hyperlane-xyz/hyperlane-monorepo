@@ -232,6 +232,12 @@ impl MessageMetadataBuilder {
         }
     }
 
+    /// Returns the module type of the ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `module_type` matches
+    /// the name of the method `module_type`.
     async fn call_module_type(&self, ism: &dyn InterchainSecurityModule) -> Result<ModuleType> {
         let contract_address = Some(ism.address());
         let fn_name = "module_type";
