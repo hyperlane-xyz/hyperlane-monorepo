@@ -52,7 +52,6 @@ import {
   hypERC20factories,
   isCollateralConfig,
   isTokenMetadata,
-  serializeContracts,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -254,8 +253,15 @@ async function resolveWarpIsmAndHook(
 ): Promise<WarpRouteDeployConfig> {
   return promiseObjAll(
     objMap(warpConfig, async (chain, config) => {
+      const chainAddresses = await context.registry.getChainAddresses(chain);
+
+      if (!chainAddresses) {
+        throw `Registry factory addresses not found for ${chain}.`;
+      }
+
       config.interchainSecurityModule = await createWarpIsm({
         chain,
+        chainAddresses,
         context,
         contractVerifier,
         ismFactoryDeployer,
@@ -264,6 +270,7 @@ async function resolveWarpIsmAndHook(
 
       config.hook = await createWarpHook({
         chain,
+        chainAddresses,
         context,
         contractVerifier,
         ismFactoryDeployer,
@@ -281,12 +288,13 @@ async function resolveWarpIsmAndHook(
  */
 async function createWarpIsm({
   chain,
+  chainAddresses,
   context,
   contractVerifier,
   warpConfig,
-  ismFactoryDeployer,
 }: {
   chain: string;
+  chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
   warpConfig: TokenRouterConfig;
@@ -306,14 +314,6 @@ async function createWarpIsm({
   }
 
   logBlue(`Loading registry factory addresses for ${chain}...`);
-  let chainAddresses = await context.registry.getChainAddresses(chain);
-
-  if (!chainAddresses) {
-    logGray(`Registry factory addresses not found for ${chain}. Deploying...`);
-    chainAddresses = serializeContracts(
-      await ismFactoryDeployer.deployContracts(chain),
-    ) as Record<string, string>;
-  }
 
   logGray(
     `Creating ${interchainSecurityModule.type} ISM for token on ${chain} chain...`,
@@ -355,12 +355,13 @@ async function createWarpIsm({
 
 async function createWarpHook({
   chain,
+  chainAddresses,
   context,
   contractVerifier,
   warpConfig,
-  ismFactoryDeployer,
 }: {
   chain: string;
+  chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
   warpConfig: TokenRouterConfig;
@@ -374,14 +375,6 @@ async function createWarpHook({
   }
 
   logBlue(`Loading registry factory addresses for ${chain}...`);
-  let chainAddresses = await context.registry.getChainAddresses(chain);
-
-  if (!chainAddresses) {
-    logGray(`Registry factory addresses not found for ${chain}. Deploying...`);
-    chainAddresses = serializeContracts(
-      await ismFactoryDeployer.deployContracts(chain),
-    ) as Record<string, string>;
-  }
 
   logGray(`Creating ${hook.type} Hook for token on ${chain} chain...`);
 
