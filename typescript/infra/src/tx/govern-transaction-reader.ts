@@ -198,15 +198,6 @@ export class GovernTransactionReader {
       insight = `Set ISM to ${ismAddress}`;
     }
 
-    // if (
-    //   decoded.functionFragment.name ===
-    //   tokenRouterInterface.functions['setDestinationGas(uint32,uint256)'].name
-    // ) {
-    //   const [domain, gas] = decoded.args;
-    //   const chainName = this.multiProvider.getChainName(domain);
-    //   insight = `Set destination gas for domain ${domain} (${chainName}) to ${gas}`;
-    // }
-
     if (
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['setDestinationGas((uint32,uint256)[])']
@@ -223,15 +214,6 @@ export class GovernTransactionReader {
       );
       insight = `Set destination gas for ${insights.join(', ')}`;
     }
-
-    // if (
-    //   decoded.functionFragment.name ===
-    //   tokenRouterInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
-    // ) {
-    //   const [domain, router] = decoded.args;
-    //   const chainName = this.multiProvider.getChainName(domain);
-    //   insight = `Enroll remote router for domain ${domain} (${chainName}) to ${router}`;
-    // }
 
     if (
       decoded.functionFragment.name ===
