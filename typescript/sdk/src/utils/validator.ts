@@ -10,3 +10,10 @@ export async function getValidatorFromStorageLocation(location: string) {
     throw new Error('Invalid storage location');
   }
 }
+
+export function isValidatorStorageLocationValid(location: string) {
+  return (
+    location?.startsWith(GCP_LOCATION_PREFIX) ||
+    location?.startsWith(S3_LOCATION_PREFIX)
+  );
+}

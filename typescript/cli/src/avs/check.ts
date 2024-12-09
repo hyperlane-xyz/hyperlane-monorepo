@@ -6,7 +6,12 @@ import {
   MerkleTreeHook__factory,
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
-import { ChainMap, ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  MultiProvider,
+  isValidatorStorageLocationValid,
+} from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
@@ -289,15 +294,10 @@ const setValidatorInfo = async (
       const warnings: string[] = [];
 
       const lastStorageLocation =
-        storageLocation.length > 0
-          ? storageLocation[storageLocation.length - 1]
-          : null;
+        storageLocation.length > 0 ? storageLocation.slice(-1)[0] : '';
 
       // Skip if no storage location is found, address is not validating on this chain or if storage location string doesn't not start with s3:// or gs://
-      if (
-        !lastStorageLocation?.startsWith('s3://') &&
-        !lastStorageLocation?.startsWith('gs://')
-      ) {
+      if (!isValidatorStorageLocationValid(lastStorageLocation)) {
         continue;
       }
 
