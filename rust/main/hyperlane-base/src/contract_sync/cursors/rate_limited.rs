@@ -182,7 +182,7 @@ impl<T: Indexable + Sync + Send + Debug + 'static> RateLimitedContractSyncCursor
 #[async_trait]
 impl<T> ContractSyncCursor<T> for RateLimitedContractSyncCursor<T>
 where
-    T: Send + Sync + Debug + 'static + Indexable,
+    T: Indexable + Send + Sync + Debug + 'static,
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
         let eta = self.sync_eta();
