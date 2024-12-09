@@ -578,6 +578,7 @@ export {
 } from './gas/utils.js';
 export { DerivedIcaRouterConfig, IcaRouterConfig } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
+export { EvmHookModule } from './hook/EvmHookModule.js';
 export { AnnotatedEV5Transaction } from './providers/ProviderType.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { GcpValidator } from './gcp/validator.js';
