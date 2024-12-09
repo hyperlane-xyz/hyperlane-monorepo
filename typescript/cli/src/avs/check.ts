@@ -288,19 +288,23 @@ const setValidatorInfo = async (
       const storageLocation = validatorStorageLocations[i];
       const warnings: string[] = [];
 
+      const lastStorageLocation =
+        storageLocation.length > 0
+          ? storageLocation[storageLocation.length - 1]
+          : null;
+
       // Skip if no storage location is found, address is not validating on this chain or if storage location string doesn't not start with s3://
       if (
-        storageLocation.length === 0 ||
-        !storageLocation[0].startsWith('s3://')
+        !lastStorageLocation?.startsWith('s3://') &&
+        !lastStorageLocation?.startsWith('gs://')
       ) {
         continue;
       }
 
       const [latestValidatorCheckpointIndex, latestCheckpointUrl] =
-        (await getLatestValidatorCheckpointIndexAndUrl(storageLocation[0])) ?? [
-          undefined,
-          undefined,
-        ];
+        (await getLatestValidatorCheckpointIndexAndUrl(
+          lastStorageLocation,
+        )) ?? [undefined, undefined];
 
       if (!latestMerkleTreeCheckpointIndex) {
         warnings.push(
