@@ -224,14 +224,14 @@ export class GovernTransactionReader {
       insight = `Set destination gas for ${insights.join(', ')}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
-    ) {
-      const [domain, router] = decoded.args;
-      const chainName = this.multiProvider.getChainName(domain);
-      insight = `Enroll remote router for domain ${domain} (${chainName}) to ${router}`;
-    }
+    // if (
+    //   decoded.functionFragment.name ===
+    //   tokenRouterInterface.functions['enrollRemoteRouter(uint32,bytes32)'].name
+    // ) {
+    //   const [domain, router] = decoded.args;
+    //   const chainName = this.multiProvider.getChainName(domain);
+    //   insight = `Enroll remote router for domain ${domain} (${chainName}) to ${router}`;
+    // }
 
     if (
       decoded.functionFragment.name ===
@@ -362,24 +362,6 @@ export class GovernTransactionReader {
         chainName: remoteChainName,
         router: routerToBeEnrolled,
         insight,
-      };
-    });
-  }
-
-  private async formatRouterUnenrollments(
-    routerName: string,
-    args: Record<string, any>,
-  ): Promise<GovernTransaction> {
-    const { _domains: domains } = args;
-    return domains.map((domain: number) => {
-      const remoteChainName = this.multiProvider.getChainName(domain);
-      const expectedRouter = this.chainAddresses[remoteChainName][routerName];
-
-      return {
-        domain: domain,
-        chainName: remoteChainName,
-        router: expectedRouter,
-        insight: '✅ unenrolling router',
       };
     });
   }
