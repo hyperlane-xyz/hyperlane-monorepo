@@ -170,7 +170,7 @@ export const icas: Partial<
 
   // Dec 4, 2024 batch
   // ----------------------------------------------------------
-  // swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687', // already has a safe
+  swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687', // already has a safe
   lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
   appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
 } as const;
