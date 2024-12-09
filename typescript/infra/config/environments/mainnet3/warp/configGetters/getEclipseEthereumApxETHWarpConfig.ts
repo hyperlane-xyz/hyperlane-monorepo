@@ -2,8 +2,8 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -12,7 +12,6 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { DEPLOYER } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 // Redacted / Dinero team
@@ -22,8 +21,8 @@ const eclipseOwner = 'BwYL3jLky8oHLeQp1S48cVRfZPmcXtg1V33UPmnZK3Jk';
 export async function getEclipseEthereumApxEthWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> {
-  const eclipsemainnet: TokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfig>> {
+  const eclipsemainnet: HypTokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     ...getOwnerConfigForAddress(eclipseOwner),
     type: TokenType.synthetic,
@@ -32,7 +31,7 @@ export async function getEclipseEthereumApxEthWarpConfig(
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  let ethereum: TokenRouterConfig = {
+  let ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...getOwnerConfigForAddress(ethereumOwner),
     type: TokenType.collateral,
