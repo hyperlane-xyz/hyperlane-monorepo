@@ -24,6 +24,7 @@ import {
   HypERC20Factories,
   HypERC721Deployer,
   HypERC721Factories,
+  HypTokenRouterConfig,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneProxyFactoryDeployer,
@@ -38,7 +39,6 @@ import {
   SubmissionStrategy,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
-  TokenRouterConfig,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
@@ -297,7 +297,7 @@ async function createWarpIsm({
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
-  warpConfig: TokenRouterConfig;
+  warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<IsmConfig | undefined> {
   const { interchainSecurityModule } = warpConfig;
@@ -364,7 +364,7 @@ async function createWarpHook({
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
   contractVerifier?: ContractVerifier;
-  warpConfig: TokenRouterConfig;
+  warpConfig: HypTokenRouterConfig;
   ismFactoryDeployer: HyperlaneProxyFactoryDeployer;
 }): Promise<HookConfig | undefined> {
   const { hook } = warpConfig;
