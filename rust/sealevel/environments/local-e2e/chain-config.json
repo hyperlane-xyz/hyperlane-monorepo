@@ -4,7 +4,7 @@
     "name": "sealeveltest1",
     "rpcUrls": [
       {
-        "http": "http://localhost:8899"
+        "http": "http://127.0.0.1:8899"
       }
     ]
   },
@@ -13,7 +13,7 @@
     "name": "sealeveltest2",
     "rpcUrls": [
       {
-        "http": "http://localhost:8899"
+        "http": "http://127.0.0.1:8899"
       }
     ]
   }

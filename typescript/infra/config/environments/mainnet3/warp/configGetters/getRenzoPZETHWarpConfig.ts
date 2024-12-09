@@ -1,7 +1,7 @@
 import {
   ChainMap,
+  HypTokenRouterConfig,
   IsmType,
-  TokenRouterConfig,
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
@@ -30,7 +30,7 @@ const pzEthSafes: Record<string, string> = {
 };
 
 export const getRenzoPZETHWarpConfig = async (): Promise<
-  ChainMap<TokenRouterConfig>
+  ChainMap<HypTokenRouterConfig>
 > => {
   const registry = await getMainnet3Registry();
 
@@ -55,11 +55,11 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
     );
   }
 
-  const tokenConfig = Object.fromEntries<TokenRouterConfig>(
+  const tokenConfig = Object.fromEntries<HypTokenRouterConfig>(
     await Promise.all(
       chainsToDeploy.map(
-        async (chain): Promise<[string, TokenRouterConfig]> => {
-          const ret: [string, TokenRouterConfig] = [
+        async (chain): Promise<[string, HypTokenRouterConfig]> => {
+          const ret: [string, HypTokenRouterConfig] = [
             chain,
             {
               isNft: false,

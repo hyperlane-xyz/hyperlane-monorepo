@@ -10,12 +10,11 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { proxyAdmin } from '../deploy/proxy.js';
-import { DeployedOwnableConfig } from '../deploy/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIcaRouterReader } from '../ica/EvmIcaReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 
 import { CoreConfig, DerivedCoreConfig } from './types.js';
 
