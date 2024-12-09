@@ -1,5 +1,8 @@
+import { parseEther } from 'ethers/lib/utils.js';
+
 import {
   ChainMap,
+  HookType,
   IsmType,
   TokenRouterConfig,
   TokenType,
@@ -9,7 +12,12 @@ import { symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
-import { ezEthSafes, ezEthValidators } from './getRenzoEZETHWarpConfig.js';
+import {
+  MAX_PROTOCOL_FEE,
+  ezEthSafes,
+  ezEthValidators,
+  protocolFee,
+} from './getRenzoEZETHWarpConfig.js';
 
 const lockbox = '0xbC5511354C4A9a50DE928F56DB01DD327c4e56d5';
 const xERC20 = '0x9cb41CD74D01ae4b4f640EC40f7A60cA1bCF83E7';
@@ -17,16 +25,18 @@ const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
 const warpRouteOverheadGas = 200_000;
 
-const chainsToDeploy = ['ethereum', 'zircuit'];
+const chainsToDeploy = ['ethereum', 'swell', 'zircuit'];
 
 const pzEthValidators = {
   ethereum: ezEthValidators.ethereum,
   zircuit: ezEthValidators.zircuit,
+  swell: ezEthValidators.swell,
 };
 
 const pzEthSafes: Record<string, string> = {
   ethereum: ezEthSafes.ethereum,
   zircuit: ezEthSafes.zircuit,
+  swell: ezEthSafes.swell,
 };
 
 export const getRenzoPZETHWarpConfig = async (): Promise<
@@ -90,6 +100,13 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
                     owner: pzEthSafes[chain],
                   },
                 ],
+              },
+              hook: {
+                type: HookType.PROTOCOL_FEE,
+                owner: ezEthSafes[chain],
+                beneficiary: ezEthSafes[chain],
+                protocolFee: parseEther(protocolFee).toString(),
+                maxProtocolFee: MAX_PROTOCOL_FEE,
               },
             },
           ];
