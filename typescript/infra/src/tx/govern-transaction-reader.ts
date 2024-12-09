@@ -154,6 +154,7 @@ export class GovernTransactionReader {
   ): boolean {
     return (
       tx.to !== undefined &&
+      this.warpRouteIndex[chain] !== undefined &&
       this.warpRouteIndex[chain][tx.to.toLowerCase()] !== undefined
     );
   }
