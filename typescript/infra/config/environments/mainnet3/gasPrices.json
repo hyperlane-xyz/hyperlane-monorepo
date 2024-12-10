@@ -11,6 +11,10 @@
     "amount": "25.42069",
     "decimals": 9
   },
+  "appchain": {
+    "amount": "0.01",
+    "decimals": 9
+  },
   "arbitrum": {
     "amount": "0.123544",
     "decimals": 9
@@ -40,7 +44,7 @@
     "decimals": 9
   },
   "base": {
-    "amount": "0.024525952",
+    "amount": "0.060189299",
     "decimals": 9
   },
   "bitlayer": {
@@ -148,7 +152,7 @@
     "decimals": 9
   },
   "immutablezkevmmainnet": {
-    "amount": "10.00000005",
+    "amount": "11.00000005",
     "decimals": 9
   },
   "inevm": {
@@ -176,15 +180,19 @@
     "decimals": 9
   },
   "lukso": {
-    "amount": "0.475094399",
+    "amount": "0.921815267",
     "decimals": 9
   },
   "lumia": {
     "amount": "1.0",
     "decimals": 9
   },
+  "lumiaprism": {
+    "amount": "1.0",
+    "decimals": 9
+  },
   "mantapacific": {
-    "amount": "0.0030005",
+    "amount": "0.00300029",
     "decimals": 9
   },
   "mantle": {
@@ -220,7 +228,7 @@
     "decimals": 9
   },
   "morph": {
-    "amount": "0.014614332",
+    "amount": "0.201",
     "decimals": 9
   },
   "neutron": {
@@ -256,7 +264,7 @@
     "decimals": 9
   },
   "prom": {
-    "amount": "75.2",
+    "amount": "546.0",
     "decimals": 9
   },
   "proofofplay": {
@@ -292,7 +300,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "3.89327567",
+    "amount": "5.040876434",
     "decimals": 9
   },
   "snaxchain": {
@@ -315,12 +323,20 @@
     "amount": "0.01",
     "decimals": 9
   },
+  "swell": {
+    "amount": "0.001000251",
+    "decimals": 9
+  },
   "taiko": {
-    "amount": "0.1243284",
+    "amount": "0.200795266",
     "decimals": 9
   },
   "tangle": {
     "amount": "1.0",
+    "decimals": 9
+  },
+  "treasure": {
+    "amount": "10000.0",
     "decimals": 9
   },
   "unichain": {
@@ -328,7 +344,7 @@
     "decimals": 9
   },
   "vana": {
-    "amount": "0.001000007",
+    "amount": "0.002488334",
     "decimals": 9
   },
   "viction": {
@@ -357,6 +373,10 @@
   },
   "zircuit": {
     "amount": "0.001000253",
+    "decimals": 9
+  },
+  "zklink": {
+    "amount": "0.125",
     "decimals": 9
   },
   "zksync": {

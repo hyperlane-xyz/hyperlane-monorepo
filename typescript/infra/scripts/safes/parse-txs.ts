@@ -5,12 +5,7 @@ import { stringifyObject } from '@hyperlane-xyz/utils';
 
 import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
 import { getSafeTx } from '../../src/utils/safe.js';
-import {
-  getArgs,
-  withChainRequired,
-  withChainsRequired,
-  withTxHashes,
-} from '../agent-utils.js';
+import { getArgs, withChainsRequired, withTxHashes } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
@@ -22,11 +17,15 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
 
+  const registry = await config.getRegistry();
+  const warpRoutes = await registry.getWarpRoutes();
+
   const reader = new GovernTransactionReader(
     environment,
     multiProvider,
     chainAddresses,
     config.core,
+    warpRoutes,
   );
 
   const chainResultEntries = await Promise.all(

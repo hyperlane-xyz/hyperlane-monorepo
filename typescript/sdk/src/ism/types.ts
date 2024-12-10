@@ -14,10 +14,13 @@ import {
 } from '@hyperlane-xyz/core';
 import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
-import { OwnableConfig } from '../deploy/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { OwnableSchema, PausableSchema } from '../schemas.js';
-import { ChainMap } from '../types.js';
+import {
+  ChainMap,
+  OwnableConfig,
+  OwnableSchema,
+  PausableSchema,
+} from '../types.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
@@ -42,6 +45,7 @@ export enum IsmType {
   OP_STACK = 'opStackIsm',
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
+  ICA_ROUTING = 'icaRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
   STORAGE_AGGREGATION = 'storageAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
@@ -67,8 +71,8 @@ export const MUTABLE_ISM_TYPE = [
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
     case IsmType.ROUTING:
-      return ModuleType.ROUTING;
     case IsmType.FALLBACK_ROUTING:
+    case IsmType.ICA_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
@@ -122,10 +126,20 @@ export type NullIsmConfig =
   | OpStackIsmConfig
   | TrustedRelayerIsmConfig;
 
-export type RoutingIsmConfig = OwnableConfig & {
-  type: IsmType.ROUTING | IsmType.FALLBACK_ROUTING;
-  domains: ChainMap<IsmConfig>;
+type BaseRoutingIsmConfig<
+  T extends IsmType.ROUTING | IsmType.FALLBACK_ROUTING | IsmType.ICA_ROUTING,
+> = {
+  type: T;
 };
+
+export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
+  IsmType.ROUTING | IsmType.FALLBACK_ROUTING
+> &
+  OwnableConfig & { domains: ChainMap<IsmConfig> };
+
+export type IcaRoutingIsmConfig = BaseRoutingIsmConfig<IsmType.ICA_ROUTING>;
+
+export type RoutingIsmConfig = IcaRoutingIsmConfig | DomainRoutingIsmConfig;
 
 export type AggregationIsmConfig = {
   type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;
@@ -139,6 +153,7 @@ export type DeployedIsmType = {
   [IsmType.CUSTOM]: IInterchainSecurityModule;
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
+  [IsmType.ICA_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.STORAGE_AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
@@ -227,13 +242,19 @@ export const WeightedMultisigIsmConfigSchema = WeightedMultisigConfigSchema.and(
 
 export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
   () =>
-    OwnableSchema.extend({
-      type: z.union([
-        z.literal(IsmType.ROUTING),
-        z.literal(IsmType.FALLBACK_ROUTING),
-      ]),
-      domains: z.record(IsmConfigSchema),
-    }),
+    z.discriminatedUnion('type', [
+      z.object({
+        type: z.literal(IsmType.ICA_ROUTING),
+      }),
+      OwnableSchema.extend({
+        type: z.literal(IsmType.ROUTING),
+        domains: z.record(IsmConfigSchema),
+      }),
+      OwnableSchema.extend({
+        type: z.literal(IsmType.FALLBACK_ROUTING),
+        domains: z.record(IsmConfigSchema),
+      }),
+    ]),
 );
 
 export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
