@@ -17,10 +17,13 @@ const TARGET_DEV_PATH = join(currentDirectory, CONFIG.PATHS.MAIN);
  * @returns {CompiledContract} The parsed contract data
  * @throws {ContractError} If the file is not found, cannot be parsed, or name is invalid
  */
-export const getCompiledContract = (name: string): CompiledContract => {
+export const getCompiledContract = (
+  name: string,
+  contractType?: ContractType,
+): CompiledContract => {
   try {
     return JSON.parse(
-      readFileSync(findContractFile(name, 'STANDARD'), 'utf-8'),
+      readFileSync(findContractFile(name, 'STANDARD', contractType), 'utf-8'),
     );
   } catch (error: unknown) {
     if (error instanceof ContractError) throw error;
@@ -42,10 +45,13 @@ export const getCompiledContract = (name: string): CompiledContract => {
  * @returns {CairoAssembly} The parsed CASM contract data
  * @throws {ContractError} If the file is not found, cannot be parsed, or name is invalid
  */
-export const getCompiledContractCasm = (name: string): CairoAssembly => {
+export const getCompiledContractCasm = (
+  name: string,
+  contractType?: ContractType,
+): CairoAssembly => {
   try {
     return JSON.parse(
-      readFileSync(findContractFile(name, 'COMPILED'), 'utf-8'),
+      readFileSync(findContractFile(name, 'COMPILED', contractType), 'utf-8'),
     );
   } catch (error: unknown) {
     if (error instanceof ContractError) throw error;
@@ -61,46 +67,39 @@ export const getCompiledContractCasm = (name: string): CairoAssembly => {
 };
 
 /**
+ * @notice Contract file type enum
+ */
+export enum ContractType {
+  CONTRACT = 'contracts_',
+  TOKEN = 'token_',
+  MOCK = 'mock_',
+}
+
+/**
  * @notice Finds the path to a contract file based on predefined patterns
- * @dev Searches for contract files in multiple predefined locations:
- *      - contracts_{name}{suffix}
- *      - token_{name}{suffix}
  * @param name The base name of the contract to find
  * @param suffix The type of contract file to look for (from CONFIG.SUFFIXES)
- * @returns {string} The full path to the first matching contract file
- * @throws {ContractError} If no matching file is found or the contract name is invalid
+ * @param type Optional contract type prefix (defaults to CONTRACT)
+ * @returns {string} The full path to the contract file
+ * @throws {ContractError} If file is not found or the contract name is invalid
  */
 function findContractFile(
   name: string,
   suffix: keyof typeof CONFIG.SUFFIXES,
+  type: ContractType = ContractType.CONTRACT,
 ): string {
   assertValidContractName(name);
 
   const suffixPath = CONFIG.SUFFIXES[suffix];
-  const possiblePaths = [
-    {
-      type: 'contracts',
-      path: `${TARGET_DEV_PATH}/contracts_${name}${suffixPath}`,
-    },
-    {
-      type: 'token',
-      path: `${TARGET_DEV_PATH}/token_${name}${suffixPath}`,
-    },
-  ];
+  const path = `${TARGET_DEV_PATH}/${type}${name}${suffixPath}`;
 
-  const existingPath = possiblePaths.find(({ path }) => existsSync(path));
-
-  if (!existingPath) {
+  if (!existsSync(path)) {
     throw new ContractError(
       ErrorMessages[CONFIG.ERROR_CODES.FILE_NOT_FOUND],
       CONFIG.ERROR_CODES.FILE_NOT_FOUND,
-      {
-        name,
-        suffix,
-        path: possiblePaths[0].path,
-      },
+      { name, suffix, path },
     );
   }
 
-  return existingPath.path;
+  return path;
 }
