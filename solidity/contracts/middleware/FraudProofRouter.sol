@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {console} from "forge-std/console.sol";
+
 /*@@@@@@@       @@@@@@@@@
  @@@@@@@@@       @@@@@@@@@
   @@@@@@@@@       @@@@@@@@@
@@ -25,7 +27,7 @@ contract FraudProofRouter is GasRouter {
     AttributeCheckpointFraud public immutable attributeCheckpointFraud;
 
     // Mapping to store the fraud attributions for a given origin, signer, merkle tree, and digest for easy access for client contracts to aide slashing
-    mapping(uint32 origin => mapping(bytes32 signer => mapping(bytes32 merkleTree => mapping(bytes32 digest => Attribution))))
+    mapping(uint32 origin => mapping(address signer => mapping(bytes32 merkleTree => mapping(bytes32 digest => Attribution))))
         public fraudAttributions;
 
     // ===================== Events =======================
@@ -38,7 +40,7 @@ contract FraudProofRouter is GasRouter {
 
     event FraudProofReceived(
         uint32 indexed origin,
-        bytes32 indexed signer,
+        address indexed signer,
         bytes32 indexed digest,
         Attribution attribution
     );
@@ -84,8 +86,13 @@ contract FraudProofRouter is GasRouter {
 
         require(attribution.timestamp != 0, "Attribution does not exist");
 
+        console.log(
+            "attribution",
+            uint8(attribution.fraudType),
+            uint48(attribution.timestamp)
+        );
         bytes memory encodedMessage = FraudMessage.encode(
-            TypeCasts.addressToBytes32(_signer),
+            _signer,
             _merkleTree,
             _digest,
             attribution
@@ -115,7 +122,7 @@ contract FraudProofRouter is GasRouter {
         bytes calldata _message
     ) internal override {
         (
-            bytes32 signer,
+            address signer,
             bytes32 merkleTree,
             bytes32 digest,
             Attribution memory attribution

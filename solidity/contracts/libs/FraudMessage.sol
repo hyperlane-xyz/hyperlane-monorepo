@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+import {console} from "forge-std/console.sol";
+
 /*@@@@@@@       @@@@@@@@@
  @@@@@@@@@       @@@@@@@@@
   @@@@@@@@@       @@@@@@@@@
@@ -27,15 +29,8 @@ struct Attribution {
 }
 
 library FraudMessage {
-    uint8 public constant SIGNER_OFFSET = 0;
-    uint8 public constant MERKLE_TREE_OFFSET = 32;
-    uint8 public constant DIGEST_OFFSET = 64;
-    uint8 public constant FRAUD_TYPE_OFFSET = 96;
-    uint8 public constant TIMESTAMP_OFFSET = 97;
-    uint8 public constant MESSAGE_LENGTH = 103;
-
     function encode(
-        bytes32 signer,
+        address signer,
         bytes32 merkleTree,
         bytes32 digest,
         Attribution memory attribution
@@ -52,18 +47,17 @@ library FraudMessage {
 
     function decode(
         bytes calldata _message
-    ) internal pure returns (bytes32, bytes32, bytes32, Attribution memory) {
-        require(_message.length == MESSAGE_LENGTH, "Invalid message length");
+    ) internal view returns (address, bytes32, bytes32, Attribution memory) {
+        require(_message.length == 91, "Invalid message length");
+        console.logBytes(_message);
 
-        bytes32 signer = bytes32(_message[SIGNER_OFFSET:MERKLE_TREE_OFFSET]);
-        bytes32 merkleTree = bytes32(
-            _message[MERKLE_TREE_OFFSET:DIGEST_OFFSET]
-        );
-        bytes32 digest = bytes32(_message[DIGEST_OFFSET:FRAUD_TYPE_OFFSET]);
-        FraudType fraudType = FraudType(uint8(_message[FRAUD_TYPE_OFFSET]));
-        uint48 timestamp = uint48(
-            bytes6(_message[TIMESTAMP_OFFSET:MESSAGE_LENGTH])
-        );
+        address signer = address(uint160(uint256(bytes32(_message[0:20]))));
+        bytes32 merkleTree = bytes32(_message[20:52]);
+        bytes32 digest = bytes32(_message[52:84]);
+        FraudType fraudType = FraudType(uint8(_message[84]));
+        console.log("fraudType", uint8(fraudType));
+        uint48 timestamp = uint48(bytes6(_message[85:91]));
+        console.log("timestamp", timestamp);
 
         return (signer, merkleTree, digest, Attribution(fraudType, timestamp));
     }
