@@ -92,7 +92,8 @@ export const apply: CommandModuleWithWriteContext<{
     },
     relay: {
       type: 'boolean',
-      description: 'Handle self-relay of message on destination chain',
+      description:
+        'Handle self-relay of ICA transactions when using a JSON RPC submitter',
       default: false,
     },
   },
