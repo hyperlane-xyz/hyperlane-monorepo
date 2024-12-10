@@ -14,7 +14,6 @@ import {
   ChainSubmissionStrategySchema,
   ContractVerifier,
   DestinationGas,
-  DispatchedMessage,
   EvmERC20WarpModule,
   EvmERC20WarpRouteReader,
   EvmHookModule,
@@ -28,9 +27,7 @@ import {
   HypTokenRouterConfig,
   HyperlaneContracts,
   HyperlaneContractsMap,
-  HyperlaneCore,
   HyperlaneProxyFactoryDeployer,
-  HyperlaneRelayer,
   IsmConfig,
   IsmType,
   MultiProvider,
@@ -82,7 +79,7 @@ import {
   runFileSelectionStep,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { stubMerkleTreeConfig } from '../utils/relay.js';
+import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
 import {
   completeDeploy,
@@ -1029,57 +1026,13 @@ async function submitWarpApplyTransactions(
       await retryAsync(
         async () => {
           const chain = chainIdToName[chainId];
-          const submitter: TxSubmitterBuilder<ProtocolType> =
-            await getWarpApplySubmitter({
+          const { submitter, config } =
+            await getWarpApplySubmitter<ProtocolType.Ethereum>({
               chain,
               context: params.context,
               strategyUrl: params.strategyUrl,
             });
           const transactionReceipts = await submitter.submit(...transactions);
-
-          console.log(transactionReceipts);
-
-          // TODO: Put this into a function
-          if (
-            params.selfRelay &&
-            submitter.txSubmitterType === TxSubmitterType.INTERCHAIN_ACCOUNT &&
-            transactionReceipts
-          ) {
-            const txReceipt = Array.isArray(transactionReceipts)
-              ? transactionReceipts[0]
-              : transactionReceipts;
-
-            const chainAddresses = await params.context.registry.getAddresses();
-            const core = HyperlaneCore.fromAddressesMap(
-              chainAddresses,
-              params.context.multiProvider,
-            );
-
-            const relayer = new HyperlaneRelayer({ core });
-
-            const messageIndex: number = 0;
-            const message: DispatchedMessage =
-              HyperlaneCore.getDispatchedMessages(txReceipt as any)[
-                messageIndex
-              ];
-
-            const originChain = params.context.multiProvider.getChainName(
-              message.parsed.origin,
-            );
-
-            const hookAddress = await core.getSenderHookAddress(message);
-            const merkleAddress = chainAddresses[originChain].merkleTreeHook;
-            stubMerkleTreeConfig(
-              relayer,
-              originChain,
-              hookAddress,
-              merkleAddress,
-            );
-
-            log('Attempting self-relay of warp route update...');
-            await relayer.relayMessage(txReceipt as any, messageIndex, message);
-            logGreen(WarpSendLogs.SUCCESS);
-          }
 
           if (transactionReceipts) {
             const receiptPath = `${params.receiptsDir}/${chain}-${
@@ -1089,6 +1042,20 @@ async function submitWarpApplyTransactions(
             logGreen(
               `Transactions receipts successfully written to ${receiptPath}`,
             );
+          }
+
+          const canRelay = canSelfRelay(
+            params.selfRelay ?? false,
+            config,
+            transactionReceipts,
+          );
+          if (canRelay.relay) {
+            await runSelfRelay({
+              txReceipt: canRelay.txReceipt,
+              multiProvider: params.context.multiProvider,
+              registry: params.context.registry,
+              successMessage: WarpSendLogs.SUCCESS,
+            });
           }
         },
         5, // attempts
@@ -1103,7 +1070,7 @@ async function submitWarpApplyTransactions(
  *
  * @returns the warp apply submitter
  */
-async function getWarpApplySubmitter({
+async function getWarpApplySubmitter<T extends ProtocolType>({
   chain,
   context,
   strategyUrl,
@@ -1111,13 +1078,14 @@ async function getWarpApplySubmitter({
   chain: ChainName;
   context: WriteCommandContext;
   strategyUrl?: string;
-}): Promise<TxSubmitterBuilder<ProtocolType>> {
+}): Promise<{
+  submitter: TxSubmitterBuilder<T>;
+  config: SubmissionStrategy;
+}> {
   const { multiProvider, registry } = context;
 
   const submissionStrategy: SubmissionStrategy = strategyUrl
-    ? SubmissionStrategySchema.parse(
-        readChainSubmissionStrategy(strategyUrl)[chain],
-      )
+    ? readChainSubmissionStrategy(strategyUrl)[chain]
     : {
         submitter: {
           chain,
@@ -1125,9 +1093,12 @@ async function getWarpApplySubmitter({
         },
       };
 
-  return getSubmitterBuilder<ProtocolType>({
-    submissionStrategy,
-    multiProvider,
-    registry,
-  });
+  return {
+    submitter: await getSubmitterBuilder<T>({
+      submissionStrategy: SubmissionStrategySchema.parse(submissionStrategy),
+      multiProvider,
+      registry,
+    }),
+    config: submissionStrategy,
+  };
 }
