@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 
-import {FraudType} from "../contracts/libs/FraudMessage.sol";
+import {FraudType, Attribution} from "../contracts/libs/FraudMessage.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {TestAttributeCheckpointFraud} from "../contracts/test/TestAttributeCheckpointFraud.sol";
 import {FraudProofRouter} from "../contracts/middleware/FraudProofRouter.sol";
@@ -77,6 +77,13 @@ contract FraudProofRouterTest is Test {
 
         testAcf.mockSetAttribution(_signer, _digest, fraudTypeEnum);
 
+        vm.expectEmit(true, true, true, true, address(originFpr));
+        emit FraudProofRouter.FraudProofSent(
+            _signer,
+            _digest,
+            Attribution(fraudTypeEnum, uint48(block.timestamp))
+        );
+
         originFpr.sendFraudProof(
             DESTINATION_DOMAIN,
             _signer,
@@ -84,6 +91,13 @@ contract FraudProofRouterTest is Test {
             _digest
         );
 
+        vm.expectEmit(true, true, true, true, address(remoteFpr));
+        emit FraudProofRouter.FraudProofReceived(
+            LOCAL_DOMAIN,
+            _signer,
+            _digest,
+            Attribution(fraudTypeEnum, uint48(block.timestamp))
+        );
         remoteMailbox.processNextInboundMessage();
 
         (FraudType actualFraudType, uint48 actualTimestamp) = remoteFpr
