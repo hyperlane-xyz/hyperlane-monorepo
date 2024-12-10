@@ -14,7 +14,7 @@ struct Checkpoint {
 
 struct SignedCheckpoint {
     Checkpoint checkpoint;
-    bytes signature; // 72 bytes
+    bytes signature;
 }
 
 library CheckpointLib {

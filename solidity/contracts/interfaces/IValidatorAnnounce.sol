@@ -26,4 +26,11 @@ interface IValidatorAnnounce {
         string calldata _storageLocation,
         bytes calldata _signature
     ) external returns (bool);
+
+    /**
+     * @notice Check if a validator has made any announcements
+     * @param _validator The validator address to check
+     * @return True if the validator has made announcements
+     */
+    function hasAnnounced(address _validator) external view returns (bool);
 }

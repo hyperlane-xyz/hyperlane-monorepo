@@ -24,6 +24,7 @@ import { CheckpointStorageConfig } from './types.js';
 export type CheckpointModuleAddresses = {
   deployedCheckpoint: string;
   mailbox: string;
+  validatorAnnounce: string;
 };
 
 export class EvmCheckpointModule extends HyperlaneModule<
@@ -71,7 +72,7 @@ export class EvmCheckpointModule extends HyperlaneModule<
   }: {
     chain: ChainName;
     config: CheckpointStorageConfig;
-    coreAddresses: { mailbox: string };
+    coreAddresses: { mailbox: string; validatorAnnounce: string };
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmCheckpointModule> {
@@ -106,7 +107,7 @@ export class EvmCheckpointModule extends HyperlaneModule<
     return this.deployer.deployContract({
       chain: config.chain,
       contractKey: 'checkpointStorage',
-      constructorArgs: [],
+      constructorArgs: [this.args.addresses.validatorAnnounce],
     });
   }
 

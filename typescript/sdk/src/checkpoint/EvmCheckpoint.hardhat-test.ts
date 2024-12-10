@@ -6,6 +6,8 @@ import hre from 'hardhat';
 import {
   CheckpointStorage,
   CheckpointStorage__factory,
+  ValidatorAnnounce,
+  ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
@@ -25,6 +27,7 @@ describe('CheckpointModule', async () => {
   let signer: Signer;
   let checkpointModule: EvmCheckpointModule;
   let checkpointStorage: CheckpointStorage;
+  let validatorAnnounce: ValidatorAnnounce;
 
   before(async () => {
     [signer] = await hre.ethers.getSigners();
@@ -41,29 +44,38 @@ describe('CheckpointModule', async () => {
       multiProvider,
     );
 
-    // core deployer for tests
     const testCoreDeployer = new TestCoreDeployer(
       multiProvider,
       legacyIsmFactory,
     );
 
     // mailbox and proxy admin for the core deploy
-    const { mailbox, proxyAdmin, validatorAnnounce } = (
-      await testCoreDeployer.deployApp()
-    ).getContracts(chain);
+    const {
+      mailbox,
+      proxyAdmin,
+      validatorAnnounce: validatorAnnounceContract,
+    } = (await testCoreDeployer.deployApp()).getContracts(chain);
 
     coreAddresses = {
       mailbox: mailbox.address,
       proxyAdmin: proxyAdmin.address,
-      validatorAnnounce: validatorAnnounce.address,
+      validatorAnnounce: validatorAnnounceContract.address,
     };
+
+    validatorAnnounce = ValidatorAnnounce__factory.connect(
+      validatorAnnounceContract.address,
+      multiProvider.getSignerOrProvider(chain),
+    );
   });
 
   beforeEach(async () => {
     checkpointModule = await EvmCheckpointModule.create({
       chain,
       config: { chain },
-      coreAddresses: { mailbox: coreAddresses.mailbox },
+      coreAddresses: {
+        mailbox: coreAddresses.mailbox,
+        validatorAnnounce: coreAddresses.validatorAnnounce,
+      },
       multiProvider,
     });
 
@@ -85,54 +97,88 @@ describe('CheckpointModule', async () => {
     });
   });
 
-  it('should write and fetch announcement correctly', async () => {
-    // Use the signer's address as the validator address since it needs to match
+  it('should write and fetch checkpoint correctly', async () => {
     const validatorAddress = await signer.getAddress();
-    const mockMailboxAddress = ethers.utils.hexlify(
-      ethers.utils.randomBytes(32),
-    );
-    const mockAnnouncement = {
-      value: {
-        validator: validatorAddress,
-        mailboxAddress: mockMailboxAddress,
-        mailboxDomain: 1,
-        storageLocation: 'test_location',
-      },
-      // Sign the announcement with the validator's key
-      signature: await signer.signMessage(
-        ethers.utils.arrayify(
-          ethers.utils.keccak256(
-            ethers.utils.defaultAbiCoder.encode(
-              ['address', 'bytes32', 'uint32', 'string'],
-              [validatorAddress, mockMailboxAddress, 1, 'test_location'],
-            ),
-          ),
-        ),
+    const storageLocation = 's3://test-bucket/us-east-1';
+
+    // Calculate message hash (same as inside getAnnouncementDigest but without toEthSignedMessageHash)
+    const localDomain = await validatorAnnounce.localDomain();
+    const mailboxAddress = await validatorAnnounce.mailbox();
+    const domainHash2 = ethers.utils.keccak256(
+      ethers.utils.solidityPack(
+        ['uint32', 'bytes32', 'string'],
+        [
+          localDomain,
+          ethers.utils.hexZeroPad(mailboxAddress, 32),
+          'HYPERLANE_ANNOUNCEMENT',
+        ],
       ),
+    );
+    const messageHash = ethers.utils.keccak256(
+      ethers.utils.solidityPack(
+        ['bytes32', 'string'],
+        [domainHash2, storageLocation],
+      ),
+    );
+
+    const signatureObj = await signer.signMessage(
+      ethers.utils.arrayify(messageHash),
+    );
+    const signature = ethers.utils.joinSignature(signatureObj);
+
+    const tx = await validatorAnnounce.announce(
+      validatorAddress,
+      storageLocation,
+      signature,
+      multiProvider.getTransactionOverrides(chain),
+    );
+    await tx.wait();
+
+    // Create a mock checkpoint
+    const checkpoint = {
+      origin: await multiProvider.getDomainId(chain),
+      merkleTree: ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+      root: ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+      index: 1,
+      messageId: ethers.utils.hexlify(ethers.utils.randomBytes(32)),
     };
 
-    // Write announcement
-    await checkpointStorage.writeAnnouncement(
-      mockAnnouncement.value,
-      mockAnnouncement.signature,
+    // Sign the checkpoint
+    const domainHash = ethers.utils.keccak256(
+      ethers.utils.solidityPack(
+        ['uint32', 'bytes32'],
+        [checkpoint.origin, checkpoint.merkleTree],
+      ),
+    );
+    const checkpointDigest = ethers.utils.keccak256(
+      ethers.utils.solidityPack(
+        ['bytes32', 'bytes32', 'uint32', 'bytes32'],
+        [domainHash, checkpoint.root, checkpoint.index, checkpoint.messageId],
+      ),
+    );
+    const checkpointSignature = await signer.signMessage(
+      ethers.utils.arrayify(checkpointDigest),
     );
 
-    // Fetch announcement
-    const fetchedAnnouncement = await checkpointStorage.fetchAnnouncement(
+    await checkpointStorage.writeCheckpoint({
+      checkpoint,
+      signature: checkpointSignature,
+    });
+
+    const fetchedCheckpoint = await checkpointStorage.fetchCheckpoint(
       validatorAddress,
+      checkpoint.index,
     );
-    expect(fetchedAnnouncement.signature).to.equal(mockAnnouncement.signature);
-    expect(fetchedAnnouncement.value.validator).to.equal(
-      mockAnnouncement.value.validator,
+
+    expect(fetchedCheckpoint.checkpoint.origin).to.equal(checkpoint.origin);
+    expect(fetchedCheckpoint.checkpoint.merkleTree).to.equal(
+      checkpoint.merkleTree,
     );
-    expect(fetchedAnnouncement.value.mailboxAddress).to.equal(
-      mockAnnouncement.value.mailboxAddress,
+    expect(fetchedCheckpoint.checkpoint.root).to.equal(checkpoint.root);
+    expect(fetchedCheckpoint.checkpoint.index).to.equal(checkpoint.index);
+    expect(fetchedCheckpoint.checkpoint.messageId).to.equal(
+      checkpoint.messageId,
     );
-    expect(fetchedAnnouncement.value.mailboxDomain).to.equal(
-      mockAnnouncement.value.mailboxDomain,
-    );
-    expect(fetchedAnnouncement.value.storageLocation).to.equal(
-      mockAnnouncement.value.storageLocation,
-    );
+    expect(fetchedCheckpoint.signature).to.equal(checkpointSignature);
   });
 });

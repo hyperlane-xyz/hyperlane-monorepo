@@ -101,4 +101,24 @@ contract ValidatorAnnounceTest is Test {
             expectedLocations2
         );
     }
+
+    function testHasAnnounced() public {
+        uint256 privateKey = 123456789;
+        address validator = vm.addr(privateKey);
+
+        // Should return false before announcement
+        assertFalse(valAnnounce.hasAnnounced(validator));
+
+        // Announce a location
+        string memory storageLocation = "s3://test-bucket/us-east-1";
+        announce(privateKey, storageLocation, false);
+
+        // Should return true after announcement
+        assertTrue(valAnnounce.hasAnnounced(validator));
+
+        // Should still return false for non-announced validator
+        uint256 otherKey = 987654321;
+        address otherValidator = vm.addr(otherKey);
+        assertFalse(valAnnounce.hasAnnounced(otherValidator));
+    }
 }
