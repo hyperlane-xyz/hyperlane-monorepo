@@ -13,6 +13,7 @@ import {
   ChainSubmissionStrategySchema,
   ContractVerifier,
   DestinationGas,
+  DispatchedMessage,
   EvmERC20WarpModule,
   EvmERC20WarpRouteReader,
   EvmIsmModule,
@@ -24,7 +25,9 @@ import {
   HyperlaneAddresses,
   HyperlaneContracts,
   HyperlaneContractsMap,
+  HyperlaneCore,
   HyperlaneProxyFactoryDeployer,
+  HyperlaneRelayer,
   IsmType,
   MultiProvider,
   MultisigIsmConfig,
@@ -67,6 +70,7 @@ import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
+import { WarpSendLogs } from '../send/transfer.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
@@ -75,6 +79,7 @@ import {
   runFileSelectionStep,
   writeYamlOrJson,
 } from '../utils/files.js';
+import { stubMerkleTreeConfig } from '../utils/relay.js';
 
 import {
   completeDeploy,
@@ -91,6 +96,7 @@ interface WarpApplyParams extends DeployParams {
   warpCoreConfig: WarpCoreConfig;
   strategyUrl?: string;
   receiptsDir: string;
+  selfRelay?: boolean;
 }
 
 export async function runWarpRouteDeploy({
@@ -956,6 +962,51 @@ async function submitWarpApplyTransactions(
               strategyUrl: params.strategyUrl,
             });
           const transactionReceipts = await submitter.submit(...transactions);
+
+          console.log(transactionReceipts);
+
+          // TODO: Put this into a function
+          if (
+            params.selfRelay &&
+            submitter.txSubmitterType === TxSubmitterType.INTERCHAIN_ACCOUNT &&
+            transactionReceipts
+          ) {
+            const txReceipt = Array.isArray(transactionReceipts)
+              ? transactionReceipts[0]
+              : transactionReceipts;
+
+            const chainAddresses = await params.context.registry.getAddresses();
+            const core = HyperlaneCore.fromAddressesMap(
+              chainAddresses,
+              params.context.multiProvider,
+            );
+
+            const relayer = new HyperlaneRelayer({ core });
+
+            const messageIndex: number = 0;
+            const message: DispatchedMessage =
+              HyperlaneCore.getDispatchedMessages(txReceipt as any)[
+                messageIndex
+              ];
+
+            const originChain = params.context.multiProvider.getChainName(
+              message.parsed.origin,
+            );
+
+            const hookAddress = await core.getSenderHookAddress(message);
+            const merkleAddress = chainAddresses[originChain].merkleTreeHook;
+            stubMerkleTreeConfig(
+              relayer,
+              originChain,
+              hookAddress,
+              merkleAddress,
+            );
+
+            log('Attempting self-relay of warp route update...');
+            await relayer.relayMessage(txReceipt as any, messageIndex, message);
+            logGreen(WarpSendLogs.SUCCESS);
+          }
+
           if (transactionReceipts) {
             const receiptPath = `${params.receiptsDir}/${chain}-${
               submitter.txSubmitterType

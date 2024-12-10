@@ -1,0 +1,7 @@
+anvil3:
+  submitter:
+    type: interchainAccount
+    chain: anvil2
+    destinationChain: anvil3
+    internalSubmitter:
+      type: jsonRpc
