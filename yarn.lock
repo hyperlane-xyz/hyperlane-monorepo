@@ -8706,6 +8706,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@hyperlane-xyz/starknet-core@workspace:starknet":
+  version: 0.0.0-use.local
+  resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
+  dependencies:
+    starknet: "npm:6.11.0"
+    typescript: "npm:5.3.3"
+  languageName: unknown
+  linkType: soft
+
 "@hyperlane-xyz/utils@npm:7.1.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
@@ -15360,6 +15369,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@starknet-io/types-js@npm:^0.7.7":
+  version: 0.7.10
+  resolution: "@starknet-io/types-js@npm:0.7.10"
+  checksum: 10/e7e10878d6d576dcd30c6910a819e8e9cbd72102c71a93be7e0282f229d75c5765d2b5d152f7ae0693987cdb00e3d04f02bad371d91f420ddbbed435aadfbe3e
+  languageName: node
+  linkType: hard
+
 "@storybook/addon-actions@npm:7.6.20":
   version: 7.6.20
   resolution: "@storybook/addon-actions@npm:7.6.20"
@@ -18366,7 +18382,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"abi-wan-kanabi@npm:^2.2.3":
+"abi-wan-kanabi@npm:^2.2.2, abi-wan-kanabi@npm:^2.2.3":
   version: 2.2.3
   resolution: "abi-wan-kanabi@npm:2.2.3"
   dependencies:
@@ -25288,6 +25304,15 @@ __metadata:
     data-uri-to-buffer: "npm:^2.0.0"
     source-map: "npm:^0.6.1"
   checksum: 10/6ba35ae0755046199b57d7fe254d50c6d7550d3b150e065a3607e3da8c55c617302f4c7cc3712252c7810954a04e2e56467ad02a0798c0841a5e980064bd3048
+  languageName: node
+  linkType: hard
+
+"get-starknet-core@npm:^4.0.0-next.3":
+  version: 4.0.0
+  resolution: "get-starknet-core@npm:4.0.0"
+  dependencies:
+    "@starknet-io/types-js": "npm:^0.7.7"
+  checksum: 10/e1ae3a3b866dc86d0e8d8b59517ffcdc9b7b47105e5738068d36c957c7cf03e4d6a7c1d36eff355fb65114430b10e9defb909aba94a0df654a115961f90bbed9
   languageName: node
   linkType: hard
 
@@ -35120,6 +35145,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+"starknet@npm:6.11.0":
+  version: 6.11.0
+  resolution: "starknet@npm:6.11.0"
+  dependencies:
+    "@noble/curves": "npm:~1.4.0"
+    "@noble/hashes": "npm:^1.4.0"
+    "@scure/base": "npm:~1.1.3"
+    "@scure/starknet": "npm:~1.0.0"
+    abi-wan-kanabi: "npm:^2.2.2"
+    fetch-cookie: "npm:^3.0.0"
+    get-starknet-core: "npm:^4.0.0-next.3"
+    isomorphic-fetch: "npm:^3.0.0"
+    lossless-json: "npm:^4.0.1"
+    pako: "npm:^2.0.4"
+    starknet-types-07: "npm:@starknet-io/types-js@^0.7.7"
+    ts-mixer: "npm:^6.0.3"
+    url-join: "npm:^4.0.1"
+  checksum: 10/f2acd29277a908dbbb54dc6ebe533443d2449fc67d280ac0cec6d98ec06bbd83af497d438bb468eb3c6e7aec182c06ba134574183398361c63872ea67dbb2025
+  languageName: node
+  linkType: hard
+
 "starknet@npm:6.17.0":
   version: 6.17.0
   resolution: "starknet@npm:6.17.0"
@@ -37250,6 +37296,13 @@ __metadata:
   dependencies:
     punycode: "npm:^2.1.0"
   checksum: 10/b271ca7e3d46b7160222e3afa3e531505161c9a4e097febae9664e4b59912f4cbe94861361a4175edac3a03fee99d91e44b6a58c17a634bc5a664b19fc76fbcb
+  languageName: node
+  linkType: hard
+
+"url-join@npm:^4.0.1":
+  version: 4.0.1
+  resolution: "url-join@npm:4.0.1"
+  checksum: 10/b53b256a9a36ed6b0f6768101e78ca97f32d7b935283fd29ce19d0bbfb6f88aa80aa6c03fd87f2f8978ab463a6539f597a63051e7086f3379685319a7495f709
   languageName: node
   linkType: hard
 
