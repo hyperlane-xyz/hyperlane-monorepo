@@ -6,9 +6,9 @@ polygonamoy:
     # The destination chain for the transactions
     destinationChain: polygonamoy
     # The owner of the remote ICA account
-    owner: "0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b"
+    owner: '0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b'
     internalSubmitter:
       type: gnosisSafeTxBuilder
       # The Gnosis Safe address. It must be equal to the owner field as
       # the Safe is the owner of ICA account on the remote chain
-      safeAddress: "0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b"
+      safeAddress: '0x32e02dDB233958834fcB5E93b11E254F8D1EAd1b'
