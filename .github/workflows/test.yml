@@ -271,7 +271,7 @@ jobs:
       - name: agent tests with Starknet
         run: cargo test --release --package run-locally --bin run-locally --features starknet -- starknet::test --nocapture
         if: matrix.e2e-type == 'starknet'
-        working-directory: ./rust
+        working-directory: ./rust/main
         env:
           RUST_BACKTRACE: 'full'
 
