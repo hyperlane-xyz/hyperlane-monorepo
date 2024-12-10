@@ -7,7 +7,7 @@ import {
   ChainMetadata,
   DerivedCoreConfig,
   HookType,
-  TokenRouterConfig,
+  HypTokenRouterConfig,
   TokenType,
   WarpRouteDeployConfig,
   normalizeConfig,
@@ -167,7 +167,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
 
     // Extend with new config
-    const config: TokenRouterConfig = {
+    const config: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',
@@ -220,7 +220,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
 
     // Extend with new config
-    const config: TokenRouterConfig = {
+    const config: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',
@@ -280,7 +280,7 @@ describe('hyperlane warp apply e2e tests', async function () {
 
     // Extend with new config
     const randomOwner = new Wallet(ANVIL_KEY).address;
-    const extendedConfig: TokenRouterConfig = {
+    const extendedConfig: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',
@@ -340,7 +340,7 @@ describe('hyperlane warp apply e2e tests', async function () {
 
     // Extend with new config
     const GAS = 694200;
-    const extendedConfig: TokenRouterConfig = {
+    const extendedConfig: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',
@@ -416,7 +416,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     );
 
     // Extend the warp route to add a token on chain 3
-    const extendedConfig: TokenRouterConfig = {
+    const extendedConfig: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',

@@ -2,10 +2,9 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   IsmConfig,
   OwnableConfig,
-  RouterConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -17,10 +16,10 @@ import {
 export const getBaseZeroNetworkCBBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
 
-  const base: TokenRouterConfig = {
+  const base: HypTokenRouterConfig = {
     ...routerConfig.base,
     ...abacusWorksEnvOwnerConfig.base,
     proxyAdmin: {
@@ -32,7 +31,7 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const zeronetwork: TokenRouterConfig = {
+  const zeronetwork: HypTokenRouterConfig = {
     ...routerConfig.zeronetwork,
     ...abacusWorksEnvOwnerConfig.zeronetwork,
     proxyAdmin: {

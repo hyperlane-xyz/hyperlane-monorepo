@@ -5,11 +5,11 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { TokenType } from './config.js';
 import {
+  WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  isCollateralConfig,
-} from './schemas.js';
-import { WarpRouteDeployConfig } from './types.js';
+  isCollateralTokenConfig,
+} from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 const COLLATERAL_TYPES = [
@@ -65,7 +65,7 @@ describe('WarpRouteDeployConfigSchema refine', () => {
   it('should throw if collateral type and token is empty', async () => {
     for (const type of COLLATERAL_TYPES) {
       config.arbitrum.type = type;
-      assert(isCollateralConfig(config.arbitrum), 'must be collateral');
+      assert(isCollateralTokenConfig(config.arbitrum), 'must be collateral');
 
       //@ts-ignore
       config.arbitrum.token = undefined;

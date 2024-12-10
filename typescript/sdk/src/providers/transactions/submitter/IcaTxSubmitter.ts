@@ -20,7 +20,7 @@ import { EV5GnosisSafeTxBuilder } from './ethersV5/EV5GnosisSafeTxBuilder.js';
 import { EV5GnosisSafeTxSubmitter } from './ethersV5/EV5GnosisSafeTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitter } from './ethersV5/EV5ImpersonatedAccountTxSubmitter.js';
 import { EV5JsonRpcTxSubmitter } from './ethersV5/EV5JsonRpcTxSubmitter.js';
-import { EvmIcaTxSubmitterPropsSchema } from './ethersV5/schemas.js';
+import { EvmIcaTxSubmitterPropsSchema } from './ethersV5/types.js';
 
 const EvmIcaTxSubmitterConfigSchema = EvmIcaTxSubmitterPropsSchema.required({
   originInterchainAccountRouter: true,
