@@ -151,7 +151,6 @@ export class EvmIcaTxSubmitter
       return [];
     }
 
-    // TODO: add checks to verify that the ica can send the txs on the destination chain
     const transactionChains = new Set(txs.map((tx) => tx.chainId));
     if (transactionChains.size !== 1) {
       throw new Error(
