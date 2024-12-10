@@ -117,6 +117,8 @@ verify_checksum() {
 
 cleanup() {
     rm -f "$TARGET_DIR/release.zip"
+    rm -f "$TARGET_DIR"/*.md5
+    rm -f "$TARGET_DIR"/*.sha256
 }
 
 main() {
