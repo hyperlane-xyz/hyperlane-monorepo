@@ -3,6 +3,7 @@ import { parseEther } from 'ethers/lib/utils.js';
 import { fraxtal } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
+  ChainName,
   HookType,
   HypTokenRouterConfig,
   IsmType,
@@ -31,10 +32,12 @@ const chainsToDeploy = [
   'sei',
   'swell',
 ];
-
 const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
-const protocolFee = (0.5 / Number(tokenPrices.ethereum)).toFixed(10).toString(); // ~$0.50 USD
+export function getProtocolFee(chain: ChainName) {
+  return (0.5 / Number(tokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
+}
+
 const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
 const warpRouteOverheadGas = 200_000;
@@ -332,7 +335,7 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                 type: HookType.PROTOCOL_FEE,
                 owner: ezEthSafes[chain],
                 beneficiary: ezEthSafes[chain],
-                protocolFee: parseEther(protocolFee).toString(),
+                protocolFee: parseEther(getProtocolFee(chain)).toString(),
                 maxProtocolFee: MAX_PROTOCOL_FEE,
               },
               proxyAdmin: existingProxyAdmins[chain],
