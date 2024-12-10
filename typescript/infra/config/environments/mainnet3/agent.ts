@@ -529,7 +529,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '43733b5-20241210-015124',
+      tag: '9df2c05-20241210-022553',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.

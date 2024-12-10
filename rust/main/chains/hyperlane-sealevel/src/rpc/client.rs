@@ -4,8 +4,8 @@ use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
     rpc_config::{
-        RpcBlockConfig, RpcProgramAccountsConfig, RpcSimulateTransactionConfig,
-        RpcTransactionConfig,
+        RpcBlockConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
+        RpcSimulateTransactionConfig, RpcTransactionConfig,
     },
     rpc_response::{Response, RpcSimulateTransactionResult},
 };
@@ -203,12 +203,19 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    pub async fn send_and_confirm_transaction(
+    pub async fn send_transaction(
         &self,
         transaction: &Transaction,
+        skip_preflight: bool,
     ) -> ChainResult<Signature> {
         self.0
-            .send_and_confirm_transaction(transaction)
+            .send_transaction_with_config(
+                transaction,
+                RpcSendTransactionConfig {
+                    skip_preflight,
+                    ..Default::default()
+                },
+            )
             .await
             .map_err(ChainCommunicationError::from_other)
     }

@@ -521,18 +521,14 @@ impl SealevelMailbox {
         if self.is_solana() {
             if let PriorityFeeOracleConfig::Helius(helius) = &self.priority_fee_oracle_config {
                 let rpc = SealevelRpcClient::new(helius.url.clone().into());
-                return self
-                    .provider
-                    .rpc()
-                    .send_and_confirm_transaction(transaction)
-                    .await;
+                return rpc.send_transaction(transaction, true).await;
             } else {
                 tracing::warn!("Priority fee oracle is not Helius, falling back to normal RPC");
             }
         }
         self.provider
             .rpc()
-            .send_and_confirm_transaction(transaction)
+            .send_transaction(transaction, true)
             .await
     }
 
