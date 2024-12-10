@@ -527,17 +527,17 @@ fn termination_invariants_met(
     //     return Ok(false);
     // }
 
-    let delivered_messages_scraped = fetch_metric(
+    let delivered_messages_count = fetch_metric(
         &relayer_metrics_port.to_string(),
         "hyperlane_operations_processed_count",
         &hashmap! {"phase" => "confirmed"},
     )?
     .iter()
     .sum::<u32>();
-    if delivered_messages_scraped != messages_expected {
+    if delivered_messages_count != messages_expected {
         log!(
             "Relayer confirmed {} submitted messages, expected {}",
-            delivered_messages_scraped,
+            delivered_messages_count,
             messages_expected
         );
         return Ok(false);
@@ -555,7 +555,7 @@ fn termination_invariants_met(
     //     return Ok(false);
     // }
 
-    log!("Termination invariants have been meet");
+    log!("Termination invariants have been met");
     Ok(true)
 }
 
