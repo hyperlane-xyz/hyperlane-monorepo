@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { $ } from 'zx';
 
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
@@ -160,6 +161,9 @@ export async function deployToken(privateKey: string, chain: string) {
     key: privateKey,
   });
 
+  // Future works: make signer compatible with protocol/chain stack
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
+
   const token = await new ERC20Test__factory(
     multiProvider.getSigner(chain),
   ).deploy('token', 'token', '100000000000000000000', 18);
@@ -178,6 +182,9 @@ export async function deploy4626Vault(
     registryOverrideUri: '',
     key: privateKey,
   });
+
+  // Future works: make signer compatible with protocol/chain stack
+  multiProvider.setSigner(chain, new ethers.Wallet(privateKey));
 
   const vault = await new ERC4626Test__factory(
     multiProvider.getSigner(chain),
