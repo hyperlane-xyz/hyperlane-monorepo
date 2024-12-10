@@ -1,7 +1,7 @@
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
@@ -12,14 +12,14 @@ import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 export const getEthereumVictionETHWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ismConfig = buildAggregationIsmConfigs(
     'ethereum',
     ['viction'],
     defaultMultisigConfigs,
   ).viction;
 
-  const viction: TokenRouterConfig = {
+  const viction: HypTokenRouterConfig = {
     ...routerConfig.viction,
     ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
@@ -30,7 +30,7 @@ export const getEthereumVictionETHWarpConfig = async (
     gas: 50_000,
   };
 
-  const ethereum: TokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.native,

@@ -14,10 +14,13 @@ import {
 } from '@hyperlane-xyz/core';
 import type { Address, Domain, ValueOf } from '@hyperlane-xyz/utils';
 
-import { OwnableConfig } from '../deploy/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { OwnableSchema, PausableSchema } from '../schemas.js';
-import { ChainMap } from '../types.js';
+import {
+  ChainMap,
+  OwnableConfig,
+  OwnableSchema,
+  PausableSchema,
+} from '../types.js';
 
 // this enum should match the IInterchainSecurityModule.sol enum
 // meant for the relayer
