@@ -25,6 +25,7 @@ export const isIsmStatic: Record<IsmType, boolean> = {
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: true,
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: true,
   [IsmType.STORAGE_AGGREGATION]: false,
+  [IsmType.ICA_ROUTING]: true,
 } as const;
 
 /**
