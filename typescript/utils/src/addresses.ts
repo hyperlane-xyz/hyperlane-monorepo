@@ -1,6 +1,6 @@
 import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
-import { utils as ethersUtils } from 'ethers';
+import { Wallet, utils as ethersUtils } from 'ethers';
 
 import { isNullish } from './typeof.js';
 import { Address, HexString, ProtocolType } from './types.js';
@@ -379,4 +379,12 @@ export function ensure0x(hexstr: string) {
 
 export function strip0x(hexstr: string) {
   return hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
+}
+
+export function isPrivateKeyEvm(privateKey: string): boolean {
+  try {
+    return new Wallet(privateKey).privateKey === privateKey;
+  } catch {
+    throw new Error('Provided Private Key is not EVM compatible!');
+  }
 }

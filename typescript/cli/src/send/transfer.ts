@@ -39,8 +39,8 @@ export async function sendTestTransfer({
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
-  origin?: ChainName;
-  destination?: ChainName;
+  origin?: ChainName; // resolved in signerMiddleware
+  destination?: ChainName; // resolved in signerMiddleware
   amount: string;
   recipient?: string;
   timeoutSec: number;
@@ -105,10 +105,15 @@ async function executeDelivery({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { signer, multiProvider, registry } = context;
+  const { multiProvider, registry } = context;
 
+  const signer = multiProvider.getSigner(origin);
+  const recipientSigner = multiProvider.getSigner(destination);
+
+  const recipientAddress = await recipientSigner.getAddress();
   const signerAddress = await signer.getAddress();
-  recipient ||= signerAddress;
+
+  recipient ||= recipientAddress;
 
   const chainAddresses = await registry.getAddresses();
 
@@ -135,12 +140,11 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  const senderAddress = await signer.getAddress();
   const errors = await warpCore.validateTransfer({
     originTokenAmount: token.amount(amount),
     destination,
-    recipient: recipient ?? senderAddress,
-    sender: senderAddress,
+    recipient,
+    sender: signerAddress,
   });
   if (errors) {
     logRed('Error validating transfer', JSON.stringify(errors));
@@ -151,8 +155,8 @@ async function executeDelivery({
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
-    sender: senderAddress,
-    recipient: recipient ?? senderAddress,
+    sender: signerAddress,
+    recipient,
   });
 
   const txReceipts = [];
@@ -171,7 +175,7 @@ async function executeDelivery({
   const parsed = parseWarpRouteMessage(message.parsed.body);
 
   logBlue(
-    `Sent transfer from sender (${senderAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
+    `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
   log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
