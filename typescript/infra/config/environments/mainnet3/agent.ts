@@ -369,7 +369,7 @@ const sealevelPriorityFeeOracleConfigGetter = (
   if (chain === 'solanamainnet') {
     return {
       type: AgentSealevelPriorityFeeOracleType.Helius,
-      feeLevel: AgentSealevelHeliusFeeLevel.High,
+      feeLevel: AgentSealevelHeliusFeeLevel.Medium,
       // URL is populated by the external secrets in the helm chart
       url: '',
     };
@@ -529,7 +529,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'b12bb5c-20241207-054843',
+      tag: '43733b5-20241210-015124',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.

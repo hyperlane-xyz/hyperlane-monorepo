@@ -374,25 +374,28 @@ impl SealevelMailbox {
             compute_unit_limit,
         ));
 
+        let prospective_tip: u64 = compute_unit_price_micro_lamports * compute_unit_limit as u64;
+        tracing::warn!(prospective_tip, "Prospective tip");
+
         // If we're using Jito, we need to send a tip to the Jito fee account.
         // Otherwise, we need to set the compute unit price.
-        if self.is_solana() {
-            let tip: u64 = compute_unit_price_micro_lamports * compute_unit_limit as u64;
+        // if self.is_solana() {
+        //     let tip: u64 = compute_unit_price_micro_lamports * compute_unit_limit as u64;
 
-            // The tip is a standalone transfer to a Jito fee account.
-            // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
-            instructions.push(solana_sdk::system_instruction::transfer(
-                &payer.pubkey(),
-                // A random Jito fee account, taken from the getFeeAccount RPC response:
-                // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
-                &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
-                tip,
-            ));
-        } else {
-            instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
-                compute_unit_price_micro_lamports,
-            ));
-        }
+        //     // The tip is a standalone transfer to a Jito fee account.
+        //     // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
+        //     instructions.push(solana_sdk::system_instruction::transfer(
+        //         &payer.pubkey(),
+        //         // A random Jito fee account, taken from the getFeeAccount RPC response:
+        //         // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
+        //         &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
+        //         tip,
+        //     ));
+        // } else {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+            compute_unit_price_micro_lamports,
+        ));
+        // }
 
         instructions.push(instruction);
 
