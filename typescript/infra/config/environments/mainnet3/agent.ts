@@ -499,7 +499,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     resources: relayerResources,
-    blacklist: [...warpRouteMatchingList('WIF/eclipsemainnet-solanamainnet')],
+    // blacklist: [...warpRouteMatchingList('WIF/eclipsemainnet-solanamainnet')],
   },
   validators: {
     docker: {
@@ -529,7 +529,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e556629-20241207-052607',
+      tag: 'b12bb5c-20241207-054843',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.

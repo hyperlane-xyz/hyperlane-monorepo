@@ -110,6 +110,7 @@ pub struct SealevelMailbox {
     pub(crate) provider: SealevelProvider,
     payer: Option<Keypair>,
     priority_fee_oracle: Box<dyn PriorityFeeOracle>,
+    priority_fee_oracle_config: PriorityFeeOracleConfig,
 }
 
 impl SealevelMailbox {
@@ -137,6 +138,7 @@ impl SealevelMailbox {
             provider,
             payer,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
+            priority_fee_oracle_config: conf.priority_fee_oracle.clone(),
         })
     }
 
@@ -293,7 +295,7 @@ impl SealevelMailbox {
         self.get_account_metas(instruction).await
     }
 
-    fn use_jito(&self) -> bool {
+    fn is_solana(&self) -> bool {
         matches!(
             self.domain(),
             HyperlaneDomain::Known(KnownHyperlaneDomain::SolanaMainnet)
@@ -374,7 +376,7 @@ impl SealevelMailbox {
 
         // If we're using Jito, we need to send a tip to the Jito fee account.
         // Otherwise, we need to set the compute unit price.
-        if self.use_jito() {
+        if self.is_solana() {
             let tip: u64 = compute_unit_price_micro_lamports * compute_unit_limit as u64;
 
             // The tip is a standalone transfer to a Jito fee account.
@@ -503,15 +505,32 @@ impl SealevelMailbox {
         &self,
         transaction: &Transaction,
     ) -> ChainResult<Signature> {
-        if self.use_jito() {
-            self.send_and_confirm_transaction_with_jito(transaction)
-                .await
-        } else {
-            self.provider
-                .rpc()
-                .send_and_confirm_transaction(transaction)
-                .await
+        // if self.is_solana() {
+        //     self.send_and_confirm_transaction_with_jito(transaction)
+        //         .await
+        // } else {
+        // self.provider
+        //     .rpc()
+        //     .send_and_confirm_transaction(transaction)
+        //     .await
+        // }
+
+        if self.is_solana() {
+            if let PriorityFeeOracleConfig::Helius(helius) = &self.priority_fee_oracle_config {
+                let rpc = SealevelRpcClient::new(helius.url.clone().into());
+                return self
+                    .provider
+                    .rpc()
+                    .send_and_confirm_transaction(transaction)
+                    .await;
+            } else {
+                tracing::warn!("Priority fee oracle is not Helius, falling back to normal RPC");
+            }
         }
+        self.provider
+            .rpc()
+            .send_and_confirm_transaction(transaction)
+            .await
     }
 
     // Stolen from Solana's non-blocking client, but with Jito!
