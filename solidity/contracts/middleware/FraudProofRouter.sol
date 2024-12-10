@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {console} from "forge-std/console.sol";
-
 /*@@@@@@@       @@@@@@@@@
  @@@@@@@@@       @@@@@@@@@
   @@@@@@@@@       @@@@@@@@@
@@ -86,11 +84,6 @@ contract FraudProofRouter is GasRouter {
 
         require(attribution.timestamp != 0, "Attribution does not exist");
 
-        console.log(
-            "attribution",
-            uint8(attribution.fraudType),
-            uint48(attribution.timestamp)
-        );
         bytes memory encodedMessage = FraudMessage.encode(
             _signer,
             _merkleTree,
