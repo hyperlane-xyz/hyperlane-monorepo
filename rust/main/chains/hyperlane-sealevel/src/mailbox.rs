@@ -380,7 +380,7 @@ impl SealevelMailbox {
         // If we're using Jito, we need to send a tip to the Jito fee account.
         // Otherwise, we need to set the compute unit price.
         // if self.is_solana() {
-        //     let tip: u64 = compute_unit_price_micro_lamports * compute_unit_limit as u64;
+        //     let tip: u64 = (compute_unit_price_micro_lamports * compute_unit_limit as u64) / 1e6;
 
         //     // The tip is a standalone transfer to a Jito fee account.
         //     // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
