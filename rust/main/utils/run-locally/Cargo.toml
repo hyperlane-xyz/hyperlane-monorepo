@@ -38,7 +38,6 @@ regex.workspace = true
 relayer = { path = "../../agents/relayer" }
 hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
-phf.workspace = true
 
 [build-dependencies]
 anyhow = { workspace = true }

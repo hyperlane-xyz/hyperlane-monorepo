@@ -11,6 +11,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
+use starknet::core::types::FieldElement;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -20,6 +21,7 @@ use crate::contracts::aggregation_ism::{
     Message as StarknetMessage,
 };
 use crate::error::HyperlaneStarknetError;
+use crate::types::HyH256;
 use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
 
 impl<A> std::fmt::Display for StarknetAggregationIsmInternal<A>
@@ -56,13 +58,11 @@ impl StarknetAggregationIsm {
             locator.domain.id(),
         );
 
-        let contract = StarknetAggregationIsmInternal::new(
-            locator
-                .address
-                .try_into()
-                .map_err(HyperlaneStarknetError::BytesConversionError)?,
-            account,
-        );
+        let ism_address: FieldElement = HyH256(locator.address)
+            .try_into()
+            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+
+        let contract = StarknetAggregationIsmInternal::new(ism_address, account);
 
         Ok(Self {
             contract: Arc::new(contract),
@@ -91,7 +91,7 @@ impl HyperlaneChain for StarknetAggregationIsm {
 
 impl HyperlaneContract for StarknetAggregationIsm {
     fn address(&self) -> H256 {
-        self.contract.address.into()
+        HyH256::from(self.contract.address).0
     }
 }
 
@@ -127,7 +127,10 @@ impl AggregationIsm for StarknetAggregationIsm {
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
-        let isms_h256 = isms.iter().map(|address| address.0.into()).collect();
+        let isms_h256 = isms
+            .iter()
+            .map(|address| HyH256::from(address.0).0)
+            .collect();
 
         Ok((isms_h256, threshold))
     }

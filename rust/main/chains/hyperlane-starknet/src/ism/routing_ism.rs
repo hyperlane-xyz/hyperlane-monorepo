@@ -11,6 +11,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, RoutingIsm, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
+use starknet::core::types::FieldElement;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -19,6 +20,7 @@ use crate::contracts::routing_ism::{
     Bytes as StarknetBytes, Message as StarknetMessage, RoutingIsm as StarknetRoutingIsmInternal,
 };
 use crate::error::HyperlaneStarknetError;
+use crate::types::HyH256;
 use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
 
 impl<A> std::fmt::Display for StarknetRoutingIsmInternal<A>
@@ -55,13 +57,11 @@ impl StarknetRoutingIsm {
             locator.domain.id(),
         );
 
-        let contract = StarknetRoutingIsmInternal::new(
-            locator
-                .address
-                .try_into()
-                .map_err(HyperlaneStarknetError::BytesConversionError)?,
-            account,
-        );
+        let ism_address: FieldElement = HyH256(locator.address)
+            .try_into()
+            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+
+        let contract = StarknetRoutingIsmInternal::new(ism_address, account);
 
         Ok(Self {
             contract: Arc::new(contract),
@@ -90,7 +90,7 @@ impl HyperlaneChain for StarknetRoutingIsm {
 
 impl HyperlaneContract for StarknetRoutingIsm {
     fn address(&self) -> H256 {
-        self.contract.address.into()
+        HyH256::from(self.contract.address).0
     }
 }
 
@@ -124,7 +124,7 @@ impl RoutingIsm for StarknetRoutingIsm {
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        Ok(ism.0.into())
+        Ok(HyH256::from(ism.0).0)
     }
 }
 

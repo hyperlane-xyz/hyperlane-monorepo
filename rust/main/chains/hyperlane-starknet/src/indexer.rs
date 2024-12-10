@@ -17,6 +17,7 @@ use tracing::instrument;
 
 use crate::contracts::mailbox::MailboxReader as StarknetMailboxReader;
 use crate::contracts::merkle_tree_hook::MerkleTreeHookReader as StarknetMerkleTreeHookReader;
+use crate::types::HyH256;
 use crate::{try_parse_hyperlane_message_from_event, ConnectionConf, HyperlaneStarknetError};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -247,11 +248,11 @@ impl Indexer<H256> for StarknetMailboxIndexer {
             .events
             .into_iter()
             .map(|event| {
-                let message_id: H256 = (event.data[0], event.data[1])
+                let message_id: HyH256 = (event.data[0], event.data[1])
                     .try_into()
                     .map_err(Into::<HyperlaneStarknetError>::into)
                     .unwrap();
-                let message_id: Indexed<H256> = message_id.into();
+                let message_id: Indexed<H256> = message_id.0.into();
                 let meta = LogMeta {
                     address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),
                     block_number: event.block_number.unwrap(),
@@ -342,12 +343,12 @@ impl Indexer<MerkleTreeInsertion> for StarknetMerkleTreeHookIndexer {
                     let leaf_index: u32 = event.data[2]
                         .try_into()
                         .map_err(Into::<HyperlaneStarknetError>::into)?;
-                    let message_id: H256 = (event.data[0], event.data[1])
+                    let message_id: HyH256 = (event.data[0], event.data[1])
                         .try_into()
                         .map_err(Into::<HyperlaneStarknetError>::into)?;
 
                     let merkle_tree_insertion =
-                        MerkleTreeInsertion::new(leaf_index, message_id).into();
+                        MerkleTreeInsertion::new(leaf_index, message_id.0).into();
 
                     let meta = LogMeta {
                         address: H256::from_slice(event.from_address.to_bytes_be().as_slice()),

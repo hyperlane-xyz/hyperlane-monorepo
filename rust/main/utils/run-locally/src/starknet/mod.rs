@@ -349,23 +349,6 @@ fn run_locally() {
         .map(|v| v.into())
         .collect::<Vec<StarknetNetwork>>();
 
-    // TODO: what should be done here ?
-    // for (i, node) in nodes.iter().enumerate() {
-    //     let targets = &nodes[(i + 1)..];
-
-    //     if !targets.is_empty() {
-    //         println!(
-    //             "LINKING NODES: {} -> {:?}",
-    //             node.domain,
-    //             targets.iter().map(|v| v.domain).collect::<Vec<_>>()
-    //         );
-    //     }
-
-    //     for target in targets {
-    //         link_networks(&katanad, linker, validator, node, target);
-    //     }
-    // }
-
     // for debug
     println!(
         "{}",

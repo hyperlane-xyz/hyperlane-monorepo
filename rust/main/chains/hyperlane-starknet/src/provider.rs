@@ -15,6 +15,7 @@ use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
 use tracing::instrument;
 
+use crate::types::HyU256;
 use crate::{ConnectionConf, HyperlaneStarknetError};
 
 #[derive(Debug, Clone)]
@@ -145,11 +146,11 @@ impl HyperlaneProvider for StarknetProvider {
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        let balance: U256 = (call_result[0], call_result[1])
+        let balance: HyU256 = (call_result[0], call_result[1])
             .try_into()
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        Ok(balance)
+        Ok(balance.0)
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {

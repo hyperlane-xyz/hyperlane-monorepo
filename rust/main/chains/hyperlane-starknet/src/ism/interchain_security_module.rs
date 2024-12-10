@@ -11,6 +11,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
 use starknet::accounts::SingleOwnerAccount;
+use starknet::core::types::FieldElement;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -20,6 +21,7 @@ use crate::contracts::interchain_security_module::{
     Message as StarknetMessage,
 };
 use crate::error::HyperlaneStarknetError;
+use crate::types::HyH256;
 use crate::{
     build_single_owner_account, to_hpl_module_type, ConnectionConf, Signer, StarknetProvider,
 };
@@ -59,13 +61,11 @@ impl StarknetInterchainSecurityModule {
             locator.domain.id(),
         );
 
-        let contract = StarknetInterchainSecurityModuleInternal::new(
-            locator
-                .address
-                .try_into()
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-            account,
-        );
+        let ism_address: FieldElement = HyH256(locator.address)
+            .try_into()
+            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+
+        let contract = StarknetInterchainSecurityModuleInternal::new(ism_address, account);
 
         Ok(Self {
             contract: Arc::new(contract),
@@ -95,7 +95,7 @@ impl HyperlaneChain for StarknetInterchainSecurityModule {
 
 impl HyperlaneContract for StarknetInterchainSecurityModule {
     fn address(&self) -> H256 {
-        self.contract.address.into()
+        HyH256::from(self.contract.address).0
     }
 }
 

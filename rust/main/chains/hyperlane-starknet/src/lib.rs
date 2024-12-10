@@ -28,5 +28,6 @@ mod merkle_tree_hook;
 mod provider;
 mod signers;
 mod trait_builder;
+mod types;
 mod utils;
 mod validator_announce;

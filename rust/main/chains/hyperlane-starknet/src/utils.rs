@@ -18,6 +18,7 @@ use starknet::{
 };
 use url::Url;
 
+use crate::types::{tx_receipt_to_outcome, HyH256};
 use crate::{
     contracts::{
         interchain_security_module::ModuleType as StarknetModuleType,
@@ -135,13 +136,13 @@ pub fn to_hpl_module_type(module_type: StarknetModuleType) -> ModuleType {
 pub fn try_parse_hyperlane_message_from_event(
     event: &EmittedEvent,
 ) -> ChainResult<HyperlaneMessage> {
-    let sender = (event.data[0], event.data[1])
+    let sender: HyH256 = (event.data[0], event.data[1])
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
     let destination = event.data[2]
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
-    let recipient = (event.data[3], event.data[4])
+    let recipient: HyH256 = (event.data[3], event.data[4])
         .try_into()
         .map_err(Into::<HyperlaneStarknetError>::into)?;
     let message =
@@ -151,9 +152,9 @@ pub fn try_parse_hyperlane_message_from_event(
         version: message.version,
         nonce: message.nonce,
         origin: message.origin,
-        sender,
+        sender: sender.0,
         destination,
-        recipient,
+        recipient: recipient.0,
         body: u128_vec_to_u8_vec(message.body.data, message.body.size),
     })
 }
@@ -276,7 +277,7 @@ pub async fn send_and_confirm(
 
     match receipt {
         MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(receipt)) => {
-            Ok(receipt.try_into()?)
+            Ok(tx_receipt_to_outcome(receipt)?)
         }
         _ => Err(HyperlaneStarknetError::InvalidTransactionReceipt.into()),
     }

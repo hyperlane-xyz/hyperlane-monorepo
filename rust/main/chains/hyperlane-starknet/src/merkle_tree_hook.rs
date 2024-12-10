@@ -12,12 +12,14 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, MerkleTreeHook, ReorgPeriod, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
+use starknet::core::types::FieldElement;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
 use crate::contracts::merkle_tree_hook::MerkleTreeHook as StarknetMerkleTreeHookInternal;
 use crate::error::HyperlaneStarknetError;
+use crate::types::HyH256;
 use crate::{
     build_single_owner_account, get_block_height_for_reorg_period, ConnectionConf, Signer,
     StarknetProvider,
@@ -57,13 +59,11 @@ impl StarknetMerkleTreeHook {
             locator.domain.id(),
         );
 
-        let contract = StarknetMerkleTreeHookInternal::new(
-            locator
-                .address
-                .try_into()
-                .map_err(HyperlaneStarknetError::BytesConversionError)?,
-            account,
-        );
+        let hook_address: FieldElement = HyH256(locator.address)
+            .try_into()
+            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+
+        let contract = StarknetMerkleTreeHookInternal::new(hook_address, account);
 
         Ok(Self {
             contract: Arc::new(contract),
@@ -92,7 +92,7 @@ impl HyperlaneChain for StarknetMerkleTreeHook {
 
 impl HyperlaneContract for StarknetMerkleTreeHook {
     fn address(&self) -> H256 {
-        self.contract.address.into()
+        HyH256::from(self.contract.address).0
     }
 }
 

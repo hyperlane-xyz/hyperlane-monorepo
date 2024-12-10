@@ -22,6 +22,7 @@ use tracing::instrument;
 
 use crate::contracts::mailbox::{Mailbox as StarknetMailboxInternal, Message as StarknetMessage};
 use crate::error::HyperlaneStarknetError;
+use crate::types::{HyH256, HyU256};
 use crate::utils::to_mailbox_bytes;
 use crate::{
     build_single_owner_account, get_block_height_for_reorg_period, send_and_confirm,
@@ -77,13 +78,11 @@ impl StarknetMailbox {
             locator.domain.id(),
         );
 
-        let contract = StarknetMailboxInternal::new(
-            locator
-                .address
-                .try_into()
-                .map_err(HyperlaneStarknetError::BytesConversionError)?,
-            account,
-        );
+        let mailbox_address: FieldElement = HyH256(locator.address)
+            .try_into()
+            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+
+        let contract = StarknetMailboxInternal::new(mailbox_address, account);
 
         Ok(Self {
             contract: Arc::new(contract),
@@ -105,7 +104,7 @@ impl StarknetMailbox {
             .process(&to_mailbox_bytes(metadata), &message.into());
 
         let gas_estimate = match tx_gas_estimate {
-            Some(estimate) => estimate
+            Some(estimate) => HyU256(estimate)
                 .try_into()
                 .map_err(Into::<HyperlaneStarknetError>::into)?,
             None => {
@@ -138,7 +137,7 @@ impl HyperlaneChain for StarknetMailbox {
 
 impl HyperlaneContract for StarknetMailbox {
     fn address(&self) -> H256 {
-        self.contract.address.into()
+        HyH256::from(self.contract.address).0
     }
 }
 
@@ -192,7 +191,7 @@ impl Mailbox for StarknetMailbox {
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
-        Ok(address.0.into())
+        Ok(HyH256::from(address.0).0)
     }
 
     #[instrument(skip(self))]
@@ -203,7 +202,7 @@ impl Mailbox for StarknetMailbox {
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
-        Ok(address.0.into())
+        Ok(HyH256::from(address.0).0)
     }
 
     #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
@@ -234,15 +233,15 @@ impl Mailbox for StarknetMailbox {
             .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
 
         Ok(TxCostEstimate {
-            gas_limit: fee_estimate.gas_consumed.into(),
-            gas_price: FixedPointNumber::try_from(U256::from(fee_estimate.gas_price)).map_err(
+            gas_limit: HyU256::from(fee_estimate.gas_consumed).0,
+            gas_price: FixedPointNumber::try_from(HyU256::from(fee_estimate.gas_price).0).map_err(
                 |e| {
                     HyperlaneStarknetError::AccountError(format!(
                         "Failed to convert gas price to FixedPointNumber: {e}"
                     ))
                 },
             )?,
-            l2_gas_limit: Some(fee_estimate.overall_fee.into()),
+            l2_gas_limit: Some(HyU256::from(fee_estimate.overall_fee).0),
         })
     }
 

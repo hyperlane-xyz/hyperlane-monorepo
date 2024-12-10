@@ -19,6 +19,7 @@ use tracing::{instrument, warn};
 
 use crate::contracts::validator_announce::ValidatorAnnounce as StarknetValidatorAnnounceInternal;
 use crate::error::HyperlaneStarknetError;
+use crate::types::{HyH256, HyU256};
 use crate::utils::send_and_confirm;
 use crate::{
     build_single_owner_account, string_to_cairo_long_string, to_strk_message_bytes, ConnectionConf,
@@ -60,13 +61,11 @@ impl StarknetValidatorAnnounce {
             locator.domain.id(),
         );
 
-        let contract = StarknetValidatorAnnounceInternal::new(
-            locator
-                .address
-                .try_into()
-                .map_err(HyperlaneStarknetError::BytesConversionError)?,
-            account,
-        );
+        let va_address: FieldElement = HyH256(locator.address)
+            .try_into()
+            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+
+        let contract = StarknetValidatorAnnounceInternal::new(va_address, account);
 
         Ok(Self {
             contract: Arc::new(contract),
@@ -125,7 +124,7 @@ impl HyperlaneChain for StarknetValidatorAnnounce {
 
 impl HyperlaneContract for StarknetValidatorAnnounce {
     fn address(&self) -> H256 {
-        self.contract.address.into()
+        HyH256::from(self.contract.address).0
     }
 }
 
@@ -138,7 +137,8 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
         let validators_calldata: Vec<EthAddress> = validators
             .iter()
             .map(|v| {
-                TryInto::<FieldElement>::try_into(*v).map_err(Into::<HyperlaneStarknetError>::into)
+                TryInto::<FieldElement>::try_into(HyH256(*v))
+                    .map_err(Into::<HyperlaneStarknetError>::into)
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
@@ -194,9 +194,9 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
             return None;
         };
 
-        let max_cost_u256: U256 = max_cost.into();
+        let max_cost_u256: HyU256 = max_cost.into();
 
-        Some(max_cost_u256.saturating_sub(balance).into())
+        Some(max_cost_u256.0.saturating_sub(balance).into())
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {

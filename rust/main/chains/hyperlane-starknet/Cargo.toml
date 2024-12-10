@@ -24,7 +24,6 @@ url.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "async",
-    "starknet",
 ] }
 
 [build-dependencies]

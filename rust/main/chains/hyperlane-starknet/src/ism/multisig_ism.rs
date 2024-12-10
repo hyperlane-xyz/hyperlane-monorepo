@@ -11,6 +11,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
 };
 use starknet::accounts::SingleOwnerAccount;
+use starknet::core::types::FieldElement;
 use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
@@ -19,6 +20,7 @@ use crate::contracts::multisig_ism::{
     Bytes as StarknetBytes, Message as StarknetMessage, MultisigIsm as StarknetMultisigIsmInternal,
 };
 use crate::error::HyperlaneStarknetError;
+use crate::types::HyH256;
 use crate::{build_single_owner_account, ConnectionConf, Signer, StarknetProvider};
 
 impl<A> std::fmt::Display for StarknetMultisigIsmInternal<A>
@@ -55,13 +57,11 @@ impl StarknetMultisigIsm {
             locator.domain.id(),
         );
 
-        let contract = StarknetMultisigIsmInternal::new(
-            locator
-                .address
-                .try_into()
-                .map_err(HyperlaneStarknetError::BytesConversionError)?,
-            account,
-        );
+        let ism_address: FieldElement = HyH256(locator.address)
+            .try_into()
+            .map_err(HyperlaneStarknetError::BytesConversionError)?;
+
+        let contract = StarknetMultisigIsmInternal::new(ism_address, account);
 
         Ok(Self {
             contract: Arc::new(contract),
@@ -90,7 +90,7 @@ impl HyperlaneChain for StarknetMultisigIsm {
 
 impl HyperlaneContract for StarknetMultisigIsm {
     fn address(&self) -> H256 {
-        self.contract.address.into()
+        HyH256::from(self.contract.address).0
     }
 }
 
@@ -128,7 +128,10 @@ impl MultisigIsm for StarknetMultisigIsm {
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         Ok((
-            validator_addresses.iter().map(|v| v.0.into()).collect(),
+            validator_addresses
+                .iter()
+                .map(|v| HyH256::from(v.0).0)
+                .collect(),
             threshold as u8,
         ))
     }

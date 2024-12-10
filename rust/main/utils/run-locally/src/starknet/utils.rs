@@ -170,7 +170,7 @@ pub(crate) fn deploy_all(
         vec![
             domain.to_string(),
             deployer.clone(),
-            ism_multisig.clone(),
+            ism_aggregate.clone(),
             mock_hook.clone(),
             mock_hook.clone(),
         ],
