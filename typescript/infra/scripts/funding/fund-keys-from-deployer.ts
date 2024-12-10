@@ -1,8 +1,7 @@
-import { EthBridger, getL2Network } from '@arbitrum/sdk';
+import { EthBridger, getArbitrumNetwork } from '@arbitrum/sdk';
 import { CrossChainMessenger } from '@eth-optimism/sdk';
-import { Connection, PublicKey } from '@solana/web3.js';
 import { BigNumber, ethers } from 'ethers';
-import { Gauge, Registry } from 'prom-client';
+import { Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
@@ -15,7 +14,6 @@ import { Address, objFilter, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getEnvAddresses } from '../../config/registry.js';
-import { getSecretRpcEndpoints } from '../../src/agents/index.js';
 import {
   KeyAsAddress,
   fetchLocalKeyAddresses,
@@ -33,7 +31,10 @@ import {
   KeyFunderConfig,
 } from '../../src/config/funding.js';
 import { FundableRole, Role } from '../../src/roles.js';
-import { submitMetrics } from '../../src/utils/metrics.js';
+import {
+  getWalletBalanceGauge,
+  submitMetrics,
+} from '../../src/utils/metrics.js';
 import {
   assertContext,
   assertFundableRole,
@@ -65,30 +66,19 @@ const L2ToL1: ChainMap<ChainName> = {
   base: 'ethereum',
 };
 
+// Manually adding these labels as we are using a push gateway,
+// and ordinarily these labels would be added via K8s annotations
 const constMetricLabels = {
-  // this needs to get set in main because of async reasons
   hyperlane_deployment: '',
   hyperlane_context: 'hyperlane',
 };
 
 const metricsRegister = new Registry();
 
-const walletBalanceGauge = new Gauge({
-  // Mirror the rust/main/ethers-prometheus `wallet_balance` gauge metric.
-  name: 'hyperlane_wallet_balance',
-  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
-  registers: [metricsRegister],
-  labelNames: [
-    'chain',
-    'wallet_address',
-    'wallet_name',
-    'token_address',
-    'token_symbol',
-    'token_name',
-    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
-  ],
-});
-metricsRegister.registerMetric(walletBalanceGauge);
+const walletBalanceGauge = getWalletBalanceGauge(
+  metricsRegister,
+  Object.keys(constMetricLabels),
+);
 
 // Min delta is 50% of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(5);
@@ -98,87 +88,8 @@ const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 const RC_FUNDING_DISCOUNT_NUMERATOR = ethers.BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = ethers.BigNumber.from(10);
 
-interface SealevelAccount {
-  pubkey: PublicKey;
-  walletName: string;
-}
-
-const sealevelAccountsToTrack: ChainMap<SealevelAccount[]> = {
-  solanamainnet: [
-    {
-      // WIF warp route ATA payer
-      pubkey: new PublicKey('R5oMfxcbjx4ZYK1B2Aic1weqwt2tQsRzFEGe5WJfAxh'),
-      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // USDC warp route ATA payer
-      pubkey: new PublicKey('A1XtL9mAzkNEpBPinrCpDRrPqVAFjgaxDk4ATFVoQVyc'),
-      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // USDT warp route ATA payer
-      pubkey: new PublicKey('9i3kYQqMtkm4sw1w5SQ8ebKMmh4LPVYKZRMPaZeRfn37'),
-      walletName: 'USDT/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // ORCA warp route ATA payer
-      pubkey: new PublicKey('HqAVwQA6rh1TGdyUHi2XqmCtBSyG3DZjjsCLRXWqyNuU'),
-      walletName: 'ORCA/eclipsemainnet-solanamainnet/ata-payer',
-    },
-  ],
-  eclipsemainnet: [
-    {
-      // WIF warp route ATA payer
-      pubkey: new PublicKey('HCQAfDd5ytAEidzR9g7CipjEGv2ZrSSZq1UY34oDFv8h'),
-      walletName: 'WIF/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // USDC warp route ATA payer
-      pubkey: new PublicKey('7arS1h8nwVVmmTVWSsu9rQ4WjLBN8iAi4DvHi8gWjBNC'),
-      walletName: 'USDC/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // tETH warp route ATA payer
-      pubkey: new PublicKey('Hyy4jryRxgZm5pvuSx29fXxJ9J55SuDtXiCo89kmNuz5'),
-      walletName: 'tETH/eclipsemainnet-ethereum/ata-payer',
-    },
-    {
-      // SOL warp route ATA payer
-      pubkey: new PublicKey('CijxTbPs9JZxTUfo8Hmz2imxzHtKnDFD3kZP3RPy34uJ'),
-      walletName: 'SOL/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // stTIA warp route ATA payer
-      pubkey: new PublicKey('Bg3bAM3gEhdam5mbPqkiMi3mLZkoAieakMRdMHo6mbcn'),
-      walletName: 'stTIA/eclipsemainnet-stride/ata-payer',
-    },
-    {
-      // TIA warp route ATA payer
-      pubkey: new PublicKey('AZs4Rw6H6YwJBKoHBCfChCitHnHvQcVGgrJwGh4bKmAf'),
-      walletName: 'TIA/eclipsemainnet-stride/ata-payer',
-    },
-    {
-      // USDT warp route ATA payer
-      pubkey: new PublicKey('78s5TD48q89EZqHNC2bfsswQXn6n3sn1ecGgqXgJe4hL'),
-      walletName: 'USDT/eclipsemainnet-ethereum-solanamainnet/ata-payer',
-    },
-    {
-      // ORCA warp route ATA payer
-      pubkey: new PublicKey('3ZyZHoDRzfYg4ug6Tx4Zywe6M5Vt19vPZFx9Ag8qqnXu'),
-      walletName: 'ORCA/eclipsemainnet-solanamainnet/ata-payer',
-    },
-    {
-      // WBTC warp route ATA payer
-      pubkey: new PublicKey('BH9VfgYaCWbwuupzsTfSy67yR4dwuCbXmFRrm6aAH2NQ'),
-      walletName: 'WBTC/eclipsemainnet-ethereum/ata-payer',
-    },
-    // weETHs warp route ATA payer
-    {
-      pubkey: new PublicKey('F4Y6kHrq9qVnmkQhQibxh8nCU2quw5y25z7u8jSHMvtq'),
-      walletName: 'weETHs/eclipsemainnet-ethereum/ata-payer',
-    },
-  ],
-};
+const CONTEXT_FUNDING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const CHAIN_FUNDING_TIMEOUT_MS = 1 * 60 * 1000; // 1 minute
 
 // Funds key addresses for multiple contexts from the deployer key of the context
 // specified via the `--context` flag.
@@ -285,7 +196,25 @@ async function main() {
 
   let failureOccurred = false;
   for (const funder of contextFunders) {
-    failureOccurred ||= await funder.fund();
+    const { promise, cleanup } = createTimeoutPromise(
+      CONTEXT_FUNDING_TIMEOUT_MS,
+      `Funding timed out for context ${funder.context} after ${
+        CONTEXT_FUNDING_TIMEOUT_MS / 1000
+      }s`,
+    );
+
+    try {
+      await Promise.race([funder.fund(), promise]);
+    } catch (error) {
+      logger.error('Error funding context', {
+        error: format(error),
+        context: funder.context,
+        timeoutMs: CONTEXT_FUNDING_TIMEOUT_MS,
+      });
+      failureOccurred = true;
+    } finally {
+      cleanup();
+    }
   }
 
   await submitMetrics(metricsRegister, `key-funder-${environment}`);
@@ -506,103 +435,129 @@ class ContextFunder {
       igpClaimThresholdPerChain,
     );
   }
-
-  // Funds all the roles in this.rolesToFund
-  // Returns whether a failure occurred.
-  async fund(): Promise<boolean> {
+  // Funds all the roles in this.keysToFundPerChain.
+  // Throws if any funding operations fail.
+  async fund(): Promise<void> {
     const chainKeyEntries = Object.entries(this.keysToFundPerChain);
-    const promises = chainKeyEntries.map(async ([chain, keys]) => {
-      let failureOccurred = false;
-
-      if (keys.length > 0) {
-        if (!this.skipIgpClaim) {
-          failureOccurred ||= await gracefullyHandleError(
-            () => this.attemptToClaimFromIgp(chain),
-            chain,
-            'Error claiming from IGP',
-          );
-        }
-
-        failureOccurred ||= await gracefullyHandleError(
-          () => this.bridgeIfL2(chain),
-          chain,
-          'Error bridging to L2',
-        );
-      }
-      for (const key of keys) {
-        const failure = await this.attemptToFundKey(key, chain);
-        failureOccurred ||= failure;
-      }
-      return failureOccurred;
-    });
-
-    // A failure occurred if any of the promises rejected or
-    // if any of them resolved with true, indicating a failure
-    // somewhere along the way
-    const failureOccurred = (await Promise.allSettled(promises)).reduce(
-      (failureAgg, result, i) => {
-        if (result.status === 'rejected') {
-          logger.error(
-            {
-              chain: chainKeyEntries[i][0],
-              error: format(result.reason),
-            },
-            'Funding promise for chain rejected',
-          );
-          return true;
-        }
-        return result.value || failureAgg;
-      },
-      false,
+    const results = await Promise.allSettled(
+      chainKeyEntries.map(([chain, keys]) => this.fundChain(chain, keys)),
     );
 
-    if (
-      this.environment === 'mainnet3' &&
-      this.context === Contexts.Hyperlane
-    ) {
-      await this.updateSolanaWalletBalanceGauge();
+    if (results.some((result) => result.status === 'rejected')) {
+      logger.error('One or more chains failed to fund');
+      throw new Error('One or more chains failed to fund');
+    }
+  }
+
+  private async fundChain(chain: string, keys: BaseAgentKey[]): Promise<void> {
+    const { promise, cleanup } = createTimeoutPromise(
+      CHAIN_FUNDING_TIMEOUT_MS,
+      `Timed out funding chain ${chain} after ${
+        CHAIN_FUNDING_TIMEOUT_MS / 1000
+      }s`,
+    );
+
+    try {
+      await Promise.race([this.executeFundingOperations(chain, keys), promise]);
+    } catch (error) {
+      logger.error(
+        {
+          chain,
+          error: format(error),
+          timeoutMs: CHAIN_FUNDING_TIMEOUT_MS,
+          keysCount: keys.length,
+        },
+        `Funding operations failed for chain ${chain}.`,
+      );
+      throw error;
+    } finally {
+      cleanup();
+    }
+  }
+
+  private async executeFundingOperations(
+    chain: string,
+    keys: BaseAgentKey[],
+  ): Promise<void> {
+    if (keys.length === 0) {
+      return;
     }
 
-    return failureOccurred;
+    if (!this.skipIgpClaim) {
+      try {
+        await this.attemptToClaimFromIgp(chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            error: err,
+          },
+          `Error claiming from IGP on chain ${chain}`,
+        );
+      }
+    }
+
+    try {
+      await this.bridgeIfL2(chain);
+    } catch (err) {
+      logger.error(
+        {
+          chain,
+          error: err,
+        },
+        `Error bridging to L2 chain ${chain}`,
+      );
+      throw err;
+    }
+
+    const failedKeys: BaseAgentKey[] = [];
+    for (const key of keys) {
+      try {
+        await this.attemptToFundKey(key, chain);
+      } catch (err) {
+        logger.error(
+          {
+            chain,
+            key: await getKeyInfo(
+              key,
+              chain,
+              this.multiProvider.getProvider(chain),
+            ),
+            context: this.context,
+            error: err,
+          },
+          `Error funding key ${key.address} on chain ${chain}`,
+        );
+        failedKeys.push(key);
+      }
+    }
+
+    if (failedKeys.length > 0) {
+      throw new Error(
+        `Failed to fund ${
+          failedKeys.length
+        } keys on chain ${chain}: ${failedKeys
+          .map(({ address, role }) => `${address} (${role})`)
+          .join(', ')}`,
+      );
+    }
   }
 
   private async attemptToFundKey(
     key: BaseAgentKey,
     chain: ChainName,
-  ): Promise<boolean> {
+  ): Promise<void> {
     const provider = this.multiProvider.tryGetProvider(chain);
     if (!provider) {
-      logger.error({ chain }, 'Cannot get chain connection');
-      // Consider this an error, but don't throw and prevent all future funding attempts
-      return true;
+      throw new Error(`Cannot get chain connection for ${chain}`);
     }
+
     const desiredBalance = this.getDesiredBalanceForRole(chain, key.role);
-
-    let failureOccurred = false;
-
-    try {
-      await this.fundKeyIfRequired(chain, key, desiredBalance);
-    } catch (err) {
-      logger.error(
-        {
-          key: await getKeyInfo(
-            key,
-            chain,
-            this.multiProvider.getProvider(chain),
-          ),
-          context: this.context,
-          error: err,
-        },
-        'Error funding key',
-      );
-      failureOccurred = true;
-    }
+    await this.fundKeyIfRequired(chain, key, desiredBalance);
     await this.updateWalletBalanceGauge(chain);
-
-    return failureOccurred;
   }
 
-  private async bridgeIfL2(chain: ChainName) {
+  private async bridgeIfL2(chain: ChainName): Promise<void> {
     if (L2Chains.includes(chain)) {
       const funderAddress = await this.multiProvider.getSignerAddress(chain)!;
       const desiredBalanceEther = ethers.utils.parseUnits(
@@ -625,7 +580,7 @@ class ContextFunder {
 
   // Attempts to claim from the IGP if the balance exceeds the claim threshold.
   // If no threshold is set, infer it by reading the desired balance and dividing that by 5.
-  private async attemptToClaimFromIgp(chain: ChainName) {
+  private async attemptToClaimFromIgp(chain: ChainName): Promise<void> {
     // Determine the IGP claim threshold in Ether for the given chain.
     // If a specific threshold is not set, use the desired balance for the chain.
     const igpClaimThresholdEther =
@@ -794,6 +749,8 @@ class ContextFunder {
     const l1Chain = L2ToL1[l2Chain];
     logger.info(
       {
+        l1Chain,
+        l2Chain,
         amount: ethers.utils.formatEther(amount),
         l1Funder: await getAddressInfo(
           await this.multiProvider.getSignerAddress(l1Chain),
@@ -841,13 +798,13 @@ class ContextFunder {
 
   private async bridgeToArbitrum(l2Chain: ChainName, amount: BigNumber) {
     const l1Chain = L2ToL1[l2Chain];
-    const l2Network = await getL2Network(
+    const l2Network = await getArbitrumNetwork(
       this.multiProvider.getEvmChainId(l2Chain),
     );
     const ethBridger = new EthBridger(l2Network);
     return ethBridger.deposit({
       amount,
-      l1Signer: this.multiProvider.getSigner(l1Chain),
+      parentSigner: this.multiProvider.getSigner(l1Chain),
       overrides: this.multiProvider.getTransactionOverrides(l1Chain),
     });
   }
@@ -908,54 +865,6 @@ class ContextFunder {
           ),
         ),
       );
-  }
-
-  private async updateSolanaWalletBalanceGauge() {
-    for (const chain of Object.keys(sealevelAccountsToTrack) as ChainName[]) {
-      await this.updateSealevelWalletBalanceAccounts(
-        chain,
-        sealevelAccountsToTrack[chain],
-      );
-    }
-  }
-
-  private async updateSealevelWalletBalanceAccounts(
-    chain: ChainName,
-    accounts: SealevelAccount[],
-  ) {
-    const rpcUrls = await getSecretRpcEndpoints(this.environment, chain);
-    const provider = new Connection(rpcUrls[0], 'confirmed');
-
-    for (const { pubkey, walletName } of accounts) {
-      logger.info(
-        {
-          chain,
-          pubkey: pubkey.toString(),
-          walletName,
-        },
-        'Fetching sealevel wallet balance',
-      );
-      const balance = await provider.getBalance(pubkey);
-      logger.info(
-        {
-          balance,
-          chain,
-          pubkey: pubkey.toString(),
-          walletName,
-        },
-        'Retrieved sealevel chain wallet balance',
-      );
-      walletBalanceGauge
-        .labels({
-          chain,
-          wallet_address: pubkey.toString(),
-          wallet_name: walletName,
-          token_symbol: 'Native',
-          token_name: 'Native',
-          ...constMetricLabels,
-        })
-        .set(balance / 1e9);
-    }
   }
 }
 
@@ -1038,25 +947,20 @@ function parseBalancePerChain(strs: string[]): ChainMap<string> {
   return balanceMap;
 }
 
-// Returns whether an error occurred
-async function gracefullyHandleError(
-  fn: () => Promise<void>,
-  chain: ChainName,
+// Utility function to create a timeout promise
+function createTimeoutPromise(
+  timeoutMs: number,
   errorMessage: string,
-): Promise<boolean> {
-  try {
-    await fn();
-    return false;
-  } catch (err) {
-    logger.error(
-      {
-        chain,
-        error: format(err),
-      },
-      errorMessage,
+): { promise: Promise<void>; cleanup: () => void } {
+  let cleanup: () => void;
+  const promise = new Promise<void>((_, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error(errorMessage)),
+      timeoutMs,
     );
-  }
-  return true;
+    cleanup = () => clearTimeout(timeout);
+  });
+  return { promise, cleanup: cleanup! };
 }
 
 main().catch((err) => {

@@ -1,17 +1,21 @@
 import {
   ChainMap,
-  RouterConfig,
-  TokenRouterConfig,
+  HypTokenRouterConfig,
+  OwnableConfig,
   TokenType,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
-import { tokens } from '../../../../../src/config/warp.js';
+import {
+  RouterConfigWithoutOwner,
+  tokens,
+} from '../../../../../src/config/warp.js';
 
 export const getEthereumVictionUSDCWarpConfig = async (
-  routerConfig: ChainMap<RouterConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
+  routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   // commit that the config was copied from https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3067/commits/7ed5b460034ea5e140c6ff86bcd6baf6ebb824c4#diff-fab5dd1a27c76e4310699c57ccf92ab6274ef0acf17e079b17270cedf4057775R109
   const ismConfig = buildAggregationIsmConfigs(
     'ethereum',
@@ -19,8 +23,9 @@ export const getEthereumVictionUSDCWarpConfig = async (
     defaultMultisigConfigs,
   ).viction;
 
-  const viction: TokenRouterConfig = {
+  const viction: HypTokenRouterConfig = {
     ...routerConfig.viction,
+    ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
     name: 'USDC',
     symbol: 'USDC',
@@ -29,8 +34,9 @@ export const getEthereumVictionUSDCWarpConfig = async (
     gas: 75_000,
   };
 
-  const ethereum: TokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
+    ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
     gas: 65_000,

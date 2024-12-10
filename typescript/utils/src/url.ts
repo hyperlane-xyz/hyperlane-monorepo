@@ -3,7 +3,7 @@ export function isUrl(value?: string | null) {
     if (!value) return false;
     const url = new URL(value);
     return !!url.hostname;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -13,7 +13,7 @@ export function isHttpsUrl(value?: string | null) {
     if (!value) return false;
     const url = new URL(value);
     return url.protocol === 'https:';
-  } catch (error) {
+  } catch {
     return false;
   }
 }

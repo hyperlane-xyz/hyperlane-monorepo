@@ -3,7 +3,7 @@ import { $ } from 'zx';
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  TokenRouterConfig,
+  HypTokenRouterConfig,
   WarpCoreConfig,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
@@ -19,11 +19,29 @@ import {
   readWarpConfig,
 } from './warp.js';
 
-export const TEST_CONFIGS_PATH = './test-configs';
-export const REGISTRY_PATH = `${TEST_CONFIGS_PATH}/anvil`;
+export const E2E_TEST_CONFIGS_PATH = './test-configs';
+export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/anvil`;
+export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
 export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+export const E2E_TEST_BURN_ADDRESS =
+  '0x0000000000000000000000000000000000000001';
+
+export const CHAIN_NAME_2 = 'anvil2';
+export const CHAIN_NAME_3 = 'anvil3';
+
+export const EXAMPLES_PATH = './examples';
+export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
+export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
+export const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`;
+export const CHAIN_3_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_3}/metadata.yaml`;
+
+export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
+export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
+export const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
+
+export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.
@@ -74,7 +92,7 @@ export async function updateOwner(
 export async function extendWarpConfig(params: {
   chain: string;
   chainToExtend: string;
-  extendedConfig: TokenRouterConfig;
+  extendedConfig: HypTokenRouterConfig;
   warpCorePath: string;
   warpDeployPath: string;
   strategyUrl?: string;

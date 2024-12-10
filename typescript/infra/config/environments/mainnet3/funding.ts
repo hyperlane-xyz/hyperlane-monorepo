@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '1ed620c-20241107-052148',
+    tag: 'a7f3967-20241205-163749',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -29,6 +29,7 @@ export const keyFunderConfig: KeyFunderConfig<
     ancient8: '0.5',
     alephzeroevmmainnet: '100',
     apechain: '50',
+    appchain: '0.05',
     arbitrum: '0.5',
     arbitrumnova: '0.05',
     astar: '100',
@@ -40,7 +41,9 @@ export const keyFunderConfig: KeyFunderConfig<
     bitlayer: '0.002',
     blast: '0.2',
     bob: '0.2',
+    boba: '0.05',
     bsc: '5',
+    bsquared: '0.002',
     celo: '3',
     cheesechain: '50',
     chilizmainnet: '200',
@@ -48,6 +51,7 @@ export const keyFunderConfig: KeyFunderConfig<
     cyber: '0.05',
     degenchain: '100',
     dogechain: '100',
+    duckchain: '5',
     endurance: '20',
     ethereum: '0.5',
     everclear: '0.05',
@@ -67,6 +71,7 @@ export const keyFunderConfig: KeyFunderConfig<
     lisk: '0.05',
     lukso: '20',
     lumia: '1',
+    lumiaprism: '1',
     mantapacific: '0.2',
     mantle: '20',
     merlin: '0.002',
@@ -96,9 +101,15 @@ export const keyFunderConfig: KeyFunderConfig<
     snaxchain: '0.05',
     // ignore non-evm chains
     stride: '0',
+    superseed: '0.05',
     superpositionmainnet: '0.05',
+    swell: '0.05',
     taiko: '0.2',
     tangle: '2',
+    treasure: '100',
+    unichain: '0.05',
+    // temporarily low until we're able to fund more
+    vana: '0.001',
     viction: '3',
     worldchain: '0.2',
     xai: '20',
@@ -106,6 +117,7 @@ export const keyFunderConfig: KeyFunderConfig<
     zeronetwork: '0.05',
     zetachain: '20',
     zircuit: '0.02',
+    zklink: '0.05',
     zksync: '0.05',
     zoramainnet: '0.2',
     // ignore non-evm chains

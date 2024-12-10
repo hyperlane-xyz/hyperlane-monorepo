@@ -1,5 +1,48 @@
 # @hyperlane-xyz/cli
 
+## 7.3.0
+
+### Minor Changes
+
+- aa1ea9a48: updates the warp deployment config schema to be closer to the ica routing schema
+- 323f0f158: Add ICAs management in core apply command
+
+### Patch Changes
+
+- 455a897fb: Fix a bug where it would try to relay the incorrect message from a transaction that dispatches multiple messages.
+- Updated dependencies [2054f4f5b]
+- Updated dependencies [a96448fa6]
+- Updated dependencies [170a0fc73]
+- Updated dependencies [9a09afcc7]
+- Updated dependencies [24784af95]
+- Updated dependencies [3e8dd70ac]
+- Updated dependencies [aa1ea9a48]
+- Updated dependencies [665a7b8d8]
+- Updated dependencies [f0b98fdef]
+- Updated dependencies [ff9e8a72b]
+- Updated dependencies [97c1f80b7]
+- Updated dependencies [323f0f158]
+- Updated dependencies [61157097b]
+  - @hyperlane-xyz/sdk@7.3.0
+  - @hyperlane-xyz/utils@7.3.0
+
+## 7.2.0
+
+### Minor Changes
+
+- d51815760: Support using the CLI to deploy warp routes that involve foreign deployments
+- 81ab4332f: Remove ismFactoryAddresses from warpConfig
+- 4b3537470: Changed the type of defaultMultisigConfigs, to track validator aliases in addition to their addresses.
+
+### Patch Changes
+
+- Updated dependencies [81ab4332f]
+- Updated dependencies [4b3537470]
+- Updated dependencies [fa6d5f5c6]
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/sdk@7.2.0
+  - @hyperlane-xyz/utils@7.2.0
+
 ## 7.1.0
 
 ### Minor Changes

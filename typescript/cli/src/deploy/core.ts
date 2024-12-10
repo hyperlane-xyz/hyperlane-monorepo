@@ -1,12 +1,12 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
   ChainName,
   ContractVerifier,
   CoreConfig,
+  DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';
@@ -127,7 +127,11 @@ export async function runCoreApply(params: ApplyParams) {
   if (transactions.length) {
     logGray('Updating deployed core contracts');
     for (const transaction of transactions) {
-      await multiProvider.sendTransaction(chain, transaction);
+      await multiProvider.sendTransaction(
+        // Using the provided chain id because there might be remote chain transactions included in the batch
+        transaction.chainId ?? chain,
+        transaction,
+      );
     }
 
     logGreen(`Core config updated on ${chain}.`);

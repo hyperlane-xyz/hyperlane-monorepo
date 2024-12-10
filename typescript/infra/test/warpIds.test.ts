@@ -8,8 +8,10 @@ describe('Warp IDs', () => {
     const registry = getRegistry();
     for (const warpId of Object.values(WarpRouteIds)) {
       // That's a long sentence!
-      expect(registry.getWarpRoute(warpId), `Warp ID ${warpId} not in registry`)
-        .to.not.be.null.and.not.be.undefined;
+      expect(
+        registry.getWarpRoute(warpId),
+        `Warp ID ${warpId} not in registry, the .registryrc or your local registry may be out of date`,
+      ).to.not.be.null.and.not.be.undefined;
     }
   });
 });

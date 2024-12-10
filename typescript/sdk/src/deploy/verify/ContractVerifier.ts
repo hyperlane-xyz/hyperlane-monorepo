@@ -183,7 +183,7 @@ export class ContractVerifier {
         'Parsing response from explorer...',
       );
       responseJson = JSON.parse(responseTextString);
-    } catch (error) {
+    } catch {
       verificationLogger.trace(
         {
           failure: response.statusText,

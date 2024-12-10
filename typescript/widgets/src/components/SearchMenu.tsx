@@ -1,6 +1,7 @@
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, {
   ComponentType,
+  forwardRef,
   useCallback,
   useEffect,
   useMemo,
@@ -184,7 +185,7 @@ export function SearchMenu<
   );
 }
 
-const SearchBar = React.forwardRef(function SearchBar(
+const SearchBar = forwardRef(function SearchBar(
   { onChange, value, ...props }: InputProps,
   ref: React.Ref<HTMLInputElement>,
 ) {
