@@ -2,7 +2,15 @@ import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import { TokenType, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import {
+  HookConfig,
+  HookType,
+  IsmConfig,
+  IsmType,
+  TokenType,
+  WarpRouteDeployConfig,
+  normalizeConfig,
+} from '@hyperlane-xyz/sdk';
 
 import { WarpSendLogs } from '../send/transfer.js';
 import { writeYamlOrJson } from '../utils/files.js';
@@ -105,5 +113,89 @@ describe('hyperlane warp deploy e2e tests', async function () {
       WARP_CORE_CONFIG_PATH_2_3,
     );
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
+  });
+
+  it('should deploy with an ISM config', async () => {
+    // 1. Define ISM configuration
+    const ism: IsmConfig = {
+      type: IsmType.MESSAGE_ID_MULTISIG,
+      validators: [chain2Addresses.mailbox], // Using mailbox address as example validator
+      threshold: 1,
+    };
+
+    // 2. Create Warp configuration with ISM
+    const warpConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateralVaultRebase,
+        token: vault.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: chain2Addresses.mailbox,
+        interchainSecurityModule: ism, // Add ISM config here
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.syntheticRebase,
+        mailbox: chain3Addresses.mailbox,
+        owner: chain3Addresses.mailbox,
+        collateralChainName: CHAIN_NAME_2,
+      },
+    };
+
+    // 3. Write config and deploy
+    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+
+    // 4. Verify deployed ISM configuration
+    const collateralRebaseConfig = (
+      await readWarpConfig(
+        CHAIN_NAME_2,
+        WARP_CORE_CONFIG_PATH_2_3,
+        WARP_CONFIG_PATH,
+      )
+    )[CHAIN_NAME_2];
+
+    expect(
+      normalizeConfig(collateralRebaseConfig.interchainSecurityModule),
+    ).to.deep.equal(normalizeConfig(ism));
+  });
+
+  it('should deploy with a hook config', async () => {
+    const hook: HookConfig = {
+      type: HookType.PROTOCOL_FEE,
+      beneficiary: chain2Addresses.mailbox,
+      owner: chain2Addresses.mailbox,
+      maxProtocolFee: '1337',
+      protocolFee: '1337',
+    };
+    const warpConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateralVaultRebase,
+        token: vault.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: chain2Addresses.mailbox,
+        hook,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.syntheticRebase,
+        mailbox: chain3Addresses.mailbox,
+        owner: chain3Addresses.mailbox,
+        collateralChainName: CHAIN_NAME_2,
+      },
+    };
+
+    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+
+    // Check collateralRebase
+    const collateralRebaseConfig = (
+      await readWarpConfig(
+        CHAIN_NAME_2,
+        WARP_CORE_CONFIG_PATH_2_3,
+        WARP_CONFIG_PATH,
+      )
+    )[CHAIN_NAME_2];
+
+    expect(normalizeConfig(collateralRebaseConfig.hook)).to.deep.equal(
+      normalizeConfig(hook),
+    );
   });
 });

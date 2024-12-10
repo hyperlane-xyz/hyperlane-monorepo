@@ -31,7 +31,7 @@ pub const GAS_ESTIMATE_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const GAS_ESTIMATE_MULTIPLIER_DENOMINATOR: u32 = 10;
 
 pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
-    // Arbitrum Nitro chains use 2d fees are are especially prone to costs increasing
+    // Arbitrum Nitro chains use 2d fees are especially prone to costs increasing
     // by the time the transaction lands on chain, requiring a higher gas limit.
     // In this case, we apply a multiplier to the gas estimate.
     let gas = if domain.is_arbitrum_nitro() {

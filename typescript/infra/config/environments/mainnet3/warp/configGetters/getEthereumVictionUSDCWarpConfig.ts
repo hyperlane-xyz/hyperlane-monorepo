@@ -1,7 +1,7 @@
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
   buildAggregationIsmConfigs,
   defaultMultisigConfigs,
@@ -15,7 +15,7 @@ import {
 export const getEthereumVictionUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   // commit that the config was copied from https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3067/commits/7ed5b460034ea5e140c6ff86bcd6baf6ebb824c4#diff-fab5dd1a27c76e4310699c57ccf92ab6274ef0acf17e079b17270cedf4057775R109
   const ismConfig = buildAggregationIsmConfigs(
     'ethereum',
@@ -23,7 +23,7 @@ export const getEthereumVictionUSDCWarpConfig = async (
     defaultMultisigConfigs,
   ).viction;
 
-  const viction: TokenRouterConfig = {
+  const viction: HypTokenRouterConfig = {
     ...routerConfig.viction,
     ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
@@ -34,7 +34,7 @@ export const getEthereumVictionUSDCWarpConfig = async (
     gas: 75_000,
   };
 
-  const ethereum: TokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
