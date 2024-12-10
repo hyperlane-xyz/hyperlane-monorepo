@@ -1,7 +1,7 @@
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -15,21 +15,21 @@ const ownerConfig = getOwnerConfigForAddress(owner);
 export const getEthereumBscLUMIAWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
-  const ethereum: TokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...ownerConfig,
     type: TokenType.collateral,
     token: '0xD9343a049D5DBd89CD19DC6BcA8c48fB3a0a42a7',
   };
 
-  const bsc: TokenRouterConfig = {
+  const bsc: HypTokenRouterConfig = {
     ...routerConfig.bsc,
     ...ownerConfig,
     type: TokenType.synthetic,
   };
 
-  const lumia: TokenRouterConfig = {
+  const lumia: HypTokenRouterConfig = {
     ...routerConfig.lumia,
     ...ownerConfig,
     type: TokenType.native,
