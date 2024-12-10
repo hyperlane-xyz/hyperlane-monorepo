@@ -1,5 +1,6 @@
 import { parseEther } from 'ethers/lib/utils.js';
 
+import { fraxtal } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   HookType,
@@ -203,6 +204,57 @@ export const ezEthSafes: Record<string, string> = {
   swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
 };
 
+const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+  arbitrum: {
+    address: '0xdcB558d5C0F9A35C53Fa343c77eD0d346576e2Cf',
+    owner: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  },
+  optimism: {
+    address: '0xa50910ae66Df6A5F8e85dac032FD45BC2b7be6fF',
+    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  },
+  base: {
+    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
+    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  },
+  blast: {
+    address: '0xA26F8cE2E21A503bf9e18c213965d7BC14997F48',
+    owner: '0xda7dBF0DB81882372B598a715F86eD5254A01b0a',
+  },
+  bsc: {
+    address: '0x486b39378f99f073A3043C6Aabe8666876A8F3C5',
+    owner: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  },
+  mode: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: '0x7791eeA3484Ba4E5860B7a2293840767619c2B58',
+  },
+  fraxtal: {
+    address: '0x8bB69721B4E9b9df08bEdaeaA193008C7317Db59',
+    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  },
+  linea: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: '0xb7092685571B49786F1248c6205B5ac3A691c65E',
+  },
+  ethereum: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+  },
+  zircuit: {
+    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
+    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  },
+  sei: {
+    address: '0x33219fEF24C198d979F05d692a17507E41a0A73e',
+    owner: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  },
+  taiko: {
+    address: '0xA3666f8a327AADB666F1906A38B17937e5F11f92',
+    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  },
+};
+
 export const getRenzoEZETHWarpConfig = async (): Promise<
   ChainMap<HypTokenRouterConfig>
 > => {
@@ -283,6 +335,7 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                 protocolFee: parseEther(protocolFee).toString(),
                 maxProtocolFee: MAX_PROTOCOL_FEE,
               },
+              proxyAdmin: existingProxyAdmins[chain],
             },
           ];
 
