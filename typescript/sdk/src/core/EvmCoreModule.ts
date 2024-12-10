@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   Mailbox,
   Mailbox__factory,
@@ -21,8 +23,12 @@ import {
   HyperlaneAddresses,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
-import { DeployedCoreAddresses } from '../core/schemas.js';
-import { CoreConfig } from '../core/types.js';
+import {
+  CoreConfig,
+  CoreConfigSchema,
+  DeployedCoreAddresses,
+  DerivedCoreConfig,
+} from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
   ProxyFactoryFactories,
@@ -47,7 +53,6 @@ import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
 import { CoreFactories } from './contracts.js';
-import { CoreConfigSchema } from './schemas.js';
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -56,6 +61,7 @@ export class EvmCoreModule extends HyperlaneModule<
 > {
   protected logger = rootLogger.child({ module: 'EvmCoreModule' });
   protected coreReader: EvmCoreReader;
+  protected evmIcaModule?: EvmIcaModule;
   public readonly chainName: ChainName;
 
   public readonly chainId: EvmChainId;
@@ -70,15 +76,32 @@ export class EvmCoreModule extends HyperlaneModule<
     this.chainName = multiProvider.getChainName(args.chain);
     this.chainId = multiProvider.getEvmChainId(args.chain);
     this.domainId = multiProvider.getDomainId(args.chain);
-    this.chainId = multiProvider.getEvmChainId(args.chain);
+
+    if (args.config.interchainAccountRouter) {
+      this.evmIcaModule = new EvmIcaModule(multiProvider, {
+        chain: args.chain,
+        addresses: {
+          interchainAccountIsm: args.addresses.interchainAccountIsm,
+          interchainAccountRouter: args.addresses.interchainAccountRouter,
+          // TODO: fix this even though is not used at the moment internally
+          proxyAdmin: ethers.constants.AddressZero,
+          timelockController:
+            args.addresses.timelockController ?? ethers.constants.AddressZero,
+        },
+        config: args.config.interchainAccountRouter,
+      });
+    }
   }
 
   /**
    * Reads the core configuration from the mailbox address specified in the SDK arguments.
    * @returns The core config.
    */
-  public async read(): Promise<CoreConfig> {
-    return this.coreReader.deriveCoreConfig(this.args.addresses.mailbox);
+  public async read(): Promise<DerivedCoreConfig> {
+    return this.coreReader.deriveCoreConfig({
+      mailbox: this.args.addresses.mailbox,
+      interchainAccountRouter: this.args.addresses.interchainAccountRouter,
+    });
   }
 
   /**
@@ -94,7 +117,6 @@ export class EvmCoreModule extends HyperlaneModule<
     const actualConfig = await this.read();
 
     const transactions: AnnotatedEV5Transaction[] = [];
-
     transactions.push(
       ...(await this.createDefaultIsmUpdateTxs(actualConfig, expectedConfig)),
       ...this.createMailboxOwnerUpdateTxs(actualConfig, expectedConfig),
@@ -105,6 +127,14 @@ export class EvmCoreModule extends HyperlaneModule<
         expectedConfig,
       ),
     );
+
+    if (expectedConfig.interchainAccountRouter && this.evmIcaModule) {
+      transactions.push(
+        ...(await this.evmIcaModule.update(
+          expectedConfig.interchainAccountRouter,
+        )),
+      );
+    }
 
     return transactions;
   }
@@ -117,7 +147,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns Transaction that need to be executed to update the ISM configuration.
    */
   async createDefaultIsmUpdateTxs(
-    actualConfig: CoreConfig,
+    actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
@@ -212,7 +242,7 @@ export class EvmCoreModule extends HyperlaneModule<
    * @returns Ethereum transaction that need to be executed to update the owner.
    */
   createMailboxOwnerUpdateTxs(
-    actualConfig: CoreConfig,
+    actualConfig: DerivedCoreConfig,
     expectedConfig: CoreConfig,
   ): AnnotatedEV5Transaction[] {
     return transferOwnershipTransactions(

@@ -28,6 +28,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import {
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
   ModuleType,
@@ -41,8 +42,8 @@ const logger = rootLogger.child({ module: 'IsmUtils' });
 // Determines the domains to enroll and unenroll to update the current ISM config
 // to match the target ISM config.
 export function calculateDomainRoutingDelta(
-  current: RoutingIsmConfig,
-  target: RoutingIsmConfig,
+  current: DomainRoutingIsmConfig,
+  target: DomainRoutingIsmConfig,
 ): { domainsToEnroll: ChainName[]; domainsToUnenroll: ChainName[] } {
   const domainsToEnroll = [];
   for (const origin of Object.keys(target.domains)) {
@@ -270,7 +271,7 @@ export async function moduleMatchesConfig(
         let mailboxAddress;
         try {
           mailboxAddress = await client.mailbox();
-        } catch (error) {
+        } catch {
           matches = false;
           break;
         }
@@ -406,15 +407,36 @@ export async function routingModuleDelta(
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
 ): Promise<RoutingIsmDelta> {
+  if (config.type === IsmType.ICA_ROUTING) {
+    return {
+      domainsToEnroll: [],
+      domainsToUnenroll: [],
+    };
+  }
+
+  return domainRoutingModuleDelta(
+    destination,
+    moduleAddress,
+    config,
+    multiProvider,
+    contracts,
+    mailbox,
+  );
+}
+
+async function domainRoutingModuleDelta(
+  destination: ChainName,
+  moduleAddress: Address,
+  config: DomainRoutingIsmConfig,
+  multiProvider: MultiProvider,
+  contracts: HyperlaneContracts<ProxyFactoryFactories>,
+  mailbox?: Address,
+): Promise<RoutingIsmDelta> {
   const provider = multiProvider.getProvider(destination);
   const routingIsm = DomainRoutingIsm__factory.connect(moduleAddress, provider);
   const owner = await routingIsm.owner();
   const deployedDomains = (await routingIsm.domains()).map((domain) =>
     domain.toNumber(),
-  );
-  // config.domains is already filtered to only include domains in the multiprovider
-  const safeConfigDomains = objMap(config.domains, (chainName) =>
-    multiProvider.getDomainId(chainName),
   );
 
   const delta: RoutingIsmDelta = {
@@ -423,14 +445,21 @@ export async function routingModuleDelta(
   };
 
   // if owners don't match, we need to transfer ownership
-  const expectedOwner = config.owner;
-  if (!eqAddress(owner, normalizeAddress(expectedOwner)))
-    delta.owner = expectedOwner;
+  if (!eqAddress(owner, normalizeAddress(config.owner))) {
+    delta.owner = config.owner;
+  }
+
   if (config.type === IsmType.FALLBACK_ROUTING) {
     const client = MailboxClient__factory.connect(moduleAddress, provider);
     const mailboxAddress = await client.mailbox();
     if (mailbox && !eqAddress(mailboxAddress, mailbox)) delta.mailbox = mailbox;
   }
+
+  // config.domains is already filtered to only include domains in the multiprovider
+  const safeConfigDomains = objMap(config.domains, (chainName) =>
+    multiProvider.getDomainId(chainName),
+  );
+
   // check for exclusion of domains in the config
   delta.domainsToUnenroll = deployedDomains.filter(
     (domain) => !Object.values(safeConfigDomains).includes(domain),
@@ -457,6 +486,7 @@ export async function routingModuleDelta(
       }
     }
   }
+
   return delta;
 }
 

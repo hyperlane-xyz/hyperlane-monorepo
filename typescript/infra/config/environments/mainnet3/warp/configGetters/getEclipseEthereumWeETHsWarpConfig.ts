@@ -2,9 +2,8 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  RouterConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -13,6 +12,7 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
+import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 // Safe owned by Veda
 const ethereumOwner = '0xCEA8039076E35a825854c5C2f85659430b06ec96';
@@ -22,17 +22,17 @@ const eclipseOwner = '4Cj1s2ipALjJk9foQV4oDaZYCZwSsVkAShQL1KFVJG9b';
 export async function getEclipseEthereumWeEthsWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> {
-  const eclipsemainnet: TokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfig>> {
+  const eclipsemainnet: HypTokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     ...getOwnerConfigForAddress(eclipseOwner),
     type: TokenType.synthetic,
     foreignDeployment: '7Zx4wU1QAw98MfvnPFqRh1oyumek7G5VAX6TKB3U1tcn',
-    gas: 300_000,
+    gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  let ethereum: TokenRouterConfig = {
+  let ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...getOwnerConfigForAddress(ethereumOwner),
     type: TokenType.collateral,

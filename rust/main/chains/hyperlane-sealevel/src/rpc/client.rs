@@ -47,13 +47,6 @@ impl SealevelRpcClient {
             .map_err(Into::into)
     }
 
-    pub async fn get_account(&self, pubkey: &Pubkey) -> ChainResult<Account> {
-        self.0
-            .get_account(pubkey)
-            .await
-            .map_err(ChainCommunicationError::from_other)
-    }
-
     /// Simulates an Instruction that will return a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
