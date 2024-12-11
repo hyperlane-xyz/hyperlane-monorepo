@@ -379,23 +379,25 @@ impl SealevelMailbox {
 
         // If we're using Jito, we need to send a tip to the Jito fee account.
         // Otherwise, we need to set the compute unit price.
-        // if self.is_solana() {
-        //     let tip: u64 = (compute_unit_price_micro_lamports * compute_unit_limit as u64) / 1e6;
+        if self.is_solana() {
+            // Tip in lamports
+            let tip: u64 =
+                (compute_unit_price_micro_lamports * compute_unit_limit as u64) / 1e6 as u64;
 
-        //     // The tip is a standalone transfer to a Jito fee account.
-        //     // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
-        //     instructions.push(solana_sdk::system_instruction::transfer(
-        //         &payer.pubkey(),
-        //         // A random Jito fee account, taken from the getFeeAccount RPC response:
-        //         // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
-        //         &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
-        //         tip,
-        //     ));
-        // } else {
-        instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
-            compute_unit_price_micro_lamports,
-        ));
-        // }
+            // The tip is a standalone transfer to a Jito fee account.
+            // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
+            instructions.push(solana_sdk::system_instruction::transfer(
+                &payer.pubkey(),
+                // A random Jito fee account, taken from the getFeeAccount RPC response:
+                // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
+                &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
+                tip,
+            ));
+        } else {
+            instructions.push(ComputeBudgetInstruction::set_compute_unit_price(
+                compute_unit_price_micro_lamports,
+            ));
+        }
 
         instructions.push(instruction);
 
@@ -508,28 +510,28 @@ impl SealevelMailbox {
         &self,
         transaction: &Transaction,
     ) -> ChainResult<Signature> {
+        if self.is_solana() {
+            self.send_and_confirm_transaction_with_jito(transaction)
+                .await
+        } else {
+            self.provider
+                .rpc()
+                .send_transaction(transaction, true)
+                .await
+        }
+
         // if self.is_solana() {
-        //     self.send_and_confirm_transaction_with_jito(transaction)
-        //         .await
-        // } else {
+        //     if let PriorityFeeOracleConfig::Helius(helius) = &self.priority_fee_oracle_config {
+        //         let rpc = SealevelRpcClient::new(helius.url.clone().into());
+        //         return rpc.send_transaction(transaction, true).await;
+        //     } else {
+        //         tracing::warn!("Priority fee oracle is not Helius, falling back to normal RPC");
+        //     }
+        // }
         // self.provider
         //     .rpc()
-        //     .send_and_confirm_transaction(transaction)
+        //     .send_transaction(transaction, true)
         //     .await
-        // }
-
-        if self.is_solana() {
-            if let PriorityFeeOracleConfig::Helius(helius) = &self.priority_fee_oracle_config {
-                let rpc = SealevelRpcClient::new(helius.url.clone().into());
-                return rpc.send_transaction(transaction, true).await;
-            } else {
-                tracing::warn!("Priority fee oracle is not Helius, falling back to normal RPC");
-            }
-        }
-        self.provider
-            .rpc()
-            .send_transaction(transaction, true)
-            .await
     }
 
     // Stolen from Solana's non-blocking client, but with Jito!
@@ -577,44 +579,44 @@ impl SealevelMailbox {
                 "Got Jito response for sealevel transaction bundle"
             );
 
-            let recent_blockhash = if transaction.uses_durable_nonce() {
-                self.provider
-                    .rpc()
-                    .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-                    .await?
-            } else {
-                *transaction.get_recent_blockhash()
-            };
+            // let recent_blockhash = if transaction.uses_durable_nonce() {
+            //     self.provider
+            //         .rpc()
+            //         .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+            //         .await?
+            // } else {
+            //     *transaction.get_recent_blockhash()
+            // };
 
-            for status_retry in 0..GET_STATUS_RETRIES {
-                let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
-                    .provider
-                    .rpc()
-                    .get_signature_statuses(&[*signature])
-                    .await?;
-                let signature_status = signature_statuses.value.first().cloned().flatten();
-                match signature_status {
-                    Some(_) => return Ok(*signature),
-                    None => {
-                        if !self
-                            .provider
-                            .rpc()
-                            .is_blockhash_valid(&recent_blockhash)
-                            .await?
-                        {
-                            // Block hash is not found by some reason
-                            break 'sending;
-                        } else if cfg!(not(test))
-                            // Ignore sleep at last step.
-                            && status_retry < GET_STATUS_RETRIES
-                        {
-                            // Retry twice a second
-                            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                            continue;
-                        }
-                    }
-                }
-            }
+            // for status_retry in 0..GET_STATUS_RETRIES {
+            //     let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
+            //         .provider
+            //         .rpc()
+            //         .get_signature_statuses(&[*signature])
+            //         .await?;
+            //     let signature_status = signature_statuses.value.first().cloned().flatten();
+            //     match signature_status {
+            //         Some(_) => return Ok(*signature),
+            //         None => {
+            //             if !self
+            //                 .provider
+            //                 .rpc()
+            //                 .is_blockhash_valid(&recent_blockhash)
+            //                 .await?
+            //             {
+            //                 // Block hash is not found by some reason
+            //                 break 'sending;
+            //             } else if cfg!(not(test))
+            //                 // Ignore sleep at last step.
+            //                 && status_retry < GET_STATUS_RETRIES
+            //             {
+            //                 // Retry twice a second
+            //                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            //                 continue;
+            //             }
+            //         }
+            //     }
+            // }
         }
 
         Err(ChainCommunicationError::from_other(
