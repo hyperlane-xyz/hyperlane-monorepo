@@ -246,7 +246,6 @@ impl CheckpointSyncer for GcsStorageClient {
         self.upload_and_log(&object_name, data).await
     }
 
-
     /// Write the agent metadata to this syncer
     #[instrument(skip(self, metadata))]
     async fn write_metadata(&self, metadata: &AgentMetadata) -> Result<()> {
