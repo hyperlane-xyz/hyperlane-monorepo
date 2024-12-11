@@ -2,7 +2,6 @@ import { ethers, providers } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { ChainMap } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ParsedMessage,
@@ -22,7 +21,7 @@ import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
 import { IsmConfigSchema } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { DispatchedMessage } from './types.js';

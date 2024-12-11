@@ -1,4 +1,3 @@
-import { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
@@ -6,6 +5,7 @@ import {
   getExplorerBaseUrl,
   getExplorerTxUrl,
 } from '../metadata/blockExplorer.js';
+import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 const PROTOCOL_TO_ADDRESS: Record<ProtocolType, Address> = {
   [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000000',
