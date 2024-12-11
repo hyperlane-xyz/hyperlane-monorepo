@@ -1,6 +1,5 @@
 import { password } from '@inquirer/prompts';
 import { Signer, Wallet } from 'ethers';
-import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import {
   ChainName,
@@ -57,6 +56,8 @@ class EthereumSignerStrategy extends BaseMultiProtocolSigner {
   }
 }
 
+// 99% overlap with EthereumSignerStrategy for the sake of keeping MultiProtocolSignerFactory clean
+// TODO: import ZKSync signer
 class ZKSyncSignerStrategy extends BaseMultiProtocolSigner {
   async getSignerConfig(chain: ChainName): Promise<SignerConfig> {
     const submitter = this.config[chain]?.submitter as {
@@ -73,6 +74,6 @@ class ZKSyncSignerStrategy extends BaseMultiProtocolSigner {
   }
 
   getSigner(config: SignerConfig): Signer {
-    return new ZKSyncWallet(config.privateKey);
+    return new Wallet(config.privateKey);
   }
 }

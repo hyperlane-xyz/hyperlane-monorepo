@@ -23,6 +23,8 @@ export type EV5GnosisSafeTxBuilderProps = z.infer<
 
 export const EV5JsonRpcTxSubmitterPropsSchema = z.object({
   chain: ZChainName,
+  userAddress: ZHash.optional(),
+  privateKey: ZHash.optional(),
 });
 
 export type EV5JsonRpcTxSubmitterProps = z.infer<
