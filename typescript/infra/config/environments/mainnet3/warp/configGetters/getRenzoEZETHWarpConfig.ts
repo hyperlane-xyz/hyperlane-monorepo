@@ -1,5 +1,6 @@
 import { parseEther } from 'ethers/lib/utils.js';
 
+import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
@@ -12,6 +13,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { symmetricDifference } from '@hyperlane-xyz/utils';
 
+import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 import rawTokenPrices from '../../tokenPrices.json';
 
@@ -260,6 +262,8 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
 export const getRenzoEZETHWarpConfig = async (): Promise<
   ChainMap<HypTokenRouterConfig>
 > => {
+  const config = getEnvironmentConfig('mainnet3');
+  const multiProvider = await config.getMultiProvider();
   const registry = await getMainnet3Registry();
 
   const validatorDiff = symmetricDifference(
@@ -298,8 +302,13 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
     await Promise.all(
       chainsToDeploy.map(
         async (chain): Promise<[string, HypTokenRouterConfig]> => {
-          const { mailbox, merkleTreeHook, interchainGasPaymaster } =
-            (await registry.getChainAddresses(chain))!;
+          const { mailbox } = (await registry.getChainAddresses(chain))!;
+
+          const mailboxContract = Mailbox__factory.connect(
+            mailbox,
+            multiProvider.getProvider(chain),
+          );
+          const defaultHook = await mailboxContract.defaultHook();
           const ret: [string, HypTokenRouterConfig] = [
             chain,
             {
@@ -335,8 +344,7 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
               hook: {
                 type: HookType.AGGREGATION,
                 hooks: [
-                  merkleTreeHook,
-                  interchainGasPaymaster,
+                  defaultHook,
                   {
                     type: HookType.PROTOCOL_FEE,
                     owner: ezEthSafes[chain],
