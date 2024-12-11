@@ -31,12 +31,11 @@ import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
 } from '../contracts/types.js';
-import { OwnableConfig } from '../deploy/types.js';
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
 import { CoreFactories, coreFactories } from './contracts.js';
@@ -205,9 +204,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(),
         (_sender, _destination, _recipient, message, event) => {
-          const parsed = HyperlaneCore.parseDispatchedMessage(message);
-          this.logger.info(`Observed message ${parsed.id} on ${originChain}`);
-          return handler(parsed, event);
+          const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+
+          // add human readable chain names
+          dispatched.parsed.originChain = this.getOrigin(dispatched);
+          dispatched.parsed.destinationChain = this.getDestination(dispatched);
+
+          this.logger.info(
+            `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+          );
+          return handler(dispatched, event);
         },
       );
     });

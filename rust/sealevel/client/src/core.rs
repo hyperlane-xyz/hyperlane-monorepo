@@ -9,26 +9,21 @@ use solana_sdk::{compute_budget, compute_budget::ComputeBudgetInstruction};
 use std::collections::HashMap;
 use std::{fs::File, path::Path};
 
+use crate::cmd_utils::get_compute_unit_price_micro_lamports_for_chain_name;
+use crate::ONE_SOL_IN_LAMPORTS;
 use crate::{
     artifacts::{read_json, write_json},
     cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
     multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
-use crate::{DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT, ONE_SOL_IN_LAMPORTS};
 use hyperlane_core::H256;
 use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
 
 pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
     if chain_name.eq("solanamainnet") {
+        let compute_unit_price = get_compute_unit_price_micro_lamports_for_chain_name(chain_name);
         let mut initial_instructions = ctx.initial_instructions.borrow_mut();
-        const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 50_000_000;
-        const MICRO_LAMPORT_FEE_PER_LIMIT: u64 =
-            // Convert to micro-lamports
-            (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
-        // Divide by the max compute units
-        / DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT as u64;
-
         for i in initial_instructions.iter_mut() {
             if i.instruction.program_id != compute_budget::id() {
                 continue;
@@ -41,9 +36,8 @@ pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
                     ComputeBudgetInstruction::SetComputeUnitPrice { .. }
                 ) {
                     // The compute unit price has already been set, so we override it and return early
-                    i.instruction = ComputeBudgetInstruction::set_compute_unit_price(
-                        MICRO_LAMPORT_FEE_PER_LIMIT,
-                    );
+                    i.instruction =
+                        ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price);
                     return;
                 }
             }
@@ -51,10 +45,10 @@ pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
 
         initial_instructions.push(
             (
-                ComputeBudgetInstruction::set_compute_unit_price(MICRO_LAMPORT_FEE_PER_LIMIT),
+                ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price),
                 Some(format!(
-                    "Set compute unit price to {}",
-                    MICRO_LAMPORT_FEE_PER_LIMIT
+                    "Set compute unit price to {} micro-lamports",
+                    compute_unit_price
                 )),
             )
                 .into(),

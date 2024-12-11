@@ -243,7 +243,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     let oracleKey: string | undefined;
 
-    const domainIds = this.multiProvider.getKnownDomainIds();
+    const domainIds = this.messageContext
+      ? [this.messageContext.parsed.destination]
+      : this.multiProvider.getKnownDomainIds();
 
     const allKeys = await concurrentMap(
       this.concurrency,
@@ -267,7 +269,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             this.provider,
           );
           return oracle.owner();
-        } catch (error) {
+        } catch {
           this.logger.debug(
             'Domain not configured on IGP Hook',
             domainId,
@@ -449,7 +451,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         if (domainHook !== ethers.constants.AddressZero) {
           domainHooks[chainName] = await this.deriveHookConfig(domainHook);
         }
-      } catch (error) {
+      } catch {
         this.logger.debug(
           `Domain not configured on ${hook.constructor.name}`,
           domainId,

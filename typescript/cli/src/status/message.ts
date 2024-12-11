@@ -6,6 +6,7 @@ import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
+import { stubMerkleTreeConfig } from '../utils/relay.js';
 
 export async function checkMessageStatus({
   context,
@@ -47,7 +48,7 @@ export async function checkMessageStatus({
     });
     try {
       dispatchedReceipt = await core.getDispatchTx(origin, messageId);
-    } catch (e) {
+    } catch {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
 
       dispatchTx = await input({
@@ -77,6 +78,11 @@ export async function checkMessageStatus({
 
   if (selfRelay) {
     const relayer = new HyperlaneRelayer({ core });
+    for (const message of undelivered) {
+      const hookAddress = await core.getSenderHookAddress(message);
+      const merkleAddress = coreAddresses[origin].merkleTreeHook;
+      stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+    }
     await relayer.relayAll(dispatchedReceipt, undelivered);
   }
 }

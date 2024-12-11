@@ -39,7 +39,9 @@ async function getSubmitter<TProtocol extends ProtocolType>(
 ): Promise<TxSubmitterInterface<TProtocol>> {
   switch (submitterMetadata.type) {
     case TxSubmitterType.JSON_RPC:
-      return new EV5JsonRpcTxSubmitter(multiProvider);
+      return new EV5JsonRpcTxSubmitter(multiProvider, {
+        ...submitterMetadata,
+      });
     case TxSubmitterType.IMPERSONATED_ACCOUNT:
       return new EV5ImpersonatedAccountTxSubmitter(multiProvider, {
         ...submitterMetadata,

@@ -4,6 +4,7 @@ import type { IRegistry } from '@hyperlane-xyz/registry';
 
 import { Circle } from '../icons/Circle.js';
 import { QuestionMarkIcon } from '../icons/QuestionMark.js';
+import { widgetLogger } from '../logger.js';
 
 type SvgIcon = (props: {
   width: number;
@@ -41,8 +42,8 @@ export function ChainLogo({
     registry
       .getChainLogoUri(chainName)
       .then((uri) => uri && setSvgLogos({ ...svgLogos, [chainName]: uri }))
-      .catch((err) => console.error(err));
-  }, [chainName, registry, svgLogos, Icon]);
+      .catch((err) => widgetLogger.error('Error fetching log uri', err));
+  }, [chainName, logoUri, registry, svgLogos, Icon]);
 
   if (!uri && !Icon) {
     return (

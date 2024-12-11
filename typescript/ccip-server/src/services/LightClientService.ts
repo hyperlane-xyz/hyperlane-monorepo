@@ -27,8 +27,8 @@ class LightClientService {
    * @param slot
    * @returns
    */
-  async getSyncCommitteePoseidons(slot: bigint): Promise<string> {
-    return await this.lightClientContract.syncCommitteePoseidons(
+  getSyncCommitteePoseidons(slot: bigint): Promise<string> {
+    return this.lightClientContract.syncCommitteePoseidons(
       this.getSyncCommitteePeriod(slot),
     );
   }

@@ -1,0 +1,38 @@
+{
+  "ethereum": {
+    "sender": "0xEd42a7D8559a463722Ca4beD50E0Cc05a386b0e1"
+  },
+  "polygon": {
+    "sender": "0xF6B99959F0b5e79E1CC7062E12aF632CEb18eF0d"
+  },
+  "avalanche": {
+    "sender": "0x27FC7D54C893dA63C0AE6d57e1B2B13A70690928"
+  },
+  "arbitrum": {
+    "sender": "0xCbFB78a3Eeaa611b826E37c80E4126c8787D29f0"
+  },
+  "optimism": {
+    "sender": "0x48A9FE90bce5EEd790f3F4Ce192d1C0B351fd4Ca"
+  },
+  "bsc": {
+    "sender": "0x9d33ee6543C9b2C8c183b8fb58fB089266cffA19"
+  },
+  "base": {
+    "sender": "0x529467C76f234F2bD359d7ecF7c660A2846b04e2"
+  },
+  "metis": {
+    "sender": "0x6fDaFb26915ABD6065a1E1501a37Ac438D877f70"
+  },
+  "gnosis": {
+    "sender": "0x8Dc5310fc9D3D7D1Bb3D1F686899c8F082316c9F"
+  },
+  "scroll": {
+    "sender": "0x03073D3F4769f6b6604d616238fD6c636C99AD0A"
+  },
+  "polygonzkevm": {
+    "sender": "0xed7e0874526B9BB9E36C7e9472ed7ed324CEeE3B"
+  },
+  "celo": {
+    "sender": "0x4A5f4b29C0407E5Feb323305e121f563c7bC4d79"
+  }
+}
