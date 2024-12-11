@@ -94,6 +94,10 @@ where
             .metrics
             .indexed_height
             .with_label_values(&[label, chain_name]);
+        info!(
+            "indexed_height_metric in sync():{:?}",
+            indexed_height_metric
+        );
         let stored_logs_metric = self
             .metrics
             .stored_events
@@ -104,6 +108,7 @@ where
                 self.fetch_logs_from_receiver(rx, &stored_logs_metric).await;
             }
             if let Some(cursor) = opts.cursor.as_mut() {
+                info!("fetch_logs_with_cursor started!");
                 self.fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
                     .await;
             }
@@ -170,7 +175,7 @@ where
             #[allow(clippy::never_loop)]
             CursorAction::Query(range) => loop {
                 debug!(?range, "Looking for events in index range");
-
+                info!("Indexer:{:?}", self.indexer);
                 let logs = match self.indexer.fetch_logs_in_range(range.clone()).await {
                     Ok(logs) => logs,
                     Err(err) => {

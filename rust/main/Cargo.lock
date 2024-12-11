@@ -181,9 +181,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.86"
+version = "1.0.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
+checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
 
 [[package]]
 name = "ark-bls12-381"
@@ -426,9 +426,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.82"
+version = "0.1.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a27b8a3a6e1a44fa4c8baf1f653e4172e81486d4941f2237e20dc2d0cf4ddff1"
+checksum = "721cae7de5c34fbb2acd27e21e6d2cf7b886dce0c27388d46c4e6c47ea4318dd"
 dependencies = [
  "proc-macro2 1.0.86",
  "quote 1.0.37",
@@ -721,6 +721,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "bitcoin-io"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b47c4ab7a93edb0c7198c5535ed9b52b63095f4e9b45279c6736cec4b856baf"
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb18c03d0db0247e147a21a6faafd5a7eb851c743db062de72018b6b7e8e4d16"
+dependencies = [
+ "bitcoin-io",
+ "hex-conservative",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -743,6 +759,12 @@ checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
 dependencies = [
  "typenum",
 ]
+
+[[package]]
+name = "bitstream-io"
+version = "2.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b81e1519b0d82120d2fd469d5bfb2919a9361c48b02d82d04befc1cdd2002452"
 
 [[package]]
 name = "bitvec"
@@ -1735,6 +1757,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "crc"
+version = "3.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69e6e4d7b33a94f0991c26729976b10ebde1d34c3ee82408fb536164fa10d636"
+dependencies = [
+ "crc-catalog",
+]
+
+[[package]]
+name = "crc-catalog"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
+
+[[package]]
 name = "crc32fast"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1855,9 +1892,9 @@ dependencies = [
 
 [[package]]
 name = "crypto-mac"
-version = "0.11.1"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1d1a86f49236c215f271d40892d5fc950490551400b02ef360692c29815c714"
+checksum = "25fab6889090c8133f3deb8f73ba3c65a7f456f66436fc012a1b1e272b1e103e"
 dependencies = [
  "generic-array 0.14.7",
  "subtle",
@@ -2767,6 +2804,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "env_logger"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
+dependencies = [
+ "humantime",
+ "is-terminal",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3499,7 +3549,7 @@ dependencies = [
  "lazy_static",
  "p256",
  "rand 0.8.5",
- "secp256k1",
+ "secp256k1 0.26.0",
  "serde",
  "sha2 0.10.8",
  "zeroize",
@@ -4163,6 +4213,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
+name = "hermit-abi"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbf6a919d6cf397374f7dfeeea91d974c7c0a7221d0d0f4f20d859d329e53fcc"
+
+[[package]]
 name = "hex"
 version = "0.1.0"
 dependencies = [
@@ -4174,6 +4230,15 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "hex-conservative"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5313b072ce3c597065a808dbf612c4c8e8590bdbf8b579508bf7a762c5eae6cd"
+dependencies = [
+ "arrayvec",
+]
 
 [[package]]
 name = "histogram"
@@ -4206,7 +4271,7 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a2a2320eb7ec0ebe8da8f744d7812d9fc4cb4d09344ac01898dbcb6a20ae69b"
 dependencies = [
- "crypto-mac 0.11.1",
+ "crypto-mac 0.11.0",
  "digest 0.9.0",
 ]
 
@@ -4431,6 +4496,7 @@ dependencies = [
  "hyperlane-fuel",
  "hyperlane-sealevel",
  "hyperlane-test",
+ "hyperlane-ton",
  "itertools 0.12.1",
  "maplit",
  "mockall",
@@ -4449,6 +4515,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tonlib-core",
  "tracing",
  "tracing-error",
  "tracing-futures",
@@ -4748,6 +4815,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyperlane-ton"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.21.7",
+ "derive-new",
+ "hex 0.4.3",
+ "hyperlane-core",
+ "log",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "pretty_env_logger",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tonlib-core",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5020,6 +5111,17 @@ name = "ipnet"
 version = "2.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
+
+[[package]]
+name = "is-terminal"
+version = "0.4.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "261f68e344040fbd0edea105bef17c66edf46f984ddb1115b775ce31be948f4b"
+dependencies = [
+ "hermit-abi 0.4.0",
+ "libc",
+ "windows-sys 0.52.0",
+]
 
 [[package]]
 name = "itertools"
@@ -5513,6 +5615,12 @@ dependencies = [
  "spl-type-length-value",
  "thiserror",
 ]
+
+[[package]]
+name = "nacl"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30aefc44d813c51b5e7952950e87c17f2e0e1a3274d63c8281a701e05323d548"
 
 [[package]]
 name = "native-tls"
@@ -6097,6 +6205,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "password-hash"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+dependencies = [
+ "base64ct",
+ "rand_core 0.6.4",
+ "subtle",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6125,7 +6244,7 @@ checksum = "83a0692ec44e4cf1ef28ca317f14f8f07da2d95ec3fa01f86e4467b725e60917"
 dependencies = [
  "digest 0.10.7",
  "hmac 0.12.1",
- "password-hash",
+ "password-hash 0.4.2",
  "sha2 0.10.8",
 ]
 
@@ -6137,6 +6256,8 @@ checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
 dependencies = [
  "digest 0.10.7",
  "hmac 0.12.1",
+ "password-hash 0.5.0",
+ "sha2 0.10.8",
 ]
 
 [[package]]
@@ -6397,6 +6518,16 @@ checksum = "41b740d195ed3166cd147c8047ec98db0e22ec019eb8eeb76d343b795304fb13"
 dependencies = [
  "predicates-core",
  "termtree",
+]
+
+[[package]]
+name = "pretty_env_logger"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "865724d4dbe39d9f3dd3b52b88d859d66bcb2d6a0acfd5ea68a65fb66d4bdc1c"
+dependencies = [
+ "env_logger 0.10.2",
+ "log",
 ]
 
 [[package]]
@@ -7231,6 +7362,7 @@ dependencies = [
  "anyhow",
  "cosmwasm-schema",
  "ctrlc",
+ "env_logger 0.9.3",
  "ethers",
  "ethers-contract",
  "ethers-core",
@@ -7240,22 +7372,28 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-cosmos",
  "hyperlane-cosmwasm-interface",
+ "hyperlane-ton",
  "jobserver",
  "k256 0.13.4",
+ "log",
  "macro_rules_attribute",
  "maplit",
  "nix 0.26.4",
  "once_cell",
  "regex",
  "relayer",
+ "reqwest",
  "ripemd",
+ "secp256k1 0.30.0",
  "serde",
  "serde_json",
  "sha2 0.10.8",
  "tempfile",
  "tokio",
  "toml_edit 0.19.15",
+ "tonlib-core",
  "ureq",
+ "url",
  "vergen",
  "which 4.4.2",
 ]
@@ -7926,7 +8064,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4124a35fe33ae14259c490fd70fa199a32b9ce9502f2ee6bc4f81ec06fa65894"
 dependencies = [
  "rand 0.8.5",
- "secp256k1-sys",
+ "secp256k1-sys 0.8.1",
+]
+
+[[package]]
+name = "secp256k1"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b50c5943d326858130af85e049f2661ba3c78b26589b8ab98e65e80ae44a1252"
+dependencies = [
+ "bitcoin_hashes",
+ "rand 0.8.5",
+ "secp256k1-sys 0.10.1",
 ]
 
 [[package]]
@@ -7934,6 +8083,15 @@ name = "secp256k1-sys"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a129b9e9efbfb223753b9163c4ab3b13cff7fd9c7f010fbac25ab4099fa07e"
+dependencies = [
+ "cc",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4387882333d3aa8cb20530a17c69a3752e97837832f34f6dccc760e715001d9"
 dependencies = [
  "cc",
 ]
@@ -8565,7 +8723,7 @@ name = "solana-logger"
 version = "1.14.13"
 source = "git+https://github.com/hyperlane-xyz/solana.git?tag=hyperlane-1.14.13-2024-11-20#913db71a07f967f4c5c7e7f747cb48517cdbf09e"
 dependencies = [
- "env_logger",
+ "env_logger 0.9.3",
  "lazy_static",
  "log",
 ]
@@ -9271,9 +9429,9 @@ dependencies = [
 
 [[package]]
 name = "subtle"
-version = "2.4.1"
+version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
+checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "subtle-encoding"
@@ -9950,6 +10108,28 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tonlib-core"
+version = "0.20.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49bf32ae1f9c1307f300cba672e6ef0cb372e146db53374776f586d83206466d"
+dependencies = [
+ "base64 0.22.1",
+ "bitstream-io",
+ "crc",
+ "hex 0.4.3",
+ "hmac 0.12.1",
+ "lazy_static",
+ "nacl",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "pbkdf2 0.12.2",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "thiserror",
 ]
 
 [[package]]
