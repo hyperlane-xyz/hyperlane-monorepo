@@ -1,0 +1,11 @@
+;; mailbox events
+const int event::dispatch = "event::dispatch"c;
+const int event::handle = "event::handle"c;
+const int event::post_dispatch = "event::post_dispatch"c;
+const int event::quote_dispatch = "event::quote_dispatch"c;
+;; igp events
+const int event::gas_payment = "event::gas_payment"c;
+const int event::required_payment = "event::required_payment"c;
+;; validdator announce events
+const int event::validator_announcement = "event::validator_announcement"c;
+const int event::inserted_into_tree = "event::inserted_into_tree"c;

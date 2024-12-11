@@ -54,6 +54,8 @@ mod logging;
 mod metrics;
 mod program;
 mod server;
+mod solana;
+mod ton;
 mod utils;
 
 #[cfg(feature = "cosmos")]
