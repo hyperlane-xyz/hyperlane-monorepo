@@ -11,7 +11,7 @@ import {
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
-import { symmetricDifference } from '@hyperlane-xyz/utils';
+import { Address, symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
@@ -37,6 +37,22 @@ export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this w
 
 export function getProtocolFee(chain: ChainName) {
   return (0.5 / Number(tokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
+}
+
+export function getRenzoHook(defaultHook: Address, chain: ChainName) {
+  return {
+    type: HookType.AGGREGATION,
+    hooks: [
+      defaultHook,
+      {
+        type: HookType.PROTOCOL_FEE,
+        owner: ezEthSafes[chain],
+        beneficiary: ezEthSafes[chain],
+        protocolFee: parseEther(getProtocolFee(chain)).toString(),
+        maxProtocolFee: MAX_PROTOCOL_FEE,
+      },
+    ],
+  };
 }
 
 const lockboxChain = 'ethereum';
@@ -290,20 +306,7 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                   },
                 ],
               },
-              hook: {
-                type: HookType.AGGREGATION,
-                hooks: [
-                  defaultHook,
-                  {
-                    type: HookType.PROTOCOL_FEE,
-                    owner: ezEthSafes[chain],
-                    beneficiary: ezEthSafes[chain],
-                    protocolFee: parseEther(getProtocolFee(chain)).toString(),
-                    maxProtocolFee: MAX_PROTOCOL_FEE,
-                  },
-                ],
-              },
-              // proxyAdmin: existingProxyAdmins[chain],
+              hook: getRenzoHook(defaultHook, chain),
             },
           ];
 

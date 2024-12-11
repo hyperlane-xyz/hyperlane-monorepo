@@ -19,6 +19,7 @@ import {
   ezEthSafes,
   ezEthValidators,
   getProtocolFee,
+  getRenzoHook,
 } from './getRenzoEZETHWarpConfig.js';
 
 const lockbox = '0xbC5511354C4A9a50DE928F56DB01DD327c4e56d5';
@@ -112,19 +113,7 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
                   },
                 ],
               },
-              hook: {
-                type: HookType.AGGREGATION,
-                hooks: [
-                  defaultHook,
-                  {
-                    type: HookType.PROTOCOL_FEE,
-                    owner: ezEthSafes[chain],
-                    beneficiary: ezEthSafes[chain],
-                    protocolFee: parseEther(getProtocolFee(chain)).toString(),
-                    maxProtocolFee: MAX_PROTOCOL_FEE,
-                  },
-                ],
-              },
+              hook: getRenzoHook(defaultHook, chain),
             },
           ];
 
