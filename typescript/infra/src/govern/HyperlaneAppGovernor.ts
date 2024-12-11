@@ -486,6 +486,20 @@ export abstract class HyperlaneAppGovernor<
         await this.checkSubmitterBalance(chain, submitterAddress, call.value);
       }
 
+      // Check if the submitter is the owner of the contract
+      try {
+        const ownable = Ownable__factory.connect(call.to, signer);
+        const owner = await ownable.owner();
+        const isOwner = eqAddress(owner, submitterAddress);
+
+        if (!isOwner) {
+          return false;
+        }
+      } catch {
+        // If the contract does not implement Ownable, just continue
+        // with the next check.
+      }
+
       // Check if the transaction has additional success criteria
       if (
         additionalTxSuccessCriteria &&

@@ -276,7 +276,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     duckchain: true,
-    // Cannot scrape Sealevel chains
+    // Disabled until we get archival RPC for Eclipse
     eclipsemainnet: false,
     endurance: true,
     ethereum: true,
@@ -328,8 +328,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: true,
     shibarium: true,
     snaxchain: true,
-    // Cannot scrape Sealevel chains
-    solanamainnet: false,
+    solanamainnet: true,
     stride: true,
     superseed: true,
     superpositionmainnet: true,

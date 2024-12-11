@@ -1,7 +1,12 @@
 import { BigNumber } from 'ethers';
 
 import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
-import { stringifyObject } from '@hyperlane-xyz/utils';
+import {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  stringifyObject,
+} from '@hyperlane-xyz/utils';
 
 import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
 import { getSafeTx } from '../../src/utils/safe.js';
@@ -13,15 +18,21 @@ async function main() {
     withChainsRequired(getArgs()),
   ).argv;
 
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const { chainAddresses } = await getHyperlaneCore(environment, multiProvider);
+
+  const registry = await config.getRegistry();
+  const warpRoutes = await registry.getWarpRoutes();
 
   const reader = new GovernTransactionReader(
     environment,
     multiProvider,
     chainAddresses,
     config.core,
+    warpRoutes,
   );
 
   const chainResultEntries = await Promise.all(

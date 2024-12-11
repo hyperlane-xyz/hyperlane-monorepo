@@ -28,7 +28,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.24",
+    "amount": "0.0988",
     "decimals": 9
   },
   "flame": {
@@ -36,11 +36,11 @@
     "decimals": 9
   },
   "avalanche": {
-    "amount": "25.0",
+    "amount": "27.735398516",
     "decimals": 9
   },
   "b3": {
-    "amount": "0.001000252",
+    "amount": "0.001000253",
     "decimals": 9
   },
   "base": {
@@ -60,7 +60,7 @@
     "decimals": 9
   },
   "boba": {
-    "amount": "0.001000047",
+    "amount": "0.001000059",
     "decimals": 9
   },
   "bsc": {
@@ -140,7 +140,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "1.500000008",
+    "amount": "1.500000007",
     "decimals": 9
   },
   "gravity": {
@@ -176,11 +176,11 @@
     "decimals": 9
   },
   "lisk": {
-    "amount": "0.00100103",
+    "amount": "0.001001147",
     "decimals": 9
   },
   "lukso": {
-    "amount": "0.921815267",
+    "amount": "1.109955713",
     "decimals": 9
   },
   "lumia": {
@@ -192,7 +192,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.00300029",
+    "amount": "0.003000983",
     "decimals": 9
   },
   "mantle": {
@@ -216,7 +216,7 @@
     "decimals": 9
   },
   "mode": {
-    "amount": "0.001000252",
+    "amount": "0.001001363",
     "decimals": 9
   },
   "molten": {
@@ -240,7 +240,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.001065045",
+    "amount": "0.001000469",
     "decimals": 9
   },
   "orderly": {
@@ -264,7 +264,7 @@
     "decimals": 9
   },
   "prom": {
-    "amount": "546.0",
+    "amount": "51.9",
     "decimals": 9
   },
   "proofofplay": {
@@ -276,7 +276,7 @@
     "decimals": 9
   },
   "real": {
-    "amount": "0.04",
+    "amount": "0.022",
     "decimals": 9
   },
   "redstone": {
@@ -296,7 +296,7 @@
     "decimals": 9
   },
   "sei": {
-    "amount": "100.0",
+    "amount": "3.328028877",
     "decimals": 9
   },
   "shibarium": {
@@ -336,7 +336,7 @@
     "decimals": 9
   },
   "treasure": {
-    "amount": "10000.0",
+    "amount": "702.999550885",
     "decimals": 9
   },
   "unichain": {
@@ -344,7 +344,7 @@
     "decimals": 9
   },
   "vana": {
-    "amount": "0.002488334",
+    "amount": "0.002986",
     "decimals": 9
   },
   "viction": {
@@ -352,7 +352,7 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.00100026",
+    "amount": "0.001000255",
     "decimals": 9
   },
   "xai": {
