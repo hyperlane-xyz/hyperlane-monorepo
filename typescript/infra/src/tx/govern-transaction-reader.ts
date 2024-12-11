@@ -392,7 +392,7 @@ export class GovernTransactionReader {
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
-      throw new Error('⚠️ No data in mailbox transaction');
+      throw new Error('⚠️ No data in proxyAdmin transaction');
     }
 
     const proxyAdminInterface = ProxyAdmin__factory.createInterface();

@@ -1,10 +1,10 @@
+import { ethers } from 'ethers';
+
 import {
   ChainMap,
   HypTokenRouterConfig,
   OwnableConfig,
   TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -16,12 +16,6 @@ export const getEthereumVictionUSDTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ismConfig = buildAggregationIsmConfigs(
-    'ethereum',
-    ['viction'],
-    defaultMultisigConfigs,
-  ).viction;
-
   const viction: HypTokenRouterConfig = {
     ...routerConfig.viction,
     ...abacusWorksEnvOwnerConfig.viction,
@@ -31,6 +25,7 @@ export const getEthereumVictionUSDTWarpConfig = async (
     decimals: 6,
     totalSupply: 0,
     gas: 75_000,
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const ethereum: HypTokenRouterConfig = {
@@ -39,7 +34,7 @@ export const getEthereumVictionUSDTWarpConfig = async (
     type: TokenType.collateral,
     token: tokens.ethereum.USDT,
     gas: 65_000,
-    interchainSecurityModule: ismConfig,
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   return {
