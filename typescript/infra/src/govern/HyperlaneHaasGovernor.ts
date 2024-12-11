@@ -5,7 +5,6 @@ import {
   HyperlaneCore,
   HyperlaneCoreChecker,
   InterchainAccount,
-  InterchainAccountChecker,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -13,6 +12,7 @@ import {
   HyperlaneAppGovernor,
 } from './HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from './HyperlaneCoreGovernor.js';
+import { HyperlaneICAChecker } from './HyperlaneICAChecker.js';
 import { ProxiedRouterGovernor } from './ProxiedRouterGovernor.js';
 
 export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
@@ -24,7 +24,7 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
 
   constructor(
     ica: InterchainAccount,
-    private readonly icaChecker: InterchainAccountChecker,
+    private readonly icaChecker: HyperlaneICAChecker,
     private readonly coreChecker: HyperlaneCoreChecker,
   ) {
     super(coreChecker, ica);
