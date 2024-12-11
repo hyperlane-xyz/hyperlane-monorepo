@@ -1,7 +1,10 @@
 use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
 use url::Url;
 
-use crate::priority_fee::{ConstantPriorityFeeOracle, HeliusPriorityFeeOracle, PriorityFeeOracle};
+use crate::{
+    priority_fee::{ConstantPriorityFeeOracle, HeliusPriorityFeeOracle, PriorityFeeOracle},
+    tx_submitter::{JitoTransactionSubmitter, RpcTransactionSubmitter, TransactionSubmitter},
+};
 
 /// Sealevel connection configuration
 #[derive(Debug, Clone)]
@@ -14,6 +17,8 @@ pub struct ConnectionConf {
     pub native_token: NativeToken,
     /// Priority fee oracle configuration
     pub priority_fee_oracle: PriorityFeeOracleConfig,
+    /// Transaction submitter configuration
+    pub transaction_submitter: TransactionSubmitterConfig,
 }
 
 /// An error type when parsing a connection configuration.
@@ -80,6 +85,47 @@ pub enum HeliusPriorityFeeLevel {
     VeryHigh,
     /// 100th percentile
     UnsafeMax,
+}
+
+/// Configuration for the transaction submitter
+#[derive(Debug, Clone)]
+pub enum TransactionSubmitterConfig {
+    /// Use the RPC transaction submitter
+    Rpc {
+        /// The URL to use. If not provided, a default RPC URL will be used
+        url: Option<String>,
+    },
+    /// Use the Jito transaction submitter
+    Jito {
+        /// The URL to use. If not provided, a default Jito URL will be used
+        url: Option<String>,
+    },
+}
+
+impl Default for TransactionSubmitterConfig {
+    fn default() -> Self {
+        TransactionSubmitterConfig::Rpc { url: None }
+    }
+}
+
+impl TransactionSubmitterConfig {
+    /// Create a new transaction submitter from the configuration
+    pub fn create_submitter(&self, default_rpc_url: String) -> Box<dyn TransactionSubmitter> {
+        match self {
+            TransactionSubmitterConfig::Rpc { url } => Box::new(RpcTransactionSubmitter::new(
+                url.clone().unwrap_or(default_rpc_url),
+            )),
+            TransactionSubmitterConfig::Jito { url } => {
+                // Default to a bundle-only URL (i.e. revert protected)
+                Box::new(JitoTransactionSubmitter::new(url.clone().unwrap_or_else(
+                    || {
+                        "https://mainnet.block-engine.jito.wtf/api/v1/transactions?bundleOnly=true"
+                            .to_string()
+                    },
+                )))
+            }
+        }
+    }
 }
 
 #[derive(thiserror::Error, Debug)]

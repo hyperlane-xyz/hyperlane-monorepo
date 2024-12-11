@@ -276,6 +276,10 @@ impl SealevelRpcClient {
 
         Ok(result)
     }
+
+    pub fn url(&self) -> String {
+        self.0.url()
+    }
 }
 
 impl std::fmt::Debug for SealevelRpcClient {

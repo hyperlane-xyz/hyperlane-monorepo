@@ -27,5 +27,6 @@ mod priority_fee;
 mod provider;
 mod rpc;
 mod trait_builder;
+mod tx_submitter;
 mod utils;
 mod validator_announce;
