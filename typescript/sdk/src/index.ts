@@ -213,6 +213,8 @@ export {
   AgentSealevelHeliusFeeLevel,
   AgentSealevelPriorityFeeOracle,
   AgentSealevelPriorityFeeOracleType,
+  AgentSealevelTransactionSubmitter,
+  AgentSealevelTransactionSubmitterType,
   AgentSigner,
   AgentSignerAwsKey,
   AgentSignerHexKey,

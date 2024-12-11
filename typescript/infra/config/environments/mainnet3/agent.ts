@@ -2,6 +2,8 @@ import {
   AgentSealevelHeliusFeeLevel,
   AgentSealevelPriorityFeeOracle,
   AgentSealevelPriorityFeeOracleType,
+  AgentSealevelTransactionSubmitter,
+  AgentSealevelTransactionSubmitterType,
   ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
@@ -382,6 +384,22 @@ const sealevelPriorityFeeOracleConfigGetter = (
   };
 };
 
+const sealevelTransactionSubmitterConfigGetter = (
+  chain: ChainName,
+): AgentSealevelTransactionSubmitter => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelTransactionSubmitterType.Jito,
+    };
+  }
+
+  // For all other chains, use the default RPC transaction submitter
+  return {
+    type: AgentSealevelTransactionSubmitterType.Rpc,
+  };
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
@@ -389,7 +407,10 @@ const contextBase = {
   aws: {
     region: 'us-east-1',
   },
-  sealevelPriorityFeeOracleConfigGetter,
+  sealevel: {
+    priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
+    transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
+  },
 } as const;
 
 const gasPaymentEnforcement: GasPaymentEnforcement[] = [
@@ -529,7 +550,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '172da22-20241210-031655',
+      tag: 'e0d8da2-20241211-044021',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.

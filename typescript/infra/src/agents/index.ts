@@ -2,9 +2,8 @@ import fs from 'fs';
 import { join } from 'path';
 
 import {
-  AgentChainMetadata,
-  AgentSealevelHeliusFeeLevel,
-  AgentSealevelPriorityFeeOracleType,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelTransactionSubmitter,
   ChainName,
   RelayerConfig,
   RpcConsensusType,
@@ -95,11 +94,20 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             throw new Error(`No reorg period found for chain ${chain}`);
           }
 
-          let priorityFeeOracle: AgentChainMetadata['priorityFeeOracle'];
-
+          let priorityFeeOracle: AgentSealevelPriorityFeeOracle | undefined;
           if (getChain(chain).protocol === ProtocolType.Sealevel) {
             priorityFeeOracle =
-              this.config.rawConfig.sealevelPriorityFeeOracleConfigGetter?.(
+              this.config.rawConfig.sealevel?.priorityFeeOracleConfigGetter?.(
+                chain,
+              );
+          }
+
+          let transactionSubmitter:
+            | AgentSealevelTransactionSubmitter
+            | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            transactionSubmitter =
+              this.config.rawConfig.sealevel?.transactionSubmitterConfigGetter?.(
                 chain,
               );
           }
@@ -111,6 +119,7 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
             blocks: { reorgPeriod },
             maxBatchSize: 32,
             priorityFeeOracle,
+            transactionSubmitter,
           };
         }),
       },

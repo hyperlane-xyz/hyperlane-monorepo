@@ -305,7 +305,7 @@ fn parse_transaction_submitter_config(
     let submitter_type = chain
         .chain(err)
         .get_opt_key("transactionSubmitter")
-        .get_key("type")
+        .get_opt_key("type")
         .parse_string()
         .end();
 
@@ -315,7 +315,7 @@ fn parse_transaction_submitter_config(
                 let url = chain
                     .chain(err)
                     .get_opt_key("transactionSubmitter")
-                    .get_key("url")
+                    .get_opt_key("url")
                     .parse_from_str("Invalid url")
                     .end();
                 Some(h_sealevel::TransactionSubmitterConfig::Rpc { url })
@@ -324,7 +324,7 @@ fn parse_transaction_submitter_config(
                 let url = chain
                     .chain(err)
                     .get_opt_key("transactionSubmitter")
-                    .get_key("url")
+                    .get_opt_key("url")
                     .parse_from_str("Invalid url")
                     .end();
                 Some(h_sealevel::TransactionSubmitterConfig::Jito { url })

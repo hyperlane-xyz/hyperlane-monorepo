@@ -65,6 +65,11 @@ export enum AgentSealevelHeliusFeeLevel {
   UnsafeMax = 'unsafeMax',
 }
 
+export enum AgentSealevelTransactionSubmitterType {
+  Rpc = 'rpc',
+  Jito = 'jito',
+}
+
 const AgentSignerHexKeySchema = z
   .object({
     type: z.literal(AgentSignerKeyType.Hex).optional(),
@@ -150,13 +155,23 @@ const AgentSealevelChainMetadataSchema = z.object({
       }),
     ])
     .optional(),
+  transactionSubmitter: z
+    .object({
+      type: z.nativeEnum(AgentSealevelTransactionSubmitterType),
+      url: z.string().optional(),
+    })
+    .optional(),
 });
 
 export type AgentSealevelChainMetadata = z.infer<
   typeof AgentSealevelChainMetadataSchema
 >;
+
 export type AgentSealevelPriorityFeeOracle =
   AgentSealevelChainMetadata['priorityFeeOracle'];
+
+export type AgentSealevelTransactionSubmitter =
+  AgentSealevelChainMetadata['transactionSubmitter'];
 
 export const AgentChainMetadataSchema = ChainMetadataSchemaObject.merge(
   HyperlaneDeploymentArtifactsSchema,
