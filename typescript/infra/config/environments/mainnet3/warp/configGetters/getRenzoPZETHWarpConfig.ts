@@ -16,7 +16,7 @@ import {
   MAX_PROTOCOL_FEE,
   ezEthSafes,
   ezEthValidators,
-  protocolFee,
+  getProtocolFee,
 } from './getRenzoEZETHWarpConfig.js';
 
 const lockbox = '0xbC5511354C4A9a50DE928F56DB01DD327c4e56d5';
@@ -80,6 +80,8 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
     await Promise.all(
       chainsToDeploy.map(
         async (chain): Promise<[string, HypTokenRouterConfig]> => {
+          const { mailbox, merkleTreeHook, interchainGasPaymaster } =
+            (await registry.getChainAddresses(chain))!;
           const ret: [string, HypTokenRouterConfig] = [
             chain,
             {
@@ -91,7 +93,7 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
               token: chain === lockboxChain ? lockbox : xERC20,
               owner: pzEthSafes[chain],
               gas: warpRouteOverheadGas,
-              mailbox: (await registry.getChainAddresses(chain))!.mailbox,
+              mailbox,
               interchainSecurityModule: {
                 type: IsmType.AGGREGATION,
                 threshold: 2,
@@ -113,11 +115,18 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
                 ],
               },
               hook: {
-                type: HookType.PROTOCOL_FEE,
-                owner: ezEthSafes[chain],
-                beneficiary: ezEthSafes[chain],
-                protocolFee: parseEther(protocolFee).toString(),
-                maxProtocolFee: MAX_PROTOCOL_FEE,
+                type: HookType.AGGREGATION,
+                hooks: [
+                  merkleTreeHook,
+                  interchainGasPaymaster,
+                  {
+                    type: HookType.PROTOCOL_FEE,
+                    owner: ezEthSafes[chain],
+                    beneficiary: ezEthSafes[chain],
+                    protocolFee: parseEther(getProtocolFee(chain)).toString(),
+                    maxProtocolFee: MAX_PROTOCOL_FEE,
+                  },
+                ],
               },
               proxyAdmin: existingProxyAdmins[chain],
             },
