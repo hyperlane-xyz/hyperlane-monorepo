@@ -26,7 +26,7 @@ export class MultiProtocolSignerFactory {
 
     switch (protocol) {
       case ProtocolType.Ethereum:
-        if (technicalStack === ChainTechnicalStack.ZkSync)
+        if (technicalStack === ChainTechnicalStack.ZKSync)
           return new ZKSyncSignerStrategy(strategyConfig);
         return new EthereumSignerStrategy(strategyConfig);
       default:
