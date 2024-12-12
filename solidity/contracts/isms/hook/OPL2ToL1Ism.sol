@@ -70,7 +70,7 @@ contract OPL2ToL1Ism is
             _verifyWithPortalCall(metadata, message);
             require(isVerified(message), "OPL2ToL1Ism: message not verified");
         }
-        releaseValueToRecipient(message);
+        _releaseValueToRecipient(message);
         return true;
     }
 
