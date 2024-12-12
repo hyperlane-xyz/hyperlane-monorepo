@@ -236,7 +236,7 @@ where
     };
 
     let mut gas_price_multiplier: u32 = 1;
-    // `treasure` chain gas estimation underestimates the actual gas price, so we double it
+    // `treasure` chain gas estimation underestimates the actual gas price, so we add a multiplier to it
     if domain.id() == 61166 {
         gas_price_multiplier = 4;
     }
