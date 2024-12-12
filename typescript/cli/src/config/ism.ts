@@ -163,10 +163,10 @@ export const createTrustedRelayerConfig = callWithConfigCreationLogs(
     advanced: boolean = false,
   ): Promise<TrustedRelayerIsmConfig> => {
     const relayer =
-      !advanced && context.signer
-        ? await context.signer.getAddress()
+      !advanced && context.signerAddress
+        ? context.signerAddress
         : await detectAndConfirmOrPrompt(
-            async () => context.signer?.getAddress(),
+            async () => context.signerAddress,
             'For trusted relayer ISM, enter',
             'relayer address',
             'signer',
