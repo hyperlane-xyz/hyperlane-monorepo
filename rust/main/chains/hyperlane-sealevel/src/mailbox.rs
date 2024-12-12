@@ -819,7 +819,7 @@ impl SealevelMailboxIndexer {
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
-            &PROCESSED_MESSAGE_DISCRIMINATOR,
+            PROCESSED_MESSAGE_DISCRIMINATOR,
             &sequence_bytes,
             delivered_message_id_offset,
             delivered_message_id_length,
