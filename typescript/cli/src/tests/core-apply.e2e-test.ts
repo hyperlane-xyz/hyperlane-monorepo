@@ -1,7 +1,10 @@
 import { expect } from 'chai';
 import { Signer, Wallet, ethers } from 'ethers';
 
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import {
+  InterchainAccountRouter__factory,
+  ProxyAdmin__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainMetadata,
   CoreConfig,
@@ -27,6 +30,7 @@ import {
   CORE_CONFIG_PATH,
   CORE_READ_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
+  JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
   TEMP_PATH,
 } from './commands/helpers.js';
 
@@ -256,5 +260,74 @@ describe('hyperlane core apply e2e tests', async function () {
     expect(
       updatedChain3Config.interchainAccountRouter?.remoteIcaRouters,
     ).to.deep.equal({});
+  });
+
+  it('should update a remote mailbox using ICA transactions', async () => {
+    await Promise.all([
+      hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH),
+      hyperlaneCoreDeploy(CHAIN_NAME_3, CORE_CONFIG_PATH),
+    ]);
+
+    const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
+      await Promise.all([
+        readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH),
+        readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
+      ]);
+
+    expect(coreConfigChain2.owner).to.equal(initialOwnerAddress);
+    expect(coreConfigChain3.owner).to.equal(initialOwnerAddress);
+
+    expect(coreConfigChain2.interchainAccountRouter).not.to.be.undefined;
+    expect(coreConfigChain3.interchainAccountRouter).not.to.be.undefined;
+
+    const coreConfigChain2IcaConfig = coreConfigChain2.interchainAccountRouter!;
+    const coreConfigChain3IcaConfig = coreConfigChain3.interchainAccountRouter!;
+
+    // Add the remote ica on chain anvil3
+    coreConfigChain2IcaConfig.remoteIcaRouters = {
+      [chain3DomainId]: {
+        address: coreConfigChain3IcaConfig.address,
+      },
+    };
+
+    writeYamlOrJson(CORE_READ_CHAIN_2_CONFIG_PATH, coreConfigChain2);
+    await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH);
+
+    const [updatedChain2Config, updatedChain3Config]: DerivedCoreConfig[] =
+      await Promise.all([
+        readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH),
+        readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
+      ]);
+
+    const chain2IcaRouter = InterchainAccountRouter__factory.connect(
+      updatedChain2Config.interchainAccountRouter!.address,
+      signer,
+    );
+    const remoteIcaAccountAddress = await chain2IcaRouter.callStatic[
+      'getRemoteInterchainAccount(address,address,address)'
+    ](
+      initialOwnerAddress,
+      updatedChain3Config.interchainAccountRouter!.address,
+      ethers.constants.AddressZero,
+    );
+
+    updatedChain3Config.owner = remoteIcaAccountAddress;
+    writeYamlOrJson(CORE_READ_CHAIN_3_CONFIG_PATH, updatedChain3Config);
+    await hyperlaneCoreApply(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH);
+
+    updatedChain3Config.owner = initialOwnerAddress;
+    writeYamlOrJson(CORE_READ_CHAIN_3_CONFIG_PATH, updatedChain3Config);
+    await hyperlaneCoreApply(
+      CHAIN_NAME_3,
+      CORE_READ_CHAIN_3_CONFIG_PATH,
+      JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
+      true,
+    );
+
+    const finalChain3Config = await readCoreConfig(
+      CHAIN_NAME_3,
+      CORE_READ_CHAIN_3_CONFIG_PATH,
+    );
+    expect(finalChain3Config.owner).to.equal(initialOwnerAddress);
   });
 });
