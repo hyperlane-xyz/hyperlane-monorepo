@@ -785,7 +785,8 @@
       "index": {
         "from": 1,
         "mode": "sequence",
-        "chunk": 100
+        "chunk": 100,
+        "direction": "forward"
       },
       "interchainGasPaymaster": "ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK",
       "mailbox": "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y",
