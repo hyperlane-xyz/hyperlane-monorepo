@@ -92,7 +92,7 @@ lazy_static! {
         (pubkey!("3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm"), pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")),
         // USDT
         (pubkey!("Bk79wMjvpPCh5iQcCEjPWFcG1V2TfgdwaBsWBEYFYSNU"), pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")),
-        // USDT
+        // WIF
         (pubkey!("CuQmsT4eSF4dYiiGUGYYQxJ7c58pUAD5ADE3BbFGzQKx"), pubkey!("EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm")),
     ]);
 }
@@ -275,11 +275,10 @@ impl SealevelMailbox {
         if let Some(forced_readonly_account) =
             RECIPIENT_FORCED_READONLY_ACCOUNTS.get(&recipient_program_id)
         {
-            for account_meta in account_metas.iter_mut() {
-                if account_meta.pubkey == *forced_readonly_account {
-                    account_meta.is_writable = false;
-                }
-            }
+            account_metas
+                .iter_mut()
+                .filter(|account_meta| account_meta.pubkey == *forced_readonly_account)
+                .for_each(|account_meta| account_meta.is_writable = false);
         }
 
         Ok(account_metas)
