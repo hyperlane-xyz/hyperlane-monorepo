@@ -84,7 +84,7 @@ pub(crate) fn deploy_program(
             );
         }
 
-        if let Ok(_) = attempt_program_deploy(
+        if attempt_program_deploy(
             payer_keypair_path,
             program_name,
             program_path,
@@ -92,7 +92,9 @@ pub(crate) fn deploy_program(
             &buffer_keypair_path,
             url,
             compute_unit_price,
-        ) {
+        )
+        .is_ok()
+        {
             // Success!
             return Ok(program_id);
         }
