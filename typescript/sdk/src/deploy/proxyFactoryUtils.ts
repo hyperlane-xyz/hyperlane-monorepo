@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 
 import { proxyFactoryFactories } from './contracts.js';
-import { ProxyFactoryFactoriesAddresses } from './schemas.js';
+import { ProxyFactoryFactoriesAddresses } from './types.js';
 
 /**
  * Creates a default ProxyFactoryFactoriesAddresses object with all values set to ethers.constants.AddressZero.

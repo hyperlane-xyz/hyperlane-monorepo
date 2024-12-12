@@ -3,7 +3,7 @@ import { Wallet } from 'ethers';
 
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  TokenRouterConfig,
+  HypTokenRouterConfig,
   TokenType,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
@@ -127,7 +127,7 @@ describe.skip('WarpApply zkSync e2e tests', async function () {
     );
 
     // Extend with new config
-    const config: TokenRouterConfig = {
+    const config: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',
@@ -196,7 +196,7 @@ describe.skip('WarpApply zkSync e2e tests', async function () {
     );
 
     // Extend with new config
-    const config: TokenRouterConfig = {
+    const config: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',
@@ -272,7 +272,7 @@ describe.skip('WarpApply zkSync e2e tests', async function () {
 
     // Extend with new config
     const randomOwner = new Wallet(ZKSYNC_KEY).address;
-    const extendedConfig: TokenRouterConfig = {
+    const extendedConfig: HypTokenRouterConfig = {
       decimals: 18,
       mailbox: chain2Addresses!.mailbox,
       name: 'Ether',
