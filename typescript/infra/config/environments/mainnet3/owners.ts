@@ -1,8 +1,12 @@
+import { ethers } from 'ethers';
+
 import { AddressesMap, ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
 import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
 
+import { IcaArtifact } from '../../../src/config/icas.js';
 import { getMainnetAddresses } from '../../registry.js';
 
+import awIcas from './aw-icas.json';
 import { ethereumChainNames } from './chains.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
@@ -61,9 +65,10 @@ export const safes: ChainMap<Address> = {
 
 export const icaOwnerChain = 'ethereum';
 
+// Can be removed after moving to the new ICAs:
 // Found by running:
 // yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
-export const icas: Partial<
+export const oldIcas: Partial<
   Record<(typeof supportedChainNames)[number], Address>
 > = {
   viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
@@ -179,7 +184,9 @@ export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 
 export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
   ethereumChainNames.map((local) => {
-    const owner = icas[local] ?? safes[local] ?? DEPLOYER;
+    const icaArtifact: IcaArtifact | undefined =
+      awIcas[local as keyof typeof awIcas];
+    const owner = icaArtifact?.ica ?? safes[local] ?? DEPLOYER;
 
     return [
       local,
@@ -195,7 +202,12 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
           // So we need to keep the Safe and ICA addresses somewhere in the config
           // to be able to track down which addresses are SAFEs, ICAs, or standard SIGNERS.
           ...(safes[local] && { _safeAddress: safes[local] }),
-          ...(icas[local] && { _icaAddress: icas[local] }),
+          // After transitioning to the new ICAs, remove the following:
+          ...(oldIcas[local] && { _icaAddress: oldIcas[local] }),
+
+          // After transitioning to the new ICAs, uncomment the following:
+          // ...(icaArtifact && { _icaAddress: icaArtifact.ica }),
+          // ...(icaArtifact?.ism && { _icaIsmAddress: icaArtifact.ism }),
         },
       },
     ];
