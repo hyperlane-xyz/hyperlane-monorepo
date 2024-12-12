@@ -6322,6 +6322,7 @@
       "validatorAnnounce": "0x1196055C61af3e3DA6f8458B07b255a72b64Bcf7"
     },
     "treasure": {
+      "batchContractAddress": "0x2e29fe39496a56856D8698bD43e1dF4D0CE6266a",
       "blockExplorers": [
         {
           "apiUrl": "https://rpc-explorer-verify.treasure.lol/contract_verification",
