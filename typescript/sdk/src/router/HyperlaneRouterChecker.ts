@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import {
   AddressBytes32,
   addressToBytes32,
-  assert,
   eqAddress,
   isZeroishAddress,
   rootLogger,
@@ -68,10 +67,11 @@ export class HyperlaneRouterChecker<
     }
 
     if (config.hook) {
-      assert(
-        typeof config.hook === 'string',
-        'Hook objects not supported in router checker',
-      );
+      if (typeof config.hook !== 'string')
+        return this.logger.info(
+          `Hook objects not supported in router checker for HookConfig: ${config.hook}`,
+        );
+
       const hook = await router.hook();
       if (!eqAddress(hook, config.hook as string)) {
         this.addViolation({
