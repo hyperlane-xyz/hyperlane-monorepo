@@ -3,6 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
+    rpc_client::SerializableTransaction,
     rpc_config::{
         RpcBlockConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
         RpcSimulateTransactionConfig, RpcTransactionConfig,
@@ -218,6 +219,55 @@ impl SealevelRpcClient {
             )
             .await
             .map_err(ChainCommunicationError::from_other)
+    }
+
+    // Standalone logic stolen from Solana's non-blocking client,
+    // decoupled from the sending of a transaction.
+    pub async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &impl SerializableTransaction,
+    ) -> ChainResult<()> {
+        let signature = transaction.get_signature();
+
+        const GET_STATUS_RETRIES: usize = usize::MAX;
+
+        let recent_blockhash = if transaction.uses_durable_nonce() {
+            self.get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+                .await?
+        } else {
+            *transaction.get_recent_blockhash()
+        };
+
+        for status_retry in 0..GET_STATUS_RETRIES {
+            let signature_statuses: Response<Vec<Option<TransactionStatus>>> =
+                self.get_signature_statuses(&[*signature]).await?;
+            let signature_status = signature_statuses.value.first().cloned().flatten();
+            match signature_status {
+                Some(_) => return Ok(()),
+                None => {
+                    if !self.is_blockhash_valid(&recent_blockhash).await? {
+                        // Block hash is not found by some reason
+                        break;
+                    } else if cfg!(not(test))
+                        // Ignore sleep at last step.
+                        && status_retry < GET_STATUS_RETRIES
+                    {
+                        // Retry twice a second
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        Err(ChainCommunicationError::from_other(
+            solana_client::rpc_request::RpcError::ForUser(
+                "unable to confirm transaction. \
+                This can happen in situations such as transaction expiration \
+                and insufficient fee-payer funds"
+                    .to_string(),
+            ),
+        ))
     }
 
     /// Simulates an instruction, and attempts to deserialize it into a T.

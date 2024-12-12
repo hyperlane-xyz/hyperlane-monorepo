@@ -1,4 +1,5 @@
 use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, NativeToken};
+use serde::Serialize;
 use url::Url;
 
 use crate::{
@@ -71,8 +72,11 @@ pub struct HeliusPriorityFeeOracleConfig {
 }
 
 /// The priority fee level to use
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum HeliusPriorityFeeLevel {
+    /// 50th percentile, but a floor of 10k microlamports.
+    /// The floor results in a staked Helius connection being used. (https://docs.helius.dev/guides/sending-transactions-on-solana#staked-connections)
+    Recommended,
     /// 0th percentile
     Min,
     /// 10th percentile

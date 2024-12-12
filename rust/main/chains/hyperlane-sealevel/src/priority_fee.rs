@@ -44,6 +44,20 @@ impl HeliusPriorityFeeOracle {
             config,
         }
     }
+
+    fn get_priority_fee_estimate_options(&self) -> serde_json::Value {
+        if let HeliusPriorityFeeLevel::Recommended = self.config.fee_level {
+            serde_json::json!({
+                "recommended": true,
+                "transactionEncoding": "base58",
+            })
+        } else {
+            serde_json::json!({
+                "priorityLevel": self.config.fee_level,
+                "transactionEncoding": "base58",
+            })
+        }
+    }
 }
 
 #[async_trait]
@@ -61,10 +75,7 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
             "params": [
                 {
                     "transaction": base58_tx,
-                    "options": {
-                        "includeAllPriorityFeeLevels": true,
-                        "transactionEncoding": "base58",
-                    }
+                    "options": self.get_priority_fee_estimate_options(),
                 }
             ],
         });
@@ -82,14 +93,9 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
             .await
             .map_err(ChainCommunicationError::from_other)?;
 
-        tracing::warn!(priority_fee_levels = ?response.result.priority_fee_levels, "Fetched priority fee levels");
+        tracing::debug!(?response, "Fetched priority fee from Helius API");
 
-        let fee = response
-            .result
-            .priority_fee_levels
-            .get_priority_fee(&self.config.fee_level)
-            .ok_or_else(|| ChainCommunicationError::from_other_str("Priority fee level not found"))?
-            .round() as u64;
+        let fee = response.result.priority_fee_estimate.round() as u64;
 
         Ok(fee)
     }
@@ -106,38 +112,17 @@ struct JsonRpcResult<T> {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct GetPriorityFeeEstimateResult {
-    priority_fee_levels: PriorityFeeLevelsResponse,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-struct PriorityFeeLevelsResponse {
-    min: Option<f64>,
-    low: Option<f64>,
-    medium: Option<f64>,
-    high: Option<f64>,
-    very_high: Option<f64>,
-    unsafe_max: Option<f64>,
-}
-
-impl PriorityFeeLevelsResponse {
-    fn get_priority_fee(&self, level: &HeliusPriorityFeeLevel) -> Option<f64> {
-        match level {
-            HeliusPriorityFeeLevel::Min => self.min,
-            HeliusPriorityFeeLevel::Low => self.low,
-            HeliusPriorityFeeLevel::Medium => self.medium,
-            HeliusPriorityFeeLevel::High => self.high,
-            HeliusPriorityFeeLevel::VeryHigh => self.very_high,
-            HeliusPriorityFeeLevel::UnsafeMax => self.unsafe_max,
-        }
-    }
+    priority_fee_estimate: f64,
 }
 
 #[cfg(test)]
 mod test {
     use solana_sdk::{bs58, transaction::Transaction};
 
-    use crate::priority_fee::{PriorityFeeLevelsResponse, PriorityFeeOracle};
+    use crate::{
+        priority_fee::{HeliusPriorityFeeOracle, PriorityFeeOracle},
+        HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig,
+    };
 
     use super::{GetPriorityFeeEstimateResult, JsonRpcResult};
 
@@ -165,20 +150,65 @@ mod test {
     }
 
     #[test]
+    fn test_helius_get_priority_fee_estimate_options_ser() {
+        let get_oracle = |fee_level| {
+            HeliusPriorityFeeOracle::new(HeliusPriorityFeeOracleConfig {
+                url: url::Url::parse("http://localhost:8080").unwrap(),
+                fee_level,
+            })
+        };
+
+        // When the fee level is Recommended, ensure `recommended` is set to true
+        let oracle = get_oracle(HeliusPriorityFeeLevel::Recommended);
+
+        let options = oracle.get_priority_fee_estimate_options();
+        let expected = serde_json::json!({
+            "recommended": true,
+            "transactionEncoding": "base58",
+        });
+        assert_eq!(options, expected);
+
+        // When the fee level is not Recommended, ensure `priorityLevel` is set
+        let oracle = get_oracle(HeliusPriorityFeeLevel::Medium);
+
+        let options = oracle.get_priority_fee_estimate_options();
+        let expected = serde_json::json!({
+            "priorityLevel": "Medium",
+            "transactionEncoding": "base58",
+        });
+        assert_eq!(options, expected);
+
+        // Ensure the serialization of HeliusPriorityFeeLevel is PascalCase,
+        // as required by the API https://docs.helius.dev/solana-apis/priority-fee-api#helius-priority-fee-api
+        let serialized = serde_json::json!([
+            HeliusPriorityFeeLevel::Recommended,
+            HeliusPriorityFeeLevel::Min,
+            HeliusPriorityFeeLevel::Low,
+            HeliusPriorityFeeLevel::Medium,
+            HeliusPriorityFeeLevel::High,
+            HeliusPriorityFeeLevel::VeryHigh,
+            HeliusPriorityFeeLevel::UnsafeMax,
+        ]);
+        let expected = serde_json::json!([
+            "Recommended",
+            "Min",
+            "Low",
+            "Medium",
+            "High",
+            "VeryHigh",
+            "UnsafeMax"
+        ]);
+        assert_eq!(serialized, expected);
+    }
+
+    #[test]
     fn test_helius_get_priority_fee_estimate_deser() {
-        let text = r#"{"jsonrpc":"2.0","result":{"priorityFeeLevels":{"min":0.0,"low":0.0,"medium":1000.0,"high":225000.0,"veryHigh":9000000.0,"unsafeMax":2340000000.0}},"id":"1"}"#;
+        let text = r#"{"jsonrpc":"2.0","result":{"priorityFeeEstimate":1000.0},"id":"1"}"#;
         let response: JsonRpcResult<GetPriorityFeeEstimateResult> =
             serde_json::from_str(text).unwrap();
 
         let expected = GetPriorityFeeEstimateResult {
-            priority_fee_levels: PriorityFeeLevelsResponse {
-                min: Some(0.0),
-                low: Some(0.0),
-                medium: Some(1000.0),
-                high: Some(225000.0),
-                very_high: Some(9000000.0),
-                unsafe_max: Some(2340000000.0),
-            },
+            priority_fee_estimate: 1000.0,
         };
         assert_eq!(response.result, expected);
     }

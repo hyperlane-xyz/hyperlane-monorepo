@@ -40,7 +40,7 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     message::Message,
     pubkey::Pubkey,
-    signature::Signature,
+    signature::{self, Signature},
     signer::{keypair::Keypair, Signer as _},
     transaction::{Transaction, VersionedTransaction},
 };
@@ -324,16 +324,28 @@ impl SealevelMailbox {
             .rpc()
             .simulate_transaction(&simulation_tx)
             .await?;
-        tracing::warn!(?simulation_result, "Got simulation result for transaction");
+        tracing::debug!(?simulation_result, "Got simulation result for transaction");
+
+        // If there was an error in the simulation result, return an error.
+        if simulation_result.err.is_some() {
+            return Err(ChainCommunicationError::from_other_str(
+                format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
+            ));
+        }
+
+        // Get the compute units used in the simulation result, requiring
+        // that it is greater than 0.
         let simulation_compute_units: u32 = simulation_result
             .units_consumed
+            .and_then(|units| if units > 0 { Some(units) } else { None })
             .ok_or_else(|| {
                 ChainCommunicationError::from_other_str(
-                    "No compute units used in simulation result",
+                    "Empty or zero compute units returned in simulation result",
                 )
             })?
             .try_into()
             .map_err(ChainCommunicationError::from_other)?;
+
         // Bump the compute units by 10% to ensure we have enough, but cap it at the max.
         let simulation_compute_units = MAX_COMPUTE_UNITS.min((simulation_compute_units * 11) / 10);
 
@@ -342,7 +354,7 @@ impl SealevelMailbox {
             .get_priority_fee(&simulation_tx)
             .await?;
 
-        tracing::warn!(
+        tracing::info!(
             ?priority_fee,
             ?simulation_compute_units,
             "Got priority fee and compute units for transaction"
@@ -489,129 +501,6 @@ impl SealevelMailbox {
         Ok(process_instruction)
     }
 
-    // async fn send_and_confirm_transaction(
-    //     &self,
-    //     transaction: &Transaction,
-    // ) -> ChainResult<Signature> {
-    //     if self.is_solana() {
-    //         self.send_and_confirm_transaction_with_jito(transaction)
-    //             .await
-    //     } else {
-    //         self.provider
-    //             .rpc()
-    //             .send_transaction(transaction, true)
-    //             .await
-    //     }
-
-    //     // if self.is_solana() {
-    //     //     if let PriorityFeeOracleConfig::Helius(helius) = &self.priority_fee_oracle_config {
-    //     //         let rpc = SealevelRpcClient::new(helius.url.clone().into());
-    //     //         return rpc.send_transaction(transaction, true).await;
-    //     //     } else {
-    //     //         tracing::warn!("Priority fee oracle is not Helius, falling back to normal RPC");
-    //     //     }
-    //     // }
-    //     // self.provider
-    //     //     .rpc()
-    //     //     .send_transaction(transaction, true)
-    //     //     .await
-    // }
-
-    // // Stolen from Solana's non-blocking client, but with Jito!
-    // pub async fn send_and_confirm_transaction_with_jito(
-    //     &self,
-    //     transaction: &impl SerializableTransaction,
-    // ) -> ChainResult<Signature> {
-    //     let signature = transaction.get_signature();
-
-    //     let base58_txn = bs58::encode(
-    //         bincode::serialize(&transaction).map_err(ChainCommunicationError::from_other)?,
-    //     )
-    //     .into_string();
-
-    //     const SEND_RETRIES: usize = 1;
-    //     const GET_STATUS_RETRIES: usize = usize::MAX;
-
-    //     'sending: for _ in 0..SEND_RETRIES {
-    //         let jito_request_body = serde_json::json!({
-    //             "jsonrpc": "2.0",
-    //             "id": 1,
-    //             "method": "sendBundle",
-    //             "params": [
-    //                 [base58_txn]
-    //             ],
-    //         });
-
-    //         tracing::info!(
-    //             ?jito_request_body,
-    //             ?signature,
-    //             "Sending sealevel transaction to Jito as bundle"
-    //         );
-
-    //         let jito_response = reqwest::Client::new()
-    //             .post("https://mainnet.block-engine.jito.wtf:443/api/v1/bundles")
-    //             .json(&jito_request_body)
-    //             .send()
-    //             .await
-    //             .map_err(ChainCommunicationError::from_other)?;
-    //         let jito_response_text = jito_response.text().await;
-
-    //         tracing::info!(
-    //             ?signature,
-    //             ?jito_response_text,
-    //             "Got Jito response for sealevel transaction bundle"
-    //         );
-
-    //         // let recent_blockhash = if transaction.uses_durable_nonce() {
-    //         //     self.provider
-    //         //         .rpc()
-    //         //         .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-    //         //         .await?
-    //         // } else {
-    //         //     *transaction.get_recent_blockhash()
-    //         // };
-
-    //         // for status_retry in 0..GET_STATUS_RETRIES {
-    //         //     let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
-    //         //         .provider
-    //         //         .rpc()
-    //         //         .get_signature_statuses(&[*signature])
-    //         //         .await?;
-    //         //     let signature_status = signature_statuses.value.first().cloned().flatten();
-    //         //     match signature_status {
-    //         //         Some(_) => return Ok(*signature),
-    //         //         None => {
-    //         //             if !self
-    //         //                 .provider
-    //         //                 .rpc()
-    //         //                 .is_blockhash_valid(&recent_blockhash)
-    //         //                 .await?
-    //         //             {
-    //         //                 // Block hash is not found by some reason
-    //         //                 break 'sending;
-    //         //             } else if cfg!(not(test))
-    //         //                 // Ignore sleep at last step.
-    //         //                 && status_retry < GET_STATUS_RETRIES
-    //         //             {
-    //         //                 // Retry twice a second
-    //         //                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-    //         //                 continue;
-    //         //             }
-    //         //         }
-    //         //     }
-    //         // }
-    //     }
-
-    //     Err(ChainCommunicationError::from_other(
-    //         solana_client::rpc_request::RpcError::ForUser(
-    //             "unable to confirm transaction. \
-    //          This can happen in situations such as transaction expiration \
-    //          and insufficient fee-payer funds"
-    //                 .to_string(),
-    //         ),
-    //     ))
-    // }
-
     async fn get_inbox(&self) -> ChainResult<Box<Inbox>> {
         let account = self
             .rpc()
@@ -727,6 +616,15 @@ impl Mailbox for SealevelMailbox {
 
         tracing::info!(?tx, ?signature, "Sealevel transaction sent");
 
+        let send_instant = std::time::Instant::now();
+
+        // Wait for the transaction to be confirmed.
+        self.rpc().wait_for_transaction_confirmation(&tx).await?;
+
+        tracing::info!(?tx, ?signature, time_to_confirm=?send_instant.elapsed(), "Sealevel transaction confirmed");
+
+        // TODO: not sure if this actually checks if the transaction was executed / reverted?
+        // Confirm the transaction.
         let executed = self
             .rpc()
             .confirm_transaction_with_commitment(&signature, commitment)
