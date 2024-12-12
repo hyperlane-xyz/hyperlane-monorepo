@@ -31,7 +31,6 @@ enum ChainSelectionMode {
   WARP_CONFIG,
   WARP_READ,
   STRATEGY,
-  RELAYER,
   CORE_APPLY,
   DEFAULT,
 }
@@ -55,8 +54,6 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
         return this.resolveStrategyChains(argv);
-      case ChainSelectionMode.RELAYER:
-        return this.resolveRelayerChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
       case ChainSelectionMode.DEFAULT:
@@ -233,7 +230,7 @@ export class MultiChainResolver implements ChainResolver {
   }
 
   static forRelayer(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.RELAYER);
+    return new MultiChainResolver(ChainSelectionMode.DEFAULT);
   }
 
   static forStrategyConfig(): MultiChainResolver {
