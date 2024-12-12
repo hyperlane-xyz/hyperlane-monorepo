@@ -6,7 +6,7 @@ import {
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
-import { symmetricDifference } from '@hyperlane-xyz/utils';
+import { assert, symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
@@ -80,7 +80,9 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
     await Promise.all(
       chainsToDeploy.map(
         async (chain): Promise<[string, HypTokenRouterConfig]> => {
-          const { mailbox } = (await registry.getChainAddresses(chain))!;
+          const addresses = await registry.getChainAddresses(chain);
+          assert(addresses, 'No addresses in Registry');
+          const { mailbox } = addresses;
 
           const mailboxContract = Mailbox__factory.connect(
             mailbox,
