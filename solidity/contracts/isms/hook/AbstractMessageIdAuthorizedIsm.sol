@@ -86,21 +86,6 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     // ============ Public Functions ============
 
     /**
-     * @notice Release the value to the recipient if the message is verified.
-     * @param message Message to release value for.
-     */
-    function _releaseValueToRecipient(bytes calldata message) internal {
-        bytes32 messageId = message.id();
-        uint256 _msgValue = verifiedMessages[messageId].clearBit(
-            VERIFIED_MASK_INDEX
-        );
-        if (_msgValue > 0) {
-            verifiedMessages[messageId] -= _msgValue;
-            payable(message.recipientAddress()).sendValue(_msgValue);
-        }
-    }
-
-    /**
      * @notice Check if a message is verified through preVerifyMessage first.
      * @param message Message to check.
      */
@@ -137,6 +122,21 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     }
 
     // ============ Internal Functions ============
+
+    /**
+     * @notice Release the value to the recipient if the message is verified.
+     * @param message Message to release value for.
+     */
+    function _releaseValueToRecipient(bytes calldata message) internal {
+        bytes32 messageId = message.id();
+        uint256 _msgValue = verifiedMessages[messageId].clearBit(
+            VERIFIED_MASK_INDEX
+        );
+        if (_msgValue > 0) {
+            verifiedMessages[messageId] -= _msgValue;
+            payable(message.recipientAddress()).sendValue(_msgValue);
+        }
+    }
 
     /**
      * @notice Check if sender is authorized to message `preVerifyMessage`.
