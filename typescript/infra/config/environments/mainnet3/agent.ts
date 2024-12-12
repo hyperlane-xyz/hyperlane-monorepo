@@ -1,4 +1,10 @@
 import {
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelPriorityFeeOracleType,
+  AgentSealevelTransactionSubmitter,
+  AgentSealevelTransactionSubmitterType,
+  ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RpcConsensusType,
@@ -357,12 +363,52 @@ export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   mainnet3SupportedChainNames,
 );
 
+const sealevelPriorityFeeOracleConfigGetter = (
+  chain: ChainName,
+): AgentSealevelPriorityFeeOracle => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelPriorityFeeOracleType.Helius,
+      feeLevel: AgentSealevelHeliusFeeLevel.Medium,
+      // URL is populated by the external secrets in the helm chart
+      url: '',
+    };
+  }
+
+  // For all other chains, we use the constant fee oracle with a fee of 0
+  return {
+    type: AgentSealevelPriorityFeeOracleType.Constant,
+    fee: '0',
+  };
+};
+
+const sealevelTransactionSubmitterConfigGetter = (
+  chain: ChainName,
+): AgentSealevelTransactionSubmitter => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelTransactionSubmitterType.Jito,
+    };
+  }
+
+  // For all other chains, use the default RPC transaction submitter
+  return {
+    type: AgentSealevelTransactionSubmitterType.Rpc,
+  };
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
   environmentChainNames: supportedChainNames,
   aws: {
     region: 'us-east-1',
+  },
+  sealevel: {
+    priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
+    transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
   },
 } as const;
 
@@ -473,6 +519,7 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     resources: relayerResources,
+    // blacklist: [...warpRouteMatchingList('WIF/eclipsemainnet-solanamainnet')],
   },
   validators: {
     docker: {
@@ -502,7 +549,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4cb2c9a-20241205-142854',
+      tag: '0b61be6-20241211-051755',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.

@@ -1,5 +1,7 @@
 import {
   AgentChainMetadata,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelTransactionSubmitter,
   AgentSignerAwsKey,
   AgentSignerKeyType,
   ChainName,
@@ -85,6 +87,16 @@ export interface AgentContextConfig extends AgentEnvConfig {
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
   contextChainNames: AgentChainNames;
+  sealevel?: SealevelAgentConfig;
+}
+
+export interface SealevelAgentConfig {
+  priorityFeeOracleConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelPriorityFeeOracle;
+  transactionSubmitterConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelTransactionSubmitter;
 }
 
 // incomplete common agent configuration for a role

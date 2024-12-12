@@ -40,7 +40,7 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     message::Message,
     pubkey::Pubkey,
-    signature::Signature,
+    signature::{self, Signature},
     signer::{keypair::Keypair, Signer as _},
     transaction::{Transaction, VersionedTransaction},
 };
@@ -61,13 +61,17 @@ use hyperlane_core::{
     TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
-use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
-use crate::error::HyperlaneSealevelError;
 use crate::log_meta_composer::{
     is_interchain_payment_instruction, is_message_delivery_instruction,
     is_message_dispatch_instruction, LogMetaComposer,
 };
 use crate::utils::{decode_h256, decode_h512, from_base58};
+use crate::{
+    account::{search_accounts_by_discriminator, search_and_validate_account},
+    priority_fee::PriorityFeeOracle,
+    PriorityFeeOracleConfig,
+};
+use crate::{error::HyperlaneSealevelError, tx_submitter::TransactionSubmitter};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -76,6 +80,9 @@ const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 // The max amount of compute units for a transaction.
 // TODO: consider a more sane value and/or use IGP gas payments instead.
 const PROCESS_COMPUTE_UNITS: u32 = 1_400_000;
+
+/// The max amount of compute units for a transaction.
+const MAX_COMPUTE_UNITS: u32 = 1_400_000;
 
 /// 0.0005 SOL, in lamports.
 /// A typical tx fee without a prioritization fee is 0.000005 SOL, or
@@ -102,6 +109,9 @@ pub struct SealevelMailbox {
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: SealevelProvider,
     payer: Option<Keypair>,
+    priority_fee_oracle: Box<dyn PriorityFeeOracle>,
+    priority_fee_oracle_config: PriorityFeeOracleConfig,
+    tx_submitter: Box<dyn TransactionSubmitter>,
 }
 
 impl SealevelMailbox {
@@ -126,8 +136,13 @@ impl SealevelMailbox {
             program_id,
             inbox,
             outbox,
-            provider,
             payer,
+            priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
+            priority_fee_oracle_config: conf.priority_fee_oracle.clone(),
+            tx_submitter: conf
+                .transaction_submitter
+                .create_submitter(provider.rpc().url()),
+            provider,
         })
     }
 
@@ -284,121 +299,206 @@ impl SealevelMailbox {
         self.get_account_metas(instruction).await
     }
 
-    fn use_jito(&self) -> bool {
+    fn is_solana(&self) -> bool {
         matches!(
             self.domain(),
             HyperlaneDomain::Known(KnownHyperlaneDomain::SolanaMainnet)
         )
     }
 
-    async fn send_and_confirm_transaction(
+    /// Builds a transaction with estimated costs for a given instruction.
+    async fn build_estimated_tx_for_instruction(
         &self,
-        transaction: &Transaction,
-    ) -> ChainResult<Signature> {
-        if self.use_jito() {
-            self.send_and_confirm_transaction_with_jito(transaction)
-                .await
-        } else {
-            self.provider
-                .rpc()
-                .send_and_confirm_transaction(transaction)
-                .await
+        instruction: Instruction,
+    ) -> ChainResult<Transaction> {
+        // Build a transaction that sets the max compute units and a dummy compute unit price.
+        // This is used for simulation to get the actual compute unit limit. We set dummy values
+        // for the compute unit limit and price because we want to include the instructions that
+        // set these in the cost estimate.
+        let simulation_tx = self
+            .create_transaction_for_instruction(MAX_COMPUTE_UNITS, 0, instruction.clone(), false)
+            .await?;
+
+        let simulation_result = self
+            .provider
+            .rpc()
+            .simulate_transaction(&simulation_tx)
+            .await?;
+        tracing::debug!(?simulation_result, "Got simulation result for transaction");
+
+        // If there was an error in the simulation result, return an error.
+        if simulation_result.err.is_some() {
+            return Err(ChainCommunicationError::from_other_str(
+                format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
+            ));
         }
+
+        // Get the compute units used in the simulation result, requiring
+        // that it is greater than 0.
+        let simulation_compute_units: u32 = simulation_result
+            .units_consumed
+            .and_then(|units| if units > 0 { Some(units) } else { None })
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str(
+                    "Empty or zero compute units returned in simulation result",
+                )
+            })?
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)?;
+
+        // Bump the compute units by 10% to ensure we have enough, but cap it at the max.
+        let simulation_compute_units = MAX_COMPUTE_UNITS.min((simulation_compute_units * 11) / 10);
+
+        let priority_fee = self
+            .priority_fee_oracle
+            .get_priority_fee(&simulation_tx)
+            .await?;
+
+        tracing::info!(
+            ?priority_fee,
+            ?simulation_compute_units,
+            "Got priority fee and compute units for transaction"
+        );
+
+        // Build the final transaction with the correct compute unit limit and price.
+        let tx = self
+            .create_transaction_for_instruction(
+                simulation_compute_units,
+                priority_fee,
+                instruction,
+                true,
+            )
+            .await?;
+
+        Ok(tx)
     }
 
-    // Stolen from Solana's non-blocking client, but with Jito!
-    pub async fn send_and_confirm_transaction_with_jito(
+    /// Creates a transaction for a given instruction, compute unit limit, and compute unit price.
+    /// If `blockhash` is `None`, the latest blockhash is fetched from the RPC.
+    async fn create_transaction_for_instruction(
         &self,
-        transaction: &impl SerializableTransaction,
-    ) -> ChainResult<Signature> {
-        let signature = transaction.get_signature();
+        compute_unit_limit: u32,
+        compute_unit_price_micro_lamports: u64,
+        instruction: Instruction,
+        sign: bool,
+    ) -> ChainResult<Transaction> {
+        let payer = self.get_payer()?;
 
-        let base58_txn = bs58::encode(
-            bincode::serialize(&transaction).map_err(ChainCommunicationError::from_other)?,
-        )
-        .into_string();
+        let instructions = vec![
+            // Set the compute unit limit.
+            ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),
+            // Set the priority fee / tip
+            self.tx_submitter.get_priority_fee_instruction(
+                compute_unit_price_micro_lamports,
+                compute_unit_limit.into(),
+                &payer.pubkey(),
+            ),
+            instruction,
+        ];
 
-        const SEND_RETRIES: usize = 1;
-        const GET_STATUS_RETRIES: usize = usize::MAX;
-
-        'sending: for _ in 0..SEND_RETRIES {
-            let jito_request_body = serde_json::json!({
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "sendBundle",
-                "params": [
-                    [base58_txn]
-                ],
-            });
-
-            tracing::info!(
-                ?jito_request_body,
-                ?signature,
-                "Sending sealevel transaction to Jito as bundle"
-            );
-
-            let jito_response = reqwest::Client::new()
-                .post("https://mainnet.block-engine.jito.wtf:443/api/v1/bundles")
-                .json(&jito_request_body)
-                .send()
+        let tx = if sign {
+            let recent_blockhash = self
+                .rpc()
+                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
-            let jito_response_text = jito_response.text().await;
 
-            tracing::info!(
-                ?signature,
-                ?jito_response_text,
-                "Got Jito response for sealevel transaction bundle"
-            );
+            Transaction::new_signed_with_payer(
+                &instructions,
+                Some(&payer.pubkey()),
+                &[payer],
+                recent_blockhash,
+            )
+        } else {
+            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
+        };
 
-            let recent_blockhash = if transaction.uses_durable_nonce() {
-                self.provider
-                    .rpc()
-                    .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-                    .await?
-            } else {
-                *transaction.get_recent_blockhash()
-            };
+        Ok(tx)
+    }
 
-            for status_retry in 0..GET_STATUS_RETRIES {
-                let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
-                    .provider
-                    .rpc()
-                    .get_signature_statuses(&[*signature])
-                    .await?;
-                let signature_status = signature_statuses.value.first().cloned().flatten();
-                match signature_status {
-                    Some(_) => return Ok(*signature),
-                    None => {
-                        if !self
-                            .provider
-                            .rpc()
-                            .is_blockhash_valid(&recent_blockhash)
-                            .await?
-                        {
-                            // Block hash is not found by some reason
-                            break 'sending;
-                        } else if cfg!(not(test))
-                            // Ignore sleep at last step.
-                            && status_retry < GET_STATUS_RETRIES
-                        {
-                            // Retry twice a second
-                            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                            continue;
-                        }
-                    }
-                }
-            }
-        }
+    async fn get_process_instruction(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+        commitment: CommitmentConfig,
+    ) -> ChainResult<Instruction> {
+        let recipient: Pubkey = message.recipient.0.into();
+        let mut encoded_message = vec![];
+        message.write_to(&mut encoded_message).unwrap();
 
-        Err(ChainCommunicationError::from_other(
-            solana_client::rpc_request::RpcError::ForUser(
-                "unable to confirm transaction. \
-             This can happen in situations such as transaction expiration \
-             and insufficient fee-payer funds"
-                    .to_string(),
-            ),
-        ))
+        let payer = self.get_payer()?;
+
+        let (process_authority_key, _process_authority_bump) = Pubkey::try_find_program_address(
+            mailbox_process_authority_pda_seeds!(&recipient),
+            &self.program_id,
+        )
+        .ok_or_else(|| {
+            ChainCommunicationError::from_other_str(
+                "Could not find program address for process authority",
+            )
+        })?;
+        let (processed_message_account_key, _processed_message_account_bump) =
+            Pubkey::try_find_program_address(
+                mailbox_processed_message_pda_seeds!(message.id()),
+                &self.program_id,
+            )
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str(
+                    "Could not find program address for processed message account",
+                )
+            })?;
+
+        // Get the account metas required for the recipient.InterchainSecurityModule instruction.
+        let ism_getter_account_metas = self.get_ism_getter_account_metas(recipient).await?;
+
+        // Get the recipient ISM.
+        let ism = self
+            .get_recipient_ism(recipient, ism_getter_account_metas.clone())
+            .await?;
+
+        let ixn =
+            hyperlane_sealevel_mailbox::instruction::Instruction::InboxProcess(InboxProcess {
+                metadata: metadata.to_vec(),
+                message: encoded_message.clone(),
+            });
+        let ixn_data = ixn
+            .into_instruction_data()
+            .map_err(ChainCommunicationError::from_other)?;
+
+        // Craft the accounts for the transaction.
+        let mut accounts: Vec<AccountMeta> = vec![
+            AccountMeta::new_readonly(payer.pubkey(), true),
+            AccountMeta::new_readonly(Pubkey::from_str(SYSTEM_PROGRAM).unwrap(), false),
+            AccountMeta::new(self.inbox.0, false),
+            AccountMeta::new_readonly(process_authority_key, false),
+            AccountMeta::new(processed_message_account_key, false),
+        ];
+        accounts.extend(ism_getter_account_metas);
+        accounts.extend([
+            AccountMeta::new_readonly(Pubkey::from_str(SPL_NOOP).unwrap(), false),
+            AccountMeta::new_readonly(ism, false),
+        ]);
+
+        // Get the account metas required for the ISM.Verify instruction.
+        let ism_verify_account_metas = self
+            .get_ism_verify_account_metas(ism, metadata.into(), encoded_message)
+            .await?;
+        accounts.extend(ism_verify_account_metas);
+
+        // The recipient.
+        accounts.extend([AccountMeta::new_readonly(recipient, false)]);
+
+        // Get account metas required for the Handle instruction
+        let handle_account_metas = self.get_handle_account_metas(message).await?;
+        accounts.extend(handle_account_metas);
+
+        let process_instruction = Instruction {
+            program_id: self.program_id,
+            data: ixn_data,
+            accounts,
+        };
+
+        Ok(process_instruction)
     }
 
     async fn get_inbox(&self) -> ChainResult<Box<Inbox>> {
@@ -410,6 +510,12 @@ impl SealevelMailbox {
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
         Ok(inbox)
+    }
+
+    fn get_payer(&self) -> ChainResult<&Keypair> {
+        self.payer
+            .as_ref()
+            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
     }
 }
 
@@ -490,133 +596,35 @@ impl Mailbox for SealevelMailbox {
         metadata: &[u8],
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let recipient: Pubkey = message.recipient.0.into();
-        let mut encoded_message = vec![];
-        message.write_to(&mut encoded_message).unwrap();
-
-        let payer = self
-            .payer
-            .as_ref()
-            .ok_or_else(|| ChainCommunicationError::SignerUnavailable)?;
-
-        let mut instructions = Vec::with_capacity(3);
-        // Set the compute unit limit.
-        instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
-            PROCESS_COMPUTE_UNITS,
-        ));
-
-        // If we're using Jito, we need to send a tip to the Jito fee account.
-        // Otherwise, we need to set the compute unit price.
-        if self.use_jito() {
-            let tip: u64 = std::env::var("JITO_TIP_LAMPORTS")
-                .ok()
-                .and_then(|s| s.parse::<u64>().ok())
-                .unwrap_or(PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX);
-
-            // The tip is a standalone transfer to a Jito fee account.
-            // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
-            instructions.push(solana_sdk::system_instruction::transfer(
-                &payer.pubkey(),
-                // A random Jito fee account, taken from the getFeeAccount RPC response:
-                // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts
-                &solana_sdk::pubkey!("DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh"),
-                tip,
-            ));
-        }
         // "processed" level commitment does not guarantee finality.
         // roughly 5% of blocks end up on a dropped fork.
         // However we don't want this function to be a bottleneck and there already
         // is retry logic in the agents.
         let commitment = CommitmentConfig::processed();
 
-        let (process_authority_key, _process_authority_bump) = Pubkey::try_find_program_address(
-            mailbox_process_authority_pda_seeds!(&recipient),
-            &self.program_id,
-        )
-        .ok_or_else(|| {
-            ChainCommunicationError::from_other_str(
-                "Could not find program address for process authority",
-            )
-        })?;
-        let (processed_message_account_key, _processed_message_account_bump) =
-            Pubkey::try_find_program_address(
-                mailbox_processed_message_pda_seeds!(message.id()),
-                &self.program_id,
-            )
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Could not find program address for processed message account",
-                )
-            })?;
-
-        // Get the account metas required for the recipient.InterchainSecurityModule instruction.
-        let ism_getter_account_metas = self.get_ism_getter_account_metas(recipient).await?;
-
-        // Get the recipient ISM.
-        let ism = self
-            .get_recipient_ism(recipient, ism_getter_account_metas.clone())
+        let process_instruction = self
+            .get_process_instruction(message, metadata, commitment)
             .await?;
 
-        let ixn =
-            hyperlane_sealevel_mailbox::instruction::Instruction::InboxProcess(InboxProcess {
-                metadata: metadata.to_vec(),
-                message: encoded_message.clone(),
-            });
-        let ixn_data = ixn
-            .into_instruction_data()
-            .map_err(ChainCommunicationError::from_other)?;
-
-        // Craft the accounts for the transaction.
-        let mut accounts: Vec<AccountMeta> = vec![
-            AccountMeta::new_readonly(payer.pubkey(), true),
-            AccountMeta::new_readonly(Pubkey::from_str(SYSTEM_PROGRAM).unwrap(), false),
-            AccountMeta::new(self.inbox.0, false),
-            AccountMeta::new_readonly(process_authority_key, false),
-            AccountMeta::new(processed_message_account_key, false),
-        ];
-        accounts.extend(ism_getter_account_metas);
-        accounts.extend([
-            AccountMeta::new_readonly(Pubkey::from_str(SPL_NOOP).unwrap(), false),
-            AccountMeta::new_readonly(ism, false),
-        ]);
-
-        // Get the account metas required for the ISM.Verify instruction.
-        let ism_verify_account_metas = self
-            .get_ism_verify_account_metas(ism, metadata.into(), encoded_message)
-            .await?;
-        accounts.extend(ism_verify_account_metas);
-
-        // The recipient.
-        accounts.extend([AccountMeta::new_readonly(recipient, false)]);
-
-        // Get account metas required for the Handle instruction
-        let handle_account_metas = self.get_handle_account_metas(message).await?;
-        accounts.extend(handle_account_metas);
-
-        let inbox_instruction = Instruction {
-            program_id: self.program_id,
-            data: ixn_data,
-            accounts,
-        };
-        instructions.push(inbox_instruction);
-        let recent_blockhash = self
-            .rpc()
-            .get_latest_blockhash_with_commitment(commitment)
+        let tx = self
+            .build_estimated_tx_for_instruction(process_instruction)
             .await?;
 
-        let txn = Transaction::new_signed_with_payer(
-            &instructions,
-            Some(&payer.pubkey()),
-            &[payer],
-            recent_blockhash,
-        );
+        tracing::info!(?tx, "Created sealevel transaction to process message");
 
-        tracing::info!(?txn, "Created sealevel transaction to process message");
+        let signature = self.tx_submitter.send_transaction(&tx, true).await?;
 
-        let signature = self.send_and_confirm_transaction(&txn).await?;
+        tracing::info!(?tx, ?signature, "Sealevel transaction sent");
 
-        tracing::info!(?txn, ?signature, "Sealevel transaction sent");
+        let send_instant = std::time::Instant::now();
 
+        // Wait for the transaction to be confirmed.
+        self.rpc().wait_for_transaction_confirmation(&tx).await?;
+
+        tracing::info!(?tx, ?signature, time_to_confirm=?send_instant.elapsed(), "Sealevel transaction confirmed");
+
+        // TODO: not sure if this actually checks if the transaction was executed / reverted?
+        // Confirm the transaction.
         let executed = self
             .rpc()
             .confirm_transaction_with_commitment(&signature, commitment)
