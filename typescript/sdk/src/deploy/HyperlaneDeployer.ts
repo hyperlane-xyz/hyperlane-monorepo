@@ -39,7 +39,7 @@ import {
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 import { getZKSyncArtifactByContractName } from '../utils/zksync.js';
 
 import {
@@ -50,7 +50,6 @@ import {
   proxyConstructorArgs,
   proxyImplementation,
 } from './proxy.js';
-import { OwnableConfig } from './types.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 import { ZKSyncContractVerifier } from './verify/ZKSyncContractVerifier.js';
 import {

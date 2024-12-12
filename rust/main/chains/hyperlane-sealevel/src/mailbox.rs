@@ -1,6 +1,7 @@
-#![allow(warnings)] // FIXME remove
+// Silence a clippy bug https://github.com/rust-lang/rust-clippy/issues/12281
+#![allow(clippy::blocks_in_conditions)]
 
-use std::{collections::HashMap, num::NonZeroU64, ops::RangeInclusive, str::FromStr as _};
+use std::{collections::HashMap, ops::RangeInclusive, str::FromStr as _};
 
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -9,10 +10,9 @@ use hyperlane_sealevel_interchain_security_module_interface::{
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{
-        DispatchedMessageAccount, Inbox, InboxAccount, OutboxAccount, ProcessedMessage,
-        ProcessedMessageAccount, DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
+        DispatchedMessageAccount, Inbox, InboxAccount, ProcessedMessageAccount,
+        DISPATCHED_MESSAGE_DISCRIMINATOR, PROCESSED_MESSAGE_DISCRIMINATOR,
     },
-    instruction,
     instruction::InboxProcess,
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
@@ -20,54 +20,36 @@ use hyperlane_sealevel_mailbox::{
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
 };
-use jsonrpc_core::futures_util::TryFutureExt;
+use lazy_static::lazy_static;
 use serializable_account_meta::SimulationReturnData;
-use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
-use solana_client::{
-    nonblocking::rpc_client::RpcClient,
-    rpc_client::SerializableTransaction,
-    rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig},
-    rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
-    rpc_response::Response,
-};
+use solana_client::{rpc_client::SerializableTransaction, rpc_response::Response};
+use solana_program::pubkey;
 use solana_sdk::{
     account::Account,
     bs58,
     clock::Slot,
     commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
-    hash::Hash,
     instruction::{AccountMeta, Instruction},
-    message::Message,
     pubkey::Pubkey,
     signature::Signature,
     signer::{keypair::Keypair, Signer as _},
-    transaction::{Transaction, VersionedTransaction},
+    transaction::Transaction,
 };
-use solana_transaction_status::{
-    EncodedConfirmedBlock, EncodedTransaction, EncodedTransactionWithStatusMeta, TransactionStatus,
-    UiCompiledInstruction, UiConfirmedBlock, UiInnerInstructions, UiInstruction, UiMessage,
-    UiParsedInstruction, UiReturnDataEncoding, UiTransaction, UiTransactionReturnData,
-    UiTransactionStatusMeta,
-};
+use solana_transaction_status::TransactionStatus;
 use tracing::{debug, info, instrument, warn};
 
 use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle, config::StrOrIntParseError, BatchItem,
-    ChainCommunicationError, ChainCommunicationError::ContractError, ChainResult, Checkpoint,
-    ContractLocator, Decode as _, Encode as _, FixedPointNumber, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer,
-    KnownHyperlaneDomain, LogMeta, Mailbox, MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H256, H512, U256,
+    config::StrOrIntParseError, ChainCommunicationError, ChainResult, ContractLocator, Decode as _,
+    Encode as _, FixedPointNumber, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, KnownHyperlaneDomain, LogMeta, Mailbox,
+    MerkleTreeHook, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
 use crate::account::{search_accounts_by_discriminator, search_and_validate_account};
-use crate::error::HyperlaneSealevelError;
 use crate::log_meta_composer::{
-    is_interchain_payment_instruction, is_message_delivery_instruction,
-    is_message_dispatch_instruction, LogMetaComposer,
+    is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
 };
-use crate::utils::{decode_h256, decode_h512, from_base58};
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
@@ -87,14 +69,33 @@ const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 500000;
 /// In micro-lamports. Multiply this by the compute units to figure out
 /// the additional cost of processing a message, in addition to the mandatory
 /// "base" cost of signature verification.
+/// Unused at the moment, but kept for future reference.
+#[allow(dead_code)]
 const PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS: u64 =
-    (
-        // Convert to micro-lamports
-        (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
-        // Divide by the max compute units
-        / PROCESS_COMPUTE_UNITS as u64
-    );
+    // Convert to micro-lamports
+    (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
+    // Divide by the max compute units
+    / PROCESS_COMPUTE_UNITS as u64;
 
+// Earlier versions of collateral warp routes were deployed off a version where the mint
+// was requested as a writeable account for handle instruction. This is not necessary,
+// and generally requires a higher priority fee to be paid.
+// This is a HashMap of of (collateral warp route recipient -> mint address) that is
+// used to force the mint address to be readonly.
+lazy_static! {
+    static ref RECIPIENT_FORCED_READONLY_ACCOUNTS: HashMap<Pubkey, Pubkey> = HashMap::from([
+        // EZSOL
+        (pubkey!("b5pMgizA9vrGRt3hVqnU7vUVGBQUnLpwPzcJhG1ucyQ"), pubkey!("ezSoL6fY1PVdJcJsUpe5CM3xkfmy3zoVCABybm5WtiC")),
+        // ORCA
+        (pubkey!("8acihSm2QTGswniKgdgr4JBvJihZ1cakfvbqWCPBLoSp"), pubkey!("orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE")),
+        // USDC
+        (pubkey!("3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm"), pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")),
+        // USDT
+        (pubkey!("Bk79wMjvpPCh5iQcCEjPWFcG1V2TfgdwaBsWBEYFYSNU"), pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB")),
+        // WIF
+        (pubkey!("CuQmsT4eSF4dYiiGUGYYQxJ7c58pUAD5ADE3BbFGzQKx"), pubkey!("EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm")),
+    ]);
+}
 /// A reference to a Mailbox contract on some Sealevel chain
 pub struct SealevelMailbox {
     pub(crate) program_id: Pubkey,
@@ -131,13 +132,17 @@ impl SealevelMailbox {
         })
     }
 
+    /// Get the Inbox account pubkey and bump seed.
     pub fn inbox(&self) -> (Pubkey, u8) {
         self.inbox
     }
+
+    /// Get the Outbox account pubkey and bump seed.
     pub fn outbox(&self) -> (Pubkey, u8) {
         self.outbox
     }
 
+    /// Get the provider RPC client.
     pub fn rpc(&self) -> &SealevelRpcClient {
         self.provider.rpc()
     }
@@ -257,14 +262,26 @@ impl SealevelMailbox {
             message: message.body.clone(),
         });
 
-        self.get_account_metas_with_instruction_bytes(
-            recipient_program_id,
-            &instruction
-                .encode()
-                .map_err(ChainCommunicationError::from_other)?,
-            hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
-        )
-        .await
+        let mut account_metas = self
+            .get_account_metas_with_instruction_bytes(
+                recipient_program_id,
+                &instruction
+                    .encode()
+                    .map_err(ChainCommunicationError::from_other)?,
+                hyperlane_sealevel_message_recipient_interface::HANDLE_ACCOUNT_METAS_PDA_SEEDS,
+            )
+            .await?;
+
+        if let Some(forced_readonly_account) =
+            RECIPIENT_FORCED_READONLY_ACCOUNTS.get(&recipient_program_id)
+        {
+            account_metas
+                .iter_mut()
+                .filter(|account_meta| account_meta.pubkey == *forced_readonly_account)
+                .for_each(|account_meta| account_meta.is_writable = false);
+        }
+
+        Ok(account_metas)
     }
 
     async fn get_account_metas_with_instruction_bytes(
@@ -306,7 +323,8 @@ impl SealevelMailbox {
         }
     }
 
-    // Stolen from Solana's non-blocking client, but with Jito!
+    /// Send a transaction to Jito and wait for it to be confirmed.
+    /// Logic stolen from Solana's non-blocking client.
     pub async fn send_and_confirm_transaction_with_jito(
         &self,
         transaction: &impl SerializableTransaction,
@@ -421,7 +439,7 @@ impl HyperlaneContract for SealevelMailbox {
 
 impl HyperlaneChain for SealevelMailbox {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.provider.domain()
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -664,6 +682,7 @@ pub struct SealevelMailboxIndexer {
 }
 
 impl SealevelMailboxIndexer {
+    /// Create a new SealevelMailboxIndexer
     pub fn new(
         conf: &ConnectionConf,
         locator: ContractLocator,
@@ -694,7 +713,7 @@ impl SealevelMailboxIndexer {
     }
 
     fn rpc(&self) -> &SealevelRpcClient {
-        &self.mailbox.rpc()
+        self.mailbox.rpc()
     }
 
     async fn get_dispatched_message_with_nonce(
@@ -707,7 +726,7 @@ impl SealevelMailboxIndexer {
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
-            &DISPATCHED_MESSAGE_DISCRIMINATOR,
+            DISPATCHED_MESSAGE_DISCRIMINATOR,
             &nonce_bytes,
             unique_dispatched_message_pubkey_offset,
             unique_dispatch_message_pubkey_length,
@@ -715,7 +734,7 @@ impl SealevelMailboxIndexer {
         .await?;
 
         let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
-            self.dispatched_message_account(&account)
+            self.dispatched_message_account(account)
         })?;
 
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
@@ -800,7 +819,7 @@ impl SealevelMailboxIndexer {
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
-            &PROCESSED_MESSAGE_DISCRIMINATOR,
+            PROCESSED_MESSAGE_DISCRIMINATOR,
             &sequence_bytes,
             delivered_message_id_offset,
             delivered_message_id_length,
@@ -810,7 +829,7 @@ impl SealevelMailboxIndexer {
         debug!(account_len = ?accounts.len(), "Found accounts with processed message discriminator");
 
         let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
-            self.delivered_message_account(&account)
+            self.delivered_message_account(account)
         })?;
 
         // Now that we have the valid delivered message storage PDA pubkey,
@@ -963,16 +982,5 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
         let tip = self.mailbox.provider.rpc().get_slot().await?;
 
         Ok((Some(sequence), tip))
-    }
-}
-
-struct SealevelMailboxAbi;
-
-// TODO figure out how this is used and if we can support it for sealevel.
-impl HyperlaneAbi for SealevelMailboxAbi {
-    const SELECTOR_SIZE_BYTES: usize = 8;
-
-    fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        todo!()
     }
 }

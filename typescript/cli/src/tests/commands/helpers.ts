@@ -4,7 +4,7 @@ import { $ } from 'zx';
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  TokenRouterConfig,
+  HypTokenRouterConfig,
   WarpCoreConfig,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
@@ -114,7 +114,7 @@ export async function updateOwner(
 export async function extendWarpConfig(params: {
   chain: string;
   chainToExtend: string;
-  extendedConfig: TokenRouterConfig;
+  extendedConfig: HypTokenRouterConfig;
   warpCorePath: string;
   warpDeployPath: string;
   strategyUrl?: string;

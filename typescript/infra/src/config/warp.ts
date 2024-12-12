@@ -1,9 +1,4 @@
-import {
-  ChainMap,
-  OwnableConfig,
-  RouterConfig,
-  TokenRouterConfig,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, OwnableConfig, RouterConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 // Common collateral tokens to be used by warp route deployments.

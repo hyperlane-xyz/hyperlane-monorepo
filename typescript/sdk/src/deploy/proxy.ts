@@ -6,8 +6,7 @@ import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
 
 import { transferOwnershipTransactions } from '../contracts/contracts.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-
-import { DeployedOwnableConfig } from './types.js';
+import { DeployedOwnableConfig } from '../types.js';
 
 type Provider = ethers.providers.Provider | ZKSyncProvider;
 

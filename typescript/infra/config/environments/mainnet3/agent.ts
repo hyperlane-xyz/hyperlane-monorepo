@@ -54,6 +54,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ancient8: true,
     alephzeroevmmainnet: true,
     apechain: true,
+    appchain: true,
     arbitrum: true,
     arbitrumnova: true,
     astar: true,
@@ -134,6 +135,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     swell: true,
     taiko: true,
     tangle: true,
+    treasure: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -143,6 +145,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
+    zklink: true,
     zksync: true,
     zoramainnet: true,
   },
@@ -150,6 +153,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ancient8: true,
     alephzeroevmmainnet: true,
     apechain: true,
+    appchain: true,
     arbitrum: true,
     arbitrumnova: true,
     astar: true,
@@ -231,6 +235,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     swell: true,
     taiko: true,
     tangle: true,
+    treasure: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -240,6 +245,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
+    zklink: true,
     zksync: true,
     zoramainnet: true,
   },
@@ -247,6 +253,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     ancient8: true,
     alephzeroevmmainnet: true,
     apechain: true,
+    appchain: true,
     arbitrum: true,
     arbitrumnova: true,
     astar: true,
@@ -269,7 +276,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     duckchain: true,
-    // Cannot scrape Sealevel chains
+    // Disabled until we get archival RPC for Eclipse
     eclipsemainnet: false,
     endurance: true,
     ethereum: true,
@@ -321,14 +328,14 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sei: true,
     shibarium: true,
     snaxchain: true,
-    // Cannot scrape Sealevel chains
-    solanamainnet: false,
+    solanamainnet: true,
     stride: true,
     superseed: true,
     superpositionmainnet: true,
     swell: true,
     taiko: true,
     tangle: true,
+    treasure: true,
     unichain: true,
     vana: true,
     // Has RPC non-compliance that breaks scraping.
@@ -339,6 +346,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zeronetwork: true,
     zetachain: true,
     zircuit: true,
+    zklink: true,
     zksync: true,
     zoramainnet: true,
   },
@@ -433,7 +441,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '12Gi',
+    memory: '15Gi',
   },
 };
 
@@ -460,7 +468,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd0e53f5-20241203-171412',
+      tag: 'a7f3967-20241205-163733',
     },
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
@@ -469,7 +477,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'b35c105-20241128-172842',
+      tag: 'a7f3967-20241205-163733',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -479,7 +487,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'ae2c3a8-20241203-123123',
+      tag: '4b280cd-20241206-130519',
     },
     resources: scraperResources,
   },
@@ -494,7 +502,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd0e53f5-20241203-171412',
+      tag: '4cb2c9a-20241205-142854',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
