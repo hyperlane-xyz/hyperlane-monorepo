@@ -1,5 +1,17 @@
 # @hyperlane-xyz/widgets
 
+## 8.0.0
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [5942e9cff]
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 7.3.0
 
 ### Patch Changes
