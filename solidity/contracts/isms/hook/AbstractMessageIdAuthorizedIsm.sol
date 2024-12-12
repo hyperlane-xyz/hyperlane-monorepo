@@ -78,7 +78,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     ) external virtual returns (bool) {
         bool verified = isVerified(message);
         if (verified) {
-            releaseValueToRecipient(message);
+            _releaseValueToRecipient(message);
         }
         return verified;
     }
@@ -89,7 +89,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @notice Release the value to the recipient if the message is verified.
      * @param message Message to release value for.
      */
-    function releaseValueToRecipient(bytes calldata message) public {
+    function _releaseValueToRecipient(bytes calldata message) internal {
         bytes32 messageId = message.id();
         uint256 _msgValue = verifiedMessages[messageId].clearBit(
             VERIFIED_MASK_INDEX
