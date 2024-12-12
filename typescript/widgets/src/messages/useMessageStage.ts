@@ -4,6 +4,7 @@ import type { MultiProvider } from '@hyperlane-xyz/sdk';
 import { fetchWithTimeout } from '@hyperlane-xyz/utils';
 
 import { HYPERLANE_EXPLORER_API_URL } from '../consts.js';
+import { widgetLogger } from '../logger.js';
 import { queryExplorerForBlock } from '../utils/explorers.js';
 import { useInterval } from '../utils/timeout.js';
 
@@ -13,6 +14,8 @@ import {
   MessageStage as Stage,
   StageTimings,
 } from './types.js';
+
+const logger = widgetLogger.child({ module: 'useMessageStage' });
 
 const VALIDATION_TIME_EST = 5;
 const DEFAULT_BLOCK_TIME_EST = 3;
@@ -67,7 +70,7 @@ export function useMessageStage({
       })
       .catch((e) => setError(e.toString()))
       .finally(() => setIsLoading(false));
-  }, [message, data]);
+  }, [explorerApiUrl, multiProvider, message, data]);
 
   useInterval(fetcher, retryInterval);
 
@@ -192,7 +195,7 @@ async function tryFetchChainLatestBlock(
 ) {
   const metadata = multiProvider.tryGetChainMetadata(domainId);
   if (!metadata) return null;
-  console.debug(`Attempting to fetch latest block for:`, metadata.name);
+  logger.debug(`Attempting to fetch latest block for:`, metadata.name);
   try {
     const block = await queryExplorerForBlock(
       metadata.name,
@@ -201,7 +204,7 @@ async function tryFetchChainLatestBlock(
     );
     return block;
   } catch (error) {
-    console.error('Error fetching latest block', error);
+    logger.error('Error fetching latest block', error);
     return null;
   }
 }
@@ -213,7 +216,7 @@ async function tryFetchLatestNonce(
 ) {
   const metadata = multiProvider.tryGetChainMetadata(domainId);
   if (!metadata) return null;
-  console.debug(`Attempting to fetch nonce for:`, metadata.name);
+  logger.debug(`Attempting to fetch nonce for:`, metadata.name);
   try {
     const response = await fetchWithTimeout(
       `${explorerApiUrl}/latest-nonce`,
@@ -227,10 +230,10 @@ async function tryFetchLatestNonce(
       3000,
     );
     const result = await response.json();
-    console.debug(`Found nonce:`, result.nonce);
+    logger.debug(`Found nonce:`, result.nonce);
     return result.nonce;
   } catch (error) {
-    console.error('Error fetching nonce', error);
+    logger.error('Error fetching nonce', error);
     return null;
   }
 }

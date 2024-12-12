@@ -47,13 +47,6 @@ impl SealevelRpcClient {
             .map_err(Into::into)
     }
 
-    pub async fn get_account(&self, pubkey: &Pubkey) -> ChainResult<Account> {
-        self.0
-            .get_account(pubkey)
-            .await
-            .map_err(ChainCommunicationError::from_other)
-    }
-
     /// Simulates an Instruction that will return a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
@@ -112,14 +105,14 @@ impl SealevelRpcClient {
         Ok(balance.into())
     }
 
-    pub async fn get_block(&self, height: u64) -> ChainResult<UiConfirmedBlock> {
+    pub async fn get_block(&self, slot: u64) -> ChainResult<UiConfirmedBlock> {
         let config = RpcBlockConfig {
             commitment: Some(CommitmentConfig::finalized()),
             max_supported_transaction_version: Some(0),
             ..Default::default()
         };
         self.0
-            .get_block_with_config(height, config)
+            .get_block_with_config(slot, config)
             .await
             .map_err(HyperlaneSealevelError::ClientError)
             .map_err(Into::into)
@@ -273,3 +266,6 @@ impl std::fmt::Debug for SealevelRpcClient {
         f.write_str("RpcClient { ... }")
     }
 }
+
+#[cfg(test)]
+mod tests;

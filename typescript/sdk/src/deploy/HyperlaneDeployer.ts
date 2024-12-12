@@ -29,13 +29,13 @@ import {
   HyperlaneFactories,
 } from '../contracts/types.js';
 import { HookConfig } from '../hook/types.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import type { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 
 import {
   UpgradeConfig,
@@ -45,7 +45,6 @@ import {
   proxyConstructorArgs,
   proxyImplementation,
 } from './proxy.js';
-import { OwnableConfig } from './types.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 import {
   ContractVerificationInput,

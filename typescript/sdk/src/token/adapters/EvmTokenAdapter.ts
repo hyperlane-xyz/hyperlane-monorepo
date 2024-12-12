@@ -57,6 +57,10 @@ export class EvmNativeTokenAdapter
     throw new Error('Metadata not available to native tokens');
   }
 
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
   async isApproveRequired(
     _owner: Address,
     _spender: Address,
@@ -261,9 +265,7 @@ export class EvmHypCollateralAdapter
     return this.wrappedTokenAddress!;
   }
 
-  protected async getWrappedTokenAdapter(): Promise<
-    ITokenAdapter<PopulatedTransaction>
-  > {
+  protected async getWrappedTokenAdapter(): Promise<EvmTokenAdapter> {
     return new EvmTokenAdapter(this.chainName, this.multiProvider, {
       token: await this.getWrappedTokenAddress(),
     });
@@ -301,6 +303,21 @@ export class EvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) =>
       t.populateTransferTx(params),
     );
+  }
+}
+
+export class EvmHypCollateralFiatAdapter
+  extends EvmHypCollateralAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  /**
+   * Note this may be inaccurate, as this returns the total supply
+   * of the fiat token, which may be used by other bridges.
+   * However this is the best we can do with a simple view call.
+   */
+  override async getBridgedSupply(): Promise<bigint> {
+    const wrapped = await this.getWrappedTokenAdapter();
+    return wrapped.getTotalSupply();
   }
 }
 

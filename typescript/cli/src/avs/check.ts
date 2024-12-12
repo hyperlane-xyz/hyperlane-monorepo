@@ -429,7 +429,7 @@ const getEcdsaStakeRegistryAddress = (
 ): Address | undefined => {
   try {
     return avsAddresses[chain]['ecdsaStakeRegistry'];
-  } catch (err) {
+  } catch {
     topLevelErrors.push(
       `❗️ EcdsaStakeRegistry address not found for ${chain}`,
     );

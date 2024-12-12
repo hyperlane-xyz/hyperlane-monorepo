@@ -1,18 +1,8 @@
+import { CommandType } from '../../../commands/signCommands.js';
+
 import { MultiChainResolver } from './MultiChainResolver.js';
 import { SingleChainResolver } from './SingleChainResolver.js';
 import { ChainResolver } from './types.js';
-
-enum CommandType {
-  WARP_DEPLOY = 'warp:deploy',
-  WARP_SEND = 'warp:send',
-  WARP_APPLY = 'warp:apply',
-  WARP_READ = 'warp:read',
-  SEND_MESSAGE = 'send:message',
-  AGENT_KURTOSIS = 'deploy:kurtosis-agents',
-  STATUS = 'status:',
-  SUBMIT = 'submit:',
-  RELAYER = 'relayer:',
-}
 
 /**
  * @class ChainResolverFactory
@@ -24,11 +14,13 @@ export class ChainResolverFactory {
     [CommandType.WARP_SEND, () => MultiChainResolver.forOriginDestination()],
     [CommandType.WARP_APPLY, () => MultiChainResolver.forWarpRouteConfig()],
     [CommandType.WARP_READ, () => MultiChainResolver.forWarpCoreConfig()],
+    [CommandType.WARP_CHECK, () => MultiChainResolver.forWarpCoreConfig()],
     [CommandType.SEND_MESSAGE, () => MultiChainResolver.forOriginDestination()],
     [CommandType.AGENT_KURTOSIS, () => MultiChainResolver.forAgentKurtosis()],
     [CommandType.STATUS, () => MultiChainResolver.forOriginDestination()],
     [CommandType.SUBMIT, () => MultiChainResolver.forStrategyConfig()],
     [CommandType.RELAYER, () => MultiChainResolver.forRelayer()],
+    [CommandType.CORE_APPLY, () => MultiChainResolver.forCoreApply()],
   ]);
 
   /**

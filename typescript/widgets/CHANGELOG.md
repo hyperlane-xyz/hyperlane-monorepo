@@ -1,5 +1,61 @@
 # @hyperlane-xyz/widgets
 
+## 7.3.0
+
+### Patch Changes
+
+- Updated dependencies [2054f4f5b]
+- Updated dependencies [a96448fa6]
+- Updated dependencies [170a0fc73]
+- Updated dependencies [9a09afcc7]
+- Updated dependencies [24784af95]
+- Updated dependencies [3e8dd70ac]
+- Updated dependencies [aa1ea9a48]
+- Updated dependencies [665a7b8d8]
+- Updated dependencies [f0b98fdef]
+- Updated dependencies [ff9e8a72b]
+- Updated dependencies [97c1f80b7]
+- Updated dependencies [323f0f158]
+- Updated dependencies [61157097b]
+  - @hyperlane-xyz/sdk@7.3.0
+  - @hyperlane-xyz/utils@7.3.0
+
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [81ab4332f]
+- Updated dependencies [4b3537470]
+- Updated dependencies [fa6d5f5c6]
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/sdk@7.2.0
+  - @hyperlane-xyz/utils@7.2.0
+
+## 7.1.0
+
+### Minor Changes
+
+- 0cd65c571: Add multi-protocol wallet integration hooks and types
+- 186663505: New Icons
+  Updated modal with new props
+  Updated storybook for modal and icon list
+- 0e285a443: Add various utility hooks: useIsSsr, useTimeout, useDebounce, useInterval
+- 92b5fe777: Props and style update: IconButton and Tooltip
+  New Icons: XCircleIcon and SwapIcon
+
+### Patch Changes
+
+- 794501ba6: Prevent propagation of form submissions from ChainSearchMenu
+- Updated dependencies [6f2d50fbd]
+- Updated dependencies [1159e0f4b]
+- Updated dependencies [0e285a443]
+- Updated dependencies [ff2b4e2fb]
+- Updated dependencies [0e285a443]
+- Updated dependencies [5db46bd31]
+- Updated dependencies [0cd65c571]
+  - @hyperlane-xyz/sdk@7.1.0
+  - @hyperlane-xyz/utils@7.1.0
+
 ## 7.0.0
 
 ### Patch Changes

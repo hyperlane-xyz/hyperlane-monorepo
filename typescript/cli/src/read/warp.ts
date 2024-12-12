@@ -15,7 +15,7 @@ import { isAddressEvm, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { logGray, logRed, logTable } from '../logger.js';
-import { getWarpCoreConfigOrExit } from '../utils/input.js';
+import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
 export async function runWarpRouteRead({
   context,

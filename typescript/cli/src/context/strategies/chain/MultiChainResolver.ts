@@ -1,9 +1,16 @@
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  DeployedCoreAddresses,
+  DeployedCoreAddressesSchema,
+  EvmCoreModule,
+} from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
+import { readCoreDeployConfigs } from '../../../config/core.js';
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
-import { logRed } from '../../../logger.js';
+import { log } from '../../../logger.js';
 import {
   extractChainsFromObj,
   runMultiChainSelectionStep,
@@ -14,7 +21,7 @@ import {
   readYamlOrJson,
   runFileSelectionStep,
 } from '../../../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../../../utils/input.js';
+import { getWarpCoreConfigOrExit } from '../../../utils/warp.js';
 
 import { ChainResolver } from './types.js';
 
@@ -25,6 +32,7 @@ enum ChainSelectionMode {
   WARP_READ,
   STRATEGY,
   RELAYER,
+  CORE_APPLY,
 }
 
 // This class could be broken down into multiple strategies
@@ -48,6 +56,8 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveStrategyChains(argv);
       case ChainSelectionMode.RELAYER:
         return this.resolveRelayerChains(argv);
+      case ChainSelectionMode.CORE_APPLY:
+        return this.resolveCoreApplyChains(argv);
       case ChainSelectionMode.ORIGIN_DESTINATION:
       default:
         return this.resolveOriginDestinationChains(argv);
@@ -156,7 +166,7 @@ export class MultiChainResolver implements ChainResolver {
         'warp',
       );
     } else {
-      logRed(`Using warp route deployment config at ${configPath}`);
+      log(`Using warp route deployment config at ${configPath}`);
     }
 
     // Alternative to readWarpRouteDeployConfig that doesn't use context for signer and zod validation
@@ -172,6 +182,41 @@ export class MultiChainResolver implements ChainResolver {
     );
 
     return chains;
+  }
+
+  private async resolveCoreApplyChains(
+    argv: Record<string, any>,
+  ): Promise<ChainName[]> {
+    try {
+      const config = readCoreDeployConfigs(argv.config);
+
+      if (!config?.interchainAccountRouter) {
+        return [argv.chain];
+      }
+
+      const addresses = await argv.context.registry.getChainAddresses(
+        argv.chain,
+      );
+      const coreAddresses = DeployedCoreAddressesSchema.parse(
+        addresses,
+      ) as DeployedCoreAddresses;
+
+      const evmCoreModule = new EvmCoreModule(argv.context.multiProvider, {
+        chain: argv.chain,
+        config,
+        addresses: coreAddresses,
+      });
+
+      const transactions = await evmCoreModule.update(config);
+
+      return Array.from(new Set(transactions.map((tx) => tx.chainId))).map(
+        (chainId) => argv.context.multiProvider.getChainName(chainId),
+      );
+    } catch (error) {
+      throw new Error(`Failed to resolve core apply chains`, {
+        cause: error,
+      });
+    }
   }
 
   static forAgentKurtosis(): MultiChainResolver {
@@ -196,5 +241,9 @@ export class MultiChainResolver implements ChainResolver {
 
   static forWarpCoreConfig(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.WARP_READ);
+  }
+
+  static forCoreApply(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
   }
 }

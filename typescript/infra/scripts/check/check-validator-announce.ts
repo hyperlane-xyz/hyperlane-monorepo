@@ -36,7 +36,9 @@ async function main() {
       const announcedValidators =
         await validatorAnnounce.getAnnouncedValidators();
 
-      const validators = defaultMultisigConfigs[chain].validators || [];
+      const defaultValidatorConfigs =
+        defaultMultisigConfigs[chain].validators || [];
+      const validators = defaultValidatorConfigs.map((v) => v.address);
       const unannouncedValidators = validators.filter(
         (validator) =>
           !announcedValidators.some((x) => eqAddress(x, validator)),

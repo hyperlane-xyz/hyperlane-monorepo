@@ -80,7 +80,7 @@ export function isValidAddressEvm(address: Address) {
   try {
     const isValid = address && ethersUtils.isAddress(address);
     return !!isValid;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -90,7 +90,7 @@ export function isValidAddressSealevel(address: Address) {
   try {
     const isValid = address && new PublicKey(address).toBase58();
     return !!isValid;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -104,7 +104,7 @@ export function isValidAddressCosmos(address: Address) {
         COSMOS_FACTORY_TOKEN_REGEX.test(address) ||
         fromBech32(address));
     return !!isValid;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -126,7 +126,7 @@ export function normalizeAddressEvm(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
     return ethersUtils.getAddress(address);
-  } catch (error) {
+  } catch {
     return address;
   }
 }
@@ -135,7 +135,7 @@ export function normalizeAddressSealevel(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
     return new PublicKey(address).toBase58();
-  } catch (error) {
+  } catch {
     return address;
   }
 }
@@ -144,7 +144,7 @@ export function normalizeAddressCosmos(address: Address) {
   if (isZeroishAddress(address)) return address;
   try {
     return normalizeBech32(address);
-  } catch (error) {
+  } catch {
     return address;
   }
 }
@@ -384,7 +384,7 @@ export function strip0x(hexstr: string) {
 export function isPrivateKeyEvm(privateKey: string): boolean {
   try {
     return new Wallet(privateKey).privateKey === privateKey;
-  } catch (e) {
+  } catch {
     throw new Error('Provided Private Key is not EVM compatible!');
   }
 }

@@ -1,5 +1,4 @@
 import { checkbox } from '@inquirer/prompts';
-import yargs from 'yargs';
 
 import { Contexts } from '../../config/contexts.js';
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
@@ -9,6 +8,7 @@ import {
   assertCorrectKubeContext,
   getAgentConfig,
   getArgs,
+  getWarpRouteIdsInteractive,
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -39,20 +39,6 @@ async function main() {
     console.log(`Deploying Warp Monitor for Warp Route ID: ${id}`);
     await deployWarpMonitor(id);
   }
-}
-
-async function getWarpRouteIdsInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
-
-  const selection = await checkbox({
-    message: 'Select Warp Route IDs to deploy',
-    choices,
-    pageSize: 30,
-  });
-
-  return selection;
 }
 
 main()
