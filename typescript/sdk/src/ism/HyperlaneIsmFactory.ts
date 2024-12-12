@@ -25,8 +25,8 @@ import {
   StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
   TrustedRelayerIsm__factory,
+  ZKSyncArtifact,
 } from '@hyperlane-xyz/core';
-import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
   Domain,
@@ -231,16 +231,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.bridge],
         );
         break;
-      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
-      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
-        assert(
-          this.deployer,
-          `HyperlaneDeployer must be set to deploy ${ismType}`,
-        );
-        return this.deployStorageMultisigIsm({
-          destination,
-          config,
-        });
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
@@ -261,30 +251,6 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
 
     return contract;
-  }
-
-  protected async deployStorageMultisigIsm({
-    destination,
-    config,
-  }: {
-    destination: ChainName;
-    config: MultisigIsmConfig;
-  }): Promise<IMultisigIsm> {
-    const signer = this.multiProvider.getSigner(destination);
-
-    const factory =
-      config.type === IsmType.STORAGE_MERKLE_ROOT_MULTISIG
-        ? new StorageMerkleRootMultisigIsm__factory()
-        : new StorageMessageIdMultisigIsm__factory();
-
-    const contract = await this.deployer!.deployContractFromFactory(
-      destination,
-      factory,
-      config.type,
-      [config.validators, config.threshold],
-    );
-
-    return IMultisigIsm__factory.connect(contract.address, signer);
   }
 
   protected async deployMultisigIsm(

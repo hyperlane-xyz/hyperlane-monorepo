@@ -1,9 +1,9 @@
 import { ethers, utils } from 'ethers';
 
-import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
+  ZKSyncArtifact,
 } from '@hyperlane-xyz/core';
 import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
 
@@ -99,16 +99,7 @@ export async function getContractVerificationInputForZKSync({
 
 export function encodeArguments(abi: any, constructorArgs: any[]): string {
   const contractInterface = new utils.Interface(abi);
-  let deployArgumentsEncoded;
-  try {
-    deployArgumentsEncoded = contractInterface
-      .encodeDeploy(constructorArgs)
-      .replace('0x', '');
-  } catch (error: any) {
-    throw new Error('Cant encode constructor args');
-  }
-
-  return deployArgumentsEncoded;
+  return contractInterface.encodeDeploy(constructorArgs).replace('0x', '');
 }
 
 /**

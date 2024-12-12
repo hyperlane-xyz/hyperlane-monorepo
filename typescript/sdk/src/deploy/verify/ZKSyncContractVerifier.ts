@@ -137,6 +137,7 @@ export class ZKSyncContractVerifier extends BaseContractVerifier {
     } catch (error) {
       verificationLogger.trace(
         {
+          error,
           failure: response.statusText,
           status: response.status,
           chain,
