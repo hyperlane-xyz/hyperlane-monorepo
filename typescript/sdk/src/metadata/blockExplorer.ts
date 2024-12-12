@@ -19,7 +19,7 @@ export function getExplorerApi(
   apiKey?: string | undefined;
   family?: ExplorerFamily | undefined;
 } | null {
-  const { blockExplorers, protocol } = metadata;
+  const { protocol, blockExplorers } = metadata;
   // TODO solana + cosmos support here as needed
   if (protocol !== ProtocolType.Ethereum) return null;
   if (!blockExplorers?.length || !blockExplorers[index].apiUrl) return null;

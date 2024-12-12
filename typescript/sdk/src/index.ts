@@ -599,10 +599,17 @@ export {
   setFork,
   stopImpersonatingAccount,
 } from './utils/fork.js';
-
+export {
+  canProposeSafeTransactions,
+  getSafe,
+  getSafeDelegates,
+  getSafeService,
+  // @ts-ignore
+} from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
+export { isCompliant, validateZodResult } from './utils/schemas.js';
 export {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
@@ -621,16 +628,6 @@ export {
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/types.js';
-
-export { isCompliant, validateZodResult } from './utils/schemas.js';
-
-export {
-  canProposeSafeTransactions,
-  getSafe,
-  getSafeDelegates,
-  getSafeService,
-  // @ts-ignore
-} from './utils/gnosisSafe.js';
 
 export {
   isStaticDeploymentSupported,
