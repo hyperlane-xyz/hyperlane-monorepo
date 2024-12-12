@@ -3,4 +3,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Allow self-relaying of all messages for a given dispatch transaction.
+Allow self-relaying of all messages if there are multiple in a given dispatch transaction.
