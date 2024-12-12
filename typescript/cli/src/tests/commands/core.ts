@@ -40,6 +40,8 @@ export async function hyperlaneCoreRead(chain: string, coreOutputPath: string) {
 export async function hyperlaneCoreApply(
   chain: string,
   coreOutputPath: string,
+  strategyUrl = '',
+  relay = false,
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane core apply \
         --registry ${REGISTRY_PATH} \
@@ -47,6 +49,8 @@ export async function hyperlaneCoreApply(
         --chain ${chain} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
+        --strategy ${strategyUrl} \
+        ${relay ? '--relay' : ''} \
         --yes`;
 }
 

@@ -24,6 +24,7 @@ import { executeCoreRead } from '../read/core.js';
 import {
   logYamlIfUnderMaxLines,
   readYamlOrJson,
+  removeEndingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
 import { formatYamlViolationsOutput } from '../utils/output.js';
@@ -59,6 +60,9 @@ export const coreCommand: CommandModule = {
 export const apply: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
+  receiptsDir: string;
+  relay?: boolean;
+  strategy?: string;
 }> = {
   command: 'apply',
   describe:
@@ -73,8 +77,27 @@ export const apply: CommandModuleWithWriteContext<{
       true,
       'The path to output a Core Config JSON or YAML file.',
     ),
+    'receipts-dir': {
+      type: 'string',
+      description: 'The directory to output transaction receipts.',
+      default: './generated/transactions',
+      coerce: (dir) => removeEndingSlash(dir),
+    },
+    relay: {
+      type: 'boolean',
+      description:
+        'Handle self-relay of ICA transactions when using a JSON RPC submitter',
+      default: false,
+    },
   },
-  handler: async ({ context, chain, config: configFilePath }) => {
+  handler: async ({
+    context,
+    chain,
+    config: configFilePath,
+    receiptsDir,
+    strategy: strategyUrl,
+    relay: selfRelay,
+  }) => {
     logCommandHeader(`Hyperlane Core Apply`);
 
     const addresses = (await context.registry.getChainAddresses(
@@ -85,9 +108,12 @@ export const apply: CommandModuleWithWriteContext<{
     const config = readCoreDeployConfigs(configFilePath);
 
     await runCoreApply({
-      context,
       chain,
       config,
+      context,
+      selfRelay,
+      receiptsDir,
+      strategyUrl,
       deployedCoreAddresses: addresses,
     });
     process.exit(0);

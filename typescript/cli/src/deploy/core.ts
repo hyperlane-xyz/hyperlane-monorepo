@@ -1,3 +1,4 @@
+import { groupBy } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
@@ -15,6 +16,7 @@ import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
+import { submitTransactions } from '../submit/submit.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
@@ -33,6 +35,9 @@ interface DeployParams {
 
 interface ApplyParams extends DeployParams {
   deployedCoreAddresses: DeployedCoreAddresses;
+  receiptsDir: string;
+  selfRelay?: boolean;
+  strategyUrl?: string;
 }
 
 /**
@@ -114,7 +119,15 @@ export async function runCoreDeploy(params: DeployParams) {
 }
 
 export async function runCoreApply(params: ApplyParams) {
-  const { context, chain, deployedCoreAddresses, config } = params;
+  const {
+    context,
+    chain,
+    deployedCoreAddresses,
+    config,
+    selfRelay,
+    strategyUrl,
+    receiptsDir,
+  } = params;
   const { multiProvider } = context;
   const evmCoreModule = new EvmCoreModule(multiProvider, {
     chain,
@@ -124,20 +137,22 @@ export async function runCoreApply(params: ApplyParams) {
 
   const transactions = await evmCoreModule.update(config);
 
-  if (transactions.length) {
-    logGray('Updating deployed core contracts');
-    for (const transaction of transactions) {
-      await multiProvider.sendTransaction(
-        // Using the provided chain id because there might be remote chain transactions included in the batch
-        transaction.chainId ?? chain,
-        transaction,
-      );
-    }
-
-    logGreen(`Core config updated on ${chain}.`);
-  } else {
+  if (transactions.length === 0) {
     logGreen(
       `Core config on ${chain} is the same as target. No updates needed.`,
     );
   }
+
+  console.log(transactions);
+
+  logGray('Updating deployed core contracts');
+  await submitTransactions(
+    {
+      context,
+      receiptsDir,
+      selfRelay,
+      strategyUrl,
+    },
+    groupBy(transactions, 'chainId'),
+  );
 }
