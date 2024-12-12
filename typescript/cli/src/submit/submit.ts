@@ -1,17 +1,34 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
+  AnnotatedEV5Transaction,
+  ChainName,
+  ChainSubmissionStrategy,
+  ChainSubmissionStrategySchema,
   EV5GnosisSafeTxBuilder,
   EV5GnosisSafeTxSubmitter,
   EV5ImpersonatedAccountTxSubmitter,
   EV5JsonRpcTxSubmitter,
   EvmIcaTxSubmitter,
   MultiProvider,
+  SubmissionStrategy,
+  SubmissionStrategySchema,
   SubmitterMetadata,
   TxSubmitterBuilder,
   TxSubmitterInterface,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  objMap,
+  promiseObjAll,
+  retryAsync,
+} from '@hyperlane-xyz/utils';
+
+import { WriteCommandContext } from '../context/types.js';
+import { logGreen } from '../logger.js';
+import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
 import { SubmitterBuilderSettings } from './types.js';
 
@@ -77,4 +94,122 @@ async function getSubmitter<TProtocol extends ProtocolType>(
     default:
       throw new Error(`Invalid TxSubmitterType.`);
   }
+}
+
+export type SubmitTransactionOptions = {
+  selfRelay?: boolean;
+  context: WriteCommandContext;
+  strategyUrl?: string;
+  receiptsDir: string;
+};
+
+/**
+ * Submits a set of transactions to the specified chain and outputs transaction receipts
+ */
+export async function submitTransactions(
+  params: SubmitTransactionOptions,
+  chainTransactions: Record<string, AnnotatedEV5Transaction[]>,
+): Promise<void> {
+  const chains = Object.keys(chainTransactions);
+  const chainIdToName = Object.fromEntries(
+    chains.map((chain) => [
+      chain,
+      params.context.multiProvider.getChainName(chain),
+    ]),
+  );
+
+  await promiseObjAll(
+    objMap(chainTransactions, async (chainId, transactions) => {
+      await retryAsync(
+        async () => {
+          const chain = chainIdToName[chainId];
+          const { submitter, config } =
+            await getTxSubmitter<ProtocolType.Ethereum>({
+              chain,
+              context: params.context,
+              strategyUrl: params.strategyUrl,
+            });
+          const transactionReceipts = await submitter.submit(...transactions);
+
+          if (transactionReceipts) {
+            const receiptPath = `${params.receiptsDir}/${chain}-${
+              submitter.txSubmitterType
+            }-${Date.now()}-receipts.json`;
+            writeYamlOrJson(receiptPath, transactionReceipts);
+            logGreen(
+              `Transactions receipts successfully written to ${receiptPath}`,
+            );
+          }
+
+          const canRelay = canSelfRelay(
+            params.selfRelay ?? false,
+            config,
+            transactionReceipts,
+          );
+          if (canRelay.relay) {
+            await runSelfRelay({
+              txReceipt: canRelay.txReceipt,
+              multiProvider: params.context.multiProvider,
+              registry: params.context.registry,
+              // successMessage: WarpSendLogs.SUCCESS,
+            });
+          }
+        },
+        5, // attempts
+        100, // baseRetryMs
+      );
+    }),
+  );
+}
+
+/**
+ * Retrieves a chain submission strategy from the provided filepath.
+ * @param submissionStrategyFilepath a filepath to the submission strategy file
+ * @returns a formatted submission strategy
+ */
+export function readChainSubmissionStrategy(
+  submissionStrategyFilepath: string,
+): ChainSubmissionStrategy {
+  const submissionStrategyFileContent = readYamlOrJson(
+    submissionStrategyFilepath.trim(),
+  );
+  return ChainSubmissionStrategySchema.parse(submissionStrategyFileContent);
+}
+
+/**
+ * Helper function to get warp apply specific submitter.
+ *
+ * @returns the warp apply submitter
+ */
+async function getTxSubmitter<T extends ProtocolType>({
+  chain,
+  context,
+  strategyUrl,
+}: {
+  chain: ChainName;
+  context: WriteCommandContext;
+  strategyUrl?: string;
+}): Promise<{
+  submitter: TxSubmitterBuilder<T>;
+  config: SubmissionStrategy;
+}> {
+  const { multiProvider, registry } = context;
+
+  const submissionStrategy: SubmissionStrategy = strategyUrl
+    ? readChainSubmissionStrategy(strategyUrl)[chain]
+    : {
+        submitter: {
+          chain,
+          type: TxSubmitterType.JSON_RPC,
+        },
+      };
+
+  return {
+    submitter: await getSubmitterBuilder<T>({
+      submissionStrategy: SubmissionStrategySchema.parse(submissionStrategy),
+      multiProvider,
+      registry,
+    }),
+    config: submissionStrategy,
+  };
 }

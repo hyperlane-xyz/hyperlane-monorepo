@@ -10,8 +10,6 @@ import {
   AnnotatedEV5Transaction,
   ChainMap,
   ChainName,
-  ChainSubmissionStrategy,
-  ChainSubmissionStrategySchema,
   ContractVerifier,
   DestinationGas,
   EvmERC20WarpModule,
@@ -36,13 +34,9 @@ import {
   PausableIsmConfig,
   RemoteRouters,
   RoutingIsmConfig,
-  SubmissionStrategy,
-  SubmissionStrategySchema,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
   TrustedRelayerIsmConfig,
-  TxSubmitterBuilder,
-  TxSubmitterType,
   WarpCoreConfig,
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
@@ -70,16 +64,12 @@ import { MINIMUM_WARP_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen, logTable } from '../logger.js';
-import { WarpSendLogs } from '../send/transfer.js';
-import { getSubmitterBuilder } from '../submit/submit.js';
+import { submitTransactions } from '../submit/submit.js';
 import {
   indentYamlOrJson,
   isFile,
-  readYamlOrJson,
   runFileSelectionStep,
-  writeYamlOrJson,
 } from '../utils/files.js';
-import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
 import {
   completeDeploy,
@@ -547,7 +537,7 @@ export async function runWarpRouteApply(
   if (transactions.length == 0)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
-  await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
+  await submitTransactions(params, groupBy(transactions, 'chainId'));
 }
 
 async function extendWarpRoute(
@@ -665,20 +655,6 @@ async function updateExistingWarpRoute(
     }),
   );
   return transactions;
-}
-
-/**
- * Retrieves a chain submission strategy from the provided filepath.
- * @param submissionStrategyFilepath a filepath to the submission strategy file
- * @returns a formatted submission strategy
- */
-export function readChainSubmissionStrategy(
-  submissionStrategyFilepath: string,
-): ChainSubmissionStrategy {
-  const submissionStrategyFileContent = readYamlOrJson(
-    submissionStrategyFilepath.trim(),
-  );
-  return ChainSubmissionStrategySchema.parse(submissionStrategyFileContent);
 }
 
 /**
@@ -992,102 +968,4 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
     default:
       return [ismConfig];
   }
-}
-
-/**
- * Submits a set of transactions to the specified chain and outputs transaction receipts
- */
-async function submitWarpApplyTransactions(
-  params: WarpApplyParams,
-  chainTransactions: Record<string, AnnotatedEV5Transaction[]>,
-): Promise<void> {
-  // Create mapping of chain ID to chain name for all chains in warpDeployConfig
-  const chains = Object.keys(params.warpDeployConfig);
-  const chainIdToName = Object.fromEntries(
-    chains.map((chain) => [
-      params.context.multiProvider.getChainId(chain),
-      chain,
-    ]),
-  );
-
-  await promiseObjAll(
-    objMap(chainTransactions, async (chainId, transactions) => {
-      await retryAsync(
-        async () => {
-          const chain = chainIdToName[chainId];
-          const { submitter, config } =
-            await getWarpApplySubmitter<ProtocolType.Ethereum>({
-              chain,
-              context: params.context,
-              strategyUrl: params.strategyUrl,
-            });
-          const transactionReceipts = await submitter.submit(...transactions);
-
-          if (transactionReceipts) {
-            const receiptPath = `${params.receiptsDir}/${chain}-${
-              submitter.txSubmitterType
-            }-${Date.now()}-receipts.json`;
-            writeYamlOrJson(receiptPath, transactionReceipts);
-            logGreen(
-              `Transactions receipts successfully written to ${receiptPath}`,
-            );
-          }
-
-          const canRelay = canSelfRelay(
-            params.selfRelay ?? false,
-            config,
-            transactionReceipts,
-          );
-          if (canRelay.relay) {
-            await runSelfRelay({
-              txReceipt: canRelay.txReceipt,
-              multiProvider: params.context.multiProvider,
-              registry: params.context.registry,
-              successMessage: WarpSendLogs.SUCCESS,
-            });
-          }
-        },
-        5, // attempts
-        100, // baseRetryMs
-      );
-    }),
-  );
-}
-
-/**
- * Helper function to get warp apply specific submitter.
- *
- * @returns the warp apply submitter
- */
-async function getWarpApplySubmitter<T extends ProtocolType>({
-  chain,
-  context,
-  strategyUrl,
-}: {
-  chain: ChainName;
-  context: WriteCommandContext;
-  strategyUrl?: string;
-}): Promise<{
-  submitter: TxSubmitterBuilder<T>;
-  config: SubmissionStrategy;
-}> {
-  const { multiProvider, registry } = context;
-
-  const submissionStrategy: SubmissionStrategy = strategyUrl
-    ? readChainSubmissionStrategy(strategyUrl)[chain]
-    : {
-        submitter: {
-          chain,
-          type: TxSubmitterType.JSON_RPC,
-        },
-      };
-
-  return {
-    submitter: await getSubmitterBuilder<T>({
-      submissionStrategy: SubmissionStrategySchema.parse(submissionStrategy),
-      multiProvider,
-      registry,
-    }),
-    config: submissionStrategy,
-  };
 }
