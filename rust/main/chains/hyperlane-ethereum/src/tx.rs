@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::time::Duration;
+use std::{ops::Mul, sync::Arc};
 
 use ethers::{
     abi::Detokenize,
@@ -154,7 +154,7 @@ where
     }
 
     let Ok((base_fee, max_fee, max_priority_fee)) =
-        estimate_eip1559_fees(provider, None, &latest_block).await
+        estimate_eip1559_fees(provider, None, &latest_block, domain).await
     else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
@@ -210,6 +210,7 @@ async fn estimate_eip1559_fees<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
     latest_block: &Block<TxHash>,
+    domain: &HyperlaneDomain,
 ) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
 where
     M: Middleware + 'static,
@@ -234,7 +235,17 @@ where
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
     };
 
-    Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
+    let mut gas_price_multiplier: u32 = 1;
+    // `treasure` chain gas estimation underestimates the actual gas price, so we double it
+    if domain.id() == 61166 {
+        gas_price_multiplier = 2;
+    }
+
+    Ok((
+        base_fee_per_gas.mul(gas_price_multiplier),
+        max_fee_per_gas.mul(gas_price_multiplier),
+        max_priority_fee_per_gas.mul(gas_price_multiplier),
+    ))
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
