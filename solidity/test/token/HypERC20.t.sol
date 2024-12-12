@@ -33,7 +33,7 @@ import {IXERC20} from "../../contracts/token/interfaces/IXERC20.sol";
 import {IFiatToken} from "../../contracts/token/interfaces/IFiatToken.sol";
 import {HypXERC20} from "../../contracts/token/extensions/HypXERC20.sol";
 import {HypFiatToken} from "../../contracts/token/extensions/HypFiatToken.sol";
-import {HypNative} from "../../contracts/token/HypNative.sol";
+import {HypNativeCollateral} from "../../contracts/token/HypNativeCollateral.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
@@ -623,16 +623,16 @@ contract HypFiatTokenTest is HypTokenTest {
     }
 }
 
-contract HypNativeTest is HypTokenTest {
+contract HypNativeCollateralTest is HypTokenTest {
     using TypeCasts for address;
 
-    HypNative internal nativeToken;
+    HypNativeCollateral internal nativeToken;
 
     function setUp() public override {
         super.setUp();
 
-        localToken = new HypNative(address(localMailbox));
-        nativeToken = HypNative(payable(address(localToken)));
+        localToken = new HypNativeCollateral(address(localMailbox));
+        nativeToken = HypNativeCollateral(payable(address(localToken)));
 
         nativeToken.enrollRemoteRouter(
             DESTINATION,
