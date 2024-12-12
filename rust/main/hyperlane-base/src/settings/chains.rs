@@ -8,8 +8,8 @@ use eyre::{eyre, Context, Result};
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
-    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
-    InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexDirection,
+    IndexMode, InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
     MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
     SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
@@ -183,6 +183,8 @@ pub struct IndexSettings {
     pub chunk_size: u32,
     /// The indexing mode.
     pub mode: IndexMode,
+    /// The indexing direction.
+    pub direction: IndexDirection,
 }
 
 impl ChainConf {
