@@ -1,15 +1,24 @@
+import { parseEther } from 'ethers/lib/utils.js';
+
+import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
+  ChainName,
+  HookConfig,
+  HookType,
   HypTokenRouterConfig,
   IsmType,
   MultisigConfig,
   TokenType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
-import { symmetricDifference } from '@hyperlane-xyz/utils';
+import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
 
+import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
+import rawTokenPrices from '../../tokenPrices.json';
 
+const tokenPrices: ChainMap<string> = rawTokenPrices;
 const chainsToDeploy = [
   'arbitrum',
   'optimism',
@@ -23,7 +32,33 @@ const chainsToDeploy = [
   'zircuit',
   'taiko',
   'sei',
+  'swell',
 ];
+export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
+
+export function getProtocolFee(chain: ChainName) {
+  return (0.5 / Number(tokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
+}
+
+export function getRenzoHook(
+  defaultHook: Address,
+  chain: ChainName,
+): HookConfig {
+  return {
+    type: HookType.AGGREGATION,
+    hooks: [
+      defaultHook,
+      {
+        type: HookType.PROTOCOL_FEE,
+        owner: ezEthSafes[chain],
+        beneficiary: ezEthSafes[chain],
+        protocolFee: parseEther(getProtocolFee(chain)).toString(),
+        maxProtocolFee: MAX_PROTOCOL_FEE,
+      },
+    ],
+  };
+}
+
 const lockboxChain = 'ethereum';
 // over the default 100k to account for xerc20 gas + ISM overhead over the default ISM https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/49f41d9759fd515bfd89e6e22e799c41b27b4119/typescript/sdk/src/router/GasRouterDeployer.ts#L14
 const warpRouteOverheadGas = 200_000;
@@ -41,6 +76,7 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   zircuit: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   taiko: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   sei: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // redEth
+  swell: '0x2416092f143378750bb29b79eD961ab195CcEea5',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -164,6 +200,16 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0x952df7f0cb8611573a53dd7cbf29768871d9f8b0', alias: 'Renzo' },
     ],
   },
+  swell: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x9eadf9217be22d9878e0e464727a2176d5c69ff8',
+        alias: 'Luganodes',
+      },
+      { address: '0xb6b9b4bd4eb6eb3aef5e9826e7f8b8455947f67c', alias: 'Renzo' },
+    ],
+  },
 };
 
 export const ezEthSafes: Record<string, string> = {
@@ -179,11 +225,65 @@ export const ezEthSafes: Record<string, string> = {
   zircuit: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
+  swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
+};
+
+const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+  arbitrum: {
+    address: '0xdcB558d5C0F9A35C53Fa343c77eD0d346576e2Cf',
+    owner: ezEthSafes.arbitrum,
+  },
+  optimism: {
+    address: '0xa50910ae66Df6A5F8e85dac032FD45BC2b7be6fF',
+    owner: ezEthSafes.optimism,
+  },
+  base: {
+    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
+    owner: ezEthSafes.base,
+  },
+  blast: {
+    address: '0xA26F8cE2E21A503bf9e18c213965d7BC14997F48',
+    owner: ezEthSafes.blast,
+  },
+  bsc: {
+    address: '0x486b39378f99f073A3043C6Aabe8666876A8F3C5',
+    owner: ezEthSafes.bsc,
+  },
+  mode: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.mode,
+  },
+  fraxtal: {
+    address: '0x8bB69721B4E9b9df08bEdaeaA193008C7317Db59',
+    owner: ezEthSafes.fraxtal,
+  },
+  linea: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.linea,
+  },
+  ethereum: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.ethereum,
+  },
+  zircuit: {
+    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
+    owner: ezEthSafes.zircuit,
+  },
+  sei: {
+    address: '0x33219fEF24C198d979F05d692a17507E41a0A73e',
+    owner: ezEthSafes.sei,
+  },
+  taiko: {
+    address: '0xA3666f8a327AADB666F1906A38B17937e5F11f92',
+    owner: ezEthSafes.taiko,
+  },
 };
 
 export const getRenzoEZETHWarpConfig = async (): Promise<
   ChainMap<HypTokenRouterConfig>
 > => {
+  const config = getEnvironmentConfig('mainnet3');
+  const multiProvider = await config.getMultiProvider();
   const registry = await getMainnet3Registry();
 
   const validatorDiff = symmetricDifference(
@@ -222,6 +322,15 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
     await Promise.all(
       chainsToDeploy.map(
         async (chain): Promise<[string, HypTokenRouterConfig]> => {
+          const addresses = await registry.getChainAddresses(chain);
+          assert(addresses, 'No addresses in Registry');
+          const { mailbox } = addresses;
+
+          const mailboxContract = Mailbox__factory.connect(
+            mailbox,
+            multiProvider.getProvider(chain),
+          );
+          const defaultHook = await mailboxContract.defaultHook();
           const ret: [string, HypTokenRouterConfig] = [
             chain,
             {
@@ -233,7 +342,7 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
               token: chain === lockboxChain ? lockbox : xERC20[chain],
               owner: ezEthSafes[chain],
               gas: warpRouteOverheadGas,
-              mailbox: (await registry.getChainAddresses(chain))!.mailbox,
+              mailbox,
               interchainSecurityModule: {
                 type: IsmType.AGGREGATION,
                 threshold: 2,
@@ -254,6 +363,8 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                   },
                 ],
               },
+              hook: getRenzoHook(defaultHook, chain),
+              proxyAdmin: existingProxyAdmins[chain],
             },
           ];
 
