@@ -1,9 +1,6 @@
-import { parseEther } from 'ethers/lib/utils.js';
-
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
-  HookType,
   HypTokenRouterConfig,
   IsmType,
   TokenType,
@@ -15,10 +12,8 @@ import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
 import {
-  MAX_PROTOCOL_FEE,
   ezEthSafes,
   ezEthValidators,
-  getProtocolFee,
   getRenzoHook,
 } from './getRenzoEZETHWarpConfig.js';
 
@@ -40,6 +35,17 @@ const pzEthSafes: Record<string, string> = {
   ethereum: ezEthSafes.ethereum,
   zircuit: ezEthSafes.zircuit,
   swell: ezEthSafes.swell,
+};
+
+const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+  ethereum: {
+    address: '0x4f4671Ce69c9af15e33eB7Cf6D1358d1B39Af3bF',
+    owner: '0xD1e6626310fD54Eceb5b9a51dA2eC329D6D4B68A',
+  },
+  zircuit: {
+    address: '0x8b789B4A56675240c9f0985B467752b870c75711',
+    owner: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+  },
 };
 
 export const getRenzoPZETHWarpConfig = async (): Promise<
@@ -114,6 +120,7 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
                 ],
               },
               hook: getRenzoHook(defaultHook, chain),
+              proxyAdmin: existingProxyAdmins[chain],
             },
           ];
 

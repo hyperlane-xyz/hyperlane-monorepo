@@ -4,6 +4,7 @@ import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  HookConfig,
   HookType,
   HypTokenRouterConfig,
   IsmType,
@@ -39,7 +40,10 @@ export function getProtocolFee(chain: ChainName) {
   return (0.5 / Number(tokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
 }
 
-export function getRenzoHook(defaultHook: Address, chain: ChainName) {
+export function getRenzoHook(
+  defaultHook: Address,
+  chain: ChainName,
+): HookConfig {
   return {
     type: HookType.AGGREGATION,
     hooks: [
@@ -224,6 +228,57 @@ export const ezEthSafes: Record<string, string> = {
   swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
 };
 
+const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
+  arbitrum: {
+    address: '0xdcB558d5C0F9A35C53Fa343c77eD0d346576e2Cf',
+    owner: ezEthSafes.arbitrum,
+  },
+  optimism: {
+    address: '0xa50910ae66Df6A5F8e85dac032FD45BC2b7be6fF',
+    owner: ezEthSafes.optimism,
+  },
+  base: {
+    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
+    owner: ezEthSafes.base,
+  },
+  blast: {
+    address: '0xA26F8cE2E21A503bf9e18c213965d7BC14997F48',
+    owner: ezEthSafes.blast,
+  },
+  bsc: {
+    address: '0x486b39378f99f073A3043C6Aabe8666876A8F3C5',
+    owner: ezEthSafes.bsc,
+  },
+  mode: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.mode,
+  },
+  fraxtal: {
+    address: '0x8bB69721B4E9b9df08bEdaeaA193008C7317Db59',
+    owner: ezEthSafes.fraxtal,
+  },
+  linea: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.linea,
+  },
+  ethereum: {
+    address: '0x2F78F22a1D7491500C9ED9352b8239fbAbcDd84E',
+    owner: ezEthSafes.ethereum,
+  },
+  zircuit: {
+    address: '0xec1DdF05ff85D2B22B7d27E5b5E0B82961B7D889',
+    owner: ezEthSafes.zircuit,
+  },
+  sei: {
+    address: '0x33219fEF24C198d979F05d692a17507E41a0A73e',
+    owner: ezEthSafes.sei,
+  },
+  taiko: {
+    address: '0xA3666f8a327AADB666F1906A38B17937e5F11f92',
+    owner: ezEthSafes.taiko,
+  },
+};
+
 export const getRenzoEZETHWarpConfig = async (): Promise<
   ChainMap<HypTokenRouterConfig>
 > => {
@@ -307,6 +362,7 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
                 ],
               },
               hook: getRenzoHook(defaultHook, chain),
+              proxyAdmin: existingProxyAdmins[chain],
             },
           ];
 
