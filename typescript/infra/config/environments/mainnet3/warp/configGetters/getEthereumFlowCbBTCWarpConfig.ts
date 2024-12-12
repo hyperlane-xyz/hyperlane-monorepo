@@ -2,8 +2,8 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -24,8 +24,8 @@ const flowOwnerConfig = getOwnerConfigForAddress(flowOwner);
 export const getEthereumFlowCbBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
-  const ethereum: TokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...ethereumOwnerConfig,
     type: TokenType.collateral,
@@ -33,7 +33,7 @@ export const getEthereumFlowCbBTCWarpConfig = async (
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  const flowmainnet: TokenRouterConfig = {
+  const flowmainnet: HypTokenRouterConfig = {
     ...routerConfig.flowmainnet,
     ...flowOwnerConfig,
     type: TokenType.synthetic,

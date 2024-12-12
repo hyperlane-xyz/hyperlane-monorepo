@@ -86,7 +86,7 @@ async function fillDefaults(
       let owner = config.owner;
       if (!owner) {
         owner =
-          (await context.signer?.getAddress()) ??
+          context.signerAddress ??
           (await context.multiProvider.getSignerAddress(chain));
       }
       return {
@@ -153,9 +153,8 @@ export async function createWarpRouteDeployConfig({
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
-
     const owner = await detectAndConfirmOrPrompt(
-      async () => multiProviderWithSigners.getSigner(chain).getAddress(),
+      async () => context.signerAddress,
       'Enter the desired',
       'owner address',
       'signer',

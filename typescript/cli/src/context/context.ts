@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { Signer, ethers } from 'ethers';
 
 import {
   DEFAULT_GITHUB_REGISTRY,
@@ -25,7 +25,7 @@ import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
-import { getImpersonatedSigner } from '../utils/keys.js';
+import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
@@ -111,6 +111,14 @@ export async function getContext({
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
+  //Just for backward compatibility
+  let signerAddress: string | undefined = undefined;
+  if (key) {
+    let signer: Signer;
+    ({ key, signer } = await getSigner({ key, skipConfirmation }));
+    signerAddress = await signer.getAddress();
+  }
+
   const multiProvider = await getMultiProvider(registry);
 
   return {
@@ -120,6 +128,7 @@ export async function getContext({
     multiProvider,
     key,
     skipConfirmation: !!skipConfirmation,
+    signerAddress,
   } as CommandContext;
 }
 
