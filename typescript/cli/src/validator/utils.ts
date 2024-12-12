@@ -1,5 +1,9 @@
 import { MerkleTreeHook, ValidatorAnnounce } from '@hyperlane-xyz/core';
-import { S3Validator } from '@hyperlane-xyz/sdk';
+import {
+  GcpValidator,
+  S3Validator,
+  getValidatorFromStorageLocation,
+} from '@hyperlane-xyz/sdk';
 
 import { logDebug } from '../logger.js';
 
@@ -38,21 +42,21 @@ export const getValidatorStorageLocations = async (
 export const getLatestValidatorCheckpointIndexAndUrl = async (
   s3StorageLocation: string,
 ): Promise<[number, string] | undefined> => {
-  let s3Validator: S3Validator;
+  let validator: S3Validator | GcpValidator;
   try {
-    s3Validator = await S3Validator.fromStorageLocation(s3StorageLocation);
+    validator = await getValidatorFromStorageLocation(s3StorageLocation);
   } catch (err) {
     logDebug(
-      `Failed to instantiate S3Validator at location ${s3StorageLocation}: ${err}`,
+      `Failed to instantiate S3/GCP Validator at location ${s3StorageLocation}: ${err}`,
     );
     return undefined;
   }
   try {
-    const latestCheckpointIndex = await s3Validator.getLatestCheckpointIndex();
-    return [latestCheckpointIndex, s3Validator.getLatestCheckpointUrl()];
+    const latestCheckpointIndex = await validator.getLatestCheckpointIndex();
+    return [latestCheckpointIndex, validator.getLatestCheckpointUrl()];
   } catch (err) {
     logDebug(
-      `Failed to get latest checkpoint index from S3Validator at location ${s3StorageLocation}: ${err}`,
+      `Failed to get latest checkpoint index from S3/GCP Validator at location ${s3StorageLocation}: ${err}`,
     );
     return undefined;
   }
