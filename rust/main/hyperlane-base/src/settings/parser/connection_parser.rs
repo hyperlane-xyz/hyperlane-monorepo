@@ -243,6 +243,10 @@ fn parse_priority_fee_oracle_config(
                 Some(PriorityFeeOracleConfig::Constant(fee))
             }
             "helius" => {
+                let fee_level = parse_helius_priority_fee_level(&value_parser, err);
+                if !err.is_ok() {
+                    return None;
+                }
                 let config = HeliusPriorityFeeOracleConfig {
                     url: value_parser
                         .chain(err)
@@ -250,7 +254,7 @@ fn parse_priority_fee_oracle_config(
                         .parse_from_str("Invalid url")
                         .end()
                         .unwrap(),
-                    fee_level: parse_helius_priority_fee_level(&value_parser, err),
+                    fee_level: fee_level.unwrap(),
                 };
                 Some(PriorityFeeOracleConfig::Helius(config))
             }
@@ -273,28 +277,33 @@ fn parse_priority_fee_oracle_config(
 fn parse_helius_priority_fee_level(
     value_parser: &ValueParser,
     err: &mut ConfigParsingError,
-) -> HeliusPriorityFeeLevel {
+) -> Option<HeliusPriorityFeeLevel> {
     let level = value_parser
         .chain(err)
-        .get_key("feeLevel")
+        .get_opt_key("feeLevel")
         .parse_string()
-        .end()
-        .unwrap_or_default();
+        .end();
 
-    match level.to_lowercase().as_str() {
-        "min" => HeliusPriorityFeeLevel::Min,
-        "low" => HeliusPriorityFeeLevel::Low,
-        "medium" => HeliusPriorityFeeLevel::Medium,
-        "high" => HeliusPriorityFeeLevel::High,
-        "veryhigh" => HeliusPriorityFeeLevel::VeryHigh,
-        "unsafemax" => HeliusPriorityFeeLevel::UnsafeMax,
-        _ => {
-            err.push(
-                &value_parser.cwp + "feeLevel",
-                eyre!("Unknown priority fee level"),
-            );
-            HeliusPriorityFeeLevel::Medium
+    if let Some(level) = level {
+        match level.to_lowercase().as_str() {
+            "recommended" => Some(HeliusPriorityFeeLevel::Recommended),
+            "min" => Some(HeliusPriorityFeeLevel::Min),
+            "low" => Some(HeliusPriorityFeeLevel::Low),
+            "medium" => Some(HeliusPriorityFeeLevel::Medium),
+            "high" => Some(HeliusPriorityFeeLevel::High),
+            "veryhigh" => Some(HeliusPriorityFeeLevel::VeryHigh),
+            "unsafemax" => Some(HeliusPriorityFeeLevel::UnsafeMax),
+            _ => {
+                err.push(
+                    &value_parser.cwp + "feeLevel",
+                    eyre!("Unknown priority fee level"),
+                );
+                None
+            }
         }
+    } else {
+        // If not specified at all, use the default
+        Some(HeliusPriorityFeeLevel::default())
     }
 }
 

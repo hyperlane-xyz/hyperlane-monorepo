@@ -72,10 +72,11 @@ pub struct HeliusPriorityFeeOracleConfig {
 }
 
 /// The priority fee level to use
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub enum HeliusPriorityFeeLevel {
     /// 50th percentile, but a floor of 10k microlamports.
     /// The floor results in a staked Helius connection being used. (https://docs.helius.dev/guides/sending-transactions-on-solana#staked-connections)
+    #[default]
     Recommended,
     /// 0th percentile
     Min,
