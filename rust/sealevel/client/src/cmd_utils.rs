@@ -84,40 +84,27 @@ pub(crate) fn deploy_program(
             );
         }
 
-        let mut command = vec![
-            "solana",
-            "--url",
-            url,
-            "-k",
+        if let Ok(_) = attempt_program_deploy(
             payer_keypair_path,
-            "program",
-            "deploy",
+            program_name,
             program_path,
-            "--upgrade-authority",
-            payer_keypair_path,
-            "--program-id",
-            program_keypair_path.to_str().unwrap(),
-            "--buffer",
-            buffer_keypair_path.to_str().unwrap(),
-        ];
-
-        let compute_unit_price_str = compute_unit_price.to_string();
-        command.extend(vec!["--with-compute-unit-price", &compute_unit_price_str]);
-
-        // Success!
-        if let Ok(true) = run_cmd(command.as_slice(), None, None) {
-            // TODO: use commitment level instead of just sleeping here?
-            println!("Sleeping for 2 seconds to fully allow program to be deployed");
-            sleep(Duration::from_secs(2));
-
+            &program_keypair_path,
+            &buffer_keypair_path,
+            url,
+            compute_unit_price,
+        ) {
+            // Success!
             return Ok(program_id);
         }
+
+        // Failed to deploy program, try again with a higher compute unit price
 
         println!(
             "Failed to deploy program with compute unit price {}",
             compute_unit_price
         );
 
+        // Bump by 10% each time if non-zero, otherwise start at 1000 micro lamports
         compute_unit_price = if compute_unit_price > 0 {
             compute_unit_price * 11 / 10
         } else {
@@ -132,6 +119,51 @@ pub(crate) fn deploy_program(
     }
 
     Err(ClientErrorKind::Custom(format!("Failed to deploy program {}", program_name)).into())
+}
+
+fn attempt_program_deploy(
+    payer_keypair_path: &str,
+    program_name: &str,
+    program_path: &str,
+    program_keypair_path: &Path,
+    buffer_keypair_path: &Path,
+    url: &str,
+    compute_unit_price: u64,
+) -> Result<(), ClientError> {
+    let mut command = vec![
+        "solana",
+        "--url",
+        url,
+        "-k",
+        payer_keypair_path,
+        "program",
+        "deploy",
+        program_path,
+        "--upgrade-authority",
+        payer_keypair_path,
+        "--program-id",
+        program_keypair_path.to_str().unwrap(),
+        "--buffer",
+        buffer_keypair_path.to_str().unwrap(),
+    ];
+
+    let compute_unit_price_str = compute_unit_price.to_string();
+    command.extend(vec!["--with-compute-unit-price", &compute_unit_price_str]);
+
+    // Success!
+    if let Ok(true) = run_cmd(command.as_slice(), None, None) {
+        // TODO: use commitment level instead of just sleeping here?
+        println!("Sleeping for 2 seconds to fully allow program to be deployed");
+        sleep(Duration::from_secs(2));
+
+        return Ok(());
+    }
+
+    Err(ClientErrorKind::Custom(format!(
+        "Attempted program deploy failed for {}",
+        program_name
+    ))
+    .into())
 }
 
 pub(crate) fn create_new_directory(parent_dir: &Path, name: &str) -> PathBuf {
