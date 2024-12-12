@@ -1,5 +1,24 @@
 # @hyperlane-xyz/cli
 
+## 8.0.0
+
+### Minor Changes
+
+- bb44f9b51: Add support for deploying Hooks using a HookConfig within a WarpConfig
+- c2ca8490d: fix signer strategy init for broken cli commands
+- 79f8197f3: Added strategy management CLI commands and MultiProtocolSigner implementation for flexible cross-chain signer configuration and management
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- 657ac9255: Suppress help on CLI failures
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [5942e9cff]
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 7.3.0
 
 ### Minor Changes

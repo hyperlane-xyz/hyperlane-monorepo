@@ -1,5 +1,20 @@
 # @hyperlane-xyz/sdk
 
+## 8.0.0
+
+### Major Changes
+
+- 26fbec8f6: Rename TokenConfig related types and utilities for clarity. E.g. `CollateralConfig` to `CollateralTokenConfig`.
+  Export more config types and zod schemas
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- 5942e9cff: Update default validator sets for alephzeroevmmainnet, appchain, lisk, lumiaprism, swell, treasure, vana, zklink.
+- Updated dependencies [79f8197f3]
+  - @hyperlane-xyz/utils@8.0.0
+  - @hyperlane-xyz/core@5.8.4
+
 ## 7.3.0
 
 ### Minor Changes
