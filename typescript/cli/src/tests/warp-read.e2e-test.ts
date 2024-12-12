@@ -6,25 +6,22 @@ import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import {
   ANVIL_KEY,
-  REGISTRY_PATH,
+  CHAIN_NAME_2,
+  CORE_CONFIG_PATH,
+  DEFAULT_E2E_TEST_TIMEOUT,
+  TEMP_PATH,
+  WARP_CONFIG_PATH_2,
+  WARP_CONFIG_PATH_EXAMPLE,
+  WARP_CORE_CONFIG_PATH_2,
   deployOrUseExistingCore,
 } from './commands/helpers.js';
 import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
 
-const CHAIN_NAME_2 = 'anvil2';
+describe('hyperlane warp read e2e tests', async function () {
+  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
-const EXAMPLES_PATH = './examples';
-const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
-const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
-
-const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
-const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/anvil2/warp-route-deployment-anvil2.yaml`;
-const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
-
-const TEST_TIMEOUT = 60_000; // Long timeout since these tests can take a while
-describe('WarpRead e2e tests', async function () {
   let anvil2Config: WarpRouteDeployConfig;
-  this.timeout(TEST_TIMEOUT);
+
   before(async function () {
     await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
 

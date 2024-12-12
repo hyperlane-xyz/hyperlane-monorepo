@@ -65,6 +65,16 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
   // },
+  // taiko: {
+  //   transactionOverrides: {
+  //     gasPrice: 25 * 10 ** 7, // 0.25 gwei
+  //   },
+  // },
+  // linea: {
+  //   transactionOverrides: {
+  //     gasPrice: 5 * 10 ** 8, // 0.5 gwei
+  //   },
+  // },
   // zircuit: {
   //   blocks: {
   //     confirmations: 3,
