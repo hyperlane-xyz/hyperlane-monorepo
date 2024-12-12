@@ -11,7 +11,6 @@ import { stubMerkleTreeConfig } from '../utils/relay.js';
 export async function checkMessageStatus({
   context,
   messageId,
-  destination,
   origin,
   selfRelay,
   dispatchTx,
@@ -19,7 +18,6 @@ export async function checkMessageStatus({
   context: WriteCommandContext;
   dispatchTx?: string;
   messageId?: string;
-  destination?: ChainName;
   origin?: ChainName;
   selfRelay?: boolean;
 }) {
@@ -62,7 +60,7 @@ export async function checkMessageStatus({
 
   const messages = core.getDispatchedMessages(dispatchedReceipt);
 
-  let undelivered = [];
+  const undelivered = [];
   for (const message of messages) {
     log(
       `Checking status of message ${message.id} on ${message.parsed.destinationChain}`,

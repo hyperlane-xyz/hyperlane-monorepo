@@ -211,7 +211,7 @@ export class HyperlaneRelayer {
     dispatchTx: providers.TransactionReceipt,
     messages = HyperlaneCore.getDispatchedMessages(dispatchTx),
   ): Promise<ChainMap<ethers.ContractReceipt[]>> {
-    let destinationMap: ChainMap<DispatchedMessage[]> = {};
+    const destinationMap: ChainMap<DispatchedMessage[]> = {};
     messages.forEach((message) => {
       destinationMap[message.parsed.destination] ??= [];
       destinationMap[message.parsed.destination].push(message);
@@ -220,7 +220,7 @@ export class HyperlaneRelayer {
     // parallelize relaying to different destinations
     return promiseObjAll(
       objMap(destinationMap, async (_destination, messages) => {
-        let receipts: ethers.ContractReceipt[] = [];
+        const receipts: ethers.ContractReceipt[] = [];
         // serially relay messages to the same destination
         for (const message of messages) {
           try {
