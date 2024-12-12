@@ -5,11 +5,7 @@ import { difference } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import {
-  HelmCommand,
-  HelmManager,
-  removeHelmRelease,
-} from '../../src/utils/helm.js';
+import { HelmManager, removeHelmRelease } from '../../src/utils/helm.js';
 import { execCmdAndParseJson, getInfraPath } from '../../src/utils/utils.js';
 
 export class WarpRouteMonitorHelmManager extends HelmManager {
