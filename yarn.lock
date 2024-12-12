@@ -8711,6 +8711,7 @@ __metadata:
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
     starknet: "npm:6.11.0"
+    tsx: "npm:^4.7.1"
     typescript: "npm:5.3.3"
   languageName: unknown
   linkType: soft

@@ -7,7 +7,7 @@ IFS=$'\n\t'
 # Constants
 readonly REPO="astraly-labs/hyperlane_starknet"
 readonly GITHUB_RELEASES_API="https://api.github.com/repos/${REPO}/releases"
-readonly TARGET_DIR="./dist/target"
+readonly TARGET_DIR="./release"
 
 # Color definitions
 declare -r COLOR_GREEN='\033[0;32m'
@@ -35,7 +35,7 @@ check_dependencies() {
 
 get_package_version() {
     local package_version
-    if ! package_version=$(jq -r '.version' package.json 2>/dev/null); then
+    if ! package_version=$(jq -r '.version' ./package.json 2>/dev/null); then
         log_error "Failed to read version from package.json"
         exit 1
     fi
