@@ -6,3 +6,9 @@ anvil3:
   submitter:
     chain: anvil3
     type: jsonRpc
+zksync1:
+  submitter:
+    type: jsonRpc
+zksync2:
+  submitter:
+    type: jsonRpc
