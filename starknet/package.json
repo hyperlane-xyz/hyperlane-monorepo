@@ -9,7 +9,9 @@
     "prepare-contracts": "tsx ./scripts/fetch-contracts-if-missing.ts",
     "build-contracts": "mkdir -p dist/target && cp release/* dist/target/",
     "build": "tsc && yarn prepare-contracts && yarn build-contracts",
-    "clean": "rm -rf ./dist ./release"
+    "clean": "rm -rf ./dist ./release",
+    "lint": "eslint src --ext .ts",
+    "prettier": "prettier --write ./src ./scripts ./package.json"
   },
   "exports": {
     ".": {
@@ -33,6 +35,9 @@
     "starknet": "6.11.0"
   },
   "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^2.8.8",
     "tsx": "^4.7.1",
     "typescript": "5.3.3"
   }

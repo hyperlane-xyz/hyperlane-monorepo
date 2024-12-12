@@ -8710,6 +8710,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
+    eslint: "npm:^8.57.0"
+    eslint-config-prettier: "npm:^9.1.0"
+    prettier: "npm:^2.8.8"
     starknet: "npm:6.11.0"
     tsx: "npm:^4.7.1"
     typescript: "npm:5.3.3"
