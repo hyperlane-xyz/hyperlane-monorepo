@@ -282,8 +282,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     duckchain: true,
-    // Disabled until we get archival RPC for Eclipse
-    eclipsemainnet: false,
+    eclipsemainnet: true,
     endurance: true,
     ethereum: true,
     everclear: true,

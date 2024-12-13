@@ -1,6 +1,6 @@
 export enum WarpRouteIds {
   Ancient8EthereumUSDC = 'USDC/ancient8-ethereum',
-  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH = 'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-taiko-zircuit',
+  ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH = 'EZETH/arbitrum-base-blast-bsc-ethereum-fraxtal-linea-mode-optimism-sei-swell-taiko-zircuit',
   ArbitrumBaseEnduranceUSDC = 'USDC/arbitrum-base-endurance',
   ArbitrumEthereumZircuitAMPHRETH = 'AMPHRETH/arbitrum-ethereum-zircuit',
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
@@ -24,7 +24,7 @@ export enum WarpRouteIds {
   EthereumVictionETH = 'ETH/ethereum-viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
-  EthereumZircuitPZETH = 'PZETH/ethereum-zircuit',
+  EthereumSwellZircuitPZETH = 'PZETH/ethereum-swell-zircuit',
   EthereumBscLumiaLUMIA = 'LUMIA/bsc-ethereum-lumia',
   InevmInjectiveINJ = 'INJ/inevm-injective',
   MantapacificNeutronTIA = 'TIA/mantapacific-neutron',
