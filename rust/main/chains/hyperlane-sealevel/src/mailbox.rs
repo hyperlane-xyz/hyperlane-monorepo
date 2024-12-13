@@ -100,6 +100,12 @@ lazy_static! {
         (pubkey!("CuQmsT4eSF4dYiiGUGYYQxJ7c58pUAD5ADE3BbFGzQKx"), pubkey!("EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm")),
     ]);
 }
+
+struct SealevelTxCostEstimate {
+    compute_units: u32,
+    compute_unit_price_micro_lamports: u64,
+}
+
 /// A reference to a Mailbox contract on some Sealevel chain
 pub struct SealevelMailbox {
     pub(crate) program_id: Pubkey,
@@ -311,11 +317,10 @@ impl SealevelMailbox {
         self.get_account_metas(instruction).await
     }
 
-    /// Builds a transaction with estimated costs for a given instruction.
-    async fn build_estimated_tx_for_instruction(
+    async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
-    ) -> ChainResult<Transaction> {
+    ) -> ChainResult<SealevelTxCostEstimate> {
         // Build a transaction that sets the max compute units and a dummy compute unit price.
         // This is used for simulation to get the actual compute unit limit. We set dummy values
         // for the compute unit limit and price because we want to include the instructions that
@@ -359,17 +364,36 @@ impl SealevelMailbox {
             .get_priority_fee(&simulation_tx)
             .await?;
 
+        Ok(SealevelTxCostEstimate {
+            compute_units: simulation_compute_units,
+            compute_unit_price_micro_lamports: priority_fee,
+        })
+    }
+
+    /// Builds a transaction with estimated costs for a given instruction.
+    async fn build_estimated_tx_for_instruction(
+        &self,
+        instruction: Instruction,
+    ) -> ChainResult<Transaction> {
+        // Get the estimated costs for the instruction.
+        let SealevelTxCostEstimate {
+            compute_units,
+            compute_unit_price_micro_lamports,
+        } = self
+            .get_estimated_costs_for_instruction(instruction.clone())
+            .await?;
+
         tracing::info!(
-            ?priority_fee,
-            ?simulation_compute_units,
-            "Got priority fee and compute units for transaction"
+            ?compute_units,
+            ?compute_unit_price_micro_lamports,
+            "Got compute units and compute unit price / priority fee for transaction"
         );
 
         // Build the final transaction with the correct compute unit limit and price.
         let tx = self
             .create_transaction_for_instruction(
-                simulation_compute_units,
-                priority_fee,
+                compute_units,
+                compute_unit_price_micro_lamports,
                 instruction,
                 true,
             )
@@ -647,10 +671,24 @@ impl Mailbox for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     async fn process_estimate_costs(
         &self,
-        _message: &HyperlaneMessage,
-        _metadata: &[u8],
+        message: &HyperlaneMessage,
+        metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        // TODO use correct data upon integrating IGP support
+        // Getting a process instruction in Sealevel is a pretty expensive operation
+        // that involves some view calls. Consider reusing the instruction with subsequent
+        // calls to `process` to avoid this cost.
+        let process_instruction = self.get_process_instruction(message, metadata).await?;
+
+        // The retuend costs are unused at the moment - we simply want to perform a simulation to
+        // determine if the message will revert or not.
+        let _ = self
+            .get_estimated_costs_for_instruction(process_instruction)
+            .await?;
+
+        // TODO use correct data upon integrating IGP support.
+        // NOTE: providing a real gas limit here will result in accurately enforcing
+        // gas payments. Be careful rolling this out to not impact existing contracts
+        // that may not be paying for super accurate gas amounts.
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
             gas_price: FixedPointNumber::zero(),
