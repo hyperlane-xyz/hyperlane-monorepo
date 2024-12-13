@@ -13,6 +13,7 @@ use solana_client::{
 use solana_sdk::{
     account::Account,
     commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
     hash::Hash,
     instruction::{AccountMeta, Instruction},
     message::Message,
@@ -27,11 +28,22 @@ use solana_transaction_status::{
 
 use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 
-use crate::error::HyperlaneSealevelError;
+use crate::{
+    error::HyperlaneSealevelError, priority_fee::PriorityFeeOracle,
+    tx_submitter::TransactionSubmitter,
+};
+
+pub struct SealevelTxCostEstimate {
+    compute_units: u32,
+    compute_unit_price_micro_lamports: u64,
+}
 
 pub struct SealevelRpcClient(RpcClient);
 
 impl SealevelRpcClient {
+    /// The max amount of compute units for a transaction.
+    const MAX_COMPUTE_UNITS: u32 = 1_400_000;
+
     pub fn new(rpc_endpoint: String) -> Self {
         Self(RpcClient::new_with_commitment(
             rpc_endpoint,
@@ -325,6 +337,148 @@ impl SealevelRpcClient {
             .value;
 
         Ok(result)
+    }
+
+    /// Gets the estimated costs for a given instruction.
+    pub async fn get_estimated_costs_for_instruction(
+        &self,
+        instruction: Instruction,
+        payer: &Keypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        priority_fee_oracle: &dyn PriorityFeeOracle,
+    ) -> ChainResult<SealevelTxCostEstimate> {
+        // Build a transaction that sets the max compute units and a dummy compute unit price.
+        // This is used for simulation to get the actual compute unit limit. We set dummy values
+        // for the compute unit limit and price because we want to include the instructions that
+        // set these in the cost estimate.
+        let simulation_tx = self
+            .create_transaction_for_instruction(
+                Self::MAX_COMPUTE_UNITS,
+                0,
+                instruction.clone(),
+                payer,
+                tx_submitter,
+                false,
+            )
+            .await?;
+
+        let simulation_result = self.simulate_transaction(&simulation_tx).await?;
+        tracing::debug!(?simulation_result, "Got simulation result for transaction");
+
+        // If there was an error in the simulation result, return an error.
+        if simulation_result.err.is_some() {
+            return Err(ChainCommunicationError::from_other_str(
+                format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
+            ));
+        }
+
+        // Get the compute units used in the simulation result, requiring
+        // that it is greater than 0.
+        let simulation_compute_units: u32 = simulation_result
+            .units_consumed
+            .and_then(|units| if units > 0 { Some(units) } else { None })
+            .ok_or_else(|| {
+                ChainCommunicationError::from_other_str(
+                    "Empty or zero compute units returned in simulation result",
+                )
+            })?
+            .try_into()
+            .map_err(ChainCommunicationError::from_other)?;
+
+        // Bump the compute units by 10% to ensure we have enough, but cap it at the max.
+        let simulation_compute_units =
+            Self::MAX_COMPUTE_UNITS.min((simulation_compute_units * 11) / 10);
+
+        let priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+
+        Ok(SealevelTxCostEstimate {
+            compute_units: simulation_compute_units,
+            compute_unit_price_micro_lamports: priority_fee,
+        })
+    }
+
+    /// Builds a transaction with estimated costs for a given instruction.
+    pub async fn build_estimated_tx_for_instruction(
+        &self,
+        instruction: Instruction,
+        payer: &Keypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        priority_fee_oracle: &dyn PriorityFeeOracle,
+    ) -> ChainResult<Transaction> {
+        // Get the estimated costs for the instruction.
+        let SealevelTxCostEstimate {
+            compute_units,
+            compute_unit_price_micro_lamports,
+        } = self
+            .get_estimated_costs_for_instruction(
+                instruction.clone(),
+                payer,
+                tx_submitter,
+                priority_fee_oracle,
+            )
+            .await?;
+
+        tracing::info!(
+            ?compute_units,
+            ?compute_unit_price_micro_lamports,
+            "Got compute units and compute unit price / priority fee for transaction"
+        );
+
+        // Build the final transaction with the correct compute unit limit and price.
+        let tx = self
+            .create_transaction_for_instruction(
+                compute_units,
+                compute_unit_price_micro_lamports,
+                instruction,
+                payer,
+                tx_submitter,
+                true,
+            )
+            .await?;
+
+        Ok(tx)
+    }
+
+    /// Creates a transaction for a given instruction, compute unit limit, and compute unit price.
+    /// If `blockhash` is `None`, the latest blockhash is fetched from the RPC.
+    pub async fn create_transaction_for_instruction(
+        &self,
+        compute_unit_limit: u32,
+        compute_unit_price_micro_lamports: u64,
+        instruction: Instruction,
+        payer: &Keypair,
+        tx_submitter: &dyn TransactionSubmitter,
+        sign: bool,
+    ) -> ChainResult<Transaction> {
+        let instructions = vec![
+            // Set the compute unit limit.
+            ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),
+            // Set the priority fee / tip
+            tx_submitter.get_priority_fee_instruction(
+                compute_unit_price_micro_lamports,
+                compute_unit_limit.into(),
+                &payer.pubkey(),
+            ),
+            instruction,
+        ];
+
+        let tx = if sign {
+            let recent_blockhash = self
+                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+                .await
+                .map_err(ChainCommunicationError::from_other)?;
+
+            Transaction::new_signed_with_payer(
+                &instructions,
+                Some(&payer.pubkey()),
+                &[payer],
+                recent_blockhash,
+            )
+        } else {
+            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
+        };
+
+        Ok(tx)
     }
 
     pub fn url(&self) -> String {

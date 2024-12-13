@@ -27,12 +27,9 @@ use solana_sdk::{
     account::Account,
     clock::Slot,
     commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
-    message::Message,
     pubkey::Pubkey,
     signer::{keypair::Keypair, Signer as _},
-    transaction::Transaction,
 };
 use tracing::{debug, info, instrument, warn};
 
@@ -59,9 +56,6 @@ const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 // The max amount of compute units for a transaction.
 // TODO: consider a more sane value and/or use IGP gas payments instead.
 const PROCESS_COMPUTE_UNITS: u32 = 1_400_000;
-
-/// The max amount of compute units for a transaction.
-const MAX_COMPUTE_UNITS: u32 = 1_400_000;
 
 /// 0.0005 SOL, in lamports.
 /// A typical tx fee without a prioritization fee is 0.000005 SOL, or
@@ -99,11 +93,6 @@ lazy_static! {
         // WIF
         (pubkey!("CuQmsT4eSF4dYiiGUGYYQxJ7c58pUAD5ADE3BbFGzQKx"), pubkey!("EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm")),
     ]);
-}
-
-struct SealevelTxCostEstimate {
-    compute_units: u32,
-    compute_unit_price_micro_lamports: u64,
 }
 
 /// A reference to a Mailbox contract on some Sealevel chain
@@ -317,134 +306,6 @@ impl SealevelMailbox {
         self.get_account_metas(instruction).await
     }
 
-    async fn get_estimated_costs_for_instruction(
-        &self,
-        instruction: Instruction,
-    ) -> ChainResult<SealevelTxCostEstimate> {
-        // Build a transaction that sets the max compute units and a dummy compute unit price.
-        // This is used for simulation to get the actual compute unit limit. We set dummy values
-        // for the compute unit limit and price because we want to include the instructions that
-        // set these in the cost estimate.
-        let simulation_tx = self
-            .create_transaction_for_instruction(MAX_COMPUTE_UNITS, 0, instruction.clone(), false)
-            .await?;
-
-        let simulation_result = self
-            .provider
-            .rpc()
-            .simulate_transaction(&simulation_tx)
-            .await?;
-        tracing::debug!(?simulation_result, "Got simulation result for transaction");
-
-        // If there was an error in the simulation result, return an error.
-        if simulation_result.err.is_some() {
-            return Err(ChainCommunicationError::from_other_str(
-                format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
-            ));
-        }
-
-        // Get the compute units used in the simulation result, requiring
-        // that it is greater than 0.
-        let simulation_compute_units: u32 = simulation_result
-            .units_consumed
-            .and_then(|units| if units > 0 { Some(units) } else { None })
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Empty or zero compute units returned in simulation result",
-                )
-            })?
-            .try_into()
-            .map_err(ChainCommunicationError::from_other)?;
-
-        // Bump the compute units by 10% to ensure we have enough, but cap it at the max.
-        let simulation_compute_units = MAX_COMPUTE_UNITS.min((simulation_compute_units * 11) / 10);
-
-        let priority_fee = self
-            .priority_fee_oracle
-            .get_priority_fee(&simulation_tx)
-            .await?;
-
-        Ok(SealevelTxCostEstimate {
-            compute_units: simulation_compute_units,
-            compute_unit_price_micro_lamports: priority_fee,
-        })
-    }
-
-    /// Builds a transaction with estimated costs for a given instruction.
-    async fn build_estimated_tx_for_instruction(
-        &self,
-        instruction: Instruction,
-    ) -> ChainResult<Transaction> {
-        // Get the estimated costs for the instruction.
-        let SealevelTxCostEstimate {
-            compute_units,
-            compute_unit_price_micro_lamports,
-        } = self
-            .get_estimated_costs_for_instruction(instruction.clone())
-            .await?;
-
-        tracing::info!(
-            ?compute_units,
-            ?compute_unit_price_micro_lamports,
-            "Got compute units and compute unit price / priority fee for transaction"
-        );
-
-        // Build the final transaction with the correct compute unit limit and price.
-        let tx = self
-            .create_transaction_for_instruction(
-                compute_units,
-                compute_unit_price_micro_lamports,
-                instruction,
-                true,
-            )
-            .await?;
-
-        Ok(tx)
-    }
-
-    /// Creates a transaction for a given instruction, compute unit limit, and compute unit price.
-    /// If `blockhash` is `None`, the latest blockhash is fetched from the RPC.
-    async fn create_transaction_for_instruction(
-        &self,
-        compute_unit_limit: u32,
-        compute_unit_price_micro_lamports: u64,
-        instruction: Instruction,
-        sign: bool,
-    ) -> ChainResult<Transaction> {
-        let payer = self.get_payer()?;
-
-        let instructions = vec![
-            // Set the compute unit limit.
-            ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),
-            // Set the priority fee / tip
-            self.tx_submitter.get_priority_fee_instruction(
-                compute_unit_price_micro_lamports,
-                compute_unit_limit.into(),
-                &payer.pubkey(),
-            ),
-            instruction,
-        ];
-
-        let tx = if sign {
-            let recent_blockhash = self
-                .rpc()
-                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-                .await
-                .map_err(ChainCommunicationError::from_other)?;
-
-            Transaction::new_signed_with_payer(
-                &instructions,
-                Some(&payer.pubkey()),
-                &[payer],
-                recent_blockhash,
-            )
-        } else {
-            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
-        };
-
-        Ok(tx)
-    }
-
     async fn get_process_instruction(
         &self,
         message: &HyperlaneMessage,
@@ -633,7 +494,14 @@ impl Mailbox for SealevelMailbox {
         let process_instruction = self.get_process_instruction(message, metadata).await?;
 
         let tx = self
-            .build_estimated_tx_for_instruction(process_instruction)
+            .provider
+            .rpc()
+            .build_estimated_tx_for_instruction(
+                process_instruction,
+                self.get_payer()?,
+                &*self.tx_submitter,
+                &*self.priority_fee_oracle,
+            )
             .await?;
 
         tracing::info!(?tx, "Created sealevel transaction to process message");
@@ -682,7 +550,13 @@ impl Mailbox for SealevelMailbox {
         // The retuend costs are unused at the moment - we simply want to perform a simulation to
         // determine if the message will revert or not.
         let _ = self
-            .get_estimated_costs_for_instruction(process_instruction)
+            .rpc()
+            .get_estimated_costs_for_instruction(
+                process_instruction,
+                self.get_payer()?,
+                &*self.tx_submitter,
+                &*self.priority_fee_oracle,
+            )
             .await?;
 
         // TODO use correct data upon integrating IGP support.
