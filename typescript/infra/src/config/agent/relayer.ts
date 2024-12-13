@@ -187,7 +187,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       }),
     );
 
-    const sanctionedEthereumAdresses = allSanctionedAddresses
+    const sanctionedEthereumAddresses = allSanctionedAddresses
       .flat()
       .filter((address) => {
         if (!isValidAddressEvm(address)) {
@@ -206,7 +206,7 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
       '0x97a05beCc2e7891D07F382457Cd5d57FD242e4e8',
     ];
 
-    return [...sanctionedEthereumAdresses, ...radiantExploiter];
+    return [...sanctionedEthereumAddresses, ...radiantExploiter];
   }
 
   // Returns whether the relayer requires AWS credentials
