@@ -12,6 +12,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
     USDT: '0xdac17f958d2ee523a2206206994597c13d831ec7',
     WBTC: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',
     weETHs: '0x917cee801a67f933f2e6b33fc0cd1ed2d5909d88',
+    pumpBTCsei: '0x179149B7E74910d2A58b2a737e1a8B6F44388882',
   },
   sei: {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
