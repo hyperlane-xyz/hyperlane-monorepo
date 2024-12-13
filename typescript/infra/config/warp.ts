@@ -20,6 +20,8 @@ import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mai
 import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
+import { getBlastZeroNetworkUSDBWarpConfig } from './environments/mainnet3/warp/configGetters/getBlastZeroNetworkUSDBWarpConfig.js';
+import { getBscZeroNetworkBNBWarpConfig } from './environments/mainnet3/warp/configGetters/getBscZeroNetworkBNBConfig.js';
 import { getEclipseEthereumApxEthWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumApxETHWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -30,12 +32,14 @@ import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/conf
 import { getEthereumFlowCbBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFlowCbBTCWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
 import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDTWarpConfig.js';
+import { getEthereumModeScrollZeronetworkWBTCConfig } from './environments/mainnet3/warp/configGetters/getEthereumModeScrollZeronetworkWBTCConfig.js';
 import { getEthereumSeiFastUSDWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiFastUSDWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getPolygonZeroNetworkPolWarpConfig } from './environments/mainnet3/warp/configGetters/getPolygonZeroNetworkPolConfig.js';
 import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
@@ -55,6 +59,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
+  [WarpRouteIds.BlastZeroNetworkUSDB]: getBlastZeroNetworkUSDBWarpConfig,
+  [WarpRouteIds.BscZeroNetworkBNB]: getBscZeroNetworkBNBWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.EthereumFlowCbBTC]: getEthereumFlowCbBTCWarpConfig,
   [WarpRouteIds.EthereumSeiFastUSD]: getEthereumSeiFastUSDWarpConfig,
@@ -63,12 +69,15 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.EthereumSwellZircuitPZETH]: getRenzoPZETHWarpConfig,
   [WarpRouteIds.EthereumBscLumiaLUMIA]: getEthereumBscLUMIAWarpConfig,
+  [WarpRouteIds.EthereumModeScrollZeroNetworkWBTC]:
+    getEthereumModeScrollZeronetworkWBTCConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EclipseEthereumApxEth]: getEclipseEthereumApxEthWarpConfig,
   [WarpRouteIds.EclipseEthereumSolanaUSDT]:
     getEclipseEthereumSolanaUSDTWarpConfig,
   [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
   [WarpRouteIds.EclipseEthereumWeETHs]: getEclipseEthereumWeEthsWarpConfig,
+  [WarpRouteIds.PolygonZeroNetworkPOL]: getPolygonZeroNetworkPolWarpConfig,
   [WarpRouteIds.BaseZeroNetworkCBBTC]: getBaseZeroNetworkCBBTCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT]:
     getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig,

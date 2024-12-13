@@ -16,6 +16,9 @@ export const tokens: ChainMap<Record<string, Address>> = {
   sei: {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
   },
+  blast: {
+    usdb: '0x4300000000000000000000000000000000000003',
+  },
   base: {
     cbBTC: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
     USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
