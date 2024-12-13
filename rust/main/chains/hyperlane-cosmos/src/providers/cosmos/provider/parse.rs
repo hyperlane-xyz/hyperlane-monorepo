@@ -153,7 +153,7 @@ mod tests {
 
     fn encode_proto(msg: &MsgRecvPacket) -> Any {
         let mut buf = Vec::with_capacity(msg.encoded_len());
-        MsgRecvPacket::encode(&msg, &mut buf).unwrap();
+        MsgRecvPacket::encode(msg, &mut buf).unwrap();
 
         Any {
             type_url: "".to_string(),

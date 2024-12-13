@@ -67,16 +67,15 @@ export class MultiProtocolSignerManager {
    * @dev Configures signers for EVM chains in MultiProvider
    */
   async getMultiProvider(): Promise<MultiProvider> {
-    for (const chain of this.chains) {
-      // multiProvider is only compatible with evm chains
-      if (
+    const ethereumChains = this.chains.filter(
+      (chain) =>
         this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum
-      ) {
-        const signer = await this.initSigner(chain);
-        if (signer instanceof Signer)
-          this.multiProvider.setSigner(chain, signer);
-      }
+        ProtocolType.Ethereum,
+    );
+
+    for (const chain of ethereumChains) {
+      const signer = await this.initSigner(chain);
+      this.multiProvider.setSigner(chain, signer as Signer);
     }
 
     return this.multiProvider;
@@ -113,6 +112,7 @@ export class MultiProtocolSignerManager {
             }),
           );
         } else {
+          // evm chains
           this.signers.set(chain, signerStrategy.getSigner({ privateKey }));
         }
       }
