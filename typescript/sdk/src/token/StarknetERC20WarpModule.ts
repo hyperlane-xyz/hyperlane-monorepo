@@ -82,6 +82,11 @@ export class StarknetERC20WarpModule {
           addresses[chain] = tokenAddress;
           break;
         }
+
+        case TokenType.collateral: {
+          addresses[chain] = '';
+          break;
+        }
         default:
           throw Error('Token type is not supported on starknet');
       }
