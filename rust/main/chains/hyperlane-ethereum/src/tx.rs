@@ -203,6 +203,7 @@ where
 
 type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
 
+/// Use this to estimate EIP 1559 fees with some chain-specific logic.
 async fn estimate_eip1559_fees<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
@@ -264,6 +265,7 @@ struct ZksyncEstimateFeeResponse {
     gas_per_pubdata_limit: EthersU256,
 }
 
+/// Logic for a vanilla EVM chain to get EIP-1559 fees.
 /// Pretty much a copy of the logic in ethers-rs (https://github.com/hyperlane-xyz/ethers-rs/blob/c9ced035628da59376c369be035facda1648577a/ethers-providers/src/provider.rs#L478)
 /// but returns the base fee as well as the max fee and max priority fee.
 /// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
