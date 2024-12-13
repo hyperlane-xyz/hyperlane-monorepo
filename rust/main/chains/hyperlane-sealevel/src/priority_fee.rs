@@ -8,11 +8,14 @@ use solana_sdk::{bs58, transaction::Transaction};
 
 use crate::{HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig};
 
+/// A trait for fetching the priority fee for a transaction.
 #[async_trait]
 pub trait PriorityFeeOracle: Send + Sync {
+    /// Fetch the priority fee in microlamports for a transaction.
     async fn get_priority_fee(&self, transaction: &Transaction) -> ChainResult<u64>;
 }
 
+/// A priority fee oracle that returns a constant fee.
 #[derive(Debug, Clone)]
 pub struct ConstantPriorityFeeOracle {
     fee: u64,
@@ -31,6 +34,8 @@ impl PriorityFeeOracle for ConstantPriorityFeeOracle {
     }
 }
 
+/// A priority fee oracle that fetches the fee from the Helius API.
+/// https://docs.helius.dev/solana-apis/priority-fee-api
 #[derive(Debug, Clone)]
 pub struct HeliusPriorityFeeOracle {
     client: Client,
@@ -46,6 +51,9 @@ impl HeliusPriorityFeeOracle {
     }
 
     fn get_priority_fee_estimate_options(&self) -> serde_json::Value {
+        // It's an odd interface, but if using the Recommended fee level, the API requires `recommended: true`,
+        // otherwise it requires `priorityLevel: "<PascalCaseFeeLevel>"`.
+
         if let HeliusPriorityFeeLevel::Recommended = self.config.fee_level {
             serde_json::json!({
                 "recommended": true,
@@ -101,6 +109,7 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
     }
 }
 
+/// The result of a JSON-RPC request to the Helius API.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct JsonRpcResult<T> {
@@ -109,6 +118,7 @@ struct JsonRpcResult<T> {
     result: T,
 }
 
+/// The result of a `getPriorityFeeEstimate` request to the Helius API.
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct GetPriorityFeeEstimateResult {

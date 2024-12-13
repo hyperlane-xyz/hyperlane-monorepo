@@ -9,8 +9,10 @@ use solana_sdk::{
 
 use crate::SealevelRpcClient;
 
+/// A trait for submitting transactions to the chain.
 #[async_trait]
 pub trait TransactionSubmitter: Send + Sync {
+    /// Get the instruction to set the compute unit price.
     fn get_priority_fee_instruction(
         &self,
         compute_unit_price_micro_lamports: u64,
@@ -18,6 +20,7 @@ pub trait TransactionSubmitter: Send + Sync {
         payer: &Pubkey,
     ) -> Instruction;
 
+    /// Send a transaction to the chain.
     async fn send_transaction(
         &self,
         transaction: &Transaction,
@@ -25,6 +28,7 @@ pub trait TransactionSubmitter: Send + Sync {
     ) -> ChainResult<Signature>;
 }
 
+/// A transaction submitter that uses the vanilla RPC to submit transactions.
 #[derive(Debug)]
 pub struct RpcTransactionSubmitter {
     rpc_client: SealevelRpcClient,
@@ -64,13 +68,15 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
     }
 }
 
+/// A transaction submitter that uses the Jito API to submit transactions.
 #[derive(Debug)]
 pub struct JitoTransactionSubmitter {
     rpc_client: SealevelRpcClient,
 }
 
 impl JitoTransactionSubmitter {
-    // From https://docs.jito.wtf/lowlatencytxnsend/#sendtransaction
+    /// The minimum tip to include in a transaction.
+    /// From https://docs.jito.wtf/lowlatencytxnsend/#sendtransaction
     const MINIMUM_TIP_LAMPORTS: u64 = 1000;
 
     pub fn new(url: String) -> Self {
