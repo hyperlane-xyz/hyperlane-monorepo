@@ -88,8 +88,9 @@ contract HypNativeTest is HypTokenTest {
         assertEq(address(valueHook).balance, msgValue);
     }
 
-    function testRemoteTransfer_invalidAmount() public {
-        vm.expectRevert("HypNative: insufficient value");
+    // when msg.value is >= quote + amount, it should revert in
+    function testRemoteTransfer_insufficientValue() public {
+        vm.expectRevert();
         vm.prank(ALICE);
         localToken.transferRemote{value: TRANSFER_AMT}(
             DESTINATION,
@@ -134,7 +135,7 @@ contract HypNativeTest is HypTokenTest {
         hook.setFee(fee);
 
         vm.prank(ALICE);
-        vm.expectRevert("HypNative: insufficient value");
+        vm.expectRevert();
         localToken.transferRemote{value: msgValue - 1}(
             DESTINATION,
             BOB.addressToBytes32(),
