@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/core': patch
+'@hyperlane-xyz/core': minor
 ---
 
 Made releaseValueToRecipient internal
