@@ -120,7 +120,7 @@ export async function runCoreDeploy(params: DeployParams) {
     case ProtocolType.Starknet:
       {
         const domainId = multiProvider.getDomainId(chain);
-        const account = await multiProtocolSigner?.initSigner(chain);
+        const account = await multiProtocolSigner?.getStarknetSigner(chain);
         assert(account, 'Starknet account failed!');
         const starknetCoreModule = new StarknetCoreModule(
           account as StarknetAccount,

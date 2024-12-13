@@ -1,6 +1,12 @@
+import { Account, Provider } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
-import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  HyperlaneCore,
+  HyperlaneRelayer,
+  StarknetCore,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
@@ -82,16 +88,36 @@ async function executeDelivery({
 }) {
   const { registry, multiProvider } = context;
   const chainAddresses = await registry.getAddresses();
-  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
-
+  const provider = new Provider({
+    nodeUrl: 'http://127.0.0.1:5050',
+  });
+  const account = new Account(
+    provider,
+    '0x6acf82752859a6bced2eb2e9e4346062763088e72422d6f7c2ee8a7526e07d7',
+    '0x000000000000000000000000000000004e4993ca00259617c8075a3f76d43abc',
+  );
   try {
-    const recipient = chainAddresses[destination].testRecipient;
+    const recipient =
+      chainAddresses[destination].testRecipient ||
+      '0x00581bb8ad9e4ecd0ba06793e2ffb26f4b12ea18ec69dfb216738efe569e2e59';
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
     const formattedRecipient = addressToBytes32(recipient);
 
-    log('Dispatching message');
+    // log('Dispatching message');
+    const destinationDomain = multiProvider.getDomainId(destination);
+
+    const starknet = new StarknetCore(account);
+    const tx = await starknet.sendMessage({
+      destinationDomain,
+      messageBody,
+      recipientAddress: chainAddresses[destination].testRecipient,
+    });
+    console.log({ tx });
+    return;
+    const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
+
     const { dispatchTx, message } = await core.sendMessage(
       origin,
       destination,
@@ -121,6 +147,7 @@ async function executeDelivery({
 
       log('Waiting for message delivery on destination chain...');
       // Max wait 10 minutes
+      return;
       await core.waitForMessageProcessed(dispatchTx, 10000, 60);
       logGreen('Message was delivered!');
     }

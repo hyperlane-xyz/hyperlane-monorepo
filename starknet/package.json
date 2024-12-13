@@ -1,28 +1,28 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
   "description": "Core cairo contracts for Hyperlane",
-  "version": "1.0.0",
+  "version": "0.2.1",
   "type": "module",
   "homepage": "https://www.hyperlane.xyz",
-  "author": "",
   "license": "Apache-2.0",
   "scripts": {
-    "compile": "cd cairo && scarb build && cp -R ./target ../src/target && cd ..",
-    "build": "yarn compile && tsc && cp -R ./src/target ./dist/target"
-  },
-  "devDependencies": {
-    "@types/node": "^22.7.9",
-    "eslint": "^9.13.0",
-    "eslint-config-prettier": "^9.1.0",
-    "prettier": "^3.3.3",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.19.1",
-    "typescript": "5.3.3"
+    "prepare-contracts": "tsx ./scripts/fetch-contracts-if-missing.ts",
+    "build-contracts": "mkdir -p dist/target && cp release/* dist/target/",
+    "build": "tsc && yarn prepare-contracts && yarn build-contracts",
+    "clean": "rm -rf ./dist ./release",
+    "lint": "eslint src --ext .ts",
+    "prettier": "prettier --write ./src ./scripts ./package.json"
   },
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "types": "./dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
   "keywords": [
     "Hyperlane",
     "Cairo",
@@ -33,5 +33,12 @@
   },
   "dependencies": {
     "starknet": "6.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^2.8.8",
+    "tsx": "^4.7.1",
+    "typescript": "5.3.3"
   }
 }
