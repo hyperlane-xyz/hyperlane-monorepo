@@ -4,8 +4,9 @@ import {
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
+  MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH } from '../../../commands/options.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
@@ -26,13 +27,12 @@ import { getWarpCoreConfigOrExit } from '../../../utils/warp.js';
 import { ChainResolver } from './types.js';
 
 enum ChainSelectionMode {
-  ORIGIN_DESTINATION,
   AGENT_KURTOSIS,
   WARP_CONFIG,
   WARP_READ,
   STRATEGY,
-  RELAYER,
   CORE_APPLY,
+  DEFAULT,
 }
 
 // This class could be broken down into multiple strategies
@@ -54,13 +54,11 @@ export class MultiChainResolver implements ChainResolver {
         return this.resolveAgentChains(argv);
       case ChainSelectionMode.STRATEGY:
         return this.resolveStrategyChains(argv);
-      case ChainSelectionMode.RELAYER:
-        return this.resolveRelayerChains(argv);
       case ChainSelectionMode.CORE_APPLY:
         return this.resolveCoreApplyChains(argv);
-      case ChainSelectionMode.ORIGIN_DESTINATION:
+      case ChainSelectionMode.DEFAULT:
       default:
-        return this.resolveOriginDestinationChains(argv);
+        return this.resolveRelayerChains(argv);
     }
   }
 
@@ -119,28 +117,6 @@ export class MultiChainResolver implements ChainResolver {
     return [argv.origin, ...argv.targets];
   }
 
-  private async resolveOriginDestinationChains(
-    argv: Record<string, any>,
-  ): Promise<ChainName[]> {
-    const { chainMetadata } = argv.context;
-
-    argv.origin =
-      argv.origin ??
-      (await runSingleChainSelectionStep(
-        chainMetadata,
-        'Select the origin chain',
-      ));
-
-    argv.destination =
-      argv.destination ??
-      (await runSingleChainSelectionStep(
-        chainMetadata,
-        'Select the destination chain',
-      ));
-
-    return [argv.origin, argv.destination];
-  }
-
   private async resolveStrategyChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
@@ -151,7 +127,29 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveRelayerChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    return argv.chains.split(',').map((item: string) => item.trim());
+    const { multiProvider } = argv.context;
+    const chains = [];
+
+    if (argv.origin) {
+      chains.push(argv.origin);
+    }
+
+    if (argv.destination) {
+      chains.push(argv.destination);
+    }
+
+    if (!argv.chains) {
+      return Array.from(
+        new Set([...chains, ...this.getEvmChains(multiProvider)]),
+      );
+    }
+
+    return Array.from(
+      new Set([
+        ...chains,
+        ...argv.chains.split(',').map((item: string) => item.trim()),
+      ]),
+    );
   }
 
   private async getWarpRouteConfigChains(
@@ -219,16 +217,20 @@ export class MultiChainResolver implements ChainResolver {
     }
   }
 
+  private getEvmChains(multiProvider: MultiProvider): ChainName[] {
+    const chains = multiProvider.getKnownChainNames();
+
+    return chains.filter(
+      (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+    );
+  }
+
   static forAgentKurtosis(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.AGENT_KURTOSIS);
   }
 
-  static forOriginDestination(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.ORIGIN_DESTINATION);
-  }
-
   static forRelayer(): MultiChainResolver {
-    return new MultiChainResolver(ChainSelectionMode.RELAYER);
+    return new MultiChainResolver(ChainSelectionMode.DEFAULT);
   }
 
   static forStrategyConfig(): MultiChainResolver {
@@ -245,5 +247,9 @@ export class MultiChainResolver implements ChainResolver {
 
   static forCoreApply(): MultiChainResolver {
     return new MultiChainResolver(ChainSelectionMode.CORE_APPLY);
+  }
+
+  static default(): MultiChainResolver {
+    return new MultiChainResolver(ChainSelectionMode.DEFAULT);
   }
 }
