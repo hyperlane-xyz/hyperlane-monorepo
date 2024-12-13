@@ -24,7 +24,8 @@ export class GcpStorageWrapper {
     const match = bucketUrl.match(GCS_BUCKET_REGEX);
     if (!match) throw new Error('Could not parse bucket url');
     return new GcpStorageWrapper({
-      bucket: match[1] || match[2], // Handle both http and gs:// formats
+      // Handle both http and gs:// formats
+      bucket: match[1] || match[2],
       caching: true,
     });
   }
@@ -91,6 +92,8 @@ export class GcpStorageWrapper {
       const body = await this.fetchContent(formattedKey);
       const result = {
         data: JSON.parse(body),
+        // If no updated date is provided, use the Unix epoch start
+        // 0 = Unix epoch start (1970-01-01T00:00:00.000Z)
         modified: new Date(metadata.updated ?? 0),
       };
 
