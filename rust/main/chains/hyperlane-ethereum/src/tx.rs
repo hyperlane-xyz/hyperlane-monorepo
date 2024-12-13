@@ -235,17 +235,21 @@ where
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
     };
 
-    let mut gas_price_multiplier: u32 = 1;
-    // `treasure` chain gas estimation underestimates the actual gas price, so we add a multiplier to it
-    if domain.id() == 61166 {
-        gas_price_multiplier = 2;
-    }
-
+    let gas_price_multiplier = chain_specific_gas_price_multiplier(domain);
     Ok((
         base_fee_per_gas.mul(gas_price_multiplier),
         max_fee_per_gas.mul(gas_price_multiplier),
         max_priority_fee_per_gas.mul(gas_price_multiplier),
     ))
+}
+
+fn chain_specific_gas_price_multiplier(domain: &HyperlaneDomain) -> u32 {
+    match domain.id() {
+        // treasure (mainnet) and treasuretopaz (testnet) have a gas price multiplier of 2,
+        // as the gas estimation underestimates the actual gas price.
+        61166 | 978658 => 2,
+        _ => 1,
+    }
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
