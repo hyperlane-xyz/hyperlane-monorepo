@@ -9,7 +9,7 @@ import {
   GasRouter,
   HypERC20__factory,
   HypERC4626Collateral__factory,
-  HypNativeCollateral__factory,
+  HypNative__factory,
   Mailbox,
   MailboxClient__factory,
   Mailbox__factory,
@@ -229,7 +229,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     expect(tokenType).to.equal(TokenType.native);
 
     // Validate onchain token values
-    const nativeContract = HypNativeCollateral__factory.connect(
+    const nativeContract = HypNative__factory.connect(
       deployedTokenRoute,
       signer,
     );

@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {TokenMessage} from "./libs/TokenMessage.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
@@ -22,8 +23,8 @@ contract HypNative is TokenRouter {
     /**
      * @notice Initializes the Hyperlane router
      * @param _hook The post-dispatch hook contract.
-     *    @param _interchainSecurityModule The interchain security module contract.
-     *    @param _owner The this contract.
+       @param _interchainSecurityModule The interchain security module contract.
+       @param _owner The this contract.
      */
     function initialize(
         address _hook,

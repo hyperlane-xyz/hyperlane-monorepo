@@ -8,7 +8,7 @@ import { ChainMap } from '../types.js';
 const TokenConfigSchema = z.object({
   protocolType: z.nativeEnum(ProtocolType),
   type: z.nativeEnum(TokenType),
-  hypAddress: z.string(), // HypERC20Collateral, HypERC20Synthetic, HypNativeCollateralToken address
+  hypAddress: z.string(), // HypERC20Collateral, HypERC20Synthetic, HypNativeToken address
   tokenAddress: z.string().optional(), // external token address needed for collateral type eg tokenAddress.balanceOf(hypAddress)
   tokenCoinGeckoId: z.string().optional(), // CoinGecko id for token
   name: z.string(),
