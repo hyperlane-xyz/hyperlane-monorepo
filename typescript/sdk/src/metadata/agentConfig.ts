@@ -57,6 +57,7 @@ export enum AgentSealevelPriorityFeeOracleType {
 }
 
 export enum AgentSealevelHeliusFeeLevel {
+  Recommended = 'recommended',
   Min = 'min',
   Low = 'low',
   Medium = 'medium',

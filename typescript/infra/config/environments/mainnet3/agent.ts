@@ -370,8 +370,8 @@ const sealevelPriorityFeeOracleConfigGetter = (
   if (chain === 'solanamainnet') {
     return {
       type: AgentSealevelPriorityFeeOracleType.Helius,
-      feeLevel: AgentSealevelHeliusFeeLevel.Medium,
-      // URL is populated by the external secrets in the helm chart
+      feeLevel: AgentSealevelHeliusFeeLevel.Recommended,
+      // URL is auto populated by the external secrets in the helm chart
       url: '',
     };
   }
@@ -520,7 +520,6 @@ const hyperlane: RootAgentConfig = {
     gasPaymentEnforcement: gasPaymentEnforcement,
     metricAppContextsGetter,
     resources: relayerResources,
-    // blacklist: [...warpRouteMatchingList('WIF/eclipsemainnet-solanamainnet')],
   },
   validators: {
     docker: {
