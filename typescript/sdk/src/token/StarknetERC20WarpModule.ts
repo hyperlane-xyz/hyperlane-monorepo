@@ -2,6 +2,7 @@ import { Signer } from 'ethers';
 import { Account, byteArray, getChecksumAddress } from 'starknet';
 
 import { TokenType } from '@hyperlane-xyz/sdk';
+import { ContractType } from '@hyperlane-xyz/starknet-core';
 import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { StarknetDeployer } from '../deploy/StarknetDeployer.js';
@@ -54,16 +55,20 @@ export class StarknetERC20WarpModule {
       });
       switch (type) {
         case TokenType.synthetic: {
-          const tokenAddress = await deployer.deployContract('HypErc20', {
-            decimals: tokenMetadata.decimals,
-            mailbox: mailbox,
-            total_supply: tokenMetadata.totalSupply,
-            name: [byteArray.byteArrayFromString(tokenMetadata.name)],
-            symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
-            hook: getChecksumAddress(0),
-            interchain_security_module: ismAddress,
-            owner: account.address, //TODO: use config.owner, and in warp init ask for starknet owner
-          });
+          const tokenAddress = await deployer.deployContract(
+            'HypErc20',
+            {
+              decimals: tokenMetadata.decimals,
+              mailbox: mailbox,
+              total_supply: tokenMetadata.totalSupply,
+              name: [byteArray.byteArrayFromString(tokenMetadata.name)],
+              symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
+              hook: getChecksumAddress(0),
+              interchain_security_module: ismAddress,
+              owner: account.address, //TODO: use config.owner, and in warp init ask for starknet owner
+            },
+            ContractType.TOKEN,
+          );
           addresses[chain] = tokenAddress;
           break;
         }

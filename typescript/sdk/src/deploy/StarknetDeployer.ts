@@ -8,6 +8,7 @@ import {
 } from 'starknet';
 
 import {
+  ContractType,
   getCompiledContract,
   getCompiledContractCasm,
 } from '@hyperlane-xyz/starknet-core';
@@ -35,11 +36,12 @@ export class StarknetDeployer {
   async deployContract(
     contractName: string,
     constructorArgs: RawArgs,
+    contractType?: ContractType,
   ): Promise<string> {
     this.logger.info(`Deploying contract ${contractName}...`);
 
-    const compiledContract = getCompiledContract(contractName);
-    const casm = getCompiledContractCasm(contractName);
+    const compiledContract = getCompiledContract(contractName, contractType);
+    const casm = getCompiledContractCasm(contractName, contractType);
     const constructorCalldata = CallData.compile(constructorArgs);
 
     const params: ContractFactoryParams = {
