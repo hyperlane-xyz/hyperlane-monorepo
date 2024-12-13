@@ -67,12 +67,8 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
         bytes calldata metadata,
         bytes calldata message
     ) internal view override returns (uint256) {
-        bytes memory metadataWithGasLimit = metadata.overrideGasLimit(
-            MIN_GAS_LIMIT
-        );
         return
-            metadata.msgValue(0) +
-            childHook.quoteDispatch(metadataWithGasLimit, message);
+            metadata.msgValue(0) + childHook.quoteDispatch(metadata, message);
     }
 
     // ============ Internal functions ============
@@ -87,12 +83,9 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
             (message.id(), metadata.msgValue(0))
         );
 
-        bytes memory metadataWithGasLimit = metadata.overrideGasLimit(
-            MIN_GAS_LIMIT
-        );
         childHook.postDispatch{
-            value: childHook.quoteDispatch(metadataWithGasLimit, message)
-        }(metadataWithGasLimit, message);
+            value: childHook.quoteDispatch(metadata, message)
+        }(metadata, message);
         l2Messenger.sendMessage{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload,

@@ -5,23 +5,23 @@ import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {HypTokenTest} from "./HypERC20.t.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
 import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
-import {HypNative} from "../../contracts/token/HypNative.sol";
+import {HypNativeCollateral} from "../../contracts/token/HypNativeCollateral.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {TestIsm} from "../../contracts/test/TestIsm.sol";
 
-contract HypNativeTest is HypTokenTest {
+contract HypNativeCollateralTest is HypTokenTest {
     using TypeCasts for address;
 
-    HypNative internal localValueRouter;
-    HypNative internal remoteValueRouter;
+    HypNativeCollateral internal localValueRouter;
+    HypNativeCollateral internal remoteValueRouter;
     TestPostDispatchHook internal valueHook;
     TestIsm internal ism;
 
     function setUp() public override {
         super.setUp();
 
-        localValueRouter = new HypNative(address(localMailbox));
-        remoteValueRouter = new HypNative(address(remoteMailbox));
+        localValueRouter = new HypNativeCollateral(address(localMailbox));
+        remoteValueRouter = new HypNativeCollateral(address(remoteMailbox));
 
         localToken = TokenRouter(payable(address(localValueRouter)));
         remoteToken = HypERC20(payable(address(remoteValueRouter)));
