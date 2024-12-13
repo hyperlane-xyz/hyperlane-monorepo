@@ -53,14 +53,15 @@ export class GcpStorageWrapper {
   }
 
   private async fetchMetadata(key: string): Promise<any> {
-    const url = `${this.baseUrl}/${encodeURIComponent(key)}`;
-    const response = await fetch(url);
+    const url = new URL(`${this.baseUrl}/${encodeURIComponent(key)}`);
+    const response = await fetch(url.toString());
 
     if (response.status === 404) return undefined;
 
     if (!response.ok) {
+      const responseText = await response.text();
       throw new Error(
-        `Failed to fetch object metadata: ${response.statusText}`,
+        `Failed to fetch object metadata: ${response.statusText}. ${responseText}`,
       );
     }
 
@@ -70,12 +71,15 @@ export class GcpStorageWrapper {
   private async fetchContent(key: string): Promise<string> {
     const url = `${this.baseUrl}/${encodeURIComponent(key)}?alt=media`;
     const response = await fetch(url);
+    const responseText = await response.text();
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch object content: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch object content: ${response.statusText}. ${responseText}`,
+      );
     }
 
-    return response.text();
+    return responseText;
   }
 
   async getObject<T>(key: string): Promise<StorageReceipt<T> | undefined> {
