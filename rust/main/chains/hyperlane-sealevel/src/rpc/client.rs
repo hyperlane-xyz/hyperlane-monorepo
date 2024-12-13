@@ -233,8 +233,10 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    // Standalone logic stolen from Solana's non-blocking client,
-    // decoupled from the sending of a transaction.
+    /// Polls the RPC until the transaction is confirmed or the blockhash
+    /// expires.
+    /// Standalone logic stolen from Solana's non-blocking client,
+    /// decoupled from the sending of a transaction.
     pub async fn wait_for_transaction_confirmation(
         &self,
         transaction: &impl SerializableTransaction,
@@ -440,7 +442,7 @@ impl SealevelRpcClient {
     }
 
     /// Creates a transaction for a given instruction, compute unit limit, and compute unit price.
-    /// If `blockhash` is `None`, the latest blockhash is fetched from the RPC.
+    /// If `sign` is true, the transaction will be signed.
     pub async fn create_transaction_for_instruction(
         &self,
         compute_unit_limit: u32,
@@ -463,8 +465,11 @@ impl SealevelRpcClient {
         ];
 
         let tx = if sign {
+            // Getting the finalized blockhash eliminates the chance the blockhash
+            // gets reorged out, causing the tx to be invalid. The tradeoff is this
+            // will cause the tx to expire in about 47 seconds (instead of the typical 60).
             let recent_blockhash = self
-                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
 

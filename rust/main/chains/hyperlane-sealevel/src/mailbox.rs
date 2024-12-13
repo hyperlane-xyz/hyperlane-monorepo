@@ -53,28 +53,6 @@ use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 const SYSTEM_PROGRAM: &str = "11111111111111111111111111111111";
 const SPL_NOOP: &str = "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV";
 
-// The max amount of compute units for a transaction.
-// TODO: consider a more sane value and/or use IGP gas payments instead.
-const PROCESS_COMPUTE_UNITS: u32 = 1_400_000;
-
-/// 0.0005 SOL, in lamports.
-/// A typical tx fee without a prioritization fee is 0.000005 SOL, or
-/// 5000 lamports. (Example: https://explorer.solana.com/tx/fNd3xVeBzFHeuzr8dXQxLGiHMzTeYpykSV25xWzNRaHtzzjvY9A3MzXh1ZsK2JncRHkwtuWrGEwGXVhFaUCYhtx)
-/// See average priority fees here https://solanacompass.com/statistics/fees
-/// to inform what to spend here.
-const PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX: u64 = 500000;
-
-/// In micro-lamports. Multiply this by the compute units to figure out
-/// the additional cost of processing a message, in addition to the mandatory
-/// "base" cost of signature verification.
-/// Unused at the moment, but kept for future reference.
-#[allow(dead_code)]
-const PROCESS_COMPUTE_UNIT_PRICE_MICRO_LAMPORTS: u64 =
-    // Convert to micro-lamports
-    (PROCESS_DESIRED_PRIORITIZATION_FEE_LAMPORTS_PER_TX * 1_000_000)
-    // Divide by the max compute units
-    / PROCESS_COMPUTE_UNITS as u64;
-
 // Earlier versions of collateral warp routes were deployed off a version where the mint
 // was requested as a writeable account for handle instruction. This is not necessary,
 // and generally requires a higher priority fee to be paid.

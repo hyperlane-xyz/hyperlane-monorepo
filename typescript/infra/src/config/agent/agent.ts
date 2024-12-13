@@ -99,6 +99,9 @@ export interface SealevelAgentConfig {
   ) => AgentSealevelTransactionSubmitter;
 }
 
+// An ugly way to mark a URL as a the secret Helius URL when Helm templating
+export const HELIUS_SECRET_URL_MARKER = 'helius';
+
 // incomplete common agent configuration for a role
 interface AgentRoleConfig {
   // K8s-specific

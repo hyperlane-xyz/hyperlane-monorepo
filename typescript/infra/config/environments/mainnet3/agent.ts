@@ -12,6 +12,7 @@ import {
 
 import {
   AgentChainConfig,
+  HELIUS_SECRET_URL_MARKER,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
@@ -388,7 +389,8 @@ const sealevelTransactionSubmitterConfigGetter = (
   // Special case for Solana mainnet
   if (chain === 'solanamainnet') {
     return {
-      type: AgentSealevelTransactionSubmitterType.Jito,
+      type: AgentSealevelTransactionSubmitterType.Rpc,
+      url: HELIUS_SECRET_URL_MARKER,
     };
   }
 
@@ -548,7 +550,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '0b61be6-20241211-051755',
+      tag: 'b98678c-20241213-043725',
     },
     // We're temporarily (ab)using the RC relayer as a way to increase
     // message throughput.
