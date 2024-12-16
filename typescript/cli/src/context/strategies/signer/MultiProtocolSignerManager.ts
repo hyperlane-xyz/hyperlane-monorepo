@@ -106,7 +106,7 @@ export class MultiProtocolSignerManager {
         throw new Error(`No private key found for chain ${chain}`);
       }
       config.privateKey = strategyConfig.privateKey;
-      config.userAddress = strategyConfig.address;
+      config.userAddress = strategyConfig.userAddress;
     }
 
     const { protocol } = this.multiProvider.getChainMetadata(chain);
@@ -158,7 +158,7 @@ export class MultiProtocolSignerManager {
   async initAllSigners(): Promise<typeof this.signers> {
     const signerConfigs = await this.resolveAllConfigs();
 
-    for (const { chain, privateKey, address } of signerConfigs) {
+    for (const { chain, privateKey, userAddress } of signerConfigs) {
       const signerStrategy = this.signerStrategies.get(chain);
       if (signerStrategy) {
         const { protocol } = this.multiProvider.getChainMetadata(chain);
@@ -169,7 +169,7 @@ export class MultiProtocolSignerManager {
             chain,
             signerStrategy.getSigner({
               privateKey,
-              address,
+              userAddress,
               extraParams: { provider },
             }),
           );
@@ -250,7 +250,7 @@ export class MultiProtocolSignerManager {
       strategyConfig.privateKey,
       `No private key found for chain ${chain}`,
     );
-    assert(strategyConfig.address, 'No Starknet Address found');
+    assert(strategyConfig.userAddress, 'No Starknet Address found');
     assert(provider, 'No Starknet Provider found');
 
     this.logger.info(`Using strategy config for Starknet chain ${chain}`);
@@ -258,7 +258,7 @@ export class MultiProtocolSignerManager {
     return {
       chain,
       privateKey: strategyConfig.privateKey,
-      address: strategyConfig.address,
+      userAddress: strategyConfig.userAddress,
       extraParams: { provider },
     };
   }

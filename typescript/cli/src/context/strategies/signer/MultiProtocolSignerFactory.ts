@@ -100,18 +100,18 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
         message: `Please enter the signer address for chain ${chain}`,
       }));
 
-    return { privateKey, address };
+    return { privateKey, userAddress: address };
   }
 
   getSigner({
     privateKey,
-    address,
+    userAddress,
     extraParams,
   }: SignerConfig): StarknetAccount {
     assert(
-      address && extraParams?.provider,
+      userAddress && extraParams?.provider,
       'Missing StarknetAccount arguments',
     );
-    return new StarknetAccount(extraParams.provider, address, privateKey);
+    return new StarknetAccount(extraParams.provider, userAddress, privateKey);
   }
 }
