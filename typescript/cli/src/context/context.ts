@@ -14,28 +14,20 @@ import {
   ChainName,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
+import { isHttpsUrl, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_STRATEGY_CONFIG_PATH } from '../commands/options.js';
 import { isSignCommand } from '../commands/signCommands.js';
 import { safeReadChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
-import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
-import { logBlue } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
-import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
+import { getSigner } from '../utils/keys.js';
 
 import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
 import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
-import {
-  CommandContext,
-  ContextSettings,
-  WriteCommandContext,
-} from './types.js';
+import { CommandContext, ContextSettings } from './types.js';
 
 export async function contextMiddleware(argv: Record<string, any>) {
-  const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
     registryUri: argv.registry,
@@ -47,14 +39,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     skipConfirmation: argv.yes,
     strategyPath: argv.strategy,
   };
-  if (!isDryRun && settings.fromAddress)
-    throw new Error(
-      "'--from-address' or '-f' should only be used for dry-runs",
-    );
-  const context = isDryRun
-    ? await getDryRunContext(settings, argv.dryRun)
-    : await getContext(settings);
-  argv.context = context;
+  argv.context = await getContext(settings);
 }
 
 export async function signerMiddleware(argv: Record<string, any>) {
@@ -128,56 +113,6 @@ export async function getContext({
     skipConfirmation: !!skipConfirmation,
     signerAddress,
   } as CommandContext;
-}
-
-/**
- * Retrieves dry-run context for the user-selected command
- * @returns dry-run context for the current command
- */
-export async function getDryRunContext(
-  {
-    registryUri,
-    registryOverrideUri,
-    key,
-    fromAddress,
-    skipConfirmation,
-    disableProxy = false,
-  }: ContextSettings,
-  chain?: ChainName,
-): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
-  const chainMetadata = await registry.getMetadata();
-
-  if (!chain) {
-    if (skipConfirmation) throw new Error('No chains provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to dry-run against:',
-    );
-  }
-
-  logBlue(`Dry-running against chain: ${chain}`);
-  await verifyAnvil();
-
-  let multiProvider = await getMultiProvider(registry);
-  multiProvider = await forkNetworkToMultiProvider(multiProvider, chain);
-  const { impersonatedKey, impersonatedSigner } = await getImpersonatedSigner({
-    fromAddress,
-    key,
-    skipConfirmation,
-  });
-  multiProvider.setSharedSigner(impersonatedSigner);
-
-  return {
-    registry,
-    chainMetadata: multiProvider.metadata,
-    key: impersonatedKey,
-    signer: impersonatedSigner,
-    multiProvider: multiProvider,
-    skipConfirmation: !!skipConfirmation,
-    isDryRun: true,
-    dryRunChain: chain,
-  } as WriteCommandContext;
 }
 
 /**

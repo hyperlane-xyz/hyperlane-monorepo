@@ -184,17 +184,14 @@ async function executeDeploy(
 
   const {
     warpDeployConfig,
-    context: { multiProvider, isDryRun, dryRunChain },
+    context: { multiProvider },
   } = params;
 
   const deployer = warpDeployConfig.isNft
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
 
-  const config: WarpRouteDeployConfig =
-    isDryRun && dryRunChain
-      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
-      : warpDeployConfig;
+  const config: WarpRouteDeployConfig = warpDeployConfig;
 
   const contractVerifier = new ContractVerifier(
     multiProvider,

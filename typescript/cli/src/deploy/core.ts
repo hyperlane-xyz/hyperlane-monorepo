@@ -15,7 +15,6 @@ import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
 import {
@@ -39,28 +38,11 @@ interface ApplyParams extends DeployParams {
  * Executes the core deploy command.
  */
 export async function runCoreDeploy(params: DeployParams) {
-  const { context, config } = params;
-  let chain = params.chain;
+  const { chain, context, config } = params;
 
-  const {
-    isDryRun,
-    chainMetadata,
-    dryRunChain,
-    registry,
-    skipConfirmation,
-    multiProvider,
-  } = context;
+  const { isDryRun, chainMetadata, registry, skipConfirmation, multiProvider } =
+    context;
 
-  // Select a dry-run chain if it's not supplied
-  if (dryRunChain) {
-    chain = dryRunChain;
-  } else if (!chain) {
-    if (skipConfirmation) throw new Error('No chain provided');
-    chain = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select chain to connect:',
-    );
-  }
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
