@@ -9,21 +9,17 @@ import {
 } from './ethersV5/types.js';
 
 export const SubmitterMetadataSchema = z.discriminatedUnion('type', [
-  z.object({
+  EV5JsonRpcTxSubmitterPropsSchema.extend({
     type: z.literal(TxSubmitterType.JSON_RPC),
-    ...EV5JsonRpcTxSubmitterPropsSchema.shape,
   }),
-  z.object({
+  EV5ImpersonatedAccountTxSubmitterPropsSchema.extend({
     type: z.literal(TxSubmitterType.IMPERSONATED_ACCOUNT),
-    ...EV5ImpersonatedAccountTxSubmitterPropsSchema.shape,
   }),
-  z.object({
+  EV5GnosisSafeTxSubmitterPropsSchema.extend({
     type: z.literal(TxSubmitterType.GNOSIS_SAFE),
-    ...EV5GnosisSafeTxSubmitterPropsSchema.shape,
   }),
-  z.object({
+  EV5GnosisSafeTxBuilderPropsSchema.extend({
     type: z.literal(TxSubmitterType.GNOSIS_TX_BUILDER),
-    ...EV5GnosisSafeTxBuilderPropsSchema.shape,
   }),
 ]);
 

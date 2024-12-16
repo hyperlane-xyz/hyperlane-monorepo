@@ -15,8 +15,7 @@ import { EV5JsonRpcTxSubmitter } from './EV5JsonRpcTxSubmitter.js';
 import { EV5ImpersonatedAccountTxSubmitterProps } from './types.js';
 
 export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
-  public readonly txSubmitterType: TxSubmitterType =
-    TxSubmitterType.IMPERSONATED_ACCOUNT;
+  public readonly txSubmitterType = TxSubmitterType.IMPERSONATED_ACCOUNT;
 
   protected readonly logger: Logger = rootLogger.child({
     module: 'impersonated-account-submitter',
@@ -32,12 +31,14 @@ export class EV5ImpersonatedAccountTxSubmitter extends EV5JsonRpcTxSubmitter {
   public async submit(
     ...txs: AnnotatedEV5Transaction[]
   ): Promise<TransactionReceipt[]> {
+    const provider = this.multiProvider.jsonRpcProvider(this.props.chain);
     const impersonatedAccount = await impersonateAccount(
+      provider,
       this.props.userAddress,
     );
-    this.multiProvider.setSharedSigner(impersonatedAccount);
+    this.multiProvider.setSigner(this.props.chain, impersonatedAccount);
     const transactionReceipts = await super.submit(...txs);
-    await stopImpersonatingAccount(this.props.userAddress);
+    await stopImpersonatingAccount(provider, this.props.userAddress);
     return transactionReceipts;
   }
 }

@@ -5,9 +5,7 @@ import { Address } from '@hyperlane-xyz/utils';
 import { ChainName } from '../../../../types.js';
 
 import {
-  EV5GnosisSafeTxSubmitterProps,
   EV5GnosisSafeTxSubmitterPropsSchema,
-  EV5ImpersonatedAccountTxSubmitterProps,
   EV5ImpersonatedAccountTxSubmitterPropsSchema,
 } from './types.js';
 
@@ -19,7 +17,7 @@ describe('ethersV5 submitter props schemas', () => {
 
   describe('EV5GnosisSafeTxSubmitterPropsSchema', () => {
     it('should parse valid props', () => {
-      const validProps: EV5GnosisSafeTxSubmitterProps = {
+      const validProps = {
         chain: CHAIN_MOCK,
         safeAddress: ADDRESS_MOCK,
       };
@@ -39,7 +37,7 @@ describe('ethersV5 submitter props schemas', () => {
 
   describe('EV5ImpersonatedAccountTxSubmitterPropsSchema', () => {
     it('should parse valid props', () => {
-      const validProps: EV5ImpersonatedAccountTxSubmitterProps = {
+      const validProps = {
         chain: CHAIN_MOCK,
         userAddress: ADDRESS_MOCK,
       };
@@ -49,7 +47,7 @@ describe('ethersV5 submitter props schemas', () => {
     });
 
     it('should fail parsing invalid props', () => {
-      const invalidProps: EV5ImpersonatedAccountTxSubmitterProps = {
+      const invalidProps = {
         chain: CHAIN_MOCK,
         userAddress: INVALID_ADDRESS,
       };

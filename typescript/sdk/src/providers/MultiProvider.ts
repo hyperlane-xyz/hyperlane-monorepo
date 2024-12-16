@@ -1,3 +1,4 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
 import {
   BigNumber,
   ContractFactory,
@@ -416,6 +417,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
+  }
+
+  jsonRpcProvider(chainNameOrId: ChainNameOrId): JsonRpcProvider {
+    const metadata = this.getChainMetadata(chainNameOrId);
+    return new JsonRpcProvider(metadata.rpcUrls[0].http);
   }
 
   /**
