@@ -43,7 +43,7 @@ export const keyFunderConfig: KeyFunderConfig<
     formtestnet: '0.1',
     fuji: '5',
     holesky: '5',
-    // hyperliquidevmtestnet: '0.1',
+    hyperliquidevmtestnet: '0.1',
     inksepolia: '0.1',
     odysseytestnet: '0.1',
     optimismsepolia: '0.1',
