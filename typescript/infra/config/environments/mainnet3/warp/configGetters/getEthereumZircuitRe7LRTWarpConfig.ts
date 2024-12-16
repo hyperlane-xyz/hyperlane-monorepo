@@ -25,9 +25,6 @@ export const getEthereumZircuitRe7LRTWarpConfig = async (
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     owner: Re7Safes.ethereum,
-    proxyAdmin: {
-      owner: Re7Safes.ethereum,
-    },
     type: TokenType.collateral,
     token: tokens.ethereum.Re7LRT,
     interchainSecurityModule: ISM_CONFIG,
@@ -36,9 +33,6 @@ export const getEthereumZircuitRe7LRTWarpConfig = async (
   const zircuit: HypTokenRouterConfig = {
     ...routerConfig.zircuit,
     owner: Re7Safes.zircuit,
-    proxyAdmin: {
-      owner: Re7Safes.zircuit,
-    },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
