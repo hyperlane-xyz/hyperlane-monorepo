@@ -295,9 +295,11 @@ export async function getWarpRouteIdInteractive() {
 
 // Interactively gets multiple warp route IDs
 export async function getWarpRouteIdsInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
+  const choices = Object.values(WarpRouteIds)
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
 
   let selection: WarpRouteIds[] = [];
 
