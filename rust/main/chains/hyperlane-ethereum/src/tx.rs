@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,6 +10,7 @@ use ethers::{
     types::{Block, Eip1559TransactionRequest, TxHash},
 };
 use ethers_contract::builders::ContractCall;
+use ethers_core::types::H160;
 use ethers_core::{
     types::{BlockNumber, U256 as EthersU256},
     utils::{
@@ -50,6 +52,7 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 }
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
+const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
 /// Dispatches a transaction, logs the tx id, and returns the result
 pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
@@ -247,7 +250,18 @@ async fn zksync_estimate_fee<M>(
 where
     M: Middleware + 'static,
 {
-    let result = provider.provider().request("zks_estimateFee", [tx]).await?;
+    let mut tx = tx.clone();
+    tx.set_from(
+        // use the sender in the provider if one is set, otherwise default to the EVM relayer address
+        provider
+            .default_sender()
+            .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
+    );
+
+    let result = provider
+        .provider()
+        .request("zks_estimateFee", [tx.clone()])
+        .await?;
     tracing::debug!(?result, ?tx, "Successfully fetched zkSync fee estimate");
     Ok(result)
 }
@@ -344,7 +358,8 @@ mod test {
         let provider = Arc::new(Provider::new(http));
         // Test tx to call `nonce()` on the Treasure mailbox
         let tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
-            from: Some(Address::from_str("0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5").unwrap()),
+            // the `from` field is None in prod, and gas estimation should be robust to this
+            from: None,
             to: Some(NameOrAddress::Address(
                 Address::from_str("0x6bD0A2214797Bc81e0b006F7B74d6221BcD8cb6E").unwrap(),
             )),
