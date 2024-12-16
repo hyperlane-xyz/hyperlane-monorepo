@@ -346,5 +346,41 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "arthera": {
+    "validators": ["0x13710ac11c36c169f62fba95767ae59a1e57098d"]
+  },
+  "aurora": {
+    "validators": ["0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86"]
+  },
+  "conflux": {
+    "validators": ["0x113dfa1dc9b0a2efb6ad01981e2aad86d3658490"]
+  },
+  "conwai": {
+    "validators": ["0x949e2cdd7e79f99ee9bbe549540370cdc62e73c3"]
+  },
+  "corn": {
+    "validators": ["0xc80b2e3e38220e02d194a0effa9d5bfe89894c07"]
+  },
+  "evmos": {
+    "validators": ["0x8f82387ad8b7b13aa9e06ed3f77f78a77713afe0"]
+  },
+  "form": {
+    "validators": ["0x58554b2e76167993b5fc000d0070a2f883cd333a"]
+  },
+  "fractal": {
+    "validators": ["0x3476c9652d3371bb01bbb4962516fffee5e73754"]
+  },
+  "ink": {
+    "validators": ["0xb533b8b104522958b984fb258e0684dec0f1a6a5"]
+  },
+  "soneium": {
+    "validators": ["0xd4b7af853ed6a2bfc329ecef545df90c959cbee8"]
+  },
+  "sonic": {
+    "validators": ["0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7"]
+  },
+  "telos": {
+    "validators": ["0xcb08410b14d3adf0d0646f0c61cd07e0daba8e54"]
   }
 }
