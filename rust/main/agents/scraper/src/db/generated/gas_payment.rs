@@ -11,14 +11,16 @@ impl EntityName for Entity {
     }
 }
 
+/// @NOTE: Replaced all occurrences of `Decimal` with `BigDecimal`
+/// due to the following issue: https://github.com/SeaQL/sea-orm/issues/1530
 #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel, Eq)]
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
     pub domain: i32,
     pub msg_id: Vec<u8>,
-    pub payment: Decimal,
-    pub gas_amount: Decimal,
+    pub payment: BigDecimal,
+    pub gas_amount: BigDecimal,
     pub tx_id: i64,
     pub log_index: i64,
     pub origin: i32,
@@ -57,8 +59,8 @@ impl PrimaryKeyTrait for PrimaryKey {
 
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {
-    Domain,
-    Origin,
+    Domain2,
+    Domain1,
     Transaction,
 }
 
@@ -76,9 +78,7 @@ impl ColumnTrait for Column {
             Self::LogIndex => ColumnType::BigInteger.def(),
             Self::Origin => ColumnType::Integer.def(),
             Self::Destination => ColumnType::Integer.def(),
-            Self::InterchainGasPaymaster => {
-                ColumnType::Binary(sea_orm::sea_query::BlobSize::Blob(None)).def()
-            }
+            Self::InterchainGasPaymaster => ColumnType::VarBinary(StringLen::None).def(),
             Self::Sequence => ColumnType::BigInteger.def().null(),
         }
     }
@@ -87,11 +87,11 @@ impl ColumnTrait for Column {
 impl RelationTrait for Relation {
     fn def(&self) -> RelationDef {
         match self {
-            Self::Domain => Entity::belongs_to(super::domain::Entity)
+            Self::Domain2 => Entity::belongs_to(super::domain::Entity)
                 .from(Column::Domain)
                 .to(super::domain::Column::Id)
                 .into(),
-            Self::Origin => Entity::belongs_to(super::domain::Entity)
+            Self::Domain1 => Entity::belongs_to(super::domain::Entity)
                 .from(Column::Origin)
                 .to(super::domain::Column::Id)
                 .into(),
@@ -100,12 +100,6 @@ impl RelationTrait for Relation {
                 .to(super::transaction::Column::Id)
                 .into(),
         }
-    }
-}
-
-impl Related<super::domain::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Domain.def()
     }
 }
 

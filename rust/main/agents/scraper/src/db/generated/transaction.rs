@@ -11,22 +11,24 @@ impl EntityName for Entity {
     }
 }
 
+/// @NOTE: Replaced all occurrences of `Decimal` with `BigDecimal`
+/// due to the following issue: https://github.com/SeaQL/sea-orm/issues/1530
 #[derive(Clone, Debug, PartialEq, DeriveModel, DeriveActiveModel, Eq)]
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
     pub hash: Vec<u8>,
     pub block_id: i64,
-    pub gas_limit: Decimal,
-    pub max_priority_fee_per_gas: Option<Decimal>,
-    pub max_fee_per_gas: Option<Decimal>,
-    pub gas_price: Option<Decimal>,
-    pub effective_gas_price: Option<Decimal>,
+    pub gas_limit: BigDecimal,
+    pub max_priority_fee_per_gas: Option<BigDecimal>,
+    pub max_fee_per_gas: Option<BigDecimal>,
+    pub gas_price: Option<BigDecimal>,
+    pub effective_gas_price: Option<BigDecimal>,
     pub nonce: i64,
     pub sender: Vec<u8>,
     pub recipient: Option<Vec<u8>>,
-    pub gas_used: Decimal,
-    pub cumulative_gas_used: Decimal,
+    pub gas_used: BigDecimal,
+    pub cumulative_gas_used: BigDecimal,
     pub raw_input_data: Option<Vec<u8>>,
 }
 
