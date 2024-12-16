@@ -1413,6 +1413,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  rivalz: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   rootstockmainnet: {
     threshold: 2,
     validators: [

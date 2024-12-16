@@ -319,6 +319,10 @@
     "amount": "0.00010005",
     "decimals": 9
   },
+  "rivalz": {
+    "amount": "0.01",
+    "decimals": 9
+  },
   "rootstockmainnet": {
     "amount": "0.07",
     "decimals": 9

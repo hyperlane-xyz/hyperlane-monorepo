@@ -81,6 +81,7 @@ export const mainnet3SupportedChainNames = [
   'rarichain',
   'real',
   'redstone',
+  'rivalz',
   'rootstockmainnet',
   'sanko',
   'scroll',

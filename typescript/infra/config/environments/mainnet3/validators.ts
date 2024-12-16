@@ -1375,5 +1375,15 @@ export const validatorChainConfig = (
         'telos',
       ),
     },
+    rivalz: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('rivalz'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1'],
+        },
+        'rivalz',
+      ),
+    },
   };
 };

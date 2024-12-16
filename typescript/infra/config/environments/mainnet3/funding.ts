@@ -102,6 +102,7 @@ export const keyFunderConfig: KeyFunderConfig<
     rarichain: '0.05',
     real: '0.1',
     redstone: '0.2',
+    rivalz: '0.05',
     rootstockmainnet: '0.002',
     sanko: '2',
     scroll: '0.5',
