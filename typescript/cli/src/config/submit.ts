@@ -4,10 +4,10 @@ import {
   AnnotatedEV5Transaction,
   SubmissionStrategy,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, errorToString } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
-import { logGray, logRed } from '../logger.js';
+import { logGray } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
   indentYamlOrJson,
@@ -39,21 +39,13 @@ export async function runSubmit({
     multiProvider,
   });
 
-  try {
-    const transactionReceipts = await submitterBuilder.submit(...transactions);
-    if (transactionReceipts) {
-      logGray(
-        '🧾 Transaction receipts:\n\n',
-        indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
-      );
-      writeYamlOrJson(receiptsFilepath, transactionReceipts, 'yaml');
-    }
-  } catch (error) {
-    logRed(
-      `⛔️ Failed to submit ${transactions.length} transactions:`,
-      errorToString(error),
+  const transactionReceipts = await submitterBuilder.submit(...transactions);
+  if (transactionReceipts) {
+    logGray(
+      '🧾 Transaction receipts:\n\n',
+      indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
     );
-    throw new Error('Failed to submit transactions.');
+    writeYamlOrJson(receiptsFilepath, transactionReceipts, 'yaml');
   }
 }
 
