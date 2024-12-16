@@ -29,6 +29,13 @@ struct LastIndexedSnapshot {
     pub at_block: u32,
 }
 
+/// Used to avoid going over the `instrument` macro limit.
+#[derive(Debug, Clone)]
+struct MetricsData {
+    pub domain: HyperlaneDomain,
+    pub metrics: Arc<CursorMetrics>,
+}
+
 impl LastIndexedSnapshot {
     fn next_target(&self) -> TargetSnapshot {
         TargetSnapshot {
@@ -70,8 +77,6 @@ pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,
     last_direction: SyncDirection,
-    metrics: Arc<CursorMetrics>,
-    domain: HyperlaneDomain,
 }
 
 impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
@@ -92,6 +97,10 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
         let sequence_count = sequence_count.ok_or(ChainCommunicationError::from_other_str(
             "Failed to query sequence",
         ))?;
+        let metrics_data = MetricsData {
+            domain: domain.to_owned(),
+            metrics,
+        };
         let forward_cursor = ForwardSequenceAwareSyncCursor::new(
             chunk_size,
             latest_sequence_querier.clone(),
@@ -99,50 +108,21 @@ impl<T: Debug + Indexable + Clone + Sync + Send + 'static>
             sequence_count,
             tip,
             mode,
+            metrics_data.clone(),
         );
-        let backward_cursor =
-            BackwardSequenceAwareSyncCursor::new(chunk_size, store, sequence_count, tip, mode);
+        let backward_cursor = BackwardSequenceAwareSyncCursor::new(
+            chunk_size,
+            store,
+            sequence_count,
+            tip,
+            mode,
+            metrics_data,
+        );
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,
             last_direction: SyncDirection::Forward,
-            metrics,
-            domain: domain.to_owned(),
         })
-    }
-
-    async fn update_metrics(&self) {
-        let (cursor_type, latest_block, sequence) = match self.last_direction {
-            SyncDirection::Forward => (
-                "forward_sequenced",
-                self.forward.latest_queried_block(),
-                self.forward.last_sequence(),
-            ),
-            SyncDirection::Backward => (
-                "backward_sequenced",
-                self.backward.latest_queried_block(),
-                self.backward.last_sequence(),
-            ),
-        };
-
-        let chain_name = self.domain.name();
-        let label_values = &[T::name(), chain_name, cursor_type];
-
-        self.metrics
-            .cursor_current_block
-            .with_label_values(label_values)
-            .set(latest_block as i64);
-
-        self.metrics
-            .cursor_current_sequence
-            .with_label_values(label_values)
-            .set(sequence as i64);
-
-        let max_sequence = self.forward.target_sequence().await as i64;
-        self.metrics
-            .cursor_max_sequence
-            .with_label_values(&[T::name(), chain_name])
-            .set(max_sequence);
     }
 }
 
@@ -176,7 +156,6 @@ impl<T: Send + Sync + Clone + Debug + 'static + Indexable> ContractSyncCursor<T>
         logs: Vec<(Indexed<T>, LogMeta)>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
-        self.update_metrics().await;
         match self.last_direction {
             SyncDirection::Forward => self.forward.update(logs, range).await,
             SyncDirection::Backward => self.backward.update(logs, range).await,
