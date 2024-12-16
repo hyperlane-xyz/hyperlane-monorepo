@@ -35,7 +35,7 @@ export class StarknetERC20WarpModule {
     const addresses: ChainMap<string> = {};
     for (const [
       chain,
-      { mailbox, interchainSecurityModule, type },
+      { mailbox, interchainSecurityModule, type, ...rest },
     ] of Object.entries(this.config)) {
       //Ignore non-starknet chains
       if (
@@ -84,7 +84,19 @@ export class StarknetERC20WarpModule {
         }
 
         case TokenType.collateral: {
-          addresses[chain] = '';
+          const tokenAddress = await deployer.deployContract(
+            'HypErc20Collateral',
+            {
+              mailbox: mailbox,
+              // @ts-ignore
+              erc20: rest.token,
+              owner: account.address, //TODO: use config.owner, and in warp init ask for starknet owner
+              hook: getChecksumAddress(0),
+              interchain_security_module: ismAddress,
+            },
+            ContractType.TOKEN,
+          );
+          addresses[chain] = tokenAddress;
           break;
         }
         default:

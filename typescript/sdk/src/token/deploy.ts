@@ -203,7 +203,6 @@ abstract class TokenDeployer<
           const name = shortString.decodeShortString(nameResult['']);
           const symbol = shortString.decodeShortString(symbolResult['']);
           const decimals = Number(decimalsResult['']); // Convert BigInt to number
-          console.log(name, symbol, decimals);
           return TokenMetadataSchema.parse({
             name,
             symbol,
