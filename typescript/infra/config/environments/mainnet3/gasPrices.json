@@ -32,7 +32,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.101",
+    "amount": "0.263",
     "decimals": 9
   },
   "aurora": {
@@ -132,7 +132,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "30.088451558",
+    "amount": "32.059172476",
     "decimals": 9
   },
   "everclear": {
@@ -172,7 +172,7 @@
     "decimals": 9
   },
   "gnosis": {
-    "amount": "1.02500001",
+    "amount": "1.500000007",
     "decimals": 9
   },
   "gravity": {
@@ -292,7 +292,7 @@
     "decimals": 9
   },
   "polygonzkevm": {
-    "amount": "0.451",
+    "amount": "0.48",
     "decimals": 9
   },
   "polynomialfi": {
@@ -300,7 +300,7 @@
     "decimals": 9
   },
   "prom": {
-    "amount": "51.9",
+    "amount": "128.0",
     "decimals": 9
   },
   "proofofplay": {
@@ -388,7 +388,7 @@
     "decimals": 9
   },
   "treasure": {
-    "amount": "875.480798355",
+    "amount": "1601.935300783",
     "decimals": 9
   },
   "unichain": {
@@ -412,7 +412,7 @@
     "decimals": 9
   },
   "xlayer": {
-    "amount": "23.05",
+    "amount": "23.5",
     "decimals": 9
   },
   "zeronetwork": {
