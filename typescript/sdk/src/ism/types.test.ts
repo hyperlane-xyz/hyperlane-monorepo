@@ -1,8 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { AggregationIsmConfigSchema } from './schemas.js';
-import { IsmType } from './types.js';
+import { AggregationIsmConfigSchema, IsmType } from './types.js';
 
 const SOME_ADDRESS = ethers.Wallet.createRandom().address;
 describe('AggregationIsmConfigSchema refine', () => {

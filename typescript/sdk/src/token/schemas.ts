@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { GasRouterConfigSchema } from '../router/schemas.js';
+import { GasRouterConfigSchema } from '../router/types.js';
 import { isCompliant } from '../utils/schemas.js';
 
 import { TokenType } from './config.js';

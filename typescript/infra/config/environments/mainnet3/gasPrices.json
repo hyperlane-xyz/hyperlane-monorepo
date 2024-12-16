@@ -63,6 +63,10 @@
     "amount": "1.0",
     "decimals": 9
   },
+  "bsquared": {
+    "amount": "0.001000252",
+    "decimals": 9
+  },
   "celo": {
     "amount": "10.0",
     "decimals": 9
@@ -176,6 +180,10 @@
     "decimals": 9
   },
   "lumia": {
+    "amount": "1.0",
+    "decimals": 9
+  },
+  "lumiaprism": {
     "amount": "1.0",
     "decimals": 9
   },
@@ -309,6 +317,10 @@
   },
   "superpositionmainnet": {
     "amount": "0.01",
+    "decimals": 9
+  },
+  "swell": {
+    "amount": "0.001000251",
     "decimals": 9
   },
   "taiko": {

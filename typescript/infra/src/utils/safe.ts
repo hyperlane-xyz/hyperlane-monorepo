@@ -161,6 +161,31 @@ export async function deleteAllPendingSafeTxs(
   );
 }
 
+export async function getSafeTx(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  safeTxHash: string,
+): Promise<any> {
+  const txServiceUrl =
+    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+
+  // Fetch the transaction details to get the proposer
+  const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+  const txDetailsResponse = await fetch(txDetailsUrl, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!txDetailsResponse.ok) {
+    console.error(
+      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+    );
+    return;
+  }
+
+  return txDetailsResponse.json();
+}
+
 export async function deleteSafeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,

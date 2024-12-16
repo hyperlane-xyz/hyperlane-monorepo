@@ -8,6 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { tokens } from '../../../../../src/config/warp.js';
+import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 export const getEclipseEthereumSolanaUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfig>,
@@ -16,7 +17,7 @@ export const getEclipseEthereumSolanaUSDCWarpConfig = async (
     ...routerConfig.eclipsemainnet,
     type: TokenType.synthetic,
     foreignDeployment: 'D6k6T3G74ij6atCtBiWBs5TbFa1hFVcrFUSGZHuV7q3Z',
-    gas: 300_000,
+    gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
   };
 
   const ethereum: TokenRouterConfig = {
