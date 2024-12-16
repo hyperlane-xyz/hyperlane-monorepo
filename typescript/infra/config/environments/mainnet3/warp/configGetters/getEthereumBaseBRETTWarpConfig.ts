@@ -1,6 +1,11 @@
 import { ethers } from 'ethers';
 
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  HypTokenRouterConfig,
+  OwnableConfig,
+  TokenType,
+} from '@hyperlane-xyz/sdk';
 
 import {
   RouterConfigWithoutOwner,
@@ -12,9 +17,11 @@ const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
 export const getBaseZeronetworkBrettConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
+  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
+    ...abacusWorksEnvOwnerConfig.base,
     owner: DEPLOYER,
     type: TokenType.collateral,
     token: tokens.base.brett,
@@ -23,6 +30,7 @@ export const getBaseZeronetworkBrettConfig = async (
 
   const zeronetwork: HypTokenRouterConfig = {
     ...routerConfig.zeronetwork,
+    ...abacusWorksEnvOwnerConfig.zeronetwork,
     owner: DEPLOYER,
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
