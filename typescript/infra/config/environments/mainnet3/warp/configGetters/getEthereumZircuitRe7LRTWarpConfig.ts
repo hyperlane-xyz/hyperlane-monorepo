@@ -26,7 +26,6 @@ export const getEthereumZircuitRe7LRTWarpConfig = async (
     ...routerConfig.ethereum,
     owner: Re7Safes.ethereum,
     proxyAdmin: {
-      // address: '0xcC7Af7f4f6CC90aD2f29165EE7Ff5F1a8c191b68',
       owner: Re7Safes.ethereum,
     },
     type: TokenType.collateral,
@@ -38,7 +37,6 @@ export const getEthereumZircuitRe7LRTWarpConfig = async (
     ...routerConfig.zircuit,
     owner: Re7Safes.zircuit,
     proxyAdmin: {
-      // address: '0x7790eD173FF80D0730e25ef7E792A2B13Ef5630e',
       owner: Re7Safes.zircuit,
     },
     type: TokenType.synthetic,
