@@ -171,11 +171,15 @@ pub enum KnownHyperlaneDomain {
     SolanaMainnet = 1399811149,
     Taiko = 167000,
     Tangle = 5845,
+    Treasure = 61166,
     Viction = 88,
     Worldchain = 480,
     Xai = 660279,
     Xlayer = 196,
     Zetachain = 7000,
+    Zeronetwork = 543210,
+    Zklink = 810180,
+    Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
 
@@ -192,6 +196,7 @@ pub enum KnownHyperlaneDomain {
 
     // -- Test chains --
     //
+    Abstracttestnet = 11124,
     Alfajores = 44787,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
@@ -203,6 +208,7 @@ pub enum KnownHyperlaneDomain {
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SuperpositionTestnet = 98985,
+    Treasuretopaz = 978658,
 }
 
 #[derive(Clone, Serialize)]
@@ -383,7 +389,9 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainTechnicalStack::PolkadotSubstrate: [
                 Moonbeam, Tangle
             ],
-            HyperlaneDomainTechnicalStack::ZkSync: [],
+            HyperlaneDomainTechnicalStack::ZkSync: [
+                Abstracttestnet, Treasure, Treasuretopaz, Zeronetwork, Zklink, Zksync,
+            ],
             HyperlaneDomainTechnicalStack::Other: [
                 Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
                 FuseMainnet, Gnosis, Injective, Linea, Lukso, Neutron, Osmosis, Polygon,
