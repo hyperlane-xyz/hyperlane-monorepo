@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::time::Duration;
+use std::{ops::Mul, sync::Arc};
 
 use ethers::{
     abi::Detokenize,
@@ -31,7 +31,7 @@ pub const GAS_ESTIMATE_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const GAS_ESTIMATE_MULTIPLIER_DENOMINATOR: u32 = 10;
 
 pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
-    // Arbitrum Nitro chains use 2d fees are are especially prone to costs increasing
+    // Arbitrum Nitro chains use 2d fees are especially prone to costs increasing
     // by the time the transaction lands on chain, requiring a higher gas limit.
     // In this case, we apply a multiplier to the gas estimate.
     let gas = if domain.is_arbitrum_nitro() {
@@ -68,8 +68,7 @@ where
         .cloned()
         .unwrap_or_else(|| NameOrAddress::Address(Default::default()));
 
-    info!(?to, %data, "Dispatching transaction");
-    // We can set the gas higher here!
+    info!(?to, %data, tx=?tx.tx, "Dispatching transaction");
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut
         .await?
@@ -155,7 +154,7 @@ where
     }
 
     let Ok((base_fee, max_fee, max_priority_fee)) =
-        estimate_eip1559_fees(provider, None, &latest_block).await
+        estimate_eip1559_fees(provider, None, &latest_block, domain).await
     else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
@@ -211,6 +210,7 @@ async fn estimate_eip1559_fees<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
     latest_block: &Block<TxHash>,
+    domain: &HyperlaneDomain,
 ) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
 where
     M: Middleware + 'static,
@@ -235,7 +235,21 @@ where
         eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
     };
 
-    Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
+    let gas_price_multiplier = chain_specific_gas_price_multiplier(domain);
+    Ok((
+        base_fee_per_gas.mul(gas_price_multiplier),
+        max_fee_per_gas.mul(gas_price_multiplier),
+        max_priority_fee_per_gas.mul(gas_price_multiplier),
+    ))
+}
+
+fn chain_specific_gas_price_multiplier(domain: &HyperlaneDomain) -> u32 {
+    match domain.id() {
+        // treasure (mainnet) and treasuretopaz (testnet) have a gas price multiplier of 2,
+        // as the gas estimation underestimates the actual gas price.
+        61166 | 978658 => 2,
+        _ => 1,
+    }
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
