@@ -11,7 +11,6 @@ import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { DEPLOYER } from '../../owners.js';
 
 const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
 
@@ -22,7 +21,6 @@ export const getBaseZeronetworkMigglesConfig = async (
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
     ...abacusWorksEnvOwnerConfig.base,
-    owner: DEPLOYER,
     type: TokenType.collateral,
     token: tokens.base.miggles,
     interchainSecurityModule: ISM_CONFIG,
@@ -31,7 +29,6 @@ export const getBaseZeronetworkMigglesConfig = async (
   const zeronetwork: HypTokenRouterConfig = {
     ...routerConfig.zeronetwork,
     ...abacusWorksEnvOwnerConfig.zeronetwork,
-    owner: DEPLOYER,
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
