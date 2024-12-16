@@ -26,6 +26,9 @@ import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/c
 import { getEclipseEthereumWeEthsWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWeETHsWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
+import { getBaseZeronetworkBrettConfig } from './environments/mainnet3/warp/configGetters/getEthereumBaseBRETTWarpConfig.js';
+import { getBaseZeronetworkJackieChainWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBaseJCWarpConfig.js';
+import { getBaseZeronetworkMigglesConfig } from './environments/mainnet3/warp/configGetters/getEthereumBaseMIGGLESWarpConfig.js';
 import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBscLumiaLUMIAWarpConfig.js';
 import { getEthereumFlowCbBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFlowCbBTCWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
@@ -70,6 +73,9 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
   [WarpRouteIds.EclipseEthereumWeETHs]: getEclipseEthereumWeEthsWarpConfig,
   [WarpRouteIds.BaseZeroNetworkCBBTC]: getBaseZeroNetworkCBBTCWarpConfig,
+  [WarpRouteIds.BaseZeroNetworkBRETT]: getBaseZeronetworkBrettConfig,
+  [WarpRouteIds.BaseZeroNetworkMIGGLES]: getBaseZeronetworkMigglesConfig,
+  [WarpRouteIds.BaseZeronetworkJC]: getBaseZeronetworkJackieChainWarpConfig,
   [WarpRouteIds.ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT]:
     getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC]:
