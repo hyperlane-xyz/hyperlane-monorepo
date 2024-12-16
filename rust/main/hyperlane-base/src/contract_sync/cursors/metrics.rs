@@ -10,7 +10,7 @@ pub struct CursorMetrics {
     /// Labels:
     /// - `event_type`: the event type the cursor is indexing. Could be anything implementing `Indexable`.
     /// - `chain`: Chain the cursor is collecting data from.
-    /// - `cursor_type`: The type of cursor. E.g. `forward_sequenced`, `backward_sequenced`, `forward_rate_limited` or `backward_rate_limited`.
+    /// - `cursor_type`: The type of cursor. E.g. `forward_sequenced`, `backward_sequenced`, `forward_rate_limited`.
     pub cursor_current_block: IntGaugeVec,
 
     /// Current sequence of the cursor.
@@ -18,7 +18,7 @@ pub struct CursorMetrics {
     /// Labels:
     /// - `event_type`: the event type the cursor is indexing. Could be anything implementing `Indexable`.
     /// - `chain`: Chain the cursor is collecting data from.
-    /// - `cursor_type`: The type of cursor. E.g. `forward_sequenced`, `backward_sequenced`, `forward_rate_limited` or `backward_rate_limited`.
+    /// - `cursor_type`: The type of cursor. E.g. `forward_sequenced`, `backward_sequenced`, `forward_rate_limited`.
     pub cursor_current_sequence: IntGaugeVec,
 
     /// Max sequence of the cursor.
