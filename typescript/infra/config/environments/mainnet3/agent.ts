@@ -487,6 +487,10 @@ const blacklistedMessageIds = [
   '0x47d60c21abefae928d1c16c5a33cd5a8fcf870cf533c71ab6db49d75a5c4a215',
   '0xa2df671fbd4b518c282f9a21e2677fa2a05af33f96ccc9ff113f1a1ffa557667',
   '0x1cefa98b6d937333e452a0dbc0654e13416c228682837a8913cb18d612b307dd',
+
+  // MAGIC/ethereum-treasure native funding txs
+  '0x9d51f4123be816cbaeef2e2b34a5760f633a7cb8a019fe16f88a3227cc22451e',
+  '0x663c221137028ceeeb102a98e48b362a7b48d626b93c88c7fdf1871a948b1223',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -503,7 +507,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'c351026-20241212-172408',
+      tag: '4779a19-20241213-212818',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -538,7 +542,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4cb2c9a-20241205-142854',
+      tag: 'e6fdcc4-20241213-124201',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

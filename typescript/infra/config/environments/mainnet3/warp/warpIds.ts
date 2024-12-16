@@ -22,6 +22,8 @@ export enum WarpRouteIds {
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
   EthereumSeiFastUSD = 'FASTUSD/ethereum-sei',
+  EthereumVanaETH = 'ETH/ethereum-vana',
+  EthereumVanaVANA = 'VANA/ethereum-vana',
   EthereumVictionETH = 'ETH/ethereum-viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
