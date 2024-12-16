@@ -1,8 +1,8 @@
 import {
   ChainMap,
+  HypTokenRouterConfig,
   MultiProvider,
   OwnableConfig,
-  TokenRouterConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
@@ -43,7 +43,7 @@ import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 type WarpConfigGetter = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-) => Promise<ChainMap<TokenRouterConfig>>;
+) => Promise<ChainMap<HypTokenRouterConfig>>;
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
@@ -53,7 +53,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
   [WarpRouteIds.ArbitrumNeutronEclip]: getArbitrumNeutronEclipWarpConfig,
   [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
-  [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiTaikoZircuitEZETH]:
+  [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.EthereumFlowCbBTC]: getEthereumFlowCbBTCWarpConfig,
@@ -61,7 +61,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
-  [WarpRouteIds.EthereumZircuitPZETH]: getRenzoPZETHWarpConfig,
+  [WarpRouteIds.EthereumSwellZircuitPZETH]: getRenzoPZETHWarpConfig,
   [WarpRouteIds.EthereumBscLumiaLUMIA]: getEthereumBscLUMIAWarpConfig,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EclipseEthereumApxEth]: getEclipseEthereumApxEthWarpConfig,
@@ -84,7 +84,7 @@ export async function getWarpConfig(
   multiProvider: MultiProvider,
   envConfig: EnvironmentConfig,
   warpRouteId: string,
-): Promise<ChainMap<TokenRouterConfig>> {
+): Promise<ChainMap<HypTokenRouterConfig>> {
   const routerConfig = await getRouterConfigsForAllVms(
     envConfig,
     multiProvider,

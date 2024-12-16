@@ -69,7 +69,7 @@ contract ArbL2ToL1Ism is
             _verifyWithOutboxCall(metadata, message);
             require(isVerified(message), "ArbL2ToL1Ism: message not verified");
         }
-        releaseValueToRecipient(message);
+        _releaseValueToRecipient(message);
         return true;
     }
 

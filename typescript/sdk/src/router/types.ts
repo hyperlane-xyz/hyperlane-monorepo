@@ -14,8 +14,7 @@ import { CheckerViolation } from '../deploy/types.js';
 import { HookConfigSchema } from '../hook/types.js';
 import { IsmConfigSchema } from '../ism/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { DeployedOwnableSchema, OwnableSchema } from '../schemas.js';
-import { ChainMap } from '../types.js';
+import { ChainMap, DeployedOwnableSchema, OwnableSchema } from '../types.js';
 
 export type RouterAddress = {
   router: Address;
@@ -75,8 +74,10 @@ export const ForeignDeploymentConfigSchema = z.object({
   foreignDeployment: z.string().optional(),
 });
 
-const RemoteRouterDomain = z.string();
-const RemoteRouterRouter = z.string().startsWith('0x');
+export const RemoteRouterDomain = z.string();
+export const RemoteRouterRouter = z.object({
+  address: z.string().startsWith('0x'),
+});
 export const RemoteRoutersSchema = z.record(
   RemoteRouterDomain,
   RemoteRouterRouter,
