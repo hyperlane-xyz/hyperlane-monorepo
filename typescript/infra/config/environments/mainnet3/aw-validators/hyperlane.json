@@ -143,9 +143,6 @@
   "form": {
     "validators": ["0x58554b2e76167993b5fc000d0070a2f883cd333a"]
   },
-  "fractal": {
-    "validators": ["0x3476c9652d3371bb01bbb4962516fffee5e73754"]
-  },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
   },
@@ -295,6 +292,9 @@
   "redstone": {
     "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
   },
+  "rivalz": {
+    "validators": ["0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1"]
+  },
   "rootstockmainnet": {
     "validators": ["0x8675eb603d62ab64e3efe90df914e555966e04ac"]
   },
@@ -382,8 +382,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "rivalz": {
-    "validators": ["0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1"]
   }
 }

@@ -92,7 +92,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: true,
     flowmainnet: true,
     form: true,
-    fractal: true,
+    // fractal: false,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -204,7 +204,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: true,
     flowmainnet: true,
     form: true,
-    fractal: true,
+    // fractal: false,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -317,7 +317,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     flare: true,
     flowmainnet: true,
     form: true,
-    fractal: true,
+    // fractal: false,
     fraxtal: true,
     fusemainnet: true,
     gnosis: true,
@@ -546,7 +546,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4779a19-20241213-212818',
+      tag: 'd1bb448-20241216-173547',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -556,7 +556,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'a7f3967-20241205-163733',
+      tag: 'd1bb448-20241216-173547',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -566,7 +566,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4b280cd-20241206-130519',
+      tag: 'd1bb448-20241216-173547',
     },
     resources: scraperResources,
   },

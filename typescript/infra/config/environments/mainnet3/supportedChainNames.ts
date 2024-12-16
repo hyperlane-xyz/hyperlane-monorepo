@@ -41,7 +41,7 @@ export const mainnet3SupportedChainNames = [
   'flare',
   'flowmainnet',
   'form',
-  'fractal',
+  // 'fractal',
   'fraxtal',
   'fusemainnet',
   'gnosis',

@@ -1325,16 +1325,6 @@ export const validatorChainConfig = (
         'form',
       ),
     },
-    fractal: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('fractal'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x3476c9652d3371bb01bbb4962516fffee5e73754'],
-        },
-        'fractal',
-      ),
-    },
     ink: {
       interval: 5,
       reorgPeriod: getReorgPeriod('ink'),
@@ -1383,6 +1373,17 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1'],
         },
         'rivalz',
+      ),
+    },
+
+    fractal: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('fractal'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3476c9652d3371bb01bbb4962516fffee5e73754'],
+        },
+        'fractal',
       ),
     },
   };
