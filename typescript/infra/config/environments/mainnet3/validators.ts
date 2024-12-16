@@ -1376,15 +1376,15 @@ export const validatorChainConfig = (
       ),
     },
 
-    fractal: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('fractal'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x3476c9652d3371bb01bbb4962516fffee5e73754'],
-        },
-        'fractal',
-      ),
-    },
+    // fractal: {
+    //   interval: 5,
+    //   reorgPeriod: getReorgPeriod('fractal'),
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: ['0x3476c9652d3371bb01bbb4962516fffee5e73754'],
+    //     },
+    //     'fractal',
+    //   ),
+    // },
   };
 };
