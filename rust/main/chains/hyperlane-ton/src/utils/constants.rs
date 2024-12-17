@@ -1,0 +1,1 @@
+pub const WORKCHAIN_MASTERCHAIN: i32 = -1;

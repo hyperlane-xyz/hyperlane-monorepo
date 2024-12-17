@@ -6442,6 +6442,22 @@
       "index": {
         "from": 7286869
       }
+    },
+    "ton": {
+      "name": "ton",
+      "tonApiCenter": [
+        {
+          "http": "https://toncenter.com/api/v3/",
+          "apiToken": "YOUR_API_TOKEN_HERE"
+        }
+      ],
+      "nativeToken": {
+        "name": "Toncoin",
+        "symbol": "TON",
+        "decimals": 9
+      },
+      "chainId": 0,
+      "isTestnet": false
     }
   },
   "defaultRpcConsensusType": "fallback"
