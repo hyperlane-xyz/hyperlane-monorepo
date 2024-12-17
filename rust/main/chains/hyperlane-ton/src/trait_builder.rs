@@ -1,4 +1,5 @@
 use std::time::Duration;
+
 use url::Url;
 
 #[derive(Clone, Debug)]

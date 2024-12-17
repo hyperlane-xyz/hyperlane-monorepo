@@ -41,10 +41,10 @@ cosmwasm-schema.workspace = true
 secp256k1="0.30"
 url = "2.5.2"
 log.workspace = true
-
+tonlib-core.workspace = true
 reqwest = { workspace = true, version = "0.11", features = ["json"] }
 env_logger = "0.9.3"
-tonlib-core = "0.22.2"
+
 
 [build-dependencies]
 anyhow = { workspace = true }

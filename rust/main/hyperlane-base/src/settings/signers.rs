@@ -16,7 +16,7 @@ use super::aws_credentials::AwsChainCredentialsProvider;
 use crate::types::utils;
 
 /// Signer types
-#[derive(Default, Debug, Clone)] /////
+#[derive(Default, Debug, Clone)]
 pub enum SignerConf {
     /// A local hex key
     HexKey {

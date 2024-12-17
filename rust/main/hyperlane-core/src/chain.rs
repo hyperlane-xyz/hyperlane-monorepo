@@ -291,7 +291,7 @@ impl HyperlaneDomainProtocol {
             Fuel => format!("{:?}", addr),
             Sealevel => format!("{:?}", addr),
             Cosmos => format!("{:?}", addr),
-            Ton => format!("{:?}", addr), // need check
+            Ton => format!("{:?}", addr),
         }
     }
 }

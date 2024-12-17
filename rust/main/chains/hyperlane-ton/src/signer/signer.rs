@@ -1,12 +1,13 @@
 use anyhow::Error;
 use base64::{engine::general_purpose, Engine};
-use hyperlane_core::ChainCommunicationError;
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell},
     mnemonic::{KeyPair, Mnemonic},
     wallet::{TonWallet, WalletVersion},
     TonAddress,
 };
+
+use hyperlane_core::ChainCommunicationError;
 
 #[derive(Clone)]
 pub struct TonSigner {
@@ -24,6 +25,7 @@ impl TonSigner {
             wallet,
         })
     }
+
     pub fn from_mnemonic(
         mnemonic_phrase: Vec<String>,
         wallet_version: WalletVersion,

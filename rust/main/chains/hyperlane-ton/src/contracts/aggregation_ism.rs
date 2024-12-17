@@ -1,11 +1,12 @@
-use crate::client::provider::TonProvider;
-use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
+use tonlib_core::TonAddress;
+
 use hyperlane_core::{
     AggregationIsm, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, H256,
 };
-use tonlib_core::TonAddress;
+
+use crate::{client::provider::TonProvider, utils::conversion::ConversionUtils};
 
 #[derive(Debug)]
 pub struct TonAggregationIsm {

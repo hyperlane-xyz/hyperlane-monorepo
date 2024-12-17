@@ -75,7 +75,7 @@ impl Indexable for MerkleTreeInsertion {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
-            HyperlaneDomainProtocol::Ton => CursorType::SequenceAware, // need check
+            HyperlaneDomainProtocol::Ton => CursorType::SequenceAware,
         }
     }
 

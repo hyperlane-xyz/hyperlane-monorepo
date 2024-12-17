@@ -711,10 +711,13 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
-            ChainConnectionConf::Ton(_) => {
+            ChainConnectionConf::Ton(conf) => {
+                let provider =
+                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+
                 let address =
                     ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
-                let indexer = Box::new(TonMerkleTreeHookIndexer::new(address)?);
+                let indexer = Box::new(TonMerkleTreeHookIndexer::new(address, provider)?);
 
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }

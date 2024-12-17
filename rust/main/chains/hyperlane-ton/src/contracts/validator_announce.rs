@@ -1,25 +1,27 @@
-use crate::client::provider::TonProvider;
-use crate::signer::signer::TonSigner;
-use crate::traits::ton_api_center::TonApiCenter;
-use crate::utils::conversion::ConversionUtils;
-use async_trait::async_trait;
-use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Signable, SignedType, TxOutcome, ValidatorAnnounce, H256,
-    U256,
+use std::{
+    fmt::{Debug, Formatter},
+    time::SystemTime,
 };
 
-use crate::run_get_method::StackItem;
-use base64::engine::general_purpose;
-use base64::Engine;
-use log::{info, warn};
+use async_trait::async_trait;
+use base64::{engine::general_purpose, Engine};
+use log::info;
 use num_bigint::BigUint;
-use std::fmt::{Debug, Formatter};
-use std::time::SystemTime;
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
     message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
     TonAddress,
+};
+
+use hyperlane_core::{
+    Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
+};
+
+use crate::{
+    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackItem,
+    signer::signer::TonSigner, traits::ton_api_center::TonApiCenter,
+    utils::conversion::ConversionUtils,
 };
 
 pub struct TonValidatorAnnounce {
@@ -120,21 +122,23 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        info!(
-            "get_announced_storage_locations call! validators:{:?}",
-            validators
-        );
         let function_name = "get_announced_storage_locations".to_string();
         let validators_cell =
-            ConversionUtils::create_address_linked_cells(&validators).map_err(|_| {
-                ChainCommunicationError::CustomError(
-                    "Failed to create address linked cells".to_string(),
-                )
+            ConversionUtils::create_address_linked_cells(&validators).map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to create address linked cells {:?}",
+                    e
+                )))
             })?;
 
         let boc = BagOfCells::from_root(validators_cell)
             .serialize(true)
-            .map_err(|_e| ChainCommunicationError::CustomError(_e.to_string()))?;
+            .map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to create boc from root cell {:?}",
+                    e
+                )))
+            })?;
         let boc_str = general_purpose::STANDARD.encode(&boc);
 
         let stack = Some(vec![StackItem {
@@ -146,67 +150,68 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             .provider
             .run_get_method(self.address.to_hex(), function_name, stack)
             .await
-            .map_err(|_e| {
-                warn!("Failed to run get method");
-                ChainCommunicationError::CustomError(_e.to_string())
+            .map_err(|e| {
+                HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to run get_nonce method: {:?}",
+                    e
+                ))
             })?;
 
         if response.exit_code != 0 {
-            return Err(ChainCommunicationError::CustomError(format!(
-                "Non-zero exit code in response: {}",
-                response.exit_code
-            )));
+            return Err(ChainCommunicationError::from(
+                HyperlaneTonError::ApiRequestFailed("Non-zero exit code in response".to_string()),
+            ));
         }
 
-        if let Some(stack_item) = response.stack.get(0) {
-            let cell_boc_decoded = general_purpose::STANDARD
-                .decode(&stack_item.value)
-                .map_err(|_| {
-                    ChainCommunicationError::CustomError(
-                        "Failed to decode cell BOC from response".to_string(),
-                    )
-                })?;
+        let stack_item = response.stack.get(0).ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(
+                "Response stack is empty or missing required item".to_string(),
+            ))
+        })?;
 
-            let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|_e| {
-                ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", _e))
+        let cell_boc_decoded = general_purpose::STANDARD
+            .decode(&stack_item.value)
+            .map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to decode cell BOC from response{:?}",
+                    e
+                )))
             })?;
 
-            let cell = boc.single_root().map_err(|_e| {
-                ChainCommunicationError::CustomError(format!("Failed to get root cell: {}", _e))
+        let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse BOC: {}",
+                e
+            )))
+        })?;
+
+        let cell = boc.single_root().map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to get root cell: {}",
+                e
+            )))
+        })?;
+
+        let storage_locations =
+            ConversionUtils::parse_address_storage_locations(&cell).map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to parse address storage locations: {}",
+                    e
+                )))
             })?;
 
-            let storage_locations = ConversionUtils::parse_address_storage_locations(&cell)
-                .map_err(|_e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to parse address storage locations: {}",
-                        _e
-                    ))
-                })?;
-            info!("storage_locations:{:?}", storage_locations);
-
-            let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
-            info!("locations_vec:{:?}", locations_vec);
-            Ok(locations_vec)
-        } else {
-            Ok(vec![vec![]])
-        }
+        let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
+        Ok(locations_vec)
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        info!("announce call!");
-        info!(
-            "announcement value:{:?} signature:{:?}",
-            announcement.value, announcement.signature
-        );
+        let cell = self.build_announcement_cell(announcement).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to build announcement cell {:?}",
+                e
+            )))
+        })?;
 
-        info!(
-            "eth_signed_message_hash:{:x}",
-            announcement.value.eth_signed_message_hash()
-        );
-        info!("signing_hash:{:x}", announcement.value.signing_hash());
-        let cell = self
-            .build_announcement_cell(announcement)
-            .map_err(|_e| ChainCommunicationError::CustomError(_e))?;
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
             ihr_disabled: false,
             bounce: true,
@@ -225,7 +230,12 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             data: Some(ArcCell::new(cell.clone())),
         }
         .build()
-        .expect("Failed create transfer message");
+        .map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::TonMessageError(format!(
+                "Failed to create transfer message in announce: {:?}",
+                e
+            )))
+        })?;
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Failed to build duration_since")
@@ -235,8 +245,19 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             .provider
             .get_wallet_states(self.signer.address.to_hex())
             .await
-            .expect("Failed to get wallet state")
-            .wallets[0]
+            .map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to get wallet state: {:?}",
+                    e
+                )))
+            })?
+            .wallets
+            .get(0)
+            .ok_or_else(|| {
+                ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                    "No wallet found".to_string(),
+                ))
+            })?
             .seqno as u32;
 
         let message = self
@@ -249,27 +270,31 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
                 false,
             )
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
+                ChainCommunicationError::from(HyperlaneTonError::TonMessageError(format!(
                     "Failed to create external message:{:?}",
                     e
-                ))
+                )))
             })?;
         info!("Message cell in announce:{:?}", message);
 
         let boc = BagOfCells::from_root(message.clone())
             .serialize(true)
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to get boc from root:{:?}", e))
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to serialize BOC in announce: {:?}",
+                    e
+                )))
             })?;
 
         let boc_str = general_purpose::STANDARD.encode(boc.clone());
         tracing::info!("create_external_message:{:?}", boc_str);
 
-        let tx = self
-            .provider
-            .send_message(boc_str)
-            .await
-            .expect("Failed to get tx");
+        let tx = self.provider.send_message(boc_str).await.map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                "Failed to send message in provider: {:?}",
+                e
+            )))
+        })?;
         tracing::info!("Tx hash:{:?}", tx.message_hash);
 
         self.provider.wait_for_transaction(tx.message_hash).await

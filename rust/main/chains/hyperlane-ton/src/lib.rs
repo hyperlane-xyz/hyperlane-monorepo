@@ -1,7 +1,7 @@
 //! Implementation of hyperlane for Ton.
-
 mod client;
 mod contracts;
+mod error;
 pub mod signer;
 mod trait_builder;
 mod traits;
@@ -18,5 +18,5 @@ pub use self::{
     trait_builder::*,
     traits::*,
     types::*,
-    utils::conversion::*,
+    utils::{constants, conversion::*},
 };

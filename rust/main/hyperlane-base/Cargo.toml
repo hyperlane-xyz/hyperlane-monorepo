@@ -60,7 +60,7 @@ hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-ton = {path = "../chains/hyperlane-ton"}
 
 reqwest.workspace = true
-tonlib-core = "0.22.2"
+tonlib-core.workspace = true
 
 # dependency version is determined by etheres
 rusoto_core = "*"

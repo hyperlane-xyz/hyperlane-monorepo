@@ -1,11 +1,12 @@
-use crate::client::provider::TonProvider;
-use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
+use tonlib_core::TonAddress;
+
 use hyperlane_core::{
     ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
     HyperlaneProvider, RoutingIsm, H256,
 };
-use tonlib_core::TonAddress;
+
+use crate::{client::provider::TonProvider, utils::conversion::ConversionUtils};
 
 #[derive(Debug)]
 /// A reference to a RoutingIsm contract on some TON chain

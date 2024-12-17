@@ -1,35 +1,21 @@
-#![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    thread::sleep,
+    time::Duration,
+};
 
-use crate::logging::log;
-use crate::program::Program;
-use crate::utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle};
-
-use crate::ton::types::{generate_ton_config, TonAgentConfig};
 use log::info;
 use macro_rules_attribute::apply;
-use std::path::{Path, PathBuf};
-use std::thread::sleep;
-use std::time::Duration;
-use std::{env, fs};
 use tempfile::tempdir;
-mod deploy;
+
+use crate::{
+    logging::log,
+    program::Program,
+    ton::types::{generate_ton_config, TonAgentConfig},
+    utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
+};
 mod types;
-
-const KEY_VALIDATOR1: (&str, &str) = (
-    "validator1",
-    "trend inflict kit vehicle gown route never damage spawn moon host tissue \
-                     section drink creek erupt comic future link neutral seek nerve sugar degree",
-);
-const KEY_VALIDATOR2: (&str, &str) = (
-    "validator2",
-    "tell february meat pulp present shuffle round stove ginger kit like crack ill \
-                     fence village gain answer route discover egg quiz dignity ocean water",
-);
-const KEY_RELAYER: (&str, &str) = ("relayer", "coffee foster dentist begin spirit pioneer someone peace bleak story door wasp clerk invest safe negative junk bacon hollow banana nation impact crowd kitchen");
-
-fn default_keys<'a>() -> [(&'a str, &'a str); 3] {
-    [KEY_VALIDATOR1, KEY_VALIDATOR2, KEY_RELAYER]
-}
 
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
@@ -49,6 +35,7 @@ impl Drop for TonHyperlaneStack {
     }
 }
 
+#[allow(dead_code)]
 fn run_locally() {
     info!("Start run_locally() for Ton");
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
