@@ -22,6 +22,10 @@ export const getAppChainBaseUSDCWarpConfig = async (
   const appchain: HypTokenRouterConfig = {
     ...routerConfig.appchain,
     ...abacusWorksEnvOwnerConfig.appchain,
+    proxyAdmin: {
+      ...abacusWorksEnvOwnerConfig.appchain,
+      address: '0xa8ab7DF354DD5d4bCE5856b2b4E0863A3AaeEb44',
+    },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
@@ -29,6 +33,10 @@ export const getAppChainBaseUSDCWarpConfig = async (
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
     ...abacusWorksEnvOwnerConfig.base,
+    proxyAdmin: {
+      ...abacusWorksEnvOwnerConfig.base,
+      address: '0xeed4140d3a44fE81712eDFE04c3597cd217d2E61',
+    },
     type: TokenType.collateral,
     token: tokens.base.USDC,
     interchainSecurityModule: ISM_CONFIG,
