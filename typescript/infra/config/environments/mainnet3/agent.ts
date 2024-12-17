@@ -480,7 +480,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '20Gi',
+    memory: '15Gi',
   },
 };
 
@@ -546,7 +546,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '05e90bc-20241216-180035',
+      tag: '16d5869-20241217-160358',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -581,7 +581,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e6fdcc4-20241213-124201',
+      tag: '16d5869-20241217-160358',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
