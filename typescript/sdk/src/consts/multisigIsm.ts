@@ -176,6 +176,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  arthera: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x13710ac11c36c169f62fba95767ae59a1e57098d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   astar: {
     threshold: 2,
     validators: [
@@ -197,6 +207,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  aurora: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -431,11 +451,31 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  conflux: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x113dfa1dc9b0a2efb6ad01981e2aad86d3658490',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   connextsepolia: {
     threshold: 1,
     validators: [
       {
         address: '0xffbbec8c499585d80ef69eb613db624d27e089ab',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  conwai: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x949e2cdd7e79f99ee9bbe549540370cdc62e73c3',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -450,6 +490,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  corn: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xc80b2e3e38220e02d194a0effa9d5bfe89894c07',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -595,6 +645,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  evmos: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x8f82387ad8b7b13aa9e06ed3f77f78a77713afe0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   fantom: {
     threshold: 2,
     validators: [
@@ -658,11 +718,31 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  form: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x58554b2e76167993b5fc000d0070a2f883cd333a',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   formtestnet: {
     threshold: 1,
     validators: [
       {
         address: '0x72ad7fddf16d17ff902d788441151982fa31a7bc',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  fractal: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3476c9652d3371bb01bbb4962516fffee5e73754',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -823,6 +903,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0x9e551b6694bbd295d7d6e6a2540c7d41ce70a3b9',
         alias: 'Imperator',
+      },
+    ],
+  },
+
+  ink: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xb533b8b104522958b984fb258e0684dec0f1a6a5',
+        alias: AW_VALIDATOR_ALIAS,
       },
     ],
   },
@@ -1323,6 +1413,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  rivalz: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   rootstockmainnet: {
     threshold: 2,
     validators: [
@@ -1484,11 +1584,31 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  soneium: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xd4b7af853ed6a2bfc329ecef545df90c959cbee8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   soneiumtestnet: {
     threshold: 1,
     validators: [
       {
         address: '0x2e2101020ccdbe76aeda1c27823b0150f43d0c63',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  sonic: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
@@ -1637,6 +1757,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xe271ef9a6e312540f099a378865432fa73f26689',
         alias: 'Tangle',
+      },
+    ],
+  },
+
+  telos: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xcb08410b14d3adf0d0646f0c61cd07e0daba8e54',
+        alias: AW_VALIDATOR_ALIAS,
       },
     ],
   },
