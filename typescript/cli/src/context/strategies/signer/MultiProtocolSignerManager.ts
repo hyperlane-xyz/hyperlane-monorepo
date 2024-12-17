@@ -118,12 +118,12 @@ export class MultiProtocolSignerManager {
     let privateKey: string;
 
     if (this.options.key) {
-      this.logger.info(
+      this.logger.debug(
         `Using private key passed via CLI --key flag for chain ${chain}`,
       );
       privateKey = this.options.key;
     } else if (ENV.HYP_KEY) {
-      this.logger.info(`Using private key from .env for chain ${chain}`);
+      this.logger.debug(`Using private key from .env for chain ${chain}`);
       privateKey = ENV.HYP_KEY;
     } else {
       privateKey = await this.extractPrivateKey(chain, signerStrategy);
@@ -145,7 +145,7 @@ export class MultiProtocolSignerManager {
       `No private key found for chain ${chain}`,
     );
 
-    this.logger.info(
+    this.logger.debug(
       `Extracting private key from strategy config/user prompt for chain ${chain}`,
     );
     return strategyConfig.privateKey;
