@@ -312,6 +312,8 @@ where
         Ok(Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),
+                self.metrics.cursor_metrics.clone(),
+                self.domain(),
                 self.store.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
@@ -352,6 +354,8 @@ where
     ) -> Result<Box<dyn ContractSyncCursor<T>>> {
         Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
+                self.domain(),
+                self.metrics.cursor_metrics.clone(),
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,
