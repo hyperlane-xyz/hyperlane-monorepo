@@ -24,6 +24,37 @@ pub enum IndexMode {
     Sequence,
 }
 
+/// Indexing direction.
+#[derive(Copy, Debug, Default, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum IndexDirection {
+    /// Both directions: backward and forward
+    #[default]
+    Both,
+    /// Backward direction
+    Backward,
+    /// Forward direction
+    Forward,
+}
+
+impl IndexDirection {
+    /// Returns true if direction allows forward.
+    pub fn can_backward(&self) -> bool {
+        match self {
+            IndexDirection::Both | IndexDirection::Backward => true,
+            IndexDirection::Forward => false,
+        }
+    }
+
+    /// Returns true if direction allows backward.
+    pub fn can_forward(&self) -> bool {
+        match self {
+            IndexDirection::Both | IndexDirection::Forward => true,
+            IndexDirection::Backward => false,
+        }
+    }
+}
+
 /// Interface for an indexer.
 #[async_trait]
 #[auto_impl(&, Box, Arc,)]

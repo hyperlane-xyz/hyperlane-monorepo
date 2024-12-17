@@ -308,6 +308,7 @@ where
             from: watermark.unwrap_or(index_settings.from),
             chunk_size: index_settings.chunk_size,
             mode: index_settings.mode,
+            direction: index_settings.direction,
         };
         Ok(Box::new(
             RateLimitedContractSyncCursor::new(
@@ -356,6 +357,7 @@ where
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,
                 index_settings.mode,
+                index_settings.direction,
             )
             .await?,
         ))

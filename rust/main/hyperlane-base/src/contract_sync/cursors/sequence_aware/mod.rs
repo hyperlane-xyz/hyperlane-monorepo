@@ -1,12 +1,13 @@
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{fmt::Debug, ops::RangeInclusive, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use eyre::Result;
+
 use hyperlane_core::{
     ChainCommunicationError, ContractSyncCursor, CursorAction,
-    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
+    HyperlaneSequenceAwareIndexerStoreReader, IndexDirection, IndexMode, Indexed, LogMeta,
+    SequenceAwareIndexer,
 };
-use std::ops::RangeInclusive;
 
 mod backward;
 mod forward;
@@ -66,6 +67,7 @@ pub enum SyncDirection {
 pub(crate) struct ForwardBackwardSequenceAwareSyncCursor<T> {
     forward: ForwardSequenceAwareSyncCursor<T>,
     backward: BackwardSequenceAwareSyncCursor<T>,
+    index_direction: IndexDirection,
     last_direction: SyncDirection,
 }
 
@@ -76,6 +78,7 @@ impl<T: Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
         store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         chunk_size: u32,
         mode: IndexMode,
+        direction: IndexDirection,
     ) -> Result<Self> {
         let (sequence_count, tip) = latest_sequence_querier
             .latest_sequence_count_and_tip()
@@ -96,6 +99,7 @@ impl<T: Debug> ForwardBackwardSequenceAwareSyncCursor<T> {
         Ok(Self {
             forward: forward_cursor,
             backward: backward_cursor,
+            index_direction: direction,
             last_direction: SyncDirection::Forward,
         })
     }
@@ -109,15 +113,20 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
         // TODO: Proper ETA for backwards sync
         let eta = Duration::from_secs(0);
         // Prioritize forward syncing over backward syncing.
-        if let Some(forward_range) = self.forward.get_next_range().await? {
-            self.last_direction = SyncDirection::Forward;
-            return Ok((CursorAction::Query(forward_range), eta));
+        if self.index_direction.can_forward() {
+            if let Some(forward_range) = self.forward.get_next_range().await? {
+                self.last_direction = SyncDirection::Forward;
+                return Ok((CursorAction::Query(forward_range), eta));
+            }
         }
 
-        if let Some(backward_range) = self.backward.get_next_range().await? {
-            self.last_direction = SyncDirection::Backward;
-            return Ok((CursorAction::Query(backward_range), eta));
+        if self.index_direction.can_backward() {
+            if let Some(backward_range) = self.backward.get_next_range().await? {
+                self.last_direction = SyncDirection::Backward;
+                return Ok((CursorAction::Query(backward_range), eta));
+            }
         }
+
         // TODO: Define the sleep time from interval flag
         return Ok((CursorAction::Sleep(Duration::from_secs(5)), eta));
     }

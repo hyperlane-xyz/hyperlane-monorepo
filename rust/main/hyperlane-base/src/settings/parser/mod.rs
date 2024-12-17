@@ -19,7 +19,7 @@ use url::Url;
 use h_cosmos::RawCosmosAmount;
 use hyperlane_core::{
     cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode, ReorgPeriod,
+    HyperlaneDomainTechnicalStack, IndexDirection, IndexMode, ReorgPeriod,
 };
 
 use crate::settings::{
@@ -170,6 +170,12 @@ fn parse_chain(
                 })
                 .unwrap_or_default()
         });
+    let direction = chain
+        .chain(&mut err)
+        .get_opt_key("index")
+        .get_opt_key("direction")
+        .parse_value("Invalid index direction")
+        .unwrap_or(IndexDirection::Both);
 
     let mailbox = chain
         .chain(&mut err)
@@ -234,6 +240,7 @@ fn parse_chain(
             from,
             chunk_size,
             mode,
+            direction,
         },
     })
 }
