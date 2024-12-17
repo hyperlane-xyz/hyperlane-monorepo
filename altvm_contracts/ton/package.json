@@ -22,6 +22,7 @@
     "send:setv": "npx blueprint run sendSetValidatorsAndThreshold --mnemonic --testnet",
     "send:dispatch": "npx blueprint run sendDispatch --mnemonic --testnet"
   },
+  "type": "module",
   "devDependencies": {
     "@ton/blueprint": "^0.24.0",
     "@ton/core": "~0",

@@ -39,7 +39,8 @@
   },
   "workspaces": [
     "solidity",
-    "typescript/*"
+    "typescript/*",
+    "altvm_contracts/*"
   ],
   "resolutions": {
     "async": "^2.6.4",
