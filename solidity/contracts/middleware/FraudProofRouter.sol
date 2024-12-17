@@ -36,6 +36,12 @@ contract FraudProofRouter is GasRouter {
         Attribution attribution
     );
 
+    event LocalFraudProofReceived(
+        address indexed signer,
+        bytes32 indexed digest,
+        Attribution attribution
+    );
+
     event FraudProofReceived(
         uint32 indexed origin,
         address indexed signer,
@@ -84,23 +90,33 @@ contract FraudProofRouter is GasRouter {
 
         require(attribution.timestamp != 0, "Attribution does not exist");
 
-        bytes memory encodedMessage = FraudMessage.encode(
-            _signer,
-            _merkleTree,
-            _digest,
-            attribution
-        );
+        if (_destination == mailbox.localDomain()) {
+            fraudAttributions[_destination][_signer][_merkleTree][
+                _digest
+            ] = attribution;
 
-        emit FraudProofSent(_signer, _digest, attribution);
+            emit LocalFraudProofReceived(_signer, _digest, attribution);
 
-        return
-            _Router_dispatch(
-                _destination,
-                0,
-                encodedMessage,
-                "",
-                address(hook)
+            return bytes32(0);
+        } else {
+            bytes memory encodedMessage = FraudMessage.encode(
+                _signer,
+                _merkleTree,
+                _digest,
+                attribution
             );
+
+            emit FraudProofSent(_signer, _digest, attribution);
+
+            return
+                _Router_dispatch(
+                    _destination,
+                    0,
+                    encodedMessage,
+                    "",
+                    address(hook)
+                );
+        }
     }
 
     /**
