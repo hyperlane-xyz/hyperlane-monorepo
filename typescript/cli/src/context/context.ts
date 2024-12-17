@@ -106,6 +106,7 @@ export async function getContext({
   requiresKey,
   skipConfirmation,
   disableProxy = false,
+  strategyPath,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
@@ -127,6 +128,7 @@ export async function getContext({
     key,
     skipConfirmation: !!skipConfirmation,
     signerAddress,
+    strategyPath,
   } as CommandContext;
 }
 
