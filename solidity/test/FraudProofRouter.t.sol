@@ -129,4 +129,26 @@ contract FraudProofRouterTest is Test {
             DIGEST
         );
     }
+
+    function test_sendFraudProof_localDomain() public {
+        testAcf.mockSetAttribution(SIGNER, DIGEST, FraudType.Whitelist);
+
+        originFpr.sendFraudProof(
+            LOCAL_DOMAIN,
+            SIGNER,
+            TypeCasts.addressToBytes32(address(testMerkleHook)),
+            DIGEST
+        );
+
+        (FraudType actualFraudType, uint48 actualTimestamp) = originFpr
+            .fraudAttributions(
+                LOCAL_DOMAIN,
+                SIGNER,
+                TypeCasts.addressToBytes32(address(testMerkleHook)),
+                DIGEST
+            );
+
+        assert(actualFraudType == FraudType.Whitelist);
+        assertEq(actualTimestamp, block.timestamp);
+    }
 }
