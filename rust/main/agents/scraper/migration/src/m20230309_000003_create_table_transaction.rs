@@ -53,8 +53,11 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Transaction::GasUsed, Wei).not_null())
                     .col(ColumnDef::new_with_type(Transaction::CumulativeGasUsed, Wei).not_null())
                     .col(
-                        ColumnDef::new_with_type(Transaction::RawInputData, ColumnType::Blob)
-                            .borrow_mut(),
+                        ColumnDef::new_with_type(
+                            Transaction::RawInputData,
+                            ColumnType::Binary(BlobSize::Blob(None)),
+                        )
+                        .borrow_mut(),
                     )
                     .foreign_key(
                         ForeignKey::create()
