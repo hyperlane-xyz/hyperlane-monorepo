@@ -37,10 +37,13 @@ import {
   PausableIsmConfig,
   RemoteRouters,
   RoutingIsmConfig,
+  STARKNET_SUPPORTED_TOKEN_TYPES,
+  STARKNET_TOKEN_TYPE_TO_STANDARD,
   StarknetERC20WarpModule,
   SubmissionStrategy,
   TOKEN_TYPE_TO_STANDARD,
   TokenFactories,
+  TokenType,
   TrustedRelayerIsmConfig,
   TxSubmitterBuilder,
   TxSubmitterType,
@@ -504,7 +507,7 @@ async function getWarpCoreConfig(
     decimals,
   );
 
-  fullyConnectTokens(warpCoreConfig);
+  fullyConnectTokens(warpCoreConfig, context.multiProvider);
 
   return warpCoreConfig;
 }
@@ -546,7 +549,10 @@ function generateTokenConfigs(
  * Assumes full interconnectivity between all tokens for now b.c. that's
  * what the deployers do by default.
  */
-function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
+function fullyConnectTokens(
+  warpCoreConfig: WarpCoreConfig,
+  multiProvider: MultiProvider,
+): void {
   for (const token1 of warpCoreConfig.tokens) {
     for (const token2 of warpCoreConfig.tokens) {
       if (
@@ -557,7 +563,7 @@ function fullyConnectTokens(warpCoreConfig: WarpCoreConfig): void {
       token1.connections ||= [];
       token1.connections.push({
         token: getTokenConnectionId(
-          ProtocolType.Ethereum,
+          multiProvider.getChainMetadata(token2.chainName).protocol,
           token2.chainName,
           token2.addressOrDenom!,
         ),
@@ -1155,7 +1161,7 @@ async function executeStarknetDeployments({
   warpRouteConfig: WarpRouteDeployConfig;
   multiProvider: MultiProvider;
 }): Promise<ChainMap<string>> {
-  assert(!warpRouteConfig.isNft, 'NFT routes not supported yet!');
+  validateStarknetWarpConfig(warpRouteConfig);
 
   const starknetDeployer = new StarknetERC20WarpModule(
     starknetSigners,
@@ -1194,7 +1200,7 @@ async function getWarpCoreConfigForStarknet(
     decimals,
   );
 
-  fullyConnectTokens(warpCoreConfig);
+  fullyConnectTokens(warpCoreConfig, multiProvider);
 
   return warpCoreConfig;
 }
@@ -1214,12 +1220,33 @@ function generateTokenConfigsForStarknet(
       : undefined;
     warpCoreConfig.tokens.push({
       chainName,
-      standard: TOKEN_TYPE_TO_STANDARD[config.type],
+      standard:
+        STARKNET_TOKEN_TYPE_TO_STANDARD[
+          config.type as keyof typeof STARKNET_TOKEN_TYPE_TO_STANDARD
+        ],
       decimals,
       symbol,
       name,
       addressOrDenom: contract,
       collateralAddressOrDenom,
     });
+  }
+}
+
+function validateStarknetWarpConfig(warpRouteConfig: WarpRouteDeployConfig) {
+  assert(!warpRouteConfig.isNft, 'NFT routes not supported yet!');
+
+  // token type validation for Starknet chains
+  for (const [chain, config] of Object.entries(warpRouteConfig)) {
+    assert(
+      (STARKNET_SUPPORTED_TOKEN_TYPES as readonly TokenType[]).includes(
+        config.type,
+      ),
+      `Token type "${
+        config.type
+      }" is not supported on Starknet chains (${chain}}). Supported types: ${STARKNET_SUPPORTED_TOKEN_TYPES.join(
+        ', ',
+      )}`,
+    );
   }
 }
