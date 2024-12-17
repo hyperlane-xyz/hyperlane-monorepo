@@ -126,7 +126,9 @@ where
                             continue;
                         }
                     };
-                    let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
+                    let logs_result = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
+                    let logs = logs_result.unwrap_or_else(|logs| logs);
+
                     let num_logs = logs.len() as u64;
                     info!(
                         num_logs,
@@ -179,7 +181,12 @@ where
                     }
                 };
 
-                let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
+                let logs_result = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
+                let (logs, error) = match logs_result {
+                    Ok(logs) => (logs, false),
+                    Err(logs) => (logs, true),
+                };
+
                 let logs_found = logs.len() as u64;
                 info!(
                     ?range,
@@ -199,10 +206,12 @@ where
                 }
 
                 // Update cursor
-                if let Err(err) = cursor.update(logs, range).await {
-                    warn!(?err, "Error updating cursor");
-                    break Some(SLEEP_DURATION);
-                };
+                if !error {
+                    if let Err(err) = cursor.update(logs, range).await {
+                        warn!(?err, "Error updating cursor");
+                        break Some(SLEEP_DURATION);
+                    };
+                }
                 break None;
             },
             CursorAction::Sleep(duration) => Some(duration),
@@ -221,7 +230,7 @@ where
         &self,
         logs: Vec<(Indexed<T>, LogMeta)>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
-    ) -> Vec<(Indexed<T>, LogMeta)> {
+    ) -> Result<Vec<(Indexed<T>, LogMeta)>, Vec<(Indexed<T>, LogMeta)>> {
         let deduped_logs = HashSet::<_>::from_iter(logs);
         let logs = Vec::from_iter(deduped_logs);
 
@@ -243,7 +252,12 @@ where
         }
         // Report amount of deliveries stored into db
         stored_logs_metric.inc_by(stored as u64);
-        logs
+
+        if (stored as usize) < logs.len() {
+            return Err(logs);
+        }
+
+        Ok(logs)
     }
 }
 
