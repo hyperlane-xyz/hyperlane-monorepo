@@ -26,6 +26,10 @@ const acceptableValidatorVersions: Record<string, string> = {
   'e70431a85965d8d21681e6f4856ed3ac9bd2ba27': 'nov-21-batch',
   // Nov 21 bsquared deploy
   'd834d8147628584acd78a81e344bff76472d707e': 'nov-21-bsquared',
+  // Nov 21 swell/lumiaprism deploy
+  'b35c105f197267072daa14bb3d83c62410b96fac': 'nov-21-swell',
+  // Dec 4 deploy
+  'a7f3967e047c2c5aabb8cc442e4acad435fa32ab': 'dec-4-batch',
   // Rolled out only to AW infra before 1.0.0, just 1 commit behind 1.0.0
   'a64af8be9a76120d0cfc727bb70660fa07e70cce': 'pre-1.0.0',
   // 1.0.0

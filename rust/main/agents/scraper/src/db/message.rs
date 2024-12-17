@@ -6,7 +6,7 @@ use sea_orm::{prelude::*, ActiveValue::*, DeriveColumn, EnumIter, Insert, QueryS
 use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
-    address_to_bytes, bytes_to_address, h256_to_bytes, HyperlaneMessage, LogMeta, H256,
+    address_to_bytes, bytes_to_address, h256_to_bytes, Delivery, HyperlaneMessage, LogMeta, H256,
 };
 use migration::OnConflict;
 
@@ -18,6 +18,7 @@ use super::generated::{delivered_message, message};
 #[derive(Debug, Clone)]
 pub struct StorableDelivery<'a> {
     pub message_id: H256,
+    pub sequence: Option<i64>,
     pub meta: &'a LogMeta,
     /// The database id of the transaction the delivery event occurred in
     pub txn_id: i64,
@@ -31,64 +32,54 @@ pub struct StorableMessage<'a> {
 }
 
 impl ScraperDb {
-    /// Get the dispatched message associated with a nonce.
+    /// Get the delivered message associated with a sequence.
     #[instrument(skip(self))]
-    pub async fn retrieve_message_by_nonce(
+    pub async fn retrieve_delivery_by_sequence(
         &self,
-        origin_domain: u32,
-        origin_mailbox: &H256,
-        nonce: u32,
-    ) -> Result<Option<HyperlaneMessage>> {
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-        enum QueryAs {
-            Nonce,
-        }
-        if let Some(message) = message::Entity::find()
-            .filter(message::Column::Origin.eq(origin_domain))
-            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
-            .filter(message::Column::Nonce.eq(nonce))
+        destination_domain: u32,
+        destination_mailbox: &H256,
+        sequence: u32,
+    ) -> Result<Option<Delivery>> {
+        if let Some(delivery) = delivered_message::Entity::find()
+            .filter(delivered_message::Column::Domain.eq(destination_domain))
+            .filter(
+                delivered_message::Column::DestinationMailbox
+                    .eq(address_to_bytes(destination_mailbox)),
+            )
+            .filter(delivered_message::Column::Sequence.eq(sequence))
             .one(&self.0)
             .await?
         {
-            Ok(Some(HyperlaneMessage {
-                // We do not write version to the DB.
-                version: 3,
-                origin: message.origin as u32,
-                destination: message.destination as u32,
-                nonce: message.nonce as u32,
-                sender: bytes_to_address(message.sender)?,
-                recipient: bytes_to_address(message.recipient)?,
-                body: message.msg_body.unwrap_or(Vec::new()),
-            }))
+            let delivery = H256::from_slice(&delivery.msg_id);
+            Ok(Some(delivery))
         } else {
             Ok(None)
         }
     }
 
-    /// Get the tx id associated with a dispatched message.
+    /// Get the tx id of a delivered message associated with a sequence.
     #[instrument(skip(self))]
-    pub async fn retrieve_dispatched_tx_id(
+    pub async fn retrieve_delivered_message_tx_id(
         &self,
-        origin_domain: u32,
-        origin_mailbox: &H256,
-        nonce: u32,
+        destination_domain: u32,
+        destination_mailbox: &H256,
+        sequence: u32,
     ) -> Result<Option<i64>> {
-        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-        enum QueryAs {
-            Nonce,
-        }
-
-        let tx_id = message::Entity::find()
-            .filter(message::Column::Origin.eq(origin_domain))
-            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
-            .filter(message::Column::Nonce.eq(nonce))
-            .select_only()
-            .column_as(message::Column::OriginTxId.max(), QueryAs::Nonce)
-            .group_by(message::Column::Origin)
-            .into_values::<i64, QueryAs>()
+        if let Some(delivery) = delivered_message::Entity::find()
+            .filter(delivered_message::Column::Domain.eq(destination_domain))
+            .filter(
+                delivered_message::Column::DestinationMailbox
+                    .eq(address_to_bytes(destination_mailbox)),
+            )
+            .filter(delivered_message::Column::Sequence.eq(sequence))
             .one(&self.0)
-            .await?;
-        Ok(tx_id)
+            .await?
+        {
+            let txn_id = delivery.destination_tx_id;
+            Ok(Some(txn_id))
+        } else {
+            Ok(None)
+        }
     }
 
     async fn latest_deliveries_id(&self, domain: u32, destination_mailbox: Vec<u8>) -> Result<i64> {
@@ -147,6 +138,7 @@ impl ScraperDb {
                 domain: Unchanged(domain as i32),
                 destination_mailbox: Unchanged(destination_mailbox.clone()),
                 destination_tx_id: Set(delivery.txn_id),
+                sequence: Set(delivery.sequence),
             })
             .collect_vec();
 
@@ -178,6 +170,66 @@ impl ScraperDb {
             "Wrote new delivered messages to database"
         );
         Ok(new_deliveries_count)
+    }
+
+    /// Get the dispatched message associated with a nonce.
+    #[instrument(skip(self))]
+    pub async fn retrieve_dispatched_message_by_nonce(
+        &self,
+        origin_domain: u32,
+        origin_mailbox: &H256,
+        nonce: u32,
+    ) -> Result<Option<HyperlaneMessage>> {
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            Nonce,
+        }
+        if let Some(message) = message::Entity::find()
+            .filter(message::Column::Origin.eq(origin_domain))
+            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
+            .filter(message::Column::Nonce.eq(nonce))
+            .one(&self.0)
+            .await?
+        {
+            Ok(Some(HyperlaneMessage {
+                // We do not write version to the DB.
+                version: 3,
+                origin: message.origin as u32,
+                destination: message.destination as u32,
+                nonce: message.nonce as u32,
+                sender: bytes_to_address(message.sender)?,
+                recipient: bytes_to_address(message.recipient)?,
+                body: message.msg_body.unwrap_or(Vec::new()),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get the tx id associated with a dispatched message.
+    #[instrument(skip(self))]
+    pub async fn retrieve_dispatched_tx_id(
+        &self,
+        origin_domain: u32,
+        origin_mailbox: &H256,
+        nonce: u32,
+    ) -> Result<Option<i64>> {
+        #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
+        enum QueryAs {
+            Nonce,
+        }
+
+        let tx_id = message::Entity::find()
+            .filter(message::Column::Origin.eq(origin_domain))
+            .filter(message::Column::OriginMailbox.eq(address_to_bytes(origin_mailbox)))
+            .filter(message::Column::Nonce.eq(nonce))
+            .select_only()
+            .column_as(message::Column::OriginTxId.max(), QueryAs::Nonce)
+            .group_by(message::Column::Origin)
+            .into_values::<i64, QueryAs>()
+            .one(&self.0)
+            .await?;
+        Ok(tx_id)
     }
 
     async fn latest_dispatched_id(&self, domain: u32, origin_mailbox: Vec<u8>) -> Result<i64> {

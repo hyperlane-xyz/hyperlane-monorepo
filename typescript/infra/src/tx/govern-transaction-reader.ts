@@ -4,8 +4,11 @@ import {
   MetaTransactionData,
   OperationType,
 } from '@safe-global/safe-core-sdk-types';
+import assert from 'assert';
+import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
+import { ProxyAdmin__factory, TokenRouter__factory } from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
   ChainMap,
@@ -15,6 +18,7 @@ import {
   EvmIsmReader,
   InterchainAccount,
   MultiProvider,
+  WarpCoreConfig,
   coreFactories,
   interchainAccountFactories,
   normalizeConfig,
@@ -24,7 +28,7 @@ import {
   bytes32ToAddress,
   deepEquals,
   eqAddress,
-  retryAsync,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import {
@@ -78,12 +82,32 @@ interface IcaRemoteCallInsight {
 export class GovernTransactionReader {
   errors: any[] = [];
 
+  protected readonly logger = rootLogger.child({
+    module: 'GovernTransactionReader',
+  });
+
+  readonly warpRouteIndex: ChainMap<
+    Record<string, WarpCoreConfig['tokens'][number]>
+  > = {};
+
   constructor(
     readonly environment: DeployEnvironment,
     readonly multiProvider: MultiProvider,
     readonly chainAddresses: ChainMap<Record<string, string>>,
     readonly coreConfig: ChainMap<CoreConfig>,
-  ) {}
+    warpRoutes: Record<string, WarpCoreConfig>,
+  ) {
+    // Populate maps with warp route addresses and additional token details
+    for (const warpRoute of Object.values(warpRoutes)) {
+      for (const token of Object.values(warpRoute.tokens)) {
+        const address = token.addressOrDenom?.toLowerCase() ?? '';
+        if (!this.warpRouteIndex[token.chainName]) {
+          this.warpRouteIndex[token.chainName] = {};
+        }
+        this.warpRouteIndex[token.chainName][address] = token;
+      }
+    }
+  }
 
   async read(
     chain: ChainName,
@@ -99,8 +123,19 @@ export class GovernTransactionReader {
       return this.readMailboxTransaction(chain, tx);
     }
 
+    // If it's to a Proxy Admin
+    if (this.isProxyAdminTransaction(chain, tx)) {
+      return this.readProxyAdminTransaction(chain, tx);
+    }
+
+    // If it's a Multisend
     if (await this.isMultisendTransaction(chain, tx)) {
       return this.readMultisendTransaction(chain, tx);
+    }
+
+    // If it's a Warp Module transaction
+    if (this.isWarpModuleTransaction(chain, tx)) {
+      return this.readWarpModuleTransaction(chain, tx);
     }
 
     const insight = '⚠️ Unknown transaction type';
@@ -115,6 +150,121 @@ export class GovernTransactionReader {
       chain,
       insight,
       tx,
+    };
+  }
+
+  private isWarpModuleTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    return (
+      tx.to !== undefined &&
+      this.warpRouteIndex[chain] !== undefined &&
+      this.warpRouteIndex[chain][tx.to.toLowerCase()] !== undefined
+    );
+  }
+
+  private async readWarpModuleTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in Warp Module transaction');
+    }
+
+    const { symbol } = await this.multiProvider.getNativeToken(chain);
+    const tokenRouterInterface = TokenRouter__factory.createInterface();
+
+    const decoded = tokenRouterInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    let insight = '';
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['setHook(address)'].name
+    ) {
+      const [hookAddress] = decoded.args;
+      insight = `Set hook to ${hookAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['setInterchainSecurityModule(address)']
+        .name
+    ) {
+      const [ismAddress] = decoded.args;
+      insight = `Set ISM to ${ismAddress}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['setDestinationGas((uint32,uint256)[])']
+        .name
+    ) {
+      const [gasConfigs] = decoded.args;
+      const insights = gasConfigs.map(
+        (config: { domain: number; gas: BigNumber }) => {
+          const chainName = this.multiProvider.getChainName(config.domain);
+          return `domain ${
+            config.domain
+          } (${chainName}) to ${config.gas.toString()}`;
+        },
+      );
+      insight = `Set destination gas for ${insights.join(', ')}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['enrollRemoteRouters(uint32[],bytes32[])']
+        .name
+    ) {
+      const [domains, routers] = decoded.args;
+      const insights = domains.map((domain: number, index: number) => {
+        const chainName = this.multiProvider.getChainName(domain);
+        return `domain ${domain} (${chainName}) to ${routers[index]}`;
+      });
+      insight = `Enroll remote routers for ${insights.join(', ')}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['unenrollRemoteRouter(uint32)'].name
+    ) {
+      const [domain] = decoded.args;
+      const chainName = this.multiProvider.getChainName(domain);
+      insight = `Unenroll remote router for domain ${domain} (${chainName})`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['unenrollRemoteRouters(uint32[])'].name
+    ) {
+      const [domains] = decoded.args;
+      const insights = domains.map((domain: number) => {
+        const chainName = this.multiProvider.getChainName(domain);
+        return `domain ${domain} (${chainName})`;
+      });
+      insight = `Unenroll remote routers for ${insights.join(', ')}`;
+    }
+
+    assert(tx.to, 'Warp Module transaction must have a to address');
+    const token = this.warpRouteIndex[chain][tx.to.toLowerCase()];
+
+    return {
+      chain,
+      to: `${token.symbol} (${token.name}, ${token.standard})`,
+      insight,
+      value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
+      signature: decoded.signature,
+      args,
     };
   }
 
@@ -237,6 +387,43 @@ export class GovernTransactionReader {
     };
   }
 
+  private async readProxyAdminTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('⚠️ No data in proxyAdmin transaction');
+    }
+
+    const proxyAdminInterface = ProxyAdmin__factory.createInterface();
+    const decoded = proxyAdminInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    let insight;
+    if (
+      decoded.functionFragment.name ===
+      proxyAdminInterface.functions['transferOwnership(address)'].name
+    ) {
+      const [newOwner] = decoded.args;
+      insight = `Transfer ownership to ${newOwner}`;
+    }
+
+    return {
+      chain,
+      to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
+      insight,
+      signature: decoded.signature,
+      args,
+    };
+  }
+
   private ismDerivationsInProgress: ChainMap<boolean> = {};
 
   private async deriveIsmConfig(
@@ -247,26 +434,30 @@ export class GovernTransactionReader {
 
     // Start recording some info about the deriving
     const startTime = Date.now();
-    console.log('Deriving ISM config...', chain);
+    this.logger.info(chalk.italic.gray(`Deriving ISM config for ${chain}...`));
     this.ismDerivationsInProgress[chain] = true;
 
     const derivedConfig = await reader.deriveIsmConfig(module);
 
     // Deriving is done, remove from in progress
     delete this.ismDerivationsInProgress[chain];
-    console.log(
-      'Finished deriving ISM config',
-      chain,
-      'in',
-      (Date.now() - startTime) / (1000 * 60),
-      'mins',
+    this.logger.info(
+      chalk.italic.blue(
+        'Finished deriving ISM config',
+        chain,
+        'in',
+        (Date.now() - startTime) / (1000 * 60),
+        'mins',
+      ),
     );
     const remainingInProgress = Object.keys(this.ismDerivationsInProgress);
-    console.log(
-      'Remaining derivations in progress:',
-      remainingInProgress.length,
-      'chains',
-      remainingInProgress,
+    this.logger.info(
+      chalk.italic.gray(
+        'Remaining derivations in progress:',
+        remainingInProgress.length,
+        'chains',
+        remainingInProgress,
+      ),
     );
 
     return derivedConfig;
@@ -278,7 +469,7 @@ export class GovernTransactionReader {
   ): Promise<SetDefaultIsmInsight> {
     const { _module: module } = args;
 
-    const derivedConfig = this.deriveIsmConfig(chain, module);
+    const derivedConfig = await this.deriveIsmConfig(chain, module);
     const expectedIsmConfig = this.coreConfig[chain].defaultIsm;
 
     let insight = '✅ matches expected ISM config';
@@ -293,11 +484,8 @@ export class GovernTransactionReader {
         info: 'Incorrect default ISM being set',
       });
       insight = `❌ fatal mismatch of ISM config`;
-      console.log(
-        'Mismatch of ISM config',
-        chain,
-        JSON.stringify(normalizedDerived),
-        JSON.stringify(normalizedExpected),
+      this.logger.error(
+        chalk.bold.red(`Mismatch of ISM config for chain ${chain}!`),
       );
     }
 
@@ -452,6 +640,16 @@ export class GovernTransactionReader {
     return (
       tx.to !== undefined &&
       eqAddress(tx.to, this.chainAddresses[chain].mailbox)
+    );
+  }
+
+  isProxyAdminTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    return (
+      tx.to !== undefined &&
+      eqAddress(tx.to, this.chainAddresses[chain].proxyAdmin)
     );
   }
 
