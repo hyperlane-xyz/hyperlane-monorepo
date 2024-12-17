@@ -441,7 +441,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '15Gi',
+    memory: '20Gi',
   },
 };
 
