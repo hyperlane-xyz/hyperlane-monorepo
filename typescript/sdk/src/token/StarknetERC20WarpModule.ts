@@ -1,4 +1,3 @@
-import { Signer } from 'ethers';
 import { Account, byteArray, getChecksumAddress } from 'starknet';
 
 import { TokenType } from '@hyperlane-xyz/sdk';
@@ -17,7 +16,7 @@ export class StarknetERC20WarpModule {
   protected logger = rootLogger.child({ module: 'StarknetERC20WarpModule' });
 
   constructor(
-    protected readonly getAccount: (chain: string) => Promise<Account | Signer>,
+    protected readonly account: Account,
     protected readonly config: WarpRouteDeployConfig,
     protected readonly multiProvider: MultiProvider,
   ) {}
@@ -44,10 +43,9 @@ export class StarknetERC20WarpModule {
       )
         continue;
 
-      const account = (await this.getAccount(chain)) as Account;
-      const deployer = new StarknetDeployer(account);
+      const deployer = new StarknetDeployer(this.account);
 
-      let ismAddress = await this.getStarknetDeploymentISMAddress({
+      const ismAddress = await this.getStarknetDeploymentISMAddress({
         ismConfig: interchainSecurityModule,
         mailbox: mailbox,
         chain,
@@ -65,7 +63,7 @@ export class StarknetERC20WarpModule {
               symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
               hook: getChecksumAddress(0),
               interchain_security_module: ismAddress,
-              owner: account.address, //TODO: use config.owner, and in warp init ask for starknet owner
+              owner: this.account.address, //TODO: use config.owner, and in warp init ask for starknet owner
             },
             ContractType.TOKEN,
           );
@@ -77,7 +75,7 @@ export class StarknetERC20WarpModule {
             mailbox: mailbox,
             hook: getChecksumAddress(0),
             interchain_security_module: ismAddress,
-            owner: account.address, //TODO: use config.owner, and in warp init ask for starknet owner
+            owner: this.account.address, //TODO: use config.owner, and in warp init ask for starknet owner
           });
           addresses[chain] = tokenAddress;
           break;
@@ -90,7 +88,7 @@ export class StarknetERC20WarpModule {
               mailbox: mailbox,
               // @ts-ignore
               erc20: rest.token,
-              owner: account.address, //TODO: use config.owner, and in warp init ask for starknet owner
+              owner: this.account.address, //TODO: use config.owner, and in warp init ask for starknet owner
               hook: getChecksumAddress(0),
               interchain_security_module: ismAddress,
             },
@@ -119,7 +117,7 @@ export class StarknetERC20WarpModule {
   }): Promise<string> {
     if (!ismConfig) return getChecksumAddress(0);
     if (typeof ismConfig === 'string') return ismConfig;
-    return await deployer.deployIsm({
+    return deployer.deployIsm({
       chain,
       ismConfig,
       mailbox,

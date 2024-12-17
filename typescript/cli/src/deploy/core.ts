@@ -120,7 +120,7 @@ export async function runCoreDeploy(params: DeployParams) {
     case ProtocolType.Starknet:
       {
         const domainId = multiProvider.getDomainId(chain);
-        const account = await multiProtocolSigner?.initSigner(chain);
+        const account = await multiProtocolSigner?.getStarknetSigner(chain);
         assert(account, 'Starknet account failed!');
         const starknetCoreModule = new StarknetCoreModule(
           account as StarknetAccount,
@@ -162,7 +162,11 @@ export async function runCoreApply(params: ApplyParams) {
   if (transactions.length) {
     logGray('Updating deployed core contracts');
     for (const transaction of transactions) {
-      await multiProvider.sendTransaction(chain, transaction);
+      await multiProvider.sendTransaction(
+        // Using the provided chain id because there might be remote chain transactions included in the batch
+        transaction.chainId ?? chain,
+        transaction,
+      );
     }
 
     logGreen(`Core config updated on ${chain}.`);

@@ -8,7 +8,7 @@ export type TypedSigner = Signer | StarknetAccount;
 
 export interface SignerConfig {
   privateKey: string;
-  address?: Address; // For chains like StarkNet that require address
+  userAddress?: Address; // For chains like StarkNet that require address
   extraParams?: Record<string, any>; // For any additional chain-specific params
 }
 

@@ -3,7 +3,7 @@ import { Gauge, Registry } from 'prom-client';
 
 import { warpConfigGetterMap } from '../../config/warp.js';
 import { submitMetrics } from '../../src/utils/metrics.js';
-import { Modules } from '../agent-utils.js';
+import { Modules, getWarpRouteIdsInteractive } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 import {
@@ -14,8 +14,15 @@ import {
 } from './check-utils.js';
 
 async function main() {
-  const { environment, asDeployer, chains, fork, context, pushMetrics } =
-    await getCheckWarpDeployArgs().argv;
+  const {
+    environment,
+    asDeployer,
+    chains,
+    fork,
+    context,
+    pushMetrics,
+    interactive,
+  } = await getCheckWarpDeployArgs().argv;
 
   const envConfig = getEnvironmentConfig(environment);
   // Get the multiprovider once to avoid recreating it for each warp route
@@ -29,8 +36,13 @@ async function main() {
 
   const failedWarpRoutesChecks: string[] = [];
 
+  let warpIdsToCheck = Object.keys(warpConfigGetterMap);
+  if (interactive) {
+    warpIdsToCheck = await getWarpRouteIdsInteractive();
+  }
+
   // TODO: consider retrying this if check throws an error
-  for (const warpRouteId of Object.keys(warpConfigGetterMap)) {
+  for (const warpRouteId of warpIdsToCheck) {
     console.log(`\nChecking warp route ${warpRouteId}...`);
     const warpModule = Modules.WARP;
 

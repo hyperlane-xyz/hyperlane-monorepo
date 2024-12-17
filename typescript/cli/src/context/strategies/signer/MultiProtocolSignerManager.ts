@@ -1,5 +1,6 @@
 import { Signer } from 'ethers';
 import { Logger } from 'pino';
+import { Account as StarknetAccount } from 'starknet';
 
 import {
   ChainName,
@@ -67,19 +68,79 @@ export class MultiProtocolSignerManager {
    * @dev Configures signers for EVM chains in MultiProvider
    */
   async getMultiProvider(): Promise<MultiProvider> {
-    for (const chain of this.chains) {
-      // multiProvider is only compatible with evm chains
-      if (
+    const ethereumChains = this.chains.filter(
+      (chain) =>
         this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum
-      ) {
-        const signer = await this.initSigner(chain);
-        if (signer instanceof Signer)
-          this.multiProvider.setSigner(chain, signer);
-      }
+        ProtocolType.Ethereum,
+    );
+
+    for (const chain of ethereumChains) {
+      const signer = await this.initSigner(chain);
+      this.multiProvider.setSigner(chain, signer as Signer);
     }
 
     return this.multiProvider;
+  }
+
+  /**
+   * @dev Gets private key from strategy or environment fallback
+   */
+  private async getSignerConfigForChain(
+    chain: ChainName,
+  ): Promise<{ chain: ChainName } & SignerConfig> {
+    const signerStrategy = this.signerStrategies.get(chain);
+    if (!signerStrategy) {
+      throw new Error(`No signer strategy found for chain ${chain}`);
+    }
+
+    const config: any = {};
+    let stprovider: any;
+    // Determine private key with clear precedence
+    if (this.options.key) {
+      config.privateKey = this.options.key;
+    } else if (ENV.HYP_KEY) {
+      config.privateKey = ENV.HYP_KEY;
+    } else {
+      const strategyConfig = await signerStrategy.getSignerConfig(chain);
+      if (!strategyConfig?.privateKey) {
+        throw new Error(`No private key found for chain ${chain}`);
+      }
+      config.privateKey = strategyConfig.privateKey;
+      config.userAddress = strategyConfig.userAddress;
+    }
+
+    const { protocol } = this.multiProvider.getChainMetadata(chain);
+    if (protocol === ProtocolType.Starknet) {
+      const provider = this.multiProtocolProvider.getStarknetProvider(chain);
+      assert(provider, 'No Starknet Provider found');
+      stprovider = provider;
+    }
+
+    return {
+      chain,
+      ...(config as SignerConfig),
+      extraParams: {
+        provider: stprovider,
+      },
+    };
+  }
+
+  protected async getSpecificSigner<T>(chain: ChainName): Promise<T> {
+    const signerConfig = await this.getSignerConfigForChain(chain);
+
+    const signerStrategy = this.signerStrategies.get(chain);
+    if (!signerStrategy) {
+      throw new Error(`No signer strategy found for chain ${chain}`);
+    }
+    return signerStrategy.getSigner(signerConfig) as T;
+  }
+
+  async getEVMSigner(chain: ChainName): Promise<Signer> {
+    return this.getSpecificSigner<Signer>(chain);
+  }
+
+  async getStarknetSigner(chain: ChainName): Promise<StarknetAccount> {
+    return this.getSpecificSigner<StarknetAccount>(chain);
   }
 
   /**
@@ -97,7 +158,7 @@ export class MultiProtocolSignerManager {
   async initAllSigners(): Promise<typeof this.signers> {
     const signerConfigs = await this.resolveAllConfigs();
 
-    for (const { chain, privateKey, address } of signerConfigs) {
+    for (const { chain, privateKey, userAddress } of signerConfigs) {
       const signerStrategy = this.signerStrategies.get(chain);
       if (signerStrategy) {
         const { protocol } = this.multiProvider.getChainMetadata(chain);
@@ -108,11 +169,12 @@ export class MultiProtocolSignerManager {
             chain,
             signerStrategy.getSigner({
               privateKey,
-              address,
+              userAddress,
               extraParams: { provider },
             }),
           );
         } else {
+          // evm chains
           this.signers.set(chain, signerStrategy.getSigner({ privateKey }));
         }
       }
@@ -188,7 +250,7 @@ export class MultiProtocolSignerManager {
       strategyConfig.privateKey,
       `No private key found for chain ${chain}`,
     );
-    assert(strategyConfig.address, 'No Starknet Address found');
+    assert(strategyConfig.userAddress, 'No Starknet Address found');
     assert(provider, 'No Starknet Provider found');
 
     this.logger.info(`Using strategy config for Starknet chain ${chain}`);
@@ -196,7 +258,7 @@ export class MultiProtocolSignerManager {
     return {
       chain,
       privateKey: strategyConfig.privateKey,
-      address: strategyConfig.address,
+      userAddress: strategyConfig.userAddress,
       extraParams: { provider },
     };
   }

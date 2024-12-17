@@ -1,6 +1,4 @@
 import { confirm, input, select } from '@inquirer/prompts';
-import { Signer } from 'ethers';
-import { Account as StarknetAccount } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -85,7 +83,7 @@ async function fillDefaults(
       let owner = config.owner;
       if (!owner) {
         owner =
-          (await context.signer?.getAddress()) ??
+          context.signerAddress ??
           (await context.multiProvider.getSignerAddress(chain));
       }
       return {
@@ -142,11 +140,10 @@ export async function createWarpRouteDeployConfig({
     logBlue(`${chain}: Configuring warp route...`);
     const owner = await detectAndConfirmOrPrompt(
       async () =>
+        (await multiProtocolSigner?.getEVMSigner(chain))?.getAddress() ||
         (
-          (await multiProtocolSigner?.initSigner(chain)) as Signer
-        )?.getAddress() ||
-        ((await multiProtocolSigner?.initSigner(chain)) as StarknetAccount)
-          ?.address,
+          await multiProtocolSigner?.getStarknetSigner(chain)
+        )?.address,
       'Enter the desired',
       'owner address',
       'signer',

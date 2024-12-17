@@ -1,6 +1,7 @@
 import { password } from '@inquirer/prompts';
 import { Signer, Wallet } from 'ethers';
 import { Account as StarknetAccount } from 'starknet';
+import { Wallet as ZKSyncWallet } from 'zksync-ethers';
 
 import {
   ChainName,
@@ -60,7 +61,6 @@ class EthereumSignerStrategy extends BaseMultiProtocolSigner {
 }
 
 // 99% overlap with EthereumSignerStrategy for the sake of keeping MultiProtocolSignerFactory clean
-// TODO: import ZKSync signer
 class ZKSyncSignerStrategy extends BaseMultiProtocolSigner {
   async getSignerConfig(chain: ChainName): Promise<SignerConfig> {
     const submitter = this.config[chain]?.submitter as {
@@ -77,7 +77,7 @@ class ZKSyncSignerStrategy extends BaseMultiProtocolSigner {
   }
 
   getSigner(config: SignerConfig): Signer {
-    return new Wallet(config.privateKey);
+    return new ZKSyncWallet(config.privateKey);
   }
 }
 
@@ -100,18 +100,18 @@ class StarknetSignerStrategy extends BaseMultiProtocolSigner {
         message: `Please enter the signer address for chain ${chain}`,
       }));
 
-    return { privateKey, address };
+    return { privateKey, userAddress: address };
   }
 
   getSigner({
     privateKey,
-    address,
+    userAddress,
     extraParams,
   }: SignerConfig): StarknetAccount {
     assert(
-      address && extraParams?.provider,
+      userAddress && extraParams?.provider,
       'Missing StarknetAccount arguments',
     );
-    return new StarknetAccount(extraParams.provider, address, privateKey);
+    return new StarknetAccount(extraParams.provider, userAddress, privateKey);
   }
 }

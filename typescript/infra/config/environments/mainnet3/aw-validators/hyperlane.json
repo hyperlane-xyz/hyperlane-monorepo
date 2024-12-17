@@ -8,6 +8,9 @@
   "apechain": {
     "validators": ["0x773d7fe6ffb1ba4de814c28044ff9a2d83a48221"]
   },
+  "appchain": {
+    "validators": ["0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be"]
+  },
   "arbitrum": {
     "validators": [
       "0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1",
@@ -169,6 +172,9 @@
   "lumia": {
     "validators": ["0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f"]
   },
+  "lumiaprism": {
+    "validators": ["0xb69731640ffd4338a2c9358a935b0274c6463f85"]
+  },
   "mantapacific": {
     "validators": [
       "0x8e668c97ad76d0e28375275c41ece4972ab8a5bc",
@@ -293,11 +299,17 @@
   "superpositionmainnet": {
     "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
   },
+  "swell": {
+    "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]
+  },
   "taiko": {
     "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
   },
   "tangle": {
     "validators": ["0x1ee52cbbfacd7dcb0ba4e91efaa6fbc61602b15b"]
+  },
+  "treasure": {
+    "validators": ["0x6ad994819185553e8baa01533f0cd2c7cadfe6cc"]
   },
   "unichain": {
     "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
@@ -325,6 +337,9 @@
   },
   "zircuit": {
     "validators": ["0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb"]
+  },
+  "zklink": {
+    "validators": ["0x217a8cb4789fc45abf56cb6e2ca96f251a5ac181"]
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
