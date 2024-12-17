@@ -16,7 +16,7 @@ export class StarknetERC20WarpModule {
   protected logger = rootLogger.child({ module: 'StarknetERC20WarpModule' });
 
   constructor(
-    protected readonly account: Account,
+    protected readonly account: ChainMap<Account>,
     protected readonly config: WarpRouteDeployConfig,
     protected readonly multiProvider: MultiProvider,
   ) {}
@@ -43,8 +43,8 @@ export class StarknetERC20WarpModule {
       )
         continue;
 
-      const deployer = new StarknetDeployer(this.account);
-
+      const deployer = new StarknetDeployer(this.account[chain]);
+      const deployerAccountAddress = this.account[chain].address;
       const ismAddress = await this.getStarknetDeploymentISMAddress({
         ismConfig: interchainSecurityModule,
         mailbox: mailbox,
@@ -63,7 +63,7 @@ export class StarknetERC20WarpModule {
               symbol: [byteArray.byteArrayFromString(tokenMetadata.symbol)],
               hook: getChecksumAddress(0),
               interchain_security_module: ismAddress,
-              owner: this.account.address, //TODO: use config.owner, and in warp init ask for starknet owner
+              owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
             },
             ContractType.TOKEN,
           );
@@ -75,20 +75,28 @@ export class StarknetERC20WarpModule {
             mailbox: mailbox,
             hook: getChecksumAddress(0),
             interchain_security_module: ismAddress,
-            owner: this.account.address, //TODO: use config.owner, and in warp init ask for starknet owner
+            owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
           });
           addresses[chain] = tokenAddress;
           break;
         }
 
         case TokenType.collateral: {
+          console.log({
+            mailbox: mailbox,
+            // @ts-ignore
+            erc20: rest.token,
+            owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
+            hook: getChecksumAddress(0),
+            interchain_security_module: ismAddress,
+          });
           const tokenAddress = await deployer.deployContract(
             'HypErc20Collateral',
             {
               mailbox: mailbox,
               // @ts-ignore
               erc20: rest.token,
-              owner: this.account.address, //TODO: use config.owner, and in warp init ask for starknet owner
+              owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
               hook: getChecksumAddress(0),
               interchain_security_module: ismAddress,
             },

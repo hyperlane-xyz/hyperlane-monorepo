@@ -1,6 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import { groupBy } from 'lodash-es';
-import { Account } from 'starknet';
+import { Account as StarknetAccount } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
@@ -179,13 +179,17 @@ export async function runWarpRouteDeploy({
           multiProtocolSigner,
           'multi protocol signer is required for starknet chain deployment',
         );
-        // TODO: support multiple starknet chains
-        const starknetChain = chainsByProtocol[protocol][0]; // Only one Starknet chain supported at a time
-        const starknetSigner = await multiProtocolSigner.getStarknetSigner(
-          starknetChain,
+        const starknetSigners = await promiseObjAll(
+          protocolChains.reduce<ChainMap<Promise<StarknetAccount>>>(
+            (acc, chain) => ({
+              ...acc,
+              [chain]: multiProtocolSigner.getStarknetSigner(chain),
+            }),
+            {},
+          ),
         );
         const addresses = await executeStarknetDeployments({
-          starknetSigner,
+          starknetSigners,
           warpRouteConfig,
           multiProvider,
         });
@@ -1143,18 +1147,18 @@ function groupChainsByProtocol(
 }
 
 async function executeStarknetDeployments({
-  starknetSigner,
+  starknetSigners,
   warpRouteConfig,
   multiProvider,
 }: {
-  starknetSigner: Account;
+  starknetSigners: ChainMap<StarknetAccount>;
   warpRouteConfig: WarpRouteDeployConfig;
   multiProvider: MultiProvider;
 }): Promise<ChainMap<string>> {
   assert(!warpRouteConfig.isNft, 'NFT routes not supported yet!');
 
   const starknetDeployer = new StarknetERC20WarpModule(
-    starknetSigner,
+    starknetSigners,
     warpRouteConfig,
     multiProvider,
   );
