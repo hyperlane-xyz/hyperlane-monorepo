@@ -66,12 +66,7 @@ export class HyperlaneRouterChecker<
       });
     }
 
-    if (config.hook) {
-      if (typeof config.hook !== 'string')
-        return this.logger.info(
-          `Hook objects not supported in router checker for HookConfig: ${config.hook}`,
-        );
-
+    if (config.hook && typeof config.hook === 'string') {
       const hook = await router.hook();
       if (!eqAddress(hook, config.hook as string)) {
         this.addViolation({
