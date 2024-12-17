@@ -208,6 +208,7 @@ export async function runWarpRouteDeploy({
         throw new Error(`Unsupported protocol type: ${protocol}`);
     }
   }
+  fullyConnectTokens(deployments, context.multiProvider);
   await writeDeploymentArtifacts(deployments, context);
 }
 
