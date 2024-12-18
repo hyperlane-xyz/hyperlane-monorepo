@@ -626,3 +626,11 @@ export function getAWValidatorsPath(
     `${context}.json`,
   );
 }
+
+export function getAbacusWorksIcasPath(environment: DeployEnvironment) {
+  return join(
+    getInfraPath(),
+    getEnvironmentDirectory(environment),
+    'aw-icas.json',
+  );
+}

@@ -19,6 +19,8 @@ export function normalizeConfig(obj: WithAddress<any>): any {
   return sortArraysInConfig(lowerCaseConfig(obj));
 }
 
+// Function to recursively lowercase strings.
+// Filters out any 'address' properties.
 function lowerCaseConfig(obj: any): any {
   if (Array.isArray(obj)) {
     return obj.map(normalizeConfig);
