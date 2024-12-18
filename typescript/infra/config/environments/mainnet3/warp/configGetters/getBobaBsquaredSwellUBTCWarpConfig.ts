@@ -19,12 +19,6 @@ const safeOwners: ChainMap<Address> = {
   boba: '0x207FfFa7325fC5d0362aB01605D84B268b61888f',
 };
 
-const proxyAdmin: ChainMap<Address> = {
-  bsquared: '0x0bC57AdFD8f7Ba507DB761Bf1fbd7855de38A3E1',
-  swell: '0xa8ab7DF354DD5d4bCE5856b2b4E0863A3AaeEb44',
-  boba: '0xa8ab7DF354DD5d4bCE5856b2b4E0863A3AaeEb44',
-};
-
 export const getBobaBsquaredSwellUBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
@@ -33,10 +27,6 @@ export const getBobaBsquaredSwellUBTCWarpConfig = async (
   const boba: HypTokenRouterConfig = {
     mailbox: routerConfig.boba.mailbox,
     owner: safeOwners.boba,
-    proxyAdmin: {
-      address: proxyAdmin.boba,
-      owner: safeOwners.boba,
-    },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
@@ -44,10 +34,6 @@ export const getBobaBsquaredSwellUBTCWarpConfig = async (
   const bsquared: HypTokenRouterConfig = {
     mailbox: routerConfig.bsquared.mailbox,
     owner: safeOwners.bsquared,
-    proxyAdmin: {
-      address: proxyAdmin.bsquared,
-      owner: safeOwners.bsquared,
-    },
     type: TokenType.collateral,
     token: tokens.bsquared.uBTC,
     interchainSecurityModule: ISM_CONFIG,
@@ -56,10 +42,6 @@ export const getBobaBsquaredSwellUBTCWarpConfig = async (
   const swell: HypTokenRouterConfig = {
     mailbox: routerConfig.swell.mailbox,
     owner: safeOwners.swell,
-    proxyAdmin: {
-      address: proxyAdmin.swell,
-      owner: safeOwners.swell,
-    },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
