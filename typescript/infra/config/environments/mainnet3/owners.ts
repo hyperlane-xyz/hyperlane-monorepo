@@ -62,7 +62,7 @@ export const safes: ChainMap<Address> = {
 export const icaOwnerChain = 'ethereum';
 
 // Found by running:
-// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
+// yarn tsx ./scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
 export const icas: Partial<
   Record<(typeof supportedChainNames)[number], Address>
 > = {
