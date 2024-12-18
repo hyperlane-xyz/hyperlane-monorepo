@@ -1,4 +1,9 @@
+import { JsonRpcProvider } from '@ethersproject/providers';
 import { CommandModule } from 'yargs';
+import { $ } from 'zx';
+
+import { resetFork } from '@hyperlane-xyz/sdk';
+import { retryAsync } from '@hyperlane-xyz/utils';
 
 import { createAgentConfig } from '../config/agent.js';
 import { createChainConfig } from '../config/chain.js';
@@ -21,6 +26,7 @@ export const registryCommand: CommandModule = {
     yargs
       .command(addressesCommand)
       .command(rpcCommand)
+      .command(forkCommand)
       .command(createAgentConfigCommand)
       .command(initCommand)
       .command(listCommand)
@@ -109,6 +115,55 @@ const addressesCommand: CommandModuleWithContext<{
       logGray('----------------------------------');
       log(JSON.stringify(result, null, 2));
     }
+  },
+};
+
+const forkCommand: CommandModuleWithContext<{
+  name: string;
+  anvil: string;
+  port: number;
+}> = {
+  command: 'fork',
+  describe: 'Fork a Hyperlane chain on a compatible Anvil/Hardhat node',
+  builder: {
+    name: {
+      type: 'string',
+      description: 'Chain to fork',
+      alias: 'chain',
+      demandOption: true,
+    },
+    anvil: {
+      type: 'string',
+      description: 'URL of the Anvil/Hardhat compatible RPC endpoint',
+      demandOption: false,
+    },
+    port: {
+      type: 'number',
+      description: 'Port to run Anvil on',
+      default: 8545,
+    },
+  },
+  handler: async ({ name, context, anvil, port }) => {
+    const result = await context.registry.getChainMetadata(name);
+    if (!result) {
+      errorRed(`❌ Chain ${name} not found`);
+      process.exit(1);
+    }
+
+    if (!anvil) {
+      logGray(`Starting Anvil node on ${port}`);
+      const anvilProcess = $`anvil --port ${port} --chain-id ${result.chainId}`;
+      anvil = `http://localhost:${port}`;
+
+      process.once('exit', () => anvilProcess.kill());
+    }
+
+    const provider = new JsonRpcProvider(anvil);
+    await retryAsync(() => provider.getNetwork(), 10, 500);
+
+    const rpcUrl = result.rpcUrls[0].http;
+    logGray(`Forking ${name} (latest block)`);
+    await resetFork(provider, rpcUrl);
   },
 };
 
