@@ -35,6 +35,7 @@ export const getBobaBsquaredSwellUBTCWarpConfig = async (
     owner: safeOwners.boba,
     proxyAdmin: {
       address: proxyAdmin.boba,
+      owner: safeOwners.boba,
     },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
@@ -45,6 +46,7 @@ export const getBobaBsquaredSwellUBTCWarpConfig = async (
     owner: safeOwners.bsquared,
     proxyAdmin: {
       address: proxyAdmin.bsquared,
+      owner: safeOwners.bsquared,
     },
     type: TokenType.collateral,
     token: tokens.bsquared.uBTC,
@@ -56,6 +58,7 @@ export const getBobaBsquaredSwellUBTCWarpConfig = async (
     owner: safeOwners.swell,
     proxyAdmin: {
       address: proxyAdmin.swell,
+      owner: safeOwners.swell,
     },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
