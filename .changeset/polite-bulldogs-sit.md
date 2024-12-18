@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/cli": patch
+'@hyperlane-xyz/cli': patch
 ---
 
 Fix strategy flag propagation
