@@ -15,6 +15,7 @@ import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
 import {
@@ -38,10 +39,17 @@ interface ApplyParams extends DeployParams {
  * Executes the core deploy command.
  */
 export async function runCoreDeploy(params: DeployParams) {
-  const { chain, context, config } = params;
+  let { chain, context, config } = params;
 
-  const { isDryRun, chainMetadata, registry, skipConfirmation, multiProvider } =
-    context;
+  const { chainMetadata, registry, skipConfirmation, multiProvider } = context;
+
+  if (!chain) {
+    if (skipConfirmation) throw new Error('No chain provided');
+    chain = await runSingleChainSelectionStep(
+      chainMetadata,
+      'Select chain to connect:',
+    );
+  }
 
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
@@ -84,12 +92,10 @@ export async function runCoreDeploy(params: DeployParams) {
   await completeDeploy(context, 'core', initialBalances, userAddress, [chain]);
   const deployedAddresses = evmCoreModule.serialize();
 
-  if (!isDryRun) {
-    await registry.updateChain({
-      chainName: chain,
-      addresses: deployedAddresses,
-    });
-  }
+  await registry.updateChain({
+    chainName: chain,
+    addresses: deployedAddresses,
+  });
 
   logGreen('✅ Core contract deployments complete:\n');
   log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));

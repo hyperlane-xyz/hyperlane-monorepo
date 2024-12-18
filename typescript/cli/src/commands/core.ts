@@ -32,7 +32,6 @@ import {
   chainCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
-  skipConfirmationOption,
 } from './options.js';
 
 /**
@@ -111,10 +110,9 @@ export const deploy: CommandModuleWithWriteContext<{
       false,
       'The path to a JSON or YAML file with a core deployment config.',
     ),
-    'skip-confirmation': skipConfirmationOption,
   },
   handler: async ({ context, chain, config: configFilePath }) => {
-    logCommandHeader('Hyperlane Core deployment');
+    logCommandHeader(`Hyperlane Core deployment`);
 
     await runCoreDeploy({
       context,

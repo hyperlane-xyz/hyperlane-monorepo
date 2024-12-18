@@ -30,8 +30,6 @@ import {
   DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   addressCommandOption,
   chainCommandOption,
-  dryRunCommandOption,
-  fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
@@ -122,15 +120,11 @@ export const apply: CommandModuleWithWriteContext<{
 
 export const deploy: CommandModuleWithWriteContext<{
   config: string;
-  'dry-run': string;
-  'from-address': string;
 }> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
   builder: {
     config: warpDeploymentConfigCommandOption,
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
   },
   handler: async ({ context, config }) => {
     logCommandHeader('Hyperlane Warp Route Deployment');

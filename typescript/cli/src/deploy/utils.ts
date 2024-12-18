@@ -149,7 +149,7 @@ export async function completeDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ) {
-  const { multiProvider, isDryRun } = context;
+  const { multiProvider } = context;
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
     const provider = multiProvider.getProvider(chain);
@@ -157,13 +157,10 @@ export async function completeDeploy(
       userAddress ?? (await multiProvider.getSigner(chain).getAddress());
     const currentBalance = await provider.getBalance(address);
     const balanceDelta = initialBalances[chain].sub(currentBalance);
-    if (isDryRun && balanceDelta.lt(0)) break;
     logPink(
-      `\t- Gas required for ${command} ${
-        isDryRun ? 'dry-run' : 'deploy'
-      } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
-      }`,
+      `\t- Gas required for ${command} deploy on ${chain}: ${ethers.utils.formatEther(
+        balanceDelta,
+      )} ${multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'}`,
     );
   }
 }

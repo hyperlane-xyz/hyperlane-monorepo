@@ -164,13 +164,6 @@ export const fromAddressCommandOption: Options = {
   alias: 'f',
 };
 
-export const dryRunCommandOption: Options = {
-  type: 'string',
-  description:
-    'Chain name to fork and simulate deployment. Please ensure an anvil node instance is running during execution via `anvil`.',
-  alias: 'd',
-};
-
 export const chainCommandOption: Options = {
   type: 'string',
   description: 'The specific chain to perform operations with.',

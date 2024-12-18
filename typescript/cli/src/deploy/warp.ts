@@ -168,7 +168,7 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 
   displayWarpDeployPlan(warpDeployConfig);
 
-  if (skipConfirmation || context.isDryRun) return;
+  if (skipConfirmation) return;
 
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
@@ -224,10 +224,8 @@ async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
 ) {
-  if (!context.isDryRun) {
-    log('Writing deployment artifacts...');
-    await context.registry.addWarpRoute(warpCoreConfig);
-  }
+  log('Writing deployment artifacts...');
+  await context.registry.addWarpRoute(warpCoreConfig);
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
 
