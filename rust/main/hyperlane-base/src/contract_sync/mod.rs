@@ -126,8 +126,7 @@ where
                             continue;
                         }
                     };
-                    let (logs, _) = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
-
+                    let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
                     let num_logs = logs.len() as u64;
                     info!(
                         num_logs,
@@ -180,8 +179,7 @@ where
                     }
                 };
 
-                let (logs, stored_all) = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
-
+                let logs = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
                 let logs_found = logs.len() as u64;
                 info!(
                     ?range,
@@ -201,17 +199,11 @@ where
                 }
 
                 // Update cursor
-                if stored_all {
-                    if let Err(err) = cursor.update(logs, range).await {
-                        warn!(?err, ?range, "Error updating cursor");
-                        break Some(SLEEP_DURATION);
-                    };
-                } else {
-                    warn!(
-                        current_range = ?range,
-                        "Not updating cursor since not all logs were stored. Retrying",
-                    );
-                }
+                if let Err(err) = cursor.update(logs, range.clone()).await {
+                    warn!(?err, ?range, "Error updating cursor");
+                    break Some(SLEEP_DURATION);
+                };
+
                 break None;
             },
             CursorAction::Sleep(duration) => Some(duration),
@@ -230,39 +222,39 @@ where
         &self,
         logs: Vec<(Indexed<T>, LogMeta)>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
-    ) -> (Vec<(Indexed<T>, LogMeta)>, bool) {
+    ) -> Vec<(Indexed<T>, LogMeta)> {
         let deduped_logs = HashSet::<_>::from_iter(logs);
         let logs = Vec::from_iter(deduped_logs);
 
-        // Store deliveries
-        let stored_logs_count = match self.store.store_logs(&logs).await {
-            Ok(stored) => stored,
-            Err(err) => {
-                warn!(?err, "Error storing logs in db");
-                Default::default()
+        let deduped_logs_count = logs.len() as u64;
+        let mut accumulated_stored_logs_count: u64 = 0;
+
+        loop {
+            let stored_logs_count = match self.store.store_logs(&logs).await {
+                Ok(stored) => stored,
+                Err(err) => {
+                    warn!(?err, "Error storing logs in db");
+                    Default::default()
+                }
+            };
+            if stored_logs_count > 0 {
+                debug!(
+                    domain = self.domain.as_ref(),
+                    count = stored_logs_count,
+                    sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
+                    "Stored logs in db",
+                );
             }
-        };
-        if stored_logs_count > 0 {
-            debug!(
-                domain = self.domain.as_ref(),
-                count = stored_logs_count,
-                sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
-                "Stored logs in db",
-            );
-        }
-        // Report amount of deliveries stored into db
-        stored_logs_metric.inc_by(stored_logs_count as u64);
+            // Report amount of deliveries stored into db
+            stored_logs_metric.inc_by(stored_logs_count as u64);
 
-        let deduped_logs_len = logs.len();
-        if (stored_logs_count as usize) < deduped_logs_len {
-            warn!(
-                deduped_logs_len,
-                stored_logs_count, "not all logs were stored",
-            );
-            return (logs, false);
+            accumulated_stored_logs_count += stored_logs_count as u64;
+            if accumulated_stored_logs_count == deduped_logs_count {
+                break;
+            }
         }
 
-        (logs, true)
+        logs
     }
 }
 
