@@ -90,20 +90,22 @@ export const pending: CommandModuleWithWriteContext<{
   command: 'pending',
   describe: 'Fetches strategy pending transactions',
   builder: {
-    strategy: {
-      ...strategyCommandOption,
-      demandOption: true,
-    },
     transactions: {
       ...transactionsCommandOption,
       demandOption: false,
       default: './generated/transactions.yaml',
     },
+    strategy: {
+      ...strategyCommandOption,
+      demandOption: true,
+    },
   },
-  handler: async ({ strategy: strategyUrl, context, transactions }) => {
+  handler: async ({ context, transactions }) => {
     logCommandHeader(`Hyperlane Strategy Pending`);
 
-    const submissionStrategy = readSubmissionStrategyConfig(strategyUrl);
+    const submissionStrategy = readSubmissionStrategyConfig(
+      context.strategyPath!,
+    );
 
     const submitter = await getSubmitterBuilder({
       submissionStrategy,
