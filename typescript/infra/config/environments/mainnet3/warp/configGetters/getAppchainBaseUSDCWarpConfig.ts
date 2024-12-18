@@ -18,11 +18,6 @@ const safeOwners: ChainMap<Address> = {
   base: '0xE3b50a565fbcdb6CC67B30bEB112f9e7FC855359',
 };
 
-const proxyAdmins: ChainMap<Address> = {
-  appchain: '0x5E76be0F4e09057D75140216F70fd4cE3365bb29',
-  base: '0x2E3B0f8eb2a98bC4ddF55477CC3B49bdd1da4EAF',
-};
-
 export const getAppChainBaseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
@@ -31,10 +26,6 @@ export const getAppChainBaseUSDCWarpConfig = async (
   const appchain: HypTokenRouterConfig = {
     mailbox: routerConfig.appchain.mailbox,
     owner: safeOwners.appchain,
-    proxyAdmin: {
-      owner: safeOwners.appchain,
-      address: proxyAdmins.appchain,
-    },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
@@ -42,10 +33,6 @@ export const getAppChainBaseUSDCWarpConfig = async (
   const base: HypTokenRouterConfig = {
     mailbox: routerConfig.base.mailbox,
     owner: safeOwners.base,
-    proxyAdmin: {
-      owner: safeOwners.base,
-      address: proxyAdmins.base,
-    },
     type: TokenType.collateral,
     token: tokens.base.USDC,
     interchainSecurityModule: ISM_CONFIG,
