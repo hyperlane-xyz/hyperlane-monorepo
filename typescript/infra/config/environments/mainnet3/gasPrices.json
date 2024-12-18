@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "arthera": {
-    "amount": "1.025082",
+    "amount": "1.025064",
     "decimals": 9
   },
   "astar": {
@@ -36,7 +36,7 @@
     "decimals": 9
   },
   "aurora": {
-    "amount": "0.05",
+    "amount": "0.07",
     "decimals": 9
   },
   "flame": {
@@ -48,7 +48,7 @@
     "decimals": 9
   },
   "b3": {
-    "amount": "0.001000256",
+    "amount": "0.001000252",
     "decimals": 9
   },
   "base": {
@@ -68,7 +68,7 @@
     "decimals": 9
   },
   "boba": {
-    "amount": "0.001000067",
+    "amount": "0.001000068",
     "decimals": 9
   },
   "bsc": {
@@ -159,10 +159,6 @@
     "amount": "0.001000252",
     "decimals": 9
   },
-  "fractal": {
-    "amount": "10.0",
-    "decimals": 9
-  },
   "fraxtal": {
     "amount": "0.001000253",
     "decimals": 9
@@ -212,7 +208,7 @@
     "decimals": 9
   },
   "lisk": {
-    "amount": "0.001001101",
+    "amount": "0.001001154",
     "decimals": 9
   },
   "lukso": {
@@ -228,7 +224,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.003000373",
+    "amount": "0.003000319",
     "decimals": 9
   },
   "mantle": {
@@ -248,11 +244,11 @@
     "decimals": 9
   },
   "mint": {
-    "amount": "0.001000252",
+    "amount": "0.001000256",
     "decimals": 9
   },
   "mode": {
-    "amount": "0.001000264",
+    "amount": "0.001000252",
     "decimals": 9
   },
   "molten": {
@@ -276,7 +272,7 @@
     "decimals": 9
   },
   "optimism": {
-    "amount": "0.001000772",
+    "amount": "0.001159749",
     "decimals": 9
   },
   "orderly": {
@@ -300,7 +296,7 @@
     "decimals": 9
   },
   "prom": {
-    "amount": "128.0",
+    "amount": "130.0",
     "decimals": 9
   },
   "proofofplay": {
@@ -340,7 +336,7 @@
     "decimals": 9
   },
   "shibarium": {
-    "amount": "9.064712705",
+    "amount": "11.93032412",
     "decimals": 9
   },
   "snaxchain": {
@@ -384,7 +380,7 @@
     "decimals": 9
   },
   "telos": {
-    "amount": "521.500627641",
+    "amount": "522.500627641",
     "decimals": 9
   },
   "treasure": {
@@ -404,7 +400,7 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001000258",
+    "amount": "0.001000251",
     "decimals": 9
   },
   "xai": {
