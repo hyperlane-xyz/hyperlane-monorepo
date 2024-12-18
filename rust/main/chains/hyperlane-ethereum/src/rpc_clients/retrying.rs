@@ -95,7 +95,7 @@ where
             let mut rate_limited = false;
             let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
             trace!(params = %serde_json::to_string(&params).unwrap_or_default(), "Dispatching request with params");
-            debug!(attempt = i, "Dispatching request");
+            trace!(attempt = i, "Dispatching request");
 
             let fut = match params {
                 Value::Null => self.inner.request(method, ()),
