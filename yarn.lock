@@ -7648,7 +7648,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@google-cloud/storage": "npm:7.14.0"
     "@hyperlane-xyz/core": "npm:5.8.3"
-    "@hyperlane-xyz/starknet-core": "npm:0.2.1"
+    "@hyperlane-xyz/starknet-core": "npm:0.2.2"
     "@hyperlane-xyz/utils": "npm:7.3.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7693,7 +7693,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/starknet-core@npm:0.2.1, @hyperlane-xyz/starknet-core@workspace:starknet":
+"@hyperlane-xyz/starknet-core@npm:0.2.2, @hyperlane-xyz/starknet-core@workspace:starknet":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/starknet-core@workspace:starknet"
   dependencies:
