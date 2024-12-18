@@ -8,6 +8,7 @@ export const SIGN_COMMANDS = [
   'status',
   'submit',
   'relayer',
+  'pending', // gnosis safe service auth
 ];
 
 export function isSignCommand(argv: any): boolean {

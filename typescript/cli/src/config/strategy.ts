@@ -5,6 +5,8 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   ChainSubmissionStrategy,
   ChainSubmissionStrategySchema,
+  SubmissionStrategy,
+  SubmissionStrategySchema,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -23,6 +25,14 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { maskSensitiveData } from '../utils/output.js';
+
+export function readSubmissionStrategyConfig(
+  filePath: string,
+): SubmissionStrategy {
+  log(`Reading submission strategy in ${filePath}`);
+  const strategyConfig = readYamlOrJson<SubmissionStrategy>(filePath);
+  return SubmissionStrategySchema.parse(strategyConfig);
+}
 
 /**
  * Reads and validates a chain submission strategy configuration from a file

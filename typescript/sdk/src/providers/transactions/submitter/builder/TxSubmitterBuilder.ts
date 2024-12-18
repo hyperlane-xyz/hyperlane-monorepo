@@ -97,4 +97,10 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
 
     return txReceipts;
   }
+
+  public async pending(): Promise<
+    Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]
+  > {
+    return this.currentSubmitter.pending();
+  }
 }

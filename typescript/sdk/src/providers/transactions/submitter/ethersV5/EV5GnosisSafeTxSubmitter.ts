@@ -110,8 +110,6 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   }
 
   public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
-    // TODO: check for pending matches submission
-
     return this.proposeIndividualTransactions(txs);
   }
 

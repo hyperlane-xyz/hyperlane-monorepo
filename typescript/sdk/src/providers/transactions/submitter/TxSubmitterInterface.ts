@@ -28,4 +28,8 @@ export interface TxSubmitterInterface<TProtocol extends ProtocolType> {
     | ProtocolTypedReceipt<TProtocol>['receipt'][]
     | void
   >;
+
+  pending(): Promise<
+    Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]
+  >;
 }

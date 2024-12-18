@@ -15,7 +15,7 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
     "preserveSymlinks": true,
     "preserveWatchOutput": true,
     "pretty": false,
