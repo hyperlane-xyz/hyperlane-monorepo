@@ -6,7 +6,7 @@ import { addressToBytes32 } from '@hyperlane-xyz/utils';
 import {
   MockMailbox__factory,
   TestRecipient__factory,
-} from '../core-utils/evm/types';
+} from '../core-utils/typechain';
 
 import { getSigner } from './signer';
 
