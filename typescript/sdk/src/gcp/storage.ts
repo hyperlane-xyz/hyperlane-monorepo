@@ -1,5 +1,3 @@
-import { Storage } from '@google-cloud/storage';
-
 export const GCS_BUCKET_REGEX =
   /^(?:(?:https?:\/\/)?([^/]+)\.storage\.googleapis\.com\/?|gs:\/\/([^/]+))$/;
 
@@ -18,53 +16,84 @@ export interface StorageConfig {
 }
 
 export class GcpStorageWrapper {
-  private readonly client: Storage;
   private readonly bucket: string;
   private cache: Record<string, StorageReceipt<any>> | undefined;
+  private readonly baseUrl: string;
 
   static fromBucketUrl(bucketUrl: string): GcpStorageWrapper {
     const match = bucketUrl.match(GCS_BUCKET_REGEX);
     if (!match) throw new Error('Could not parse bucket url');
     return new GcpStorageWrapper({
-      bucket: match[1],
+      // Handle both http and gs:// formats
+      bucket: match[1] || match[2],
       caching: true,
     });
   }
 
   constructor(readonly config: StorageConfig) {
-    this.client = new Storage({
-      projectId: config.projectId,
-      keyFilename: config.keyFilename,
-    });
     this.bucket = config.bucket;
+    this.baseUrl = `https://storage.googleapis.com/storage/v1/b/${this.bucket}/o`;
     if (config.caching) {
       this.cache = {};
     }
   }
 
-  formatKey(key: string): string {
+  private formatKey(key: string): string {
     return this.config.folder ? `${this.config.folder}/${key}` : key;
   }
 
+  private getCachedObject<T>(key: string): StorageReceipt<T> | undefined {
+    return this.cache?.[key];
+  }
+
+  private setCachedObject<T>(key: string, value: StorageReceipt<T>): void {
+    if (this.cache) {
+      this.cache[key] = value;
+    }
+  }
+
+  private async fetchMetadata(key: string): Promise<any> {
+    const url = new URL(`${this.baseUrl}/${encodeURIComponent(key)}`);
+    const response = await fetch(url.toString());
+
+    if (response.status === 404) return undefined;
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      throw new Error(
+        `Failed to fetch object metadata: ${response.statusText}. ${responseText}`,
+      );
+    }
+
+    return response.json();
+  }
+
+  private async fetchContent(key: string): Promise<string> {
+    const url = `${this.baseUrl}/${encodeURIComponent(key)}?alt=media`;
+    const response = await fetch(url);
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch object content: ${response.statusText}. ${responseText}`,
+      );
+    }
+
+    return responseText;
+  }
+
   async getObject<T>(key: string): Promise<StorageReceipt<T> | undefined> {
-    const Key = this.formatKey(key);
-    if (this.cache?.[Key]) {
-      return this.cache![Key];
+    const formattedKey = this.formatKey(key);
+    const cachedObject = this.getCachedObject<T>(formattedKey);
+    if (cachedObject) {
+      return cachedObject;
     }
 
     try {
-      const bucket = this.client.bucket(this.bucket);
-      const file = bucket.file(Key);
-      const [exists] = await file.exists();
+      const metadata = await this.fetchMetadata(formattedKey);
+      if (!metadata) return undefined;
 
-      if (!exists) {
-        return undefined;
-      }
-
-      const [metadata] = await file.getMetadata();
-      const [contents] = await file.download();
-      const body = contents.toString('utf-8');
-
+      const body = await this.fetchContent(formattedKey);
       const result = {
         data: JSON.parse(body),
         // If no updated date is provided, use the Unix epoch start
@@ -72,12 +101,10 @@ export class GcpStorageWrapper {
         modified: new Date(metadata.updated ?? 0),
       };
 
-      if (this.cache) {
-        this.cache[Key] = result;
-      }
+      this.setCachedObject(formattedKey, result);
       return result;
     } catch (e: any) {
-      if (e.code === 404) {
+      if (e.status === 404) {
         return undefined;
       }
       throw e;

@@ -1,12 +1,15 @@
-pub(crate) mod sequence_aware;
-
 use hyperlane_core::{
     Delivery, HyperlaneDomainProtocol, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion,
 };
+
+pub(crate) mod sequence_aware;
 pub(crate) use sequence_aware::ForwardBackwardSequenceAwareSyncCursor;
 
 pub(crate) mod rate_limited;
 pub(crate) use rate_limited::RateLimitedContractSyncCursor;
+
+pub(crate) mod metrics;
+pub(crate) use metrics::CursorMetrics;
 
 pub enum CursorType {
     SequenceAware,
@@ -24,6 +27,8 @@ pub trait Indexable {
     fn broadcast_channel_size() -> Option<usize> {
         None
     }
+    /// Returns the name of the type for metrics.
+    fn name() -> &'static str;
 }
 
 impl Indexable for HyperlaneMessage {
@@ -40,6 +45,10 @@ impl Indexable for HyperlaneMessage {
     fn broadcast_channel_size() -> Option<usize> {
         TX_ID_CHANNEL_CAPACITY
     }
+
+    fn name() -> &'static str {
+        "hyperlane_message"
+    }
 }
 
 impl Indexable for InterchainGasPayment {
@@ -50,6 +59,10 @@ impl Indexable for InterchainGasPayment {
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
+    }
+
+    fn name() -> &'static str {
+        "interchain_gas_payment"
     }
 }
 
@@ -62,6 +75,10 @@ impl Indexable for MerkleTreeInsertion {
             HyperlaneDomainProtocol::Cosmos => CursorType::SequenceAware,
         }
     }
+
+    fn name() -> &'static str {
+        "merkle_tree_insertion"
+    }
 }
 
 impl Indexable for Delivery {
@@ -72,5 +89,9 @@ impl Indexable for Delivery {
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
         }
+    }
+
+    fn name() -> &'static str {
+        "delivery"
     }
 }

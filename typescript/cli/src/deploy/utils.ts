@@ -46,7 +46,7 @@ export async function runPreflightChecksForChains({
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { multiProvider } = context;
+  const { multiProvider, skipConfirmation } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -64,6 +64,7 @@ export async function runPreflightChecksForChains({
     multiProvider,
     chainsToGasCheck ?? chains,
     minGas,
+    skipConfirmation,
   );
 }
 
