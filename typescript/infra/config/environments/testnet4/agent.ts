@@ -113,7 +113,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
-    arcadiatestnet2: true,
+    arcadiatestnet2: false,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -250,7 +250,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '4b280cd-20241206-130519',
+      tag: 'd84d8da-20241217-172447',
     },
     resources: scraperResources,
   },
