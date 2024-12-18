@@ -1,6 +1,8 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
+import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
+
 import {
   createStrategyConfig,
   readChainSubmissionStrategyConfig,
@@ -8,6 +10,7 @@ import {
 } from '../config/strategy.js';
 import { runSubmit } from '../config/submit.js';
 import { CommandModuleWithWriteContext } from '../context/types.js';
+import { readChainSubmissionStrategy } from '../deploy/warp.js';
 import { log, logCommandHeader, logGray } from '../logger.js';
 import { getSubmitterBuilder } from '../submit/submit.js';
 import {
@@ -103,16 +106,18 @@ export const pending: CommandModuleWithWriteContext<{
   handler: async ({ context, transactions }) => {
     logCommandHeader(`Hyperlane Strategy Pending`);
 
-    const submissionStrategy = readSubmissionStrategyConfig(
-      context.strategyPath!,
+    const chainStrategy = readChainSubmissionStrategy(context.strategyPath!);
+
+    const pending = await promiseObjAll(
+      objMap(chainStrategy, async (_, submissionStrategy) => {
+        const submitter = await getSubmitterBuilder({
+          submissionStrategy,
+          multiProvider: context.multiProvider,
+        });
+        return submitter.pending();
+      }),
     );
 
-    const submitter = await getSubmitterBuilder({
-      submissionStrategy,
-      multiProvider: context.multiProvider,
-    });
-
-    const pending = await submitter.pending();
     logYamlIfUnderMaxLines(pending);
 
     logGray(`Writing pending transactions to ${transactions}`);
