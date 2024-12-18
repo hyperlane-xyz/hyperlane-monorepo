@@ -1,10 +1,7 @@
 import { input } from '@inquirer/prompts';
-import { ethers, providers } from 'ethers';
+import { ethers } from 'ethers';
 
-import { impersonateAccount } from '@hyperlane-xyz/sdk';
-import { Address, ensure0x } from '@hyperlane-xyz/utils';
-
-const ETHEREUM_ADDRESS_LENGTH = 42;
+import { ensure0x } from '@hyperlane-xyz/utils';
 
 /**
  * Retrieves a signer for the current command-context.
@@ -23,53 +20,12 @@ export async function getSigner({
 }
 
 /**
- * Retrieves an impersonated signer for the current command-context.
- * @returns the impersonated signer
- */
-export async function getImpersonatedSigner({
-  fromAddress,
-  key,
-  skipConfirmation,
-}: {
-  fromAddress?: Address;
-  key?: string;
-  skipConfirmation?: boolean;
-}) {
-  if (!fromAddress) {
-    const { signer } = await getSigner({ key, skipConfirmation });
-    fromAddress = signer.address;
-  }
-  return {
-    impersonatedKey: fromAddress,
-    impersonatedSigner: await addressToImpersonatedSigner(fromAddress),
-  };
-}
-
-/**
  * Verifies the specified signer is valid.
  * @param signer the signer to verify
  */
 export function assertSigner(signer: ethers.Signer) {
   if (!signer || !ethers.Signer.isSigner(signer))
     throw new Error('Signer is invalid');
-}
-
-/**
- * Generates a signer from an address.
- * @param address an EOA address
- * @returns a signer for the address
- */
-async function addressToImpersonatedSigner(
-  address: Address,
-): Promise<providers.JsonRpcSigner> {
-  if (!address) throw new Error('No address provided');
-
-  const formattedKey = address.trim().toLowerCase();
-  if (address.length != ETHEREUM_ADDRESS_LENGTH)
-    throw new Error('Invalid address length.');
-  else if (ethers.utils.isHexString(ensure0x(formattedKey)))
-    return impersonateAccount(address);
-  else throw new Error('Invalid address format');
 }
 
 /**

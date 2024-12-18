@@ -7,7 +7,6 @@ import {
   ChainName,
   IsmConfig,
   MultisigConfig,
-  getLocalProvider,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -22,10 +21,7 @@ import {
   logTable,
 } from '../logger.js';
 import { nativeBalancesAreSufficient } from '../utils/balances.js';
-import { ENV } from '../utils/env.js';
 import { assertSigner } from '../utils/keys.js';
-
-import { completeDryRun } from './dry-run.js';
 
 export async function runPreflightChecksForChains({
   context,
@@ -132,13 +128,11 @@ export async function prepareDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ): Promise<Record<string, BigNumber>> {
-  const { multiProvider, isDryRun } = context;
+  const { multiProvider } = context;
   const initialBalances: Record<string, BigNumber> = {};
   await Promise.all(
     chains.map(async (chain: ChainName) => {
-      const provider = isDryRun
-        ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
-        : multiProvider.getProvider(chain);
+      const provider = multiProvider.getProvider(chain);
       const address =
         userAddress ?? (await multiProvider.getSigner(chain).getAddress());
       const currentBalance = await provider.getBalance(address);
@@ -155,27 +149,20 @@ export async function completeDeploy(
   userAddress: Address | null,
   chains: ChainName[],
 ) {
-  const { multiProvider, isDryRun } = context;
+  const { multiProvider } = context;
   if (chains.length > 0) logPink(`⛽️ Gas Usage Statistics`);
   for (const chain of chains) {
-    const provider = isDryRun
-      ? getLocalProvider(ENV.ANVIL_IP_ADDR, ENV.ANVIL_PORT)
-      : multiProvider.getProvider(chain);
+    const provider = multiProvider.getProvider(chain);
     const address =
       userAddress ?? (await multiProvider.getSigner(chain).getAddress());
     const currentBalance = await provider.getBalance(address);
     const balanceDelta = initialBalances[chain].sub(currentBalance);
-    if (isDryRun && balanceDelta.lt(0)) break;
     logPink(
-      `\t- Gas required for ${command} ${
-        isDryRun ? 'dry-run' : 'deploy'
-      } on ${chain}: ${ethers.utils.formatEther(balanceDelta)} ${
-        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'
-      }`,
+      `\t- Gas required for ${command} deploy on ${chain}: ${ethers.utils.formatEther(
+        balanceDelta,
+      )} ${multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH'}`,
     );
   }
-
-  if (isDryRun) await completeDryRun(command);
 }
 
 function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {

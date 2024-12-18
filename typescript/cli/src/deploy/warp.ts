@@ -168,7 +168,7 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
 
   displayWarpDeployPlan(warpDeployConfig);
 
-  if (skipConfirmation || context.isDryRun) return;
+  if (skipConfirmation) return;
 
   const isConfirmed = await confirm({
     message: 'Is this deployment plan correct?',
@@ -184,17 +184,14 @@ async function executeDeploy(
 
   const {
     warpDeployConfig,
-    context: { multiProvider, isDryRun, dryRunChain },
+    context: { multiProvider },
   } = params;
 
   const deployer = warpDeployConfig.isNft
     ? new HypERC721Deployer(multiProvider)
     : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
 
-  const config: WarpRouteDeployConfig =
-    isDryRun && dryRunChain
-      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
-      : warpDeployConfig;
+  const config: WarpRouteDeployConfig = warpDeployConfig;
 
   const contractVerifier = new ContractVerifier(
     multiProvider,
@@ -227,10 +224,8 @@ async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
 ) {
-  if (!context.isDryRun) {
-    log('Writing deployment artifacts...');
-    await context.registry.addWarpRoute(warpCoreConfig);
-  }
+  log('Writing deployment artifacts...');
+  await context.registry.addWarpRoute(warpCoreConfig);
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
 
