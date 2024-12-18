@@ -1,14 +1,27 @@
 import { Account, CairoOption, CairoOptionVariant, Contract } from 'starknet';
 
+import {
+  ChainName,
+  HyperlaneAddressesMap,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 export class StarknetCore {
   protected logger = rootLogger.child({ module: 'StarknetCore' });
   protected signer: Account;
+  protected addressesMap: HyperlaneAddressesMap<any>;
+  protected multiProvider: MultiProvider;
 
-  constructor(signer: Account) {
+  constructor(
+    signer: Account,
+    addressesMap: HyperlaneAddressesMap<any>,
+    multiProvider: MultiProvider,
+  ) {
     this.signer = signer;
+    this.addressesMap = addressesMap;
+    this.multiProvider = multiProvider;
   }
 
   /**
@@ -45,17 +58,23 @@ export class StarknetCore {
     };
   }
 
+  static getMailboxContract(address: string, signer: Account): Contract {
+    const { abi } = getCompiledContract('mailbox');
+    return new Contract(abi, address, signer);
+  }
+
   async sendMessage(params: {
+    origin: ChainName;
     destinationDomain: number;
     recipientAddress: string;
     messageBody: string;
-  }): Promise<{ txHash: string }> {
-    const { abi } = getCompiledContract('mailbox');
-    const mailboxContract = new Contract(
-      abi,
-      '0x00581bb8ad9e4ecd0ba06793e2ffb26f4b12ea18ec69dfb216738efe569e2e59',
+  }): Promise<{ txHash: string; messages: any[] }> {
+    const mailboxAddress = this.addressesMap[params.origin].mailbox;
+    const mailboxContract = StarknetCore.getMailboxContract(
+      mailboxAddress,
       this.signer,
     );
+
     // Convert messageBody to Bytes struct format
     const messageBodyBytes = StarknetCore.toStarknetMessageBytes(
       new TextEncoder().encode(params.messageBody),
@@ -88,8 +107,12 @@ export class StarknetCore {
 
     this.logger.info(`Message sent with transaction hash: ${transaction_hash}`);
 
+    const receipt = await this.signer.waitForTransaction(transaction_hash);
+    const parsedEvents = mailboxContract.parseEvents(receipt);
+
     return {
       txHash: transaction_hash,
+      messages: this.getDispatchedMessages(parsedEvents),
     };
   }
 
@@ -112,5 +135,32 @@ export class StarknetCore {
     ]);
 
     return quote.toString();
+  }
+
+  getDispatchedMessages(parsedEvents: any): any {
+    return parsedEvents
+      .filter((event: any) => 'contracts::mailbox::mailbox::Dispatch' in event)
+      .map((event: any) => {
+        const dispatchEvent = event['contracts::mailbox::mailbox::Dispatch'];
+        const message = dispatchEvent.message;
+
+        const originChain =
+          this.multiProvider.tryGetChainName(message.origin) ?? undefined;
+        const destinationChain =
+          this.multiProvider.tryGetChainName(message.destination) ?? undefined;
+
+        // Convert the message to the expected format
+        const messageString = {
+          version: Number(message.version),
+          nonce: Number(message.nonce),
+          origin: originChain,
+          sender: message.sender.toString(),
+          destination: destinationChain,
+          recipient: message.recipient.toString(),
+          body: Array.from(message.body.data).map((n: any) => n.toString()),
+        };
+
+        return messageString;
+      });
   }
 }

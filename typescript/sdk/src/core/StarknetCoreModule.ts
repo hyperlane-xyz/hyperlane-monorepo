@@ -76,6 +76,11 @@ export class StarknetCoreModule {
       [mailboxContract.address, config.owner],
     );
 
+    const testRecipient = await this.deployer.deployContract(
+      'message_recipient',
+      [defaultIsm || noopIsm],
+    );
+
     return {
       noopIsm,
       defaultHook,
@@ -84,6 +89,7 @@ export class StarknetCoreModule {
       mailbox: mailboxContract.address,
       merkleTreeHook: requiredHook || '',
       validatorAnnounce,
+      testRecipient,
     };
   }
 
