@@ -126,8 +126,7 @@ where
                             continue;
                         }
                     };
-                    let logs_result = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
-                    let logs = logs_result.unwrap_or_else(|logs| logs);
+                    let (logs, _) = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
 
                     let num_logs = logs.len() as u64;
                     info!(
@@ -181,11 +180,7 @@ where
                     }
                 };
 
-                let logs_result = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
-                let (logs, error) = match logs_result {
-                    Ok(logs) => (logs, false),
-                    Err(logs) => (logs, true),
-                };
+                let (logs, stored_all) = self.dedupe_and_store_logs(logs, stored_logs_metric).await;
 
                 let logs_found = logs.len() as u64;
                 info!(
@@ -206,7 +201,7 @@ where
                 }
 
                 // Update cursor
-                if !error {
+                if stored_all {
                     if let Err(err) = cursor.update(logs, range).await {
                         warn!(?err, "Error updating cursor");
                         break Some(SLEEP_DURATION);
@@ -230,7 +225,7 @@ where
         &self,
         logs: Vec<(Indexed<T>, LogMeta)>,
         stored_logs_metric: &GenericCounter<AtomicU64>,
-    ) -> Result<Vec<(Indexed<T>, LogMeta)>, Vec<(Indexed<T>, LogMeta)>> {
+    ) -> (Vec<(Indexed<T>, LogMeta)>, bool) {
         let deduped_logs = HashSet::<_>::from_iter(logs);
         let logs = Vec::from_iter(deduped_logs);
 
@@ -254,10 +249,10 @@ where
         stored_logs_metric.inc_by(stored as u64);
 
         if (stored as usize) < logs.len() {
-            return Err(logs);
+            return (logs, false);
         }
 
-        Ok(logs)
+        (logs, true)
     }
 }
 
