@@ -23,6 +23,7 @@ import {
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { DispatchedMessage } from '../core/types.js';
+import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
@@ -227,10 +228,22 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       `expected module type to be ${ModuleType.MERKLE_ROOT_MULTISIG} or ${ModuleType.MESSAGE_ID_MULTISIG}, got ${moduleType}`,
     );
 
-    const ismType =
+    let ismType =
       moduleType === ModuleType.MERKLE_ROOT_MULTISIG
         ? IsmType.MERKLE_ROOT_MULTISIG
         : IsmType.MESSAGE_ID_MULTISIG;
+
+    // If it's a zkSync chain, it must be a StorageMultisigIsm
+    const chainTechnicalStack = this.multiProvider.getChainMetadata(
+      this.chain,
+    ).technicalStack;
+    const isZkSync = chainTechnicalStack === ChainTechnicalStack.ZkSync;
+    if (isZkSync) {
+      ismType =
+        moduleType === ModuleType.MERKLE_ROOT_MULTISIG
+          ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+          : IsmType.STORAGE_MESSAGE_ID_MULTISIG;
+    }
 
     const [validators, threshold] = await ism.validatorsAndThreshold(
       ethers.constants.AddressZero,
