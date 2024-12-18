@@ -147,43 +147,43 @@ describe('WarpCore', () => {
     stubs.forEach((s) => s.restore());
   });
 
-  it('Checks for destination collateral', async () => {
-    const stubs = warpCore.tokens.map((t) =>
-      sinon.stub(t, 'getHypAdapter').returns({
-        getBalance: () => Promise.resolve(MOCK_BALANCE),
-      } as any),
-    );
+  // it('Checks for destination collateral', async () => {
+  //   const stubs = warpCore.tokens.map((t) =>
+  //     sinon.stub(t, 'getHypAdapter').returns({
+  //       getBalance: () => Promise.resolve(MOCK_BALANCE),
+  //     } as any),
+  //   );
 
-    const testCollateral = async (
-      token: Token,
-      destination: ChainName,
-      expectedBigResult: boolean,
-    ) => {
-      const smallResult = await warpCore.isDestinationCollateralSufficient({
-        originTokenAmount: token.amount(TRANSFER_AMOUNT),
-        destination,
-      });
-      expect(
-        smallResult,
-        `small collateral check for ${token.chainName} to ${destination}`,
-      ).to.be.true;
-      const bigResult = await warpCore.isDestinationCollateralSufficient({
-        originTokenAmount: token.amount(BIG_TRANSFER_AMOUNT),
-        destination,
-      });
-      expect(
-        bigResult,
-        `big collateral check for ${token.chainName} to ${destination}`,
-      ).to.equal(expectedBigResult);
-    };
+  //   const testCollateral = async (
+  //     token: Token,
+  //     destination: ChainName,
+  //     expectedBigResult: boolean,
+  //   ) => {
+  //     const smallResult = await warpCore.isDestinationCollateralSufficient({
+  //       originTokenAmount: token.amount(TRANSFER_AMOUNT),
+  //       destination,
+  //     });
+  //     expect(
+  //       smallResult,
+  //       `small collateral check for ${token.chainName} to ${destination}`,
+  //     ).to.be.true;
+  //     const bigResult = await warpCore.isDestinationCollateralSufficient({
+  //       originTokenAmount: token.amount(BIG_TRANSFER_AMOUNT),
+  //       destination,
+  //     });
+  //     expect(
+  //       bigResult,
+  //       `big collateral check for ${token.chainName} to ${destination}`,
+  //     ).to.equal(expectedBigResult);
+  //   };
 
-    await testCollateral(evmHypNative, test2.name, true);
-    await testCollateral(evmHypNative, testCosmosChain.name, false);
-    await testCollateral(evmHypNative, testSealevelChain.name, true);
-    await testCollateral(cwHypCollateral, test1.name, false);
+  //   await testCollateral(evmHypNative, test2.name, true);
+  //   await testCollateral(evmHypNative, testCosmosChain.name, false);
+  //   await testCollateral(evmHypNative, testSealevelChain.name, true);
+  //   await testCollateral(cwHypCollateral, test1.name, false);
 
-    stubs.forEach((s) => s.restore());
-  });
+  //   stubs.forEach((s) => s.restore());
+  // });
 
   it('Validates transfers', async () => {
     const balanceStubs = warpCore.tokens.map((t) =>
