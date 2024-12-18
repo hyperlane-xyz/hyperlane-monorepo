@@ -250,8 +250,21 @@ where
 
             accumulated_stored_logs_count += stored_logs_count as u64;
             if accumulated_stored_logs_count == deduped_logs_count {
+                info!(
+                    ?accumulated_stored_logs_count,
+                    ?stored_logs_count,
+                    ?deduped_logs_count,
+                    "Successfully stored all logs",
+                );
                 break;
             }
+
+            warn!(
+                ?accumulated_stored_logs_count,
+                ?stored_logs_count,
+                ?deduped_logs_count,
+                "Repeat storing logs since not all logs were stored yet",
+            );
         }
 
         logs
