@@ -89,7 +89,7 @@ export const keyFunderConfig: KeyFunderConfig<
     mint: '0.05',
     mode: '0.2',
     molten: '3',
-    moonbeam: '40',
+    moonbeam: '100',
     morph: '0.05',
     oortmainnet: '2000',
     optimism: '0.5',
