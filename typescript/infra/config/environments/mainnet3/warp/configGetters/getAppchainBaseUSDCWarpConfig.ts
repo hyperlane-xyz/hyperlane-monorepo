@@ -27,9 +27,9 @@ export const getAppChainBaseUSDCWarpConfig = async (
 
   const appchain: HypTokenRouterConfig = {
     mailbox: routerConfig.appchain.mailbox,
-    ...abacusWorksEnvOwnerConfig.appchain,
+    owner: abacusWorksEnvOwnerConfig.appchain.owner,
     proxyAdmin: {
-      ...abacusWorksEnvOwnerConfig.appchain,
+      owner: abacusWorksEnvOwnerConfig.appchain.owner,
       address: proxyAdmins.appchain,
     },
     type: TokenType.synthetic,
@@ -38,9 +38,9 @@ export const getAppChainBaseUSDCWarpConfig = async (
 
   const base: HypTokenRouterConfig = {
     mailbox: routerConfig.base.mailbox,
-    ...abacusWorksEnvOwnerConfig.base,
+    owner: abacusWorksEnvOwnerConfig.base.owner,
     proxyAdmin: {
-      ...abacusWorksEnvOwnerConfig.base,
+      owner: abacusWorksEnvOwnerConfig.base.owner,
       address: proxyAdmins.base,
     },
     type: TokenType.collateral,
