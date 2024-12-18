@@ -97,7 +97,11 @@ export async function getWarpConfig(
   );
   // Strip the owners from the router config
   const routerConfigWithoutOwner = objMap(routerConfig, (_chain, config) => {
-    const { ...configWithoutOwner } = config;
+    const {
+      owner: _owner,
+      ownerOverrides: _ownerOverrides,
+      ...configWithoutOwner
+    } = config;
     return configWithoutOwner;
   });
   // Isolate the owners from the router config
