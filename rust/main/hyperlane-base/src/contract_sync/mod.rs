@@ -203,9 +203,14 @@ where
                 // Update cursor
                 if stored_all {
                     if let Err(err) = cursor.update(logs, range).await {
-                        warn!(?err, "Error updating cursor");
+                        warn!(?err, ?range, "Error updating cursor");
                         break Some(SLEEP_DURATION);
                     };
+                } else {
+                    warn!(
+                        current_range = ?range,
+                        "Not updating cursor since not all logs were stored. Retrying",
+                    );
                 }
                 break None;
             },
