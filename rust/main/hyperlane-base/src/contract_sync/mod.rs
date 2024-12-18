@@ -230,25 +230,30 @@ where
         let logs = Vec::from_iter(deduped_logs);
 
         // Store deliveries
-        let stored = match self.store.store_logs(&logs).await {
+        let stored_logs_count = match self.store.store_logs(&logs).await {
             Ok(stored) => stored,
             Err(err) => {
                 warn!(?err, "Error storing logs in db");
                 Default::default()
             }
         };
-        if stored > 0 {
+        if stored_logs_count > 0 {
             debug!(
                 domain = self.domain.as_ref(),
-                count = stored,
+                count = stored_logs_count,
                 sequences = ?logs.iter().map(|(log, _)| log.sequence).collect::<Vec<_>>(),
                 "Stored logs in db",
             );
         }
         // Report amount of deliveries stored into db
-        stored_logs_metric.inc_by(stored as u64);
+        stored_logs_metric.inc_by(stored_logs_count as u64);
 
-        if (stored as usize) < logs.len() {
+        let deduped_logs_len = logs.len();
+        if (stored_logs_count as usize) < deduped_logs_len {
+            warn!(
+                deduped_logs_len,
+                stored_logs_count, "not all logs were stored",
+            );
             return (logs, false);
         }
 
