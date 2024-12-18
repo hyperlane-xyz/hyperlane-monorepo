@@ -85,6 +85,12 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     gasPrice: 20 * 10 ** 9, // 20 gwei
   //   },
   // },
+  // degenchain: {
+  //   transactionOverrides: {
+  //     maxFeePerGas: 100 * 10 ** 9, // 100 gwei
+  //     maxPriorityFeePerGas: 10 * 10 ** 9, // 10 gwei
+  //   },
+  // },
 };
 
 export const getRegistry = async (
