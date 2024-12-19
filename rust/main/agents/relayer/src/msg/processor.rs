@@ -1,6 +1,7 @@
 use std::{
     cmp::max,
     collections::HashMap,
+    env,
     fmt::{Debug, Formatter},
     sync::Arc,
     time::Duration,
@@ -167,6 +168,34 @@ impl DirectionalNonceIterator {
     ) -> Result<MessageStatus<HyperlaneMessage>> {
         if let Some(message) = self.indexed_message_with_nonce()? {
             Self::update_max_nonce_gauge(&message, metrics);
+
+            // If this origin in Stride...
+            if self.db.domain().id() == 745 {
+                let reset_delivery_low: Option<u32> = env::var("STRIDE_RESET_DELIVERY_NONCE_LOW")
+                    .ok()
+                    .and_then(|s| s.parse().ok());
+                let reset_delivery_high: Option<u32> = env::var("STRIDE_RESET_DELIVERY_NONCE_HIGH")
+                    .ok()
+                    .and_then(|s| s.parse().ok());
+
+                match (reset_delivery_low, reset_delivery_high) {
+                    (Some(low), Some(high)) => {
+                        if message.nonce >= low && message.nonce <= high {
+                            tracing::debug!(
+                                nonce = message.nonce,
+                                "Setting Stride origin message as unprocessed"
+                            );
+                            self.db
+                                .store_processed_by_nonce(&message.nonce, &false)
+                                .unwrap();
+                        }
+                    }
+                    _ => {
+                        tracing::warn!("STRIDE_RESET_DELIVERY_NONCE_LOW and/or STRIDE_RESET_DELIVERY_NONCE_HIGH not set");
+                    }
+                }
+            }
+
             if !self.is_message_processed()? {
                 debug!(hyp_message=?message, iterator=?self, "Found processable message");
                 return Ok(MessageStatus::Processable(message));
