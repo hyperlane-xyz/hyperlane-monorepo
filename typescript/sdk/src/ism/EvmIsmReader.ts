@@ -63,6 +63,7 @@ export interface IsmReader {
 
 export class EvmIsmReader extends HyperlaneReader implements IsmReader {
   protected readonly logger = rootLogger.child({ module: 'EvmIsmReader' });
+  protected isZkSyncChain: boolean;
 
   constructor(
     protected readonly multiProvider: MultiProvider,
@@ -73,6 +74,12 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     protected readonly messageContext?: DispatchedMessage,
   ) {
     super(multiProvider, chain);
+
+    // So we can distinguish between Storage/Static ISMs
+    const chainTechnicalStack = this.multiProvider.getChainMetadata(
+      this.chain,
+    ).technicalStack;
+    this.isZkSyncChain = chainTechnicalStack === ChainTechnicalStack.ZkSync;
   }
 
   async deriveIsmConfig(address: Address): Promise<DerivedIsmConfig> {
@@ -209,9 +216,14 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       async (module) => this.deriveIsmConfig(module),
     );
 
+    // If it's a zkSync chain, it must be a StorageAggregationIsm
+    const ismType = this.isZkSyncChain
+      ? IsmType.STORAGE_AGGREGATION
+      : IsmType.AGGREGATION;
+
     return {
       address,
-      type: IsmType.AGGREGATION,
+      type: ismType,
       modules: ismConfigs,
       threshold,
     };
@@ -234,11 +246,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         : IsmType.MESSAGE_ID_MULTISIG;
 
     // If it's a zkSync chain, it must be a StorageMultisigIsm
-    const chainTechnicalStack = this.multiProvider.getChainMetadata(
-      this.chain,
-    ).technicalStack;
-    const isZkSync = chainTechnicalStack === ChainTechnicalStack.ZkSync;
-    if (isZkSync) {
+    if (this.isZkSyncChain) {
       ismType =
         moduleType === ModuleType.MERKLE_ROOT_MULTISIG
           ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
