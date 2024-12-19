@@ -5,6 +5,7 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   ChainMetadata,
   ChainMetadataSchema,
+  ChainTechnicalStack,
   EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ZChainName,
@@ -69,6 +70,30 @@ export async function createChainConfig({
     default: name[0].toUpperCase() + name.slice(1),
   });
 
+  const technicalStack = (await select({
+    choices: Object.entries(ChainTechnicalStack).map(([_, value]) => ({
+      value,
+    })),
+    message: 'Select the chain technical stack',
+    pageSize: 10,
+  })) as ChainTechnicalStack;
+
+  const arbitrumNitroMetadata: Partial<ChainMetadata> = {};
+  if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
+    const indexFrom = await detectAndConfirmOrPrompt(
+      async () => {
+        return (await provider.getBlockNumber()).toString();
+      },
+      `Enter`,
+      'starting block number for indexing',
+      'JSON RPC provider',
+    );
+
+    arbitrumNitroMetadata.index = {
+      from: parseInt(indexFrom),
+    };
+  }
+
   const chainId = parseInt(
     await detectAndConfirmOrPrompt(
       async () => {
@@ -93,8 +118,10 @@ export async function createChainConfig({
     chainId,
     domainId: chainId,
     protocol: ProtocolType.Ethereum,
+    technicalStack,
     rpcUrls: [{ http: rpcUrl }],
     isTestnet,
+    ...arbitrumNitroMetadata,
   };
 
   await addBlockExplorerConfig(metadata);
