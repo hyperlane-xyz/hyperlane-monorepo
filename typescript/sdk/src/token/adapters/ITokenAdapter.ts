@@ -35,6 +35,19 @@ export interface ITokenAdapter<Tx> {
   populateTransferTx(params: TransferParams): Promise<Tx>;
 }
 
+export type OpenOrderParams = {
+  sender: string;
+  recipient: string;
+  outputToken: string;
+  amountIn: string;
+  amountOut: string;
+  destinationDomain: string;
+  fillDeadline: string;
+};
+export interface IIntentAdapter<Tx> extends ITokenAdapter<Tx> {
+  populateOpenOrderTx(params: OpenOrderParams): Promise<Tx>;
+}
+
 export interface IHypTokenAdapter<Tx> extends ITokenAdapter<Tx> {
   getDomains(): Promise<Domain[]>;
   getRouterAddress(domain: Domain): Promise<Buffer>;

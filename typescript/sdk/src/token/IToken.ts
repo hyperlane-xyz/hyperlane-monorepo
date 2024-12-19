@@ -14,6 +14,7 @@ import {
 import { TokenStandard } from './TokenStandard.js';
 import type {
   IHypTokenAdapter,
+  IIntentAdapter,
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
 
@@ -64,7 +65,9 @@ export type TokenArgs = Omit<
 export interface IToken extends TokenArgs {
   protocol: ProtocolType;
 
-  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown>;
+  getAdapter(
+    multiProvider: MultiProtocolProvider,
+  ): ITokenAdapter<unknown> | IIntentAdapter<unknown>;
   getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     destination?: ChainName,

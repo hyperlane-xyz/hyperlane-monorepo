@@ -45,11 +45,13 @@ import {
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmIntentTokenAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter.js';
 import type {
   IHypTokenAdapter,
+  IIntentAdapter,
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
 import {
@@ -95,14 +97,24 @@ export class Token implements IToken {
    * @throws If multiProvider does not contain this token's chain.
    * @throws If token is an NFT (TODO NFT Adapter support)
    */
-  getAdapter(multiProvider: MultiProtocolProvider): ITokenAdapter<unknown> {
-    const { standard, chainName, addressOrDenom } = this;
+  getAdapter(
+    multiProvider: MultiProtocolProvider,
+  ): ITokenAdapter<unknown> | IIntentAdapter<unknown> {
+    const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
+      this;
 
     assert(!this.isNft(), 'NFT adapters not yet supported');
     assert(
       multiProvider.tryGetChainMetadata(chainName),
       `Token chain ${chainName} not found in multiProvider`,
     );
+
+    if (standard === TokenStandard.Intent && collateralAddressOrDenom) {
+      return new EvmIntentTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+        router: collateralAddressOrDenom,
+      });
+    }
 
     if (standard === TokenStandard.ERC20) {
       return new EvmTokenAdapter(chainName, multiProvider, {

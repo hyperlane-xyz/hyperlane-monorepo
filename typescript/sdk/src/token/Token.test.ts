@@ -29,6 +29,7 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'USDC',
     name: 'USDC',
   },
+  [TokenStandard.Intent]: null,
   [TokenStandard.ERC721]: null,
   [TokenStandard.EvmNative]: Token.FromChainMetadataNativeToken(test1),
   [TokenStandard.EvmHypNative]: {
