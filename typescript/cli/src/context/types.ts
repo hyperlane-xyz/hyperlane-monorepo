@@ -5,6 +5,7 @@ import type { IRegistry } from '@hyperlane-xyz/registry';
 import type {
   ChainMap,
   ChainMetadata,
+  MultiProtocolProvider,
   MultiProvider,
   WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
@@ -32,6 +33,8 @@ export interface CommandContext {
   signerAddress?: string;
   warpCoreConfig?: WarpCoreConfig;
   strategyPath?: string;
+  multiProtocolProvider?: MultiProtocolProvider;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }
 
 export interface WriteCommandContext extends CommandContext {
