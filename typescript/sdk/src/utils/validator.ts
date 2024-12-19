@@ -11,7 +11,7 @@ export async function getValidatorFromStorageLocation(location: string) {
   }
 }
 
-export function isValidatorStorageLocationValid(location: string) {
+export function isValidValidatorStorageLocation(location: string) {
   return (
     location?.startsWith(GCP_LOCATION_PREFIX) ||
     location?.startsWith(S3_LOCATION_PREFIX)

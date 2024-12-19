@@ -518,7 +518,7 @@ export {
 export { getChainIdFromTxs } from './utils/transactions.js';
 export {
   getValidatorFromStorageLocation,
-  isValidatorStorageLocationValid,
+  isValidValidatorStorageLocation,
 } from './utils/validator.js';
 export {
   FeeConstantConfig,
