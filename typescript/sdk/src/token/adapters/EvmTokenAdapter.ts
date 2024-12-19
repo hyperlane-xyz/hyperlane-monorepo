@@ -1,4 +1,5 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
+import { type Hex, encodeAbiParameters, pad } from 'viem';
 
 import {
   ERC20,
@@ -29,11 +30,15 @@ import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js'
 import { ChainName } from '../../types.js';
 import { TokenMetadata } from '../types.js';
 
+import { Hyperlane7683 } from './Hyperlane7683.js';
+import { Hyperlane7683__factory } from './Hyperlane7683__factory.js';
 import {
   IHypTokenAdapter,
   IHypXERC20Adapter,
+  IIntentAdapter,
   ITokenAdapter,
   InterchainGasQuote,
+  OpenOrderParams,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
@@ -156,6 +161,86 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   async getTotalSupply(): Promise<bigint> {
     const totalSupply = await this.contract.totalSupply();
     return totalSupply.toBigInt();
+  }
+}
+
+export class EvmIntentTokenAdapter<T extends ERC20 = ERC20>
+  extends EvmTokenAdapter<T>
+  implements IIntentAdapter<PopulatedTransaction>
+{
+  public readonly contract: T;
+  public readonly intent: Hyperlane7683;
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address; router: Address },
+    public readonly contractFactory: any = ERC20__factory,
+    public readonly intentFactory: any = Hyperlane7683__factory,
+  ) {
+    super(chainName, multiProvider, addresses);
+    this.contract = contractFactory.connect(
+      addresses.token,
+      this.getProvider(),
+    );
+    this.intent = intentFactory.connect(addresses.router, this.getProvider());
+  }
+
+  async populateOpenOrderTx({
+    sender,
+    recipient,
+    outputToken,
+    amountIn,
+    amountOut,
+    destinationDomain,
+    fillDeadline,
+  }: OpenOrderParams) {
+    const orderDataType =
+      '0x8bdb0a9884d629947116d36a34743784d757b4d9208fbcb810bd73097583283e';
+    const senderNonce = await this.intent.senderNonce(sender);
+
+    return this.intent.populateTransaction.open({
+      fillDeadline,
+      orderDataType,
+      orderData: encodeAbiParameters(
+        [
+          {
+            components: [
+              { name: 'sender', type: 'bytes32' },
+              { name: 'recipient', type: 'bytes32' },
+              { name: 'inputToken', type: 'bytes32' },
+              { name: 'outputToken', type: 'bytes32' },
+              { name: 'amountIn', type: 'uint256' },
+              { name: 'amountOut', type: 'uint256' },
+              { name: 'senderNonce', type: 'uint256' },
+              { name: 'originDomain', type: 'uint32' },
+              { name: 'destinationDomain', type: 'uint32' },
+              { name: 'fillDeadline', type: 'uint32' },
+              { name: 'data', type: 'bytes' },
+            ],
+            name: 'orderData',
+            type: 'tuple',
+          },
+        ],
+        [
+          {
+            sender: pad(sender as Hex),
+            recipient: pad(recipient as Hex),
+            inputToken: pad(this.addresses.token as Hex),
+            outputToken: pad(outputToken as Hex),
+            amountIn: BigInt(amountIn),
+            amountOut: BigInt(amountOut),
+            senderNonce: BigInt(senderNonce.toString()),
+            originDomain: this.multiProvider.getChainId(
+              this.chainName,
+            ) as number,
+            destinationDomain: parseInt(destinationDomain),
+            fillDeadline: parseInt(fillDeadline),
+            data: '0x',
+          },
+        ],
+      ),
+    });
   }
 }
 

@@ -9,6 +9,7 @@ import { TokenType } from './config.js';
 
 export enum TokenStandard {
   // EVM
+  Intent = 'Intent',
   ERC20 = 'ERC20',
   ERC721 = 'ERC721',
   EvmNative = 'EvmNative',
@@ -48,6 +49,7 @@ export enum TokenStandard {
 // Allows for omission of protocol field in token args
 export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   // EVM
+  Intent: ProtocolType.Ethereum,
   ERC20: ProtocolType.Ethereum,
   ERC721: ProtocolType.Ethereum,
   EvmNative: ProtocolType.Ethereum,
