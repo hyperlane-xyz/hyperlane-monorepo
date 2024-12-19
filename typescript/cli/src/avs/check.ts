@@ -296,7 +296,7 @@ const setValidatorInfo = async (
       const lastStorageLocation =
         storageLocation.length > 0 ? storageLocation.slice(-1)[0] : '';
 
-      // Skip if no storage location is found, address is not validating on this chain or if storage location string doesn't not start with s3:// or gs://
+      // Skip if no storage location is found, address is not validating on this chain or if not a valid storage location
       if (!isValidValidatorStorageLocation(lastStorageLocation)) {
         continue;
       }
