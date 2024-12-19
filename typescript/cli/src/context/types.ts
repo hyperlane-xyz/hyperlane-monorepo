@@ -26,15 +26,15 @@ export interface ContextSettings {
 export interface CommandContext {
   registry: IRegistry;
   chainMetadata: ChainMap<ChainMetadata>;
-  skipConfirmation: boolean;
   multiProvider: MultiProvider;
-  multiProtocolProvider?: MultiProtocolProvider;
-  multiProtocolSigner?: MultiProtocolSignerManager;
+  skipConfirmation: boolean;
   key?: string;
   // just for evm chains backward compatibility
   signerAddress?: string;
   warpCoreConfig?: WarpCoreConfig;
   strategyPath?: string;
+  multiProtocolProvider?: MultiProtocolProvider;
+  multiProtocolSigner?: MultiProtocolSignerManager;
 }
 
 export interface WriteCommandContext extends CommandContext {

@@ -74,7 +74,6 @@ const messageCommand: CommandModuleWithWriteContext<
     quick,
     relay,
     body,
-    multiProtocolSigner,
   }) => {
     await sendTestMessage({
       context,
@@ -84,7 +83,6 @@ const messageCommand: CommandModuleWithWriteContext<
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,
-      multiProtocolSigner,
     });
     process.exit(0);
   },

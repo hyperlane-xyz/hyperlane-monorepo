@@ -15,7 +15,7 @@ export class StarknetCore {
   protected multiProvider: MultiProvider;
 
   constructor(
-    signer: Account,
+    signer: Account, // Use MultiProtocolSignerManager instead
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
   ) {
@@ -150,6 +150,7 @@ export class StarknetCore {
           this.multiProvider.tryGetChainName(message.destination) ?? undefined;
 
         // Convert the message to the expected format
+        // TODO: stringify the message body
         const messageString = {
           version: Number(message.version),
           nonce: Number(message.nonce),
@@ -157,7 +158,7 @@ export class StarknetCore {
           sender: message.sender.toString(),
           destination: destinationChain,
           recipient: message.recipient.toString(),
-          body: Array.from(message.body.data).map((n: any) => n.toString()),
+          body: Array.from(message.body.data).map((n: any) => n.toString()), // TODO: causes stringify error
         };
 
         return messageString;

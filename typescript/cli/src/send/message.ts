@@ -14,7 +14,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
-import { MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { CommandContext, WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -30,7 +29,6 @@ export async function sendTestMessage({
   timeoutSec,
   skipWaitForDelivery,
   selfRelay,
-  multiProtocolSigner,
 }: {
   context: WriteCommandContext;
   origin?: ChainName;
@@ -39,7 +37,6 @@ export async function sendTestMessage({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
-  multiProtocolSigner?: MultiProtocolSignerManager;
 }) {
   const { chainMetadata } = context;
 
@@ -72,7 +69,6 @@ export async function sendTestMessage({
       messageBody,
       skipWaitForDelivery,
       selfRelay,
-      multiProtocolSigner,
     }),
     timeoutSec * 1000,
     'Timed out waiting for messages to be delivered',
@@ -86,7 +82,6 @@ async function executeDelivery({
   messageBody,
   skipWaitForDelivery,
   selfRelay,
-  multiProtocolSigner,
 }: {
   context: CommandContext;
   origin: ChainName;
@@ -94,10 +89,10 @@ async function executeDelivery({
   messageBody: string;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
-  multiProtocolSigner?: MultiProtocolSignerManager;
 }) {
-  const { registry, multiProvider } = context;
+  const { registry, multiProvider, multiProtocolSigner } = context;
   const chainAddresses = await registry.getAddresses();
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   const destinationDomain = multiProvider.getDomainId(destination);
   const originProtocol = multiProvider.getProtocol(origin);
 
@@ -133,14 +128,10 @@ async function executeDelivery({
   }
 
   try {
-    const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
-
     const recipient = chainAddresses[destination].testRecipient;
-
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
     }
-
     const formattedRecipient = addressToBytes32(recipient);
 
     log('Dispatching message');
