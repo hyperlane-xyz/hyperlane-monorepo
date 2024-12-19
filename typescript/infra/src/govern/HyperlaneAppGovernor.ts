@@ -7,6 +7,7 @@ import { Ownable__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  ChainTechnicalStack,
   CheckerViolation,
   HyperlaneApp,
   HyperlaneAppChecker,
@@ -520,6 +521,14 @@ export abstract class HyperlaneAppGovernor<
     // Check if the transaction will succeed with the SIGNER
     if (await checkTransactionSuccess(chain, signerAddress)) {
       return { type: SubmissionType.SIGNER, chain, call };
+    }
+
+    // If the technical stack is ZKSync and we can't submit with the signer,
+    // have to fallback to manual submission because we are not allowed to
+    // estimate gas for non-signer addresses on ZKSync
+    const { technicalStack } = multiProvider.getChainMetadata(chain);
+    if (technicalStack === ChainTechnicalStack.ZKSync) {
+      return { type: SubmissionType.MANUAL, chain, call };
     }
 
     // Check if the transaction will succeed with a SAFE
