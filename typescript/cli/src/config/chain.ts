@@ -78,7 +78,7 @@ export async function createChainConfig({
     pageSize: 10,
   })) as ChainTechnicalStack;
 
-  let arbitrumNitroMetadata: Partial<ChainMetadata> = {};
+  const arbitrumNitroMetadata: Partial<ChainMetadata> = {};
   if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
     const indexFrom = await input({
       message: 'Enter the starting block number for this chain (index.from)',
