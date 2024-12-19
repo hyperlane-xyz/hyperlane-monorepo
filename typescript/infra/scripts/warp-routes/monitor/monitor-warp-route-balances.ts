@@ -89,12 +89,18 @@ async function pollAndUpdateWarpRouteMetrics(
     chainMetadata,
     apiKey: await getCoinGeckoApiKey(),
   });
+  const collateralTokenSymbol = getWarpRouteCollateralTokenSymbol(warpCore);
 
   while (true) {
     await tryFn(async () => {
       await Promise.all(
         warpCore.tokens.map((token) =>
-          updateTokenMetrics(warpCore, token, tokenPriceGetter),
+          updateTokenMetrics(
+            warpCore,
+            token,
+            tokenPriceGetter,
+            collateralTokenSymbol,
+          ),
         ),
       );
     }, 'Updating warp route metrics');
@@ -107,6 +113,7 @@ async function updateTokenMetrics(
   warpCore: WarpCore,
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
+  collateralTokenSymbol: string,
 ) {
   const promises = [
     tryFn(async () => {
@@ -118,7 +125,12 @@ async function updateTokenMetrics(
       if (!balanceInfo) {
         return;
       }
-      updateTokenBalanceMetrics(warpCore, token, balanceInfo);
+      updateTokenBalanceMetrics(
+        warpCore,
+        token,
+        balanceInfo,
+        collateralTokenSymbol,
+      );
     }, 'Getting bridged balance and value'),
   ];
 
@@ -308,6 +320,18 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
   }
 
   return apiKey;
+}
+
+function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
+  const collateralToken = warpCore.tokens.find(
+    (token) =>
+      token.isCollateralized() ||
+      token.standard === TokenStandard.EvmHypXERC20Lockbox,
+  );
+  if (!collateralToken) {
+    throw new Error('No collateral token found in warp route');
+  }
+  return collateralToken.symbol;
 }
 
 main().catch((err) => {
