@@ -5,6 +5,7 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   ChainMetadata,
   ChainMetadataSchema,
+  ChainTechnicalStack,
   EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ZChainName,
@@ -69,6 +70,14 @@ export async function createChainConfig({
     default: name[0].toUpperCase() + name.slice(1),
   });
 
+  const technicalStack = (await select({
+    choices: Object.entries(ChainTechnicalStack).map(([_, value]) => ({
+      value,
+    })),
+    message: 'Select the correct chain technical stack',
+    pageSize: 10,
+  })) as ChainTechnicalStack;
+
   const chainId = parseInt(
     await detectAndConfirmOrPrompt(
       async () => {
@@ -93,6 +102,7 @@ export async function createChainConfig({
     chainId,
     domainId: chainId,
     protocol: ProtocolType.Ethereum,
+    technicalStack,
     rpcUrls: [{ http: rpcUrl }],
     isTestnet,
   };
