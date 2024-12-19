@@ -143,6 +143,7 @@ async function executeDelivery({
 
     const formattedRecipient = addressToBytes32(recipient);
 
+    log('Dispatching message');
     const { dispatchTx, message } = await core.sendMessage(
       origin,
       destination,
@@ -172,7 +173,6 @@ async function executeDelivery({
 
       log('Waiting for message delivery on destination chain...');
       // Max wait 10 minutes
-      return;
       await core.waitForMessageProcessed(dispatchTx, 10000, 60);
       logGreen('Message was delivered!');
     }
