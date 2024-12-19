@@ -96,9 +96,11 @@ mod tests {
         let (addr, mut rx) = setup_test_server();
 
         let client = reqwest::Client::new();
-        let mut message = HyperlaneMessage::default();
-        // Use a random destination domain
-        message.destination = 42;
+        let message = HyperlaneMessage {
+            // Use a random destination domain
+            destination: 42,
+            ..Default::default()
+        };
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
         let matching_list_body = json!([
             {
@@ -127,9 +129,11 @@ mod tests {
         let (addr, mut rx) = setup_test_server();
 
         let client = reqwest::Client::new();
-        let mut message = HyperlaneMessage::default();
-        // Use a random origin domain
-        message.origin = 42;
+        let message = HyperlaneMessage {
+            // Use a random origin domain
+            origin: 42,
+            ..Default::default()
+        };
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
         let matching_list_body = json!([
             {
@@ -216,9 +220,11 @@ mod tests {
         let (addr, mut rx) = setup_test_server();
 
         let client = reqwest::Client::new();
-        let mut message = HyperlaneMessage::default();
-        // Use a random origin domain
-        message.origin = 42;
+        let message = HyperlaneMessage {
+            // Use a random origin domain
+            origin: 42,
+            ..Default::default()
+        };
         let pending_operation = MockPendingOperation::with_message_data(message.clone());
         let matching_list_body = json!([
             {

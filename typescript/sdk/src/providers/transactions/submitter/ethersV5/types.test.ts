@@ -5,12 +5,10 @@ import { Address } from '@hyperlane-xyz/utils';
 import { ChainName } from '../../../../types.js';
 
 import {
-  EV5GnosisSafeTxSubmitterPropsSchema,
-  EV5ImpersonatedAccountTxSubmitterPropsSchema,
-} from './schemas.js';
-import {
   EV5GnosisSafeTxSubmitterProps,
+  EV5GnosisSafeTxSubmitterPropsSchema,
   EV5ImpersonatedAccountTxSubmitterProps,
+  EV5ImpersonatedAccountTxSubmitterPropsSchema,
 } from './types.js';
 
 describe('ethersV5 submitter props schemas', () => {

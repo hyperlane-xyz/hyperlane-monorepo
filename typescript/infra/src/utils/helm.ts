@@ -93,6 +93,11 @@ export function buildHelmChartDependencies(chartPath: string) {
   return execCmd(`cd ${chartPath} && helm dependency build`, {}, false, true);
 }
 
+// Convenience function to remove a helm release without having a HelmManger for it.
+export function removeHelmRelease(releaseName: string, namespace: string) {
+  return execCmd(`helm uninstall ${releaseName} --namespace ${namespace}`);
+}
+
 export type HelmValues = Record<string, any>;
 
 export abstract class HelmManager<T = HelmValues> {

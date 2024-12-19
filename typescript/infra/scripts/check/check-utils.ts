@@ -30,6 +30,7 @@ import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneHaasGovernor } from '../../src/govern/HyperlaneHaasGovernor.js';
+import { HyperlaneICAChecker } from '../../src/govern/HyperlaneICAChecker.js';
 import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../../src/govern/ProxiedRouterGovernor.js';
 import { Role } from '../../src/roles.js';
@@ -148,7 +149,7 @@ export async function getGovernor(
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.HAAS) {
     chainsToSkip.forEach((chain) => delete routerConfig[chain]);
-    const icaChecker = new InterchainAccountChecker(
+    const icaChecker = new HyperlaneICAChecker(
       multiProvider,
       ica,
       objFilter(

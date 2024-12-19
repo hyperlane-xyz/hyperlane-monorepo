@@ -35,6 +35,12 @@ async function main() {
     await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
   };
 
+  // First try to uninstall any stale Warp Monitors.
+  // This can happen if a Warp Route ID is changed or removed.
+  await WarpRouteMonitorHelmManager.uninstallUnknownWarpMonitorReleases(
+    environment,
+  );
+
   for (const id of warpRouteIds) {
     console.log(`Deploying Warp Monitor for Warp Route ID: ${id}`);
     await deployWarpMonitor(id);

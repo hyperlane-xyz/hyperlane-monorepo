@@ -4,15 +4,19 @@ use std::{collections::HashSet, fmt::Debug, ops::RangeInclusive, sync::Arc, time
 
 use async_trait::async_trait;
 use eyre::Result;
-use hyperlane_core::{
-    indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction,
-    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceIndexed,
-};
 use itertools::Itertools;
+use maplit::hashmap;
 use tokio::time::sleep;
 use tracing::{debug, instrument, warn};
 
-use super::{LastIndexedSnapshot, TargetSnapshot};
+use hyperlane_core::{
+    indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction, HyperlaneDomain,
+    HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceIndexed,
+};
+
+use crate::cursors::Indexable;
+
+use super::{CursorMetrics, LastIndexedSnapshot, MetricsData, TargetSnapshot};
 
 const MAX_BACKWARD_SYNC_BLOCKING_TIME: Duration = Duration::from_secs(5);
 
@@ -33,6 +37,10 @@ pub(crate) struct BackwardSequenceAwareSyncCursor<T> {
     current_indexing_snapshot: Option<TargetSnapshot>,
     /// The mode of indexing to use.
     index_mode: IndexMode,
+    /// The domain of the cursor.
+    domain: HyperlaneDomain,
+    /// Cursor metrics.
+    metrics: Arc<CursorMetrics>,
 }
 
 impl<T> Debug for BackwardSequenceAwareSyncCursor<T> {
@@ -42,13 +50,14 @@ impl<T> Debug for BackwardSequenceAwareSyncCursor<T> {
             .field("last_indexed_snapshot", &self.last_indexed_snapshot)
             .field("current_indexing_snapshot", &self.current_indexing_snapshot)
             .field("index_mode", &self.index_mode)
+            .field("domain", &self.domain)
             .finish()
     }
 }
 
-impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
+impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAwareSyncCursor<T> {
     #[instrument(
-        skip(store),
+        skip(store, metrics_data),
         fields(chunk_size, next_sequence, start_block, index_mode),
         ret
     )]
@@ -58,6 +67,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
         current_sequence_count: u32,
         start_block: u32,
         index_mode: IndexMode,
+        metrics_data: MetricsData,
     ) -> Self {
         // If the current sequence count is 0, we haven't indexed anything yet.
         // Otherwise, consider the current sequence count as the last indexed snapshot,
@@ -66,6 +76,7 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
             sequence: (current_sequence_count > 0).then_some(current_sequence_count),
             at_block: start_block,
         };
+        let MetricsData { domain, metrics } = metrics_data;
 
         Self {
             chunk_size,
@@ -73,7 +84,14 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
             current_indexing_snapshot: last_indexed_snapshot.previous_target(),
             last_indexed_snapshot,
             index_mode,
+            domain,
+            metrics,
         }
+    }
+
+    /// Get the last indexed sequence or 0 if no logs have been indexed yet.
+    pub fn last_sequence(&self) -> u32 {
+        self.last_indexed_snapshot.sequence.unwrap_or(0)
     }
 
     /// Gets the next range of logs to query.
@@ -325,10 +343,31 @@ impl<T: Debug> BackwardSequenceAwareSyncCursor<T> {
     fn rewind(&mut self) {
         self.current_indexing_snapshot = self.last_indexed_snapshot.previous_target();
     }
+
+    /// Updates the cursor metrics.
+    async fn update_metrics(&self) {
+        let labels = hashmap! {
+            "event_type" => T::name(),
+            "chain" => self.domain.name(),
+            "cursor_type" => "backward_sequenced",
+        };
+
+        let latest_block = self.latest_queried_block();
+        self.metrics
+            .cursor_current_block
+            .with(&labels)
+            .set(latest_block as i64);
+
+        let sequence = self.last_sequence();
+        self.metrics
+            .cursor_current_sequence
+            .with(&labels)
+            .set(sequence as i64);
+    }
 }
 
 #[async_trait]
-impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
+impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ContractSyncCursor<T>
     for BackwardSequenceAwareSyncCursor<T>
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
@@ -364,6 +403,7 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
         logs: Vec<(Indexed<T>, LogMeta)>,
         range: RangeInclusive<u32>,
     ) -> Result<()> {
+        self.update_metrics().await;
         let Some(current_indexing_snapshot) = self.current_indexing_snapshot.clone() else {
             // We're synced, no need to update at all.
             return Ok(());
@@ -400,6 +440,8 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
 
 #[cfg(test)]
 mod test {
+    use hyperlane_core::HyperlaneDomain;
+
     use super::super::forward::test::*;
     use super::*;
 
@@ -435,12 +477,17 @@ mod test {
             ],
         });
 
+        let metrics_data = MetricsData {
+            domain: HyperlaneDomain::new_test_domain("test"),
+            metrics: Arc::new(mock_cursor_metrics()),
+        };
         let mut cursor = BackwardSequenceAwareSyncCursor::new(
             chunk_size,
             db,
             INITIAL_SEQUENCE_COUNT,
             INITIAL_START_BLOCK,
             mode,
+            metrics_data,
         );
 
         // Skip any already indexed logs and sanity check we start at the correct spot.
@@ -767,12 +814,17 @@ mod test {
                     .collect(),
             });
 
+            let metrics_data = MetricsData {
+                domain: HyperlaneDomain::new_test_domain("test"),
+                metrics: Arc::new(mock_cursor_metrics()),
+            };
             let mut cursor = BackwardSequenceAwareSyncCursor::new(
                 CHUNK_SIZE,
                 db,
                 INITIAL_SEQUENCE_COUNT,
                 INITIAL_START_BLOCK,
                 INDEX_MODE,
+                metrics_data,
             );
 
             // We're fully synced, so expect no range

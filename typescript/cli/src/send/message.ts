@@ -97,7 +97,7 @@ async function executeDelivery({
       destination,
       formattedRecipient,
       messageBody,
-      // override the the default hook (with IGP) for self-relay to avoid race condition with the production relayer
+      // override the default hook (with IGP) for self-relay to avoid race condition with the production relayer
       selfRelay ? chainAddresses[origin].merkleTreeHook : undefined,
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);

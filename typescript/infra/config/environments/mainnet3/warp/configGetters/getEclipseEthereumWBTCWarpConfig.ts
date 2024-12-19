@@ -2,8 +2,8 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -16,8 +16,8 @@ import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 export const getEclipseEthereumWBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
-  const eclipsemainnet: TokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const eclipsemainnet: HypTokenRouterConfig = {
     ...routerConfig.eclipsemainnet,
     ...abacusWorksEnvOwnerConfig.eclipsemainnet,
     type: TokenType.synthetic,
@@ -26,7 +26,7 @@ export const getEclipseEthereumWBTCWarpConfig = async (
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  let ethereum: TokenRouterConfig = {
+  let ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,

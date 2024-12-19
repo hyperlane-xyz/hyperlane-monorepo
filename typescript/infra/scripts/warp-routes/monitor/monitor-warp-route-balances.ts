@@ -160,7 +160,7 @@ async function getTokenBridgedBalance(
 
   const adapter = token.getHypAdapter(warpCore.multiProvider);
   const bridgedSupply = await adapter.getBridgedSupply();
-  if (!bridgedSupply) {
+  if (bridgedSupply === undefined) {
     logger.warn('Bridged supply not found for token', token);
     return undefined;
   }
@@ -273,7 +273,7 @@ async function tryGetTokenPrice(
   // We only get a price if the token defines a CoinGecko ID.
   // This way we can ignore values of certain types of collateralized warp routes,
   // e.g. Native warp routes on rollups that have been pre-funded.
-  let coinGeckoId = token.coinGeckoId;
+  const coinGeckoId = token.coinGeckoId;
 
   if (!coinGeckoId) {
     logger.warn('CoinGecko ID missing for token', token.symbol);

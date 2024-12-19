@@ -243,10 +243,10 @@ async function getOwnerAndBeneficiary(
   advanced: boolean,
 ) {
   const unnormalizedOwner =
-    !advanced && context.signer
-      ? await context.signer.getAddress()
+    !advanced && context.signerAddress
+      ? context.signerAddress
       : await detectAndConfirmOrPrompt(
-          async () => context.signer?.getAddress(),
+          async () => context.signerAddress,
           `For ${module}, enter`,
           'owner address',
           'signer',

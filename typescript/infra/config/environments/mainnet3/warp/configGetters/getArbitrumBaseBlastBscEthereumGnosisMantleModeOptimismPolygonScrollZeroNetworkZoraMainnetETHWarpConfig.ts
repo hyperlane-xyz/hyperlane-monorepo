@@ -2,10 +2,9 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   IsmConfig,
   OwnableConfig,
-  RouterConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -18,10 +17,10 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
   async (
     routerConfig: ChainMap<RouterConfigWithoutOwner>,
     abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-  ): Promise<ChainMap<TokenRouterConfig>> => {
+  ): Promise<ChainMap<HypTokenRouterConfig>> => {
     const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
 
-    const arbitrum: TokenRouterConfig = {
+    const arbitrum: HypTokenRouterConfig = {
       ...routerConfig.arbitrum,
       ...abacusWorksEnvOwnerConfig.arbitrum,
       proxyAdmin: {
@@ -32,7 +31,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const base: TokenRouterConfig = {
+    const base: HypTokenRouterConfig = {
       ...routerConfig.base,
       ...abacusWorksEnvOwnerConfig.base,
       proxyAdmin: {
@@ -43,7 +42,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const blast: TokenRouterConfig = {
+    const blast: HypTokenRouterConfig = {
       ...routerConfig.blast,
       ...abacusWorksEnvOwnerConfig.blast,
       proxyAdmin: {
@@ -54,7 +53,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const bsc: TokenRouterConfig = {
+    const bsc: HypTokenRouterConfig = {
       ...routerConfig.bsc,
       ...abacusWorksEnvOwnerConfig.bsc,
       proxyAdmin: {
@@ -66,7 +65,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const ethereum: TokenRouterConfig = {
+    const ethereum: HypTokenRouterConfig = {
       ...routerConfig.ethereum,
       ...abacusWorksEnvOwnerConfig.ethereum,
       proxyAdmin: {
@@ -77,7 +76,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const gnosis: TokenRouterConfig = {
+    const gnosis: HypTokenRouterConfig = {
       ...routerConfig.gnosis,
       ...abacusWorksEnvOwnerConfig.gnosis,
       proxyAdmin: {
@@ -89,7 +88,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const mantle: TokenRouterConfig = {
+    const mantle: HypTokenRouterConfig = {
       ...routerConfig.mantle,
       ...abacusWorksEnvOwnerConfig.mantle,
       proxyAdmin: {
@@ -101,7 +100,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const mode: TokenRouterConfig = {
+    const mode: HypTokenRouterConfig = {
       ...routerConfig.mode,
       ...abacusWorksEnvOwnerConfig.mode,
       proxyAdmin: {
@@ -112,7 +111,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const optimism: TokenRouterConfig = {
+    const optimism: HypTokenRouterConfig = {
       ...routerConfig.optimism,
       ...abacusWorksEnvOwnerConfig.optimism,
       proxyAdmin: {
@@ -123,7 +122,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const polygon: TokenRouterConfig = {
+    const polygon: HypTokenRouterConfig = {
       ...routerConfig.polygon,
       ...abacusWorksEnvOwnerConfig.polygon,
       proxyAdmin: {
@@ -135,7 +134,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const scroll: TokenRouterConfig = {
+    const scroll: HypTokenRouterConfig = {
       ...routerConfig.scroll,
       ...abacusWorksEnvOwnerConfig.scroll,
       proxyAdmin: {
@@ -146,7 +145,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const zeronetwork: TokenRouterConfig = {
+    const zeronetwork: HypTokenRouterConfig = {
       ...routerConfig.zeronetwork,
       ...abacusWorksEnvOwnerConfig.zeronetwork,
       proxyAdmin: {
@@ -157,7 +156,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const zoramainnet: TokenRouterConfig = {
+    const zoramainnet: HypTokenRouterConfig = {
       ...routerConfig.zoramainnet,
       ...abacusWorksEnvOwnerConfig.zoramainnet,
       proxyAdmin: {
@@ -168,7 +167,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
       interchainSecurityModule: ISM_CONFIG,
     };
 
-    const lisk: TokenRouterConfig = {
+    const lisk: HypTokenRouterConfig = {
       ...routerConfig.lisk,
       ...abacusWorksEnvOwnerConfig.lisk,
       proxyAdmin: {

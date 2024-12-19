@@ -32,15 +32,18 @@ export const environment: EnvironmentConfig = {
     role: Role = Role.Deployer,
     useSecrets?: boolean,
     chains?: ChainName[],
-  ) =>
-    getMultiProviderForRole(
+  ) => {
+    const providerChains =
+      chains && chains.length > 0 ? chains : supportedChainNames;
+    return getMultiProviderForRole(
       environmentName,
-      chains && chains.length > 0 ? chains : supportedChainNames,
-      await getRegistry(useSecrets),
+      providerChains,
+      await getRegistry(useSecrets, providerChains),
       context,
       role,
       undefined,
-    ),
+    );
+  },
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,

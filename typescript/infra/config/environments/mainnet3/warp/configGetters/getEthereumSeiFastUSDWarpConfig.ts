@@ -2,8 +2,8 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -20,8 +20,8 @@ const ownerConfig = getOwnerConfigForAddress(owner);
 export const getEthereumSeiFastUSDWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
-  const sei: TokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const sei: HypTokenRouterConfig = {
     ...routerConfig.viction,
     ...ownerConfig,
     type: TokenType.XERC20,
@@ -32,7 +32,7 @@ export const getEthereumSeiFastUSDWarpConfig = async (
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  const ethereum: TokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...ownerConfig,
     type: TokenType.collateral,

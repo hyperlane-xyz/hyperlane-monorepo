@@ -1,10 +1,13 @@
 import { z } from 'zod';
 
-import { OwnableConfig } from '../deploy/types.js';
 import { StorageGasOracleConfigSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { OwnableSchema, PausableSchema } from '../schemas.js';
-import { ChainMap } from '../types.js';
+import {
+  ChainMap,
+  OwnableConfig,
+  OwnableSchema,
+  PausableSchema,
+} from '../types.js';
 
 // As found in IPostDispatchHook.sol
 export enum OnchainHookType {

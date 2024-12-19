@@ -1,11 +1,6 @@
 import { Logger } from 'pino';
 
 import { TokenRouter } from '@hyperlane-xyz/core';
-import {
-  ChainMap,
-  ProxiedFactories,
-  proxiedFactories,
-} from '@hyperlane-xyz/sdk';
 import { Address, objKeys } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../contracts/contracts.js';
@@ -16,6 +11,8 @@ import {
 } from '../contracts/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterApp } from '../router/RouterApps.js';
+import { ProxiedFactories, proxiedFactories } from '../router/types.js';
+import { ChainMap } from '../types.js';
 
 import { HypERC20Factories, hypERC20factories } from './contracts.js';
 

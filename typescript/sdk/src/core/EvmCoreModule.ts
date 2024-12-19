@@ -23,8 +23,12 @@ import {
   HyperlaneAddresses,
   HyperlaneContractsMap,
 } from '../contracts/types.js';
-import { CoreConfigSchema, DeployedCoreAddresses } from '../core/schemas.js';
-import { CoreConfig, DerivedCoreConfig } from '../core/types.js';
+import {
+  CoreConfig,
+  CoreConfigSchema,
+  DeployedCoreAddresses,
+  DerivedCoreConfig,
+} from '../core/types.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import {
   ProxyFactoryFactories,

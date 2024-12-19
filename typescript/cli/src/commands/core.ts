@@ -227,7 +227,7 @@ export const check: CommandModuleWithContext<{
     },
     config: inputFileCommandOption({
       defaultPath: DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
-      description: 'The path to a a Core Config JSON or YAML file.',
+      description: 'The path to a Core Config JSON or YAML file.',
       demandOption: false,
     }),
   },

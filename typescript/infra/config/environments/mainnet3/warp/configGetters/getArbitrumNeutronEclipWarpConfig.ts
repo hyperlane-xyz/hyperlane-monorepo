@@ -1,7 +1,7 @@
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -16,11 +16,11 @@ const neutronOwner =
 export const getArbitrumNeutronEclipWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   const neutronRouter =
     '6b04c49fcfd98bc4ea9c05cd5790462a39537c00028333474aebe6ddf20b73a3';
 
-  const neutron: TokenRouterConfig = {
+  const neutron: HypTokenRouterConfig = {
     ...routerConfig.neutron,
     ...getOwnerConfigForAddress(neutronOwner),
     type: TokenType.collateral,
@@ -28,7 +28,7 @@ export const getArbitrumNeutronEclipWarpConfig = async (
     foreignDeployment: neutronRouter,
   };
 
-  const arbitrum: TokenRouterConfig = {
+  const arbitrum: HypTokenRouterConfig = {
     ...routerConfig.arbitrum,
     ...getOwnerConfigForAddress(arbitrumOwner),
     type: TokenType.synthetic,

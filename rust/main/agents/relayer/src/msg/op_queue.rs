@@ -29,10 +29,8 @@ impl OpQueue {
     /// it's very likely that its status has just changed, so this forces the caller to consider the new status
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
-        op.set_status_and_update_metrics(
-            new_status,
-            Arc::new(self.get_operation_metric(op.as_ref())),
-        );
+        let new_metric = Arc::new(self.get_new_operation_metric(op.as_ref(), new_status.clone()));
+        op.set_status_and_update_metrics(new_status, new_metric);
 
         self.queue.lock().await.push(Reverse(op));
     }
@@ -99,12 +97,17 @@ impl OpQueue {
     }
 
     /// Get the metric associated with this operation
-    fn get_operation_metric(&self, operation: &dyn PendingOperation) -> IntGauge {
+    fn get_new_operation_metric(
+        &self,
+        operation: &dyn PendingOperation,
+        new_status: Option<PendingOperationStatus>,
+    ) -> IntGauge {
         let (destination, app_context) = operation.get_operation_labels();
+        let new_metric_status = new_status.unwrap_or(operation.status());
         self.metrics.with_label_values(&[
             &destination,
             &self.queue_metrics_label,
-            &operation.status().to_string(),
+            &new_metric_status.to_string(),
             &app_context,
         ])
     }

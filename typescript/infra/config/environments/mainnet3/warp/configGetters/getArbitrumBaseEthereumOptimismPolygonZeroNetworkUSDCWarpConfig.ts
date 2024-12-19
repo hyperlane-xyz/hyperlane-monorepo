@@ -2,9 +2,8 @@ import { ethers } from 'ethers';
 
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  RouterConfig,
-  TokenRouterConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -16,10 +15,10 @@ import {
 export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ISM_CONFIG = ethers.constants.AddressZero;
 
-  const arbitrum: TokenRouterConfig = {
+  const arbitrum: HypTokenRouterConfig = {
     ...routerConfig.arbitrum,
     ...abacusWorksEnvOwnerConfig.arbitrum,
     proxyAdmin: {
@@ -31,7 +30,7 @@ export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const base: TokenRouterConfig = {
+  const base: HypTokenRouterConfig = {
     ...routerConfig.base,
     ...abacusWorksEnvOwnerConfig.base,
     proxyAdmin: {
@@ -43,7 +42,7 @@ export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const optimism: TokenRouterConfig = {
+  const optimism: HypTokenRouterConfig = {
     ...routerConfig.optimism,
     ...abacusWorksEnvOwnerConfig.optimism,
     proxyAdmin: {
@@ -55,7 +54,7 @@ export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const polygon: TokenRouterConfig = {
+  const polygon: HypTokenRouterConfig = {
     ...routerConfig.polygon,
     ...abacusWorksEnvOwnerConfig.polygon,
     proxyAdmin: {
@@ -67,7 +66,7 @@ export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const zeronetwork: TokenRouterConfig = {
+  const zeronetwork: HypTokenRouterConfig = {
     ...routerConfig.zeronetwork,
     ...abacusWorksEnvOwnerConfig.zeronetwork,
     proxyAdmin: {
@@ -79,7 +78,7 @@ export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const ethereum: TokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     proxyAdmin: {
@@ -91,7 +90,7 @@ export const getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC = async (
     interchainSecurityModule: ISM_CONFIG,
   };
 
-  const lisk: TokenRouterConfig = {
+  const lisk: HypTokenRouterConfig = {
     ...routerConfig.lisk,
     ...abacusWorksEnvOwnerConfig.lisk,
     proxyAdmin: {
