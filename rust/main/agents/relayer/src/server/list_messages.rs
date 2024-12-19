@@ -90,17 +90,20 @@ mod tests {
     use axum::http::StatusCode;
     use hyperlane_core::KnownHyperlaneDomain;
     use std::{cmp::Reverse, net::SocketAddr, sync::Arc};
-    use tokio::sync::{self, Mutex};
+    use tokio::sync::{self, mpsc, Mutex};
 
     const DUMMY_DOMAIN: KnownHyperlaneDomain = KnownHyperlaneDomain::Arbitrum;
 
     fn setup_test_server() -> (SocketAddr, OperationPriorityQueue) {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
+        let (retry_response_tx, _rx) = mpsc::channel(100);
+
         let op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
             Arc::new(Mutex::new(broadcaster.subscribe())),
+            retry_response_tx,
         );
         let mut op_queues_map = HashMap::new();
         op_queues_map.insert(DUMMY_DOMAIN as u32, op_queue.queue.clone());
