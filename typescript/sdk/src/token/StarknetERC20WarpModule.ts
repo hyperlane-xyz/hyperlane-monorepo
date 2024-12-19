@@ -71,12 +71,18 @@ export class StarknetERC20WarpModule {
           break;
         }
         case TokenType.native: {
-          const tokenAddress = await deployer.deployContract('HypNative', {
-            mailbox: mailbox,
-            hook: getChecksumAddress(0),
-            interchain_security_module: ismAddress,
-            owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
-          });
+          const tokenAddress = await deployer.deployContract(
+            'HypNative',
+            {
+              mailbox: mailbox,
+              native_token:
+                '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7', // ETH address on Starknet chains
+              hook: getChecksumAddress(0),
+              interchain_security_module: ismAddress,
+              owner: deployerAccountAddress, //TODO: use config.owner, and in warp init ask for starknet owner
+            },
+            ContractType.TOKEN,
+          );
           addresses[chain] = tokenAddress;
           break;
         }
