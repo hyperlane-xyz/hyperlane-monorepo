@@ -1,4 +1,7 @@
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
+import { BigNumber } from 'ethers';
 import { Logger } from 'pino';
 
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
@@ -24,8 +27,8 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5GnosisSafeTxSubmitterProps,
-    private safe: any,
-    private safeService: any,
+    private safe: Safe.default,
+    private safeService: SafeApiKit.default,
   ) {}
 
   static async create(
@@ -74,6 +77,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
     const submitterChainId = this.multiProvider.getChainId(this.props.chain);
     assert(chainId, 'Invalid AnnotatedEV5Transaction: chainId is required');
+    // TODO: fix types
+    assert(to, 'Invalid AnnotatedEV5Transaction: to is required');
+    assert(data, 'Invalid AnnotatedEV5Transaction: data is required');
+
     assert(
       chainId === submitterChainId,
       `Invalid AnnotatedEV5Transaction: Cannot submit tx for chain ID ${chainId} to submitter for chain ID ${submitterChainId}.`,
@@ -82,6 +89,24 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       safeTransactionData: [{ to, data, value: value?.toString() ?? '0' }],
       options: { nonce: nextNonce },
     });
+  }
+
+  public async pending(nonce?: number): Promise<AnnotatedEV5Transaction[]> {
+    const safeTransactions = await this.safeService.getPendingTransactions(
+      this.props.safeAddress,
+      nonce,
+    );
+    const chainId = this.multiProvider.getEvmChainId(this.props.chain);
+    const from = this.props.safeAddress;
+    return safeTransactions.results.map(
+      (tx): AnnotatedEV5Transaction => ({
+        chainId,
+        from,
+        to: tx.to,
+        data: tx.data,
+        value: BigNumber.from(tx.value),
+      }),
+    );
   }
 
   public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
