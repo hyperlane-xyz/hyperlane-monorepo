@@ -412,6 +412,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     matchingList: [
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
+      // Temporary workaround for some high gas amount estimates on Treasure
+      ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
   },
   {
