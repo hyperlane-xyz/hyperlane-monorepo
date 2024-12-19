@@ -185,9 +185,7 @@ impl DirectionalNonceIterator {
                                 nonce = message.nonce,
                                 "Setting Stride origin message as unprocessed"
                             );
-                            self.db
-                                .store_processed_by_nonce(&message.nonce, &false)
-                                .unwrap();
+                            self.db.store_processed_by_nonce(&message.nonce, &false)?;
                         }
                     }
                     _ => {
