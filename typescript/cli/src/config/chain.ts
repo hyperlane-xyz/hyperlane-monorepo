@@ -80,9 +80,15 @@ export async function createChainConfig({
 
   const arbitrumNitroMetadata: Partial<ChainMetadata> = {};
   if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
-    const indexFrom = await input({
-      message: 'Enter the starting block number for this chain (index.from)',
-    });
+    const indexFrom = await detectAndConfirmOrPrompt(
+      async () => {
+        return (await provider.getBlockNumber()).toString();
+      },
+      `Enter`,
+      'starting block number for indexing',
+      'JSON RPC provider',
+    );
+
     arbitrumNitroMetadata.index = {
       from: parseInt(indexFrom),
     };
