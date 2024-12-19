@@ -5,7 +5,7 @@ use derive_more::{AsRef, Deref};
 use derive_new::new;
 
 use eyre::{Context, Result};
-use hyperlane_base::MultisigCheckpointSyncer;
+use hyperlane_base::{cache::NoParams, MultisigCheckpointSyncer};
 use hyperlane_core::{unwrap_or_none_result, HyperlaneMessage, H256};
 use tracing::debug;
 
@@ -15,6 +15,72 @@ use super::base::{MetadataToken, MultisigIsmMetadataBuilder, MultisigMetadata};
 
 #[derive(Debug, Clone, Deref, new, AsRef)]
 pub struct MerkleRootMultisigMetadataBuilder(MessageMetadataBuilder);
+
+impl MerkleRootMultisigMetadataBuilder {
+    /// Returns highest known leaf index.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from merkle tree prover. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `highest_known_leaf_index` matches
+    /// the name of the method `highest_known_leaf_index`.
+    async fn call_highest_known_leaf_index(&self) -> Result<Option<u32>> {
+        let fn_name = "highest_known_leaf_index";
+
+        match self
+            .get_cached_call_result::<u32>(None, fn_name, &NoParams)
+            .await
+        {
+            Some(index) => Ok(Some(index)),
+            None => {
+                let index: u32 = unwrap_or_none_result!(
+                    self.highest_known_leaf_index().await,
+                    debug!("Couldn't get highest known leaf index")
+                );
+
+                self.cache_call_result(None, fn_name, &NoParams, &index)
+                    .await;
+                Ok(Some(index))
+            }
+        }
+    }
+
+    /// Returns the merkle leaf id by message id.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from merkle tree prover. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `get_merkle_leaf_id_by_message_id` matches
+    /// the name of the method `get_merkle_leaf_id_by_message_id`.
+    async fn call_get_merkle_leaf_id_by_message_id(
+        &self,
+        message: &HyperlaneMessage,
+    ) -> Result<Option<u32>> {
+        let fn_name = "get_merkle_leaf_id_by_message_id";
+        let message_id = message.id();
+
+        match self
+            .get_cached_call_result::<u32>(None, fn_name, &message_id)
+            .await
+        {
+            Some(index) => Ok(Some(index)),
+            None => {
+                let index: u32 = unwrap_or_none_result!(
+                    self.get_merkle_leaf_id_by_message_id(message_id)
+                        .await
+                        .context("When fetching merkle leaf index by message id")?,
+                    debug!(
+                        hyp_message_id=?message_id,
+                        "No merkle leaf found for message id, must have not been enqueued in the tree"
+                    )
+                );
+
+                self.cache_call_result(None, fn_name, &message_id, &index)
+                    .await;
+                Ok(Some(index))
+            }
+        }
+    }
+}
+
 #[async_trait]
 impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
     fn token_layout(&self) -> Vec<MetadataToken> {
@@ -36,19 +102,13 @@ impl MultisigIsmMetadataBuilder for MerkleRootMultisigMetadataBuilder {
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
         const CTX: &str = "When fetching MerkleRootMultisig metadata";
-        let highest_leaf_index = unwrap_or_none_result!(
-            self.highest_known_leaf_index().await,
-            debug!("Couldn't get highest known leaf index")
-        );
-        let leaf_index = unwrap_or_none_result!(
-            self.get_merkle_leaf_id_by_message_id(message.id())
-                .await
-                .context(CTX)?,
-            debug!(
-                hyp_message=?message,
-                "No merkle leaf found for message id, must have not been enqueued in the tree"
-            )
-        );
+
+        let highest_leaf_index: u32 =
+            unwrap_or_none_result!(self.call_highest_known_leaf_index().await?);
+
+        let leaf_index: u32 =
+            unwrap_or_none_result!(self.call_get_merkle_leaf_id_by_message_id(message).await?);
+
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
                 .fetch_checkpoint_in_range(
