@@ -6,6 +6,8 @@ function cleanup() {
   rm -rf ./tmp
   rm -f ./test-configs/anvil/chains/anvil2/addresses.yaml
   rm -f ./test-configs/anvil/chains/anvil3/addresses.yaml
+  rm -f ./test-configs/zksync/chains/zksync1/addresses.yaml
+  rm -f ./test-configs/zksync/chains/zksync2/addresses.yaml
   set -e
 }
 
