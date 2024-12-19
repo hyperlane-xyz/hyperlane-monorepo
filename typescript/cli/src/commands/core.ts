@@ -18,7 +18,6 @@ import {
   CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runCoreApply, runCoreDeploy } from '../deploy/core.js';
-import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
 import { executeCoreRead } from '../read/core.js';
 import {
@@ -31,11 +30,8 @@ import { formatYamlViolationsOutput } from '../utils/output.js';
 import {
   DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
   chainCommandOption,
-  dryRunCommandOption,
-  fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
-  skipConfirmationOption,
 } from './options.js';
 
 /**
@@ -103,7 +99,6 @@ export const apply: CommandModuleWithWriteContext<{
 export const deploy: CommandModuleWithWriteContext<{
   chain: string;
   config: string;
-  dryRun: string;
   fromAddress: string;
 }> = {
   command: 'deploy',
@@ -115,24 +110,15 @@ export const deploy: CommandModuleWithWriteContext<{
       false,
       'The path to a JSON or YAML file with a core deployment config.',
     ),
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
-    'skip-confirmation': skipConfirmationOption,
   },
-  handler: async ({ context, chain, config: configFilePath, dryRun }) => {
-    logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
+  handler: async ({ context, chain, config: configFilePath }) => {
+    logCommandHeader(`Hyperlane Core deployment`);
 
-    try {
-      await runCoreDeploy({
-        context,
-        chain,
-        config: readYamlOrJson(configFilePath),
-      });
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
-    process.exit(0);
+    await runCoreDeploy({
+      context,
+      chain,
+      config: readYamlOrJson(configFilePath),
+    });
   },
 };
 
@@ -162,8 +148,6 @@ export const init: CommandModuleWithContext<{
       configFilePath,
       advanced,
     });
-
-    process.exit(0);
   },
 };
 
@@ -202,8 +186,6 @@ export const read: CommandModuleWithContext<{
     writeYamlOrJson(configFilePath, coreConfig, 'yaml');
     logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);
     logYamlIfUnderMaxLines(coreConfig);
-
-    process.exit(0);
   },
 };
 
@@ -252,7 +234,5 @@ export const check: CommandModuleWithContext<{
     }
 
     logGreen(`No violations found`);
-
-    process.exit(0);
   },
 };

@@ -35,8 +35,6 @@ export interface CommandContext {
 export interface WriteCommandContext extends CommandContext {
   key: string;
   signer: ethers.Signer;
-  isDryRun?: boolean;
-  dryRunChain?: string;
 }
 
 export type CommandModuleWithContext<Args> = CommandModule<
