@@ -1,8 +1,11 @@
 import { expect } from 'chai';
-import { Wallet } from 'ethers';
+import { Signer, Wallet, ethers } from 'ethers';
 
+import { InterchainAccountRouter__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
+  ChainMetadata,
+  DerivedCoreConfig,
   HookType,
   HypTokenRouterConfig,
   TokenType,
@@ -10,22 +13,31 @@ import {
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
+import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
+import { hyperlaneCoreApply, readCoreConfig } from './commands/core.js';
 import {
   ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
+  CORE_READ_CONFIG_PATH_2,
+  CORE_READ_CONFIG_PATH_3,
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
   EXAMPLES_PATH,
+  JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
   REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
+  WARP_DEPLOY_CONFIG_CHAIN_2,
+  WARP_DEPLOY_CONFIG_CHAIN_3,
   deployOrUseExistingCore,
   extendWarpConfig,
   getDomainId,
@@ -40,15 +52,29 @@ import {
 describe('hyperlane warp apply e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
 
+  let signer: Signer;
   let chain2Addresses: ChainAddresses = {};
+  let initialOwnerAddress: Address;
+  let chain2DomainId: Domain;
+  let chain3DomainId: Domain;
 
   before(async function () {
-    await deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY);
-    chain2Addresses = await deployOrUseExistingCore(
-      CHAIN_NAME_3,
-      CORE_CONFIG_PATH,
-      ANVIL_KEY,
+    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+
+    const provider = new ethers.providers.JsonRpcProvider(
+      chain2Metadata.rpcUrls[0].http,
     );
+    chain2DomainId = chain2Metadata.domainId;
+    chain3DomainId = chain3Metadata.domainId;
+    const wallet = new Wallet(ANVIL_KEY);
+    signer = wallet.connect(provider);
+    initialOwnerAddress = await signer.getAddress();
+
+    [, chain2Addresses] = await Promise.all([
+      deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+    ]);
 
     // Create a new warp config using the example
     const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
@@ -63,17 +89,16 @@ describe('hyperlane warp apply e2e tests', async function () {
   });
 
   it('should burn owner address', async function () {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     await updateOwner(
       E2E_TEST_BURN_ADDRESS,
       CHAIN_NAME_2,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
       WARP_CORE_CONFIG_PATH_2,
     );
     const updatedWarpDeployConfig = await readWarpConfig(
       CHAIN_NAME_2,
       WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
     );
     expect(updatedWarpDeployConfig.anvil2.owner).to.equal(
       E2E_TEST_BURN_ADDRESS,
@@ -81,17 +106,16 @@ describe('hyperlane warp apply e2e tests', async function () {
   });
 
   it('should not update the same owner', async () => {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     await updateOwner(
       E2E_TEST_BURN_ADDRESS,
       CHAIN_NAME_2,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
       WARP_CORE_CONFIG_PATH_2,
     );
     const { stdout } = await updateOwner(
       E2E_TEST_BURN_ADDRESS,
       CHAIN_NAME_2,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
       WARP_CORE_CONFIG_PATH_2,
     );
     expect(stdout).to.include(
@@ -140,8 +164,11 @@ describe('hyperlane warp apply e2e tests', async function () {
 
   it('should extend an existing warp route', async () => {
     // Read existing config into a file
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
+    await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
+    );
 
     // Extend with new config
     const config: HypTokenRouterConfig = {
@@ -159,7 +186,7 @@ describe('hyperlane warp apply e2e tests', async function () {
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath: warpConfigPath,
+      warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
     });
 
     const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
@@ -168,7 +195,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     const updatedWarpDeployConfig1 = await readWarpConfig(
       CHAIN_NAME_2,
       COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
     );
 
     const chain2Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
@@ -181,7 +208,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     const updatedWarpDeployConfig2 = await readWarpConfig(
       CHAIN_NAME_3,
       COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
     );
 
     const chain1Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
@@ -193,8 +220,11 @@ describe('hyperlane warp apply e2e tests', async function () {
 
   it('should extend an existing warp route with json strategy', async () => {
     // Read existing config into a file
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
+    await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
+    );
 
     // Extend with new config
     const config: HypTokenRouterConfig = {
@@ -212,7 +242,7 @@ describe('hyperlane warp apply e2e tests', async function () {
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath: warpConfigPath,
+      warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
       strategyUrl: `${EXAMPLES_PATH}/submit/strategy/json-rpc-chain-strategy.yaml`,
     });
 
@@ -222,7 +252,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     const updatedWarpDeployConfig1 = await readWarpConfig(
       CHAIN_NAME_2,
       COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
     );
 
     const chain2Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
@@ -235,7 +265,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     const updatedWarpDeployConfig2 = await readWarpConfig(
       CHAIN_NAME_3,
       COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
     );
 
     const chain1Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
@@ -307,11 +337,10 @@ describe('hyperlane warp apply e2e tests', async function () {
 
   it('should extend an existing warp route and update all destination domains', async () => {
     // Read existing config into a file
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     const warpDeployConfig = await readWarpConfig(
       CHAIN_NAME_2,
       WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
     );
     warpDeployConfig[CHAIN_NAME_2].gas = 7777;
 
@@ -328,8 +357,11 @@ describe('hyperlane warp apply e2e tests', async function () {
       gas: GAS,
     };
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
-    writeYamlOrJson(warpConfigPath, warpDeployConfig);
-    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+    writeYamlOrJson(WARP_DEPLOY_CONFIG_CHAIN_2, warpDeployConfig);
+    await hyperlaneWarpApply(
+      WARP_DEPLOY_CONFIG_CHAIN_2,
+      WARP_CORE_CONFIG_PATH_2,
+    );
 
     const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
 
@@ -337,7 +369,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     const updatedWarpDeployConfig_2 = await readWarpConfig(
       CHAIN_NAME_2,
       COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
     );
 
     const chain2Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
@@ -353,11 +385,125 @@ describe('hyperlane warp apply e2e tests', async function () {
     const updatedWarpDeployConfig_3 = await readWarpConfig(
       CHAIN_NAME_3,
       COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
     );
     const destinationGas_3 =
       updatedWarpDeployConfig_3[CHAIN_NAME_3].destinationGas!;
     expect(Object.keys(destinationGas_3)).to.include(chain2Id);
     expect(destinationGas_3[chain2Id]).to.equal('7777');
+  });
+
+  it('should relay the ICA transaction to update the warp on the destination chain', async () => {
+    // Add the remote ica on chain anvil3
+    const CORE_READ_CHAIN_2_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
+    const CORE_READ_CHAIN_3_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;
+
+    const [coreConfigChain2, coreConfigChain3]: DerivedCoreConfig[] =
+      await Promise.all([
+        readCoreConfig(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH),
+        readCoreConfig(CHAIN_NAME_3, CORE_READ_CHAIN_3_CONFIG_PATH),
+      ]);
+
+    const coreConfigChain2IcaConfig = coreConfigChain2.interchainAccountRouter!;
+    const coreConfigChain3IcaConfig = coreConfigChain3.interchainAccountRouter!;
+    coreConfigChain2IcaConfig.remoteIcaRouters = {
+      [chain3DomainId]: {
+        address: coreConfigChain3IcaConfig.address,
+      },
+    };
+
+    writeYamlOrJson(CORE_READ_CHAIN_2_CONFIG_PATH, coreConfigChain2);
+    await hyperlaneCoreApply(CHAIN_NAME_2, CORE_READ_CHAIN_2_CONFIG_PATH);
+
+    // Read existing config into a file
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
+    );
+
+    // Extend the warp route to add a token on chain 3
+    const extendedConfig: HypTokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain2Addresses!.mailbox,
+      name: 'Ether',
+      owner: initialOwnerAddress,
+      symbol: 'ETH',
+      totalSupply: 0,
+      type: TokenType.native,
+    };
+    warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
+    writeYamlOrJson(WARP_DEPLOY_CONFIG_CHAIN_2, warpDeployConfig);
+    await hyperlaneWarpApply(
+      WARP_DEPLOY_CONFIG_CHAIN_2,
+      WARP_CORE_CONFIG_PATH_2,
+    );
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
+    const [updatedWarpDeployConfig_2, updatedWarpDeployConfig_3] =
+      await Promise.all([
+        readWarpConfig(
+          CHAIN_NAME_2,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_CONFIG_CHAIN_2,
+        ),
+        readWarpConfig(
+          CHAIN_NAME_3,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_CONFIG_CHAIN_3,
+        ),
+      ]);
+
+    // Get the ICA router addresses and the associated ICA account address on chain3
+    const [core2Config, core3Config]: DerivedCoreConfig[] = await Promise.all([
+      readCoreConfig(CHAIN_NAME_2, CORE_READ_CONFIG_PATH_2),
+      readCoreConfig(CHAIN_NAME_3, CORE_READ_CONFIG_PATH_3),
+    ]);
+
+    const chain2IcaRouter = InterchainAccountRouter__factory.connect(
+      core2Config.interchainAccountRouter!.address,
+      signer,
+    );
+    const remoteIcaAccountAddress = await chain2IcaRouter.callStatic[
+      'getRemoteInterchainAccount(address,address,address)'
+    ](
+      initialOwnerAddress,
+      core3Config.interchainAccountRouter!.address,
+      ethers.constants.AddressZero,
+    );
+
+    // Transfer ownership of the warp token on chain3 to the ICA account
+    warpDeployConfig[CHAIN_NAME_2] = updatedWarpDeployConfig_2[CHAIN_NAME_2];
+    warpDeployConfig[CHAIN_NAME_3] = updatedWarpDeployConfig_3[CHAIN_NAME_3];
+    warpDeployConfig[CHAIN_NAME_3].owner = remoteIcaAccountAddress;
+    writeYamlOrJson(WARP_DEPLOY_CONFIG_CHAIN_2, warpDeployConfig);
+    await hyperlaneWarpApply(
+      WARP_DEPLOY_CONFIG_CHAIN_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+    );
+
+    // Update the remote gas for chain2 on chain3 and run warp apply with an ICA strategy
+    const expectedChain2Gas = '46000';
+    updatedWarpDeployConfig_3[CHAIN_NAME_3].destinationGas = {
+      [chain2DomainId]: expectedChain2Gas,
+    };
+    writeYamlOrJson(WARP_DEPLOY_CONFIG_CHAIN_2, warpDeployConfig);
+
+    await hyperlaneWarpApply(
+      WARP_DEPLOY_CONFIG_CHAIN_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      JSON_RPC_ICA_STRATEGY_CONFIG_PATH,
+      true,
+    );
+
+    const updatedWarpDeployConfig_3_2 = await readWarpConfig(
+      CHAIN_NAME_3,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      WARP_DEPLOY_CONFIG_CHAIN_2,
+    );
+
+    expect(
+      updatedWarpDeployConfig_3_2[CHAIN_NAME_3].destinationGas![chain2DomainId],
+    ).to.equal(expectedChain2Gas);
   });
 });
