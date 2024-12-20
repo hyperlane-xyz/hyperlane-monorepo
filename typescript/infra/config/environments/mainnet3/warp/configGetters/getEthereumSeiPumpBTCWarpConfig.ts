@@ -13,8 +13,8 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 
-const ethereumOwner = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
-const seiOwner = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+const ethereumOwner = '0x77A0545Dc1Dc6bAee8d9c1d436c6688a75Ae5777';
+const seiOwner = '0x14A359aE2446eaC89495b3F28b7a29cE2A17f392';
 
 export const getEthereumSeiPumpBTCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
