@@ -1,5 +1,7 @@
-import { ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { AddressesMap, ChainMap, OwnableConfig } from '@hyperlane-xyz/sdk';
+import { Address, objFilter, objMap } from '@hyperlane-xyz/utils';
+
+import { getMainnetAddresses } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -7,6 +9,19 @@ import { supportedChainNames } from './supportedChainNames.js';
 export const timelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
 };
+
+export function localAccountRouters(): ChainMap<Address> {
+  const coreAddresses: ChainMap<AddressesMap> = getMainnetAddresses();
+  const filteredAddresses = objFilter(
+    coreAddresses,
+    (_, addressMap): addressMap is AddressesMap =>
+      addressMap.interchainAccountRouter !== undefined,
+  );
+  return objMap(
+    filteredAddresses,
+    (_, addressMap) => addressMap.interchainAccountRouter,
+  );
+}
 
 export const safes: ChainMap<Address> = {
   mantapacific: '0x03ed2D65f2742193CeD99D48EbF1F1D6F12345B6', // does not have a UI

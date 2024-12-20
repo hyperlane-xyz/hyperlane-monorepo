@@ -1,11 +1,10 @@
-import { confirm } from '@inquirer/prompts';
-
+import { DockerConfig } from '../config/agent/agent.js';
 import {
   HelmChartConfig,
   HelmChartRepositoryConfig,
 } from '../config/infrastructure.js';
 
-import { execCmd, removeFile, writeYamlAtPath } from './utils.js';
+import { execCmd } from './utils.js';
 
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',
@@ -32,14 +31,6 @@ export function helmifyValues(config: any, prefix?: string): string[] {
     const value = config[key];
     return helmifyValues(value, prefix ? `${prefix}.${key}` : key);
   });
-}
-
-export function writeTemporaryHelmValuesFile<T>(values: T) {
-  const randomHash = Math.random().toString(36).substring(7);
-  const timestampSeconds = Math.floor(Date.now() / 1000);
-  const valuesFile = `/tmp/helm-values-${timestampSeconds}-${randomHash}.yaml`;
-  writeYamlAtPath(valuesFile, values);
-  return valuesFile;
 }
 
 export async function addHelmRepoIfRequired(helmChartConfig: HelmChartConfig) {
@@ -131,6 +122,7 @@ export abstract class HelmManager<T = HelmValues> {
       return;
     }
 
+    const values = helmifyValues(await this.helmValues());
     if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
       // Delete secrets to avoid them being stale
       const cmd = [
@@ -150,49 +142,20 @@ export abstract class HelmManager<T = HelmValues> {
     }
 
     await buildHelmChartDependencies(this.helmChartPath);
-
-    const values = await this.helmValues();
-    const valuesFile = writeTemporaryHelmValuesFile(values);
-    console.log(`Writing values to temporary file: ${valuesFile}`);
-
-    const performAction = async () => {
+    cmd.push(
+      this.helmReleaseName,
+      this.helmChartPath,
+      '--create-namespace',
+      '--namespace',
+      this.namespace,
+      ...values,
+    );
+    if (action == HelmCommand.UpgradeDiff) {
       cmd.push(
-        this.helmReleaseName,
-        this.helmChartPath,
-        '--create-namespace',
-        '--namespace',
-        this.namespace,
-        '-f',
-        valuesFile,
+        `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,
       );
-      if (action == HelmCommand.UpgradeDiff) {
-        cmd.push(
-          `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,
-        );
-      }
-      await execCmd(cmd, {}, false, true);
-    };
-
-    const removeTempValuesFile = () => {
-      console.log(`Removing temporary values file: ${valuesFile}`);
-      removeFile(valuesFile);
-    };
-
-    try {
-      await performAction();
-    } catch (error) {
-      console.error('Error running helm command:', error);
-      const keepValuesFile = await confirm({
-        message: `Error occurred, keep temporary values file at '${valuesFile}'?`,
-      });
-      if (!keepValuesFile) {
-        removeTempValuesFile();
-      }
-      throw error;
     }
-
-    // If successful, remove the temporary values file
-    removeTempValuesFile();
+    await execCmd(cmd, {}, false, true);
   }
 
   async doesHelmReleaseExist() {
