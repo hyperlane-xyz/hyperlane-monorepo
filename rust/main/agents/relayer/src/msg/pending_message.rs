@@ -284,7 +284,7 @@ impl PendingOperation for PendingMessage {
         let tx_cost_estimate = match self
             .ctx
             .destination_mailbox
-            .process_estimate_costs(&self.message, &metadata)
+            .process_estimate_costs(&self.message, &metadata, false)
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
@@ -355,7 +355,7 @@ impl PendingOperation for PendingMessage {
             if self
                 .ctx
                 .destination_mailbox
-                .process_estimate_costs(&self.message, metadata)
+                .process_estimate_costs(&self.message, metadata, true)
                 .await
                 .is_err()
             {

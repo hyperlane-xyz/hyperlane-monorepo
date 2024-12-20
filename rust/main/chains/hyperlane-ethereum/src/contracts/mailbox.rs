@@ -315,6 +315,7 @@ where
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
+        apply_gas_overrides: bool,
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<ContractCall<M, ()>> {
         let mut tx = self.contract.process(
@@ -324,7 +325,12 @@ where
         if let Some(gas_estimate) = tx_gas_estimate {
             tx = tx.gas(gas_estimate);
         }
-        self.add_gas_overrides(tx).await
+
+        if apply_gas_overrides {
+            self.add_gas_overrides(tx).await
+        } else {
+            Ok(tx)
+        }
     }
 
     async fn add_gas_overrides<D: Detokenize>(
@@ -504,7 +510,7 @@ where
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let contract_call = self
-            .process_contract_call(message, metadata, tx_gas_limit)
+            .process_contract_call(message, metadata, true, tx_gas_limit)
             .await?;
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
@@ -528,6 +534,7 @@ where
                 self.process_contract_call(
                     &batch_item.data,
                     &batch_item.submission_data.metadata,
+                    true,
                     Some(batch_item.submission_data.gas_limit),
                 )
                 .await
@@ -547,8 +554,11 @@ where
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
+        apply_gas_overrides: bool,
     ) -> ChainResult<TxCostEstimate> {
-        let contract_call = self.process_contract_call(message, metadata, None).await?;
+        let contract_call = self
+            .process_contract_call(message, metadata, apply_gas_overrides, None)
+            .await?;
         let gas_limit = contract_call
             .tx
             .gas()
@@ -701,7 +711,7 @@ mod test {
         mock_provider.push(gas_limit).unwrap();
 
         let tx_cost_estimate = mailbox
-            .process_estimate_costs(&message, &metadata)
+            .process_estimate_costs(&message, &metadata, true)
             .await
             .unwrap();
 
@@ -751,7 +761,7 @@ mod test {
         mock_provider.push(gas_limit).unwrap();
 
         let tx_cost_estimate = mailbox
-            .process_estimate_costs(&message, &metadata)
+            .process_estimate_costs(&message, &metadata, true)
             .await
             .unwrap();
 
