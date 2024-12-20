@@ -190,6 +190,7 @@ impl Mailbox for FuelMailbox {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
+        _apply_gas_overrides: bool,
     ) -> ChainResult<TxCostEstimate> {
         let call_res = self
             .contract
