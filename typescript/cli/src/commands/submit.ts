@@ -9,7 +9,6 @@ import { logBlue, logGray } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 
 import {
-  dryRunCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
   transactionsCommandOption,
@@ -21,7 +20,6 @@ import {
 export const submitCommand: CommandModuleWithWriteContext<{
   transactions: string;
   strategy: string;
-  'dry-run': string;
   receipts: string;
 }> = {
   command: 'submit',
@@ -29,7 +27,6 @@ export const submitCommand: CommandModuleWithWriteContext<{
   builder: {
     transactions: transactionsCommandOption,
     strategy: strategyCommandOption,
-    'dry-run': dryRunCommandOption,
     receipts: outputFileCommandOption('./generated/transactions/receipts.yaml'),
   },
   handler: async ({
