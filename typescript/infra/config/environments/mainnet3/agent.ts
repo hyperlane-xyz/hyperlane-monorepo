@@ -482,21 +482,21 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '15Gi',
+    memory: '20G',
   },
 };
 
 const validatorResources = {
   requests: {
     cpu: '500m',
-    memory: '1Gi',
+    memory: '1G',
   },
 };
 
 const scraperResources = {
   requests: {
     cpu: '2000m',
-    memory: '4Gi',
+    memory: '4G',
   },
 };
 

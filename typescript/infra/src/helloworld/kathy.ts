@@ -112,6 +112,6 @@ export class KathyHelmManager extends HelmManager<HelmValues> {
     );
     await kathyKey.createIfNotExists();
 
-    super.runHelmCommand(action, dryRun);
+    await super.runHelmCommand(action, { dryRun });
   }
 }
