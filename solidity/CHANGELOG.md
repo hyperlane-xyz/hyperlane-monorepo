@@ -1,5 +1,16 @@
 # @hyperlane-xyz/core
 
+## 5.9.0
+
+### Minor Changes
+
+- 0eb8d52a4: Made releaseValueToRecipient internal
+
+### Patch Changes
+
+- Updated dependencies [79f8197f3]
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 5.8.3
 
 ### Patch Changes
