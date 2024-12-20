@@ -1,3 +1,4 @@
+import { utils } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -5,6 +6,7 @@ import {
   HyperlaneCore,
   HyperlaneRelayer,
   StarknetCore,
+  StarknetRelayer,
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
@@ -96,38 +98,43 @@ async function executeDelivery({
   const destinationDomain = multiProvider.getDomainId(destination);
   const originProtocol = multiProvider.getProtocol(origin);
 
-  if (originProtocol === ProtocolType.Starknet) {
-    assert(multiProtocolSigner, 'MultiProtocolSignerManager is required');
-
-    const starknetSigner = await multiProtocolSigner.getStarknetSigner(origin);
-    assert(starknetSigner, `Signer for ${origin} chain is required`);
-
-    const starknet = new StarknetCore(
-      starknetSigner,
-      chainAddresses,
-      multiProvider,
-    );
-    const { messages } = await starknet.sendMessage({
-      origin,
-      destinationDomain,
-      messageBody,
-      recipientAddress: chainAddresses[destination].testRecipient,
-    });
-
-    console.log({ messages });
-    if (messages.length > 0) {
-      const message = messages[0];
-      logBlue(
-        `Sent message from ${origin} to ${chainAddresses[destination].testRecipient} on ${destination}.`,
+  try {
+    if (originProtocol === ProtocolType.Starknet) {
+      assert(multiProtocolSigner, 'MultiProtocolSignerManager is required');
+      const starknetSigner = await multiProtocolSigner.getStarknetSigner(
+        origin,
       );
-      logBlue(`Message ID: ${message.id}`);
+      assert(starknetSigner, `Signer for ${origin} chain is required`);
+
+      const starknet = new StarknetCore(
+        starknetSigner,
+        chainAddresses,
+        multiProvider,
+      );
+      const { message } = await starknet.sendMessage({
+        origin,
+        destinationDomain,
+        messageBody,
+        recipientAddress: chainAddresses[destination].testRecipient,
+      });
+
+      logBlue(`Sent message from ${origin} to ${destination}`);
       log(`Message:\n${indentYamlOrJson(yamlStringify(message, null, 2), 4)}`);
+
+      if (selfRelay) {
+        const relayer = new StarknetRelayer({ core: starknet });
+        log('Attempting self-relay of message');
+        const { messageData } = relayer.prepareMessageForRelay(message);
+
+        await core.deliver(
+          { ...message, message: utils.hexlify(messageData as any) },
+          '0x',
+        );
+        logGreen('Message was self-relayed!');
+      }
+      return;
     }
 
-    return;
-  }
-
-  try {
     const recipient = chainAddresses[destination].testRecipient;
     if (!recipient) {
       throw new Error(`Unable to find TestRecipient for ${destination}`);
