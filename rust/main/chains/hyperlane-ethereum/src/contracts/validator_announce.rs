@@ -10,7 +10,7 @@ use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use tracing::{instrument, log::trace};
+use tracing::{instrument, trace};
 
 use crate::{
     interfaces::i_validator_announce::{

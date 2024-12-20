@@ -62,7 +62,7 @@ export const safes: ChainMap<Address> = {
 export const icaOwnerChain = 'ethereum';
 
 // Found by running:
-// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
+// yarn tsx ./scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
 export const icas: Partial<
   Record<(typeof supportedChainNames)[number], Address>
 > = {
@@ -173,6 +173,21 @@ export const icas: Partial<
   // swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687', // already has a safe
   lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
   appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
+
+  // Dec 13, 2024 batch
+  // ----------------------------------------------------------
+  arthera: '0x962e4E5F5e47e1Ab5361eE0B5108Ebeb9Fa5c99B',
+  aurora: '0x853f40c807cbb08EDd19B326b9b6A669bf3c274c',
+  conflux: '0xac8f0e306A126312C273080d149ca01d461603FE',
+  conwai: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  evmos: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  form: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  ink: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
+  rivalz: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
+  soneium: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  sonic: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  telos: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
