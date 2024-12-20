@@ -22,13 +22,14 @@ import { getDomainId } from '../../registry.js';
 
 import { environment } from './chains.js';
 import { helloWorld } from './helloworld.js';
-import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json';
-import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json';
-import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json';
-import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json';
-import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json';
-import veloMessageModuleAddresses from './misc-artifacts/velo-message-module-addresses.json';
-import veloTokenBridgeAddresses from './misc-artifacts/velo-token-bridge-addresses.json';
+import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' assert { type: 'json' };
+import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' assert { type: 'json' };
+import { getInterchainAccountRouters } from './misc-artifacts/ica.js';
+import merklyEthAddresses from './misc-artifacts/merkly-eth-addresses.json' assert { type: 'json' };
+import merklyNftAddresses from './misc-artifacts/merkly-eth-addresses.json' assert { type: 'json' };
+import merklyErc20Addresses from './misc-artifacts/merkly-eth-addresses.json' assert { type: 'json' };
+import veloMessageModuleAddresses from './misc-artifacts/velo-message-module-addresses.json' assert { type: 'json' };
+import veloTokenBridgeAddresses from './misc-artifacts/velo-token-bridge-addresses.json' assert { type: 'json' };
 import {
   mainnet3SupportedChainNames,
   supportedChainNames,
@@ -442,6 +443,10 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
       ),
     },
     {
+      name: 'ica_router',
+      matchingList: routerMatchingList(getInterchainAccountRouters()),
+    },
+    {
       name: 'merkly_erc20',
       matchingList: routerMatchingList(merklyErc20Addresses),
     },
@@ -482,21 +487,21 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '15Gi',
+    memory: '20G',
   },
 };
 
 const validatorResources = {
   requests: {
     cpu: '500m',
-    memory: '1Gi',
+    memory: '1G',
   },
 };
 
 const scraperResources = {
   requests: {
     cpu: '2000m',
-    memory: '4Gi',
+    memory: '4G',
   },
 };
 
@@ -622,7 +627,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '25a927d-20241114-171323',
+      tag: '7c0c967-20241218-173053',
     },
     blacklist,
     gasPaymentEnforcement,

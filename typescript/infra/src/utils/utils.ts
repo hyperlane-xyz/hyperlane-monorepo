@@ -196,6 +196,12 @@ export function readYaml<T>(filepath: string): T {
   return yamlParse(readFileAtPath(filepath)) as T;
 }
 
+export function removeFile(filepath: string) {
+  if (fs.existsSync(filepath)) {
+    fs.unlinkSync(filepath);
+  }
+}
+
 export function assertRole(roleStr: string) {
   const role = roleStr as Role;
   if (!Object.values(Role).includes(role)) {
