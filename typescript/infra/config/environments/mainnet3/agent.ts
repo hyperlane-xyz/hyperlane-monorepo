@@ -532,6 +532,11 @@ const blacklistedMessageIds = [
   // MAGIC/ethereum-treasure native funding txs
   '0x9d51f4123be816cbaeef2e2b34a5760f633a7cb8a019fe16f88a3227cc22451e',
   '0x663c221137028ceeeb102a98e48b362a7b48d626b93c88c7fdf1871a948b1223',
+
+  // txs between unenrolled routers of
+  // ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
+  '0x229a832dfdfa23dfc27eb773e6b34e87f329067393f4f7b616251b3d7d52d294',
+  '0xcdfd5294e8b1253263908e1919d27675f80a2e9a3bb339b759810efdbb81faa5',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
