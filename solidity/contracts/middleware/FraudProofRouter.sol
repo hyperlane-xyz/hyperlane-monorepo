@@ -24,8 +24,8 @@ contract FraudProofRouter is GasRouter {
     // The AttributeCheckpointFraud contract to obtain the attributions from
     AttributeCheckpointFraud public immutable attributeCheckpointFraud;
 
-    // Mapping to store the fraud attributions for a given origin, signer, merkle tree, and digest for easy access for client contracts to aide slashing
-    mapping(uint32 origin => mapping(address signer => mapping(bytes32 merkleTree => mapping(bytes32 digest => Attribution))))
+    // Mapping to store the fraud attributions for a given origin, signer, and digest for easy access for client contracts to aide slashing
+    mapping(uint32 origin => mapping(address signer => mapping(bytes32 digest => Attribution)))
         public fraudAttributions;
 
     // ===================== Events =======================
@@ -74,13 +74,11 @@ contract FraudProofRouter is GasRouter {
      * @notice Sends a fraud proof attribution.
      * @param _signer The address of the signer attributed with fraud.
      * @param _digest The digest associated with the fraud.
-     * @param _merkleTree The merkle tree associated with the fraud.
      * @return The message ID of the sent fraud proof.
      */
     function sendFraudProof(
         uint32 _destination,
         address _signer,
-        bytes32 _merkleTree,
         bytes32 _digest
     ) external returns (bytes32) {
         Attribution memory attribution = attributeCheckpointFraud.attributions(
@@ -91,9 +89,7 @@ contract FraudProofRouter is GasRouter {
         require(attribution.timestamp != 0, "Attribution does not exist");
 
         if (_destination == mailbox.localDomain()) {
-            fraudAttributions[_destination][_signer][_merkleTree][
-                _digest
-            ] = attribution;
+            fraudAttributions[_destination][_signer][_digest] = attribution;
 
             emit LocalFraudProofReceived(_signer, _digest, attribution);
 
@@ -101,7 +97,6 @@ contract FraudProofRouter is GasRouter {
         } else {
             bytes memory encodedMessage = FraudMessage.encode(
                 _signer,
-                _merkleTree,
                 _digest,
                 attribution
             );
@@ -132,12 +127,11 @@ contract FraudProofRouter is GasRouter {
     ) internal override {
         (
             address signer,
-            bytes32 merkleTree,
             bytes32 digest,
             Attribution memory attribution
         ) = FraudMessage.decode(_message);
 
-        fraudAttributions[_origin][signer][merkleTree][digest] = attribution;
+        fraudAttributions[_origin][signer][digest] = attribution;
 
         emit FraudProofReceived(_origin, signer, digest, attribution);
     }

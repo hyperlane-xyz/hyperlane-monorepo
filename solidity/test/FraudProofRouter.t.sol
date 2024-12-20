@@ -8,7 +8,6 @@ import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 import {TestAttributeCheckpointFraud} from "../contracts/test/TestAttributeCheckpointFraud.sol";
 import {FraudProofRouter} from "../contracts/middleware/FraudProofRouter.sol";
 import {MockMailbox} from "../contracts/mock/MockMailbox.sol";
-import {TestMerkle} from "../contracts/test/TestMerkle.sol";
 
 contract FraudProofRouterTest is Test {
     using TypeCasts for address;
@@ -17,7 +16,6 @@ contract FraudProofRouterTest is Test {
     uint32 public constant DESTINATION_DOMAIN = 2;
     MockMailbox internal localMailbox;
     MockMailbox internal remoteMailbox;
-    TestMerkle internal testMerkleHook;
     TestAttributeCheckpointFraud public testAcf;
     FraudProofRouter public originFpr;
     FraudProofRouter public remoteFpr;
@@ -31,8 +29,6 @@ contract FraudProofRouterTest is Test {
         remoteMailbox = new MockMailbox(DESTINATION_DOMAIN);
         localMailbox.addRemoteMailbox(DESTINATION_DOMAIN, remoteMailbox);
         remoteMailbox.addRemoteMailbox(LOCAL_DOMAIN, localMailbox);
-
-        testMerkleHook = new TestMerkle();
 
         testAcf = new TestAttributeCheckpointFraud();
 
@@ -66,7 +62,6 @@ contract FraudProofRouterTest is Test {
     function test_sendFraudProof(
         address _signer,
         bytes32 _digest,
-        bytes32 _merkleTree,
         uint8 _fraudType,
         uint48 _timestamp
     ) public {
@@ -84,12 +79,7 @@ contract FraudProofRouterTest is Test {
             Attribution(fraudTypeEnum, uint48(block.timestamp))
         );
 
-        originFpr.sendFraudProof(
-            DESTINATION_DOMAIN,
-            _signer,
-            _merkleTree,
-            _digest
-        );
+        originFpr.sendFraudProof(DESTINATION_DOMAIN, _signer, _digest);
 
         vm.expectEmit(true, true, true, true, address(remoteFpr));
         emit FraudProofRouter.FraudProofReceived(
@@ -101,7 +91,7 @@ contract FraudProofRouterTest is Test {
         remoteMailbox.processNextInboundMessage();
 
         (FraudType actualFraudType, uint48 actualTimestamp) = remoteFpr
-            .fraudAttributions(LOCAL_DOMAIN, _signer, _merkleTree, _digest);
+            .fraudAttributions(LOCAL_DOMAIN, _signer, _digest);
 
         assert(actualFraudType == fraudTypeEnum);
         assertEq(actualTimestamp, block.timestamp);
@@ -109,12 +99,7 @@ contract FraudProofRouterTest is Test {
 
     function test_sendFraudProof_noAttribution() public {
         vm.expectRevert("Attribution does not exist");
-        originFpr.sendFraudProof(
-            DESTINATION_DOMAIN,
-            SIGNER,
-            TypeCasts.addressToBytes32(address(testMerkleHook)),
-            DIGEST
-        );
+        originFpr.sendFraudProof(DESTINATION_DOMAIN, SIGNER, DIGEST);
     }
 
     function test_sendFraudProof_routerNotEnrolled() public {
@@ -122,31 +107,16 @@ contract FraudProofRouterTest is Test {
         testAcf.mockSetAttribution(SIGNER, DIGEST, fraudType);
 
         vm.expectRevert("No router enrolled for domain: 3");
-        originFpr.sendFraudProof(
-            3,
-            SIGNER,
-            TypeCasts.addressToBytes32(address(testMerkleHook)),
-            DIGEST
-        );
+        originFpr.sendFraudProof(3, SIGNER, DIGEST);
     }
 
     function test_sendFraudProof_localDomain() public {
         testAcf.mockSetAttribution(SIGNER, DIGEST, FraudType.Whitelist);
 
-        originFpr.sendFraudProof(
-            LOCAL_DOMAIN,
-            SIGNER,
-            TypeCasts.addressToBytes32(address(testMerkleHook)),
-            DIGEST
-        );
+        originFpr.sendFraudProof(LOCAL_DOMAIN, SIGNER, DIGEST);
 
         (FraudType actualFraudType, uint48 actualTimestamp) = originFpr
-            .fraudAttributions(
-                LOCAL_DOMAIN,
-                SIGNER,
-                TypeCasts.addressToBytes32(address(testMerkleHook)),
-                DIGEST
-            );
+            .fraudAttributions(LOCAL_DOMAIN, SIGNER, DIGEST);
 
         assert(actualFraudType == FraudType.Whitelist);
         assertEq(actualTimestamp, block.timestamp);
