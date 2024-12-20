@@ -109,6 +109,11 @@ export function removeHelmRelease(releaseName: string, namespace: string) {
 
 export type HelmValues = Record<string, any>;
 
+export interface HelmCommandOptions {
+  dryRun?: boolean;
+  updateRepoCache?: boolean;
+}
+
 export abstract class HelmManager<T = HelmValues> {
   abstract readonly helmReleaseName: string;
   abstract readonly helmChartPath: string;
@@ -122,10 +127,10 @@ export abstract class HelmManager<T = HelmValues> {
 
   async runHelmCommand(
     action: HelmCommand,
-    options: { dryRun?: boolean; updateRepoCache?: boolean },
+    options?: HelmCommandOptions,
   ): Promise<void> {
-    const dryRun = options.dryRun ?? false;
-    const updateRepoCache = options.updateRepoCache ?? false;
+    const dryRun = options?.dryRun ?? false;
+    const updateRepoCache = options?.updateRepoCache ?? false;
 
     const cmd = ['helm', action];
     if (dryRun) cmd.push('--dry-run');
