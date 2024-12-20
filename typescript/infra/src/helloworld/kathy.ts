@@ -15,6 +15,7 @@ import {
 import { Role } from '../roles.js';
 import {
   HelmCommand,
+  HelmCommandOptions,
   HelmManager,
   HelmValues,
   helmifyValues,
@@ -90,7 +91,10 @@ export class KathyHelmManager extends HelmManager<HelmValues> {
     };
   }
 
-  async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {
+  async runHelmCommand(
+    action: HelmCommand,
+    options?: HelmCommandOptions,
+  ): Promise<void> {
     // If using AWS keys, ensure the Kathy user and key has been created
     if (this.agentConfig.aws) {
       const awsUser = new AgentAwsUser(
@@ -112,6 +116,6 @@ export class KathyHelmManager extends HelmManager<HelmValues> {
     );
     await kathyKey.createIfNotExists();
 
-    super.runHelmCommand(action, dryRun);
+    await super.runHelmCommand(action, options);
   }
 }
