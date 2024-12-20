@@ -93,4 +93,16 @@ export class BaseValidator {
     );
     return eqAddress(address, this.config.address);
   }
+
+  getLatestCheckpointIndex(): Promise<number> {
+    throw new Error('Not implemented');
+  }
+
+  storageLocation(): string {
+    throw new Error('Not implemented');
+  }
+
+  getLatestCheckpointUrl(): string {
+    throw new Error('Not implemented');
+  }
 }
