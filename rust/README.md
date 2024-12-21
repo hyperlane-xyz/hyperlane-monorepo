@@ -119,11 +119,10 @@ cargo test --release --package run-locally --bin run-locally --features cosmos -
 ### Building Agent Docker Images
 
 There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a
-production environment.
+production environment. You should run this at the top level of the repo.
 
 ```bash
-cd rust
-./build.sh <image_tag>
+./rust/build.sh <image_tag>
 ```
 
 ### Deploy Procedure
