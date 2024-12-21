@@ -558,14 +558,21 @@ export class WarpCore {
     sender: Address;
     senderPubKey?: HexString;
   }): Promise<Record<string, string> | null> {
+    const destinationName = this.multiProvider.getChainName(destination);
+    const { token: originToken } = originTokenAmount;
     const chainError = this.validateChains(
-      originTokenAmount.token.chainName,
+      originToken.chainName,
       destination,
     );
     if (chainError) return chainError;
 
     const recipientError = this.validateRecipient(recipient, destination);
     if (recipientError) return recipientError;
+
+    const destinationToken =
+    originToken.getConnectionForChain(destinationName)?.token;
+    assert(destinationToken, `No connection found for ${destinationName}`);
+    assert(recipient !== destinationToken?.addressOrDenom, "Recipient cannot be the destination token address.");
 
     const amountError = await this.validateAmount(
       originTokenAmount,
