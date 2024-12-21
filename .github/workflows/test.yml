@@ -301,7 +301,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [mainnet3]
-        chain: [ethereum, arbitrum, optimism, inevm, viction]
+        chain: [ethereum, arbitrum, optimism, inevm]
         module: [core, igp]
         include:
           - environment: testnet4
