@@ -12,7 +12,6 @@ import {
   CommandModuleWithContext,
   CommandModuleWithWriteContext,
 } from '../context/types.js';
-import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
@@ -31,8 +30,6 @@ import {
   DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   addressCommandOption,
   chainCommandOption,
-  dryRunCommandOption,
-  fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
@@ -123,31 +120,19 @@ export const apply: CommandModuleWithWriteContext<{
 
 export const deploy: CommandModuleWithWriteContext<{
   config: string;
-  'dry-run': string;
-  'from-address': string;
 }> = {
   command: 'deploy',
   describe: 'Deploy Warp Route contracts',
   builder: {
     config: warpDeploymentConfigCommandOption,
-    'dry-run': dryRunCommandOption,
-    'from-address': fromAddressCommandOption,
   },
-  handler: async ({ context, config, dryRun }) => {
-    logCommandHeader(
-      `Hyperlane Warp Route Deployment${dryRun ? ' Dry-Run' : ''}`,
-    );
+  handler: async ({ context, config }) => {
+    logCommandHeader('Hyperlane Warp Route Deployment');
 
-    try {
-      await runWarpRouteDeploy({
-        context,
-        warpRouteDeploymentConfigPath: config,
-      });
-    } catch (error: any) {
-      evaluateIfDryRunFailure(error, dryRun);
-      throw error;
-    }
-    process.exit(0);
+    await runWarpRouteDeploy({
+      context,
+      warpRouteDeploymentConfigPath: config,
+    });
   },
 };
 

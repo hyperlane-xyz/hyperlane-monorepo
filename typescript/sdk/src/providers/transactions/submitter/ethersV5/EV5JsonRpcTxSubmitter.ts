@@ -2,7 +2,7 @@ import { TransactionReceipt } from '@ethersproject/providers';
 import { ContractReceipt } from 'ethers';
 import { Logger } from 'pino';
 
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
@@ -27,13 +27,7 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     ...txs: AnnotatedEV5Transaction[]
   ): Promise<TransactionReceipt[]> {
     const receipts: TransactionReceipt[] = [];
-    const submitterChainId = this.multiProvider.getChainId(this.props.chain);
     for (const tx of txs) {
-      assert(tx.chainId, 'Invalid PopulatedTransaction: Missing chainId field');
-      assert(
-        tx.chainId === submitterChainId,
-        `Transaction chainId ${tx.chainId} does not match submitter chainId ${submitterChainId}`,
-      );
       const receipt: ContractReceipt = await this.multiProvider.sendTransaction(
         this.props.chain,
         tx,
