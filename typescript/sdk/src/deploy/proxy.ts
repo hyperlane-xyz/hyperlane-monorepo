@@ -69,8 +69,8 @@ export async function isProxy(
   provider: ethers.providers.Provider,
   proxy: Address,
 ): Promise<boolean> {
-  const admin = await proxyAdmin(provider, proxy);
-  return !eqAddress(admin, ethers.constants.AddressZero);
+  const implementation = await proxyImplementation(provider, proxy);
+  return !eqAddress(implementation, ethers.constants.AddressZero);
 }
 
 export function proxyAdminUpdateTxs(
