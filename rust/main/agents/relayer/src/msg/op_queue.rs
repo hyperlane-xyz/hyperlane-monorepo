@@ -16,8 +16,8 @@ pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
-    retry_tx: mpsc::Sender<MessageRetryResponse>,
+    retry_receiver: Arc<Mutex<Receiver<MessageRetryRequest>>>,
+    retry_transmitter: mpsc::Sender<MessageRetryResponse>,
     #[new(default)]
     pub queue: OperationPriorityQueue,
 }
@@ -76,10 +76,10 @@ impl OpQueue {
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
         let mut message_retry_requests = vec![];
 
-        while let Ok(message_id) = self.retry_rx.lock().await.try_recv() {
-            let uuid = message_id.uuid.clone();
+        while let Ok(retry_request) = self.retry_receiver.lock().await.try_recv() {
+            let uuid = retry_request.uuid.clone();
             message_retry_requests.push((
-                message_id,
+                retry_request,
                 MessageRetryResponse {
                     uuid,
                     processed: 0,
@@ -99,8 +99,16 @@ impl OpQueue {
             .drain()
             .map(|Reverse(mut op)| {
                 let matches = message_retry_requests
-                    .iter()
-                    .any(|(retry_req, _)| retry_req.pattern.op_matches(&op));
+                    .iter_mut()
+                    .map(|(retry_req, req_metric)| {
+                        let match_res = retry_req.pattern.op_matches(&op);
+                        // update retry metrics
+                        if match_res {
+                            req_metric.matched += 1
+                        }
+                        match_res
+                    })
+                    .fold(false, |acc, x| acc || x);
                 if matches {
                     info!(
                         operation = %op,
@@ -109,12 +117,6 @@ impl OpQueue {
                     );
                     op.reset_attempts();
                 }
-                // update retry metrics
-                for (retry_req, req_metric) in message_retry_requests.iter_mut() {
-                    if retry_req.pattern.op_matches(&op) {
-                        req_metric.matched += 1;
-                    }
-                }
                 Reverse(op)
             })
             .collect();
@@ -122,7 +124,7 @@ impl OpQueue {
         tracing::debug!("Sending retry request metrics back");
         for (_, mut req_metric) in message_retry_requests {
             req_metric.processed = queue_length;
-            let _ = self.retry_tx.send(req_metric).await;
+            let _ = self.retry_transmitter.send(req_metric).await;
         }
         queue.append(&mut reprioritized_queue);
     }

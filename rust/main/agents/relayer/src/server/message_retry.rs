@@ -12,14 +12,14 @@ const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 
 #[derive(new)]
 pub struct MessageRetryApi {
-    tx: Sender<MessageRetryRequest>,
-    rx: Arc<Mutex<mpsc::Receiver<MessageRetryResponse>>>,
+    retry_request_transmitter: Sender<MessageRetryRequest>,
+    retry_response_receiver: Arc<Mutex<mpsc::Receiver<MessageRetryResponse>>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct MessageRetryApiState {
-    pub tx: Sender<MessageRetryRequest>,
-    pub rx: Arc<Mutex<mpsc::Receiver<MessageRetryResponse>>>,
+    pub retry_request_transmitter: Sender<MessageRetryRequest>,
+    pub retry_response_receiver: Arc<Mutex<mpsc::Receiver<MessageRetryResponse>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -45,10 +45,10 @@ async fn retry_message(
     let uuid = uuid::Uuid::new_v4();
     let uuid_string = uuid.to_string();
 
-    tracing::debug!("Sending message retry request: {uuid_string}");
+    tracing::debug!(uuid = uuid_string, "Sending message retry request");
 
     state
-        .tx
+        .retry_request_transmitter
         .send(MessageRetryRequest {
             uuid: uuid_string.clone(),
             pattern: retry_req_payload,
@@ -59,16 +59,16 @@ async fn retry_message(
             format!("Failed to send retry request to the queue: {}", err)
         })?;
 
-    let mut rx = state.rx.lock().await;
+    let mut rx = state.retry_response_receiver.lock().await;
 
     // Wait for response from message retry.
     // Warning: this potentially blocks other retry requests
     // from properly returning because their response might be consumed by
     // another request
     loop {
-        tracing::debug!("Waiting for response from relayer: {uuid_string}");
+        tracing::debug!(uuid = uuid_string, "Waiting for response from relayer");
         if let Some(resp) = rx.recv().await {
-            tracing::debug!("Relayer response: {}", resp.uuid);
+            tracing::debug!(uuid = resp.uuid, "Relayer response");
             if resp.uuid == uuid_string {
                 return Ok(Json(resp));
             }
@@ -81,8 +81,8 @@ impl MessageRetryApi {
         Router::new()
             .route("/", routing::post(retry_message))
             .with_state(MessageRetryApiState {
-                tx: self.tx.clone(),
-                rx: self.rx.clone(),
+                retry_request_transmitter: self.retry_request_transmitter.clone(),
+                retry_response_receiver: self.retry_response_receiver.clone(),
             })
     }
 
