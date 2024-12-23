@@ -33,7 +33,6 @@ use hyperlane_core::{
 
 use crate::msg::pending_message::CONFIRM_DELAY;
 use crate::server::MessageRetryRequest;
-use crate::server::MessageRetryResponse;
 
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
@@ -107,7 +106,6 @@ impl SerialSubmitter {
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
         retry_op_transmitter: Sender<MessageRetryRequest>,
-        retry_op_response_transmitter: mpsc::Sender<MessageRetryResponse>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
         task_monitor: TaskMonitor,
@@ -116,19 +114,16 @@ impl SerialSubmitter {
             metrics.submitter_queue_length.clone(),
             "prepare_queue".to_string(),
             Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
-            retry_op_response_transmitter.clone(),
         );
         let submit_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "submit_queue".to_string(),
             Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
-            retry_op_response_transmitter.clone(),
         );
         let confirm_queue = OpQueue::new(
             metrics.submitter_queue_length.clone(),
             "confirm_queue".to_string(),
             Arc::new(Mutex::new(retry_op_transmitter.subscribe())),
-            retry_op_response_transmitter,
         );
 
         Self {

@@ -1,7 +1,7 @@
 use axum::Router;
 use derive_new::new;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{broadcast::Sender, mpsc, Mutex};
+use std::collections::HashMap;
+use tokio::sync::broadcast::Sender;
 
 use crate::msg::op_queue::OperationPriorityQueue;
 
@@ -17,7 +17,6 @@ mod message_retry;
 pub struct Server {
     #[new(default)]
     retry_transmitter: Option<Sender<MessageRetryRequest>>,
-    retry_receiver: Option<mpsc::Receiver<MessageRetryResponse>>,
     #[new(default)]
     op_queues: Option<HashMap<u32, OperationPriorityQueue>>,
 }
@@ -37,8 +36,8 @@ impl Server {
     /// Can be extended with additional routes and feature flags to enable/disable individually.
     pub fn routes(self) -> Vec<(&'static str, Router)> {
         let mut routes = vec![];
-        if let (Some(tx), Some(rx)) = (self.retry_transmitter, self.retry_receiver) {
-            routes.push(MessageRetryApi::new(tx, Arc::new(Mutex::new(rx))).get_route());
+        if let Some(tx) = self.retry_transmitter {
+            routes.push(MessageRetryApi::new(tx).get_route());
         }
         if let Some(op_queues) = self.op_queues {
             routes.push(ListOperationsApi::new(op_queues).get_route());

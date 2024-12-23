@@ -1,39 +1,36 @@
-use std::sync::Arc;
-
-use crate::settings::matching_list::MatchingList;
+use crate::{server::ENDPOINT_MESSAGES_QUEUE_SIZE, settings::matching_list::MatchingList};
 
 use axum::{extract::State, routing, Json, Router};
 
 use derive_new::new;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{broadcast::Sender, mpsc, Mutex};
+use tokio::sync::{broadcast::Sender, mpsc};
 
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 
 #[derive(new)]
 pub struct MessageRetryApi {
     retry_request_transmitter: Sender<MessageRetryRequest>,
-    retry_response_receiver: Arc<Mutex<mpsc::Receiver<MessageRetryResponse>>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct MessageRetryApiState {
     pub retry_request_transmitter: Sender<MessageRetryRequest>,
-    pub retry_response_receiver: Arc<Mutex<mpsc::Receiver<MessageRetryResponse>>>,
 }
 
 #[derive(Clone, Debug)]
 pub struct MessageRetryRequest {
     pub uuid: String,
     pub pattern: MatchingList,
+    pub transmitter: mpsc::Sender<MessageRetryResponse>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MessageRetryResponse {
     /// ID of the retry request
     pub uuid: String,
-    /// how many pending operations were processed
-    pub processed: usize,
+    /// how many pending operations were evaluated
+    pub evaluated: usize,
     /// how many of the pending operations matched the retry request pattern
     pub matched: u64,
 }
@@ -47,11 +44,13 @@ async fn retry_message(
 
     tracing::debug!(uuid = uuid_string, "Sending message retry request");
 
+    let (transmitter, mut receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
     state
         .retry_request_transmitter
         .send(MessageRetryRequest {
             uuid: uuid_string.clone(),
             pattern: retry_req_payload,
+            transmitter,
         })
         .map_err(|err| {
             // Technically it's bad practice to print the error message to the user, but
@@ -59,21 +58,21 @@ async fn retry_message(
             format!("Failed to send retry request to the queue: {}", err)
         })?;
 
-    let mut rx = state.retry_response_receiver.lock().await;
+    let mut resp = MessageRetryResponse {
+        uuid: uuid_string,
+        evaluated: 0,
+        matched: 0,
+    };
 
-    // Wait for response from message retry.
-    // Warning: this potentially blocks other retry requests
-    // from properly returning because their response might be consumed by
-    // another request
-    loop {
-        tracing::debug!(uuid = uuid_string, "Waiting for response from relayer");
-        if let Some(resp) = rx.recv().await {
-            tracing::debug!(uuid = resp.uuid, "Relayer response");
-            if resp.uuid == uuid_string {
-                return Ok(Json(resp));
-            }
-        }
+    // Wait for responses from relayer
+    tracing::debug!(uuid = resp.uuid, "Waiting for response from relayer");
+    while let Some(relayer_resp) = receiver.recv().await {
+        tracing::debug!(uuid = resp.uuid, "Relayer response");
+        resp.evaluated += relayer_resp.evaluated;
+        resp.matched += relayer_resp.matched;
     }
+
+    Ok(Json(resp))
 }
 
 impl MessageRetryApi {
@@ -82,7 +81,6 @@ impl MessageRetryApi {
             .route("/", routing::post(retry_message))
             .with_state(MessageRetryApiState {
                 retry_request_transmitter: self.retry_request_transmitter.clone(),
-                retry_response_receiver: self.retry_response_receiver.clone(),
             })
     }
 
@@ -100,26 +98,18 @@ mod tests {
     use hyperlane_core::{HyperlaneMessage, QueueOperation};
     use serde_json::json;
     use std::net::SocketAddr;
-    use tokio::sync::{
-        broadcast::{Receiver, Sender},
-        mpsc,
-    };
+    use tokio::sync::broadcast::{Receiver, Sender};
 
     #[derive(Debug)]
     struct TestServerSetup {
         pub socket_address: SocketAddr,
         pub retry_req_rx: Receiver<MessageRetryRequest>,
-        pub retry_resp_tx: mpsc::Sender<MessageRetryResponse>,
     }
 
     fn setup_test_server() -> TestServerSetup {
         let broadcast_tx = Sender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
-        let (retry_response_tx, retry_response_rx) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
 
-        let message_retry_api = MessageRetryApi::new(
-            broadcast_tx.clone(),
-            Arc::new(Mutex::new(retry_response_rx)),
-        );
+        let message_retry_api = MessageRetryApi::new(broadcast_tx.clone());
         let (path, retry_router) = message_retry_api.get_route();
 
         let app = Router::new().nest(path, retry_router);
@@ -135,7 +125,6 @@ mod tests {
         TestServerSetup {
             socket_address: addr,
             retry_req_rx,
-            retry_resp_tx: retry_response_tx,
         }
     }
 
@@ -145,7 +134,6 @@ mod tests {
         let TestServerSetup {
             socket_address: addr,
             mut retry_req_rx,
-            retry_resp_tx,
             ..
         } = setup_test_server();
 
@@ -168,10 +156,10 @@ mod tests {
                     .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
                 let resp = MessageRetryResponse {
                     uuid: req.uuid,
-                    processed: 0,
+                    evaluated: 0,
                     matched: 0,
                 };
-                retry_resp_tx.send(resp).await.unwrap();
+                req.transmitter.send(resp).await.unwrap();
             }
         };
 
@@ -194,7 +182,7 @@ mod tests {
 
         let resp_json: MessageRetryResponse =
             serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
-        assert_eq!(resp_json.processed, 0);
+        assert_eq!(resp_json.evaluated, 0);
         assert_eq!(resp_json.matched, 0);
     }
 
@@ -203,7 +191,6 @@ mod tests {
         let TestServerSetup {
             socket_address: addr,
             mut retry_req_rx,
-            retry_resp_tx,
             ..
         } = setup_test_server();
 
@@ -227,10 +214,10 @@ mod tests {
                     .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
                 let resp = MessageRetryResponse {
                     uuid: req.uuid,
-                    processed: 10,
+                    evaluated: 10,
                     matched: 2,
                 };
-                retry_resp_tx.send(resp).await.unwrap();
+                req.transmitter.send(resp).await.unwrap();
             }
         };
 
@@ -253,7 +240,7 @@ mod tests {
 
         let resp_json: MessageRetryResponse =
             serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
-        assert_eq!(resp_json.processed, 10);
+        assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
 
@@ -262,7 +249,6 @@ mod tests {
         let TestServerSetup {
             socket_address: addr,
             mut retry_req_rx,
-            retry_resp_tx,
             ..
         } = setup_test_server();
 
@@ -286,10 +272,10 @@ mod tests {
                     .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
                 let resp = MessageRetryResponse {
                     uuid: req.uuid,
-                    processed: 10,
+                    evaluated: 10,
                     matched: 2,
                 };
-                retry_resp_tx.send(resp).await.unwrap();
+                req.transmitter.send(resp).await.unwrap();
             }
         };
 
@@ -312,7 +298,7 @@ mod tests {
 
         let resp_json: MessageRetryResponse =
             serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
-        assert_eq!(resp_json.processed, 10);
+        assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
 
@@ -321,7 +307,6 @@ mod tests {
         let TestServerSetup {
             socket_address: addr,
             mut retry_req_rx,
-            retry_resp_tx,
             ..
         } = setup_test_server();
 
@@ -343,10 +328,10 @@ mod tests {
                     .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
                 let resp = MessageRetryResponse {
                     uuid: req.uuid,
-                    processed: 10,
+                    evaluated: 10,
                     matched: 2,
                 };
-                retry_resp_tx.send(resp).await.unwrap();
+                req.transmitter.send(resp).await.unwrap();
             }
         };
 
@@ -369,7 +354,7 @@ mod tests {
 
         let resp_json: MessageRetryResponse =
             serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
-        assert_eq!(resp_json.processed, 10);
+        assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
 
@@ -378,7 +363,6 @@ mod tests {
         let TestServerSetup {
             socket_address: addr,
             mut retry_req_rx,
-            retry_resp_tx,
             ..
         } = setup_test_server();
 
@@ -400,10 +384,10 @@ mod tests {
                     .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
                 let resp = MessageRetryResponse {
                     uuid: req.uuid,
-                    processed: 10,
+                    evaluated: 10,
                     matched: 2,
                 };
-                retry_resp_tx.send(resp).await.unwrap();
+                req.transmitter.send(resp).await.unwrap();
             }
         };
 
@@ -426,7 +410,7 @@ mod tests {
 
         let resp_json: MessageRetryResponse =
             serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
-        assert_eq!(resp_json.processed, 10);
+        assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
 
@@ -435,7 +419,6 @@ mod tests {
         let TestServerSetup {
             socket_address: addr,
             mut retry_req_rx,
-            retry_resp_tx,
             ..
         } = setup_test_server();
 
@@ -465,10 +448,10 @@ mod tests {
                     .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
                 let resp = MessageRetryResponse {
                     uuid: req.uuid,
-                    processed: 10,
+                    evaluated: 10,
                     matched: 2,
                 };
-                retry_resp_tx.send(resp).await.unwrap();
+                req.transmitter.send(resp).await.unwrap();
             }
         };
 
@@ -491,7 +474,7 @@ mod tests {
 
         let resp_json: MessageRetryResponse =
             serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
-        assert_eq!(resp_json.processed, 10);
+        assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
 }

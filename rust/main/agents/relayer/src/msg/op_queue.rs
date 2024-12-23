@@ -3,7 +3,7 @@ use std::{cmp::Reverse, collections::BinaryHeap, sync::Arc};
 use derive_new::new;
 use hyperlane_core::{PendingOperation, PendingOperationStatus, QueueOperation};
 use prometheus::{IntGauge, IntGaugeVec};
-use tokio::sync::{broadcast::Receiver, mpsc, Mutex};
+use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
 
 use crate::server::{MessageRetryRequest, MessageRetryResponse};
@@ -17,7 +17,6 @@ pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
     retry_receiver: Arc<Mutex<Receiver<MessageRetryRequest>>>,
-    retry_transmitter: mpsc::Sender<MessageRetryResponse>,
     #[new(default)]
     pub queue: OperationPriorityQueue,
 }
@@ -82,7 +81,7 @@ impl OpQueue {
                 retry_request,
                 MessageRetryResponse {
                     uuid,
-                    processed: 0,
+                    evaluated: 0,
                     matched: 0,
                 },
             ));
@@ -108,7 +107,7 @@ impl OpQueue {
                         }
                         match_res
                     })
-                    .fold(false, |acc, x| acc || x);
+                    .any(|x| x);
                 if matches {
                     info!(
                         operation = %op,
@@ -122,9 +121,9 @@ impl OpQueue {
             .collect();
 
         tracing::debug!("Sending retry request metrics back");
-        for (_, mut req_metric) in message_retry_requests {
-            req_metric.processed = queue_length;
-            let _ = self.retry_transmitter.send(req_metric).await;
+        for (retry_req, mut req_metric) in message_retry_requests {
+            req_metric.evaluated = queue_length;
+            let _ = retry_req.transmitter.send(req_metric).await;
         }
         queue.append(&mut reprioritized_queue);
     }
@@ -143,7 +142,7 @@ impl OpQueue {
 
 #[cfg(test)]
 pub mod test {
-    use crate::settings::matching_list::MatchingList;
+    use crate::{server::ENDPOINT_MESSAGES_QUEUE_SIZE, settings::matching_list::MatchingList};
 
     use super::*;
 
@@ -158,7 +157,7 @@ pub mod test {
         str::FromStr,
         time::{Duration, Instant},
     };
-    use tokio::sync;
+    use tokio::sync::{self, mpsc};
 
     #[derive(Debug, Clone, Serialize)]
     pub struct MockPendingOperation {
@@ -351,19 +350,16 @@ pub mod test {
     async fn test_multiple_op_queues_message_id() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
-        let (retry_response_tx, _rx) = mpsc::channel(100);
 
         let mut op_queue_1 = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
             Arc::new(Mutex::new(broadcaster.subscribe())),
-            retry_response_tx.clone(),
         );
         let mut op_queue_2 = OpQueue::new(
             metrics,
             queue_metrics_label,
             Arc::new(Mutex::new(broadcaster.subscribe())),
-            retry_response_tx,
         );
 
         // Add some operations to the queue with increasing `next_attempt_after` values
@@ -399,17 +395,21 @@ pub mod test {
                 .await;
         }
 
+        let (transmitter, _receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
+
         // Retry by message ids
         broadcaster
             .send(MessageRetryRequest {
                 uuid: "0e92ace7-ba5d-4a1f-8501-51b6d9d500cf".to_string(),
                 pattern: MatchingList::with_message_id(op_ids[1]),
+                transmitter: transmitter.clone(),
             })
             .unwrap();
         broadcaster
             .send(MessageRetryRequest {
                 uuid: "59400966-e7fa-4fb9-9372-9a671d4392c3".to_string(),
                 pattern: MatchingList::with_message_id(op_ids[2]),
+                transmitter,
             })
             .unwrap();
 
@@ -441,13 +441,10 @@ pub mod test {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
 
-        let (retry_response_tx, _rx) = mpsc::channel(100);
-
         let mut op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
             Arc::new(Mutex::new(broadcaster.subscribe())),
-            retry_response_tx,
         );
 
         // Add some operations to the queue with increasing `next_attempt_after` values
@@ -470,11 +467,14 @@ pub mod test {
                 .await;
         }
 
+        let (transmitter, _receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
+
         // Retry by domain
         broadcaster
             .send(MessageRetryRequest {
                 uuid: "a5b39473-7cc5-48a1-8bed-565454ba1037".to_string(),
                 pattern: MatchingList::with_destination_domain(destination_domain_2.id()),
+                transmitter,
             })
             .unwrap();
 

@@ -323,8 +323,6 @@ impl BaseAgent for Relayer {
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
 
-        let (retry_op_response_tx, retry_op_response_rx) =
-            mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
         for (dest_domain, dest_conf) in &self.destination_chains {
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
@@ -332,7 +330,6 @@ impl BaseAgent for Relayer {
                 dest_domain.clone(),
                 receive_channel,
                 sender.clone(),
-                retry_op_response_tx.clone(),
                 SerialSubmitterMetrics::new(&self.core.metrics, dest_domain),
                 // Default to submitting one message at a time if there is no batch config
                 self.core.settings.chains[dest_domain.name()]
@@ -389,7 +386,7 @@ impl BaseAgent for Relayer {
             );
         }
         // run server
-        let custom_routes = relayer_server::Server::new(Some(retry_op_response_rx))
+        let custom_routes = relayer_server::Server::new()
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .routes();
