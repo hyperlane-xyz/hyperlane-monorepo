@@ -15,6 +15,7 @@ import {
   configureRootLogger,
   objFilter,
   objMerge,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
@@ -22,6 +23,8 @@ import { getSecretRpcEndpoints } from '../agents/index.js';
 import { inCIMode } from '../utils/utils.js';
 
 import { DeployEnvironment } from './environment.js';
+
+const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
 
 // A list of chains to skip during deploy, check-deploy and ICA operations.
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
@@ -170,16 +173,15 @@ export async function getSecretMetadataOverridesFromGitHubSecrets(
   chains: string[],
 ): Promise<ChainMap<Partial<ChainMetadata>>> {
   const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
-  const rootLogger = configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
-  rootLogger.debug(
+  debugLog(
     `Getting secret metadata overrides from GitHub secrets for ${deployEnv} and chains: ${chains}`,
   );
   for (const chain of chains) {
     const rpcUrlsEnv = `${deployEnv.toUpperCase()}_${chain.toUpperCase()}_RPC_URLS`;
     const rpcUrls = process.env[rpcUrlsEnv];
     if (rpcUrls) {
-      rootLogger.debug(`Found secret RPC URLs for chain ${chain}}`);
+      debugLog(`Found secret RPC URLs for chain ${chain}}`);
       const metadataRpcUrls = rpcUrls
         .split(',')
         .map((rpcUrl) => ({ http: rpcUrl })) as ChainMetadata['rpcUrls'];
