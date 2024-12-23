@@ -493,6 +493,8 @@ impl Mailbox for SealevelMailbox {
         // Wait for the transaction to be confirmed.
         self.rpc().wait_for_transaction_confirmation(&tx).await?;
 
+        // We expect time_to_confirm to fluctuate depending on the commitment level when submitting the
+        // tx, but still use it as a proxy for tx latency to help debug.
         tracing::info!(?tx, ?signature, time_to_confirm=?send_instant.elapsed(), "Sealevel transaction confirmed");
 
         // TODO: not sure if this actually checks if the transaction was executed / reverted?
@@ -525,7 +527,7 @@ impl Mailbox for SealevelMailbox {
         // calls to `process` to avoid this cost.
         let process_instruction = self.get_process_instruction(message, metadata).await?;
 
-        // The retuend costs are unused at the moment - we simply want to perform a simulation to
+        // The returned costs are unused at the moment - we simply want to perform a simulation to
         // determine if the message will revert or not.
         let _ = self
             .rpc()

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use async_trait::async_trait;
 use hyperlane_core::ChainResult;
 use solana_sdk::{
@@ -39,10 +37,6 @@ impl RpcTransactionSubmitter {
         Self {
             rpc_client: SealevelRpcClient::new(url),
         }
-    }
-
-    pub fn new_with_rpc_client(rpc_client: SealevelRpcClient) -> Self {
-        Self { rpc_client }
     }
 }
 

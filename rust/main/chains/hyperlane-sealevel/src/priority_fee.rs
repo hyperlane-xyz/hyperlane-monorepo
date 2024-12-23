@@ -1,6 +1,5 @@
-#![allow(dead_code)]
-
 use async_trait::async_trait;
+use derive_new::new;
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 use reqwest::Client;
 use serde::Deserialize;
@@ -16,15 +15,9 @@ pub trait PriorityFeeOracle: Send + Sync {
 }
 
 /// A priority fee oracle that returns a constant fee.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, new)]
 pub struct ConstantPriorityFeeOracle {
     fee: u64,
-}
-
-impl ConstantPriorityFeeOracle {
-    pub fn new(fee: u64) -> Self {
-        Self { fee }
-    }
 }
 
 #[async_trait]
@@ -54,17 +47,15 @@ impl HeliusPriorityFeeOracle {
         // It's an odd interface, but if using the Recommended fee level, the API requires `recommended: true`,
         // otherwise it requires `priorityLevel: "<PascalCaseFeeLevel>"`.
 
-        if let HeliusPriorityFeeLevel::Recommended = self.config.fee_level {
-            serde_json::json!({
-                "recommended": true,
-                "transactionEncoding": "base58",
-            })
-        } else {
-            serde_json::json!({
-                "priorityLevel": self.config.fee_level,
-                "transactionEncoding": "base58",
-            })
-        }
+        let (key, value) = match &self.config.fee_level {
+            HeliusPriorityFeeLevel::Recommended => ("recommended", serde_json::json!(true)),
+            level => ("priorityLevel", serde_json::json!(level)),
+        };
+
+        serde_json::json!({
+            key: value,
+            "transactionEncoding": "base58",
+        })
     }
 }
 
@@ -113,7 +104,9 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct JsonRpcResult<T> {
+    #[allow(dead_code)]
     jsonrpc: String,
+    #[allow(dead_code)]
     id: String,
     result: T,
 }

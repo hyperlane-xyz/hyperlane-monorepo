@@ -378,14 +378,14 @@ impl SealevelRpcClient {
         // that it is greater than 0.
         let simulation_compute_units: u32 = simulation_result
             .units_consumed
-            .and_then(|units| if units > 0 { Some(units) } else { None })
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str(
-                    "Empty or zero compute units returned in simulation result",
-                )
-            })?
+            .unwrap_or_default()
             .try_into()
             .map_err(ChainCommunicationError::from_other)?;
+        if simulation_compute_units == 0 {
+            return Err(ChainCommunicationError::from_other_str(
+                "Empty or zero compute units returned in simulation result",
+            ));
+        }
 
         // Bump the compute units by 10% to ensure we have enough, but cap it at the max.
         let simulation_compute_units =

@@ -169,7 +169,7 @@ fn build_sealevel_connection_conf(
     let mut local_err = ConfigParsingError::default();
 
     let native_token = parse_native_token(chain, err, 9);
-    let priority_fee_oracle = parse_priority_fee_oracle_config(chain, &mut local_err);
+    let priority_fee_oracle = parse_sealevel_priority_fee_oracle_config(chain, &mut local_err);
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
 
     if !local_err.is_ok() {
@@ -211,7 +211,7 @@ fn parse_native_token(
     }
 }
 
-fn parse_priority_fee_oracle_config(
+fn parse_sealevel_priority_fee_oracle_config(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
 ) -> Option<PriorityFeeOracleConfig> {
