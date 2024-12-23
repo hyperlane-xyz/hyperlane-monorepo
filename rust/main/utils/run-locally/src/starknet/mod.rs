@@ -539,7 +539,7 @@ fn termination_invariants_met(
             "Relayer confirmed {} submitted messages, expected {}",
             delivered_messages_count,
             messages_expected
-        );
+        );  
         return Ok(false);
     }
 

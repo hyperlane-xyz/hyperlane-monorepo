@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use cainome::cairo_serde::CairoSerde;
 use hyperlane_core::{
@@ -51,6 +52,7 @@ pub async fn get_transaction_receipt(
             })
         },
         100,
+        Some(Duration::from_millis(100))
     )
     .await
 }
