@@ -321,7 +321,7 @@ fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) ->
 pub(crate) struct ValidatorSubmitterMetrics {
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
-    merkle_root_mismatch: IntGauge, 
+    merkle_root_mismatch: IntGauge,
 }
 
 impl ValidatorSubmitterMetrics {
@@ -563,7 +563,9 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "CRITICAL SAFETY ISSUE: Merkle root mismatch detected. This could indicate a chain fork or invalid message. Immediate investigation required.")]
+    #[should_panic(
+        expected = "CRITICAL SAFETY ISSUE: Merkle root mismatch detected. This could indicate a chain fork or invalid message. Immediate investigation required."
+    )]
     async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         let unix_timestamp = chrono::Utc::now().timestamp() as u64;
         let expected_reorg_period = 12;
@@ -656,6 +658,5 @@ mod test {
                 &mock_onchain_checkpoint,
             )
             .await;
-
     }
 }
