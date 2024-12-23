@@ -1,104 +1,66 @@
-import { ParsedMessage, ProtocolType, assert } from '@hyperlane-xyz/utils';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { utils } from 'ethers';
+
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+
+import { MessageBus } from '../messaging/MessageBus.js';
+import { prepareMessageForRelay } from '../messaging/messageUtils.js';
 
 import { StarknetCore } from './StarknetCore.js';
 import { DispatchedMessage } from './types.js';
 
 export class StarknetRelayer {
   protected logger = rootLogger.child({ module: 'StarknetRelayer' });
+  private messageBus = new MessageBus();
+  private unsubscribe?: () => void;
 
-  protected readonly core: StarknetCore;
-  protected readonly retryTimeout: number;
-  protected backlog: Array<{
-    attempts: number;
-    lastAttempt: number;
-    message: any;
-    dispatchTx: string;
-  }> = [];
+  constructor(private readonly core: StarknetCore) {}
 
-  protected stopRelayingHandler: (() => void) | undefined;
-
-  constructor({
-    core,
-    retryTimeout = 1000,
-  }: {
-    core: StarknetCore;
-    retryTimeout?: number;
-  }) {
-    this.core = core;
-    this.retryTimeout = retryTimeout;
-  }
-
-  /**
-   * Prepare message and metadata for relay
-   */
-  prepareMessageForRelay(message: DispatchedMessage): {
-    metadata: { size: number; data: bigint[] };
-    messageData?: Uint8Array;
-  } {
-    const destinationChain = message.parsed.destinationChain!;
-    const destinationProtocol =
-      this.core.multiProvider.getProtocol(destinationChain);
-
-    if (destinationProtocol === ProtocolType.Ethereum) {
-      // Convert Starknet message to EVM format
-      const ethMessage = StarknetCore.toEthMessageBytes(
-        message.parsed as ParsedMessage & {
-          body: { size: bigint; data: bigint[] };
-        },
-      );
-
-      // For EVM destinations, metadata is empty
-      return {
-        metadata: { size: 0, data: [] },
-        messageData: ethMessage,
-      };
-    } else {
-      // For Starknet destinations, use simple metadata
-      return {
-        metadata: { size: 1, data: [BigInt(1)] },
-      };
-    }
-  }
-
-  /**
-   * Relay a message to its destination chain
-   */
   async relayMessage(
     message: DispatchedMessage,
   ): Promise<{ transaction_hash: string }> {
     this.logger.info(`Preparing to relay message ${message.id}`);
 
-    const { metadata, messageData } = this.prepareMessageForRelay(message);
+    const { metadata, messageData } = prepareMessageForRelay(
+      message,
+      ProtocolType.Starknet,
+    );
 
-    const destinationChain = message.parsed.destinationChain!;
-    this.logger.info(`Relaying message to ${destinationChain} chain`);
+    if (messageData) {
+      message.message = utils.hexlify(messageData);
+    }
 
-    return this.core.deliver(message, metadata, messageData);
+    return this.core.deliver(message, metadata);
   }
 
   start(): void {
-    assert(!this.stopRelayingHandler, 'Relayer already started');
+    if (this.unsubscribe) return;
 
-    // Subscribe to dispatch events
-    this.core
-      .onDispatch(async (message, event) => {
-        this.backlog.push({
-          attempts: 0,
-          lastAttempt: Date.now(),
-          message,
-          dispatchTx: event.transaction_hash,
-        });
-      })
-      .then(({ removeHandler }) => {
-        this.stopRelayingHandler = () => removeHandler();
-      });
+    // Subscribe to core events
+    const { removeHandler } = this.core.onDispatch(async (message) => {
+      this.messageBus.publish(message);
+    });
+
+    // Subscribe to message bus
+    const messageHandler = async (message: DispatchedMessage) => {
+      try {
+        await this.relayMessage(message);
+      } catch (error) {
+        this.logger.error(`Failed to relay message ${message.id}: ${error}`);
+      }
+    };
+
+    const unsubscribeFromBus = this.messageBus.subscribe(messageHandler);
+
+    this.unsubscribe = () => {
+      removeHandler();
+      unsubscribeFromBus();
+    };
   }
 
   stop(): void {
-    if (this.stopRelayingHandler) {
-      this.stopRelayingHandler();
-      this.stopRelayingHandler = undefined;
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = undefined;
     }
   }
 }

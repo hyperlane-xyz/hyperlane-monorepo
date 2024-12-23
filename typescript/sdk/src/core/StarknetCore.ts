@@ -6,7 +6,6 @@ import {
   InvokeFunctionResponse,
   ParsedEvent,
   ParsedEvents,
-  num,
 } from 'starknet';
 
 import {
@@ -16,7 +15,9 @@ import {
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
-import { ParsedMessage, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, rootLogger } from '@hyperlane-xyz/utils';
+
+import { toStarknetMessageBytes } from '../messaging/messageUtils.js';
 
 export class StarknetCore {
   protected logger = rootLogger.child({ module: 'StarknetCore' });
@@ -34,39 +35,6 @@ export class StarknetCore {
     this.multiProvider = multiProvider;
   }
 
-  /**
-   * Convert a byte array to a starknet message
-   * Pads the bytes to 16 bytes chunks
-   * @param bytes Input byte array
-   * @returns Object containing size and padded data array
-   */
-  static toStarknetMessageBytes(bytes: Uint8Array): {
-    size: number;
-    data: bigint[];
-  } {
-    // Calculate the required padding
-    const padding = (16 - (bytes.length % 16)) % 16;
-    const totalLen = bytes.length + padding;
-
-    // Create a new byte array with the necessary padding
-    const paddedBytes = new Uint8Array(totalLen);
-    paddedBytes.set(bytes);
-    // Padding remains as zeros by default in Uint8Array
-
-    // Convert to chunks of 16 bytes
-    const result: bigint[] = [];
-    for (let i = 0; i < totalLen; i += 16) {
-      const chunk = paddedBytes.slice(i, i + 16);
-      // Convert chunk to bigint (equivalent to u128 in Rust)
-      const value = BigInt('0x' + Buffer.from(chunk).toString('hex'));
-      result.push(value);
-    }
-
-    return {
-      size: bytes.length,
-      data: result,
-    };
-  }
   getAddresses(chain: ChainName) {
     return this.addressesMap[chain];
   }
@@ -76,36 +44,41 @@ export class StarknetCore {
     return new Contract(abi, address, signer);
   }
 
-  async sendMessage(params: {
-    origin: ChainName;
-    destinationDomain: number;
-    recipientAddress: string;
-    messageBody: string;
-  }): Promise<{
+  async sendMessage(
+    origin: ChainName,
+    destination: ChainName,
+    recipient: Address,
+    body: string,
+    hook?: Address,
+    metadata?: string,
+  ): Promise<{
     dispatchTx: InvokeFunctionResponse;
     message: DispatchedMessage;
   }> {
-    const mailboxAddress = this.addressesMap[params.origin].mailbox;
+    console.log({ hook, metadata });
+
+    const destinationDomain = this.multiProvider.getDomainId(destination);
+    const mailboxAddress = this.addressesMap[origin].mailbox;
     const mailboxContract = StarknetCore.getMailboxContract(
       mailboxAddress,
       this.signer,
     );
 
     // Convert messageBody to Bytes struct format
-    const messageBodyBytes = StarknetCore.toStarknetMessageBytes(
-      new TextEncoder().encode(params.messageBody),
+    const messageBodyBytes = toStarknetMessageBytes(
+      new TextEncoder().encode(body),
     );
     console.log({
       messageBodyBytes,
-      encoded: new TextEncoder().encode(params.messageBody),
+      encoded: new TextEncoder().encode(body),
     });
 
     const nonOption = new CairoOption(CairoOptionVariant.None);
 
     // Quote the dispatch first to ensure enough fees are provided
     const quote = await mailboxContract.call('quote_dispatch', [
-      params.destinationDomain,
-      params.recipientAddress,
+      destinationDomain,
+      recipient,
       messageBodyBytes,
       nonOption,
       nonOption,
@@ -113,8 +86,8 @@ export class StarknetCore {
 
     // Dispatch the message
     const dispatchTx = await mailboxContract.invoke('dispatch', [
-      params.destinationDomain,
-      params.recipientAddress,
+      destinationDomain,
+      recipient,
       messageBodyBytes,
       BigInt(quote.toString()), //fee amount
       nonOption,
@@ -188,10 +161,12 @@ export class StarknetCore {
       });
   }
 
-  async onDispatch(
+  onDispatch(
     handler: (message: DispatchedMessage, event: any) => Promise<void>,
     chains = Object.keys(this.addressesMap),
-  ): Promise<{ removeHandler: (chains?: ChainName[]) => void }> {
+  ): {
+    removeHandler: (chains?: ChainName[]) => void;
+  } {
     const eventSubscriptions: (() => void)[] = [];
 
     chains.forEach((originChain) => {
@@ -244,7 +219,6 @@ export class StarknetCore {
   async deliver(
     message: DispatchedMessage,
     metadata: any,
-    messageData?: any,
   ): Promise<{ transaction_hash: string }> {
     const destinationChain = this.multiProvider.getChainName(
       message.parsed.destination,
@@ -255,10 +229,12 @@ export class StarknetCore {
       this.signer,
     );
 
+    console.log({ msg: message.message });
+
     // Process the message on the destination chain
     const { transaction_hash } = await mailboxContract.invoke('process', [
       metadata,
-      messageData || message.message,
+      message.message,
     ]);
 
     this.logger.info(
@@ -269,73 +245,5 @@ export class StarknetCore {
     await this.signer.waitForTransaction(transaction_hash);
 
     return { transaction_hash };
-  }
-
-  /**
-   * Convert a Starknet message to Ethereum message bytes
-   */
-  static toEthMessageBytes(
-    starknetMessage: ParsedMessage & { body: { size: bigint; data: bigint[] } },
-  ): Uint8Array {
-    // Calculate buffer size based on Rust implementation
-    const headerSize = 1 + 4 + 4 + 32 + 4 + 32; // version + nonce + origin + sender + destination + recipient
-    const bodyBytes = StarknetCore.u128VecToU8Vec(starknetMessage.body.data);
-
-    // Create buffer with exact size needed
-    const buffer = new Uint8Array(headerSize + bodyBytes.length);
-    let offset = 0;
-
-    // Write version (1 byte)
-    buffer[offset] = Number(starknetMessage.version);
-    offset += 1;
-
-    // Write nonce (4 bytes)
-    const view = new DataView(buffer.buffer);
-    view.setUint32(offset, Number(starknetMessage.nonce), false); // false for big-endian
-    offset += 4;
-
-    // Write origin (4 bytes)
-    view.setUint32(offset, Number(starknetMessage.origin), false);
-    offset += 4;
-
-    // Write sender (32 bytes)
-    const senderValue =
-      typeof starknetMessage.sender === 'string'
-        ? BigInt(starknetMessage.sender)
-        : starknetMessage.sender;
-    const senderBytes = num.hexToBytes(num.toHex64(senderValue));
-    buffer.set(senderBytes, offset);
-    offset += 32;
-
-    // Write destination (4 bytes)
-    view.setUint32(offset, Number(starknetMessage.destination), false);
-    offset += 4;
-
-    // Write recipient (32 bytes)
-    const recipientValue =
-      typeof starknetMessage.recipient === 'string'
-        ? BigInt(starknetMessage.recipient)
-        : starknetMessage.recipient;
-    const recipientBytes = num.hexToBytes(num.toHex64(recipientValue));
-    buffer.set(recipientBytes, offset);
-    offset += 32;
-
-    // Write body
-    buffer.set(bodyBytes, offset);
-
-    return buffer;
-  }
-
-  /**
-   * Convert vector of u128 to bytes
-   */
-  static u128VecToU8Vec(input: bigint[]): Uint8Array {
-    const output = new Uint8Array(input.length * 16); // Each u128 takes 16 bytes
-    input.forEach((value, index) => {
-      const hex = num.toHex(value);
-      const bytes = num.hexToBytes(hex.padStart(34, '0')); // Ensure 16 bytes (34 chars including '0x')
-      output.set(bytes, index * 16);
-    });
-    return output;
   }
 }

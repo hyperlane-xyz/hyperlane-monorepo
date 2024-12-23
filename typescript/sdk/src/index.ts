@@ -637,3 +637,18 @@ export { StarknetCoreModule } from './core/StarknetCoreModule.js';
 export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
 export { StarknetCore } from './core/StarknetCore.js';
 export { StarknetRelayer } from './core/StarknetRelayer.js';
+
+export {
+  StarknetMessageAdapter,
+  EvmMessageAdapter,
+  MessageAdapter,
+} from './messaging/MessageAdapter.js';
+export { MessageService } from './messaging/MessageService.js';
+export { MessageBus } from './messaging/MessageBus.js';
+export { MessageAdapterRegistry } from './messaging/MessageAdapterRegistry.js';
+export {
+  prepareMessageForRelay,
+  toEthMessageBytes,
+  toStarknetMessageBytes,
+  u128VecToU8Vec,
+} from './messaging/messageUtils.js';
