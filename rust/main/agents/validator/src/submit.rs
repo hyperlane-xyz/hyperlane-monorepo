@@ -213,14 +213,17 @@ impl ValidatorSubmitter {
                 chrono::Utc::now().timestamp() as u64,
                 self.reorg_period.clone(),
             );
+
+            self.metrics.merkle_root_mismatch.set(1);
+
             error!(
                 ?checkpoint,
                 ?correctness_checkpoint,
                 ?reorg_event,
-                "Incorrect tree root, something went wrong"
+                "CRITICAL SAFETY ISSUE: Merkle root mismatch detected - potential chain fork or invalid message"
             );
 
-            let mut panic_message = "Incorrect tree root, something went wrong.".to_owned();
+            let mut panic_message = "CRITICAL SAFETY ISSUE: Merkle root mismatch detected. This could indicate a chain fork or invalid message. Immediate investigation required.".to_owned();
             if let Err(e) = self
                 .checkpoint_syncer
                 .write_reorg_status(&reorg_event)
@@ -318,6 +321,7 @@ fn tree_exceeds_checkpoint(checkpoint: &Checkpoint, tree: &IncrementalMerkle) ->
 pub(crate) struct ValidatorSubmitterMetrics {
     latest_checkpoint_observed: IntGauge,
     latest_checkpoint_processed: IntGauge,
+    merkle_root_mismatch: IntGauge, 
 }
 
 impl ValidatorSubmitterMetrics {
@@ -330,6 +334,11 @@ impl ValidatorSubmitterMetrics {
             latest_checkpoint_processed: metrics
                 .latest_checkpoint()
                 .with_label_values(&["validator_processed", chain_name]),
+            merkle_root_mismatch: IntGauge::new(
+                "merkle_root_mismatch",
+                "Number of times a merkle root mismatch has been detected",
+            )
+            .unwrap(),
         }
     }
 }
@@ -554,7 +563,7 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "Incorrect tree root, something went wrong.")]
+    #[should_panic(expected = "CRITICAL SAFETY ISSUE: Merkle root mismatch detected. This could indicate a chain fork or invalid message. Immediate investigation required.")]
     async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
         let unix_timestamp = chrono::Utc::now().timestamp() as u64;
         let expected_reorg_period = 12;
@@ -647,5 +656,6 @@ mod test {
                 &mock_onchain_checkpoint,
             )
             .await;
+
     }
 }
