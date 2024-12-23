@@ -8,15 +8,7 @@ import {
   HyperlaneSmartProvider,
   ProviderRetryOptions,
 } from '@hyperlane-xyz/sdk';
-import {
-  LogFormat,
-  LogLevel,
-  ProtocolType,
-  configureRootLogger,
-  objFilter,
-  objMerge,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
