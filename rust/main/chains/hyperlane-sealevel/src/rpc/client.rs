@@ -365,13 +365,15 @@ impl SealevelRpcClient {
             .await?;
 
         let simulation_result = self.simulate_transaction(&simulation_tx).await?;
-        tracing::debug!(?simulation_result, "Got simulation result for transaction");
 
         // If there was an error in the simulation result, return an error.
         if simulation_result.err.is_some() {
+            tracing::error!(?simulation_result, "Got simulation result for transaction");
             return Err(ChainCommunicationError::from_other_str(
                 format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
             ));
+        } else {
+            tracing::debug!(?simulation_result, "Got simulation result for transaction");
         }
 
         // Get the compute units used in the simulation result, requiring
