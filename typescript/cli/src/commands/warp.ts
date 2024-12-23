@@ -69,6 +69,7 @@ export const apply: CommandModuleWithWriteContext<{
   warp: string;
   strategy?: string;
   receiptsDir: string;
+  relay?: boolean;
 }> = {
   command: 'apply',
   describe: 'Update Warp Route contracts',
@@ -89,6 +90,12 @@ export const apply: CommandModuleWithWriteContext<{
       default: './generated/transactions',
       coerce: (dir) => removeEndingSlash(dir),
     },
+    relay: {
+      type: 'boolean',
+      description:
+        'Handle self-relay of ICA transactions when using a JSON RPC submitter',
+      default: false,
+    },
   },
   handler: async ({
     context,
@@ -97,6 +104,7 @@ export const apply: CommandModuleWithWriteContext<{
     warp,
     strategy: strategyUrl,
     receiptsDir,
+    relay,
   }) => {
     logCommandHeader('Hyperlane Warp Apply');
 
@@ -116,6 +124,7 @@ export const apply: CommandModuleWithWriteContext<{
       warpCoreConfig,
       strategyUrl,
       receiptsDir,
+      selfRelay: relay,
     });
     process.exit(0);
   },
