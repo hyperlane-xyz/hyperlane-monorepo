@@ -1,5 +1,5 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
@@ -85,12 +85,21 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     gasPrice: 20 * 10 ** 9, // 20 gwei
   //   },
   // },
+  // degenchain: {
+  //   transactionOverrides: {
+  //     maxFeePerGas: 100 * 10 ** 9, // 100 gwei
+  //     maxPriorityFeePerGas: 10 * 10 ** 9, // 10 gwei
+  //   },
+  // },
 };
 
-export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+export const getRegistry = async (
+  useSecrets = true,
+  chains: ChainName[] = supportedChainNames,
+): Promise<IRegistry> =>
   getRegistryForEnvironment(
     environment,
-    supportedChainNames,
+    chains,
     chainMetadataOverrides,
     useSecrets,
   );

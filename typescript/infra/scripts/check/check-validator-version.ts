@@ -15,25 +15,30 @@ import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 // prettier-ignore
 const acceptableValidatorVersions: Record<string, string> = {
   // Aug 27 deploy
-  '72d498fa984750b9137c1211fef6c80a3e594ce7': 'aug-27-batch',
+  '72d498fa984750b9137c1211fef6c80a3e594ce7': 'August 27 2024',
   // Sep 9 deploy
-  'd71dd4e5ed7eb69cc4041813ef444e37d881cdda': 'sep-9-batch',
+  'd71dd4e5ed7eb69cc4041813ef444e37d881cdda': 'September 9 2024',
   // Oct 27 deploy
-  '45399a314cec85723bbb5d2360531c96a3aa261e': 'oct-27-batch',
+  '45399a314cec85723bbb5d2360531c96a3aa261e': 'October 27 2024',
   // Nov 7 deploy
-  '75d62ae7bbdeb77730c6d343c4fc1df97a08abe4': 'nov-7-batch',
+  '75d62ae7bbdeb77730c6d343c4fc1df97a08abe4': 'November 7 2024',
   // Nov 21 deploy
-  'e70431a85965d8d21681e6f4856ed3ac9bd2ba27': 'nov-21-batch',
+  'e70431a85965d8d21681e6f4856ed3ac9bd2ba27': 'November 21 2024',
   // Nov 21 bsquared deploy
-  'd834d8147628584acd78a81e344bff76472d707e': 'nov-21-bsquared',
+  'd834d8147628584acd78a81e344bff76472d707e': 'November 21 2024 (Bsquared)',
   // Nov 21 swell/lumiaprism deploy
-  'b35c105f197267072daa14bb3d83c62410b96fac': 'nov-21-swell',
+  'b35c105f197267072daa14bb3d83c62410b96fac': 'November 21 2024 (Swell)',
+  // Dec 4 deploy
+  'a7f3967e047c2c5aabb8cc442e4acad435fa32ab': 'December 4 2024',
+  // Dec 13 deploy
+  '05e90bc76e5c8ec2491551ecf1b7880187fa2660': 'December 13 2024',
   // Rolled out only to AW infra before 1.0.0, just 1 commit behind 1.0.0
-  'a64af8be9a76120d0cfc727bb70660fa07e70cce': 'pre-1.0.0',
+  'a64af8be9a76120d0cfc727bb70660fa07e70cce': '1.0.0-beta',
   // 1.0.0
   'ffbe1dd82e2452dbc111b6fb469a34fb870da8f1': '1.0.0',
-  // Tessellated's Own Build
-  '9b855686d3e2b3d6b81238ce51a576ff5e0f770f': 'tesselated-special-build',
+  // Tessellated's Build from December 2024
+  // https://github.com/Tessellated-io/hyperlane-monorepo/commit/c0719c7f5387c4801a9dec8edc1227fb33b44ea7
+  'c0719c7f5387c4801a9dec8edc1227fb33b44ea7': 'Tessellated - December 2024',
 };
 
 type ValidatorInfo = {
