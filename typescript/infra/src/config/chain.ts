@@ -8,7 +8,14 @@ import {
   HyperlaneSmartProvider,
   ProviderRetryOptions,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
+import {
+  LogFormat,
+  LogLevel,
+  ProtocolType,
+  configureRootLogger,
+  objFilter,
+  objMerge,
+} from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
@@ -163,11 +170,16 @@ export async function getSecretMetadataOverridesFromGitHubSecrets(
   chains: string[],
 ): Promise<ChainMap<Partial<ChainMetadata>>> {
   const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
+  const rootLogger = configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
+  rootLogger.debug(
+    `Getting secret metadata overrides from GitHub secrets for ${deployEnv} and chains: ${chains}`,
+  );
   for (const chain of chains) {
     const rpcUrlsEnv = `${deployEnv.toUpperCase()}_${chain.toUpperCase()}_RPC_URLS`;
     const rpcUrls = process.env[rpcUrlsEnv];
     if (rpcUrls) {
+      rootLogger.debug(`Found secret RPC URLs for chain ${chain}}`);
       const metadataRpcUrls = rpcUrls
         .split(',')
         .map((rpcUrl) => ({ http: rpcUrl })) as ChainMetadata['rpcUrls'];
