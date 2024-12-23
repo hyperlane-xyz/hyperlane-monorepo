@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/cli": patch
+'@hyperlane-xyz/cli': patch
 ---
 
 Suppress help on CLI failures
