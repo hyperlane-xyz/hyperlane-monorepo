@@ -67,7 +67,7 @@ export async function sendTestMessage({
   );
 
   const starknetSigner = await context.multiProtocolSigner?.getStarknetSigner(
-    origin,
+    destination!,
   );
 
   assert(starknetSigner, 'Starknet signer not found');

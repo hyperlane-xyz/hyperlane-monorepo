@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { num, uint256 } from 'starknet';
+import { num } from 'starknet';
 
 import { ParsedMessage, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -30,36 +30,42 @@ export function prepareMessageForRelay(
   };
 }
 
-export function ethDispatchEventToStarkMessage(event: any): any {
-  const messageBytes = Buffer.from(event.message.slice(2), 'hex');
+export function ethDispatchEventToStarkMessage(event: DispatchedMessage): {
+  version: number;
+  nonce: number;
+  origin: number;
+  sender: { low: bigint; high: bigint };
+  destination: number;
+  recipient: { low: bigint; high: bigint };
+  body: { size: number; data: bigint[] };
+} {
+  // Convert 20-byte Ethereum address to 32-byte format
+  const senderBuffer = Buffer.alloc(32);
+  Buffer.from(event.parsed.sender.slice(2), 'hex').copy(senderBuffer, 12);
+  const senderBigInt = BigInt('0x' + senderBuffer.toString('hex'));
+  const sender = {
+    low: senderBigInt & ((1n << 128n) - 1n), // Take lower 128 bits
+    high: senderBigInt >> 128n, // Take upper 128 bits
+  };
 
-  // Convert Buffer to BigNumberish using uint256.bnToUint256
-  const sender = uint256.bnToUint256(
-    '0x' + messageBytes.subarray(9, 41).toString('hex'),
-  );
-  const recipient = uint256.bnToUint256(
-    '0x' + messageBytes.subarray(45, 77).toString('hex'),
-  );
+  // Convert recipient to uint256 with proper range
+  const recipientBigInt = BigInt(event.parsed.recipient);
+  const recipient = {
+    low: recipientBigInt & ((1n << 128n) - 1n), // Take lower 128 bits
+    high: recipientBigInt >> 128n, // Take upper 128 bits
+  };
 
-  // Parse message bytes
+  // Rest of the code remains the same
   const message = ethers.utils.arrayify(event.message);
-
-  // Extract message components
   const version = message[0];
-
-  // Extract nonce (4 bytes)
-  const nonce = new DataView(message.slice(1, 5).buffer).getUint32(0, false);
-
-  // Extract origin (4 bytes)
-  const origin = new DataView(message.slice(5, 9).buffer).getUint32(0, false);
-
-  // Extract body (skip first 77 bytes which contain header info)
+  const nonce = parseInt(ethers.utils.hexlify(message.slice(1, 5)), 16);
+  const origin = parseInt(ethers.utils.hexlify(message.slice(5, 9)), 16);
   const body = message.slice(77);
 
   return {
     version,
-    nonce: BigInt(nonce),
-    origin: BigInt(origin),
+    nonce,
+    origin,
     sender,
     destination: event.parsed.destination,
     recipient,

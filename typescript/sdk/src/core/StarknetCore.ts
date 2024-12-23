@@ -229,12 +229,11 @@ export class StarknetCore {
       this.signer,
     );
 
-    console.log({ msg: message.message });
+    const data = message.message;
 
-    // Process the message on the destination chain
     const { transaction_hash } = await mailboxContract.invoke('process', [
-      metadata,
-      message.message,
+      { size: 0, data: [] }, // metadata
+      data, // formatted message
     ]);
 
     this.logger.info(
