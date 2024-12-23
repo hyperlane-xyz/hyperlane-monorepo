@@ -1,4 +1,10 @@
 import {
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelPriorityFeeOracleType,
+  AgentSealevelTransactionSubmitter,
+  AgentSealevelTransactionSubmitterType,
+  ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   MatchingList,
@@ -7,6 +13,7 @@ import {
 
 import {
   AgentChainConfig,
+  HELIUS_SECRET_URL_MARKER,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
@@ -396,12 +403,53 @@ export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   mainnet3SupportedChainNames,
 );
 
+const sealevelPriorityFeeOracleConfigGetter = (
+  chain: ChainName,
+): AgentSealevelPriorityFeeOracle => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelPriorityFeeOracleType.Helius,
+      feeLevel: AgentSealevelHeliusFeeLevel.Recommended,
+      // URL is auto populated by the external secrets in the helm chart
+      url: '',
+    };
+  }
+
+  // For all other chains, we use the constant fee oracle with a fee of 0
+  return {
+    type: AgentSealevelPriorityFeeOracleType.Constant,
+    fee: '0',
+  };
+};
+
+const sealevelTransactionSubmitterConfigGetter = (
+  chain: ChainName,
+): AgentSealevelTransactionSubmitter => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelTransactionSubmitterType.Rpc,
+      url: HELIUS_SECRET_URL_MARKER,
+    };
+  }
+
+  // For all other chains, use the default RPC transaction submitter
+  return {
+    type: AgentSealevelTransactionSubmitterType.Rpc,
+  };
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
   environmentChainNames: supportedChainNames,
   aws: {
     region: 'us-east-1',
+  },
+  sealevel: {
+    priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
+    transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
   },
 } as const;
 
