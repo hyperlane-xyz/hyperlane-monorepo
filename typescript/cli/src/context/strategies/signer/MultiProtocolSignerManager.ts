@@ -48,6 +48,7 @@ export class MultiProtocolSignerManager {
     this.signerStrategies = new Map();
     this.signers = new Map();
     this.initializeStrategies();
+    this.initMultiProvider();
   }
 
   /**
@@ -67,7 +68,7 @@ export class MultiProtocolSignerManager {
   /**
    * @dev Configures signers for EVM chains in MultiProvider
    */
-  async getMultiProvider(): Promise<MultiProvider> {
+  async initMultiProvider(): Promise<MultiProvider> {
     const ethereumChains = this.chains.filter(
       (chain) =>
         this.multiProvider.getChainMetadata(chain).protocol ===
@@ -82,64 +83,27 @@ export class MultiProtocolSignerManager {
     return this.multiProvider;
   }
 
-  /**
-   * @dev Gets private key from strategy or environment fallback
-   */
-  private async getSignerConfigForChain(
-    chain: ChainName,
-  ): Promise<{ chain: ChainName } & SignerConfig> {
-    const signerStrategy = this.signerStrategies.get(chain);
-    if (!signerStrategy) {
-      throw new Error(`No signer strategy found for chain ${chain}`);
-    }
-
-    const config: any = {};
-    let stprovider: any;
-    // Determine private key with clear precedence
-    if (this.options.key) {
-      config.privateKey = this.options.key;
-    } else if (ENV.HYP_KEY) {
-      config.privateKey = ENV.HYP_KEY;
-    } else {
-      const strategyConfig = await signerStrategy.getSignerConfig(chain);
-      if (!strategyConfig?.privateKey) {
-        throw new Error(`No private key found for chain ${chain}`);
-      }
-      config.privateKey = strategyConfig.privateKey;
-      config.userAddress = strategyConfig.userAddress;
-    }
-
-    const { protocol } = this.multiProvider.getChainMetadata(chain);
-    if (protocol === ProtocolType.Starknet) {
-      const provider = this.multiProtocolProvider.getStarknetProvider(chain);
-      assert(provider, 'No Starknet Provider found');
-      stprovider = provider;
-    }
-
-    return {
-      chain,
-      ...(config as SignerConfig),
-      extraParams: {
-        provider: stprovider,
-      },
-    };
+  getMultiProvider(): MultiProvider {
+    return this.multiProvider;
   }
 
-  protected async getSpecificSigner<T>(chain: ChainName): Promise<T> {
-    const signerConfig = await this.getSignerConfigForChain(chain);
-
-    const signerStrategy = this.signerStrategies.get(chain);
-    if (!signerStrategy) {
-      throw new Error(`No signer strategy found for chain ${chain}`);
-    }
-    return signerStrategy.getSigner(signerConfig) as T;
+  protected getSpecificSigner<T>(chain: ChainName): T {
+    return this.signers.get(chain) as T;
   }
 
-  async getEVMSigner(chain: ChainName): Promise<Signer> {
+  getEVMSigner(chain: ChainName): Signer {
+    const protocol = this.multiProvider.getChainMetadata(chain).protocol;
+    if (protocol !== ProtocolType.Ethereum) {
+      throw new Error(`Chain ${chain} is not an Ethereum chain`);
+    }
     return this.getSpecificSigner<Signer>(chain);
   }
 
-  async getStarknetSigner(chain: ChainName): Promise<StarknetAccount> {
+  getStarknetSigner(chain: ChainName): StarknetAccount {
+    const protocol = this.multiProvider.getChainMetadata(chain).protocol;
+    if (protocol !== ProtocolType.Starknet) {
+      throw new Error(`Chain ${chain} is not a Starknet chain`);
+    }
     return this.getSpecificSigner<StarknetAccount>(chain);
   }
 

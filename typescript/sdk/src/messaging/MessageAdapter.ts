@@ -18,6 +18,10 @@ export interface MessageAdapter {
     metadata: any;
     messageData?: any;
   }>;
+  getMessageDeliveryStatus(message: DispatchedMessage): Promise<{
+    delivered: boolean;
+    attempts: number;
+  }>;
 }
 
 abstract class BaseMessageAdapter implements MessageAdapter {
@@ -32,6 +36,17 @@ abstract class BaseMessageAdapter implements MessageAdapter {
     metadata: any;
     messageData?: any;
   }>;
+
+  async getMessageDeliveryStatus(message: DispatchedMessage): Promise<{
+    delivered: boolean;
+    attempts: number;
+  }> {
+    // Default implementation that assumes message hasn't been delivered
+    return {
+      delivered: false,
+      attempts: 0,
+    };
+  }
 }
 
 export class EvmMessageAdapter extends BaseMessageAdapter {
@@ -40,7 +55,7 @@ export class EvmMessageAdapter extends BaseMessageAdapter {
   async formatMessageForDispatch({ body }: { body: string }) {
     return {
       metadata: '0x0001', // Default EVM metadata
-      body: body,
+      body,
     };
   }
 

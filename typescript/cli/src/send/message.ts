@@ -6,7 +6,7 @@ import {
   MessageService,
   StarknetMessageAdapter,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert, timeout } from '@hyperlane-xyz/utils';
+import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
@@ -61,32 +61,42 @@ export async function sendTestMessage({
   adapterRegistry.register(new StarknetMessageAdapter(multiProvider));
 
   const addressMap = await context.registry.getAddresses();
-  const hyperlaneCore = HyperlaneCore.fromAddressesMap(
-    addressMap,
-    multiProvider,
-  );
 
-  const starknetSigner = await context.multiProtocolSigner?.getStarknetSigner(
-    destination!,
-  );
+  // Create protocol-specific cores map
+  const protocolCores: Partial<
+    Record<ProtocolType, HyperlaneCore | StarknetCore>
+  > = {};
 
-  assert(starknetSigner, 'Starknet signer not found');
-  const starknetCore = new StarknetCore(
-    starknetSigner,
-    addressMap,
-    multiProvider,
-  );
+  // Helper to get protocol type for a chain
+  const getProtocolType = (chain: ChainName) => chainMetadata[chain].protocol;
+
+  // Initialize cores for the chains we're working with
+  for (const chain of [origin, destination]) {
+    const protocol = getProtocolType(chain);
+
+    // Only initialize each protocol type once
+    if (!protocolCores[protocol]) {
+      if (protocol === ProtocolType.Starknet) {
+        protocolCores[protocol] = new StarknetCore(
+          addressMap,
+          multiProvider,
+          context.multiProtocolSigner!,
+        );
+      } else {
+        // For all other protocols, use HyperlaneCore
+        protocolCores[protocol] = HyperlaneCore.fromAddressesMap(
+          addressMap,
+          multiProvider,
+        );
+      }
+    }
+  }
 
   const messageService = new MessageService(
     multiProvider,
     adapterRegistry,
     addressMap,
-    {
-      [ProtocolType.Ethereum]: hyperlaneCore,
-      [ProtocolType.Starknet]: starknetCore,
-      [ProtocolType.Sealevel]: hyperlaneCore,
-      [ProtocolType.Cosmos]: hyperlaneCore,
-    },
+    protocolCores,
   );
 
   await timeout(
@@ -108,7 +118,7 @@ export async function sendTestMessage({
         logGreen('Message was self-relayed!');
       } else if (!skipWaitForDelivery) {
         log('Waiting for message delivery...');
-        // await messageService.waitForMessageDelivery(message);
+        await messageService.waitForMessageDelivery(message);
         logGreen('Message was delivered!');
       }
     }),

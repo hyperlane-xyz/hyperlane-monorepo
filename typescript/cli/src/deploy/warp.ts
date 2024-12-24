@@ -182,14 +182,14 @@ export async function runWarpRouteDeploy({
           multiProtocolSigner,
           'multi protocol signer is required for starknet chain deployment',
         );
-        const starknetSigners = await promiseObjAll(
-          protocolChains.reduce<ChainMap<Promise<StarknetAccount>>>(
-            (acc, chain) => ({
-              ...acc,
-              [chain]: multiProtocolSigner.getStarknetSigner(chain),
-            }),
-            {},
-          ),
+        const starknetSigners = protocolChains.reduce<
+          ChainMap<StarknetAccount>
+        >(
+          (acc, chain) => ({
+            ...acc,
+            [chain]: multiProtocolSigner.getStarknetSigner(chain),
+          }),
+          {},
         );
         const addresses = await executeStarknetDeployments({
           starknetSigners,
