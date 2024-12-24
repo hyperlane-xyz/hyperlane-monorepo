@@ -103,21 +103,13 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
         let block_number =
             get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
 
-        let (root, index) = match block_number {
-            Some(b) => self
-                .contract
-                .latest_checkpoint()
-                .block_id(starknet::core::types::BlockId::Number(b))
-                .call()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-            None => self
-                .contract
-                .latest_checkpoint()
-                .call()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-        };
+        let (root, index) = self
+            .contract
+            .latest_checkpoint()
+            .block_id(starknet::core::types::BlockId::Number(block_number))
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         Ok(Checkpoint {
             merkle_tree_hook_address: self.address(),
@@ -133,21 +125,13 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
         let block_number =
             get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
 
-        let tree = match block_number {
-            Some(b) => self
-                .contract
-                .tree()
-                .block_id(starknet::core::types::BlockId::Number(b))
-                .call()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-            None => self
-                .contract
-                .tree()
-                .call()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-        };
+        let tree = self
+            .contract
+            .tree()
+            .block_id(starknet::core::types::BlockId::Number(block_number))
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         let mut branch = tree
             .branch
@@ -167,21 +151,13 @@ impl MerkleTreeHook for StarknetMerkleTreeHook {
         let block_number =
             get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
 
-        let count = match block_number {
-            Some(b) => self
-                .contract
-                .count()
-                .block_id(starknet::core::types::BlockId::Number(b))
-                .call()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-            None => self
-                .contract
-                .count()
-                .call()
-                .await
-                .map_err(Into::<HyperlaneStarknetError>::into)?,
-        };
+        let count = self
+            .contract
+            .count()
+            .block_id(starknet::core::types::BlockId::Number(block_number))
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         Ok(count)
     }

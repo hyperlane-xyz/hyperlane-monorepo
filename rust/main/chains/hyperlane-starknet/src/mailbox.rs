@@ -16,7 +16,7 @@ use hyperlane_core::{FixedPointNumber, ReorgPeriod};
 use starknet::accounts::{Execution, SingleOwnerAccount};
 use starknet::core::types::FieldElement;
 
-use starknet::providers::{AnyProvider, Provider};
+use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
@@ -146,17 +146,7 @@ impl Mailbox for StarknetMailbox {
     #[instrument(skip(self))]
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let block_number =
-            match get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period)
-                .await?
-            {
-                Some(b) => b,
-                None => self
-                    .provider
-                    .rpc_client()
-                    .block_number()
-                    .await
-                    .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?,
-            };
+            get_block_height_for_reorg_period(&self.provider.rpc_client(), reorg_period).await?;
 
         let nonce = self
             .contract

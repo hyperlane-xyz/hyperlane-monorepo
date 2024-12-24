@@ -52,7 +52,7 @@ pub async fn get_transaction_receipt(
             })
         },
         100,
-        Some(Duration::from_millis(100))
+        Some(Duration::from_millis(100)),
     )
     .await
 }
@@ -243,7 +243,7 @@ pub fn string_to_cairo_long_string(
 pub(crate) async fn get_block_height_for_reorg_period(
     provider: &Arc<AnyProvider>,
     reorg_period: &ReorgPeriod,
-) -> ChainResult<Option<u64>> {
+) -> ChainResult<u64> {
     let block_height = match reorg_period {
         ReorgPeriod::Blocks(blocks) => {
             let tip = provider
@@ -251,9 +251,12 @@ pub(crate) async fn get_block_height_for_reorg_period(
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?;
             let block_height = tip - blocks.get() as u64;
-            Some(block_height)
+            block_height
         }
-        ReorgPeriod::None => None,
+        ReorgPeriod::None => provider
+            .block_number()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?,
         ReorgPeriod::Tag(_) => {
             return Err(ChainCommunicationError::InvalidReorgPeriod(
                 reorg_period.clone(),

@@ -17,7 +17,7 @@ pub const RPC_RETRY_SLEEP_DURATION: Duration = Duration::from_secs(2);
 pub async fn call_and_retry_n_times<T>(
     mut f: impl FnMut() -> Pin<Box<dyn Future<Output = ChainResult<T>> + Send>>,
     n: usize,
-    rpc_retry_sleep_duration: Option<Duration>
+    rpc_retry_sleep_duration: Option<Duration>,
 ) -> ChainResult<T> {
     for retry_number in 1..n {
         match f().await {
