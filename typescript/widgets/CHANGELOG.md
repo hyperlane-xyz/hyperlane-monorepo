@@ -1,5 +1,27 @@
 # @hyperlane-xyz/widgets
 
+## 8.0.0
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- a2b5efbf9: Hide outline in button and text input components
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [fd20bb1e9]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [9f6b8c514]
+- Updated dependencies [82cebabe4]
+- Updated dependencies [95cc9571e]
+- Updated dependencies [5942e9cff]
+- Updated dependencies [e9911bb9d]
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 7.3.0
 
 ### Patch Changes
