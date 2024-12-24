@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import { Account, Contract } from 'starknet';
 
 import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
@@ -44,20 +45,18 @@ export class StarknetCoreModule {
       config.requiredHook.type === HookType.PROTOCOL_FEE,
       'only protocolFee hook is accepted for required hook',
     );
+
     const noopIsm = await this.deployer.deployContract('noop_ism', []);
 
     const defaultHook = await this.deployer.deployContract('hook', []);
 
     const protocolFee = await this.deployer.deployContract('protocol_fee', [
-      '1000000000000000000',
-      '0',
-      '10000000000000000',
-      '0',
+      BigNumber.from(config.requiredHook.maxProtocolFee),
+      BigNumber.from(config.requiredHook.protocolFee),
       config.requiredHook.beneficiary,
       config.owner,
       '0x49D36570D4E46F48E99674BD3FCC84644DDD6B96F7C741B1562B82F9E004DC7', // ETH address on Starknet chains
     ]);
-
     const mailboxContract = await this.deployMailbox(
       config.owner,
       noopIsm,
