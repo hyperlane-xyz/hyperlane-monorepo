@@ -868,3 +868,52 @@ impl SequenceAwareIndexer<H256> for SealevelMailboxIndexer {
         Ok((Some(sequence), tip))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use hyperlane_core::{
+        HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack, HyperlaneDomainType,
+    };
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_dispatch() {
+        use hyperlane_core::{config::OperationBatchConfig, NativeToken};
+
+        use crate::{PriorityFeeOracleConfig, TransactionSubmitterConfig};
+
+        let connection_conf = ConnectionConf {
+            url: "https://eclipse.helius-rpc.com".parse().unwrap(),
+            operation_batch: OperationBatchConfig::default(),
+            native_token: NativeToken::default(),
+            priority_fee_oracle: PriorityFeeOracleConfig::default(),
+            transaction_submitter: TransactionSubmitterConfig::default(),
+        };
+        let domain = HyperlaneDomain::Unknown {
+            domain_id: 0,
+            domain_name: "foo".to_owned(),
+            domain_type: HyperlaneDomainType::LocalTestChain,
+            domain_protocol: HyperlaneDomainProtocol::Ethereum,
+            domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+        };
+        let mailbox_indexer = SealevelMailboxIndexer::new(
+            &connection_conf,
+            ContractLocator {
+                domain: &domain,
+                address: H256::from_str(
+                    "cbe37cc23094cb46b8fe04baf652dac1ee7693067b7ad3d8e212a19aef5712e3",
+                )
+                .unwrap(),
+            },
+            true,
+        )
+        .unwrap();
+        let a = mailbox_indexer
+            .get_dispatched_message_with_nonce(79310)
+            .await
+            .unwrap();
+        println!("{:?}", a);
+        assert!(1 + 1 == 3);
+    }
+}
