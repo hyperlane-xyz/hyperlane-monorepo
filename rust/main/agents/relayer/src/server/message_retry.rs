@@ -25,7 +25,7 @@ pub struct MessageRetryRequest {
     pub transmitter: mpsc::Sender<MessageRetryResponse>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct MessageRetryResponse {
     /// ID of the retry request
     pub uuid: String,
@@ -67,7 +67,12 @@ async fn retry_message(
     // Wait for responses from relayer
     tracing::debug!(uuid = resp.uuid, "Waiting for response from relayer");
     while let Some(relayer_resp) = receiver.recv().await {
-        tracing::debug!(uuid = resp.uuid, "Relayer response");
+        tracing::debug!(
+            uuid = resp.uuid,
+            evaluated = resp.evaluated,
+            matched = resp.matched,
+            "Submitter response to retry request"
+        );
         resp.evaluated += relayer_resp.evaluated;
         resp.matched += relayer_resp.matched;
     }
@@ -96,6 +101,7 @@ mod tests {
     use super::*;
     use axum::http::StatusCode;
     use hyperlane_core::{HyperlaneMessage, QueueOperation};
+    use serde::de::DeserializeOwned;
     use serde_json::json;
     use std::net::SocketAddr;
     use tokio::sync::broadcast::{Receiver, Sender};
@@ -128,6 +134,35 @@ mod tests {
         }
     }
 
+    async fn send_retry_responses_task(
+        mut retry_request_receiver: Receiver<MessageRetryRequest>,
+        pending_operations: Vec<QueueOperation>,
+        metrics: Vec<(usize, u64)>,
+    ) {
+        for (op, (evaluated, matched)) in pending_operations.iter().zip(metrics) {
+            if let Ok(req) = retry_request_receiver.recv().await {
+                // Check that the list received by the server matches the pending operation
+                assert!(req.pattern.op_matches(&op));
+                let resp = MessageRetryResponse {
+                    uuid: req.uuid,
+                    evaluated,
+                    matched,
+                };
+                req.transmitter.send(resp).await.unwrap();
+            }
+        }
+    }
+
+    async fn parse_response_to_json<T: DeserializeOwned>(response: reqwest::Response) -> T {
+        let resp_body = response
+            .text()
+            .await
+            .expect("Failed to parse response body");
+        let resp_json: T =
+            serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
+        resp_json
+    }
+
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_message_id_retry() {
@@ -148,20 +183,11 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let task = async move {
-            if let Ok(req) = retry_req_rx.recv().await {
-                // Check that the list received by the server matches the pending operation
-                assert!(req
-                    .pattern
-                    .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
-                let resp = MessageRetryResponse {
-                    uuid: req.uuid,
-                    evaluated: 0,
-                    matched: 0,
-                };
-                req.transmitter.send(resp).await.unwrap();
-            }
-        };
+        let respond_task = send_retry_responses_task(
+            retry_req_rx,
+            vec![Box::new(pending_operation.clone()) as QueueOperation],
+            vec![(0, 0)],
+        );
 
         // Send a POST request to the server
         let response = client
@@ -169,19 +195,13 @@ mod tests {
             .json(&matching_list_body) // Set the request body
             .send();
 
-        let (_t1, response_res) = tokio::join!(task, response);
+        let (_t1, response_res) = tokio::join!(respond_task, response);
 
         let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_body = response
-            .text()
-            .await
-            .expect("Failed to parse response body");
-
-        let resp_json: MessageRetryResponse =
-            serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
+        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
         assert_eq!(resp_json.evaluated, 0);
         assert_eq!(resp_json.matched, 0);
     }
@@ -206,20 +226,11 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let task = async move {
-            if let Ok(req) = retry_req_rx.recv().await {
-                // Check that the list received by the server matches the pending operation
-                assert!(req
-                    .pattern
-                    .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
-                let resp = MessageRetryResponse {
-                    uuid: req.uuid,
-                    evaluated: 10,
-                    matched: 2,
-                };
-                req.transmitter.send(resp).await.unwrap();
-            }
-        };
+        let respond_task = send_retry_responses_task(
+            retry_req_rx,
+            vec![Box::new(pending_operation.clone()) as QueueOperation],
+            vec![(10, 2)],
+        );
 
         // Send a POST request to the server
         let response = client
@@ -227,19 +238,13 @@ mod tests {
             .json(&matching_list_body) // Set the request body
             .send();
 
-        let (_t1, response_res) = tokio::join!(task, response);
+        let (_t1, response_res) = tokio::join!(respond_task, response);
 
         let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_body = response
-            .text()
-            .await
-            .expect("Failed to parse response body");
-
-        let resp_json: MessageRetryResponse =
-            serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
+        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
         assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
@@ -264,20 +269,11 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let task = async move {
-            if let Ok(req) = retry_req_rx.recv().await {
-                // Check that the list received by the server matches the pending operation
-                assert!(req
-                    .pattern
-                    .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
-                let resp = MessageRetryResponse {
-                    uuid: req.uuid,
-                    evaluated: 10,
-                    matched: 2,
-                };
-                req.transmitter.send(resp).await.unwrap();
-            }
-        };
+        let respond_task = send_retry_responses_task(
+            retry_req_rx,
+            vec![Box::new(pending_operation.clone()) as QueueOperation],
+            vec![(10, 2)],
+        );
 
         // Send a POST request to the server
         let response = client
@@ -285,19 +281,13 @@ mod tests {
             .json(&matching_list_body) // Set the request body
             .send();
 
-        let (_t1, response_res) = tokio::join!(task, response);
+        let (_t1, response_res) = tokio::join!(respond_task, response);
 
         let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_body = response
-            .text()
-            .await
-            .expect("Failed to parse response body");
-
-        let resp_json: MessageRetryResponse =
-            serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
+        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
         assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
@@ -320,20 +310,11 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let task = async move {
-            if let Ok(req) = retry_req_rx.recv().await {
-                // Check that the list received by the server matches the pending operation
-                assert!(req
-                    .pattern
-                    .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
-                let resp = MessageRetryResponse {
-                    uuid: req.uuid,
-                    evaluated: 10,
-                    matched: 2,
-                };
-                req.transmitter.send(resp).await.unwrap();
-            }
-        };
+        let respond_task = send_retry_responses_task(
+            retry_req_rx,
+            vec![Box::new(pending_operation.clone()) as QueueOperation],
+            vec![(10, 2)],
+        );
 
         // Send a POST request to the server
         let response = client
@@ -341,19 +322,13 @@ mod tests {
             .json(&matching_list_body) // Set the request body
             .send();
 
-        let (_t1, response_res) = tokio::join!(task, response);
+        let (_t1, response_res) = tokio::join!(respond_task, response);
 
         let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_body = response
-            .text()
-            .await
-            .expect("Failed to parse response body");
-
-        let resp_json: MessageRetryResponse =
-            serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
+        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
         assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
@@ -376,20 +351,11 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let task = async move {
-            if let Ok(req) = retry_req_rx.recv().await {
-                // Check that the list received by the server matches the pending operation
-                assert!(req
-                    .pattern
-                    .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
-                let resp = MessageRetryResponse {
-                    uuid: req.uuid,
-                    evaluated: 10,
-                    matched: 2,
-                };
-                req.transmitter.send(resp).await.unwrap();
-            }
-        };
+        let respond_task = send_retry_responses_task(
+            retry_req_rx,
+            vec![Box::new(pending_operation.clone()) as QueueOperation],
+            vec![(10, 2)],
+        );
 
         // Send a POST request to the server
         let response = client
@@ -397,19 +363,13 @@ mod tests {
             .json(&matching_list_body) // Set the request body
             .send();
 
-        let (_t1, response_res) = tokio::join!(task, response);
+        let (_t1, response_res) = tokio::join!(respond_task, response);
 
         let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_body = response
-            .text()
-            .await
-            .expect("Failed to parse response body");
-
-        let resp_json: MessageRetryResponse =
-            serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
+        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
         assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }
@@ -440,20 +400,11 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let task = async move {
-            if let Ok(req) = retry_req_rx.recv().await {
-                // Check that the list received by the server matches the pending operation
-                assert!(req
-                    .pattern
-                    .op_matches(&(Box::new(pending_operation.clone()) as QueueOperation)));
-                let resp = MessageRetryResponse {
-                    uuid: req.uuid,
-                    evaluated: 10,
-                    matched: 2,
-                };
-                req.transmitter.send(resp).await.unwrap();
-            }
-        };
+        let respond_task = send_retry_responses_task(
+            retry_req_rx,
+            vec![Box::new(pending_operation.clone()) as QueueOperation],
+            vec![(10, 2)],
+        );
 
         // Send a POST request to the server
         let response = client
@@ -461,19 +412,13 @@ mod tests {
             .json(&matching_list_body) // Set the request body
             .send();
 
-        let (_t1, response_res) = tokio::join!(task, response);
+        let (_t1, response_res) = tokio::join!(respond_task, response);
 
         let response = response_res.unwrap();
         // Check that the response status code is OK
         assert_eq!(response.status(), StatusCode::OK);
 
-        let resp_body = response
-            .text()
-            .await
-            .expect("Failed to parse response body");
-
-        let resp_json: MessageRetryResponse =
-            serde_json::from_str(&resp_body).expect("Failed to deserialize response body");
+        let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
         assert_eq!(resp_json.evaluated, 10);
         assert_eq!(resp_json.matched, 2);
     }

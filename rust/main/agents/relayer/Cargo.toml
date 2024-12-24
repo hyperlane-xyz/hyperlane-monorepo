@@ -42,7 +42,6 @@ tokio = { workspace = true, features = [
 ] }
 tokio-metrics.workspace = true
 tracing-futures.workspace = true
-tracing-test.workspace = true
 tracing.workspace = true
 typetag.workspace = true
 uuid.workspace = true
@@ -61,6 +60,7 @@ tokio-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async", "test-utils"] }
+tracing-test.workspace = true
 
 [features]
 default = ["color-eyre", "oneline-errors"]

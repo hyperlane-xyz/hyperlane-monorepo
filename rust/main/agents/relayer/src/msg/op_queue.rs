@@ -99,15 +99,17 @@ impl OpQueue {
             .map(|Reverse(mut op)| {
                 let matches = message_retry_requests
                     .iter_mut()
-                    .map(|(retry_req, req_metric)| {
+                    .map(|(retry_req, retry_response)| {
                         let match_res = retry_req.pattern.op_matches(&op);
                         // update retry metrics
                         if match_res {
-                            req_metric.matched += 1
+                            retry_response.matched += 1
                         }
                         match_res
                     })
-                    .any(|x| x);
+                    .filter(|x| *x)
+                    .count()
+                    > 0;
                 if matches {
                     info!(
                         operation = %op,
@@ -120,10 +122,15 @@ impl OpQueue {
             })
             .collect();
 
-        tracing::debug!("Sending retry request metrics back");
-        for (retry_req, mut req_metric) in message_retry_requests {
-            req_metric.evaluated = queue_length;
-            let _ = retry_req.transmitter.send(req_metric).await;
+        for (retry_req, mut retry_response) in message_retry_requests {
+            retry_response.evaluated = queue_length;
+            tracing::debug!(
+                uuid = retry_response.uuid,
+                evaluated = retry_response.evaluated,
+                matched = retry_response.matched,
+                "Sending relayer retry response back"
+            );
+            let _ = retry_req.transmitter.send(retry_response).await;
         }
         queue.append(&mut reprioritized_queue);
     }
