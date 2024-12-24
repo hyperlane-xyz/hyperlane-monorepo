@@ -30,6 +30,26 @@ pub fn test_search_dispatched_message_transaction() {
 }
 
 #[test]
+pub fn test_search_dispatched_message_versioned_transaction() {
+    // given
+    let mailbox_program_id = decode_pubkey("EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y").unwrap();
+    let dispatched_message_pda_account =
+        decode_pubkey("9g87Di4xiYVvBE5F8Atk8xorbbVD8yKqbdHRkFu5HEgw").unwrap();
+    let transactions = transactions(&read_json("dispatch_message_versioned_txn.json"));
+
+    // when
+    let transaction_hashes = search_transactions(
+        transactions,
+        &mailbox_program_id,
+        &dispatched_message_pda_account,
+        is_message_dispatch_instruction,
+    );
+
+    // then
+    assert!(!transaction_hashes.is_empty());
+}
+
+#[test]
 pub fn test_search_delivered_message_transaction() {
     // given
     let mailbox_program_id = decode_pubkey("E588QtVUvresuXq2KoNEwAmoifCzYGpRBdHByN9KQMbi").unwrap();
@@ -47,6 +67,27 @@ pub fn test_search_delivered_message_transaction() {
 
     // then
     assert!(!transaction_hashes.is_empty());
+}
+
+#[test]
+pub fn test_search_delivered_message_reverted_transaction() {
+    // given
+    let mailbox_program_id = decode_pubkey("EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y").unwrap();
+    // From the successful version of the delivery in https://eclipsescan.xyz/tx/4atym7S78qpT4k9mUFWc2tu7KAHcqUxDn8fxP7RL8utooTi6frJtq9xFbM6MSSqDffTGpRSmEAMtCYisRe5m8KXb
+    let delivered_message_pda_account =
+        decode_pubkey("2BZdvWiiTfeeUZKAK9R8UPrV8s8HLNGbdEUtjED52ayf").unwrap();
+    let transactions = transactions(&read_json("delivery_message_reverted_txn.json"));
+
+    // when
+    let transaction_hashes = search_transactions(
+        transactions,
+        &mailbox_program_id,
+        &delivered_message_pda_account,
+        is_message_delivery_instruction,
+    );
+
+    // then
+    assert!(transaction_hashes.is_empty());
 }
 
 #[test]
