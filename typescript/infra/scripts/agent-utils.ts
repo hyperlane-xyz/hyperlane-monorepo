@@ -261,6 +261,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .default('concurrentDeploy', false);
 }
 
+export function withConcurrency<T>(args: Argv<T>) {
+  return args
+    .describe('concurrency', 'Number of concurrent deploys')
+    .number('concurrency')
+    .default('concurrency', 1);
+}
+
 export function withRpcUrls<T>(args: Argv<T>) {
   return args
     .describe(
