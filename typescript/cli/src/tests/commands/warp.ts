@@ -11,13 +11,16 @@ $.verbose = true;
 /**
  * Deploys the Warp route to the specified chain using the provided config.
  */
-export async function hyperlaneWarpDeploy(warpCorePath: string) {
-  // --overrides is " " to allow local testing to work
+export async function hyperlaneWarpDeploy(
+  warpCorePath: string,
+  key?: string,
+  registryPath?: string,
+) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
-        --registry ${REGISTRY_PATH} \
+        --registry ${registryPath ?? REGISTRY_PATH} \
         --overrides " " \
         --config ${warpCorePath} \
-        --key ${ANVIL_KEY} \
+        --key ${key ?? ANVIL_KEY} \
         --verbosity debug \
         --yes`;
 }
@@ -29,13 +32,15 @@ export async function hyperlaneWarpApply(
   warpDeployPath: string,
   warpCorePath: string,
   strategyUrl = '',
+  key?: string,
+  registryPath?: string,
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
-        --registry ${REGISTRY_PATH} \
+        --registry ${registryPath ?? REGISTRY_PATH} \
         --overrides " " \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
-        --key ${ANVIL_KEY} \
+        --key ${key ?? ANVIL_KEY} \
         --verbosity debug \
         --strategy ${strategyUrl} \
         --yes`;
@@ -45,13 +50,15 @@ export async function hyperlaneWarpRead(
   chain: string,
   warpAddress: string,
   warpDeployPath: string,
+  key?: string,
+  registryPath?: string,
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
-        --registry ${REGISTRY_PATH} \
+        --registry ${registryPath ?? REGISTRY_PATH} \
         --overrides " " \
         --address ${warpAddress} \
         --chain ${chain} \
-        --key ${ANVIL_KEY} \
+        --key ${key ?? ANVIL_KEY} \
         --verbosity debug \
         --config ${warpDeployPath}`;
 }
@@ -84,8 +91,16 @@ export async function readWarpConfig(
   chain: string,
   warpCorePath: string,
   warpDeployPath: string,
+  key?: string,
+  registryPath?: string,
 ): Promise<WarpRouteDeployConfig> {
   const warpAddress = getDeployedWarpAddress(chain, warpCorePath);
-  await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
+  await hyperlaneWarpRead(
+    chain,
+    warpAddress!,
+    warpDeployPath,
+    key,
+    registryPath,
+  );
   return readYamlOrJson(warpDeployPath);
 }
