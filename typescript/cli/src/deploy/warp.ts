@@ -187,21 +187,20 @@ async function executeDeploy(
     context: { multiProvider, isDryRun, dryRunChain },
   } = params;
 
-  const deployer = warpDeployConfig.isNft
-    ? new HypERC721Deployer(multiProvider)
-    : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
-
-  const config: WarpRouteDeployConfig =
-    isDryRun && dryRunChain
-      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
-      : warpDeployConfig;
-
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
+  const deployer = warpDeployConfig.isNft
+    ? new HypERC721Deployer(multiProvider)
+    : new HypERC20Deployer(multiProvider, undefined, contractVerifier); // TODO: replace with EvmERC20WarpModule
+
+  const config: WarpRouteDeployConfig =
+    isDryRun && dryRunChain
+      ? { [dryRunChain]: warpDeployConfig[dryRunChain] }
+      : warpDeployConfig;
 
   const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(
     multiProvider,

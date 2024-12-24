@@ -22,6 +22,7 @@ export enum ExplorerFamily {
   Etherscan = 'etherscan',
   Blockscout = 'blockscout',
   Routescan = 'routescan',
+  ZKSync = 'zksync',
   Other = 'other',
 }
 
@@ -30,7 +31,7 @@ export enum ChainTechnicalStack {
   OpStack = 'opstack',
   PolygonCDK = 'polygoncdk',
   PolkadotSubstrate = 'polkadotsubstrate',
-  ZkSync = 'zksync',
+  ZKSync = 'zksync',
   Other = 'other',
 }
 

@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../schema.json
+chainId: 260
+displayName: zksync1
+domainId: 260
+isTestnet: true
+name: zksync1
+nativeToken:
+  decimals: 18
+  name: Ether
+  symbol: ETH
+protocol: ethereum
+rpcUrls:
+  - http: http://127.0.0.1:8011
