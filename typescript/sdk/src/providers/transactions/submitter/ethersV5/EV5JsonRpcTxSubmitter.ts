@@ -45,4 +45,9 @@ export class EV5JsonRpcTxSubmitter implements EV5TxSubmitterInterface {
     }
     return receipts;
   }
+
+  public async pending(): Promise<AnnotatedEV5Transaction[]> {
+    // TODO: mempool?
+    return [];
+  }
 }
