@@ -1,4 +1,4 @@
-use crate::{server::ENDPOINT_MESSAGES_QUEUE_SIZE, settings::matching_list::MatchingList};
+use crate::settings::matching_list::MatchingList;
 
 use axum::{extract::State, routing, Json, Router};
 
@@ -44,7 +44,7 @@ async fn retry_message(
 
     tracing::debug!(uuid = uuid_string, "Sending message retry request");
 
-    let (transmitter, mut receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
+    let (transmitter, mut receiver) = mpsc::channel(1);
     state
         .retry_request_transmitter
         .send(MessageRetryRequest {
