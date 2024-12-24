@@ -4,7 +4,7 @@ use tempfile::tempdir;
 
 use crate::{
     cosmos::{
-        make_target, unzip,
+        make_target,
         utils::{download, untar},
     },
     logging::log,
@@ -64,18 +64,18 @@ impl CodeSource {
         };
         let dir_path = dir_path.to_str().unwrap();
 
-        let release_name = format!("wasm_codes");
-        let release_comp = format!("{release_name}.zip");
+        let release_name = format!("cw-hyperlane-v{version}");
+        let release_comp = format!("{release_name}.tar.gz");
 
         log!("Downloading cw-hyperlane v{}", version);
         let uri = format!("{git}/releases/download/v{version}/{release_comp}");
         download(&release_comp, &uri, dir_path);
 
         log!("Uncompressing cw-hyperlane release");
-        unzip(&release_comp, dir_path);
+        untar(&release_comp, dir_path);
 
         // make contract_name => path map
-        fs::read_dir(dir_path)
+        fs::read_dir(concat_path(dir_path, release_name))
             .unwrap()
             .map(|v| {
                 let entry = v.unwrap();
