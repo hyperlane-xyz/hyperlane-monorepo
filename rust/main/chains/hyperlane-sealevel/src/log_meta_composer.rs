@@ -220,6 +220,11 @@ fn filter_by_validity(
     tx: UiTransaction,
     meta: UiTransactionStatusMeta,
 ) -> Option<(H512, Vec<String>, Vec<UiCompiledInstruction>)> {
+    // If the transaction has an error, we skip it
+    if meta.err.is_some() {
+        return None;
+    }
+
     let Some(transaction_hash) = tx
         .signatures
         .first()
