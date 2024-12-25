@@ -2,10 +2,7 @@ import {
   Account,
   CairoOption,
   CairoOptionVariant,
-  Contract,
   InvokeFunctionResponse,
-  ParsedEvent,
-  ParsedEvents,
 } from 'starknet';
 
 import {
@@ -14,10 +11,14 @@ import {
   HyperlaneAddressesMap,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { toStarknetMessageBytes } from '../messaging/messageUtils.js';
+import {
+  getStarknetMailboxContract,
+  parseStarknetDispatchedMessages,
+  quoteStarknetDispatch,
+} from '../utils/starknet.js';
 
 export interface IMultiProtocolSignerManager {
   getStarknetSigner(chain: ChainName): Account;
@@ -25,7 +26,6 @@ export interface IMultiProtocolSignerManager {
 
 export class StarknetCore {
   protected logger = rootLogger.child({ module: 'StarknetCore' });
-  // public signer: Account;
   protected addressesMap: HyperlaneAddressesMap<any>;
   public multiProvider: MultiProvider;
   private multiProtocolSigner: IMultiProtocolSignerManager;
@@ -44,25 +44,20 @@ export class StarknetCore {
     return this.addressesMap[chain];
   }
 
-  static getMailboxContract(address: string, signer: Account): Contract {
-    const { abi } = getCompiledContract('mailbox');
-    return new Contract(abi, address, signer);
-  }
-
   async sendMessage(
     origin: ChainName,
     destination: ChainName,
     recipient: Address,
     body: string,
-    hook?: Address,
-    metadata?: string,
+    _hook?: Address,
+    _metadata?: string,
   ): Promise<{
     dispatchTx: InvokeFunctionResponse;
     message: DispatchedMessage;
   }> {
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const mailboxAddress = this.addressesMap[origin].mailbox;
-    const mailboxContract = StarknetCore.getMailboxContract(
+    const mailboxContract = getStarknetMailboxContract(
       mailboxAddress,
       this.multiProtocolSigner.getStarknetSigner(origin),
     );
@@ -71,7 +66,7 @@ export class StarknetCore {
     const messageBodyBytes = toStarknetMessageBytes(
       new TextEncoder().encode(body),
     );
-    console.log({
+    this.logger.debug({
       messageBodyBytes,
       encoded: new TextEncoder().encode(body),
     });
@@ -79,11 +74,11 @@ export class StarknetCore {
     const nonOption = new CairoOption(CairoOptionVariant.None);
 
     // Quote the dispatch first to ensure enough fees are provided
-    const quote = await this.quoteDispatch({
+    const quote = await quoteStarknetDispatch({
       mailboxContract,
       destinationDomain,
       recipientAddress: recipient,
-      messageBody: body,
+      messageBody: messageBodyBytes,
     });
 
     // Dispatch the message
@@ -108,66 +103,11 @@ export class StarknetCore {
 
     return {
       dispatchTx,
-      message: this.getDispatchedMessages(parsedEvents)[0],
+      message: parseStarknetDispatchedMessages(
+        parsedEvents,
+        (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
+      )[0],
     };
-  }
-
-  async quoteDispatch({
-    mailboxContract,
-    destinationDomain,
-    recipientAddress,
-    messageBody,
-    customHookMetadata,
-    customHook,
-  }: {
-    mailboxContract: Contract;
-    destinationDomain: number;
-    recipientAddress: string;
-    messageBody: string;
-    customHookMetadata?: string;
-    customHook?: string;
-  }): Promise<string> {
-    const nonOption = new CairoOption(CairoOptionVariant.None);
-
-    const quote = await mailboxContract.call('quote_dispatch', [
-      destinationDomain,
-      recipientAddress,
-      messageBody,
-      customHookMetadata || nonOption,
-      customHook || nonOption,
-    ]);
-
-    return quote.toString();
-  }
-
-  getDispatchedMessages(parsedEvents: ParsedEvents): DispatchedMessage[] {
-    return parsedEvents
-      .filter(
-        (event: ParsedEvent) =>
-          'contracts::mailbox::mailbox::Dispatch' in event,
-      )
-      .map((event: any) => {
-        const dispatchEvent = event['contracts::mailbox::mailbox::Dispatch'];
-        const message = dispatchEvent.message;
-
-        const originChain =
-          this.multiProvider.tryGetChainName(message.origin) ?? undefined;
-        const destinationChain =
-          this.multiProvider.tryGetChainName(message.destination) ?? undefined;
-
-        // Convert numeric strings to hex addresses with '0x' prefix
-        // Convert felt values to hex addresses
-
-        return {
-          parsed: {
-            ...message,
-            originChain,
-            destinationChain,
-          },
-          id: event.index,
-          message: message.raw,
-        } as DispatchedMessage;
-      });
   }
 
   onDispatch(
@@ -181,7 +121,7 @@ export class StarknetCore {
     chains.forEach((originChain) => {
       const account = this.multiProtocolSigner.getStarknetSigner(originChain);
       const mailboxAddress = this.addressesMap[originChain].mailbox;
-      const mailboxContract = StarknetCore.getMailboxContract(
+      const mailboxContract = getStarknetMailboxContract(
         mailboxAddress,
         account,
       );
@@ -191,7 +131,10 @@ export class StarknetCore {
       // Set up event listener
       const eventKey = 'contracts::mailbox::mailbox::Dispatch';
       const unsubscribe = mailboxContract.on(eventKey, async (event: any) => {
-        const messages = this.getDispatchedMessages([event]);
+        const messages = parseStarknetDispatchedMessages(
+          [event],
+          (domain) => this.multiProvider.tryGetChainName(domain) ?? undefined,
+        );
         if (messages.length > 0) {
           const dispatched = messages[0];
 
@@ -234,7 +177,7 @@ export class StarknetCore {
       message.parsed.destination,
     );
     const mailboxAddress = this.addressesMap[destinationChain].mailbox;
-    const mailboxContract = StarknetCore.getMailboxContract(
+    const mailboxContract = getStarknetMailboxContract(
       mailboxAddress,
       this.multiProtocolSigner.getStarknetSigner(destinationChain),
     );

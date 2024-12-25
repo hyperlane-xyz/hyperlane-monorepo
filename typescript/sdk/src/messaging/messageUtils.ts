@@ -5,32 +5,7 @@ import { ParsedMessage, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { DispatchedMessage } from '../core/types.js';
 
-export function prepareMessageForRelay(
-  message: DispatchedMessage,
-  destinationProtocol: ProtocolType,
-): {
-  metadata: { size: number; data: bigint[] };
-  messageData?: Uint8Array;
-} {
-  if (destinationProtocol === ProtocolType.Ethereum) {
-    const ethMessage = toEthMessageBytes(
-      message.parsed as ParsedMessage & {
-        body: { size: bigint; data: bigint[] };
-      },
-    );
-
-    return {
-      metadata: { size: 0, data: [] },
-      messageData: ethMessage,
-    };
-  }
-
-  return {
-    metadata: { size: 1, data: [BigInt(1)] },
-  };
-}
-
-export function ethDispatchEventToStarkMessage(event: DispatchedMessage): {
+export function formatEthereumMessageForStarknet(message: DispatchedMessage): {
   version: number;
   nonce: number;
   origin: number;
@@ -39,33 +14,36 @@ export function ethDispatchEventToStarkMessage(event: DispatchedMessage): {
   recipient: Uint256;
   body: { size: number; data: bigint[] };
 } {
-  const sender = uint256.bnToUint256(event.parsed.sender);
-  const recipient = uint256.bnToUint256(event.parsed.recipient);
+  const sender = uint256.bnToUint256(message.parsed.sender);
+  const recipient = uint256.bnToUint256(message.parsed.recipient);
 
   // Rest of the code remains the same
-  const message = ethers.utils.arrayify(event.message);
-  const version = message[0];
-  const nonce = event.parsed.nonce;
-  const origin = event.parsed.origin;
-  const body = message.slice(77);
+  const messageArray = ethers.utils.arrayify(message.message);
+  const version = messageArray[0];
+  const nonce = message.parsed.nonce;
+  const origin = message.parsed.origin;
+  const destination = message.parsed.destination;
+  const body = messageArray.slice(77);
 
   return {
     version,
     nonce,
     origin,
     sender,
-    destination: event.parsed.destination,
+    destination,
     recipient,
     body: toStarknetMessageBytes(body),
   };
 }
 
-export function toEthMessageBytes(
-  starknetMessage: ParsedMessage & { body: { size: bigint; data: bigint[] } },
+export function formatStarknetMessageForEthereum(
+  starknetMessage: ParsedMessage & {
+    body: { size: bigint; data: bigint[] };
+  },
 ): Uint8Array {
   // Calculate buffer size based on Rust implementation
   const headerSize = 1 + 4 + 4 + 32 + 4 + 32; // version + nonce + origin + sender + destination + recipient
-  const bodyBytes = u128VecToU8Vec(starknetMessage.body.data);
+  const bodyBytes = convertU128ArrayToBytes(starknetMessage.body.data);
 
   // Create buffer with exact size needed
   const buffer = new Uint8Array(headerSize + bodyBytes.length);
@@ -149,7 +127,7 @@ export function toStarknetMessageBytes(bytes: Uint8Array): {
 /**
  * Convert vector of u128 to bytes
  */
-export function u128VecToU8Vec(input: bigint[]): Uint8Array {
+export function convertU128ArrayToBytes(input: bigint[]): Uint8Array {
   const output = new Uint8Array(input.length * 16); // Each u128 takes 16 bytes
   input.forEach((value, index) => {
     const hex = num.toHex(value);
@@ -157,4 +135,50 @@ export function u128VecToU8Vec(input: bigint[]): Uint8Array {
     output.set(bytes, index * 16);
   });
   return output;
+}
+
+type TranslatorFn = (message: DispatchedMessage) => any;
+
+const translators: Partial<
+  Record<ProtocolType, Partial<Record<ProtocolType, TranslatorFn>>>
+> = {
+  [ProtocolType.Ethereum]: {
+    [ProtocolType.Ethereum]: (message) => message.message,
+    [ProtocolType.Starknet]: (message) =>
+      formatEthereumMessageForStarknet(message),
+  },
+  [ProtocolType.Starknet]: {
+    [ProtocolType.Ethereum]: (message) =>
+      formatStarknetMessageForEthereum(message.parsed as any),
+    [ProtocolType.Starknet]: (message) => message.message,
+  },
+};
+
+export function translateMessage(
+  message: DispatchedMessage,
+  originProtocol: ProtocolType,
+  destinationProtocol: ProtocolType,
+) {
+  const translator = translators[originProtocol]?.[destinationProtocol];
+  if (!translator) {
+    throw new Error(
+      `No translator found for ${originProtocol} -> ${destinationProtocol}`,
+    );
+  }
+  return translator(message);
+}
+
+type MetadataFn = () => any;
+
+const metadataHandlers: Partial<Record<ProtocolType, MetadataFn>> = {
+  [ProtocolType.Ethereum]: () => '0x0001',
+  [ProtocolType.Starknet]: () => ({ size: 0, data: [] }),
+};
+
+export function getMessageMetadata(destinationProtocol: ProtocolType): any {
+  const handler = metadataHandlers[destinationProtocol];
+  if (!handler) {
+    throw new Error(`No metadata handler for ${destinationProtocol}`);
+  }
+  return handler();
 }

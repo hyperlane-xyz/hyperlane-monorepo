@@ -3,14 +3,11 @@ import { stringify as yamlStringify } from 'yaml';
 import {
   ChainName,
   DispatchedMessage,
-  EvmMessageAdapter,
   HyperlaneCore,
-  MessageAdapterRegistry,
   MessageService,
   MultiProtocolProvider,
   ProviderType,
   StarknetCore,
-  StarknetMessageAdapter,
   Token,
   TokenAmount,
   WarpCore,
@@ -117,11 +114,6 @@ async function executeDelivery({
   const { multiProvider, registry } = context;
   const { chainMetadata } = context;
 
-  // Setup MessageService and adapters
-  const adapterRegistry = new MessageAdapterRegistry();
-  adapterRegistry.register(new EvmMessageAdapter(multiProvider));
-  adapterRegistry.register(new StarknetMessageAdapter(multiProvider));
-
   const chainAddresses = await registry.getAddresses();
 
   // Create protocol-specific cores map
@@ -151,12 +143,7 @@ async function executeDelivery({
     }
   }
 
-  const messageService = new MessageService(
-    multiProvider,
-    adapterRegistry,
-    chainAddresses,
-    protocolCores,
-  );
+  const messageService = new MessageService(multiProvider, protocolCores);
 
   const signer = multiProvider.getSigner(origin);
   const recipientSigner =
@@ -185,16 +172,16 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  // const errors = await warpCore.validateTransfer({
-  //   originTokenAmount: token.amount(amount),
-  //   destination,
-  //   recipient,
-  //   sender: signerAddress,
-  // });
-  // if (errors) {
-  //   logRed('Error validating transfer', JSON.stringify(errors));
-  //   throw new Error('Error validating transfer');
-  // }
+  const errors = await warpCore.validateTransfer({
+    originTokenAmount: token.amount(amount),
+    destination,
+    recipient,
+    sender: signerAddress,
+  });
+  if (errors) {
+    logRed('Error validating transfer', JSON.stringify(errors));
+    throw new Error('Error validating transfer');
+  }
 
   // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
@@ -233,8 +220,8 @@ async function executeDelivery({
     await messageService.relayMessage(message);
     logGreen(WarpSendLogs.SUCCESS);
   } else if (!skipWaitForDelivery) {
-    log('Waiting for message delivery...');
-    await messageService.waitForMessageDelivery(message);
+    // log('Waiting for message delivery...');
+    // await messageService.waitForMessageDelivery(message);
     logGreen('Transfer sent to destination chain!');
   }
 }

@@ -1,11 +1,5 @@
 import { HyperlaneCore, StarknetCore } from '@hyperlane-xyz/sdk';
-import {
-  ChainName,
-  EvmMessageAdapter,
-  MessageAdapterRegistry,
-  MessageService,
-  StarknetMessageAdapter,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, MessageService } from '@hyperlane-xyz/sdk';
 import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
 import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
@@ -56,10 +50,6 @@ export async function sendTestMessage({
     minGas: MINIMUM_TEST_SEND_GAS,
   });
 
-  const adapterRegistry = new MessageAdapterRegistry();
-  adapterRegistry.register(new EvmMessageAdapter(multiProvider));
-  adapterRegistry.register(new StarknetMessageAdapter(multiProvider));
-
   const addressMap = await context.registry.getAddresses();
 
   // Create protocol-specific cores map
@@ -67,12 +57,9 @@ export async function sendTestMessage({
     Record<ProtocolType, HyperlaneCore | StarknetCore>
   > = {};
 
-  // Helper to get protocol type for a chain
-  const getProtocolType = (chain: ChainName) => chainMetadata[chain].protocol;
-
   // Initialize cores for the chains we're working with
   for (const chain of [origin, destination]) {
-    const protocol = getProtocolType(chain);
+    const protocol = chainMetadata[chain].protocol;
 
     // Only initialize each protocol type once
     if (!protocolCores[protocol]) {
@@ -92,12 +79,7 @@ export async function sendTestMessage({
     }
   }
 
-  const messageService = new MessageService(
-    multiProvider,
-    adapterRegistry,
-    addressMap,
-    protocolCores,
-  );
+  const messageService = new MessageService(multiProvider, protocolCores);
 
   await timeout(
     Promise.resolve().then(async () => {
@@ -118,8 +100,6 @@ export async function sendTestMessage({
         logGreen('Message was self-relayed!');
       } else if (!skipWaitForDelivery) {
         log('Waiting for message delivery...');
-        await messageService.waitForMessageDelivery(message);
-        logGreen('Message was delivered!');
       }
     }),
     timeoutSec * 1000,
