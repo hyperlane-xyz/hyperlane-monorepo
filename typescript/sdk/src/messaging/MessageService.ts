@@ -71,10 +71,10 @@ export class MessageService {
 
   async relayMessage(message: DispatchedMessage) {
     const originProtocol = this.multiProvider.getProtocol(
-      message.parsed.originChain!,
+      message.parsed.origin!,
     );
     const destinationProtocol = this.multiProvider.getProtocol(
-      message.parsed.destinationChain!,
+      message.parsed.destination!,
     );
     const core = this.cores[destinationProtocol];
 

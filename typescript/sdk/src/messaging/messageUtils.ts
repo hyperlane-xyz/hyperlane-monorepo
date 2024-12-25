@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { num } from 'starknet';
+import { Uint256, num, uint256 } from 'starknet';
 
 import { ParsedMessage, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -34,32 +34,19 @@ export function ethDispatchEventToStarkMessage(event: DispatchedMessage): {
   version: number;
   nonce: number;
   origin: number;
-  sender: { low: bigint; high: bigint };
+  sender: Uint256;
   destination: number;
-  recipient: { low: bigint; high: bigint };
+  recipient: Uint256;
   body: { size: number; data: bigint[] };
 } {
-  // Convert 20-byte Ethereum address to 32-byte format
-  const senderBuffer = Buffer.alloc(32);
-  Buffer.from(event.parsed.sender.slice(2), 'hex').copy(senderBuffer, 12);
-  const senderBigInt = BigInt('0x' + senderBuffer.toString('hex'));
-  const sender = {
-    low: senderBigInt & ((1n << 128n) - 1n), // Take lower 128 bits
-    high: senderBigInt >> 128n, // Take upper 128 bits
-  };
-
-  // Convert recipient to uint256 with proper range
-  const recipientBigInt = BigInt(event.parsed.recipient);
-  const recipient = {
-    low: recipientBigInt & ((1n << 128n) - 1n), // Take lower 128 bits
-    high: recipientBigInt >> 128n, // Take upper 128 bits
-  };
+  const sender = uint256.bnToUint256(event.parsed.sender);
+  const recipient = uint256.bnToUint256(event.parsed.recipient);
 
   // Rest of the code remains the same
   const message = ethers.utils.arrayify(event.message);
   const version = message[0];
-  const nonce = parseInt(ethers.utils.hexlify(message.slice(1, 5)), 16);
-  const origin = parseInt(ethers.utils.hexlify(message.slice(5, 9)), 16);
+  const nonce = event.parsed.nonce;
+  const origin = event.parsed.origin;
   const body = message.slice(77);
 
   return {

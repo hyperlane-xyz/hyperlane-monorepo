@@ -60,8 +60,6 @@ export class StarknetCore {
     dispatchTx: InvokeFunctionResponse;
     message: DispatchedMessage;
   }> {
-    console.log({ hook, metadata });
-
     const destinationDomain = this.multiProvider.getDomainId(destination);
     const mailboxAddress = this.addressesMap[origin].mailbox;
     const mailboxContract = StarknetCore.getMailboxContract(
@@ -230,7 +228,7 @@ export class StarknetCore {
 
   async deliver(
     message: DispatchedMessage,
-    _: any, // metadata
+    metadata: any,
   ): Promise<{ transaction_hash: string }> {
     const destinationChain = this.multiProvider.getChainName(
       message.parsed.destination,
@@ -244,7 +242,7 @@ export class StarknetCore {
     const data = message.message;
 
     const { transaction_hash } = await mailboxContract.invoke('process', [
-      { size: 0, data: [] }, // metadata
+      metadata,
       data, // formatted message
     ]);
 

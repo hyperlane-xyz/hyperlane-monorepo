@@ -66,7 +66,7 @@ export class EvmMessageAdapter extends BaseMessageAdapter {
 
     if (destinationProtocol === ProtocolType.Starknet) {
       return {
-        metadata: { size: 0, data: [BigInt(0)] },
+        metadata: { size: 0, data: [] },
         messageData: ethDispatchEventToStarkMessage(message),
       };
     }
@@ -109,7 +109,7 @@ export class StarknetMessageAdapter extends BaseMessageAdapter {
     }
 
     return {
-      metadata: { size: 1, data: [BigInt(1)] },
+      metadata: { size: 0, data: [] },
       // TODO: Add messageData for Starknet
     };
   }
