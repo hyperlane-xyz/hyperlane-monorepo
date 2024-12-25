@@ -7,15 +7,15 @@ use hyperlane_core::{
     TxnReceiptInfo, H256, H512, U256,
 };
 use starknet::core::types::{
-    BlockId, BlockTag, FieldElement, FunctionCall, MaybePendingBlockWithTxHashes,
-    MaybePendingTransactionReceipt, TransactionReceipt,
+    BlockId, BlockTag, FieldElement, FunctionCall, InvokeTransaction,
+    MaybePendingBlockWithTxHashes, MaybePendingTransactionReceipt, Transaction, TransactionReceipt,
 };
 use starknet::macros::{felt, selector};
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{AnyProvider, JsonRpcClient, Provider};
 use tracing::instrument;
 
-use crate::types::HyU256;
+use crate::types::{HyH256, HyU256};
 use crate::{ConnectionConf, HyperlaneStarknetError};
 
 #[derive(Debug, Clone)]
@@ -88,6 +88,23 @@ impl HyperlaneProvider for StarknetProvider {
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
+        let (nonce, sender, calldata) = match tx.clone() {
+            Transaction::Invoke(invoke_tx) => match invoke_tx {
+                InvokeTransaction::V0(_) => unreachable!("not supported"),
+                InvokeTransaction::V1(invoke_tx) => (
+                    Some(invoke_tx.nonce),
+                    invoke_tx.sender_address,
+                    invoke_tx.calldata,
+                ),
+                InvokeTransaction::V3(invoke_tx) => (
+                    Some(invoke_tx.nonce),
+                    invoke_tx.sender_address,
+                    invoke_tx.calldata,
+                ),
+            },
+            _ => (None, FieldElement::ZERO, vec![]),
+        };
+
         let receipt = self
             .rpc_client()
             .get_transaction_receipt(tx.transaction_hash())
@@ -98,14 +115,16 @@ impl HyperlaneProvider for StarknetProvider {
             MaybePendingTransactionReceipt::Receipt(tx_receipt) => match tx_receipt {
                 TransactionReceipt::Invoke(invoke_receipt) => Ok(TxnInfo {
                     hash: H512::from_slice(tx.transaction_hash().to_bytes_be().as_slice()),
-                    gas_limit: U256::one(),
+                    gas_limit: U256::zero(),
                     max_priority_fee_per_gas: None,
                     max_fee_per_gas: None,
                     gas_price: None,
-                    nonce: 0,
-                    sender: H256::zero(),
+                    nonce: nonce.unwrap_or(FieldElement::ZERO).try_into().unwrap(), // safe to unwrap because we know the nonce fits in a u64
+                    sender: HyH256::from(sender).0,
                     recipient: None,
-                    raw_input_data: None,
+                    raw_input_data: Some(
+                        calldata.into_iter().flat_map(|f| f.to_bytes_be()).collect(),
+                    ),
                     receipt: Some(TxnReceiptInfo {
                         gas_used: U256::from_big_endian(
                             invoke_receipt.actual_fee.amount.to_bytes_be().as_slice(),
