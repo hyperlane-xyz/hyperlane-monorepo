@@ -59,6 +59,7 @@ import {
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
+import { StarknetNativeTokenAdapter } from './adapters/StarknetTokenAdapter.js';
 
 // Declaring the interface in addition to class allows
 // Typescript to infer the members vars from TokenArgs
@@ -141,6 +142,14 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.CWNative) {
       return new CwNativeTokenAdapter(
+        chainName,
+        multiProvider,
+        {},
+        addressOrDenom,
+      );
+    } else if (standard === TokenStandard.StarknetHypNative) {
+      // TODO
+      return new StarknetNativeTokenAdapter(
         chainName,
         multiProvider,
         {},
@@ -288,6 +297,10 @@ export class Token implements IToken {
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
+    } else if (standard === TokenStandard.StarknetHypSynthetic) {
+      return new StarknetTokenAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+      });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }

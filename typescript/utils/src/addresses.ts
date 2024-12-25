@@ -1,6 +1,7 @@
 import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
 import { Wallet, utils as ethersUtils } from 'ethers';
+import { validateAndParseAddress } from 'starknet';
 
 import { isNullish } from './typeof.js';
 import { Address, HexString, ProtocolType } from './types.js';
@@ -109,12 +110,22 @@ export function isValidAddressCosmos(address: Address) {
   }
 }
 
+export function isValidAddressStarknet(address: Address) {
+  try {
+    const isValid = address && validateAndParseAddress(address);
+    return !!isValid;
+  } catch {
+    return false;
+  }
+}
+
 export function isValidAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
     {
       [ProtocolType.Ethereum]: isValidAddressEvm,
       [ProtocolType.Sealevel]: isValidAddressSealevel,
       [ProtocolType.Cosmos]: isValidAddressCosmos,
+      [ProtocolType.Starknet]: isValidAddressStarknet,
     },
     address,
     false,
