@@ -244,11 +244,10 @@ fn filter_by_validity(
     };
 
     // Orders the account keys in line with the behavior of compiled instructions.
-    // If the meta specifies loaded (i.e. dynamic) addresses,
     let account_keys = match &meta.loaded_addresses {
         OptionSerializer::Some(addresses) => {
             // If there are loaded addresses, we have a versioned transaction
-            // that includes dynamically loaded addresses (e.g. from a lookup table).
+            // that may include dynamically loaded addresses (e.g. from a lookup table).
             // The order of these is [static, dynamic writeable, dynamic readonly] and
             // follows the iter ordering of https://docs.rs/solana-sdk/latest/solana_sdk/message/struct.AccountKeys.html.
             [
