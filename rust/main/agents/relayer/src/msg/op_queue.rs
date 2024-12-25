@@ -97,19 +97,21 @@ impl OpQueue {
         let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()
             .map(|Reverse(mut op)| {
-                let matches = message_retry_requests
+                let matched_requests: Vec<_> = message_retry_requests
                     .iter_mut()
-                    .map(|(retry_req, retry_response)| {
+                    .filter_map(|(retry_req, retry_response)| {
                         let match_res = retry_req.pattern.op_matches(&op);
                         // update retry metrics
                         if match_res {
-                            retry_response.matched += 1
+                            retry_response.matched += 1;
+                            Some(retry_req.uuid.clone())
+                        } else {
+                            None
                         }
-                        match_res
                     })
-                    .filter(|x| *x)
-                    .count()
-                    > 0;
+                    .collect();
+
+                let matches = !matched_requests.is_empty();
                 if matches {
                     info!(
                         operation = %op,
@@ -117,6 +119,9 @@ impl OpQueue {
                         "Retrying OpQueue operation"
                     );
                     op.reset_attempts();
+                    for matched_req in matched_requests {
+                        info!(uuid = matched_req, "Matched request");
+                    }
                 }
                 Reverse(op)
             })

@@ -168,7 +168,7 @@ mod tests {
     async fn test_message_id_retry() {
         let TestServerSetup {
             socket_address: addr,
-            mut retry_req_rx,
+            retry_req_rx,
             ..
         } = setup_test_server();
 
@@ -210,7 +210,7 @@ mod tests {
     async fn test_destination_domain_retry() {
         let TestServerSetup {
             socket_address: addr,
-            mut retry_req_rx,
+            retry_req_rx,
             ..
         } = setup_test_server();
 
@@ -253,7 +253,7 @@ mod tests {
     async fn test_origin_domain_retry() {
         let TestServerSetup {
             socket_address: addr,
-            mut retry_req_rx,
+            retry_req_rx,
             ..
         } = setup_test_server();
 
@@ -296,7 +296,7 @@ mod tests {
     async fn test_sender_address_retry() {
         let TestServerSetup {
             socket_address: addr,
-            mut retry_req_rx,
+            retry_req_rx,
             ..
         } = setup_test_server();
 
@@ -337,7 +337,7 @@ mod tests {
     async fn test_recipient_address_retry() {
         let TestServerSetup {
             socket_address: addr,
-            mut retry_req_rx,
+            retry_req_rx,
             ..
         } = setup_test_server();
 
@@ -378,7 +378,7 @@ mod tests {
     async fn test_multiple_retry() {
         let TestServerSetup {
             socket_address: addr,
-            mut retry_req_rx,
+            retry_req_rx,
             ..
         } = setup_test_server();
 
