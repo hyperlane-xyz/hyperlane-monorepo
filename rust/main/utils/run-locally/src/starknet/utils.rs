@@ -60,7 +60,7 @@ pub(crate) fn make_target() -> String {
 
 pub(crate) fn make_target_starkli() -> String {
     let os = if cfg!(target_os = "linux") {
-        "linux-android"
+        "unknown-linux-gnu"
     } else if cfg!(target_os = "macos") {
         "apple-darwin"
     } else {
