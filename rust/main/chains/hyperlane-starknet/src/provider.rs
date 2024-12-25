@@ -129,7 +129,9 @@ impl HyperlaneProvider for StarknetProvider {
                         gas_used: U256::from_big_endian(
                             invoke_receipt.actual_fee.amount.to_bytes_be().as_slice(),
                         ),
-                        cumulative_gas_used: U256::zero(),
+                        cumulative_gas_used: U256::from_big_endian(
+                            invoke_receipt.actual_fee.amount.to_bytes_be().as_slice(),
+                        ),
                         effective_gas_price: None,
                     }),
                 }),
