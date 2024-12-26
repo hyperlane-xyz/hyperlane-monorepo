@@ -11,13 +11,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, Domain, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
-
+import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   hyperlaneCoreApply,
   hyperlaneCoreDeploy,
   readCoreConfig,
-} from './commands/core.js';
+} from '../commands/core.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -28,7 +27,7 @@ import {
   CORE_READ_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
   TEMP_PATH,
-} from './commands/helpers.js';
+} from '../commands/helpers.js';
 
 const CORE_READ_CHAIN_2_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
 const CORE_READ_CHAIN_3_CONFIG_PATH = `${TEMP_PATH}/${CHAIN_NAME_3}/core-config-read.yaml`;
