@@ -74,6 +74,7 @@ impl MerkleTreeProcessor {
             .retrieve_merkle_tree_insertion_by_leaf_index(&self.leaf_index)?
         {
             // Update the metrics
+            // we assume that leaves are inserted in order so this will be monotonically increasing
             self.metrics
                 .max_leaf_index_gauge
                 .set(insertion.index() as i64);
