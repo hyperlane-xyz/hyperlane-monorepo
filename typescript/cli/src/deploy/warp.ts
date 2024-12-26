@@ -153,6 +153,8 @@ export async function runWarpRouteDeploy({
     starknet: {},
   };
 
+  let starknetSigners: ChainMap<StarknetAccount> = {};
+
   // Execute deployments for each protocol
   for (const protocol of Object.keys(chainsByProtocol) as ProtocolType[]) {
     const protocolChains = chainsByProtocol[protocol];
@@ -197,7 +199,7 @@ export async function runWarpRouteDeploy({
           multiProtocolSigner,
           'multi protocol signer is required for starknet chain deployment',
         );
-        const starknetSigners = await promiseObjAll(
+        starknetSigners = await promiseObjAll(
           protocolChains.reduce<ChainMap<Promise<StarknetAccount>>>(
             (acc, chain) => ({
               ...acc,
@@ -231,6 +233,7 @@ export async function runWarpRouteDeploy({
     warpRouteConfig,
     deployments,
     multiProvider,
+    starknetSigners,
   });
 
   fullyConnectTokens(deployments, context.multiProvider);
@@ -1367,6 +1370,7 @@ interface EnrollRoutersParams {
   warpRouteConfig: WarpRouteDeployConfig;
   deployments: WarpCoreConfig;
   multiProvider: MultiProvider;
+  starknetSigners: ChainMap<StarknetAccount>;
 }
 
 async function enrollCrossChainRouters({
@@ -1376,6 +1380,7 @@ async function enrollCrossChainRouters({
   warpRouteConfig,
   deployments,
   multiProvider,
+  starknetSigners,
 }: EnrollRoutersParams): Promise<void> {
   const hasEvmChains = Object.keys(evmAddresses).length > 0;
   const hasStarknetChains = Object.keys(starknetAddresses).length > 0;
@@ -1387,7 +1392,18 @@ async function enrollCrossChainRouters({
   const registryAddresses = await context.registry.getAddresses();
   const evmChains = Object.keys(evmAddresses);
 
-  const enrollmentTxs = await enrollRemoteRoutersOfStarknetOnEvm(
+  const starknetWarpModule = new StarknetERC20WarpModule(
+    starknetSigners,
+    warpRouteConfig,
+    multiProvider,
+  );
+
+  await starknetWarpModule.enrollRemoteRouters({
+    ...evmAddresses,
+    ...starknetAddresses,
+  });
+
+  const evmEnrollmentTxs = await enrollRemoteRoutersOfStarknetOnEvm(
     multiProvider,
     evmChains,
     evmAddresses,
@@ -1395,9 +1411,9 @@ async function enrollCrossChainRouters({
     registryAddresses,
   );
 
-  if (enrollmentTxs.length === 0) return;
+  if (evmEnrollmentTxs.length === 0) return;
 
-  const chainTransactions = groupBy(enrollmentTxs, 'chainId');
+  const chainTransactions = groupBy(evmEnrollmentTxs, 'chainId');
   await submitWarpApplyTransactions(
     {
       context,
