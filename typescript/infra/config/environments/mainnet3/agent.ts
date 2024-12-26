@@ -414,6 +414,19 @@ const sealevelPriorityFeeOracleConfigGetter = (
       // URL is auto populated by the external secrets in the helm chart
       url: '',
     };
+  } else if (chain === 'eclipsemainnet') {
+    // As of Dec 23:
+    // Eclipse has recently seen some increased usage with their referral program,
+    // and we have had intermittent issues landing txs. Not many txs on Eclipse use
+    // priority fees, so we use a low priority fee.
+    return {
+      type: AgentSealevelPriorityFeeOracleType.Constant,
+      // 2000 micro lamports of ETH, which at a compute unit limit of 400K
+      // and an ETH price of $3450 (Dec 23, 2024) comes to about $0.00276 USD:
+      // >>> (((2000 / 1e6) * 400000) / 1e9) * 3450
+      // 0.00276
+      fee: '2000',
+    };
   }
 
   // For all other chains, we use the constant fee oracle with a fee of 0
@@ -530,21 +543,21 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '15Gi',
+    memory: '20G',
   },
 };
 
 const validatorResources = {
   requests: {
     cpu: '500m',
-    memory: '1Gi',
+    memory: '1G',
   },
 };
 
 const scraperResources = {
   requests: {
     cpu: '2000m',
-    memory: '4Gi',
+    memory: '4G',
   },
 };
 
@@ -605,7 +618,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7c0c967-20241218-173053',
+      tag: 'e9911bb-20241223-211526',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -640,7 +653,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7c0c967-20241218-173053',
+      tag: 'e9911bb-20241223-211526',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

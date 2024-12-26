@@ -90,8 +90,17 @@ export function getDeployableHelmChartName(helmChartConfig: HelmChartConfig) {
   return helmChartConfig.name;
 }
 
-export function buildHelmChartDependencies(chartPath: string) {
-  return execCmd(`cd ${chartPath} && helm dependency build`, {}, false, true);
+export function buildHelmChartDependencies(
+  chartPath: string,
+  updateRepoCache: boolean,
+) {
+  const flags = updateRepoCache ? '' : '--skip-refresh';
+  return execCmd(
+    `cd ${chartPath} && helm dependency build ${flags}`,
+    {},
+    false,
+    true,
+  );
 }
 
 // Convenience function to remove a helm release without having a HelmManger for it.
@@ -100,6 +109,11 @@ export function removeHelmRelease(releaseName: string, namespace: string) {
 }
 
 export type HelmValues = Record<string, any>;
+
+export interface HelmCommandOptions {
+  dryRun?: boolean;
+  updateRepoCache?: boolean;
+}
 
 export abstract class HelmManager<T = HelmValues> {
   abstract readonly helmReleaseName: string;
@@ -112,7 +126,13 @@ export abstract class HelmManager<T = HelmValues> {
    */
   abstract helmValues(): Promise<T>;
 
-  async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {
+  async runHelmCommand(
+    action: HelmCommand,
+    options?: HelmCommandOptions,
+  ): Promise<void> {
+    const dryRun = options?.dryRun ?? false;
+    const updateRepoCache = options?.updateRepoCache ?? false;
+
     const cmd = ['helm', action];
     if (dryRun) cmd.push('--dry-run');
 
@@ -142,7 +162,7 @@ export abstract class HelmManager<T = HelmValues> {
       }
     }
 
-    await buildHelmChartDependencies(this.helmChartPath);
+    await buildHelmChartDependencies(this.helmChartPath, updateRepoCache);
     cmd.push(
       this.helmReleaseName,
       this.helmChartPath,
