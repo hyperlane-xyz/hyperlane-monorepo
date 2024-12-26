@@ -76,7 +76,7 @@ impl MerkleTreeProcessor {
             // Update the metrics
             // we assume that leaves are inserted in order so this will be monotonically increasing
             self.metrics
-                .max_leaf_index_gauge
+                .latest_leaf_index_gauge
                 .set(insertion.index() as i64);
             Some(insertion)
         } else {
@@ -89,13 +89,13 @@ impl MerkleTreeProcessor {
 
 #[derive(Debug)]
 pub struct MerkleTreeProcessorMetrics {
-    max_leaf_index_gauge: IntGauge,
+    latest_leaf_index_gauge: IntGauge,
 }
 
 impl MerkleTreeProcessorMetrics {
     pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain) -> Self {
         Self {
-            max_leaf_index_gauge: metrics
+            latest_leaf_index_gauge: metrics
                 .latest_leaf_index()
                 .with_label_values(&[origin.name()]),
         }
