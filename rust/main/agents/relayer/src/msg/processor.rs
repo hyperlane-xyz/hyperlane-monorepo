@@ -363,9 +363,9 @@ impl MessageProcessorMetrics {
         origin: &HyperlaneDomain,
         destinations: impl Iterator<Item = &'a HyperlaneDomain>,
     ) -> Self {
-        let mut last_known_message_nonce_gauges: HashMap<u32, IntGauge> = HashMap::new();
+        let mut gauges: HashMap<u32, IntGauge> = HashMap::new();
         for destination in destinations {
-            last_known_message_nonce_gauges.insert(
+            gauges.insert(
                 destination.id(),
                 metrics.last_known_message_nonce().with_label_values(&[
                     "processor_loop",
@@ -374,13 +374,11 @@ impl MessageProcessorMetrics {
                 ]),
             );
         }
-
         Self {
             max_last_known_message_nonce_gauge: metrics
                 .last_known_message_nonce()
                 .with_label_values(&["processor_loop", origin.name(), "any"]),
-            last_known_message_nonce_gauges,
-            // latest_tree_insertion_count_gauges,
+            last_known_message_nonce_gauges: gauges,
         }
     }
 
@@ -436,10 +434,6 @@ mod test {
                 domain_id,
                 IntGauge::new("dummy_last_known_message_nonce_gauge", "help string").unwrap(),
             )]),
-            // latest_tree_insertion_count_gauges: HashMap::from([(
-            //     domain_id,
-            //     IntGauge::new("dummy_latest_tree_insertion_count_gauge", "help string").unwrap(),
-            // )]),
         }
     }
 

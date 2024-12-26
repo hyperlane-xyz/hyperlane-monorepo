@@ -119,7 +119,7 @@ impl CoreMetrics {
                 "Latest tree insertion count",
                 const_labels_ref
             ),
-            &["phase", "origin"],
+            &["origin"],
             registry
         )?;
 
@@ -321,7 +321,10 @@ impl CoreMetrics {
         self.last_known_message_nonce.clone()
     }
 
-    /// TODO: fill out the docstring
+    /// Reports the current highest leaf index which was inserted into the merkle tree.
+    ///
+    /// Labels:
+    /// - `origin`: Origin chain the leaf index is being tracked at.
     pub fn latest_tree_insertion_count(&self) -> IntGaugeVec {
         self.latest_tree_insertion_count.clone()
     }

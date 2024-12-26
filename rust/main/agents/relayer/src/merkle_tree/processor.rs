@@ -1,4 +1,5 @@
 use std::{
+    cmp::max,
     fmt::{Debug, Formatter},
     sync::Arc,
     time::Duration,
@@ -14,7 +15,7 @@ use hyperlane_base::{
 use hyperlane_core::{HyperlaneDomain, MerkleTreeInsertion};
 use prometheus::IntGauge;
 use tokio::sync::RwLock;
-use tracing::{info, trace};
+use tracing::trace;
 
 use crate::processor::ProcessorExt;
 
@@ -73,11 +74,11 @@ impl MerkleTreeProcessor {
             .db
             .retrieve_merkle_tree_insertion_by_leaf_index(&self.leaf_index)?
         {
-            info!(leaf_index=?self.leaf_index, "TESTTEST: Found merkle tree insertion in DB");
             // Update the metrics
-            self.metrics
-                .max_leaf_index_gauge
-                .set(insertion.index() as i64);
+            self.metrics.max_leaf_index_gauge.set(max(
+                self.metrics.max_leaf_index_gauge.get(),
+                insertion.index() as i64,
+            ));
             Some(insertion)
         } else {
             trace!(leaf_index=?self.leaf_index, "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
@@ -97,7 +98,7 @@ impl MerkleTreeProcessorMetrics {
         Self {
             max_leaf_index_gauge: metrics
                 .latest_tree_insertion_count()
-                .with_label_values(&["processor_loop", origin.name()]),
+                .with_label_values(&[origin.name()]),
         }
     }
 }
