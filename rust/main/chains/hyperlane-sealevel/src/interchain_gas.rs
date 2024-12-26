@@ -251,7 +251,17 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
                 if igp_account_filter == sealevel_payment.igp_account_pubkey {
                     payments.push((sealevel_payment.payment, sealevel_payment.log_meta));
                 } else {
-                    tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, skipping");
+                    tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, neutralizing payment");
+
+                    let non_matching_payment = InterchainGasPayment {
+                        gas_amount: U256::from(0),
+                        payment: U256::from(0),
+                        ..*sealevel_payment.payment.inner()
+                    };
+                    payments.push((
+                        Indexed::new(non_matching_payment).with_sequence(nonce.into()),
+                        sealevel_payment.log_meta,
+                    ));
                 }
             }
         }
