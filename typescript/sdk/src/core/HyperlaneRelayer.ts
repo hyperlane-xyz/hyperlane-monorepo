@@ -207,6 +207,38 @@ export class HyperlaneRelayer {
     return this.getIsmConfig(destinationChain, ism, message);
   }
 
+  async relayAll(
+    dispatchTx: providers.TransactionReceipt,
+    messages = HyperlaneCore.getDispatchedMessages(dispatchTx),
+  ): Promise<ChainMap<ethers.ContractReceipt[]>> {
+    const destinationMap: ChainMap<DispatchedMessage[]> = {};
+    messages.forEach((message) => {
+      destinationMap[message.parsed.destination] ??= [];
+      destinationMap[message.parsed.destination].push(message);
+    });
+
+    // parallelize relaying to different destinations
+    return promiseObjAll(
+      objMap(destinationMap, async (_destination, messages) => {
+        const receipts: ethers.ContractReceipt[] = [];
+        // serially relay messages to the same destination
+        for (const message of messages) {
+          try {
+            const receipt = await this.relayMessage(
+              dispatchTx,
+              undefined,
+              message,
+            );
+            receipts.push(receipt);
+          } catch (e) {
+            this.logger.error(`Failed to relay message ${message.id}, ${e}`);
+          }
+        }
+        return receipts;
+      }),
+    );
+  }
+
   async relayMessage(
     dispatchTx: providers.TransactionReceipt,
     messageIndex = 0,

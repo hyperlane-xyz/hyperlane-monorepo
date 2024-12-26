@@ -209,6 +209,12 @@ export {
   AgentCosmosGasPrice,
   AgentLogFormat,
   AgentLogLevel,
+  AgentSealevelChainMetadata,
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelPriorityFeeOracleType,
+  AgentSealevelTransactionSubmitter,
+  AgentSealevelTransactionSubmitterType,
   AgentSigner,
   AgentSignerAwsKey,
   AgentSignerHexKey,
@@ -616,7 +622,10 @@ export {
   getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
-export { getValidatorFromStorageLocation } from './utils/validator.js';
+export {
+  getValidatorFromStorageLocation,
+  isValidValidatorStorageLocation,
+} from './utils/validator.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,

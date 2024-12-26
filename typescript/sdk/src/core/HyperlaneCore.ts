@@ -14,6 +14,7 @@ import {
   ProtocolType,
   addBufferToGasLimit,
   addressToBytes32,
+  assert,
   bytes32ToAddress,
   isZeroishAddress,
   messageId,
@@ -313,13 +314,18 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
-    const mailbox = this.contractsMap[destinationChain].mailbox;
+    const mailbox = this.getContracts(destinationChain).mailbox;
 
     const processedBlock = await mailbox.processedAt(message.id);
     const events = await mailbox.queryFilter(
       mailbox.filters.ProcessId(message.id),
       processedBlock,
       processedBlock,
+    );
+
+    assert(
+      events.length === 1,
+      `Expected exactly one process event, got ${events.length}`,
     );
     const processedEvent = events[0];
     return processedEvent.getTransactionReceipt();
@@ -428,6 +434,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     if (matching.length === 0) {
       throw new Error(`No dispatch event found for message ${messageId}`);
     }
+
+    assert(matching.length === 1, 'Multiple dispatch events found');
     const event = matching[0]; // only 1 event per message ID
     return event.getTransactionReceipt();
   }

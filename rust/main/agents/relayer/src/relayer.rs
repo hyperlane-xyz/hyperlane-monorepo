@@ -587,7 +587,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
-        let metrics = MerkleTreeProcessorMetrics::new();
+        let metrics = MerkleTreeProcessorMetrics::new(&self.core.metrics, origin);
         let merkle_tree_processor = MerkleTreeProcessor::new(
             self.dbs.get(origin).unwrap().clone(),
             metrics,
