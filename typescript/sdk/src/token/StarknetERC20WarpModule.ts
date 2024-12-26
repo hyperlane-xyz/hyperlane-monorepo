@@ -1,6 +1,7 @@
 import {
   Account,
   Contract,
+  Uint256,
   byteArray,
   eth,
   getChecksumAddress,
@@ -155,7 +156,6 @@ export class StarknetERC20WarpModule {
   public async enrollRemoteRouters(
     routerAddresses: ChainMap<string>,
   ): Promise<void> {
-    // Process only Starknet chains
     for (const [chain, tokenAddress] of Object.entries(routerAddresses)) {
       const isStarknetChain =
         this.multiProvider.getChainMetadata(chain).protocol !==
@@ -166,19 +166,19 @@ export class StarknetERC20WarpModule {
 
       const account = this.account[chain];
 
-      // Router ABI for enrollment
+      // Updated Router ABI to include batch enrollment
       const ROUTER_ABI = [
         {
           type: 'function',
-          name: 'enroll_remote_router',
+          name: 'enroll_remote_routers',
           inputs: [
             {
-              name: 'domain',
-              type: 'core::integer::u32',
+              name: 'domains',
+              type: 'core::array::Array::<core::integer::u32>',
             },
             {
-              name: 'router',
-              type: 'core::integer::u256',
+              name: 'routers',
+              type: 'core::array::Array::<core::integer::u256>',
             },
           ],
           outputs: [],
@@ -186,41 +186,47 @@ export class StarknetERC20WarpModule {
         },
       ];
 
-      // Initialize contract with the deployed token address
       const contract = new Contract(ROUTER_ABI, tokenAddress, account);
 
-      // For each non-Starknet chain, enroll its router
-      for (const [remoteChain, remoteAddress] of Object.entries(
-        routerAddresses,
-      )) {
-        if (remoteChain === chain) continue; // Skip self-enrollment
+      try {
+        // Prepare arrays for batch enrollment
+        const domains: number[] = [];
+        const routers: Uint256[] = [];
 
-        try {
-          const remoteDomain = this.multiProvider.getDomainId(remoteChain);
-          const remoteRouter = uint256.bnToUint256(
-            eth.validateAndParseEthAddress(remoteAddress),
-          );
+        // Collect all remote chains' data
+        Object.entries(routerAddresses).forEach(
+          ([remoteChain, remoteAddress]) => {
+            if (remoteChain === chain) return; // Skip self-enrollment
 
-          this.logger.info(
-            `Enrolling remote router on ${chain} for domain ${remoteDomain} with address ${remoteAddress}`,
-          );
+            const remoteDomain = this.multiProvider.getDomainId(remoteChain);
+            const remoteRouter = uint256.bnToUint256(
+              eth.validateAndParseEthAddress(remoteAddress),
+            );
 
-          const tx = await contract.invoke('enroll_remote_router', [
-            remoteDomain,
-            remoteRouter,
-          ]);
+            domains.push(remoteDomain);
+            routers.push(remoteRouter);
+          },
+        );
 
-          await account.waitForTransaction(tx.transaction_hash);
+        this.logger.info(
+          `Batch enrolling ${domains.length} remote routers on ${chain}`,
+        );
 
-          this.logger.info(
-            `Successfully enrolled remote router on ${chain}. Transaction: ${tx.transaction_hash}`,
-          );
-        } catch (error) {
-          this.logger.error(
-            `Failed to enroll remote router on ${chain} for chain ${remoteChain}: ${error}`,
-          );
-          throw error;
-        }
+        const tx = await contract.invoke('enroll_remote_routers', [
+          domains,
+          routers,
+        ]);
+
+        await account.waitForTransaction(tx.transaction_hash);
+
+        this.logger.info(
+          `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to enroll remote routers on ${chain}: ${error}`,
+        );
+        throw error;
       }
     }
   }
