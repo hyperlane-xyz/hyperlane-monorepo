@@ -7263,6 +7263,7 @@ dependencies = [
  "once_cell",
  "regex",
  "relayer",
+ "reqwest",
  "ripemd",
  "serde",
  "serde_json",
