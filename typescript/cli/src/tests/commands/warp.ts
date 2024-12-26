@@ -1,4 +1,4 @@
-import { $ } from 'zx';
+import { $, ProcessPromise } from 'zx';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
@@ -7,6 +7,20 @@ import { readYamlOrJson } from '../../utils/files.js';
 import { ANVIL_KEY, REGISTRY_PATH, getDeployedWarpAddress } from './helpers.js';
 
 $.verbose = true;
+
+/**
+ * Deploys the Warp route to the specified chain using the provided config.
+ */
+export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
+  // --overrides is " " to allow local testing to work
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp init \
+        --registry ${REGISTRY_PATH} \
+        --overrides " " \
+        --out ${warpCorePath} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --yes`;
+}
 
 /**
  * Deploys the Warp route to the specified chain using the provided config.
