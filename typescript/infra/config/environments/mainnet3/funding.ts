@@ -90,7 +90,7 @@ export const keyFunderConfig: KeyFunderConfig<
     mode: '0.2',
     molten: '3',
     moonbeam: '100',
-    morph: '0.05',
+    morph: '0.1',
     oortmainnet: '2000',
     optimism: '0.5',
     orderly: '0.05',
