@@ -95,7 +95,7 @@ impl MerkleTreeProcessorMetrics {
     pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain) -> Self {
         Self {
             max_leaf_index_gauge: metrics
-                .latest_tree_insertion_count()
+                .latest_leaf_index()
                 .with_label_values(&[origin.name()]),
         }
     }
