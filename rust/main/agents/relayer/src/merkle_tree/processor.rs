@@ -1,5 +1,4 @@
 use std::{
-    cmp::max,
     fmt::{Debug, Formatter},
     sync::Arc,
     time::Duration,
@@ -75,10 +74,9 @@ impl MerkleTreeProcessor {
             .retrieve_merkle_tree_insertion_by_leaf_index(&self.leaf_index)?
         {
             // Update the metrics
-            self.metrics.max_leaf_index_gauge.set(max(
-                self.metrics.max_leaf_index_gauge.get(),
-                insertion.index() as i64,
-            ));
+            self.metrics
+                .max_leaf_index_gauge
+                .set(insertion.index() as i64);
             Some(insertion)
         } else {
             trace!(leaf_index=?self.leaf_index, "No merkle tree insertion found in DB for leaf index, waiting for it to be indexed");
