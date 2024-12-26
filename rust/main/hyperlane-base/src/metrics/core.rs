@@ -38,6 +38,7 @@ pub struct CoreMetrics {
     span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
+    latest_tree_insertion_count: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
@@ -112,6 +113,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let latest_tree_insertion_count = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("latest_tree_insertion_count"),
+                "Latest tree insertion count",
+                const_labels_ref
+            ),
+            &["phase", "origin"],
+            registry
+        )?;
+
         let observed_validator_latest_index = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("observed_validator_latest_index"),
@@ -177,6 +188,7 @@ impl CoreMetrics {
             span_counts,
             span_events,
             last_known_message_nonce,
+            latest_tree_insertion_count,
 
             submitter_queue_length,
 
@@ -307,6 +319,11 @@ impl CoreMetrics {
     ///   MessageProcessor loop.
     pub fn last_known_message_nonce(&self) -> IntGaugeVec {
         self.last_known_message_nonce.clone()
+    }
+
+    /// TODO: fill out the docstring
+    pub fn latest_tree_insertion_count(&self) -> IntGaugeVec {
+        self.latest_tree_insertion_count.clone()
     }
 
     /// Latest message nonce in the validator.
