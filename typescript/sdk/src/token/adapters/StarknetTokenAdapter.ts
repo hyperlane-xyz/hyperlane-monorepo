@@ -32,9 +32,9 @@ export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
     );
 
     // Call balanceOf function
-    const balance = await ethContract.balanceOf(address);
+    const { balance } = await ethContract.balanceOf(address);
 
-    return BigInt(balance.toString());
+    return balance;
   }
 
   async getMetadata(): Promise<TokenMetadata> {
@@ -78,7 +78,8 @@ export class StarknetTokenAdapter extends StarknetNativeTokenAdapter {
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: { token: Address },
+    public readonly addresses: Record<string, Address>,
+    public readonly denom: string,
   ) {
     super(chainName, multiProvider, addresses);
   }
@@ -89,22 +90,6 @@ export class StarknetTokenAdapter extends StarknetNativeTokenAdapter {
     _weiAmountOrId: Numberish,
   ): Promise<boolean> {
     return false;
-  }
-
-  getDomains(): Promise<Domain[]> {
-    return [];
-  }
-
-  async getRouterAddress(domain: Domain): Promise<Buffer> {
-    return Buffer.from('');
-  }
-
-  async getAllRouters(): Promise<any> {
-    const domains = await this.getDomains();
-    const routers: Buffer[] = await Promise.all(
-      domains.map((d) => this.getRouterAddress(d)),
-    );
-    return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
   async quoteTransferRemoteGas(

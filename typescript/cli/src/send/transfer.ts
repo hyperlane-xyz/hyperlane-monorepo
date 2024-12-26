@@ -121,12 +121,9 @@ async function executeDelivery({
     Record<ProtocolType, HyperlaneCore | StarknetCore>
   > = {};
 
-  // Helper to get protocol type for a chain
-  const getProtocolType = (chain: ChainName) => chainMetadata[chain].protocol;
-
   // Initialize cores for the chains
   for (const chain of [origin, destination]) {
-    const protocol = getProtocolType(chain);
+    const protocol = chainMetadata[chain].protocol;
     if (!protocolCores[protocol]) {
       if (protocol === ProtocolType.Starknet) {
         protocolCores[protocol] = new StarknetCore(
@@ -145,15 +142,15 @@ async function executeDelivery({
 
   const messageService = new MessageService(multiProvider, protocolCores);
 
-  const signer = multiProvider.getSigner(origin);
-  const recipientSigner =
-    context.multiProtocolSigner!.getStarknetSigner(destination);
-
-  const recipientAddress = recipientSigner.address;
-  const signerAddress = await signer.getAddress();
+  const { signerAddress, recipientAddress } =
+    await getSignerAndRecipientAddresses({
+      context,
+      origin,
+      destination,
+      recipient,
+    });
 
   recipient ||= recipientAddress;
-
   const warpCore = WarpCore.FromConfig(
     MultiProtocolProvider.fromMultiProvider(multiProvider),
     warpCoreConfig,
@@ -194,6 +191,7 @@ async function executeDelivery({
   const txReceipts = [];
   for (const tx of transferTxs) {
     if (tx.type === ProviderType.EthersV5) {
+      const signer = multiProvider.getSigner(origin);
       const txResponse = await signer.sendTransaction(tx.transaction);
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
@@ -224,4 +222,54 @@ async function executeDelivery({
     // await messageService.waitForMessageDelivery(message);
     logGreen('Transfer sent to destination chain!');
   }
+}
+
+async function getSignerAndRecipientAddresses({
+  context,
+  origin,
+  destination,
+  recipient,
+}: {
+  context: WriteCommandContext;
+  origin: ChainName;
+  destination: ChainName;
+  recipient?: string;
+}): Promise<{
+  signerAddress: string;
+  recipientAddress: string;
+}> {
+  const { multiProvider } = context;
+  const originMetadata = multiProvider.getChainMetadata(origin);
+  const destinationMetadata = multiProvider.getChainMetadata(destination);
+
+  // Get signer address based on origin protocol
+  let signerAddress: string;
+  if (originMetadata.protocol === ProtocolType.Starknet) {
+    const starknetSigner =
+      context.multiProtocolSigner!.getStarknetSigner(origin);
+    signerAddress = starknetSigner.address;
+  } else {
+    // EVM-based chains
+    const evmSigner = multiProvider.getSigner(origin);
+    signerAddress = await evmSigner.getAddress();
+  }
+
+  // Get recipient address based on destination protocol
+  let recipientAddress: string;
+  if (recipient) {
+    recipientAddress = recipient;
+  } else if (destinationMetadata.protocol === ProtocolType.Starknet) {
+    const starknetSigner =
+      context.multiProtocolSigner!.getStarknetSigner(destination);
+    recipientAddress = starknetSigner.address;
+  } else {
+    // EVM-based chains
+    const evmSigner = multiProvider.getSigner(destination);
+    recipientAddress = await evmSigner.getAddress();
+  }
+
+  return {
+    signerAddress,
+    recipientAddress,
+  };
 }

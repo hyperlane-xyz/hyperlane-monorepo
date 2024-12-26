@@ -474,13 +474,10 @@ export class EvmHypNativeAdapter
       txValue = igpAmount;
     }
 
-    console.log({ recipient });
     const recipBytes32 =
       recipient.length === 66
         ? recipient
         : ethers.utils.hexZeroPad(recipient, 32); // Pad 65-char address to bytes32
-
-    console.log({ recipBytes32 });
 
     return this.contract.populateTransaction[
       'transferRemote(uint32,bytes32,uint256)'
