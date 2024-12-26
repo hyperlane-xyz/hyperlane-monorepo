@@ -51,7 +51,7 @@ export enum KeyBoardKeys {
   TAB = '\t',
 }
 
-export async function asyncWrite(
+export async function asyncStreamInputWrite(
   stream: NodeJS.WritableStream,
   data: string | Buffer,
 ): Promise<void> {
@@ -64,12 +64,12 @@ export async function selectAnvil2AndAnvil3(
   stream: ProcessPromise,
 ): Promise<void> {
   // Scroll down through the mainnet chains list and select anvil2
-  await asyncWrite(
+  await asyncStreamInputWrite(
     stream.stdin,
     `${KeyBoardKeys.ARROW_DOWN.repeat(3)}${KeyBoardKeys.TAB}`,
   );
   // Scroll down through the mainnet chains list again and select anvil3
-  await asyncWrite(
+  await asyncStreamInputWrite(
     stream.stdin,
     `${KeyBoardKeys.ARROW_DOWN.repeat(2)}${KeyBoardKeys.TAB}${
       KeyBoardKeys.ENTER

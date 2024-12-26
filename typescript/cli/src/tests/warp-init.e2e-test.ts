@@ -20,7 +20,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
   WARP_CONFIG_PATH_2,
-  asyncWrite,
+  asyncStreamInputWrite,
   deployOrUseExistingCore,
   deployToken,
   selectAnvil2AndAnvil3,
@@ -75,10 +75,11 @@ describe('hyperlane warp init e2e tests', async function () {
         if (
           currentLine.includes('Creating a new warp route deployment config...')
         ) {
-          await asyncWrite(output.stdin, KeyBoardKeys.ENTER);
+          // Select mainnet chains
+          await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
         } else if (currentLine.includes('--Mainnet Chains--')) {
           // Scroll down through the mainnet chains list and select anvil2
-          await asyncWrite(
+          await asyncStreamInputWrite(
             output.stdin,
             `${KeyBoardKeys.ARROW_DOWN.repeat(3)}${KeyBoardKeys.TAB}${
               KeyBoardKeys.ENTER
@@ -86,12 +87,13 @@ describe('hyperlane warp init e2e tests', async function () {
           );
         } else if (currentLine.includes('token type')) {
           // Scroll up through the token type list and select native
-          await asyncWrite(
+          await asyncStreamInputWrite(
             output.stdin,
             `${KeyBoardKeys.ARROW_UP.repeat(2)}${KeyBoardKeys.ENTER}`,
           );
         } else if (currentLine.includes('Detected owner address as')) {
-          await asyncWrite(output.stdin, KeyBoardKeys.ENTER);
+          // Confirm owner prompts
+          await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
         }
       }
 
@@ -112,17 +114,19 @@ describe('hyperlane warp init e2e tests', async function () {
         if (
           currentLine.includes('Creating a new warp route deployment config...')
         ) {
-          await asyncWrite(output.stdin, KeyBoardKeys.ENTER);
+          // Select mainnet chains
+          await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
         } else if (currentLine.includes('--Mainnet Chains--')) {
           await selectAnvil2AndAnvil3(output);
-        } else if (currentLine.includes('token type')) {
+        } else if (currentLine.match(/Select .+?'s token type/)) {
           // Scroll up through the token type list and select native
-          await asyncWrite(
+          await asyncStreamInputWrite(
             output.stdin,
             `${KeyBoardKeys.ARROW_UP.repeat(2)}${KeyBoardKeys.ENTER}`,
           );
         } else if (currentLine.includes('Detected owner address as')) {
-          await asyncWrite(output.stdin, KeyBoardKeys.ENTER);
+          // Confirm owner prompts
+          await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
         }
       }
 
@@ -148,30 +152,32 @@ describe('hyperlane warp init e2e tests', async function () {
         if (
           currentLine.includes('Creating a new warp route deployment config...')
         ) {
-          await asyncWrite(output.stdin, KeyBoardKeys.ENTER);
+          // Select mainnet chains
+          await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
         } else if (currentLine.includes('--Mainnet Chains--')) {
           await selectAnvil2AndAnvil3(output);
         } else if (
           currentLine.includes('Enter the existing token address on chain')
         ) {
-          await asyncWrite(
+          await asyncStreamInputWrite(
             output.stdin,
             `${erc20Token.address}${KeyBoardKeys.ENTER}`,
           );
         } else if (currentLine.match(/Select .+?'s token type/)) {
           if (tokenStep === 0) {
             // Scroll down through the token type list and select collateral
-            await asyncWrite(
+            await asyncStreamInputWrite(
               output.stdin,
               `${KeyBoardKeys.ARROW_DOWN.repeat(4)}${KeyBoardKeys.ENTER}`,
             );
           } else if (tokenStep === 1) {
             // Select the synthetic token type
-            await asyncWrite(output.stdin, KeyBoardKeys.ENTER);
+            await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
           }
           tokenStep++;
         } else if (currentLine.includes('Detected owner address as')) {
-          await asyncWrite(output.stdin, KeyBoardKeys.ENTER);
+          // Confirm owner prompts
+          await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
         }
       }
 
