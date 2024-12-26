@@ -1,4 +1,10 @@
 import {
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelPriorityFeeOracleType,
+  AgentSealevelTransactionSubmitter,
+  AgentSealevelTransactionSubmitterType,
+  ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   MatchingList,
@@ -7,6 +13,7 @@ import {
 
 import {
   AgentChainConfig,
+  HELIUS_SECRET_URL_MARKER,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
@@ -396,12 +403,53 @@ export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   mainnet3SupportedChainNames,
 );
 
+const sealevelPriorityFeeOracleConfigGetter = (
+  chain: ChainName,
+): AgentSealevelPriorityFeeOracle => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelPriorityFeeOracleType.Helius,
+      feeLevel: AgentSealevelHeliusFeeLevel.Recommended,
+      // URL is auto populated by the external secrets in the helm chart
+      url: '',
+    };
+  }
+
+  // For all other chains, we use the constant fee oracle with a fee of 0
+  return {
+    type: AgentSealevelPriorityFeeOracleType.Constant,
+    fee: '0',
+  };
+};
+
+const sealevelTransactionSubmitterConfigGetter = (
+  chain: ChainName,
+): AgentSealevelTransactionSubmitter => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelTransactionSubmitterType.Rpc,
+      url: HELIUS_SECRET_URL_MARKER,
+    };
+  }
+
+  // For all other chains, use the default RPC transaction submitter
+  return {
+    type: AgentSealevelTransactionSubmitterType.Rpc,
+  };
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
   environmentChainNames: supportedChainNames,
   aws: {
     region: 'us-east-1',
+  },
+  sealevel: {
+    priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
+    transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
   },
 } as const;
 
@@ -532,6 +580,15 @@ const blacklistedMessageIds = [
   // MAGIC/ethereum-treasure native funding txs
   '0x9d51f4123be816cbaeef2e2b34a5760f633a7cb8a019fe16f88a3227cc22451e',
   '0x663c221137028ceeeb102a98e48b362a7b48d626b93c88c7fdf1871a948b1223',
+
+  // txs between unenrolled routers of
+  // ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
+  '0x229a832dfdfa23dfc27eb773e6b34e87f329067393f4f7b616251b3d7d52d294',
+  '0xcdfd5294e8b1253263908e1919d27675f80a2e9a3bb339b759810efdbb81faa5',
+
+  // txs between unenrolled routers of
+  // USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork
+  '0x10159bf1b5b2142b882cb060d1da9f9123d82974ca265ba432138221e52c2a27',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
