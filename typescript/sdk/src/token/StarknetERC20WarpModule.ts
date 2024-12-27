@@ -199,8 +199,14 @@ export class StarknetERC20WarpModule {
             if (remoteChain === chain) return; // Skip self-enrollment
 
             const remoteDomain = this.multiProvider.getDomainId(remoteChain);
+            const remoteProtocol =
+              this.multiProvider.getChainMetadata(remoteChain).protocol;
+
+            // Only validate and parse ETH address for Ethereum chains
             const remoteRouter = uint256.bnToUint256(
-              eth.validateAndParseEthAddress(remoteAddress),
+              remoteProtocol === ProtocolType.Ethereum
+                ? eth.validateAndParseEthAddress(remoteAddress)
+                : remoteAddress,
             );
 
             domains.push(remoteDomain);
