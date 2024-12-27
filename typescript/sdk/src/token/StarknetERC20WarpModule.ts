@@ -1,4 +1,12 @@
-import { Account, byteArray, getChecksumAddress } from 'starknet';
+import {
+  Account,
+  Contract,
+  Uint256,
+  byteArray,
+  eth,
+  getChecksumAddress,
+  uint256,
+} from 'starknet';
 
 import { TokenType } from '@hyperlane-xyz/sdk';
 import { ContractType } from '@hyperlane-xyz/starknet-core';
@@ -115,6 +123,9 @@ export class StarknetERC20WarpModule {
           throw Error('Token type is not supported on starknet');
       }
     }
+
+    // After all deployments are done, enroll the routers
+    await this.enrollRemoteRouters(addresses);
     return addresses;
   }
 
@@ -136,5 +147,93 @@ export class StarknetERC20WarpModule {
       ismConfig,
       mailbox,
     });
+  }
+
+  /**
+   * Enrolls remote routers for all Starknet chains using the deployed token addresses
+   * @param routerAddresses Map of chain name to token/router address
+   */
+  public async enrollRemoteRouters(
+    routerAddresses: ChainMap<string>,
+  ): Promise<void> {
+    for (const [chain, tokenAddress] of Object.entries(routerAddresses)) {
+      const isStarknetChain =
+        this.multiProvider.getChainMetadata(chain).protocol !==
+        ProtocolType.Starknet;
+      if (isStarknetChain) {
+        continue;
+      }
+
+      const account = this.account[chain];
+
+      // Updated Router ABI to include batch enrollment
+      const ROUTER_ABI = [
+        {
+          type: 'function',
+          name: 'enroll_remote_routers',
+          inputs: [
+            {
+              name: 'domains',
+              type: 'core::array::Array::<core::integer::u32>',
+            },
+            {
+              name: 'routers',
+              type: 'core::array::Array::<core::integer::u256>',
+            },
+          ],
+          outputs: [],
+          state_mutability: 'external',
+        },
+      ];
+
+      const contract = new Contract(ROUTER_ABI, tokenAddress, account);
+
+      try {
+        // Prepare arrays for batch enrollment
+        const domains: number[] = [];
+        const routers: Uint256[] = [];
+
+        // Collect all remote chains' data
+        Object.entries(routerAddresses).forEach(
+          ([remoteChain, remoteAddress]) => {
+            if (remoteChain === chain) return; // Skip self-enrollment
+
+            const remoteDomain = this.multiProvider.getDomainId(remoteChain);
+            const remoteProtocol =
+              this.multiProvider.getChainMetadata(remoteChain).protocol;
+
+            // Only validate and parse ETH address for Ethereum chains
+            const remoteRouter = uint256.bnToUint256(
+              remoteProtocol === ProtocolType.Ethereum
+                ? eth.validateAndParseEthAddress(remoteAddress)
+                : remoteAddress,
+            );
+
+            domains.push(remoteDomain);
+            routers.push(remoteRouter);
+          },
+        );
+
+        this.logger.info(
+          `Batch enrolling ${domains.length} remote routers on ${chain}`,
+        );
+
+        const tx = await contract.invoke('enroll_remote_routers', [
+          domains,
+          routers,
+        ]);
+
+        await account.waitForTransaction(tx.transaction_hash);
+
+        this.logger.info(
+          `Successfully enrolled all remote routers on ${chain}. Transaction: ${tx.transaction_hash}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to enroll remote routers on ${chain}: ${error}`,
+        );
+        throw error;
+      }
+    }
   }
 }
