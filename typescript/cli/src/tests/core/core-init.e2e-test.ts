@@ -8,10 +8,12 @@ import { readYamlOrJson } from '../../utils/files.js';
 import { hyperlaneCoreInit } from '../commands/core.js';
 import {
   ANVIL_KEY,
+  CONFIRM_DETECTED_OWNER_STEP,
   CORE_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
-  asyncStreamInputWrite,
+  TestPromptAction,
+  handlePrompts,
 } from '../commands/helpers.js';
 
 describe('hyperlane core init e2e tests', async function () {
@@ -27,50 +29,34 @@ describe('hyperlane core init e2e tests', async function () {
 
       const owner = normalizeAddress(randomAddress());
       const feeHookOwner = normalizeAddress(randomAddress());
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Enter the desired owner address:'),
+          input: `${owner}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes(
+              'For trusted relayer ISM, enter relayer address:',
+            ),
+          input: `${owner}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes(
+              'For Protocol Fee Hook, enter owner address:',
+            ),
+          input: `${feeHookOwner}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            !!currentOutput.match(/Use this same address \((.*?)\) for/),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
 
-      let expectedStep = 0;
-      for await (const out of output.stdout) {
-        const currentLine: string = out.toString();
-
-        if (
-          expectedStep === 0 &&
-          currentLine.includes('Enter the desired owner address:')
-        ) {
-          await asyncStreamInputWrite(
-            output.stdin,
-            `${owner}${KeyBoardKeys.ENTER}`,
-          );
-          expectedStep++;
-        } else if (
-          expectedStep === 1 &&
-          currentLine.includes(
-            'For trusted relayer ISM, enter relayer address:',
-          )
-        ) {
-          await asyncStreamInputWrite(
-            output.stdin,
-            `${owner}${KeyBoardKeys.ENTER}`,
-          );
-          expectedStep++;
-        } else if (
-          expectedStep === 2 &&
-          currentLine.includes('For Protocol Fee Hook, enter owner address:')
-        ) {
-          await asyncStreamInputWrite(
-            output.stdin,
-            `${feeHookOwner}${KeyBoardKeys.ENTER}`,
-          );
-          expectedStep++;
-        } else if (
-          expectedStep === 3 &&
-          currentLine.match(/Use this same address \((.*?)\) for/)
-        ) {
-          await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
-          expectedStep++;
-        }
-      }
-
-      const finalOutput = await output;
+      const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
 
@@ -101,31 +87,21 @@ describe('hyperlane core init e2e tests', async function () {
 
   describe('hyperlane core init --key ...', () => {
     it('should successfully generate the core contract deployment config when confirming owner prompts', async () => {
+      const owner = new Wallet(ANVIL_KEY).address;
+      const steps: TestPromptAction[] = [
+        CONFIRM_DETECTED_OWNER_STEP,
+        {
+          check: (currentOutput) =>
+            !!currentOutput.match(/Use this same address \((.*?)\) for/),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
+
       const output = hyperlaneCoreInit(CORE_CONFIG_PATH_2, ANVIL_KEY).stdio(
         'pipe',
       );
 
-      const owner = new Wallet(ANVIL_KEY).address;
-      let expectedStep = 0;
-      for await (const out of output.stdout) {
-        const currentLine: string = out.toString();
-
-        if (
-          expectedStep === 0 &&
-          currentLine.includes('Detected owner address as')
-        ) {
-          await asyncStreamInputWrite(output.stdin, `${KeyBoardKeys.ENTER}`);
-          expectedStep++;
-        } else if (
-          expectedStep === 1 &&
-          currentLine.match(/Use this same address \((.*?)\) for/)
-        ) {
-          await asyncStreamInputWrite(output.stdin, KeyBoardKeys.ENTER);
-          expectedStep++;
-        }
-      }
-
-      const finalOutput = await output;
+      const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
 
@@ -154,41 +130,27 @@ describe('hyperlane core init e2e tests', async function () {
     });
 
     it('should successfully generate the core contract deployment config when not confirming owner prompts', async () => {
+      const owner = new Wallet(ANVIL_KEY).address;
+      const feeHookOwner = normalizeAddress(randomAddress());
+      const steps: TestPromptAction[] = [
+        CONFIRM_DETECTED_OWNER_STEP,
+        {
+          check: (currentOutput) =>
+            !!currentOutput.match(/Use this same address \((.*?)\) for/),
+          input: `no${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Enter beneficiary address for'),
+          input: `${feeHookOwner}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
       const output = hyperlaneCoreInit(CORE_CONFIG_PATH_2, ANVIL_KEY).stdio(
         'pipe',
       );
 
-      const owner = new Wallet(ANVIL_KEY).address;
-      const feeHookOwner = normalizeAddress(randomAddress());
-      let expectedStep = 0;
-      for await (const out of output.stdout) {
-        const currentLine: string = out.toString();
-
-        if (
-          expectedStep === 0 &&
-          currentLine.includes('Detected owner address as')
-        ) {
-          await asyncStreamInputWrite(output.stdin, `${KeyBoardKeys.ENTER}`);
-          expectedStep++;
-        } else if (
-          expectedStep === 1 &&
-          currentLine.match(/Use this same address \((.*?)\) for/)
-        ) {
-          await asyncStreamInputWrite(output.stdin, `no${KeyBoardKeys.ENTER}`);
-          expectedStep++;
-        } else if (
-          expectedStep === 2 &&
-          currentLine.includes('Enter beneficiary address for')
-        ) {
-          await asyncStreamInputWrite(
-            output.stdin,
-            `${feeHookOwner}${KeyBoardKeys.ENTER}`,
-          );
-          expectedStep++;
-        }
-      }
-
-      const finalOutput = await output;
+      const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
 
