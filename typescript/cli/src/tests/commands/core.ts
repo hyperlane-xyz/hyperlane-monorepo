@@ -53,6 +53,29 @@ export function hyperlaneCoreCheck(
 }
 
 /**
+ * Creates a Hyperlane core deployment config
+ */
+export function hyperlaneCoreInit(
+  coreOutputPath: string,
+  privateKey?: string,
+): ProcessPromise {
+  if (privateKey) {
+    return $`yarn workspace @hyperlane-xyz/cli run hyperlane core init \
+        --registry ${REGISTRY_PATH} \
+        --config ${coreOutputPath} \
+        --verbosity debug \
+        --key ${privateKey} \
+        --yes`;
+  }
+
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane core init \
+        --registry ${REGISTRY_PATH} \
+        --config ${coreOutputPath} \
+        --verbosity debug \
+        --yes`;
+}
+
+/**
  * Updates a Hyperlane core deployment on the specified chain using the provided config.
  */
 export async function hyperlaneCoreApply(
