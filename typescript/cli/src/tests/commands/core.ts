@@ -1,6 +1,7 @@
-import { $ } from 'zx';
+import { $, ProcessPromise } from 'zx';
 
 import { DerivedCoreConfig } from '@hyperlane-xyz/sdk';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../utils/files.js';
 
@@ -30,6 +31,23 @@ export async function hyperlaneCoreRead(chain: string, coreOutputPath: string) {
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \
+        --verbosity debug \
+        --yes`;
+}
+
+/**
+ * Reads a Hyperlane core deployment on the specified chain using the provided config.
+ */
+export function hyperlaneCoreCheck(
+  chain: string,
+  coreOutputPath: string,
+  mailbox?: Address,
+): ProcessPromise {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane core check \
+        --registry ${REGISTRY_PATH} \
+        --config ${coreOutputPath} \
+        --chain ${chain} \
+        --mailbox ${mailbox} \
         --verbosity debug \
         --yes`;
 }
