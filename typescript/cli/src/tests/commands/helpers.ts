@@ -96,7 +96,7 @@ export const SELECT_ANVIL_3_AFTER_ANVIL_2_FROM_MULTICHAIN_PICKER = `${KeyBoardKe
 
 export const SELECT_MAINNET_CHAIN_TYPE_STEP: TestPromptAction = {
   check: (currentOutput: string) =>
-    currentOutput.includes('Creating a new warp route deployment config...'),
+    currentOutput.includes('Select network type'),
   // Select mainnet chains
   input: KeyBoardKeys.ENTER,
 };
