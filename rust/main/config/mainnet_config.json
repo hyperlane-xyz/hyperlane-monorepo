@@ -2318,11 +2318,7 @@
       "validatorAnnounce": "0x454E1a1E1CA8B51506090f1b5399083658eA4Fc5",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x07CE1B0cFfa436AE2fb7Fbd7318648774FdA53f9",
       "staticMessageIdWeightedMultisigIsmFactory": "0x9e22945bE593946618383B108CC5bce09eBA4C26",
-      "technicalStack": "other",
-      "transactionOverrides": {
-        "maxFeePerGas": 800000000000,
-        "maxPriorityFeePerGas": 50000000000
-      }
+      "technicalStack": "other"
     },
     "polygonzkevm": {
       "aggregationHook": "0x8464aF853363B8d6844070F68b0AB34Cb6523d0F",
