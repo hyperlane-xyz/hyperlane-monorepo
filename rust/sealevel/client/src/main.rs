@@ -432,6 +432,8 @@ struct InitIgpAccountArgs {
     context: Option<String>,
     #[arg(long)]
     gas_oracle_config_file: Option<PathBuf>,
+    #[arg(long)]
+    salt: Option<String>,
 }
 
 #[derive(Args)]

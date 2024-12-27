@@ -281,6 +281,7 @@ pub fn start_solana_test_validator(
         .join();
 
     sealevel_client
+        .clone()
         .cmd("validator-announce")
         .cmd("announce")
         .arg("validator", "0x70997970c51812dc3a010c7d01b50e0d17dc79c8")
@@ -291,6 +292,18 @@ pub fn start_solana_test_validator(
         .arg("signature", "0xcd87b715cd4c2e3448be9e34204cf16376a6ba6106e147a4965e26ea946dd2ab19598140bf26f1e9e599c23f6b661553c7d89e8db22b3609068c91eb7f0fa2f01b")
         .run()
         .join();
+
+    // sealevel_client
+    //     .cmd("igp")
+    //     .cmd("init-igp-account")
+    //     .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+    //     .arg("environment", SOLANA_ENV_NAME)
+    //     .arg("environments-dir", SOLANA_ENVS_DIR)
+    //     .arg("chain", "sealeveltest1")
+    //     .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
+    //     .arg("salt", "1")
+    //     .run()
+    //     .join();
 
     log!("Local Solana chain started and hyperlane programs deployed and initialized successfully");
 
@@ -331,6 +344,7 @@ pub fn initiate_solana_hyperlane_transfer(
 
     log!("found message id: {}", message_id);
     sealevel_client(&solana_cli_tools_path, &solana_config_path)
+        .clone()
         .cmd("igp")
         .cmd("pay-for-gas")
         .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
@@ -339,6 +353,18 @@ pub fn initiate_solana_hyperlane_transfer(
         .arg("gas", "100000")
         .run()
         .join();
+
+    log!("found message id: {}", message_id);
+    sealevel_client(&solana_cli_tools_path, &solana_config_path)
+        .cmd("igp")
+        .cmd("pay-for-gas")
+        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("message-id", message_id.clone())
+        .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
+        .arg("gas", "100000")
+        .run()
+        .join();
+
     message_id
 }
 
