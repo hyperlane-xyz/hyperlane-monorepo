@@ -141,6 +141,9 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.CwHypNative,
   TokenStandard.CwHypCollateral,
   TokenStandard.CwHypSynthetic,
+  TokenStandard.StarknetHypNative,
+  TokenStandard.StarknetHypCollateral,
+  TokenStandard.StarknetHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [

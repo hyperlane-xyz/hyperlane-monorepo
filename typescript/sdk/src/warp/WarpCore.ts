@@ -585,6 +585,9 @@ export class WarpCore {
     );
     if (originCollateralError) return originCollateralError;
 
+    if (originTokenAmount.token.protocol === ProtocolType.Starknet) {
+      return null;
+    }
     const balancesError = await this.validateTokenBalances(
       originTokenAmount,
       destination,

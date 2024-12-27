@@ -1,5 +1,5 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
-import { Contract } from 'starknet';
+import { Contract, uint256 } from 'starknet';
 
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
@@ -105,5 +105,84 @@ export class StarknetTokenAdapter extends StarknetNativeTokenAdapter {
     interchainGas,
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     return { value: BigNumber.from(0) };
+  }
+}
+export class StarknetHypSyntheticAdapter extends StarknetNativeTokenAdapter {
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: Record<string, Address>,
+    public readonly denom: string,
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  override async isApproveRequired(
+    _owner: Address,
+    _spender: Address,
+    _weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  async quoteTransferRemoteGas(
+    destination: Domain,
+  ): Promise<InterchainGasQuote> {
+    return { amount: BigInt(0) };
+  }
+
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+    interchainGas,
+  }: TransferRemoteParams): Promise<PopulatedTransaction> {
+    // Create contract instance for the token
+    const tokenContract = new Contract(
+      [
+        {
+          name: 'transfer_remote',
+          type: 'function',
+          inputs: [
+            { name: 'destination', type: 'felt' },
+            { name: 'recipient', type: 'felt' },
+            { name: 'amount', type: 'Uint256' },
+          ],
+          outputs: [],
+        },
+      ],
+      this.addresses.token,
+      this.getProvider(),
+    );
+
+    tokenContract.populateTransaction;
+
+    // format evm address to starknet
+    const recipientFelt = uint256.bnToUint256(recipient);
+
+    // Prepare the transfer remote call
+    const transferCall = {
+      contractAddress: this.addresses.token,
+      entrypoint: 'transfer_remote',
+      calldata: [
+        destination.toString(), // destination domain
+        recipientFelt, // recipient address as felt
+        weiAmountOrId.toString(), // amount
+      ],
+    };
+
+    if (interchainGas?.amount && interchainGas.amount > 0n) {
+      // For Starknet, we typically include the gas payment in the same transaction
+      // by adding it to the transfer amount if it's the native token
+      const totalAmount = BigInt(weiAmountOrId) + interchainGas.amount;
+      transferCall.calldata[2] = totalAmount.toString();
+    }
+
+    return {
+      ...transferCall,
+      value: interchainGas?.amount
+        ? BigNumber.from(interchainGas.amount)
+        : undefined,
+    };
   }
 }

@@ -190,18 +190,36 @@ async function executeDelivery({
 
   const txReceipts = [];
   for (const tx of transferTxs) {
-    if (tx.type === ProviderType.EthersV5) {
-      const signer = multiProvider.getSigner(origin);
-      const txResponse = await signer.sendTransaction(tx.transaction);
-      const txReceipt = await multiProvider.handleTx(origin, txResponse);
-      txReceipts.push(txReceipt);
+    let txReceipt;
+
+    switch (tx.type) {
+      case ProviderType.EthersV5: {
+        const signer = multiProvider.getSigner(origin);
+
+        const provider = multiProvider.getProvider(origin);
+        const connectedSigner = signer.connect(provider);
+        const txResponse = await connectedSigner.sendTransaction(
+          tx.transaction,
+        );
+        txReceipt = await multiProvider.handleTx(origin, txResponse);
+        break;
+      }
+      // case ProviderType.Starknet: {
+      //   const starknetSigner = multiProtocolSigner!.getStarknetSigner(origin)!;
+      //   const txResponse = await starknetSigner.execute(tx.transaction);
+      //   txReceipt = await multiProvider.handleTx(origin, txResponse);
+      //   break;
+      // }
+      default:
+        throw new Error(`Unsupported provider type: ${tx.type}`);
     }
+
+    txReceipts.push(txReceipt);
   }
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
   const message: DispatchedMessage =
     HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
-
   const parsed = parseWarpRouteMessage(message.parsed.body);
 
   logBlue(
