@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { $, ProcessPromise } from 'zx';
+import { $, ProcessOutput, ProcessPromise } from 'zx';
 
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
@@ -61,22 +61,65 @@ export async function asyncStreamInputWrite(
   await sleep(500);
 }
 
-export async function selectAnvil2AndAnvil3(
-  stream: ProcessPromise,
-): Promise<void> {
-  // Scroll down through the mainnet chains list and select anvil2
-  await asyncStreamInputWrite(
-    stream.stdin,
-    `${KeyBoardKeys.ARROW_DOWN.repeat(3)}${KeyBoardKeys.TAB}`,
-  );
-  // Scroll down through the mainnet chains list again and select anvil3
-  await asyncStreamInputWrite(
-    stream.stdin,
-    `${KeyBoardKeys.ARROW_DOWN.repeat(2)}${KeyBoardKeys.TAB}${
-      KeyBoardKeys.ENTER
-    }`,
-  );
+export type TestPromptAction = {
+  check: (currentOutput: string) => boolean;
+  input: string;
+};
+
+export async function handlePrompts(
+  processPromise: Readonly<ProcessPromise>,
+  actions: TestPromptAction[],
+): Promise<ProcessOutput> {
+  let expectedStep = 0;
+  for await (const out of processPromise.stdout) {
+    const currentLine: string = out.toString();
+
+    const currentAction = actions[expectedStep];
+
+    if (currentAction && currentAction.check(currentLine)) {
+      // Select mainnet chains
+      await asyncStreamInputWrite(processPromise.stdin, currentAction.input);
+      expectedStep++;
+    }
+  }
+
+  return processPromise;
 }
+
+export const SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER = `${KeyBoardKeys.ARROW_DOWN.repeat(
+  3,
+)}${KeyBoardKeys.TAB}`;
+
+export const SELECT_ANVIL_3_AFTER_ANVIL_2_FROM_MULTICHAIN_PICKER = `${KeyBoardKeys.ARROW_DOWN.repeat(
+  2,
+)}${KeyBoardKeys.TAB}`;
+
+export const SELECT_MAINNET_CHAIN_TYPE_STEP: TestPromptAction = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Creating a new warp route deployment config...'),
+  // Select mainnet chains
+  input: KeyBoardKeys.ENTER,
+};
+
+export const SELECT_ANVIL_2_AND_ANVIL_3_STEPS: ReadonlyArray<TestPromptAction> =
+  [
+    {
+      check: (currentOutput: string) =>
+        currentOutput.includes('--Mainnet Chains--'),
+      input: `${SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER}`,
+    },
+    {
+      check: (currentOutput: string) =>
+        currentOutput.includes('--Mainnet Chains--'),
+      input: `${SELECT_ANVIL_3_AFTER_ANVIL_2_FROM_MULTICHAIN_PICKER}${KeyBoardKeys.ENTER}`,
+    },
+  ];
+
+export const CONFIRM_DETECTED_OWNER_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Detected owner address as'),
+  input: KeyBoardKeys.ENTER,
+};
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.
