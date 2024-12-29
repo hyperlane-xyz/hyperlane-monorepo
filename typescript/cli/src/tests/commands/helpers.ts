@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { $ } from 'zx';
+import { $, ProcessPromise } from 'zx';
 
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
@@ -8,7 +8,7 @@ import {
   WarpCoreConfig,
   WarpCoreConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, sleep } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
@@ -43,6 +43,39 @@ export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deplo
 export const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
 
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
+
+export enum KeyBoardKeys {
+  ARROW_DOWN = '\x1b[B',
+  ARROW_UP = '\x1b[A',
+  ENTER = '\n',
+  TAB = '\t',
+}
+
+export async function asyncStreamInputWrite(
+  stream: NodeJS.WritableStream,
+  data: string | Buffer,
+): Promise<void> {
+  stream.write(data);
+  // Adding a slight delay to allow the buffer to update the output
+  await sleep(500);
+}
+
+export async function selectAnvil2AndAnvil3(
+  stream: ProcessPromise,
+): Promise<void> {
+  // Scroll down through the mainnet chains list and select anvil2
+  await asyncStreamInputWrite(
+    stream.stdin,
+    `${KeyBoardKeys.ARROW_DOWN.repeat(3)}${KeyBoardKeys.TAB}`,
+  );
+  // Scroll down through the mainnet chains list again and select anvil3
+  await asyncStreamInputWrite(
+    stream.stdin,
+    `${KeyBoardKeys.ARROW_DOWN.repeat(2)}${KeyBoardKeys.TAB}${
+      KeyBoardKeys.ENTER
+    }`,
+  );
+}
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.
@@ -154,7 +187,11 @@ export async function getDomainId(
   return String(chainMetadata?.domainId);
 }
 
-export async function deployToken(privateKey: string, chain: string) {
+export async function deployToken(
+  privateKey: string,
+  chain: string,
+  decimals = 18,
+) {
   const { multiProvider } = await getContext({
     registryUri: REGISTRY_PATH,
     registryOverrideUri: '',
@@ -166,7 +203,7 @@ export async function deployToken(privateKey: string, chain: string) {
 
   const token = await new ERC20Test__factory(
     multiProvider.getSigner(chain),
-  ).deploy('token', 'token', '100000000000000000000', 18);
+  ).deploy('token', 'token', '100000000000000000000', decimals);
   await token.deployed();
 
   return token;

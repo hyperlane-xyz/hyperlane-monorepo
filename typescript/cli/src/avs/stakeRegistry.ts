@@ -136,7 +136,7 @@ async function getOperatorSignature(
 
   // random salt is ok, because we register the operator right after
   const salt = utils.hexZeroPad(utils.randomBytes(32), 32);
-  // give a expiry timestamp 1 hour from now
+  // give an expiry timestamp 1 hour from now
   const expiry = utils.hexZeroPad(
     utils.hexlify(Math.floor(Date.now() / 1000) + 60 * 60),
     32,
