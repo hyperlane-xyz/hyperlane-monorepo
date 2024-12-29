@@ -223,14 +223,14 @@ pub trait BuildableWithProvider {
             let signing_provider = wrap_with_signer(provider, signer.clone())
                 .await
                 .map_err(ChainCommunicationError::from_other)?;
-            let gas_escalator_provider = wrap_with_gas_escalator(signing_provider);
-            let gas_oracle_provider = wrap_with_gas_oracle(gas_escalator_provider, locator.domain)?;
             let nonce_manager_provider =
-                wrap_with_nonce_manager(gas_oracle_provider, signer.address())
+                wrap_with_nonce_manager(signing_provider, signer.address())
                     .await
                     .map_err(ChainCommunicationError::from_other)?;
+            let gas_escalator_provider = wrap_with_gas_escalator(nonce_manager_provider);
+            let gas_oracle_provider = wrap_with_gas_oracle(gas_escalator_provider, locator.domain)?;
 
-            self.build_with_provider(nonce_manager_provider, conn, locator)
+            self.build_with_provider(gas_oracle_provider, conn, locator)
         } else {
             self.build_with_provider(provider, conn, locator)
         }
