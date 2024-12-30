@@ -94,15 +94,16 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
 
             let existing_artifacts = try_read_json::<IgpAccountsArtifacts>(&artifacts_path).ok();
 
-            let salt_str = init.salt.as_ref().unwrap();
-            let salt = H256::from_low_u64_be(salt_str.parse::<u64>().unwrap_or_else(|_| {
-                panic!("Invalid salt value: {}", salt_str);
-            }));
+            let salt = init
+                .account_salt
+                .map(|s| {
+                    let salt_str = s.trim_start_matches("0x");
+                    H256::from_str(salt_str).expect("Invalid salt format")
+                })
+                .unwrap_or_else(H256::zero);
 
             let chain_configs =
                 read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
-
-            println!("SOYLANA SALT: {:?}, {:?}", salt, init.salt);
 
             let igp_account = init_and_configure_igp_account(
                 &mut ctx,

@@ -301,7 +301,10 @@ pub fn start_solana_test_validator(
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("chain", "sealeveltest1")
         .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
-        .arg("salt", "1")
+        .arg(
+            "account-salt",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+        )
         .run()
         .join();
 

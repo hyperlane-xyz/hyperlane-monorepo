@@ -433,7 +433,7 @@ struct InitIgpAccountArgs {
     #[arg(long)]
     gas_oracle_config_file: Option<PathBuf>,
     #[arg(long)]
-    salt: Option<String>,
+    account_salt: Option<String>,
 }
 
 #[derive(Args)]
