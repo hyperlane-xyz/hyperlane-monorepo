@@ -69,7 +69,7 @@ export async function hyperlaneCoreRead(chain: string, coreOutputPath: string) {
 }
 
 /**
- * Reads a Hyperlane core deployment on the specified chain using the provided config.
+ * Verifies that a Hyperlane core deployment matches the provided config on the specified chain.
  */
 export function hyperlaneCoreCheck(
   chain: string,

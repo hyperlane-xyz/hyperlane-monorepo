@@ -66,6 +66,11 @@ export type TestPromptAction = {
   input: string;
 };
 
+/**
+ * Takes a {@link ProcessPromise} and a list of inputs that will be supplied
+ * in the provided order when the check in the {@link TestPromptAction} matches the output
+ * of the {@link ProcessPromise}.
+ */
 export async function handlePrompts(
   processPromise: Readonly<ProcessPromise>,
   actions: TestPromptAction[],
@@ -75,7 +80,6 @@ export async function handlePrompts(
     const currentLine: string = out.toString();
 
     const currentAction = actions[expectedStep];
-
     if (currentAction && currentAction.check(currentLine)) {
       // Select mainnet chains
       await asyncStreamInputWrite(processPromise.stdin, currentAction.input);
@@ -120,6 +124,25 @@ export const CONFIRM_DETECTED_OWNER_STEP: Readonly<TestPromptAction> = {
     currentOutput.includes('Detected owner address as'),
   input: KeyBoardKeys.ENTER,
 };
+
+export const SETUP_CHAIN_SIGNERS_MANUALLY_STEPS: ReadonlyArray<TestPromptAction> =
+  [
+    {
+      check: (currentOutput) =>
+        currentOutput.includes('Please enter the private key for chain'),
+      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+    },
+    {
+      check: (currentOutput) =>
+        currentOutput.includes('Please enter the private key for chain'),
+      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+    },
+    {
+      check: (currentOutput) =>
+        currentOutput.includes('Please enter the private key for chain'),
+      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+    },
+  ];
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.

@@ -25,6 +25,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
   SELECT_MAINNET_CHAIN_TYPE_STEP,
+  SETUP_CHAIN_SIGNERS_MANUALLY_STEPS,
   TestPromptAction,
   handlePrompts,
 } from '../commands/helpers.js';
@@ -51,21 +52,7 @@ describe('hyperlane core deploy e2e tests', async function () {
   describe('hyperlane core deploy', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
       const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
+        ...SETUP_CHAIN_SIGNERS_MANUALLY_STEPS,
         SELECT_MAINNET_CHAIN_TYPE_STEP,
         {
           check: (currentOutput: string) =>
@@ -113,23 +100,7 @@ describe('hyperlane core deploy e2e tests', async function () {
 
   describe('hyperlane core deploy --yes', () => {
     it('should fail if the --chain flag is not provided but the --yes flag is', async () => {
-      const steps: TestPromptAction[] = [
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-        {
-          check: (currentOutput) =>
-            currentOutput.includes('Please enter the private key for chain'),
-          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
-        },
-      ];
+      const steps: TestPromptAction[] = [...SETUP_CHAIN_SIGNERS_MANUALLY_STEPS];
 
       const output = hyperlaneCoreDeployRaw(CORE_CONFIG_PATH, undefined, true)
         .nothrow()
