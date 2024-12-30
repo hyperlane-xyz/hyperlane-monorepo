@@ -1,8 +1,14 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
-import { CoreConfig, HookType, randomAddress } from '@hyperlane-xyz/sdk';
-import { normalizeAddress } from '@hyperlane-xyz/utils';
+import {
+  CoreConfig,
+  HookType,
+  MerkleTreeHookConfig,
+  ProtocolFeeHookConfig,
+  randomAddress,
+} from '@hyperlane-xyz/sdk';
+import { Address, normalizeAddress } from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson } from '../../utils/files.js';
 import { hyperlaneCoreInit } from '../commands/core.js';
@@ -18,6 +24,26 @@ import {
 
 describe('hyperlane core init e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
+
+  function assertCoreInitConfig(
+    coreConfig: CoreConfig,
+    owner: Address,
+    feeHookOwner: Address = owner,
+    feeHookBeneficiary: Address = feeHookOwner,
+  ): void {
+    expect(coreConfig.owner).to.equal(owner);
+    expect(coreConfig.proxyAdmin?.owner).to.equal(owner);
+
+    const defaultHookConfig = coreConfig.defaultHook as MerkleTreeHookConfig;
+    expect(defaultHookConfig.type).to.equal(HookType.MERKLE_TREE);
+
+    const requiredHookConfig = coreConfig.requiredHook as ProtocolFeeHookConfig;
+    expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
+    expect(normalizeAddress(requiredHookConfig.owner)).to.equal(feeHookOwner);
+    expect(normalizeAddress(requiredHookConfig.beneficiary)).to.equal(
+      feeHookBeneficiary,
+    );
+  }
 
   describe('hyperlane core init', () => {
     it('should successfully generate the core contract deployment config', async () => {
@@ -58,26 +84,7 @@ describe('hyperlane core init e2e tests', async function () {
 
       const deploymentCoreConfig: CoreConfig =
         readYamlOrJson(CORE_CONFIG_PATH_2);
-      expect(deploymentCoreConfig.owner).to.equal(owner);
-      expect(deploymentCoreConfig.proxyAdmin?.owner).to.equal(owner);
-
-      const defaultHookConfig = deploymentCoreConfig.defaultHook as Exclude<
-        CoreConfig['defaultHook'],
-        string
-      >;
-      expect(defaultHookConfig.type).to.equal(HookType.MERKLE_TREE);
-
-      const requiredHookConfig = deploymentCoreConfig.requiredHook as Exclude<
-        CoreConfig['requiredHook'],
-        string
-      >;
-      expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
-      expect(normalizeAddress((requiredHookConfig as any).owner)).to.equal(
-        feeHookOwner,
-      );
-      expect(
-        normalizeAddress((requiredHookConfig as any).beneficiary),
-      ).to.equal(feeHookOwner);
+      assertCoreInitConfig(deploymentCoreConfig, owner, feeHookOwner);
     });
   });
 
@@ -105,26 +112,7 @@ describe('hyperlane core init e2e tests', async function () {
 
       const deploymentCoreConfig: CoreConfig =
         readYamlOrJson(CORE_CONFIG_PATH_2);
-      expect(deploymentCoreConfig.owner).to.equal(owner);
-      expect(deploymentCoreConfig.proxyAdmin?.owner).to.equal(owner);
-
-      const defaultHookConfig = deploymentCoreConfig.defaultHook as Exclude<
-        CoreConfig['defaultHook'],
-        string
-      >;
-      expect(defaultHookConfig.type).to.equal(HookType.MERKLE_TREE);
-
-      const requiredHookConfig = deploymentCoreConfig.requiredHook as Exclude<
-        CoreConfig['requiredHook'],
-        string
-      >;
-      expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
-      expect(normalizeAddress((requiredHookConfig as any).owner)).to.equal(
-        owner,
-      );
-      expect(
-        normalizeAddress((requiredHookConfig as any).beneficiary),
-      ).to.equal(owner);
+      assertCoreInitConfig(deploymentCoreConfig, owner);
     });
 
     it('should successfully generate the core contract deployment config when not confirming owner prompts', async () => {
@@ -144,9 +132,11 @@ describe('hyperlane core init e2e tests', async function () {
         },
       ];
 
-      const output = hyperlaneCoreInit(CORE_CONFIG_PATH_2, ANVIL_KEY).stdio(
-        'pipe',
-      );
+      const output = hyperlaneCoreInit(
+        CORE_CONFIG_PATH_2,
+        undefined,
+        ANVIL_KEY,
+      ).stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
@@ -154,26 +144,12 @@ describe('hyperlane core init e2e tests', async function () {
 
       const deploymentCoreConfig: CoreConfig =
         readYamlOrJson(CORE_CONFIG_PATH_2);
-      expect(deploymentCoreConfig.owner).to.equal(owner);
-      expect(deploymentCoreConfig.proxyAdmin?.owner).to.equal(owner);
-
-      const defaultHookConfig = deploymentCoreConfig.defaultHook as Exclude<
-        CoreConfig['defaultHook'],
-        string
-      >;
-      expect(defaultHookConfig.type).to.equal(HookType.MERKLE_TREE);
-
-      const requiredHookConfig = deploymentCoreConfig.requiredHook as Exclude<
-        CoreConfig['requiredHook'],
-        string
-      >;
-      expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
-      expect(normalizeAddress((requiredHookConfig as any).owner)).to.equal(
+      assertCoreInitConfig(
+        deploymentCoreConfig,
         owner,
+        undefined,
+        feeHookOwner,
       );
-      expect(
-        normalizeAddress((requiredHookConfig as any).beneficiary),
-      ).to.equal(feeHookOwner);
     });
   });
 
@@ -199,26 +175,7 @@ describe('hyperlane core init e2e tests', async function () {
 
       const deploymentCoreConfig: CoreConfig =
         readYamlOrJson(CORE_CONFIG_PATH_2);
-      expect(deploymentCoreConfig.owner).to.equal(owner);
-      expect(deploymentCoreConfig.proxyAdmin?.owner).to.equal(owner);
-
-      const defaultHookConfig = deploymentCoreConfig.defaultHook as Exclude<
-        CoreConfig['defaultHook'],
-        string
-      >;
-      expect(defaultHookConfig.type).to.equal(HookType.MERKLE_TREE);
-
-      const requiredHookConfig = deploymentCoreConfig.requiredHook as Exclude<
-        CoreConfig['requiredHook'],
-        string
-      >;
-      expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
-      expect(normalizeAddress((requiredHookConfig as any).owner)).to.equal(
-        owner,
-      );
-      expect(
-        normalizeAddress((requiredHookConfig as any).beneficiary),
-      ).to.equal(owner);
+      assertCoreInitConfig(deploymentCoreConfig, owner);
     });
 
     it('should successfully generate the core contract deployment config when not confirming owner prompts', async () => {
@@ -248,26 +205,12 @@ describe('hyperlane core init e2e tests', async function () {
 
       const deploymentCoreConfig: CoreConfig =
         readYamlOrJson(CORE_CONFIG_PATH_2);
-      expect(deploymentCoreConfig.owner).to.equal(owner);
-      expect(deploymentCoreConfig.proxyAdmin?.owner).to.equal(owner);
-
-      const defaultHookConfig = deploymentCoreConfig.defaultHook as Exclude<
-        CoreConfig['defaultHook'],
-        string
-      >;
-      expect(defaultHookConfig.type).to.equal(HookType.MERKLE_TREE);
-
-      const requiredHookConfig = deploymentCoreConfig.requiredHook as Exclude<
-        CoreConfig['requiredHook'],
-        string
-      >;
-      expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
-      expect(normalizeAddress((requiredHookConfig as any).owner)).to.equal(
+      assertCoreInitConfig(
+        deploymentCoreConfig,
         owner,
+        undefined,
+        feeHookOwner,
       );
-      expect(
-        normalizeAddress((requiredHookConfig as any).beneficiary),
-      ).to.equal(feeHookOwner);
     });
   });
 });
