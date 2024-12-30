@@ -12,9 +12,8 @@ import {
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { WarpSendLogs } from '../send/transfer.js';
-import { writeYamlOrJson } from '../utils/files.js';
-
+import { WarpSendLogs } from '../../send/transfer.js';
+import { writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -27,8 +26,8 @@ import {
   deployOrUseExistingCore,
   deployToken,
   sendWarpRouteMessageRoundTrip,
-} from './commands/helpers.js';
-import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
+} from '../commands/helpers.js';
+import { hyperlaneWarpDeploy, readWarpConfig } from '../commands/warp.js';
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;

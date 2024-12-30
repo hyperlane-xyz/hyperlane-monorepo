@@ -2,8 +2,7 @@ import { expect } from 'chai';
 
 import { WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
-
+import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -14,8 +13,8 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   deployOrUseExistingCore,
-} from './commands/helpers.js';
-import { hyperlaneWarpDeploy, readWarpConfig } from './commands/warp.js';
+} from '../commands/helpers.js';
+import { hyperlaneWarpDeploy, readWarpConfig } from '../commands/warp.js';
 
 describe('hyperlane warp read e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);

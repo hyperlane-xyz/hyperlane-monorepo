@@ -11,8 +11,7 @@ import {
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 
-import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
-
+import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -30,12 +29,12 @@ import {
   extendWarpConfig,
   getDomainId,
   updateOwner,
-} from './commands/helpers.js';
+} from '../commands/helpers.js';
 import {
   hyperlaneWarpApply,
   hyperlaneWarpDeploy,
   readWarpConfig,
-} from './commands/warp.js';
+} from '../commands/warp.js';
 
 describe('hyperlane warp apply e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);
