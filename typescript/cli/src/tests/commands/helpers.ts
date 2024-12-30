@@ -1,7 +1,11 @@
 import { ethers } from 'ethers';
 import { $, ProcessOutput, ProcessPromise } from 'zx';
 
-import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
+import {
+  ERC20Test,
+  ERC20Test__factory,
+  ERC4626Test__factory,
+} from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   HypTokenRouterConfig,
@@ -258,7 +262,7 @@ export async function deployToken(
   privateKey: string,
   chain: string,
   decimals = 18,
-) {
+): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
     registryUri: REGISTRY_PATH,
     registryOverrideUri: '',

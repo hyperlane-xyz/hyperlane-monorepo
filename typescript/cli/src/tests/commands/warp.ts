@@ -70,6 +70,19 @@ export async function hyperlaneWarpRead(
         --config ${warpDeployPath}`;
 }
 
+export function hyperlaneWarpCheck(
+  warpDeployPath: string,
+  symbol: string,
+): ProcessPromise {
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
+        --registry ${REGISTRY_PATH} \
+        --overrides " " \
+        --symbol ${symbol} \
+        --key ${ANVIL_KEY} \
+        --verbosity debug \
+        --config ${warpDeployPath}`;
+}
+
 export async function hyperlaneWarpSendRelay(
   origin: string,
   destination: string,
