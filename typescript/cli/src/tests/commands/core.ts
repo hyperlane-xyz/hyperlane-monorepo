@@ -76,11 +76,20 @@ export function hyperlaneCoreCheck(
   coreOutputPath: string,
   mailbox?: Address,
 ): ProcessPromise {
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane core check \
+  if (mailbox) {
+    return $`yarn workspace @hyperlane-xyz/cli run hyperlane core check \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --chain ${chain} \
         --mailbox ${mailbox} \
+        --verbosity debug \
+        --yes`;
+  }
+
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane core check \
+        --registry ${REGISTRY_PATH} \
+        --config ${coreOutputPath} \
+        --chain ${chain} \
         --verbosity debug \
         --yes`;
 }
