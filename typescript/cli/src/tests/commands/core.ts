@@ -14,7 +14,16 @@ export function hyperlaneCoreDeployRaw(
   coreInputPath: string,
   privateKey?: string,
   skip?: boolean,
+  hyp_key?: string,
 ): ProcessPromise {
+  if (hyp_key) {
+    return $`HYP_KEY=${hyp_key} yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
+        --registry ${REGISTRY_PATH} \
+        --config ${coreInputPath} \
+        --verbosity debug \
+        ${skip ? '--yes' : ''}`;
+  }
+
   if (privateKey) {
     return $`yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
         --registry ${REGISTRY_PATH} \

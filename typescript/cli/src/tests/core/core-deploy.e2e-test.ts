@@ -111,6 +111,37 @@ describe('hyperlane core deploy e2e tests', async function () {
     });
   });
 
+  describe('hyperlane core deploy --yes', () => {
+    it('should fail if the --chain flag is not provided but the --yes flag is', async () => {
+      const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Please enter the private key for chain'),
+          input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+        },
+      ];
+
+      const output = hyperlaneCoreDeployRaw(CORE_CONFIG_PATH, undefined, true)
+        .nothrow()
+        .stdio('pipe');
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(1);
+      expect(finalOutput.text().includes('No chain provided')).to.be.true;
+    });
+  });
+
   describe('hyperlane core deploy --key ...', () => {
     it('should create a core deployment with the signer as the mailbox owner', async () => {
       const steps: TestPromptAction[] = [
@@ -138,6 +169,59 @@ describe('hyperlane core deploy e2e tests', async function () {
       const output = hyperlaneCoreDeployRaw(CORE_CONFIG_PATH, ANVIL_KEY).stdio(
         'pipe',
       );
+
+      const finalOutput = await handlePrompts(output, steps);
+
+      expect(finalOutput.exitCode).to.equal(0);
+
+      const coreConfig: CoreConfig = await readCoreConfig(
+        CHAIN_NAME_2,
+        CORE_READ_CONFIG_PATH_2,
+      );
+      expect(coreConfig.owner).to.equal(initialOwnerAddress);
+      expect(coreConfig.proxyAdmin?.owner).to.equal(initialOwnerAddress);
+      // Assuming that the ProtocolFeeHook is used for deployment
+      const requiredHookConfig = coreConfig.requiredHook as Exclude<
+        CoreConfig['requiredHook'],
+        string
+      >;
+      expect(requiredHookConfig.type).to.equal(HookType.PROTOCOL_FEE);
+      expect((requiredHookConfig as ProtocolFeeHookConfig).owner).to.equal(
+        initialOwnerAddress,
+      );
+    });
+  });
+
+  describe('HYP_KEY= ... hyperlane core deploy', () => {
+    it('should create a core deployment with the signer as the mailbox owner', async () => {
+      const steps: TestPromptAction[] = [
+        SELECT_MAINNET_CHAIN_TYPE_STEP,
+        {
+          check: (currentOutput: string) =>
+            currentOutput.includes('--Mainnet Chains--'),
+          // Scroll down through the mainnet chains list and select anvil2
+          input: `${KeyBoardKeys.ARROW_DOWN.repeat(2)}}${KeyBoardKeys.ENTER}`,
+        },
+        {
+          // When running locally the e2e tests, the chains folder might already have the chain contracts
+          check: (currentOutput) =>
+            currentOutput.includes('Mailbox already exists at') ||
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: `yes${KeyBoardKeys.ENTER}`,
+        },
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Is this deployment plan correct?'),
+          input: KeyBoardKeys.ENTER,
+        },
+      ];
+
+      const output = hyperlaneCoreDeployRaw(
+        CORE_CONFIG_PATH,
+        undefined,
+        undefined,
+        ANVIL_KEY,
+      ).stdio('pipe');
 
       const finalOutput = await handlePrompts(output, steps);
 
