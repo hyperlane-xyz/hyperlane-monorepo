@@ -293,17 +293,17 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
-    // sealevel_client
-    //     .cmd("igp")
-    //     .cmd("init-igp-account")
-    //     .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
-    //     .arg("environment", SOLANA_ENV_NAME)
-    //     .arg("environments-dir", SOLANA_ENVS_DIR)
-    //     .arg("chain", "sealeveltest1")
-    //     .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
-    //     .arg("salt", "1")
-    //     .run()
-    //     .join();
+    sealevel_client
+        .cmd("igp")
+        .cmd("init-igp-account")
+        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("environment", SOLANA_ENV_NAME)
+        .arg("environments-dir", SOLANA_ENVS_DIR)
+        .arg("chain", "sealeveltest1")
+        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
+        .arg("salt", "1")
+        .run()
+        .join();
 
     log!("Local Solana chain started and hyperlane programs deployed and initialized successfully");
 
@@ -364,8 +364,58 @@ pub fn initiate_solana_hyperlane_transfer(
         .arg("gas", "100000")
         .run()
         .join();
-
     message_id
+}
+
+#[apply(as_task)]
+pub fn initiate_solana_non_igp_paying_transfer(
+    solana_cli_tools_path: PathBuf,
+    solana_config_path: PathBuf,
+) -> String {
+    let sender = Program::new(concat_path(&solana_cli_tools_path, "solana"))
+        .arg("config", solana_config_path.to_str().unwrap())
+        .arg("keypair", SOLANA_KEYPAIR)
+        .cmd("address")
+        .run_with_output()
+        .join()
+        .get(0)
+        .expect("failed to get sender address")
+        .trim()
+        .to_owned();
+
+    let output = sealevel_client(&solana_cli_tools_path, &solana_config_path)
+        .cmd("token")
+        .cmd("transfer-remote")
+        .cmd(SOLANA_KEYPAIR)
+        .cmd("10000000000")
+        .cmd(SOLANA_REMOTE_CHAIN_ID)
+        .cmd(sender) // send to self
+        .cmd("native")
+        .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
+        .run_with_output()
+        .join();
+    let another_message_id = get_message_id_from_logs(output.clone())
+        .unwrap_or_else(|| panic!("failed to get message id from logs: {:?}", output));
+
+    log!(
+        "found message id for non matching igp: {}",
+        another_message_id
+    );
+    sealevel_client(&solana_cli_tools_path, &solana_config_path)
+        .cmd("igp")
+        .cmd("pay-for-gas")
+        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("message-id", another_message_id.clone())
+        .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
+        .arg("gas", "100000")
+        .arg(
+            "account-salt",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+        )
+        .run()
+        .join();
+
+    another_message_id
 }
 
 fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {

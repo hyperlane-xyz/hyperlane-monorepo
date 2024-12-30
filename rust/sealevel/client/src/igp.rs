@@ -195,7 +195,15 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
         }
         IgpSubCmd::PayForGas(payment_details) => {
             let unique_gas_payment_keypair = Keypair::new();
-            let salt = H256::zero();
+
+            let salt = payment_details
+                .account_salt
+                .map(|s| {
+                    let salt_str = s.trim_start_matches("0x");
+                    H256::from_str(salt_str).expect("Invalid salt format")
+                })
+                .unwrap_or_else(H256::zero);
+
             let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
                 hyperlane_sealevel_igp::igp_pda_seeds!(salt),
                 &payment_details.program_id,
@@ -204,6 +212,10 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             let (overhead_igp_account, _) = Pubkey::find_program_address(
                 hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
                 &payment_details.program_id,
+            );
+            println!(
+                "SOYLANA paid to IGP account: {:?}, {:?}",
+                igp_account, overhead_igp_account
             );
             let (ixn, gas_payment_data_account) =
                 hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(

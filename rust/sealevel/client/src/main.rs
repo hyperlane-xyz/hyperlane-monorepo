@@ -485,6 +485,8 @@ struct PayForGasArgs {
     destination_domain: u32,
     #[arg(long)]
     gas: u64,
+    #[arg(long)]
+    account_salt: Option<String>,
 }
 
 #[derive(Args)]
