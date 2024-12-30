@@ -91,20 +91,15 @@ export function hyperlaneCoreCheck(
 export function hyperlaneCoreInit(
   coreOutputPath: string,
   privateKey?: string,
+  hyp_key?: string,
 ): ProcessPromise {
-  if (privateKey) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane core init \
+  return $`${
+    hyp_key ? `HYP_KEY=${hyp_key}` : ''
+  } yarn workspace @hyperlane-xyz/cli run hyperlane core init \
         --registry ${REGISTRY_PATH} \
         --config ${coreOutputPath} \
         --verbosity debug \
-        --key ${privateKey} \
-        --yes`;
-  }
-
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane core init \
-        --registry ${REGISTRY_PATH} \
-        --config ${coreOutputPath} \
-        --verbosity debug \
+        ${privateKey ? `--key ${privateKey}` : ''} \
         --yes`;
 }
 
