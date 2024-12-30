@@ -19,12 +19,12 @@ export {
 } from './consts/multisigIsm.js';
 export { SEALEVEL_SPL_NOOP_ADDRESS } from './consts/sealevel.js';
 export {
-  TestChainName,
   multiProtocolTestChainMetadata,
   test1,
   test2,
   test3,
   testChainMetadata,
+  TestChainName,
   testChains,
   testCosmosChain,
   testSealevelChain,
@@ -209,18 +209,24 @@ export {
   AgentCosmosGasPrice,
   AgentLogFormat,
   AgentLogLevel,
+  AgentSealevelChainMetadata,
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelPriorityFeeOracleType,
+  AgentSealevelTransactionSubmitter,
+  AgentSealevelTransactionSubmitterType,
   AgentSigner,
   AgentSignerAwsKey,
   AgentSignerHexKey,
   AgentSignerKeyType,
   AgentSignerNode,
+  buildAgentConfig,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   RelayerConfig,
   RpcConsensusType,
   ScraperConfig,
   ValidatorConfig,
-  buildAgentConfig,
 } from './metadata/agentConfig.js';
 export {
   ChainMetadataManager,
@@ -236,15 +242,15 @@ export {
   EthJsonRpcBlockParameterTag,
   ExplorerFamily,
   ExplorerFamilyValue,
-  NativeToken,
-  RpcUrl,
-  RpcUrlSchema,
   getChainIdNumber,
   getDomainId,
   getReorgPeriod,
   isValidChainMetadata,
   mergeChainMetadata,
   mergeChainMetadataMap,
+  NativeToken,
+  RpcUrl,
+  RpcUrlSchema,
 } from './metadata/chainMetadataTypes.js';
 export { ZChainName, ZHash } from './metadata/customZodTypes.js';
 export {
@@ -299,9 +305,6 @@ export {
   MultiProviderOptions,
 } from './providers/MultiProvider.js';
 export {
-  ProviderBuilderFn,
-  ProviderBuilderMap,
-  TypedProviderBuilderFn,
   defaultEthersV5ProviderBuilder,
   defaultFuelProviderBuilder,
   defaultProviderBuilder,
@@ -309,6 +312,9 @@ export {
   defaultSolProviderBuilder,
   defaultViemProviderBuilder,
   protocolToDefaultProviderBuilder,
+  ProviderBuilderFn,
+  ProviderBuilderMap,
+  TypedProviderBuilderFn,
 } from './providers/providerBuilders.js';
 export {
   CosmJsContract,
@@ -348,9 +354,9 @@ export { HyperlaneEtherscanProvider } from './providers/SmartProvider/HyperlaneE
 export { HyperlaneJsonRpcProvider } from './providers/SmartProvider/HyperlaneJsonRpcProvider.js';
 export {
   AllProviderMethods,
+  excludeProviderMethods,
   IProviderMethods,
   ProviderMethod,
-  excludeProviderMethods,
 } from './providers/SmartProvider/ProviderMethods.js';
 export { HyperlaneSmartProvider } from './providers/SmartProvider/SmartProvider.js';
 export {
@@ -412,13 +418,14 @@ export {
 export {
   ChainGasOracleParams,
   GasPriceConfig,
-  NativeTokenPriceConfig,
   getCosmosChainGasPrice,
   getGasPrice,
   getLocalStorageGasOracleConfig,
   getTokenExchangeRateFromValues,
+  NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
+export { EvmHookModule } from './hook/EvmHookModule.js';
 export {
   DerivedIcaRouterConfig,
   DerivedIcaRouterConfigSchema,
@@ -458,17 +465,17 @@ export {
   MailboxClientConfig,
   MailboxClientConfigSchema,
   ProxiedFactories,
+  proxiedFactories,
   ProxiedRouterConfig,
   RemoteRouters,
   RouterAddress,
   RouterConfig,
   RouterViolation,
   RouterViolationType,
-  proxiedFactories,
 } from './router/types.js';
 export {
-  CosmIbcToWarpTokenAdapter,
   CosmIbcTokenAdapter,
+  CosmIbcToWarpTokenAdapter,
   CosmNativeTokenAdapter,
 } from './token/adapters/CosmosTokenAdapter.js';
 export {
@@ -491,8 +498,8 @@ export {
 export {
   IHypTokenAdapter,
   IHypXERC20Adapter,
-  ITokenAdapter,
   InterchainGasQuote,
+  ITokenAdapter,
   TransferParams,
   TransferRemoteParams,
 } from './token/adapters/ITokenAdapter.js';
@@ -505,9 +512,9 @@ export {
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
 export {
-  SealevelHypTokenInstruction,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
+  SealevelHypTokenInstruction,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
@@ -515,11 +522,11 @@ export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
 export { TokenType } from './token/config.js';
 export {
+  hypERC20contracts,
   HypERC20Factories,
+  hypERC20factories,
   HypERC721Factories,
   TokenFactories,
-  hypERC20contracts,
-  hypERC20factories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
@@ -528,16 +535,17 @@ export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
 export {
+  getTokenConnectionId,
   HyperlaneTokenConnection,
   IbcToHyperlaneTokenConnection,
   IbcTokenConnection,
+  parseTokenConnectionId,
   TokenConnection,
   TokenConnectionConfigSchema,
   TokenConnectionType,
-  getTokenConnectionId,
-  parseTokenConnectionId,
 } from './token/TokenConnection.js';
 export {
+  MINT_LIMITED_STANDARDS,
   PROTOCOL_TO_NATIVE_STANDARD,
   TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_COSMWASM_STANDARDS,
@@ -545,8 +553,10 @@ export {
   TOKEN_MULTI_CHAIN_STANDARDS,
   TOKEN_NFT_STANDARDS,
   TOKEN_STANDARD_TO_PROTOCOL,
+  TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TOKEN_TYPE_TO_STANDARD,
   TokenStandard,
+  XERC20_STANDARDS,
 } from './token/TokenStandard.js';
 export {
   CollateralRebaseTokenConfigSchema,
@@ -556,6 +566,12 @@ export {
   HypTokenConfigSchema,
   HypTokenRouterConfig,
   HypTokenRouterConfigSchema,
+  isCollateralRebaseTokenConfig,
+  isCollateralTokenConfig,
+  isNativeTokenConfig,
+  isSyntheticRebaseTokenConfig,
+  isSyntheticTokenConfig,
+  isTokenMetadata,
   NativeTokenConfig,
   NativeTokenConfigSchema,
   SyntheticRebaseTokenConfig,
@@ -567,12 +583,6 @@ export {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
-  isCollateralRebaseTokenConfig,
-  isCollateralTokenConfig,
-  isNativeTokenConfig,
-  isSyntheticRebaseTokenConfig,
-  isSyntheticTokenConfig,
-  isTokenMetadata,
 } from './token/types.js';
 export {
   ChainMap,
@@ -610,12 +620,15 @@ export { multisigIsmVerificationCost, normalizeConfig } from './utils/ism.js';
 export { MultiGeneric } from './utils/MultiGeneric.js';
 export { isCompliant, validateZodResult } from './utils/schemas.js';
 export {
+  getSealevelAccountDataSchema,
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
-  getSealevelAccountDataSchema,
 } from './utils/sealevelSerialization.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
-export { getValidatorFromStorageLocation } from './utils/validator.js';
+export {
+  getValidatorFromStorageLocation,
+  isValidValidatorStorageLocation,
+} from './utils/validator.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -625,4 +638,3 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
-export { EvmHookModule } from './hook/EvmHookModule.js';

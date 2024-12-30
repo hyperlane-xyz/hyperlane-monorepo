@@ -261,6 +261,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .default('concurrentDeploy', false);
 }
 
+export function withConcurrency<T>(args: Argv<T>) {
+  return args
+    .describe('concurrency', 'Number of concurrent deploys')
+    .number('concurrency')
+    .default('concurrency', 1);
+}
+
 export function withRpcUrls<T>(args: Argv<T>) {
   return args
     .describe(
@@ -295,9 +302,11 @@ export async function getWarpRouteIdInteractive() {
 
 // Interactively gets multiple warp route IDs
 export async function getWarpRouteIdsInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
+  const choices = Object.values(WarpRouteIds)
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
 
   let selection: WarpRouteIds[] = [];
 
