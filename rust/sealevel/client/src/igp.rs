@@ -113,6 +113,8 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 init.gas_oracle_config_file,
             );
 
+            println!("SOYLANA IGPA: {:?}, salt: {:?}", igp_account, salt);
+
             let artifacts = IgpAccountsArtifacts {
                 salt,
                 igp_account: Some(igp_account),
