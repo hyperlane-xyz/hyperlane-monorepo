@@ -347,7 +347,6 @@ pub fn initiate_solana_hyperlane_transfer(
 
     log!("found message id: {}", message_id);
     sealevel_client(&solana_cli_tools_path, &solana_config_path)
-        .clone()
         .cmd("igp")
         .cmd("pay-for-gas")
         .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
@@ -357,16 +356,6 @@ pub fn initiate_solana_hyperlane_transfer(
         .run()
         .join();
 
-    log!("found message id: {}", message_id);
-    sealevel_client(&solana_cli_tools_path, &solana_config_path)
-        .cmd("igp")
-        .cmd("pay-for-gas")
-        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
-        .arg("message-id", message_id.clone())
-        .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
-        .arg("gas", "100000")
-        .run()
-        .join();
     message_id
 }
 
