@@ -452,6 +452,8 @@ struct InitOverheadIgpAccountArgs {
     context: Option<String>,
     #[arg(long)]
     overhead_config_file: Option<PathBuf>,
+    #[arg(long)]
+    account_salt: Option<String>,
 }
 
 #[derive(Args)]
@@ -1105,6 +1107,10 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                 AccountMeta::new(dispatched_message_account, false),
             ];
 
+            println!(
+                "SOYLANA igp for transfer: {:?}",
+                token.interchain_gas_paymaster
+            );
             if let Some((igp_program_id, igp_account_type)) = token.interchain_gas_paymaster {
                 let (igp_program_data, _bump) =
                     Pubkey::find_program_address(igp_program_data_pda_seeds!(), &igp_program_id);
@@ -1131,12 +1137,14 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
                             OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
                                 .unwrap()
                                 .into_inner();
+                        println!("SOYLANA overhead igp account: {:?}", overhead_igp_account);
                         accounts.extend([
                             AccountMeta::new_readonly(overhead_igp_account_id, false),
                             AccountMeta::new(overhead_igp_account.inner, false),
                         ]);
                     }
                     InterchainGasPaymasterType::Igp(igp_account_id) => {
+                        println!("SOYLANA igp account: {:?}", igp_account_id);
                         accounts.push(AccountMeta::new(igp_account_id, false));
                     }
                 }

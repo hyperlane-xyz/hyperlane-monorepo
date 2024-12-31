@@ -73,6 +73,8 @@ const SOLANA_REMOTE_CHAIN_ID: &str = "13376";
 pub const SOLANA_CHECKPOINT_LOCATION: &str =
     "/tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
 
+const SOLANA_GAS_ORACLE_CONFIG_FILE: &str =
+    "../sealevel/environments/local-e2e/gas-oracle-configs.json";
 const SOLANA_OVERHEAD_CONFIG_FILE: &str = "../sealevel/environments/local-e2e/overheads.json";
 
 // Install the CLI tools and return the path to the bin dir.
@@ -294,6 +296,7 @@ pub fn start_solana_test_validator(
         .join();
 
     sealevel_client
+        .clone()
         .cmd("igp")
         .cmd("init-igp-account")
         .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
@@ -301,6 +304,27 @@ pub fn start_solana_test_validator(
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("chain", "sealeveltest1")
         .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
+        .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
+        .arg(
+            "account-salt",
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+        )
+        .run()
+        .join();
+
+    sealevel_client
+        .cmd("igp")
+        .cmd("init-overhead-igp-account")
+        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("environment", SOLANA_ENV_NAME)
+        .arg("environments-dir", SOLANA_ENVS_DIR)
+        .arg("chain", "sealeveltest1")
+        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
+        .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE)
+        .arg(
+            "inner-igp-account",
+            "8EniU8dQaGQ3HWWtT77V7hrksheygvEu6TtzJ3pX1nKM",
+        )
         .arg(
             "account-salt",
             "0x0000000000000000000000000000000000000000000000000000000000000001",
