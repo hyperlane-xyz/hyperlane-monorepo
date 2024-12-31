@@ -204,7 +204,6 @@ enum MailboxSubCmd {
     Delivered(Delivered),
     TransferOwnership(TransferOwnership),
     SetDefaultIsm(SetDefaultIsm),
-    Migrate(Query),
 }
 
 const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
@@ -889,16 +888,6 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                     instruction,
                     format!("Setting default ISM to {}", set_default_ism.default_ism),
                 )
-                .send_with_payer();
-        }
-        MailboxSubCmd::Migrate(flags) => {
-            let instruction = hyperlane_sealevel_mailbox::instruction::migrate_instruction(
-                flags.program_id,
-                ctx.payer_pubkey,
-            )
-            .unwrap();
-            ctx.new_txn()
-                .add_with_description(instruction, format!("Migrating"))
                 .send_with_payer();
         }
     };

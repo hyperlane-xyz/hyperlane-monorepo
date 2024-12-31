@@ -33,7 +33,7 @@ use serializable_account_meta::SimulationReturnData;
 use crate::{
     accounts::{
         DispatchedMessage, DispatchedMessageAccount, Inbox, InboxAccount, Outbox, OutboxAccount,
-        OutboxOld, ProcessedMessage, ProcessedMessageAccount,
+        ProcessedMessage, ProcessedMessageAccount,
     },
     error::Error,
     instruction::{InboxProcess, Init, Instruction as MailboxIxn, OutboxDispatch, VERSION},
@@ -71,54 +71,11 @@ pub fn process_instruction(
         MailboxIxn::SetProtocolFeeConfig(new_protocol_fee_config) => {
             set_protocol_fee_config(program_id, accounts, new_protocol_fee_config)
         }
-        MailboxIxn::Migrate => migrate(program_id, accounts),
     }
     .map_err(|err| {
         msg!("{}", err);
         err
     })
-}
-
-fn migrate(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
-    let accounts_iter = &mut accounts.iter();
-
-    // Account 0: System program.
-    let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &solana_program::system_program::id() {
-        return Err(ProgramError::InvalidArgument);
-    }
-
-    // Account 1: The Outbox.
-    let outbox_account = next_account_info(accounts_iter)?;
-    let outbox_old = OutboxOld::verify_account_and_fetch_inner(program_id, outbox_account)?;
-
-    // Account 2: The owner of the Mailbox.
-    let owner_info = next_account_info(accounts_iter)?;
-    // Errors if the owner account isn't correct or isn't a signer.
-    outbox_old.ensure_owner_signer(owner_info)?;
-
-    let outbox = Outbox {
-        local_domain: outbox_old.local_domain,
-        outbox_bump_seed: outbox_old.outbox_bump_seed,
-        owner: outbox_old.owner,
-        tree: outbox_old.tree,
-        max_protocol_fee: 1_000_000_000,
-        protocol_fee: ProtocolFee {
-            fee: 0,
-            beneficiary: *owner_info.key,
-        },
-    };
-
-    let rent = Rent::get()?;
-
-    OutboxAccount::from(outbox).store_with_rent_exempt_realloc(
-        outbox_account,
-        &rent,
-        owner_info,
-        system_program_info,
-    )?;
-
-    Ok(())
 }
 
 /// Initializes the Mailbox.
