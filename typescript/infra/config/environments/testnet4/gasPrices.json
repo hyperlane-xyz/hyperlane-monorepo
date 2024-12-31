@@ -1,6 +1,6 @@
 {
   "abstracttestnet": {
-    "amount": "0.060764843",
+    "amount": "0.121737811",
     "decimals": 9
   },
   "alephzeroevmtestnet": {
@@ -12,7 +12,7 @@
     "decimals": 9
   },
   "arbitrumsepolia": {
-    "amount": "0.1",
+    "amount": "13.60165",
     "decimals": 9
   },
   "arcadiatestnet2": {
@@ -20,15 +20,15 @@
     "decimals": 9
   },
   "basesepolia": {
-    "amount": "0.00236715",
+    "amount": "0.001001648",
     "decimals": 9
   },
   "berabartio": {
-    "amount": "10.832064411",
+    "amount": "52.371646387",
     "decimals": 9
   },
   "bsctestnet": {
-    "amount": "100.0",
+    "amount": "3.0",
     "decimals": 9
   },
   "camptestnet": {
@@ -36,7 +36,7 @@
     "decimals": 9
   },
   "citreatestnet": {
-    "amount": "5.032361163",
+    "amount": "0.0100001",
     "decimals": 9
   },
   "connextsepolia": {
@@ -56,11 +56,11 @@
     "decimals": 9
   },
   "fuji": {
-    "amount": "25.000000001",
+    "amount": "1.000000001",
     "decimals": 9
   },
   "holesky": {
-    "amount": "0.760231049",
+    "amount": "0.10926616",
     "decimals": 9
   },
   "inksepolia": {
@@ -68,39 +68,43 @@
     "decimals": 9
   },
   "odysseytestnet": {
-    "amount": "2.000000252",
+    "amount": "1.000000252",
     "decimals": 9
   },
   "optimismsepolia": {
-    "amount": "0.001000256",
+    "amount": "0.00100026",
     "decimals": 9
   },
   "polygonamoy": {
-    "amount": "56.722205902",
+    "amount": "55.000000016",
     "decimals": 9
   },
   "scrollsepolia": {
-    "amount": "2.398017347",
+    "amount": "0.043153823",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "4.349910601",
+    "amount": "23.260492878",
     "decimals": 9
   },
   "solanatestnet": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.0001",
+    "decimals": 1
   },
   "soneiumtestnet": {
-    "amount": "0.001000259",
+    "amount": "0.001000278",
     "decimals": 9
+  },
+  "sonicsvmtestnet": {
+    "amount": "0.0001",
+    "decimals": 1
   },
   "sonictestnet": {
     "amount": "1.025001",
     "decimals": 9
   },
   "suavetoliman": {
-    "amount": "2.0736",
+    "amount": "10.0",
     "decimals": 9
   },
   "superpositiontestnet": {
@@ -108,11 +112,11 @@
     "decimals": 9
   },
   "treasuretopaz": {
-    "amount": "0.060735501",
+    "amount": "920.36220447",
     "decimals": 9
   },
   "unichaintestnet": {
-    "amount": "0.001000264",
+    "amount": "0.001000252",
     "decimals": 9
   }
 }

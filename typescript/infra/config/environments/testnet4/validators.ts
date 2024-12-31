@@ -318,6 +318,18 @@ export const validatorChainConfig = (
         'sonictestnet',
       ),
     },
+    sonicsvmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonicsvmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x83d4ef35f170ec822a0eaadb22a0c40003d8de23'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'sonictestnet',
+      ),
+    },
     arcadiatestnet2: {
       interval: 5,
       reorgPeriod: getReorgPeriod('arcadiatestnet2'),
