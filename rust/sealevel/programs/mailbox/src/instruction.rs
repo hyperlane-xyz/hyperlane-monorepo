@@ -40,6 +40,8 @@ pub enum Instruction {
     ClaimProtocolFees,
     /// Sets the protocol fee configuration.
     SetProtocolFeeConfig(ProtocolFee),
+    /// Migrate
+    Migrate,
 }
 
 impl Instruction {
@@ -174,6 +176,30 @@ pub fn set_default_ism_instruction(
         accounts: vec![
             AccountMeta::new(inbox_account, false),
             AccountMeta::new_readonly(outbox_account, false),
+            AccountMeta::new(owner_payer, true),
+        ],
+    };
+    Ok(instruction)
+}
+
+/// Creates an InboxSetDefaultIsm instruction.
+pub fn migrate_instruction(
+    program_id: Pubkey,
+    owner_payer: Pubkey,
+) -> Result<SolanaInstruction, ProgramError> {
+    let (outbox_account, _outbox_bump) =
+        Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &program_id)
+            .ok_or(ProgramError::InvalidSeeds)?;
+
+    // 0. `[writeable]` - The Inbox PDA account.
+    // 1. `[]` - The Outbox PDA account.
+    // 2. `[signer]` - The owner of the Mailbox.
+    let instruction = SolanaInstruction {
+        program_id,
+        data: Instruction::Migrate.into_instruction_data()?,
+        accounts: vec![
+            AccountMeta::new_readonly(solana_program::system_program::id(), false),
+            AccountMeta::new(outbox_account, false),
             AccountMeta::new(owner_payer, true),
         ],
     };
