@@ -45,7 +45,7 @@ pub fn termination_invariants_met(
     )?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.iter().sum::<u32>()
-        != ZERO_MERKLE_INSERTION_KATHY_MESSAGES + sol_messages_with_non_matching_igp
+        != ZERO_MERKLE_INSERTION_KATHY_MESSAGES
     {
         log!("Relayer queues not empty. Lengths: {:?}", lengths);
         return Ok(false);
@@ -76,6 +76,7 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+    println!("SOYLANA gas_payment_events_count: {}", gas_payment_events_count);
 
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
@@ -101,6 +102,8 @@ pub fn termination_invariants_met(
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
     let gas_expenditure_log_count = log_counts.get(GAS_EXPENDITURE_LOG_MESSAGE).unwrap();
+    println!("SOYLANA gas_expenditure_log_count: {}", gas_expenditure_log_count);
+    println!("SOYLANA total_messages_expected: {}", total_messages_expected);
     assert!(
         gas_expenditure_log_count >= &total_messages_expected,
         "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
@@ -117,6 +120,7 @@ pub fn termination_invariants_met(
         "Didn't find any logs about looking for events in index range"
     );
     let total_tx_id_log_count = log_counts.get(TX_ID_INDEXING_LOG_MESSAGE).unwrap();
+    println!("SOYLANA total_tx_id_log_count: {}", total_tx_id_log_count);
     assert!(
         // there are 3 txid-indexed events:
         // - relayer: merkle insertion and gas payment
@@ -178,6 +182,7 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+    println!("SOYLANA gas_payments_scraped: {}", gas_payments_scraped);
     if gas_payments_scraped != gas_payment_events_count {
         log!(
             "Scraper has scraped {} gas payments, expected {}",
@@ -194,6 +199,7 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+    println!("SOYLANA delivered_messages_scraped: {}", delivered_messages_scraped);
     if delivered_messages_scraped != total_messages_expected {
         log!(
             "Scraper has scraped {} delivered messages, expected {}",
