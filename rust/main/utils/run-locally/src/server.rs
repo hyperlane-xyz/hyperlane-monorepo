@@ -1,20 +1,33 @@
 use std::io;
 
 use reqwest::Url;
+use serde::{Deserialize, Serialize};
 
 use crate::RELAYER_METRICS_PORT;
 
-pub fn run_retry_request() {
+/// Copied from agents/relayer/src/server/message_retry.rs
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct MessageRetryResponse {
+    /// ID of the retry request
+    pub uuid: String,
+    /// how many pending operations were evaluated
+    pub evaluated: usize,
+    /// how many of the pending operations matched the retry request pattern
+    pub matched: u64,
+}
+
+pub fn run_retry_request() -> io::Result<MessageRetryResponse> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build();
 
-    let _ = runtime
+    let res = runtime
         .unwrap()
         .block_on(async { call_retry_request().await });
+    res
 }
 
-async fn call_retry_request() -> io::Result<()> {
+async fn call_retry_request() -> io::Result<MessageRetryResponse> {
     let client = reqwest::Client::new();
 
     let url = Url::parse(&format!(
@@ -33,12 +46,18 @@ async fn call_retry_request() -> io::Result<()> {
         io::Error::new(io::ErrorKind::InvalidData, err.to_string())
     })?;
 
-    let response_json = retry_response.text().await.map_err(|err| {
+    let response_text = retry_response.text().await.map_err(|err| {
         eprintln!("Failed to parse response body: {err}");
         io::Error::new(io::ErrorKind::InvalidData, err.to_string())
     })?;
 
-    eprintln!("Retry Request Response: {:?}", response_json);
+    println!("Retry Request Response: {:?}", response_text);
 
-    Ok(())
+    let response_json: MessageRetryResponse =
+        serde_json::from_str(&response_text).map_err(|err| {
+            eprintln!("Failed to parse response body to json: {err}");
+            io::Error::new(io::ErrorKind::InvalidData, err.to_string())
+        })?;
+
+    Ok(response_json)
 }

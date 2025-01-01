@@ -44,6 +44,9 @@ async fn retry_message(
 
     tracing::debug!(uuid = uuid_string, "Sending message retry request");
 
+    // This channel is only created to service this single
+    // retry request so we're expecting a single response
+    // from each transmitter end, hence we are using a channel of size 1
     let (transmitter, mut receiver) = mpsc::channel(1);
     state
         .retry_request_transmitter
@@ -134,17 +137,17 @@ mod tests {
         }
     }
 
-    async fn send_retry_responses_task(
+    async fn send_retry_responses_future(
         mut retry_request_receiver: Receiver<MessageRetryRequest>,
         pending_operations: Vec<QueueOperation>,
         metrics: Vec<(usize, u64)>,
     ) {
-        for (op, (evaluated, matched)) in pending_operations.iter().zip(metrics) {
-            if let Ok(req) = retry_request_receiver.recv().await {
+        if let Ok(req) = retry_request_receiver.recv().await {
+            for (op, (evaluated, matched)) in pending_operations.iter().zip(metrics) {
                 // Check that the list received by the server matches the pending operation
                 assert!(req.pattern.op_matches(&op));
                 let resp = MessageRetryResponse {
-                    uuid: req.uuid,
+                    uuid: req.uuid.clone(),
                     evaluated,
                     matched,
                 };
@@ -183,10 +186,10 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let respond_task = send_retry_responses_task(
+        let respond_task = send_retry_responses_future(
             retry_req_rx,
             vec![Box::new(pending_operation.clone()) as QueueOperation],
-            vec![(0, 0)],
+            vec![(1, 1)],
         );
 
         // Send a POST request to the server
@@ -202,8 +205,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
-        assert_eq!(resp_json.evaluated, 0);
-        assert_eq!(resp_json.matched, 0);
+        assert_eq!(resp_json.evaluated, 1);
+        assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
@@ -226,10 +229,10 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let respond_task = send_retry_responses_task(
+        let respond_task = send_retry_responses_future(
             retry_req_rx,
             vec![Box::new(pending_operation.clone()) as QueueOperation],
-            vec![(10, 2)],
+            vec![(1, 1)],
         );
 
         // Send a POST request to the server
@@ -245,8 +248,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
-        assert_eq!(resp_json.evaluated, 10);
-        assert_eq!(resp_json.matched, 2);
+        assert_eq!(resp_json.evaluated, 1);
+        assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
@@ -269,10 +272,10 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let respond_task = send_retry_responses_task(
+        let respond_task = send_retry_responses_future(
             retry_req_rx,
             vec![Box::new(pending_operation.clone()) as QueueOperation],
-            vec![(10, 2)],
+            vec![(1, 1)],
         );
 
         // Send a POST request to the server
@@ -288,8 +291,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
-        assert_eq!(resp_json.evaluated, 10);
-        assert_eq!(resp_json.matched, 2);
+        assert_eq!(resp_json.evaluated, 1);
+        assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
@@ -310,10 +313,10 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let respond_task = send_retry_responses_task(
+        let respond_task = send_retry_responses_future(
             retry_req_rx,
             vec![Box::new(pending_operation.clone()) as QueueOperation],
-            vec![(10, 2)],
+            vec![(1, 1)],
         );
 
         // Send a POST request to the server
@@ -329,8 +332,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
-        assert_eq!(resp_json.evaluated, 10);
-        assert_eq!(resp_json.matched, 2);
+        assert_eq!(resp_json.evaluated, 1);
+        assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
@@ -351,10 +354,10 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let respond_task = send_retry_responses_task(
+        let respond_task = send_retry_responses_future(
             retry_req_rx,
             vec![Box::new(pending_operation.clone()) as QueueOperation],
-            vec![(10, 2)],
+            vec![(1, 1)],
         );
 
         // Send a POST request to the server
@@ -370,8 +373,8 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
-        assert_eq!(resp_json.evaluated, 10);
-        assert_eq!(resp_json.matched, 2);
+        assert_eq!(resp_json.evaluated, 1);
+        assert_eq!(resp_json.matched, 1);
     }
 
     #[tokio::test]
@@ -400,10 +403,10 @@ mod tests {
         ]);
 
         // spawn a task to respond to message retry request
-        let respond_task = send_retry_responses_task(
+        let respond_task = send_retry_responses_future(
             retry_req_rx,
             vec![Box::new(pending_operation.clone()) as QueueOperation],
-            vec![(10, 2)],
+            vec![(1, 1)],
         );
 
         // Send a POST request to the server
@@ -419,7 +422,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let resp_json: MessageRetryResponse = parse_response_to_json(response).await;
-        assert_eq!(resp_json.evaluated, 10);
-        assert_eq!(resp_json.matched, 2);
+        assert_eq!(resp_json.evaluated, 1);
+        assert_eq!(resp_json.matched, 1);
     }
 }

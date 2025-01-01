@@ -135,7 +135,9 @@ impl OpQueue {
                 matched = retry_response.matched,
                 "Sending relayer retry response back"
             );
-            let _ = retry_req.transmitter.send(retry_response).await;
+            if let Err(err) = retry_req.transmitter.send(retry_response).await {
+                tracing::error!(err = err.to_string(), "Failed to send retry response");
+            }
         }
         queue.append(&mut reprioritized_queue);
     }
