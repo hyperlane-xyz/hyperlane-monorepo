@@ -7,7 +7,7 @@ use crate::utils::get_matching_lines;
 use maplit::hashmap;
 use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 
-use crate::invariants::SOL_MESSAGES_EXPECTED;
+use crate::invariants::common::{SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP};
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
 use crate::{
@@ -30,6 +30,12 @@ pub fn termination_invariants_met(
     } else {
         0
     };
+    let sol_messages_with_non_matching_igp = if config.sealevel_enabled {
+        SOL_MESSAGES_WITH_NON_MATCHING_IGP
+    } else {
+        0
+    };
+
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
 
     let lengths = fetch_metric(
@@ -38,7 +44,9 @@ pub fn termination_invariants_met(
         &hashmap! {},
     )?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
-    if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+    if lengths.iter().sum::<u32>()
+        != ZERO_MERKLE_INSERTION_KATHY_MESSAGES + sol_messages_with_non_matching_igp
+    {
         log!("Relayer queues not empty. Lengths: {:?}", lengths);
         return Ok(false);
     };
