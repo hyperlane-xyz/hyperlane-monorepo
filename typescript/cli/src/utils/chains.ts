@@ -26,7 +26,6 @@ export async function runSingleChainSelectionStep(
   );
 
   const formattedMessage = message.endsWith(':') ? message : `${message}:`;
-
   const options = [networkTypeSeparator, ...choices];
   const chain = (await search({
     message: formattedMessage,
