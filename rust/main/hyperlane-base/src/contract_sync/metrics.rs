@@ -26,6 +26,8 @@ pub struct ContractSyncMetrics {
     /// See `last_known_message_nonce` in CoreMetrics.
     pub message_nonce: IntGaugeVec,
 
+    pub latest_tree_index: IntGaugeVec,
+
     /// Metrics for SequenceAware and RateLimited cursors.
     pub cursor_metrics: Arc<CursorMetrics>,
 }
@@ -50,12 +52,14 @@ impl ContractSyncMetrics {
             .expect("failed to register stored_events metric");
 
         let message_nonce = metrics.last_known_message_nonce();
+        let latest_tree_index = metrics.latest_tree_index();
         let cursor_metrics = Arc::new(CursorMetrics::new(metrics));
 
         ContractSyncMetrics {
             indexed_height,
             stored_events,
             message_nonce,
+            latest_tree_index,
             cursor_metrics,
         }
     }
