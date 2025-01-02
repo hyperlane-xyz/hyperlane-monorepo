@@ -20,11 +20,9 @@ pub fn run_retry_request() -> io::Result<MessageRetryResponse> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build();
-
-    let res = runtime
+    runtime
         .unwrap()
-        .block_on(async { call_retry_request().await });
-    res
+        .block_on(async { call_retry_request().await })
 }
 
 async fn call_retry_request() -> io::Result<MessageRetryResponse> {
