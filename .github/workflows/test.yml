@@ -130,6 +130,7 @@ jobs:
           - core-deploy
           - core-read
           - relay
+          - warp-init
           - warp-read
           - warp-apply
           - warp-deploy
@@ -285,10 +286,10 @@ jobs:
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
-          E2E_KATHY_MESSAGES: '10'
-          HYP_LOG_LEVEL: 'info'
+          E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
-          SEALEVEL_ENABLED: 'false'
+          HYP_LOG_LEVEL: 'info'
+          SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
 
   env-test:
     runs-on: ubuntu-latest
