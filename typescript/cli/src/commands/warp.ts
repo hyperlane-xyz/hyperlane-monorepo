@@ -23,8 +23,8 @@ import {
   removeEndingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../utils/input.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
+import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
@@ -40,7 +40,7 @@ import {
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
 } from './options.js';
-import { MessageOptionsArgTypes, messageOptions } from './send.js';
+import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
 
 /**
  * Parent command
@@ -245,7 +245,7 @@ const send: CommandModuleWithWriteContext<
   command: 'send',
   describe: 'Send a test token transfer on a warp route',
   builder: {
-    ...messageOptions,
+    ...messageSendOptions,
     symbol: {
       ...symbolCommandOption,
       demandOption: false,

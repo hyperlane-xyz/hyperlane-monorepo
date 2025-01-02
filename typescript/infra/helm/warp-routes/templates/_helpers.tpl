@@ -69,14 +69,14 @@ The warp-routes container
   imagePullPolicy: IfNotPresent
   env:
    - name: LOG_FORMAT
-     value: pretty
+     value: json
   command:
   - ./node_modules/.bin/tsx
-  - ./typescript/infra/scripts/warp-routes/monitor-warp-routes-balances.ts
+  - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
   - -v 
-  - "10000"
-  - -f
-  - {{ .Values.configFilePath }}
+  - "30000"
+  - --warpRouteId
+  - {{ .Values.warpRouteId }}
   - -e
   - {{ .Values.environment}}
   envFrom:

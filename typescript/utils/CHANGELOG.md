@@ -1,5 +1,36 @@
 # @hyperlane-xyz/utils
 
+## 7.3.0
+
+## 7.2.0
+
+### Minor Changes
+
+- fa6d5f5c6: Add toUpperCamelCase and deepFind functions
+
+## 7.1.0
+
+### Minor Changes
+
+- 0e285a443: Add an isRelativeUrl function
+
+## 7.0.0
+
+### Major Changes
+
+- f48cf8766: Upgrade Viem to 2.2 and Solana Web3 to 1.9
+  Rename `chainMetadataToWagmiChain` to `chainMetadataToViemChain`
+
+### Patch Changes
+
+- e6f9d5c4f: Added a mustGet helper
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
 ## 5.7.0
 
 ### Patch Changes

@@ -1,7 +1,14 @@
 import fs from 'fs';
 import { join } from 'path';
 
-import { ChainName, RpcConsensusType } from '@hyperlane-xyz/sdk';
+import {
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelTransactionSubmitter,
+  ChainName,
+  RelayerConfig,
+  RpcConsensusType,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, objOmitKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -13,7 +20,11 @@ import {
   KubernetesResources,
   RootAgentConfig,
 } from '../config/agent/agent.js';
-import { RelayerConfigHelper } from '../config/agent/relayer.js';
+import {
+  RelayerConfigHelper,
+  RelayerConfigMapConfig,
+  RelayerEnvConfig,
+} from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
 import { DeployEnvironment } from '../config/environment.js';
@@ -82,12 +93,33 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
           }
+
+          let priorityFeeOracle: AgentSealevelPriorityFeeOracle | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            priorityFeeOracle =
+              this.config.rawConfig.sealevel?.priorityFeeOracleConfigGetter?.(
+                chain,
+              );
+          }
+
+          let transactionSubmitter:
+            | AgentSealevelTransactionSubmitter
+            | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            transactionSubmitter =
+              this.config.rawConfig.sealevel?.transactionSubmitterConfigGetter?.(
+                chain,
+              );
+          }
+
           return {
             name: chain,
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
             maxBatchSize: 32,
+            priorityFeeOracle,
+            transactionSubmitter,
           };
         }),
       },
@@ -151,10 +183,25 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
+
+    const config = await this.config.buildConfig();
+
+    // Divide the keys between the configmap and the env config.
+    const configMapConfig: RelayerConfigMapConfig = {
+      addressBlacklist: config.addressBlacklist,
+      metricAppContexts: config.metricAppContexts,
+      gasPaymentEnforcement: config.gasPaymentEnforcement,
+    };
+    const envConfig = objOmitKeys<RelayerConfig>(
+      config,
+      Object.keys(configMapConfig),
+    ) as RelayerEnvConfig;
+
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
-      config: await this.config.buildConfig(),
+      envConfig,
+      configMapConfig,
       resources: this.kubernetesResources(),
     };
 

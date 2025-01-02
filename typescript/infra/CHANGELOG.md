@@ -1,5 +1,95 @@
 # @hyperlane-xyz/infra
 
+## 7.3.0
+
+### Minor Changes
+
+- 1ca857451: add USDC, USDT, cbBTC and ETH zeronetwork warp routes support in infra
+- 323f0f158: Add ICAs management in core apply command
+
+### Patch Changes
+
+- Updated dependencies [2054f4f5b]
+- Updated dependencies [a96448fa6]
+- Updated dependencies [170a0fc73]
+- Updated dependencies [9a09afcc7]
+- Updated dependencies [24784af95]
+- Updated dependencies [3e8dd70ac]
+- Updated dependencies [aa1ea9a48]
+- Updated dependencies [665a7b8d8]
+- Updated dependencies [f0b98fdef]
+- Updated dependencies [ff9e8a72b]
+- Updated dependencies [97c1f80b7]
+- Updated dependencies [323f0f158]
+- Updated dependencies [61157097b]
+  - @hyperlane-xyz/sdk@7.3.0
+  - @hyperlane-xyz/helloworld@7.3.0
+  - @hyperlane-xyz/utils@7.3.0
+
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [81ab4332f]
+- Updated dependencies [4b3537470]
+- Updated dependencies [fa6d5f5c6]
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/sdk@7.2.0
+  - @hyperlane-xyz/utils@7.2.0
+  - @hyperlane-xyz/helloworld@7.2.0
+
+## 7.1.0
+
+### Minor Changes
+
+- 5db46bd31: Implements persistent relayer for use in CLI
+
+### Patch Changes
+
+- Updated dependencies [6f2d50fbd]
+- Updated dependencies [1159e0f4b]
+- Updated dependencies [0e285a443]
+- Updated dependencies [ff2b4e2fb]
+- Updated dependencies [0e285a443]
+- Updated dependencies [5db46bd31]
+- Updated dependencies [0cd65c571]
+  - @hyperlane-xyz/sdk@7.1.0
+  - @hyperlane-xyz/utils@7.1.0
+  - @hyperlane-xyz/helloworld@7.1.0
+
+## 7.0.0
+
+### Minor Changes
+
+- fa424826c: Add support for updating the mailbox proxy admin owner
+
+### Patch Changes
+
+- Updated dependencies [bbb970a44]
+- Updated dependencies [fa424826c]
+- Updated dependencies [f48cf8766]
+- Updated dependencies [40d59a2f4]
+- Updated dependencies [0264f709e]
+- Updated dependencies [836060240]
+- Updated dependencies [ba0122279]
+- Updated dependencies [e6f9d5c4f]
+- Updated dependencies [f24835438]
+- Updated dependencies [5f41b1134]
+  - @hyperlane-xyz/sdk@7.0.0
+  - @hyperlane-xyz/utils@7.0.0
+  - @hyperlane-xyz/helloworld@7.0.0
+
+## 6.0.0
+
+### Patch Changes
+
+- Updated dependencies [7b3b07900]
+- Updated dependencies [30d92c319]
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/sdk@6.0.0
+  - @hyperlane-xyz/utils@6.0.0
+  - @hyperlane-xyz/helloworld@6.0.0
+
 ## 5.7.0
 
 ### Patch Changes

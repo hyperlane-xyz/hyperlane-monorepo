@@ -8,12 +8,12 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
+  CoinGeckoTokenPriceGetter,
   HookConfig,
   HookConfigSchema,
   HookType,
   IgpHookConfig,
   MultiProtocolProvider,
-  getCoingeckoTokenPrices,
   getGasPrice,
   getLocalStorageGasOracleConfig,
 } from '@hyperlane-xyz/sdk';
@@ -243,10 +243,10 @@ async function getOwnerAndBeneficiary(
   advanced: boolean,
 ) {
   const unnormalizedOwner =
-    !advanced && context.signer
-      ? await context.signer.getAddress()
+    !advanced && context.signerAddress
+      ? context.signerAddress
       : await detectAndConfirmOrPrompt(
-          async () => context.signer?.getAddress(),
+          async () => context.signerAddress,
           `For ${module}, enter`,
           'owner address',
           'signer',
@@ -305,9 +305,17 @@ async function getIgpTokenPrices(
 ) {
   const isTestnet =
     context.chainMetadata[Object.keys(filteredMetadata)[0]].isTestnet;
-  const fetchedPrices = isTestnet
-    ? objMap(filteredMetadata, () => '10')
-    : await getCoingeckoTokenPrices(filteredMetadata);
+
+  let fetchedPrices: ChainMap<string>;
+  if (isTestnet) {
+    fetchedPrices = objMap(filteredMetadata, () => '10');
+  } else {
+    const tokenPriceGetter = new CoinGeckoTokenPriceGetter({
+      chainMetadata: filteredMetadata,
+    });
+    const results = await tokenPriceGetter.getAllTokenPrices();
+    fetchedPrices = objMap(results, (v) => v.toString());
+  }
 
   logBlue(
     isTestnet

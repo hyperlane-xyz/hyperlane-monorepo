@@ -1,8 +1,0 @@
-{
-  "ethereum": {
-    "HypERC20Collateral": "0x1D622da2ce4C4D9D4B0611718cb3BcDcAd008DD4",
-    "collateral": "0x1D622da2ce4C4D9D4B0611718cb3BcDcAd008DD4",
-    "proxyAdmin": "0xe41a3270875f28A03312877cD95A01e9a53664b1",
-    "timelockController": "0x0000000000000000000000000000000000000000"
-  }
-}

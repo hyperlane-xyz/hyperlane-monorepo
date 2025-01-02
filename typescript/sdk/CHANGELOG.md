@@ -1,5 +1,102 @@
 # @hyperlane-xyz/sdk
 
+## 7.3.0
+
+### Minor Changes
+
+- 2054f4f5b: Require Sealevel native transfers to cover the rent of the recipient
+- a96448fa6: Add logic into SDK to enable warp route unenrollment
+- 170a0fc73: Add `createHookUpdateTxs()` to `WarpModule.update()` such that it 1) deploys a hook for a warp route _without_ an existing hook, or 2) update an existing hook.
+- 9a09afcc7: Deploy to appchain, treasure, zklink.
+- 24784af95: Introduce GcpValidator for retrieving announcements, checkpoints and metadata for a Validator posting to a GCP bucket. Uses GcpStorageWrapper for bucket operations.
+- 3e8dd70ac: Update validators for boba, duckchain, unichain, vana, bsquared, superseed. Update oort's own validator. Update blockpi's viction validator. Adad luganodes/dsrv to flame validator set.
+- aa1ea9a48: updates the warp deployment config schema to be closer to the ica routing schema
+- f0b98fdef: Updated the derivation logic to enable ICA ISM metadata building from on chain data to enable self relaying of ICA messages
+- ff9e8a72b: Added a getter to derive ATA payer accounts on Sealevel warp routes
+- 97c1f80b7: Implement Sealevel IGP quoting
+- 323f0f158: Add ICAs management in core apply command
+- 61157097b: Deploy to swell & lumiaprism. Parallelise router enrollment in HyperlaneRouterDeployer.
+
+### Patch Changes
+
+- 665a7b8d8: Added decimal consistency checks to the Token checker
+  - @hyperlane-xyz/utils@7.3.0
+  - @hyperlane-xyz/core@5.8.3
+
+## 7.2.0
+
+### Minor Changes
+
+- 81ab4332f: Remove ismFactoryAddresses from warpConfig
+- 4b3537470: Changed the type of defaultMultisigConfigs, to track validator aliases in addition to their addresses.
+- fa6d5f5c6: Add decodeIsmMetadata function
+
+### Patch Changes
+
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/utils@7.2.0
+  - @hyperlane-xyz/core@5.8.2
+
+## 7.1.0
+
+### Minor Changes
+
+- 6f2d50fbd: Updated Fraxtal set to include Superlane validators, updated Flow set
+- 1159e0f4b: Enroll new validators for alephzeroevmmainnet, chilizmainnet, flowmainnet, immutablezkevmmainnet, metal, polynomialfi, rarichain, rootstockmainnet, superpositionmainnet, flame, prom, inevm.
+- ff2b4e2fb: Added helpers to Token and token adapters to get bridged supply of tokens"
+- 0e285a443: Add a validateZodResult util function
+- 5db46bd31: Implements persistent relayer for use in CLI
+- 0cd65c571: Add chainMetadataToCosmosChain function
+
+### Patch Changes
+
+- Updated dependencies [0e285a443]
+  - @hyperlane-xyz/utils@7.1.0
+  - @hyperlane-xyz/core@5.8.1
+
+## 7.0.0
+
+### Major Changes
+
+- f48cf8766: Upgrade Viem to 2.2 and Solana Web3 to 1.9
+  Rename `chainMetadataToWagmiChain` to `chainMetadataToViemChain`
+- 5f41b1134: Remove getCoingeckoTokenPrices (use CoinGeckoTokenPriceGetter instead)
+
+### Minor Changes
+
+- bbb970a44: Redeploy to alephzeroevmmainnet, chilizmainnet, flowmainnet, immutablezkevmmainnet, metal, polynomialfi, rarichain, rootstockmainnet, superpositionmainnet. Deploy to flame, prom.
+- fa424826c: Add support for updating the mailbox proxy admin owner
+- 40d59a2f4: Deploy to abstracttestnet and treasuretopaz
+- 0264f709e: Deploy to alephzeroevmtestnet, update deployment for arcadiatestnet2.
+- 836060240: Add storage based multisig ISM types
+- f24835438: Added coinGeckoId as an optional property of the TokenConfigSchema
+
+### Patch Changes
+
+- ba0122279: feat: use message context in hook reader IGP derivation
+- Updated dependencies [f48cf8766]
+- Updated dependencies [836060240]
+- Updated dependencies [e6f9d5c4f]
+  - @hyperlane-xyz/utils@7.0.0
+  - @hyperlane-xyz/core@5.8.0
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Minor Changes
+
+- 7b3b07900: Support using apiKey for CoinGeckoTokenPriceGetter
+- 30d92c319: Add `collateralChainName` to Warp Reader. Partial refactor of fetchTokenConfig().
+
+### Patch Changes
+
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/utils@6.0.0
+  - @hyperlane-xyz/core@5.7.1
+
 ## 5.7.0
 
 ### Minor Changes
