@@ -270,7 +270,7 @@ async function getOwnerAndBeneficiary(
 async function selectIgpChains(context: CommandContext) {
   const localChain = await runSingleChainSelectionStep(
     context.chainMetadata,
-    'Select local chain for IGP hook',
+    'Select local chain for IGP hook:',
   );
   const isTestnet = context.chainMetadata[localChain].isTestnet;
   const remoteChains = await runMultiChainSelectionStep({
