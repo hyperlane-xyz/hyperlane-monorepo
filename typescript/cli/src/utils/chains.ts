@@ -28,7 +28,7 @@ export async function runSingleChainSelectionStep(
   const options = [networkTypeSeparator, ...choices];
   const chain = (await search({
     message,
-    source: (searchTerm) => {
+    source: (searchTerm: string | undefined) => {
       if (!searchTerm) {
         return options;
       }
