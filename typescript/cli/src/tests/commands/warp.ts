@@ -88,6 +88,7 @@ export async function hyperlaneWarpSendRelay(
   destination: string,
   warpCorePath: string,
   relay = true,
+  value = 1,
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
         ${relay ? '--relay' : ''} \
@@ -98,7 +99,8 @@ export async function hyperlaneWarpSendRelay(
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        --yes`;
+        --yes \
+        --amount ${value}`;
 }
 
 /**

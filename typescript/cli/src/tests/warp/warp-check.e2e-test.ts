@@ -90,7 +90,7 @@ describe('hyperlane warp check e2e tests', async function () {
     expect(output.text().includes('No violations found')).to.be.true;
   });
 
-  it.only(`should find differences between the local config and the on chain config`, async function () {
+  it(`should find differences between the local config and the on chain config`, async function () {
     const tokenSymbol = await token.symbol();
     const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${tokenSymbol}/anvil2-anvil3-config.yaml`;
 
