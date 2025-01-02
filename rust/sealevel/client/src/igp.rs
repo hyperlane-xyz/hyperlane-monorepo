@@ -90,7 +90,14 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             let context_dir =
                 create_new_directory(&chain_dir, get_context_dir_name(init.context.as_ref()));
 
-            let artifacts_path = context_dir.join("igp-accounts.json");
+            let artifacts_path = if init.account_salt.is_some() {
+                context_dir.join(format!(
+                    "igp-accounts-{}.json",
+                    init.account_salt.clone().unwrap()
+                ))
+            } else {
+                context_dir.join("igp-accounts.json")
+            };
 
             let existing_artifacts = try_read_json::<IgpAccountsArtifacts>(&artifacts_path).ok();
 
