@@ -130,7 +130,6 @@ jobs:
           - core-deploy
           - core-read
           - relay
-          - warp-init
           - warp-read
           - warp-apply
           - warp-deploy
