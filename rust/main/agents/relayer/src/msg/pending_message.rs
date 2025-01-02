@@ -510,13 +510,17 @@ impl PendingMessage {
         ctx: Arc<MessageContext>,
         app_context: Option<String>,
     ) -> Self {
-        let mut pm = Self::new(
-            message,
-            ctx,
-            // Since we don't persist the message status for now, assume it's the first attempt
-            PendingOperationStatus::FirstPrepareAttempt,
-            app_context,
-        );
+        // Attempt to fetch status about message from database
+        let mut pm = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
+            Ok(Some(status)) => Self::new(message, ctx, status, app_context),
+            _ => Self::new(
+                message,
+                ctx,
+                PendingOperationStatus::FirstPrepareAttempt,
+                app_context,
+            ),
+        };
+
         match pm
             .ctx
             .origin_db
