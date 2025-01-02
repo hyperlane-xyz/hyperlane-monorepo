@@ -39,7 +39,7 @@ export async function getPendingTxsForChains(
   const txs: SafeStatus[] = [];
   await Promise.all(
     chains.map(async (chain) => {
-      if (!safes.prod[chain]) {
+      if (!safes[chain]) {
         console.error(chalk.red.bold(`No safe found for ${chain}`));
         return;
       }
@@ -58,7 +58,7 @@ export async function getPendingTxsForChains(
         ({ safeSdk, safeService } = await getSafeAndService(
           chain,
           multiProvider,
-          safes.prod[chain],
+          safes[chain],
         ));
       } catch (error) {
         console.warn(
@@ -70,9 +70,7 @@ export async function getPendingTxsForChains(
       }
 
       const threshold = await safeSdk.getThreshold();
-      const pendingTxs = await safeService.getPendingTransactions(
-        safes.prod[chain],
-      );
+      const pendingTxs = await safeService.getPendingTransactions(safes[chain]);
       if (pendingTxs.results.length === 0) {
         return;
       }
@@ -196,7 +194,7 @@ async function main() {
         await executeTx(
           tx.chain,
           multiProvider,
-          safes.prod[tx.chain],
+          safes[tx.chain],
           tx.fullTxHash,
         );
       } catch (error) {

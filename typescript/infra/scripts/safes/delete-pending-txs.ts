@@ -25,7 +25,7 @@ async function main() {
 
   for (const chain of chains) {
     try {
-      await deleteAllPendingSafeTxs(chain, multiProvider, safes.prod[chain]);
+      await deleteAllPendingSafeTxs(chain, multiProvider, safes[chain]);
     } catch (error) {
       console.error(`Error deleting pending transactions for ${chain}:`, error);
     }

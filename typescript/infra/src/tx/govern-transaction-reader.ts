@@ -542,7 +542,7 @@ export class GovernTransactionReader {
       this.chainAddresses,
       this.multiProvider,
     ).getAccount(remoteChainName, {
-      owner: safes.prod[icaOwnerChain],
+      owner: safes[icaOwnerChain],
       origin: icaOwnerChain,
       routerOverride: router,
       ismOverride: ism,
@@ -679,7 +679,7 @@ export class GovernTransactionReader {
       return this.multiSendCallOnlyAddressCache[chain];
     }
 
-    const safe = safes.prod[chain];
+    const safe = safes[chain];
     if (!safe) {
       return undefined;
     }
