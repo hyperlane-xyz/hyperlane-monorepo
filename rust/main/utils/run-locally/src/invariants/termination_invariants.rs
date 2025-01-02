@@ -165,59 +165,59 @@ pub fn termination_invariants_met(
         }
     }
 
-    // let dispatched_messages_scraped = fetch_metric(
-    //     SCRAPER_METRICS_PORT,
-    //     "hyperlane_contract_sync_stored_events",
-    //     &hashmap! {"data_type" => "message_dispatch"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // if dispatched_messages_scraped != total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
-    // {
-    //     log!(
-    //         "Scraper has scraped {} dispatched messages, expected {}",
-    //         dispatched_messages_scraped,
-    //         total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
-    //     );
-    //     return Ok(false);
-    // }
+    let dispatched_messages_scraped = fetch_metric(
+        SCRAPER_METRICS_PORT,
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_dispatch"},
+    )?
+    .iter()
+    .sum::<u32>();
+    if dispatched_messages_scraped != total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+    {
+        log!(
+            "Scraper has scraped {} dispatched messages, expected {}",
+            dispatched_messages_scraped,
+            total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+        );
+        return Ok(false);
+    }
 
-    // let gas_payments_scraped = fetch_metric(
-    //     SCRAPER_METRICS_PORT,
-    //     "hyperlane_contract_sync_stored_events",
-    //     &hashmap! {"data_type" => "gas_payment"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // println!("SOYLANA gas_payments_scraped: {}", gas_payments_scraped);
-    // if gas_payments_scraped != gas_payment_events_count {
-    //     log!(
-    //         "Scraper has scraped {} gas payments, expected {}",
-    //         gas_payments_scraped,
-    //         gas_payment_events_count
-    //     );
-    //     return Ok(false);
-    // }
+    let gas_payments_scraped = fetch_metric(
+        SCRAPER_METRICS_PORT,
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "gas_payment"},
+    )?
+    .iter()
+    .sum::<u32>();
+    println!("SOYLANA gas_payments_scraped: {}", gas_payments_scraped);
+    if gas_payments_scraped != gas_payment_events_count {
+        log!(
+            "Scraper has scraped {} gas payments, expected {}",
+            gas_payments_scraped,
+            gas_payment_events_count
+        );
+        return Ok(false);
+    }
 
-    // let delivered_messages_scraped = fetch_metric(
-    //     SCRAPER_METRICS_PORT,
-    //     "hyperlane_contract_sync_stored_events",
-    //     &hashmap! {"data_type" => "message_delivery"},
-    // )?
-    // .iter()
-    // .sum::<u32>();
-    // println!(
-    //     "SOYLANA delivered_messages_scraped: {}",
-    //     delivered_messages_scraped
-    // );
-    // if delivered_messages_scraped != total_messages_expected {
-    //     log!(
-    //         "Scraper has scraped {} delivered messages, expected {}",
-    //         delivered_messages_scraped,
-    //         total_messages_expected
-    //     );
-    //     return Ok(false);
-    // }
+    let delivered_messages_scraped = fetch_metric(
+        SCRAPER_METRICS_PORT,
+        "hyperlane_contract_sync_stored_events",
+        &hashmap! {"data_type" => "message_delivery"},
+    )?
+    .iter()
+    .sum::<u32>();
+    println!(
+        "SOYLANA delivered_messages_scraped: {}",
+        delivered_messages_scraped
+    );
+    if delivered_messages_scraped != total_messages_expected {
+        log!(
+            "Scraper has scraped {} delivered messages, expected {}",
+            delivered_messages_scraped,
+            total_messages_expected
+        );
+        return Ok(false);
+    }
 
     let ending_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
     // Make sure the balance was correctly updated in the metrics.

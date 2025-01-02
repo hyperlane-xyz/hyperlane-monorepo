@@ -403,7 +403,7 @@ fn main() -> ExitCode {
     Program::new(concat_path(AGENT_BIN_PATH, "init-db"))
         .run()
         .join();
-    // state.push_agent(scraper_env.spawn("SCR", None));
+    state.push_agent(scraper_env.spawn("SCR", None));
 
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env_single_insertion = Program::new("yarn")
