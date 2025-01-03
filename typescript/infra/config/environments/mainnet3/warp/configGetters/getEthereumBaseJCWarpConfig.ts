@@ -20,7 +20,11 @@ export const getBaseZeronetworkJackieChainWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
-    ...abacusWorksEnvOwnerConfig.base,
+    owner: abacusWorksEnvOwnerConfig.base.owner,
+    proxyAdmin: {
+      owner: abacusWorksEnvOwnerConfig.base.owner,
+      address: '0xdF84DA358Ab678024649fCa37f7207FE4455896A',
+    },
     type: TokenType.collateral,
     token: tokens.base.jc,
     interchainSecurityModule: ISM_CONFIG,
@@ -28,7 +32,11 @@ export const getBaseZeronetworkJackieChainWarpConfig = async (
 
   const zeronetwork: HypTokenRouterConfig = {
     ...routerConfig.zeronetwork,
-    ...abacusWorksEnvOwnerConfig.zeronetwork,
+    owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
+    proxyAdmin: {
+      owner: abacusWorksEnvOwnerConfig.base.owner,
+      address: '0x175B542ff2583f6c44059233Ed65f29e2fcAb930',
+    },
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
