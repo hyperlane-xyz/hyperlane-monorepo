@@ -1,9 +1,4 @@
-import {
-  ChainMap,
-  OwnableConfig,
-  RouterConfig,
-  TokenRouterConfig,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, OwnableConfig, RouterConfig } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
 // Common collateral tokens to be used by warp route deployments.
@@ -17,6 +12,8 @@ export const tokens: ChainMap<Record<string, Address>> = {
     USDT: '0xdac17f958d2ee523a2206206994597c13d831ec7',
     WBTC: '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599',
     weETHs: '0x917cee801a67f933f2e6b33fc0cd1ed2d5909d88',
+    pumpBTCsei: '0xe9ebd666954B7F0B5B044704c86B126651f6235d',
+    Re7LRT: '0x84631c0d0081FDe56DeB72F6DE77abBbF6A9f93a',
   },
   sei: {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
@@ -24,6 +21,9 @@ export const tokens: ChainMap<Record<string, Address>> = {
   base: {
     cbBTC: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
     USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+  },
+  bsquared: {
+    uBTC: '0x796e4D53067FF374B89b2Ac101ce0c1f72ccaAc2',
   },
   arbitrum: {
     USDT: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',

@@ -8,6 +8,9 @@
   "apechain": {
     "validators": ["0x773d7fe6ffb1ba4de814c28044ff9a2d83a48221"]
   },
+  "appchain": {
+    "validators": ["0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be"]
+  },
   "arbitrum": {
     "validators": [
       "0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1",
@@ -18,11 +21,17 @@
   "arbitrumnova": {
     "validators": ["0xd2a5e9123308d187383c87053811a2c21bd8af1f"]
   },
+  "arthera": {
+    "validators": ["0x13710ac11c36c169f62fba95767ae59a1e57098d"]
+  },
   "astar": {
     "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
   },
   "astarzkevm": {
     "validators": ["0x89ecdd6caf138934bf3a2fb7b323984d72fd66de"]
+  },
+  "aurora": {
+    "validators": ["0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86"]
   },
   "flame": {
     "validators": ["0x1fa928ce884fa16357d4b8866e096392d4d81f43"]
@@ -79,8 +88,17 @@
   "chilizmainnet": {
     "validators": ["0x7403e5d58b48b0f5f715d9c78fbc581f01a625cb"]
   },
+  "conflux": {
+    "validators": ["0x113dfa1dc9b0a2efb6ad01981e2aad86d3658490"]
+  },
+  "conwai": {
+    "validators": ["0x949e2cdd7e79f99ee9bbe549540370cdc62e73c3"]
+  },
   "coredao": {
     "validators": ["0xbd6e158a3f5830d99d7d2bce192695bc4a148de2"]
+  },
+  "corn": {
+    "validators": ["0xc80b2e3e38220e02d194a0effa9d5bfe89894c07"]
   },
   "cyber": {
     "validators": ["0x94d7119ceeb802173b6924e6cc8c4cd731089a27"]
@@ -110,6 +128,9 @@
   "everclear": {
     "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
   },
+  "evmos": {
+    "validators": ["0x8f82387ad8b7b13aa9e06ed3f77f78a77713afe0"]
+  },
   "fantom": {
     "validators": ["0xa779572028e634e16f26af5dfd4fa685f619457d"]
   },
@@ -118,6 +139,9 @@
   },
   "flowmainnet": {
     "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
+  },
+  "form": {
+    "validators": ["0x58554b2e76167993b5fc000d0070a2f883cd333a"]
   },
   "fraxtal": {
     "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
@@ -150,6 +174,9 @@
   },
   "injective": {
     "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
+  },
+  "ink": {
+    "validators": ["0xb533b8b104522958b984fb258e0684dec0f1a6a5"]
   },
   "kaia": {
     "validators": ["0x9de0b3abb221d19719882fa4d61f769fdc2be9a4"]
@@ -265,6 +292,9 @@
   "redstone": {
     "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
   },
+  "rivalz": {
+    "validators": ["0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1"]
+  },
   "rootstockmainnet": {
     "validators": ["0x8675eb603d62ab64e3efe90df914e555966e04ac"]
   },
@@ -290,6 +320,12 @@
   "solanamainnet": {
     "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
   },
+  "soneium": {
+    "validators": ["0xd4b7af853ed6a2bfc329ecef545df90c959cbee8"]
+  },
+  "sonic": {
+    "validators": ["0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7"]
+  },
   "superseed": {
     "validators": ["0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88"]
   },
@@ -304,6 +340,12 @@
   },
   "tangle": {
     "validators": ["0x1ee52cbbfacd7dcb0ba4e91efaa6fbc61602b15b"]
+  },
+  "telos": {
+    "validators": ["0xcb08410b14d3adf0d0646f0c61cd07e0daba8e54"]
+  },
+  "treasure": {
+    "validators": ["0x6ad994819185553e8baa01533f0cd2c7cadfe6cc"]
   },
   "unichain": {
     "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
@@ -331,6 +373,9 @@
   },
   "zircuit": {
     "validators": ["0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb"]
+  },
+  "zklink": {
+    "validators": ["0x217a8cb4789fc45abf56cb6e2ca96f251a5ac181"]
   },
   "zksync": {
     "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]

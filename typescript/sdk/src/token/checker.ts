@@ -18,17 +18,17 @@ import { HypERC20App } from './app.js';
 import { TokenType } from './config.js';
 import { HypERC20Factories } from './contracts.js';
 import {
-  TokenRouterConfig,
-  isCollateralConfig,
-  isNativeConfig,
-  isSyntheticConfig,
-} from './schemas.js';
-import { TokenMetadata } from './types.js';
+  HypTokenRouterConfig,
+  TokenMetadata,
+  isCollateralTokenConfig,
+  isNativeTokenConfig,
+  isSyntheticTokenConfig,
+} from './types.js';
 
 export class HypERC20Checker extends ProxiedRouterChecker<
   HypERC20Factories & ProxiedFactories,
   HypERC20App,
-  TokenRouterConfig
+  HypTokenRouterConfig
 > {
   async checkChain(chain: ChainName): Promise<void> {
     await super.checkChain(chain);
@@ -38,7 +38,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   async checkToken(chain: ChainName): Promise<void> {
     const checkERC20 = async (
       token: ERC20,
-      config: TokenRouterConfig,
+      config: HypTokenRouterConfig,
     ): Promise<void> => {
       const checks: {
         method: keyof ERC20 & keyof TokenMetadata;
@@ -68,7 +68,44 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     const expectedConfig = this.configMap[chain];
     const hypToken = this.app.router(this.app.getContracts(chain));
 
-    // Check all actual decimals are consistent
+    // Check if configured token type matches actual token type
+    if (isNativeTokenConfig(expectedConfig)) {
+      try {
+        await this.multiProvider.estimateGas(chain, {
+          to: hypToken.address,
+          from: await this.multiProvider.getSignerAddress(chain),
+          value: BigNumber.from(1),
+        });
+      } catch {
+        const violation: TokenMismatchViolation = {
+          type: 'deployed token not payable',
+          chain,
+          expected: 'true',
+          actual: 'false',
+          tokenAddress: hypToken.address,
+        };
+        this.addViolation(violation);
+      }
+    } else if (isSyntheticTokenConfig(expectedConfig)) {
+      await checkERC20(hypToken as unknown as ERC20, expectedConfig);
+    } else if (isCollateralTokenConfig(expectedConfig)) {
+      const collateralToken = await this.getCollateralToken(chain);
+      const actualToken = await (
+        hypToken as unknown as HypERC20Collateral
+      ).wrappedToken();
+      if (!eqAddress(collateralToken.address, actualToken)) {
+        const violation: TokenMismatchViolation = {
+          type: 'CollateralTokenMismatch',
+          chain,
+          expected: collateralToken.address,
+          actual: actualToken,
+          tokenAddress: hypToken.address,
+        };
+        this.addViolation(violation);
+      }
+    }
+
+    // Check all actual decimals are consistent, this should be done after checking the token type to avoid 'decimal()' calls to non collateral token that would fail
     const actualChainDecimals = await this.getEvmActualDecimals();
     this.checkDecimalConsistency(
       chain,
@@ -90,42 +127,6 @@ export class HypERC20Checker extends ProxiedRouterChecker<
       'config',
       false,
     );
-
-    if (isNativeConfig(expectedConfig)) {
-      try {
-        await this.multiProvider.estimateGas(chain, {
-          to: hypToken.address,
-          from: await this.multiProvider.getSignerAddress(chain),
-          value: BigNumber.from(1),
-        });
-      } catch {
-        const violation: TokenMismatchViolation = {
-          type: 'deployed token not payable',
-          chain,
-          expected: 'true',
-          actual: 'false',
-          tokenAddress: hypToken.address,
-        };
-        this.addViolation(violation);
-      }
-    } else if (isSyntheticConfig(expectedConfig)) {
-      await checkERC20(hypToken as unknown as ERC20, expectedConfig);
-    } else if (isCollateralConfig(expectedConfig)) {
-      const collateralToken = await this.getCollateralToken(chain);
-      const actualToken = await (
-        hypToken as unknown as HypERC20Collateral
-      ).wrappedToken();
-      if (!eqAddress(collateralToken.address, actualToken)) {
-        const violation: TokenMismatchViolation = {
-          type: 'CollateralTokenMismatch',
-          chain,
-          expected: collateralToken.address,
-          actual: actualToken,
-          tokenAddress: hypToken.address,
-        };
-        this.addViolation(violation);
-      }
-    }
   }
 
   private cachedAllActualDecimals: Record<ChainName, number> | undefined =
@@ -154,12 +155,12 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     const expectedConfig = this.configMap[chain];
     let decimals: number | undefined = undefined;
 
-    if (isNativeConfig(expectedConfig)) {
+    if (isNativeTokenConfig(expectedConfig)) {
       decimals =
         this.multiProvider.getChainMetadata(chain).nativeToken?.decimals;
-    } else if (isSyntheticConfig(expectedConfig)) {
+    } else if (isSyntheticTokenConfig(expectedConfig)) {
       decimals = await (hypToken as unknown as ERC20).decimals();
-    } else if (isCollateralConfig(expectedConfig)) {
+    } else if (isCollateralTokenConfig(expectedConfig)) {
       const collateralToken = await this.getCollateralToken(chain);
       decimals = await collateralToken.decimals();
     }
@@ -175,7 +176,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     const expectedConfig = this.configMap[chain];
     let collateralToken: ERC20 | undefined = undefined;
 
-    if (isCollateralConfig(expectedConfig)) {
+    if (isCollateralTokenConfig(expectedConfig)) {
       const provider = this.multiProvider.getProvider(chain);
 
       if (expectedConfig.type === TokenType.XERC20Lockbox) {
