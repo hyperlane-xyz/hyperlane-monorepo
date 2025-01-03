@@ -215,14 +215,14 @@ export class MultiProtocolSignerManager {
    */
   private async extractPrivateKey(chain: ChainName): Promise<SignerConfig> {
     if (this.options.key) {
-      this.logger.info(
+      this.logger.debug(
         `Using private key passed via CLI --key flag for chain ${chain}`,
       );
       return { privateKey: this.options.key };
     }
 
     if (ENV.HYP_KEY) {
-      this.logger.info(`Using private key from .env for chain ${chain}`);
+      this.logger.debug(`Using private key from .env for chain ${chain}`);
       return { privateKey: ENV.HYP_KEY };
     }
 
