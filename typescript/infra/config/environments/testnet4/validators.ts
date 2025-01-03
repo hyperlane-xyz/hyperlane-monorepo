@@ -306,6 +306,18 @@ export const validatorChainConfig = (
         'unichaintestnet',
       ),
     },
+    solanatestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('solanatestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'solanatestnet',
+      ),
+    },
     sonictestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sonictestnet'),
@@ -316,6 +328,18 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'sonictestnet',
+      ),
+    },
+    sonicsvmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonicsvmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x83d4ef35f170ec822a0eaadb22a0c40003d8de23'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'sonicsvmtestnet',
       ),
     },
     arcadiatestnet2: {

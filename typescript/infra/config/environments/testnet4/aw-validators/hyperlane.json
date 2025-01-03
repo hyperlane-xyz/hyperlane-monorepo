@@ -82,8 +82,14 @@
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
   },
+  "solanatestnet": {
+    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  },
   "soneiumtestnet": {
     "validators": ["0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"]
+  },
+  "sonicsvmtestnet": {
+    "validators": ["0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"]
   },
   "sonictestnet": {
     "validators": ["0x62e6591d00daec3fb658c3d19403828b4e9ddbb3"]
