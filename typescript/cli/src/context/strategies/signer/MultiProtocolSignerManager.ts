@@ -232,7 +232,8 @@ export class MultiProtocolSignerManager {
       strategyConfig.privateKey,
       `No private key found for chain ${chain}`,
     );
-    this.logger.info(
+
+    this.logger.debug(
       `Extracting private key from strategy config/user prompt for chain ${chain}`,
     );
 

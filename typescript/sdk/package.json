@@ -8,7 +8,6 @@
     "@chain-registry/types": "^0.50.14",
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
-    "@google-cloud/storage": "7.14.0",
     "@hyperlane-xyz/core": "5.8.3",
     "@hyperlane-xyz/starknet-core": "0.2.2",
     "@hyperlane-xyz/utils": "7.3.0",
