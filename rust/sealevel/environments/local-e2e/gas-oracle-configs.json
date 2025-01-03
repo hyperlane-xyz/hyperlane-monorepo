@@ -1,0 +1,20 @@
+[
+  {
+    "domain": 13375,
+    "gasOracle": {
+      "type": "remoteGasData",
+      "tokenExchangeRate": "10000000000000000000",
+      "gasPrice": "0",
+      "tokenDecimals": 18
+    }
+  },
+  {
+    "domain": 13376,
+    "gasOracle": {
+      "type": "remoteGasData",
+      "tokenExchangeRate": "10000000000000000000",
+      "gasPrice": "0",
+      "tokenDecimals": 18
+    }
+  }
+]

@@ -7,7 +7,7 @@ use crate::utils::get_matching_lines;
 use maplit::hashmap;
 use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 
-use crate::invariants::SOL_MESSAGES_EXPECTED;
+use crate::invariants::common::{SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP};
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
 use crate::{
@@ -30,6 +30,12 @@ pub fn termination_invariants_met(
     } else {
         0
     };
+    let sol_messages_with_non_matching_igp = if config.sealevel_enabled {
+        SOL_MESSAGES_WITH_NON_MATCHING_IGP
+    } else {
+        0
+    };
+
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
 
     let lengths = fetch_metric(
@@ -52,6 +58,7 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+    println!("SOYLANA msg_processed_count: {}", msg_processed_count);
     if msg_processed_count != total_messages_expected {
         log!(
             "Relayer has {} processed messages, expected {}",
@@ -68,6 +75,10 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+    println!(
+        "SOYLANA gas_payment_events_count: {}",
+        gas_payment_events_count
+    );
 
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     const STORING_NEW_MESSAGE_LOG_MESSAGE: &str = "Storing new message in db";
@@ -93,6 +104,14 @@ pub fn termination_invariants_met(
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
     let gas_expenditure_log_count = log_counts.get(GAS_EXPENDITURE_LOG_MESSAGE).unwrap();
+    println!(
+        "SOYLANA gas_expenditure_log_count: {}",
+        gas_expenditure_log_count
+    );
+    println!(
+        "SOYLANA total_messages_expected: {}",
+        total_messages_expected
+    );
     assert!(
         gas_expenditure_log_count >= &total_messages_expected,
         "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
@@ -109,6 +128,7 @@ pub fn termination_invariants_met(
         "Didn't find any logs about looking for events in index range"
     );
     let total_tx_id_log_count = log_counts.get(TX_ID_INDEXING_LOG_MESSAGE).unwrap();
+    println!("SOYLANA total_tx_id_log_count: {}", total_tx_id_log_count);
     assert!(
         // there are 3 txid-indexed events:
         // - relayer: merkle insertion and gas payment
@@ -170,6 +190,7 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+    println!("SOYLANA gas_payments_scraped: {}", gas_payments_scraped);
     if gas_payments_scraped != gas_payment_events_count {
         log!(
             "Scraper has scraped {} gas payments, expected {}",
@@ -186,6 +207,10 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
+    println!(
+        "SOYLANA delivered_messages_scraped: {}",
+        delivered_messages_scraped
+    );
     if delivered_messages_scraped != total_messages_expected {
         log!(
             "Scraper has scraped {} delivered messages, expected {}",
