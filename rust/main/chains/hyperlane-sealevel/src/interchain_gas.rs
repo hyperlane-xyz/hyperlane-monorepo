@@ -263,7 +263,10 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
                         sealevel_payment.igp_account_pubkey, sealevel_payment.payment
                     );
                 }
-                payments.push((Indexed::new(payment).with_sequence(nonce.into()), sealevel_payment.log_meta));
+                payments.push((
+                    Indexed::new(payment).with_sequence(nonce.into()),
+                    sealevel_payment.log_meta,
+                ));
             }
         }
         Ok(payments)

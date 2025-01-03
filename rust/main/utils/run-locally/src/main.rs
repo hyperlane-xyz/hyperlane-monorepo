@@ -465,8 +465,8 @@ fn main() -> ExitCode {
             initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
                 .join();
         }
-        // initiate_solana_non_igp_paying_transfer(solana_path.clone(), solana_config_path.clone())
-        //     .join();
+        initiate_solana_non_igp_paying_transfer(solana_path.clone(), solana_config_path.clone())
+            .join();
     }
 
     log!("Setup complete! Agents running in background...");
