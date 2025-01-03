@@ -71,11 +71,6 @@ const MADARA_DEVNET: FieldElement = FieldElement::from_mont([
     498711402385775805,
 ]);
 
-// try using chainid?
-const PARADEX_SEPOLIA: FieldElement = FieldElement::from_hex_be(
-    "0x505249564154455f534e5f504f54435f5345504f4c4941",
-).expect("Invalid PARADEX_SEPOLIA hex value");
-
 /// Returns the starknet chain id from the hyperlane domain id.
 pub fn get_chain_id_from_domain_id(domain_id: u32) -> FieldElement {
     match domain_id {
@@ -84,7 +79,8 @@ pub fn get_chain_id_from_domain_id(domain_id: u32) -> FieldElement {
         23448593 => KATANA,
         23448594 => KATANA,
         6363709 => MADARA_DEVNET,
-        12263410 => PARADEX_SEPOLIA,
+        12263410 => FieldElement::from_hex_be("0x505249564154455f534e5f504f54435f5345504f4c4941")
+            .expect("Invalid PARADEX_SEPOLIA hex value"),
         _ => panic!("Unsupported domain id"),
     }
 }
