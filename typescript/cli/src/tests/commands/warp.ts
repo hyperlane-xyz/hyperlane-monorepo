@@ -83,13 +83,13 @@ export function hyperlaneWarpCheck(
         --config ${warpDeployPath}`;
 }
 
-export async function hyperlaneWarpSendRelay(
+export function hyperlaneWarpSendRelay(
   origin: string,
   destination: string,
   warpCorePath: string,
   relay = true,
   value = 1,
-) {
+): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
         ${relay ? '--relay' : ''} \
         --registry ${REGISTRY_PATH} \
