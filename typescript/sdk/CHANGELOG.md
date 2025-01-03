@@ -1,5 +1,31 @@
 # @hyperlane-xyz/sdk
 
+## 8.0.0
+
+### Major Changes
+
+- 26fbec8f6: Rename TokenConfig related types and utilities for clarity. E.g. `CollateralConfig` to `CollateralTokenConfig`.
+  Export more config types and zod schemas
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+- 9f6b8c514: Allow self-relaying of all messages if there are multiple in a given dispatch transaction.
+- 82cebabe4: Call google storage API directly and remove @google-cloud/storage dependency from the SDK.
+- 95cc9571e: Deploy to new chains: arthera, aurora, conflux, conwai, corn, evmos, form, ink, rivalz, soneium, sonic, telos.
+- e9911bb9d: Added new Sealevel tx submission and priority fee oracle params to agent config types
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- 5942e9cff: Update default validator sets for alephzeroevmmainnet, appchain, lisk, lumiaprism, swell, treasure, vana, zklink.
+- de1190656: Export TOKEN_STANDARD_TO_PROVIDER_TYPE, XERC20_STANDARDS, and MINT_LIMITED_STANDARDS maps
+- Updated dependencies [79f8197f3]
+- Updated dependencies [0eb8d52a4]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/utils@8.0.0
+  - @hyperlane-xyz/core@5.9.0
+
 ## 7.3.0
 
 ### Minor Changes
