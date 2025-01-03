@@ -564,8 +564,8 @@ export class WarpCore {
     );
     if (chainError) return chainError;
 
-    const recipientError = this.validateRecipient(recipient, destination);
-    if (recipientError) return recipientError;
+    // const recipientError = this.validateRecipient(recipient, destination);
+    // if (recipientError) return recipientError;
 
     const amountError = await this.validateAmount(
       originTokenAmount,

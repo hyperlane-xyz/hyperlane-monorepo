@@ -11,7 +11,7 @@ export class ChainResolverFactory {
   private static strategyMap: Map<CommandType, () => ChainResolver> = new Map([
     [CommandType.WARP_DEPLOY, () => MultiChainResolver.forWarpRouteConfig()],
     // Using the forRelayer resolver because warp send allows the user to self relay the tx
-    [CommandType.WARP_SEND, () => MultiChainResolver.forStrategyConfig()],
+    [CommandType.WARP_SEND, () => MultiChainResolver.forRelayer()],
     [CommandType.WARP_APPLY, () => MultiChainResolver.forWarpRouteConfig()],
     [CommandType.WARP_READ, () => MultiChainResolver.forWarpCoreConfig()],
     [CommandType.WARP_CHECK, () => MultiChainResolver.forWarpCoreConfig()],
