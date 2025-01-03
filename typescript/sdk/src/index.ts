@@ -95,6 +95,7 @@ export {
   DeployerOptions,
   HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer.js';
+export { StarknetDeployer } from './deploy/StarknetDeployer.js';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
   CheckerViolation,
@@ -555,6 +556,8 @@ export {
   TOKEN_STANDARD_TO_PROTOCOL,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TOKEN_TYPE_TO_STANDARD,
+  STARKNET_TOKEN_TYPE_TO_STANDARD,
+  STARKNET_SUPPORTED_TOKEN_TYPES,
   TokenStandard,
   XERC20_STANDARDS,
 } from './token/TokenStandard.js';
@@ -638,3 +641,7 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/types.js';
+export { StarknetCoreModule } from './core/StarknetCoreModule.js';
+export { StarknetERC20WarpModule } from './token/StarknetERC20WarpModule.js';
+export { StarknetCore } from './core/StarknetCore.js';

@@ -1,4 +1,5 @@
 import { constants } from 'ethers';
+import { Contract, RpcProvider, shortString } from 'starknet';
 
 import {
   ERC20__factory,
@@ -123,7 +124,19 @@ abstract class TokenDeployer<
       }
 
       if (isCollateralTokenConfig(config)) {
-        const provider = multiProvider.getProvider(chain);
+        // Add chain type checking
+        const chainMetadata = multiProvider.getChainMetadata(chain);
+        const isStarknet = chainMetadata.protocol === 'starknet';
+        let provider;
+
+        // Handle different chain types
+        if (isStarknet) {
+          provider = new RpcProvider({
+            nodeUrl: chainMetadata.rpcUrls[0].http as any, // Use the actual RPC URL from chain metadata
+          });
+        } else {
+          provider = multiProvider.getProvider(chain) as any;
+        }
 
         if (config.isNft) {
           const erc721 = ERC721Enumerable__factory.connect(
@@ -158,6 +171,49 @@ abstract class TokenDeployer<
           default:
             token = config.token;
             break;
+        }
+        if (isStarknet) {
+          const erc20Abi = [
+            {
+              name: 'name',
+              type: 'function',
+              inputs: [],
+              outputs: [{ name: '', type: 'felt' }],
+              stateMutability: 'view',
+            },
+            {
+              name: 'symbol',
+              type: 'function',
+              inputs: [],
+              outputs: [{ name: '', type: 'felt' }],
+              stateMutability: 'view',
+            },
+            {
+              name: 'decimals',
+              type: 'function',
+              inputs: [],
+              outputs: [{ name: '', type: 'felt' }],
+              stateMutability: 'view',
+            },
+          ];
+          // Create contract instance
+          const erc20 = new Contract(erc20Abi, token, provider);
+          const [nameResult, symbolResult, decimalsResult] = await Promise.all([
+            erc20.name(),
+            erc20.symbol(),
+            erc20.decimals(),
+          ]);
+
+          // Parse the results - extract the values and convert them properly
+          const name = shortString.decodeShortString(nameResult['']);
+          const symbol = shortString.decodeShortString(symbolResult['']);
+          const decimals = Number(decimalsResult['']); // Convert BigInt to number
+          return TokenMetadataSchema.parse({
+            name,
+            symbol,
+            decimals,
+            totalSupply: DERIVED_TOKEN_SUPPLY,
+          });
         }
 
         const erc20 = ERC20__factory.connect(token, provider);

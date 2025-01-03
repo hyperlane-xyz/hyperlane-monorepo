@@ -138,6 +138,11 @@ export class MultiChainResolver implements ChainResolver {
       chains.push(argv.destination);
     }
 
+    // If both origin and destination are specified, return just those chains
+    if (argv.origin && argv.destination) {
+      return chains;
+    }
+
     if (!argv.chains) {
       return Array.from(
         new Set([...chains, ...this.getEvmChains(multiProvider)]),

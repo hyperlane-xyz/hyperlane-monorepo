@@ -24,6 +24,7 @@ import {
   ProviderMap,
   ProviderType,
   SolanaWeb3Provider,
+  StarknetJsProvider,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -202,6 +203,15 @@ export class MultiProtocolProvider<
     return this.getSpecificProvider<CosmJsWasmProvider['provider']>(
       chainNameOrId,
       ProviderType.CosmJsWasm,
+    );
+  }
+
+  getStarknetProvider(
+    chainNameOrId: ChainNameOrId,
+  ): StarknetJsProvider['provider'] {
+    return this.getSpecificProvider<StarknetJsProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Starknet,
     );
   }
 

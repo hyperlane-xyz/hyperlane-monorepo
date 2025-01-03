@@ -15,6 +15,12 @@ import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
+import {
+  Contract as StarknetContract,
+  RpcProvider as StarknetProvider,
+  ReceiptTx as StarknetReceiptTx,
+  V3TransactionDetails as StarknetTransaction,
+} from 'starknet';
 import type {
   GetContractReturnType,
   PublicClient,
@@ -31,6 +37,7 @@ export enum ProviderType {
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
   GnosisTxBuilder = 'gnosis-txBuilder',
+  Starknet = 'starknet',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -40,6 +47,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
   [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
   [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
+  [ProtocolType.Starknet]: ProviderType.Starknet,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -62,6 +70,12 @@ type ProtocolTypesMapping = {
     provider: CosmJsWasmProvider;
     contract: CosmJsWasmContract;
     receipt: CosmJsWasmTransactionReceipt;
+  };
+  [ProtocolType.Starknet]: {
+    transaction: StarknetJsTransaction;
+    provider: StarknetJsProvider;
+    contract: StarknetJsContract;
+    receipt: StarknetJsTransactionReceipt;
   };
 };
 
@@ -124,13 +138,20 @@ export interface CosmJsWasmProvider
   provider: Promise<CosmWasmClient>;
 }
 
+export interface StarknetJsProvider
+  extends TypedProviderBase<StarknetProvider> {
+  type: ProviderType.Starknet;
+  provider: StarknetProvider;
+}
+
 export type TypedProvider =
   | EthersV5Provider
   // | EthersV6Provider
   | ViemProvider
   | SolanaWeb3Provider
   | CosmJsProvider
-  | CosmJsWasmProvider;
+  | CosmJsWasmProvider
+  | StarknetJsProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -169,13 +190,20 @@ export interface CosmJsWasmContract
   contract: CosmWasmContract;
 }
 
+export interface StarknetJsContract
+  extends TypedContractBase<StarknetContract> {
+  type: ProviderType.Starknet;
+  contract: StarknetContract;
+}
+
 export type TypedContract =
   | EthersV5Contract
   // | EthersV6Contract
   | ViemContract
   | SolanaWeb3Contract
   | CosmJsContract
-  | CosmJsWasmContract;
+  | CosmJsWasmContract
+  | StarknetJsContract;
 
 /**
  * Transactions with discriminated union of provider type
@@ -216,13 +244,20 @@ export interface CosmJsWasmTransaction
   transaction: ExecuteInstruction;
 }
 
+export interface StarknetJsTransaction
+  extends TypedTransactionBase<StarknetTransaction> {
+  type: ProviderType.Starknet;
+  transaction: StarknetTransaction;
+}
+
 export type TypedTransaction =
   | EthersV5Transaction
   // | EthersV6Transaction
   | ViemTransaction
   | SolanaWeb3Transaction
   | CosmJsTransaction
-  | CosmJsWasmTransaction;
+  | CosmJsWasmTransaction
+  | StarknetJsTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
@@ -263,9 +298,16 @@ export interface CosmJsWasmTransactionReceipt
   receipt: DeliverTxResponse;
 }
 
+export interface StarknetJsTransactionReceipt
+  extends TypedTransactionReceiptBase<StarknetReceiptTx> {
+  type: ProviderType.Starknet;
+  receipt: StarknetReceiptTx;
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
   | SolanaWeb3TransactionReceipt
   | CosmJsTransactionReceipt
-  | CosmJsWasmTransactionReceipt;
+  | CosmJsWasmTransactionReceipt
+  | StarknetJsTransactionReceipt;

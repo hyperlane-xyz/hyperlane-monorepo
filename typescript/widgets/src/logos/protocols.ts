@@ -7,7 +7,7 @@ import { EthereumLogo } from './Ethereum.js';
 import { SolanaLogo } from './Solana.js';
 
 export const PROTOCOL_TO_LOGO: Record<
-  ProtocolType,
+  Exclude<ProtocolType, 'starknet'>,
   FC<Omit<SVGProps<SVGSVGElement>, 'ref'>>
 > = {
   [ProtocolType.Ethereum]: EthereumLogo,
