@@ -37,6 +37,7 @@ export async function runSubmit({
   const submitterBuilder = await getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
     multiProvider,
+    registry: context.registry,
   });
 
   try {
