@@ -14,9 +14,10 @@ export async function runWarpRouteCheck({
   onChainWarpConfig: WarpRouteDeployConfig;
 }): Promise<void> {
   // Go through each chain and only add to the output the chains that have mismatches
-  const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
-    (acc, chain) => {
-      const { mergedObject, isInvalid } = diffObjMerge(
+  const violations: { [key: string]: ObjectDiff } = {}; // Improved: Declared a specific type for violations
+  let isInvalid = false; // Improved: Initialized isInvalid separately
+     for (const chain of Object.keys(warpRouteConfig)) {
+       const { mergedObject, isInvalid: currentIsInvalid } = diffObjMerge(
         normalizeConfig(onChainWarpConfig[chain]),
         normalizeConfig(warpRouteConfig[chain]),
       );
