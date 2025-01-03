@@ -22,13 +22,14 @@ import { Token } from '../token/Token.js';
 import { TokenAmount } from '../token/TokenAmount.js';
 import { parseTokenConnectionId } from '../token/TokenConnection.js';
 import {
-  MINT_LIMITED_STANDARDS,
-  TOKEN_COLLATERALIZED_STANDARDS,
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
 import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
-import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
+import {
+  IHypXERC20Adapter,
+  IIntentAdapter,
+} from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -184,13 +185,11 @@ export class WarpCore {
     destination,
     sender,
     senderPubKey,
-    interchainFee,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
-    interchainFee?: TokenAmount;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -220,7 +219,6 @@ export class WarpCore {
       destination,
       sender,
       recipient,
-      interchainFee,
     });
 
     // Typically the transfers require a single transaction
@@ -271,13 +269,11 @@ export class WarpCore {
     destination,
     sender,
     senderPubKey,
-    interchainFee,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
-    interchainFee?: TokenAmount;
   }): Promise<TokenAmount> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -295,7 +291,6 @@ export class WarpCore {
       destination,
       sender,
       senderPubKey,
-      interchainFee,
     });
 
     // Get the local gas token. This assumes the chain's native token will pay for local gas
@@ -313,27 +308,26 @@ export class WarpCore {
     destination,
     sender,
     recipient,
-    interchainFee,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
-    interchainFee?: TokenAmount;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
 
     const { token, amount } = originTokenAmount;
-    const destinationName = this.multiProvider.getChainName(destination);
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
-    const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
+    const adapter = token.getAdapter(
+      this.multiProvider,
+    ) as IIntentAdapter<unknown>;
 
     if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
       this.logger.info(`Approval required for transfer of ${token.symbol}`);
-      const approveTxReq = await hypAdapter.populateApproveTx({
+      const approveTxReq = await adapter.populateApproveTx({
         weiAmountOrId: amount.toString(),
-        recipient: token.addressOrDenom,
+        recipient: token.collateralAddressOrDenom!,
       });
       this.logger.debug(`Approval tx for ${token.symbol} populated`);
 
@@ -345,23 +339,16 @@ export class WarpCore {
       transactions.push(approveTx);
     }
 
-    if (!interchainFee) {
-      interchainFee = await this.getInterchainTransferFee({
-        originToken: token,
-        destination,
-        sender,
-      });
-    }
-
-    const transferTxReq = await hypAdapter.populateTransferRemoteTx({
-      weiAmountOrId: amount.toString(),
-      destination: destinationDomainId,
-      fromAccountOwner: sender,
+    const transferTxReq = await adapter.populateOpenOrderTx({
+      sender,
       recipient,
-      interchainGas: {
-        amount: interchainFee.amount,
-        addressOrDenom: interchainFee.token.addressOrDenom,
-      },
+      outputToken: token
+        .getConnections()
+        .find((c) => c.token.chainName === destination)!.token.addressOrDenom,
+      amountIn: amount.toString(),
+      amountOut: amount.toString(),
+      destinationDomain: `${destinationDomainId}`,
+      fillDeadline: `${Math.floor(Date.now() / 1000) + 60 * 60 * 24}`,
     });
     this.logger.debug(`Remote transfer tx for ${token.symbol} populated`);
 
@@ -405,7 +392,6 @@ export class WarpCore {
       destination,
       sender,
       senderPubKey,
-      interchainFee: interchainQuote,
     });
 
     return {
@@ -459,62 +445,10 @@ export class WarpCore {
   /**
    * Checks if destination chain's collateral is sufficient to cover the transfer
    */
-  async isDestinationCollateralSufficient({
-    originTokenAmount,
-    destination,
-  }: {
-    originTokenAmount: TokenAmount;
-    destination: ChainNameOrId;
-  }): Promise<boolean> {
-    const { token: originToken, amount } = originTokenAmount;
-    const destinationName = this.multiProvider.getChainName(destination);
-    this.logger.debug(
-      `Checking collateral for ${originToken.symbol} to ${destination}`,
-    );
+  async isDestinationCollateralSufficient(): Promise<boolean> {
+    return true;
 
-    const destinationToken =
-      originToken.getConnectionForChain(destinationName)?.token;
-    assert(destinationToken, `No connection found for ${destinationName}`);
-
-    if (
-      !TOKEN_COLLATERALIZED_STANDARDS.includes(destinationToken.standard) &&
-      !MINT_LIMITED_STANDARDS.includes(destinationToken.standard)
-    ) {
-      this.logger.debug(
-        `${destinationToken.symbol} is not collateralized, skipping`,
-      );
-      return true;
-    }
-
-    let destinationBalance: bigint;
-
-    const adapter = destinationToken.getAdapter(this.multiProvider);
-    if (
-      destinationToken.standard === TokenStandard.EvmHypXERC20 ||
-      destinationToken.standard === TokenStandard.EvmHypXERC20Lockbox
-    ) {
-      destinationBalance = await (
-        adapter as IHypXERC20Adapter<unknown>
-      ).getMintLimit();
-    } else {
-      destinationBalance = await adapter.getBalance(
-        destinationToken.addressOrDenom,
-      );
-    }
-
-    const destinationBalanceInOriginDecimals = convertDecimals(
-      destinationToken.decimals,
-      originToken.decimals,
-      destinationBalance.toString(),
-    );
-
-    const isSufficient = BigInt(destinationBalanceInOriginDecimals) >= amount;
-    this.logger.debug(
-      `${originTokenAmount.token.symbol} to ${destination} has ${
-        isSufficient ? 'sufficient' : 'INSUFFICIENT'
-      } collateral`,
-    );
-    return isSufficient;
+    // let destinationBalance: bigint;
   }
 
   /**
@@ -531,7 +465,7 @@ export class WarpCore {
     const adapter = token.getAdapter(this.multiProvider);
     const isRequired = await adapter.isApproveRequired(
       owner,
-      token.addressOrDenom,
+      token.collateralAddressOrDenom!,
       amount,
     );
     this.logger.debug(
@@ -550,13 +484,11 @@ export class WarpCore {
     destination,
     recipient,
     sender,
-    senderPubKey,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
-    senderPubKey?: HexString;
   }): Promise<Record<string, string> | null> {
     const chainError = this.validateChains(
       originTokenAmount.token.chainName,
@@ -567,29 +499,29 @@ export class WarpCore {
     const recipientError = this.validateRecipient(recipient, destination);
     if (recipientError) return recipientError;
 
-    const amountError = await this.validateAmount(
-      originTokenAmount,
-      destination,
-      recipient,
-    );
-    if (amountError) return amountError;
+    // TBD: re-enable these validations if needed
+    // const amountError = await this.validateAmount(
+    //   originTokenAmount,
+    //   destination,
+    //   recipient,
+    // );
+    // if (amountError) return amountError;
 
-    const destinationCollateralError = await this.validateDestinationCollateral(
-      originTokenAmount,
-      destination,
-    );
-    if (destinationCollateralError) return destinationCollateralError;
+    // Note: this shouldn't be necessary in an intent-based system
+    // const destinationCollateralError = await this.validateDestinationCollateral(
+    //   originTokenAmount,
+    //   destination,
+    // );
+    // if (destinationCollateralError) return destinationCollateralError;
 
-    const originCollateralError = await this.validateOriginCollateral(
-      originTokenAmount,
-    );
-    if (originCollateralError) return originCollateralError;
+    // const originCollateralError = await this.validateOriginCollateral(
+    //   originTokenAmount,
+    // );
+    // if (originCollateralError) return originCollateralError;
 
     const balancesError = await this.validateTokenBalances(
       originTokenAmount,
-      destination,
       sender,
-      senderPubKey,
     );
     if (balancesError) return balancesError;
 
@@ -671,7 +603,9 @@ export class WarpCore {
     const destinationToken =
       originToken.getConnectionForChain(destinationName)?.token;
     assert(destinationToken, `No connection found for ${destinationName}`);
-    const destinationAdapter = destinationToken.getAdapter(this.multiProvider);
+    const destinationAdapter = destinationToken.getAdapter(
+      this.multiProvider,
+    ) as IIntentAdapter<unknown>;
 
     // Get the min required destination amount
     const minDestinationTransferAmount =
@@ -702,9 +636,7 @@ export class WarpCore {
    */
   protected async validateTokenBalances(
     originTokenAmount: TokenAmount,
-    destination: ChainNameOrId,
     sender: Address,
-    senderPubKey?: HexString,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
 
@@ -712,52 +644,53 @@ export class WarpCore {
       this.multiProvider,
       sender,
     );
-    const senderBalanceAmount = originTokenAmount.token.amount(senderBalance);
+    // const senderBalanceAmount = originTokenAmount.token.amount(senderBalance);
 
     // Check 1: Check basic token balance
     if (amount > senderBalance) return { amount: 'Insufficient balance' };
 
-    // Check 2: Ensure the balance can cover interchain fee
-    // Slightly redundant with Check 4 but gives more specific error messages
-    const interchainQuote = await this.getInterchainTransferFee({
-      originToken,
-      destination,
-      sender,
-    });
-    // Get balance of the IGP fee token, which may be different from the transfer token
-    const interchainQuoteTokenBalance = originToken.isFungibleWith(
-      interchainQuote.token,
-    )
-      ? senderBalanceAmount
-      : await interchainQuote.token.getBalance(this.multiProvider, sender);
-    if (interchainQuoteTokenBalance.amount < interchainQuote.amount) {
-      return {
-        amount: `Insufficient ${interchainQuote.token.symbol} for interchain gas`,
-      };
-    }
+    // TBD: we need to be sure that the sender has enough balance to cover the gas fees, but not this way
+    // // Check 2: Ensure the balance can cover interchain fee
+    // // Slightly redundant with Check 4 but gives more specific error messages
+    // const interchainQuote = await this.getInterchainTransferFee({
+    //   originToken,
+    //   destination,
+    //   sender,
+    // });
+    // // Get balance of the IGP fee token, which may be different from the transfer token
+    // const interchainQuoteTokenBalance = originToken.isFungibleWith(
+    //   interchainQuote.token,
+    // )
+    //   ? senderBalanceAmount
+    //   : await interchainQuote.token.getBalance(this.multiProvider, sender);
+    // if (interchainQuoteTokenBalance.amount < interchainQuote.amount) {
+    //   return {
+    //     amount: `Insufficient ${interchainQuote.token.symbol} for interchain gas`,
+    //   };
+    // }
 
-    // Check 3: Simulates the transfer by getting the local gas fee
-    const localQuote = await this.getLocalTransferFeeAmount({
-      originToken,
-      destination,
-      sender,
-      senderPubKey,
-      interchainFee: interchainQuote,
-    });
+    // // Check 3: Simulates the transfer by getting the local gas fee
+    // const localQuote = await this.getLocalTransferFeeAmount({
+    //   originToken,
+    //   destination,
+    //   sender,
+    //   senderPubKey,
+    //   interchainFee: interchainQuote,
+    // });
 
-    const feeEstimate = { interchainQuote, localQuote };
+    // const feeEstimate = { interchainQuote, localQuote };
 
-    // Check 4: Ensure balances can cover the COMBINED amount and fees
-    const maxTransfer = await this.getMaxTransferAmount({
-      balance: senderBalanceAmount,
-      destination,
-      sender,
-      senderPubKey,
-      feeEstimate,
-    });
-    if (amount > maxTransfer.amount) {
-      return { amount: 'Insufficient balance for gas and transfer' };
-    }
+    // // Check 4: Ensure balances can cover the COMBINED amount and fees
+    // const maxTransfer = await this.getMaxTransferAmount({
+    //   balance: senderBalanceAmount,
+    //   destination,
+    //   sender,
+    //   senderPubKey,
+    //   feeEstimate,
+    // });
+    // if (amount > maxTransfer.amount) {
+    //   return { amount: 'Insufficient balance for gas and transfer' };
+    // }
 
     return null;
   }
@@ -765,14 +698,11 @@ export class WarpCore {
   /**
    * Ensure the sender has sufficient balances for transfer and interchain gas
    */
-  protected async validateDestinationCollateral(
-    originTokenAmount: TokenAmount,
-    destination: ChainNameOrId,
-  ): Promise<Record<string, string> | null> {
-    const valid = await this.isDestinationCollateralSufficient({
-      originTokenAmount,
-      destination,
-    });
+  protected async validateDestinationCollateral(): Promise<Record<
+    string,
+    string
+  > | null> {
+    const valid = await this.isDestinationCollateralSufficient();
     if (!valid) return { amount: 'Insufficient collateral on destination' };
 
     return null;
