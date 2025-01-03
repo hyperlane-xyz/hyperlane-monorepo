@@ -13,15 +13,15 @@ import { ANVIL_KEY, REGISTRY_PATH } from './helpers.js';
 export function hyperlaneCoreDeployRaw(
   coreInputPath: string,
   privateKey?: string,
-  skip?: boolean,
-  hyp_key?: string,
+  skipConfirmationPrompts?: boolean,
+  hypKey?: string,
 ): ProcessPromise {
-  if (hyp_key) {
-    return $`HYP_KEY=${hyp_key} yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
+  if (hypKey) {
+    return $`HYP_KEY=${hypKey} yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         --verbosity debug \
-        ${skip ? '--yes' : ''}`;
+        ${skipConfirmationPrompts ? '--yes' : ''}`;
   }
 
   if (privateKey) {
@@ -30,14 +30,14 @@ export function hyperlaneCoreDeployRaw(
         --config ${coreInputPath} \
         --key ${privateKey} \
         --verbosity debug \
-        ${skip ? '--yes' : ''}`;
+        ${skipConfirmationPrompts ? '--yes' : ''}`;
   }
 
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
         --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         --verbosity debug \
-        ${skip ? '--yes' : ''}`;
+        ${skipConfirmationPrompts ? '--yes' : ''}`;
 }
 
 /**

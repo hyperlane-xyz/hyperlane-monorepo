@@ -602,6 +602,10 @@ const blacklistedMessageIds = [
   // txs between unenrolled routers of
   // USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork
   '0x10159bf1b5b2142b882cb060d1da9f9123d82974ca265ba432138221e52c2a27',
+
+  // test tx when route was first deployed, no merkle tree insertion
+  // USDC/ethereum-inevm
+  '0x998746dc822dc15332b8683fb8a29aec22ed3e2f2fb8245c40f56303c5cb6032',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -618,7 +622,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e9911bb-20241223-211526',
+      tag: 'f73dcc3-20241229-154524',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -653,7 +657,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'e9911bb-20241223-211526',
+      tag: '234704d-20241226-192528',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -687,7 +691,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '25a927d-20241114-171323',
+      tag: '234704d-20241226-192528',
     },
     blacklist,
     gasPaymentEnforcement,
