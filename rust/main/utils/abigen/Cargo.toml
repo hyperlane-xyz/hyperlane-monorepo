@@ -14,9 +14,11 @@ ethers = { workspace = true, optional = true }
 fuels = { workspace = true, optional = true }
 fuels-code-gen = { workspace = true, optional = true }
 which = { workspace = true, optional = true }
+cainome = { workspace = true, optional = true }
 
 [features]
 default = []
 ethers = ["dep:ethers"]
 fmt = ["dep:which"]
 fuels = ["dep:fuels", "dep:fuels-code-gen", "fmt"]
+starknet = ["dep:cainome"]
