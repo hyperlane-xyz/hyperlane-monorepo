@@ -109,7 +109,9 @@ export async function createChainConfig({
   if (technicalStack === ChainTechnicalStack.ArbitrumNitro) {
     const indexFrom = await detectAndConfirmOrPrompt(
       async () => {
-        return (await provider.getBlockNumber()).toString();
+        return (
+          await new ethers.providers.JsonRpcProvider(rpcUrl).getBlockNumber()
+        ).toString();
       },
       `Enter`,
       'starting block number for indexing',
