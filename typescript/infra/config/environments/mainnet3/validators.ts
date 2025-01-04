@@ -1375,6 +1375,16 @@ export const validatorChainConfig = (
         'rivalz',
       ),
     },
+    soon: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('soon'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0E6723b3C1eD3Db0C24347AA2cf16D28BC2a1F76'],
+        },
+        'soon',
+      ),
+    },
 
     // fractal: {
     //   interval: 5,

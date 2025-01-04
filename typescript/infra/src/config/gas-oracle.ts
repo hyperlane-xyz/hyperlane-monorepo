@@ -66,13 +66,16 @@ function getLocalStorageGasOracleConfigOverride(
 
       // Check that there's no significant underflow when applying
       // this to the exchange rate:
+      console.log('sneak 1', local, remote);
       const adjustedExchangeRate = exchangeRate.div(gasPriceScalingFactor);
+      console.log('sneak 2', local, remote);
       const recoveredExchangeRate = adjustedExchangeRate.mul(
         gasPriceScalingFactor,
       );
       if (recoveredExchangeRate.mul(100).div(exchangeRate).lt(99)) {
         throw new Error('Too much underflow when downscaling exchange rate');
       }
+      console.log('sneak 3', local, remote);
 
       // Apply the scaling factor
       exchangeRate = adjustedExchangeRate;
@@ -104,9 +107,21 @@ function getLocalStorageGasOracleConfigOverride(
         const minIgpQuote = ethers.utils.parseEther(
           (minUsdCost / getTokenUsdPrice(local)).toPrecision(8),
         );
+        console.log(
+          'sneak 4',
+          local,
+          remote,
+          'exchangeRate.mul(typicalRemoteGasAmount)',
+          exchangeRate.mul(typicalRemoteGasAmount),
+          'exchangeRate',
+          exchangeRate,
+          'typicalRemoteGasAmount',
+          typicalRemoteGasAmount,
+        );
         gasPriceBn = minIgpQuote
           .mul(TOKEN_EXCHANGE_RATE_SCALE)
           .div(exchangeRate.mul(typicalRemoteGasAmount));
+        console.log('sneak 5', local, remote);
       }
     }
 
@@ -208,18 +223,19 @@ export function getAllStorageGasOracleConfigs(
   getTokenUsdPrice?: (chain: ChainName) => number,
   getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): AllStorageGasOracleConfigs {
-  return chainNames.filter(isEthereumProtocolChain).reduce((agg, local) => {
-    const remotes = chainNames.filter((chain) => local !== chain);
-    return {
-      ...agg,
-      [local]: getLocalStorageGasOracleConfigOverride(
-        local,
-        remotes,
-        gasPrices,
-        getTokenExchangeRate,
-        getTokenUsdPrice,
-        getOverhead,
-      ),
-    };
-  }, {}) as AllStorageGasOracleConfigs;
+  return chainNames /*.filter(isEthereumProtocolChain)*/
+    .reduce((agg, local) => {
+      const remotes = chainNames.filter((chain) => local !== chain);
+      return {
+        ...agg,
+        [local]: getLocalStorageGasOracleConfigOverride(
+          local,
+          remotes,
+          gasPrices,
+          getTokenExchangeRate,
+          getTokenUsdPrice,
+          getOverhead,
+        ),
+      };
+    }, {}) as AllStorageGasOracleConfigs;
 }
