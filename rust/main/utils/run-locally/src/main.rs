@@ -51,6 +51,7 @@ mod invariants;
 mod logging;
 mod metrics;
 mod program;
+mod server;
 mod solana;
 mod utils;
 
@@ -482,6 +483,15 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
+
+    // test retry request
+    let retry_req = std::thread::spawn(server::run_retry_request);
+    // check retry request matched at least 1 operation
+    let resp = retry_req
+        .join()
+        .expect("Failed to join retry request thread")
+        .expect("Failed to process retry request");
+    assert!(resp.matched > 0);
 
     if !post_startup_invariants(&checkpoints_dirs) {
         log!("Failure: Post startup invariants are not met");
