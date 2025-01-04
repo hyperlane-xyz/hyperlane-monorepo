@@ -127,6 +127,10 @@ impl GasPaymentEnforcer {
                 ?tx_cost_estimate,
                 "Evaluating if message meets gas payment requirement",
             );
+            println!(
+                "DELOREN policy: {:?}, {:?}, {:?}",
+                policy, &current_payment, &current_expenditure
+            );
             return policy
                 .message_meets_gas_payment_requirement(
                     message,

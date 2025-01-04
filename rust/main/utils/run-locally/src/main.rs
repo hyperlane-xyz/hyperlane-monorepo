@@ -227,7 +227,7 @@ fn main() -> ExitCode {
             "GASPAYMENTENFORCEMENT",
             r#"[{
                 "type": "minimum",
-                "payment": "1",
+                "payment": "1"
             }]"#,
         )
         .arg(
