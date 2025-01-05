@@ -485,12 +485,7 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(10));
 
     // test retry request
-    let retry_req = std::thread::spawn(server::run_retry_request);
-    // check retry request matched at least 1 operation
-    let resp = retry_req
-        .join()
-        .expect("Failed to join retry request thread")
-        .expect("Failed to process retry request");
+    let resp = server::run_retry_request().expect("Failed to process retry request");
     assert!(resp.matched > 0);
 
     if !post_startup_invariants(&checkpoints_dirs) {

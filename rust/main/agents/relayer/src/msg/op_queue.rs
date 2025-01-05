@@ -100,9 +100,9 @@ impl OpQueue {
                 let matched_requests: Vec<_> = message_retry_requests
                     .iter_mut()
                     .filter_map(|(retry_req, retry_response)| {
-                        let match_res = retry_req.pattern.op_matches(&op);
                         // update retry metrics
-                        if match_res {
+                        if retry_req.pattern.op_matches(&op) {
+                            debug!(uuid = retry_req.uuid, "Matched request");
                             retry_response.matched += 1;
                             Some(retry_req.uuid.clone())
                         } else {
@@ -111,17 +111,13 @@ impl OpQueue {
                     })
                     .collect();
 
-                let matches = !matched_requests.is_empty();
-                if matches {
+                if !matched_requests.is_empty() {
                     info!(
                         operation = %op,
                         queue_label = %self.queue_metrics_label,
                         "Retrying OpQueue operation"
                     );
                     op.reset_attempts();
-                    for matched_req in matched_requests {
-                        info!(uuid = matched_req, "Matched request");
-                    }
                 }
                 Reverse(op)
             })
@@ -136,7 +132,7 @@ impl OpQueue {
                 "Sending relayer retry response back"
             );
             if let Err(err) = retry_req.transmitter.send(retry_response).await {
-                tracing::error!(err = err.to_string(), "Failed to send retry response");
+                tracing::error!(?err, "Failed to send retry response");
             }
         }
         queue.append(&mut reprioritized_queue);

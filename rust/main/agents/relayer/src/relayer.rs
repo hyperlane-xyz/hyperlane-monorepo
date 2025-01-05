@@ -386,7 +386,7 @@ impl BaseAgent for Relayer {
             );
         }
         // run server
-        let custom_routes = relayer_server::Server::new()
+        let custom_routes = relayer_server::Server::new(self.origin_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .routes();

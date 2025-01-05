@@ -15,6 +15,7 @@ mod message_retry;
 
 #[derive(new)]
 pub struct Server {
+    relayer_chains: usize,
     #[new(default)]
     retry_transmitter: Option<Sender<MessageRetryRequest>>,
     #[new(default)]
@@ -37,7 +38,7 @@ impl Server {
     pub fn routes(self) -> Vec<(&'static str, Router)> {
         let mut routes = vec![];
         if let Some(tx) = self.retry_transmitter {
-            routes.push(MessageRetryApi::new(tx).get_route());
+            routes.push(MessageRetryApi::new(tx, self.relayer_chains).get_route());
         }
         if let Some(op_queues) = self.op_queues {
             routes.push(ListOperationsApi::new(op_queues).get_route());

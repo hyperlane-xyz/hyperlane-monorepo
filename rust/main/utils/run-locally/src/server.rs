@@ -16,6 +16,8 @@ pub struct MessageRetryResponse {
     pub matched: u64,
 }
 
+/// create tokio runtime to send a retry request to
+/// relayer to retry all existing messages in the queues
 pub fn run_retry_request() -> io::Result<MessageRetryResponse> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -25,6 +27,8 @@ pub fn run_retry_request() -> io::Result<MessageRetryResponse> {
         .block_on(async { call_retry_request().await })
 }
 
+/// sends a request to relayer to retry all existing messages
+/// in the queues
 async fn call_retry_request() -> io::Result<MessageRetryResponse> {
     let client = reqwest::Client::new();
 

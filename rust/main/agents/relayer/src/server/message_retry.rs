@@ -8,14 +8,10 @@ use tokio::sync::{broadcast::Sender, mpsc};
 
 const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 
-#[derive(new)]
+#[derive(Clone, Debug, new)]
 pub struct MessageRetryApi {
     retry_request_transmitter: Sender<MessageRetryRequest>,
-}
-
-#[derive(Clone, Debug)]
-pub struct MessageRetryApiState {
-    pub retry_request_transmitter: Sender<MessageRetryRequest>,
+    relayer_chains: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -36,7 +32,7 @@ pub struct MessageRetryResponse {
 }
 
 async fn retry_message(
-    State(state): State<MessageRetryApiState>,
+    State(state): State<MessageRetryApi>,
     Json(retry_req_payload): Json<MatchingList>,
 ) -> Result<Json<MessageRetryResponse>, String> {
     let uuid = uuid::Uuid::new_v4();
@@ -47,7 +43,7 @@ async fn retry_message(
     // This channel is only created to service this single
     // retry request so we're expecting a single response
     // from each transmitter end, hence we are using a channel of size 1
-    let (transmitter, mut receiver) = mpsc::channel(1);
+    let (transmitter, mut receiver) = mpsc::channel(state.relayer_chains);
     state
         .retry_request_transmitter
         .send(MessageRetryRequest {
@@ -87,9 +83,7 @@ impl MessageRetryApi {
     pub fn router(&self) -> Router {
         Router::new()
             .route("/", routing::post(retry_message))
-            .with_state(MessageRetryApiState {
-                retry_request_transmitter: self.retry_request_transmitter.clone(),
-            })
+            .with_state(self.clone())
     }
 
     pub fn get_route(&self) -> (&'static str, Router) {
@@ -118,7 +112,7 @@ mod tests {
     fn setup_test_server() -> TestServerSetup {
         let broadcast_tx = Sender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
 
-        let message_retry_api = MessageRetryApi::new(broadcast_tx.clone());
+        let message_retry_api = MessageRetryApi::new(broadcast_tx.clone(), 10);
         let (path, retry_router) = message_retry_api.get_route();
 
         let app = Router::new().nest(path, retry_router);
