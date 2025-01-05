@@ -33,7 +33,7 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 
 use crate::{
     config::Config,
@@ -539,8 +539,89 @@ fn main() -> ExitCode {
 
         sleep(Duration::from_secs(5));
     }
+    run_restart_check(&mut state, rocks_db_dir);
 
     report_test_result(failure_occurred)
+}
+
+fn run_restart_check(state: &mut State, rocks_db_dir: TempDir) -> ExitCode {
+    let relayer_db = concat_path(&rocks_db_dir, "relayer");
+
+    if let Some((child, _)) = state.agents.get_mut("RLY") {
+        let output = child.wait();
+
+        let config = Config::load();
+
+        let common_agent_env = Program::default()
+            .env("RUST_BACKTRACE", "full")
+            .hyp_env("LOG_FORMAT", "compact")
+            .hyp_env("LOG_LEVEL", "debug")
+            .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
+            .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
+            .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
+
+        let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
+
+        let relayer_env = common_agent_env
+            .clone()
+            .bin(concat_path(AGENT_BIN_PATH, "relayer"))
+            .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "fallback")
+            .hyp_env(
+                "CHAINS_TEST2_CONNECTION_URLS",
+                "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+            )
+            .hyp_env(
+                "CHAINS_TEST1_BATCHCONTRACTADDRESS",
+                multicall_address_string.clone(),
+            )
+            .hyp_env("CHAINS_TEST1_MAXBATCHSIZE", "5")
+            // by setting this as a quorum provider we will cause nonce errors when delivering to test2
+            // because the message will be sent to the node 3 times.
+            .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
+            .hyp_env(
+                "CHAINS_TEST2_BATCHCONTRACTADDRESS",
+                multicall_address_string.clone(),
+            )
+            .hyp_env("CHAINS_TEST2_MAXBATCHSIZE", "5")
+            .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+            .hyp_env(
+                "CHAINS_TEST3_BATCHCONTRACTADDRESS",
+                multicall_address_string,
+            )
+            .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
+            .hyp_env("METRICSPORT", RELAYER_METRICS_PORT)
+            .hyp_env("DB", relayer_db.to_str().unwrap())
+            .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
+            .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
+            .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
+            .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
+            .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
+            .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+            .hyp_env(
+                "GASPAYMENTENFORCEMENT",
+                r#"[{
+                    "type": "minimum",
+                    "payment": "1"
+                }]"#,
+            )
+            .arg(
+                "chains.test1.customRpcUrls",
+                "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+            )
+            // default is used for TEST3
+            .arg("defaultSigner.key", RELAYER_KEYS[2]);
+        let relayer_env = if config.sealevel_enabled {
+            relayer_env.arg(
+                "relayChains",
+                "test1,test2,test3,sealeveltest1,sealeveltest2",
+            )
+        } else {
+            relayer_env.arg("relayChains", "test1,test2,test3")
+        };
+
+        state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
+    }
+    ExitCode::SUCCESS
 }
 
 fn report_test_result(failure_occurred: bool) -> ExitCode {
