@@ -110,7 +110,10 @@ impl StarknetMailbox {
             None => {
                 tx.estimate_fee()
                     .await
-                    .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?
+                    .map_err(|e| {
+                        tracing::error!("Failed to estimate fee in process_contract_call: {:?}", e);
+                        HyperlaneStarknetError::AccountError(e.to_string())
+                    })?
                     .overall_fee
             }
         };
@@ -221,7 +224,7 @@ impl Mailbox for StarknetMailbox {
             .estimate_fee()
             .await
             .map_err(|e| {
-                tracing::error!("Failed to estimate fee: {:?}", e);
+                tracing::error!("Failed to estimate fee in process_estimate_costs: {:?}", e);
                 HyperlaneStarknetError::AccountError(e.to_string())
             })?;
 

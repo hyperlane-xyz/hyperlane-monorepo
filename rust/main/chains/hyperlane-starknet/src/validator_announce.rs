@@ -92,11 +92,13 @@ impl StarknetValidatorAnnounce {
         let tx = self
             .contract
             .announce(&EthAddress(validator), &storage_location, signature);
-
         let gas_estimate = tx
             .estimate_fee()
             .await
-            .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?
+            .map_err(|e| {
+                tracing::error!("Failed to estimate gas in announce_contract_call: {:?}", e);
+                HyperlaneStarknetError::AccountError(e.to_string())
+            })?
             .overall_fee;
 
         let max_cost = gas_estimate * FieldElement::TWO;

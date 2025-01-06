@@ -278,7 +278,10 @@ pub async fn send_and_confirm(
     let tx = contract_call
         .send()
         .await
-        .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("Failed to send transaction in send_and_confirm: {:?}", e);
+            HyperlaneStarknetError::AccountError(e.to_string())
+        })?;
 
     let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
 
