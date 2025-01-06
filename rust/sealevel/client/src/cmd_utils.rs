@@ -155,8 +155,8 @@ fn attempt_program_deploy(
     // Success!
     if let Ok(true) = run_cmd(command.as_slice(), None, None) {
         // TODO: use commitment level instead of just sleeping here?
-        println!("Sleeping for 2 seconds to fully allow program to be deployed");
-        sleep(Duration::from_secs(2));
+        println!("Sleeping for 5 seconds to fully allow program to be deployed");
+        sleep(Duration::from_secs(5));
 
         return Ok(());
     }
