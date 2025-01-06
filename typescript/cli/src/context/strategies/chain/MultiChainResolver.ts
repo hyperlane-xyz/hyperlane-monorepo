@@ -68,7 +68,7 @@ export class MultiChainResolver implements ChainResolver {
     argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
     argv.context.chains = await this.getWarpRouteConfigChains(
       argv.config.trim(),
-      argv.skipConfirmation,
+      argv.context.skipConfirmation,
     );
     return argv.context.chains;
   }
