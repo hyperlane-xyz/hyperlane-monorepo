@@ -733,7 +733,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Starknet(_) => {
-                Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
+                Err(eyre!("Starknet does not support routing ISM yet")).context(ctx)
             }
         }
         .context(ctx)
