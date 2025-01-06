@@ -211,6 +211,6 @@ impl HyperlaneAbi for StarknetValidatorAnnounceAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        todo!()
+        HashMap::default()
     }
 }
