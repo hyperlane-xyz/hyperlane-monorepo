@@ -733,7 +733,7 @@ impl ChainConf {
                 Ok(ism as Box<dyn RoutingIsm>)
             }
             ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support routing ISM yet")
+                Err(eyre!("Sealevel does not support routing ISM yet")).context(ctx)
             }
         }
         .context(ctx)
@@ -809,7 +809,7 @@ impl ChainConf {
                 Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
             }
             ChainConnectionConf::Starknet(_) => {
-                todo!("Starknet does not support CCIP read ISM yet")
+                Err(eyre!("Starknet does not support CCIP read ISM yet")).context(ctx)
             }
         }
         .context(ctx)

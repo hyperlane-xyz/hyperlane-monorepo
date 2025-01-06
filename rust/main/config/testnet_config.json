@@ -2200,7 +2200,8 @@
       "validatorAnnounce": "0x003c6f15267867a2668c2a5133ee91e4db14eb67e36912ceb134df86facdf7d9",
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
       "index": {
-        "from": 109509
+        "from": 109509,
+        "chunk": 999
       }
     }
   },
