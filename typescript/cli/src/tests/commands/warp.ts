@@ -25,15 +25,53 @@ export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
 /**
  * Deploys the Warp route to the specified chain using the provided config.
  */
-export async function hyperlaneWarpDeploy(warpCorePath: string) {
-  // --overrides is " " to allow local testing to work
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
+export function hyperlaneWarpDeployRaw({
+  warpCorePath,
+  hypKey,
+  skipConfirmationPrompts,
+  privateKey,
+}: {
+  warpCorePath?: string;
+  hypKey?: string;
+  skipConfirmationPrompts?: boolean;
+  privateKey?: string;
+}): ProcessPromise {
+  if (hypKey) {
+    return $`HYP_KEY=${hypKey} yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
-        --config ${warpCorePath} \
-        --key ${ANVIL_KEY} \
+        ${warpCorePath ? ['--config', warpCorePath] : []} \
         --verbosity debug \
-        --yes`;
+        ${skipConfirmationPrompts ? '--yes' : ''}`;
+  }
+
+  if (privateKey) {
+    return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
+        --registry ${REGISTRY_PATH} \
+        --overrides " " \
+        ${warpCorePath ? ['--config', warpCorePath] : []} \
+        --key ${privateKey} \
+        --verbosity debug \
+        ${skipConfirmationPrompts ? '--yes' : ''}`;
+  }
+
+  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
+      --registry ${REGISTRY_PATH} \
+      --overrides " " \
+      ${warpCorePath ? ['--config', warpCorePath] : []} \
+      --verbosity debug \
+      ${skipConfirmationPrompts ? '--yes' : ''}`;
+}
+
+/**
+ * Deploys the Warp route to the specified chain using the provided config.
+ */
+export function hyperlaneWarpDeploy(warpCorePath: string): ProcessPromise {
+  return hyperlaneWarpDeployRaw({
+    privateKey: ANVIL_KEY,
+    warpCorePath: warpCorePath,
+    skipConfirmationPrompts: true,
+  });
 }
 
 /**
