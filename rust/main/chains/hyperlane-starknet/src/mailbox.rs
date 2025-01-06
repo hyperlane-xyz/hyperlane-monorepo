@@ -220,7 +220,10 @@ impl Mailbox for StarknetMailbox {
         let fee_estimate = contract_call
             .estimate_fee()
             .await
-            .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("Failed to estimate fee: {:?}", e);
+                HyperlaneStarknetError::AccountError(e.to_string())
+            })?;
 
         Ok(TxCostEstimate {
             gas_limit: HyU256::from(fee_estimate.gas_consumed).0,
