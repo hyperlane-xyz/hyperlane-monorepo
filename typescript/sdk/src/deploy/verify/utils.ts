@@ -1,11 +1,12 @@
 import { ethers, utils } from 'ethers';
+import { Hex, decodeFunctionData, parseAbi } from 'viem';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   ProxyAdmin__factory,
   TransparentUpgradeableProxy__factory,
 } from '@hyperlane-xyz/core';
-import { Address, assert, eqAddress } from '@hyperlane-xyz/utils';
+import { Address, assert, eqAddress, sleep } from '@hyperlane-xyz/utils';
 
 import { ExplorerFamily } from '../../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
@@ -104,7 +105,7 @@ export function encodeArguments(abi: any, constructorArgs: any[]): string {
     deployArgumentsEncoded = contractInterface
       .encodeDeploy(constructorArgs)
       .replace('0x', '');
-  } catch (error: any) {
+  } catch {
     throw new Error('Cant encode constructor args');
   }
 
@@ -171,6 +172,14 @@ export async function getConstructorArgumentsApi({
         chainName,
         contractAddress,
         multiProvider,
+      });
+      break;
+    case ExplorerFamily.ZKSync:
+      constructorArgs = await getZKSyncExplorerConstructorArgs({
+        chainName,
+        contractAddress,
+        multiProvider,
+        bytecode,
       });
       break;
     default:
@@ -321,4 +330,69 @@ export async function getImplementationInput({
     implementationAddress,
     implementationConstructorArgs,
   );
+}
+
+export async function getZKSyncExplorerConstructorArgs({
+  chainName,
+  contractAddress,
+  multiProvider,
+}: {
+  bytecode: string;
+  chainName: string;
+  contractAddress: Address;
+  multiProvider: MultiProvider;
+}): Promise<string> {
+  const { apiKey: blockExplorerApiKey } =
+    multiProvider.getExplorerApi(chainName);
+
+  const url = new URL('https://block-explorer.treasurescan.io/api');
+  url.searchParams.append('module', 'contract');
+  url.searchParams.append('action', 'getcontractcreation');
+  url.searchParams.append('contractaddresses', contractAddress);
+
+  console.log(url);
+
+  if (blockExplorerApiKey)
+    url.searchParams.append('apikey', blockExplorerApiKey);
+
+  await sleep(6000);
+
+  const explorerResp = await fetch(url);
+  const creationTx = (await explorerResp.json()).result[0].txHash;
+  console.log(url.toString());
+  console.log(creationTx);
+
+  // Fetch deployment bytecode (includes constructor args)
+  assert(creationTx, 'Contract creation transaction not found!');
+  const metadata = multiProvider.getChainMetadata(chainName);
+  const rpcUrl = metadata.rpcUrls[0].http;
+
+  const creationTxResp = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      method: 'eth_getTransactionByHash',
+      params: [creationTx],
+      id: 1,
+      jsonrpc: '2.0',
+    }),
+  });
+
+  // https://zero-network.calderaexplorer.xyz/api?module=contract&action=getcontractcreation&contractaddresses=0x3f7F02453518A55C0c6F89F0A6A8ab6c22Da01Df
+
+  const tx = await creationTxResp.json();
+
+  // Truncate the deployment bytecode
+  const creationInput: string = tx.result.input;
+
+  const res = decodeFunctionData({
+    abi: parseAbi(['function create(bytes32,bytes32,bytes)']),
+    data: creationInput as Hex,
+  });
+
+  console.log(res.args[2]);
+
+  return res.args[2].replace('0x', '');
 }

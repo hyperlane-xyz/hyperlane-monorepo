@@ -13,7 +13,8 @@ export const SIGN_COMMANDS = [
 export function isSignCommand(argv: any): boolean {
   //TODO: fix reading and checking warp without signer, and remove this
   const temporarySignCommandsCheck =
-    argv._[0] === 'warp' && (argv._[1] === 'read' || argv._[1] === 'check');
+    argv._[0] === 'warp' &&
+    (argv._[1] === 'read' || argv._[1] === 'check' || argv._[1] === 'verify');
   return (
     SIGN_COMMANDS.includes(argv._[0]) ||
     (argv._.length > 1 && SIGN_COMMANDS.includes(argv._[1])) ||
@@ -27,6 +28,7 @@ export enum CommandType {
   WARP_APPLY = 'warp:apply',
   WARP_READ = 'warp:read',
   WARP_CHECK = 'warp:check',
+  WARP_VERIFY = 'warp:verify',
   SEND_MESSAGE = 'send:message',
   AGENT_KURTOSIS = 'deploy:kurtosis-agents',
   STATUS = 'status:',
