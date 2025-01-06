@@ -1232,10 +1232,10 @@
     "formtestnet": {
       "blockExplorers": [
         {
-          "apiUrl": "https://explorer.form.network/api",
+          "apiUrl": "https://sepolia-explorer.form.network/api",
           "family": "blockscout",
           "name": "Form Testnet Explorer",
-          "url": "https://explorer.form.network"
+          "url": "https://sepolia-explorer.form.network"
         }
       ],
       "blocks": {

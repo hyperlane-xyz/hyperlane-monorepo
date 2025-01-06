@@ -2914,7 +2914,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -2928,7 +2928,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -2939,7 +2939,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -2957,7 +2957,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -2981,7 +2981,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -2995,7 +2995,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -3025,7 +3025,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.15",
@@ -3041,7 +3041,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -3060,6 +3060,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-futures",
+ "tracing-test",
  "url",
 ]
 
@@ -3089,7 +3090,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "async-trait",
  "auto_impl 1.2.0",
@@ -3125,7 +3126,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-03-3#edf703a6e515266245b88bb4f1daad24f7c6566c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "async-trait",
  "coins-bip32 0.7.0",
@@ -4652,6 +4653,7 @@ dependencies = [
  "serializable-account-meta",
  "solana-account-decoder",
  "solana-client",
+ "solana-program",
  "solana-sdk",
  "solana-transaction-status",
  "thiserror",
