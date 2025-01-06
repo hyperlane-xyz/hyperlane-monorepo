@@ -1,20 +1,10 @@
 use std::io;
 
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
+
+use relayer::server::MessageRetryResponse;
 
 use crate::RELAYER_METRICS_PORT;
-
-/// Copied from agents/relayer/src/server/message_retry.rs
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct MessageRetryResponse {
-    /// ID of the retry request
-    pub uuid: String,
-    /// how many pending operations were evaluated
-    pub evaluated: usize,
-    /// how many of the pending operations matched the retry request pattern
-    pub matched: u64,
-}
 
 /// create tokio runtime to send a retry request to
 /// relayer to retry all existing messages in the queues
