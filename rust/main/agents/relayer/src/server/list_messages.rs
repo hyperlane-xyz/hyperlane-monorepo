@@ -97,6 +97,7 @@ mod tests {
     fn setup_test_server() -> (SocketAddr, OperationPriorityQueue) {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
+
         let op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),

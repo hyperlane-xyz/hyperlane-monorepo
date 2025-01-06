@@ -6,7 +6,7 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
 
-use crate::settings::matching_list::MatchingList;
+use crate::server::{MessageRetryRequest, MessageRetryResponse};
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
@@ -16,7 +16,7 @@ pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: Arc<Mutex<Receiver<MatchingList>>>,
+    retry_receiver: Arc<Mutex<Receiver<MessageRetryRequest>>>,
     #[new(default)]
     pub queue: OperationPriorityQueue,
 }
@@ -72,27 +72,67 @@ impl OpQueue {
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
         let mut message_retry_requests = vec![];
-        while let Ok(message_id) = self.retry_rx.lock().await.try_recv() {
-            message_retry_requests.push(message_id);
+
+        while let Ok(retry_request) = self.retry_receiver.lock().await.try_recv() {
+            let uuid = retry_request.uuid.clone();
+            message_retry_requests.push((
+                retry_request,
+                MessageRetryResponse {
+                    uuid,
+                    evaluated: 0,
+                    matched: 0,
+                },
+            ));
         }
+
         if message_retry_requests.is_empty() {
             return;
         }
+
         let mut queue = self.queue.lock().await;
+        let queue_length = queue.len();
+
         let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()
             .map(|Reverse(mut op)| {
-                if message_retry_requests.iter().any(|r| r.op_matches(&op)) {
+                let matched_requests: Vec<_> = message_retry_requests
+                    .iter_mut()
+                    .filter_map(|(retry_req, retry_response)| {
+                        // update retry metrics
+                        if retry_req.pattern.op_matches(&op) {
+                            debug!(uuid = retry_req.uuid, "Matched request");
+                            retry_response.matched += 1;
+                            Some(retry_req.uuid.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !matched_requests.is_empty() {
                     info!(
                         operation = %op,
                         queue_label = %self.queue_metrics_label,
                         "Retrying OpQueue operation"
                     );
-                    op.reset_attempts()
+                    op.reset_attempts();
                 }
                 Reverse(op)
             })
             .collect();
+
+        for (retry_req, mut retry_response) in message_retry_requests {
+            retry_response.evaluated = queue_length;
+            tracing::debug!(
+                uuid = retry_response.uuid,
+                evaluated = retry_response.evaluated,
+                matched = retry_response.matched,
+                "Sending relayer retry response back"
+            );
+            if let Err(err) = retry_req.transmitter.send(retry_response).await {
+                tracing::error!(?err, "Failed to send retry response");
+            }
+        }
         queue.append(&mut reprioritized_queue);
     }
 
@@ -115,7 +155,10 @@ impl OpQueue {
 
 #[cfg(test)]
 pub mod test {
+    use crate::{server::ENDPOINT_MESSAGES_QUEUE_SIZE, settings::matching_list::MatchingList};
+
     use super::*;
+
     use hyperlane_core::{
         HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
         HyperlaneDomainType, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
@@ -127,7 +170,7 @@ pub mod test {
         str::FromStr,
         time::{Duration, Instant},
     };
-    use tokio::sync;
+    use tokio::sync::{self, mpsc};
 
     #[derive(Debug, Clone, Serialize)]
     pub struct MockPendingOperation {
@@ -320,6 +363,7 @@ pub mod test {
     async fn test_multiple_op_queues_message_id() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
+
         let mut op_queue_1 = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
@@ -364,12 +408,22 @@ pub mod test {
                 .await;
         }
 
+        let (transmitter, _receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
+
         // Retry by message ids
         broadcaster
-            .send(MatchingList::with_message_id(op_ids[1]))
+            .send(MessageRetryRequest {
+                uuid: "0e92ace7-ba5d-4a1f-8501-51b6d9d500cf".to_string(),
+                pattern: MatchingList::with_message_id(op_ids[1]),
+                transmitter: transmitter.clone(),
+            })
             .unwrap();
         broadcaster
-            .send(MatchingList::with_message_id(op_ids[2]))
+            .send(MessageRetryRequest {
+                uuid: "59400966-e7fa-4fb9-9372-9a671d4392c3".to_string(),
+                pattern: MatchingList::with_message_id(op_ids[2]),
+                transmitter,
+            })
             .unwrap();
 
         // Pop elements from queue 1
@@ -399,6 +453,7 @@ pub mod test {
     async fn test_destination_domain() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
+
         let mut op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
@@ -425,11 +480,15 @@ pub mod test {
                 .await;
         }
 
+        let (transmitter, _receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
+
         // Retry by domain
         broadcaster
-            .send(MatchingList::with_destination_domain(
-                destination_domain_2.id(),
-            ))
+            .send(MessageRetryRequest {
+                uuid: "a5b39473-7cc5-48a1-8bed-565454ba1037".to_string(),
+                pattern: MatchingList::with_destination_domain(destination_domain_2.id()),
+                transmitter,
+            })
             .unwrap();
 
         // Pop elements from queue
