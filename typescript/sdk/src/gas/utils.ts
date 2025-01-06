@@ -1,10 +1,12 @@
 import { Provider } from '@ethersproject/providers';
-import { assert } from 'console';
 import { BigNumber, ethers } from 'ethers';
 
 import { ProtocolType, convertDecimals, objMap } from '@hyperlane-xyz/utils';
 
-import { TOKEN_EXCHANGE_RATE_SCALE } from '../consts/igp.js';
+import {
+  TOKEN_EXCHANGE_RATE_DECIMALS,
+  TOKEN_EXCHANGE_RATE_SCALE,
+} from '../consts/igp.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { AgentCosmosGasPrice } from '../metadata/agentConfig.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -99,8 +101,6 @@ export async function getCosmosChainGasPrice(
   };
 }
 
-const EXCHANGE_RATE_DECIMALS = 19;
-
 // Gets the exchange rate of the remote quoted in local tokens
 export function getTokenExchangeRateFromValues({
   local,
@@ -114,53 +114,29 @@ export function getTokenExchangeRateFromValues({
   tokenPrices: ChainMap<string>;
   exchangeRateMarginPct: number;
   decimals: { local: number; remote: number };
-}): {
-  value: BigNumber;
-  decimals: number;
-} {
+}): BigNumber {
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
   const defaultValue = '1';
   const localValue = ethers.utils.parseUnits(
     tokenPrices[local] ?? defaultValue,
-    EXCHANGE_RATE_DECIMALS,
+    TOKEN_EXCHANGE_RATE_DECIMALS,
   );
   const remoteValue = ethers.utils.parseUnits(
     tokenPrices[remote] ?? defaultValue,
-    EXCHANGE_RATE_DECIMALS,
+    TOKEN_EXCHANGE_RATE_DECIMALS,
   );
 
-  console.log(
-    'yeet 1',
-    local,
-    remote,
-    'localValue',
-    localValue.toString(),
-    'remoteValue',
-    remoteValue.toString(),
-  );
   // This does not yet account for decimals!
   let exchangeRate = remoteValue.mul(TOKEN_EXCHANGE_RATE_SCALE).div(localValue);
-  console.log('yeet 2', local, remote, 'exchangeRate', exchangeRate.toString());
   // Apply the premium
   exchangeRate = exchangeRate.mul(100 + exchangeRateMarginPct).div(100);
-  console.log('yeet 3', local, remote, 'exchangeRate', exchangeRate.toString());
 
-  const value = BigNumber.from(
+  return BigNumber.from(
     convertDecimals(decimals.remote, decimals.local, exchangeRate.toString()),
   );
-  assert(
-    value.gt(0),
-    'Exchange rate must be greater than 0, possible loss of precision',
-  );
-  return {
-    value,
-    decimals: EXCHANGE_RATE_DECIMALS,
-  };
 }
-
-// The move is to somehow scale up the gas price and scale down the exchange rate by the same factor.
 
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
 // Accommodates small non-integer gas prices by scaling up the gas price
