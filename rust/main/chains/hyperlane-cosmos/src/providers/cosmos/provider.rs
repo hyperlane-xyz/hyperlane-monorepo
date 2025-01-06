@@ -156,8 +156,8 @@ impl CosmosProvider {
                             value: pk.value,
                         };
 
-                        let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?;
+                        let proto: proto::cosmos::crypto::secp256k1::PubKey =
+                            any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
 
                         let decompressed = decompress_public_key(&proto.key)
                             .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
@@ -250,8 +250,8 @@ impl CosmosProvider {
             let msg = "could not find contract execution message";
             HyperlaneCosmosError::ParsingFailed(msg.to_owned())
         })?;
-        let proto =
-            ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
+        let proto: proto::cosmwasm::wasm::v1::MsgExecuteContract =
+            any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
         let msg = MsgExecuteContract::try_from(proto)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
 
