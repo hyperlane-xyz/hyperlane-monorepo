@@ -130,17 +130,37 @@ export function hyperlaneWarpRead(
   });
 }
 
+export function hyperlaneWarpCheckRaw({
+  warpDeployPath,
+  symbol,
+  privateKey,
+  hypKey,
+}: {
+  symbol?: string;
+  privateKey?: string;
+  warpDeployPath?: string;
+  hypKey?: string;
+}): ProcessPromise {
+  return $`${
+    hypKey && !privateKey ? ['HYP_KEY=' + hypKey] : []
+  } yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
+        --registry ${REGISTRY_PATH} \
+        --overrides " " \
+        ${symbol ? ['--symbol', symbol] : []} \
+        ${privateKey && !hypKey ? ['--key', privateKey] : []} \
+        --verbosity debug \
+        ${warpDeployPath ? ['--config', warpDeployPath] : []}`;
+}
+
 export function hyperlaneWarpCheck(
   warpDeployPath: string,
   symbol: string,
 ): ProcessPromise {
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
-        --registry ${REGISTRY_PATH} \
-        --overrides " " \
-        --symbol ${symbol} \
-        --key ${ANVIL_KEY} \
-        --verbosity debug \
-        --config ${warpDeployPath}`;
+  return hyperlaneWarpCheckRaw({
+    warpDeployPath,
+    privateKey: ANVIL_KEY,
+    symbol,
+  });
 }
 
 export function hyperlaneWarpSendRelay(
