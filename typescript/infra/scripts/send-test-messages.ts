@@ -241,7 +241,9 @@ async function main() {
     console.log(
       `send to ${recipient.address} on ${remote} via mailbox ${
         mailbox.address
-      } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
+      } on ${local} with nonce ${
+        (await mailbox.nonce()) - 1
+      } and quote ${quote.toString()}`,
     );
     console.log(await chainSummary(core, local));
     console.log(await chainSummary(core, remote));
