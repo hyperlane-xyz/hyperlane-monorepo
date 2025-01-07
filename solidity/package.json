@@ -9,7 +9,8 @@
     "@layerzerolabs/lz-evm-oapp-v2": "2.0.2",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
-    "fx-portal": "^1.0.3"
+    "fx-portal": "^1.0.3",
+    "solidity-rlp": "^2.0.8"
   },
   "devDependencies": {
     "@layerzerolabs/solidity-examples": "^1.1.0",

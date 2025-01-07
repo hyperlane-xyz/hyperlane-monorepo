@@ -7391,6 +7391,7 @@ __metadata:
     solhint-plugin-prettier: "npm:^0.0.5"
     solidity-bytes-utils: "npm:^0.8.0"
     solidity-coverage: "npm:^0.8.3"
+    solidity-rlp: "npm:^2.0.8"
     ts-generator: "npm:^0.1.1"
     ts-node: "npm:^10.8.0"
     tsx: "npm:^4.19.1"
@@ -33782,6 +33783,13 @@ __metadata:
   bin:
     solidity-coverage: plugins/bin.js
   checksum: 10/26f1529e8b7d06b88ab6f0d3fc0d4cda80ee50b423244f3f38faea39e9d7e285012d1624cc833416d1d0d0ba9360d0d8d463975a4ea005611fde6cd7a3f321b6
+  languageName: node
+  linkType: hard
+
+"solidity-rlp@npm:^2.0.8":
+  version: 2.0.8
+  resolution: "solidity-rlp@npm:2.0.8"
+  checksum: 10/4bcc1a2e405bc676342dc4f076aeb14bc2c4069a045ef9231b513403f28e8a415025fd4f6e0f6b55a507ef5069ba4e3bf2a47c6560f9ece02eff099a487c3071
   languageName: node
   linkType: hard
 
