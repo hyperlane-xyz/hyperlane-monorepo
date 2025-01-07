@@ -1,4 +1,5 @@
 import { ethers, utils } from 'ethers';
+import { Hex, decodeFunctionData, parseAbi } from 'viem';
 
 import {
   ProxyAdmin__factory,
@@ -157,6 +158,13 @@ export async function getConstructorArgumentsApi({
         multiProvider,
       });
       break;
+    case ExplorerFamily.ZKSync:
+      constructorArgs = await getZKSyncConstructorArgs({
+        chainName,
+        contractAddress,
+        multiProvider,
+      });
+      break;
     case ExplorerFamily.Blockscout:
       constructorArgs = await getBlockScoutConstructorArgs({
         chainName,
@@ -171,20 +179,19 @@ export async function getConstructorArgumentsApi({
   return constructorArgs;
 }
 
-export async function getEtherscanConstructorArgs({
-  bytecode,
+async function getConstructorArgsFromExplorer({
   chainName,
+  blockExplorerApiKey,
+  blockExplorerApiUrl,
   contractAddress,
   multiProvider,
 }: {
-  bytecode: string;
+  blockExplorerApiKey?: string;
+  blockExplorerApiUrl: string;
   chainName: string;
   contractAddress: Address;
   multiProvider: MultiProvider;
-}): Promise<string> {
-  const { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey } =
-    multiProvider.getExplorerApi(chainName);
-
+}) {
   const url = new URL(blockExplorerApiUrl);
   url.searchParams.append('module', 'contract');
   url.searchParams.append('action', 'getcontractcreation');
@@ -214,9 +221,67 @@ export async function getEtherscanConstructorArgs({
     }),
   });
 
+  return creationTxResp.json();
+}
+
+export async function getEtherscanConstructorArgs({
+  bytecode,
+  chainName,
+  contractAddress,
+  multiProvider,
+}: {
+  bytecode: string;
+  chainName: string;
+  contractAddress: Address;
+  multiProvider: MultiProvider;
+}): Promise<string> {
+  const { apiUrl: blockExplorerApiUrl, apiKey: blockExplorerApiKey } =
+    multiProvider.getExplorerApi(chainName);
+
   // Truncate the deployment bytecode
-  const creationInput: string = (await creationTxResp.json()).result.input;
+  const creationTxResp = await getConstructorArgsFromExplorer({
+    chainName,
+    blockExplorerApiKey,
+    blockExplorerApiUrl,
+    contractAddress,
+    multiProvider,
+  });
+  const creationInput: string = creationTxResp.result.input;
   return creationInput.substring(bytecode.length);
+}
+
+export async function getZKSyncConstructorArgs({
+  chainName,
+  contractAddress,
+  multiProvider,
+}: {
+  chainName: string;
+  contractAddress: Address;
+  multiProvider: MultiProvider;
+}): Promise<string> {
+  const { apiUrl, apiKey: blockExplorerApiKey } =
+    multiProvider.getExplorerApi(chainName);
+
+  // Create the API URL using Registry blockExplorers.apiUrl
+  // Assumes that ZKSync uses something like `https://zero-network.calderaexplorer.xyz/verification/contract_verification`.
+  const blockExplorerApiUrl = new URL('/api', new URL(apiUrl).origin).href;
+
+  // Truncate the deployment bytecode
+  const creationTxResp = await getConstructorArgsFromExplorer({
+    chainName,
+    blockExplorerApiKey,
+    blockExplorerApiUrl,
+    contractAddress,
+    multiProvider,
+  });
+  const creationInput: string = creationTxResp.result.input;
+
+  const res = decodeFunctionData({
+    abi: parseAbi(['function create(bytes32,bytes32,bytes)']),
+    data: creationInput as Hex,
+  });
+
+  return res.args[2].replace('0x', '');
 }
 
 export async function getBlockScoutConstructorArgs({
