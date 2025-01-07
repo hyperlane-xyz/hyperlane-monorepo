@@ -61,7 +61,6 @@ async function setIgpConfig(
   mailbox: Mailbox,
   addresses: any,
   local: ChainName,
-  defaultHook: HookType,
 ) {
   const storageGasOracleF = new StorageGasOracle__factory(
     signer.connect(provider),
@@ -87,7 +86,7 @@ async function setIgpConfig(
   });
 
   const igpHook = InterchainGasPaymaster__factory.connect(
-    addresses[local][defaultHook],
+    addresses[local].interchainGasPaymaster,
     signer.connect(provider),
   );
   await igpHook.setDestinationGasConfigs(gasParamsToSet);
@@ -204,16 +203,12 @@ async function main() {
       requiredHook,
     );
 
-    if (!defaultHook || defaultHook === HookType.INTERCHAIN_GAS_PAYMASTER) {
-      await setIgpConfig(
-        remoteId,
-        signer,
-        provider,
-        mailbox,
-        addresses,
-        local,
-        defaultHook,
-      );
+    if (
+      defaultHook === HookType.AGGREGATION ||
+      defaultHook === HookType.INTERCHAIN_GAS_PAYMASTER
+    ) {
+      console.log('Setting IGP config for message ...');
+      await setIgpConfig(remoteId, signer, provider, mailbox, addresses, local);
     }
 
     const message = formatMessage(
