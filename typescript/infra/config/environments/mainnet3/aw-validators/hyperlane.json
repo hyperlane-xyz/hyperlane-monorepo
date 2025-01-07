@@ -385,5 +385,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "torus": {
+    "validators": ["0x96982a325c28a842bc8cf61b63000737bb9f1f7d"]
   }
 }

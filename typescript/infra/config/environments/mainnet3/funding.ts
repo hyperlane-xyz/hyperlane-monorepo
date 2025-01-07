@@ -119,6 +119,7 @@ export const keyFunderConfig: KeyFunderConfig<
     taiko: '0.2',
     tangle: '2',
     telos: '100',
+    torus: '5',
     treasure: '900',
     unichain: '0.05',
     // temporarily low until we're able to fund more
