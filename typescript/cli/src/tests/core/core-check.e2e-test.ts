@@ -50,7 +50,7 @@ describe('hyperlane core check e2e tests', async function () {
     );
 
     expect(output.exitCode).to.equal(0);
-    expect(output.text().includes('No violations found')).to.be.true;
+    expect(output.text()).to.includes('No violations found');
   });
 
   it('should find differences between the local and onchain config', async () => {
@@ -69,8 +69,8 @@ describe('hyperlane core check e2e tests', async function () {
     ).nothrow();
 
     expect(output.exitCode).to.equal(1);
-    expect(output.text().includes(expectedDiffText)).to.be.true;
-    expect(output.text().includes(expectedActualText)).to.be.true;
+    expect(output.text()).to.include(expectedDiffText);
+    expect(output.text()).to.include(expectedActualText);
   });
 
   it('should successfully check the config when provided with a custom mailbox', async () => {
@@ -88,6 +88,6 @@ describe('hyperlane core check e2e tests', async function () {
     );
 
     expect(output.exitCode).to.equal(0);
-    expect(output.text().includes('No violations found')).to.be.true;
+    expect(output.text()).to.includes('No violations found');
   });
 });

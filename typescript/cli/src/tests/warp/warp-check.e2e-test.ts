@@ -212,7 +212,7 @@ describe('hyperlane warp check e2e tests', async function () {
       const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(0);
-      expect(finalOutput.text().includes('No violations found')).to.be.true;
+      expect(finalOutput.text()).to.include('No violations found');
     });
   });
 
@@ -259,7 +259,7 @@ describe('hyperlane warp check e2e tests', async function () {
       );
 
       expect(output.exitCode).to.equal(0);
-      expect(output.text().includes('No violations found')).to.be.true;
+      expect(output.text()).to.includes('No violations found');
     });
 
     it(`should find differences between the local config and the on chain config`, async function () {
