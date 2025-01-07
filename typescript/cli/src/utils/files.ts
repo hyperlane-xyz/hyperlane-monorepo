@@ -92,7 +92,7 @@ export function mergeJson<T extends Record<string, any>>(
 }
 
 export function readYaml<T>(filepath: string): T {
-  return yamlParse(readFileAtPath(filepath)) as T;
+  return yamlParse(readFileAtPath(filepath), { maxAliasCount: -1 }) as T;
 }
 
 export function tryReadYamlAtPath<T>(filepath: string): T | null {

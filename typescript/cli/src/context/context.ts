@@ -4,6 +4,7 @@ import { Signer, ethers } from 'ethers';
 import {
   DEFAULT_GITHUB_REGISTRY,
   GithubRegistry,
+  HttpClientRegistry,
   IRegistry,
   MergedRegistry,
 } from '@hyperlane-xyz/registry';
@@ -199,7 +200,7 @@ function getRegistry(
     .filter((uri) => !!uri)
     .map((uri, index) => {
       const childLogger = logger.child({ uri, index });
-      if (isHttpsUrl(uri)) {
+      if (isHttpsUrl(uri) && uri.includes('github')) {
         return new GithubRegistry({
           uri,
           logger: childLogger,
@@ -208,6 +209,8 @@ function getRegistry(
               ? PROXY_DEPLOYED_URL
               : undefined,
         });
+      } else if (uri.includes('http')) {
+        return new HttpClientRegistry(uri);
       } else {
         return new FileSystemRegistry({
           uri,
