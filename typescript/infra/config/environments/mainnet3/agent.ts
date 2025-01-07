@@ -625,7 +625,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f73dcc3-20241229-154524',
+      tag: '6cbd4c4-20250106-173720',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -635,7 +635,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '05e90bc-20241216-180035',
+      tag: '6cbd4c4-20250106-173720',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
