@@ -28,8 +28,8 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
   REGISTRY_PATH,
-  TEMP_PATH,
   TestPromptAction,
+  WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
@@ -46,7 +46,6 @@ chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
 
-const WARP_CONFIG_PATH = `${TEMP_PATH}/warp-route-deployment-deploy.yaml`;
 const WARP_CORE_CONFIG_PATH_2_3 = `${REGISTRY_PATH}/deployments/warp_routes/VAULT/anvil2-anvil3-config.yaml`;
 
 describe('hyperlane warp deploy e2e tests', async function () {
@@ -129,7 +128,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
       const steps: TestPromptAction[] = [
         {
@@ -151,7 +150,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpCorePath: WARP_CONFIG_PATH,
+        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
       })
         .stdio('pipe')
         .nothrow();
@@ -163,7 +162,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const updatedWarpDeployConfig_2 = await readWarpConfig(
         CHAIN_NAME_2,
         COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_CONFIG_PATH,
+        WARP_DEPLOY_OUTPUT_PATH,
       );
 
       expect(updatedWarpDeployConfig_2[CHAIN_NAME_2].type).to.equal(
@@ -182,7 +181,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const updatedWarpDeployConfig_3 = await readWarpConfig(
         CHAIN_NAME_3,
         COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_CONFIG_PATH,
+        WARP_DEPLOY_OUTPUT_PATH,
       );
 
       expect(updatedWarpDeployConfig_3[CHAIN_NAME_3].type).to.equal(
@@ -258,7 +257,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
 
       const steps: TestPromptAction[] = [
         {
@@ -275,7 +274,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpCorePath: WARP_CONFIG_PATH,
+        warpCorePath: WARP_DEPLOY_OUTPUT_PATH,
         skipConfirmationPrompts: true,
       })
         .stdio('pipe')
@@ -288,7 +287,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const updatedWarpDeployConfig_2 = await readWarpConfig(
         CHAIN_NAME_2,
         COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_CONFIG_PATH,
+        WARP_DEPLOY_OUTPUT_PATH,
       );
 
       expect(updatedWarpDeployConfig_2[CHAIN_NAME_2].type).to.equal(
@@ -307,7 +306,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const updatedWarpDeployConfig_3 = await readWarpConfig(
         CHAIN_NAME_3,
         COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_CONFIG_PATH,
+        WARP_DEPLOY_OUTPUT_PATH,
       );
 
       expect(updatedWarpDeployConfig_3[CHAIN_NAME_3].type).to.equal(
@@ -349,8 +348,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH).should.be.rejected; // TODO: revisit this to figure out how to parse the error.
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH).should.be.rejected; // TODO: revisit this to figure out how to parse the error.
     });
 
     it(`should be able to bridge between ${TokenType.collateralVaultRebase} and ${TokenType.syntheticRebase}`, async function () {
@@ -369,15 +368,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
       // Check collateralRebase
       const collateralRebaseConfig = (
         await readWarpConfig(
           CHAIN_NAME_2,
           WARP_CORE_CONFIG_PATH_2_3,
-          WARP_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
         )
       )[CHAIN_NAME_2];
 
@@ -420,15 +419,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       // 3. Write config and deploy
-      writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
       // 4. Verify deployed ISM configuration
       const collateralRebaseConfig = (
         await readWarpConfig(
           CHAIN_NAME_2,
           WARP_CORE_CONFIG_PATH_2_3,
-          WARP_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
         )
       )[CHAIN_NAME_2];
 
@@ -461,15 +460,15 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
       // Check collateralRebase
       const collateralRebaseConfig = (
         await readWarpConfig(
           CHAIN_NAME_2,
           WARP_CORE_CONFIG_PATH_2_3,
-          WARP_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
         )
       )[CHAIN_NAME_2];
 

@@ -26,7 +26,7 @@ import {
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
-  TEMP_PATH,
+  WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   deployToken,
 } from '../commands/helpers.js';
@@ -34,8 +34,6 @@ import {
   hyperlaneWarpDeploy,
   hyperlaneWarpSendRelay,
 } from '../commands/warp.js';
-
-const WARP_CONFIG_PATH = `${TEMP_PATH}/warp-route-deployment-deploy.yaml`;
 
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -84,8 +82,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     const config: ChainMap<Token> = (
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -143,8 +141,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     const config: ChainMap<Token> = (
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -197,8 +195,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     const config: ChainMap<Token> = (
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -251,8 +249,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     const config: ChainMap<Token> = (
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -304,8 +302,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     const [nativeBalanceOnChain1Before, nativeBalanceOnChain2Before] =
       await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
@@ -354,8 +352,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
       },
     };
 
-    writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
     const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
       await Promise.all([
