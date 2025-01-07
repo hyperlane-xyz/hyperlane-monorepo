@@ -32,7 +32,7 @@ use hyperlane_core::{
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::settings::matching_list::MatchingList;
+use crate::server::MessageRetryRequest;
 
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
@@ -105,7 +105,7 @@ impl SerialSubmitter {
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
-        retry_op_transmitter: Sender<MatchingList>,
+        retry_op_transmitter: Sender<MessageRetryRequest>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
         task_monitor: TaskMonitor,
