@@ -50,6 +50,10 @@ export const messageSendOptions: { [k: string]: Options } = {
     type: 'string',
     description: 'Destination chain to send message to',
   },
+  'round-trip': {
+    type: 'boolean',
+    description: 'Send test transfers to all chains in WarpCoreConfig',
+  },
 };
 
 export interface MessageOptionsArgTypes {
