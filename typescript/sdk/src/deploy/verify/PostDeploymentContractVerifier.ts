@@ -41,7 +41,7 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
         if (family === ExplorerFamily.ZKSync) {
           this.logger.debug('Using ZKSync verifier');
           this.contractVerifier = new ZKSyncContractVerifier(
-            this.multiProvider as any,
+            this.multiProvider,
           );
         }
 
