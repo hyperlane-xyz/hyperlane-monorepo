@@ -302,7 +302,7 @@ const send: CommandModuleWithWriteContext<
       skipWaitForDelivery: quick,
       selfRelay: relay,
     });
-    logGreen(`✅ Sending a message for chains: ${chains.join(' ➡️ ')}`);
+    logGreen(`✅ Sucessfully sent messages for chains: ${chains.join(' ➡️ ')}`);
     process.exit(0);
   },
 };
