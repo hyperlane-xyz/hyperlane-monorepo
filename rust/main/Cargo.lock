@@ -512,6 +512,7 @@ checksum = "3b829e4e32b91e643de6eafe82b1d90675f5874230191a4ffbc1b336dec4d6bf"
 dependencies = [
  "async-trait",
  "axum-core",
+ "axum-macros",
  "bitflags 1.3.2",
  "bytes",
  "futures-util",
@@ -551,6 +552,18 @@ dependencies = [
  "rustversion",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "axum-macros"
+version = "0.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdca6a10ecad987bda04e95606ef85a5417dcaac1a78455242d72e031e2b6b62"
+dependencies = [
+ "heck 0.4.1",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
 ]
 
 [[package]]
@@ -2901,7 +2914,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -2915,7 +2928,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -2926,7 +2939,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -2944,7 +2957,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -2968,7 +2981,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -2982,7 +2995,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -3012,7 +3025,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.15",
@@ -3028,7 +3041,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -3047,6 +3060,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-futures",
+ "tracing-test",
  "url",
 ]
 
@@ -3076,7 +3090,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "async-trait",
  "auto_impl 1.2.0",
@@ -3112,7 +3126,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-16#c5c2a74660675ab968cf585893325e2faa807d14"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2024-12-30#31653ac8c54ae3fe78b91bf5d92a1ab71604d07e"
 dependencies = [
  "async-trait",
  "coins-bip32 0.7.0",
@@ -7014,7 +7028,9 @@ dependencies = [
  "tokio-test",
  "tracing",
  "tracing-futures",
+ "tracing-test",
  "typetag",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -7149,7 +7165,7 @@ dependencies = [
  "rkyv_derive",
  "seahash",
  "tinyvec",
- "uuid 1.10.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -7249,6 +7265,7 @@ dependencies = [
  "once_cell",
  "regex",
  "relayer",
+ "reqwest",
  "ripemd",
  "serde",
  "serde_json",
@@ -7748,7 +7765,7 @@ dependencies = [
  "time",
  "tracing",
  "url",
- "uuid 1.10.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -7809,7 +7826,7 @@ dependencies = [
  "sea-query-derive",
  "serde_json",
  "time",
- "uuid 1.10.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -7825,7 +7842,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "time",
- "uuid 1.10.0",
+ "uuid 1.11.0",
 ]
 
 [[package]]
@@ -9125,7 +9142,7 @@ dependencies = [
  "time",
  "tokio-stream",
  "url",
- "uuid 1.10.0",
+ "uuid 1.11.0",
  "whoami",
 ]
 
@@ -10362,10 +10379,11 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
+checksum = "f8c5f0a0af699448548ad1a2fbf920fb4bee257eae39953ba95cb84891a0446a"
 dependencies = [
+ "getrandom 0.2.15",
  "serde",
 ]
 

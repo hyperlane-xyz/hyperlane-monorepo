@@ -14,6 +14,8 @@ export enum WarpRouteIds {
   EclipseEthereumWeETHs = 'weETHs/eclipsemainnet-ethereum',
   EclipseSolanaEzSOL = 'EZSOL/eclipsemainnet-solanamainnet',
   EclipseSolanaORCA = 'ORCA/eclipsemainnet-solanamainnet',
+  EclipseSolanaJitoSOL = 'jitoSOL/eclipsemainnet-solanamainnet',
+  EclipseSolanaKySOL = 'kySOL/eclipsemainnet-solanamainnet',
   EclipseSolanaSOL = 'SOL/eclipsemainnet-solanamainnet',
   EclipseSolanaWIF = 'WIF/eclipsemainnet-solanamainnet',
   EclipseStrideSTTIA = 'stTIA/eclipsemainnet-stride',
@@ -22,6 +24,7 @@ export enum WarpRouteIds {
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
   EthereumSeiFastUSD = 'FASTUSD/ethereum-sei',
+  EthereumSeiPumpBTC = 'pumpBTCsei/ethereum-sei',
   EthereumVanaETH = 'ETH/ethereum-vana',
   EthereumVanaVANA = 'VANA/ethereum-vana',
   EthereumVictionETH = 'ETH/ethereum-viction',
@@ -36,4 +39,6 @@ export enum WarpRouteIds {
   ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT = 'USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork',
   ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC = 'USDC/arbitrum-base-ethereum-lisk-optimism-polygon-zeronetwork',
   ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
+  AppchainBaseUSDC = 'USDC/appchain-base',
+  BobaBsquaredSwellUBTC = 'UBTC/boba-bsquared-swell',
 }
