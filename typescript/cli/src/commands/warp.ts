@@ -2,6 +2,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import { ChainName, ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
+import { objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -17,6 +18,7 @@ import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -275,6 +277,7 @@ const send: CommandModuleWithWriteContext<
     warp,
     amount,
     recipient,
+    roundTrip,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -282,15 +285,34 @@ const send: CommandModuleWithWriteContext<
       context,
     });
 
-    let chains: ChainName[];
-    if (origin && destination) {
-      chains = [origin, destination];
+    let chains: ChainName[] = warpCoreConfig.tokens.map((t) => t.chainName);
+    if (roundTrip) {
+      // Appends the reverse of the array to roundtrip, excluding the 1st
+      // We make a copy because .reverse() is mutating
+      const reversed = [...chains].reverse().slice(1, chains.length + 1);
+      chains.push(...chains, ...reversed);
     } else {
-      // Send to all chains in WarpCoreConfig
-      chains = warpCoreConfig.tokens.map((t) => t.chainName);
-      // Appends the reverse of the array to roundtrip
-      chains = [...chains, ...chains.reverse().slice(1, chains.length + 1)];
+      // Assume we want to use use `--origin` and `--destination` params, prompt as needed.
+      const chainMetadata = objFilter(
+        context.chainMetadata,
+        (key, _metadata): _metadata is any => chains.includes(key),
+      );
+
+      if (!origin)
+        origin = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select the origin chain:',
+        );
+
+      if (!destination)
+        destination = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select the destination chain:',
+        );
+
+      chains = chains.filter((c) => c === origin || c === destination);
     }
+
     logBlue(`🚀 Sending a message for chains: ${chains.join(' ➡️ ')}`);
     await sendTestTransfer({
       context,
