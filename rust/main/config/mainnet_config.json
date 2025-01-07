@@ -2481,7 +2481,7 @@
       "domainRoutingIsm": "0x494415e823236A05c608D6b777bC80082cED6A2E",
       "domainRoutingIsmFactory": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
       "fallbackRoutingHook": "0xDd1CddEd982e4d271d4D6Bc4cdE8d4F3338733B5",
-      "gasCurrencyCoinGeckoId": "real-ether",
+      "gasCurrencyCoinGeckoId": "ethereum",
       "index": {
         "from": 363159
       },
@@ -7249,6 +7249,52 @@
       "index": {
         "from": 378761707
       }
+    },
+    "soon": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://explorer.soo.network/",
+          "family": "other",
+          "name": "SOON Explorer",
+          "url": "https://explorer.soo.network/"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 0.05,
+        "reorgPeriod": 0
+      },
+      "chainId": 50075007,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "SOON",
+      "domainId": 50075007,
+      "gasCurrencyCoinGeckoId": "ethereum",
+      "index": {
+        "from": 1,
+        "mode": "sequence",
+        "chunk": 20
+      },
+      "name": "soon",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "sealevel",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.mainnet.soo.network/rpc"
+        }
+      ],
+      "technicalStack": "other",
+      "interchainGasPaymaster": "Dsem8R6mkrpNoNb6CRUEjEZRP2hKRC24thyCkVr8cNYZ",
+      "interchainSecurityModule": "4fPoa26ayqY1cwY3AcqUPvdLLNHpjJGdDQevtnTLAAnH",
+      "mailbox": "Mj7GE6LZiJUZFTgabmNkFoY2o6JCEwCMKopSUUC3kqj",
+      "merkleTreeHook": "Mj7GE6LZiJUZFTgabmNkFoY2o6JCEwCMKopSUUC3kqj",
+      "validatorAnnounce": "GFqF38mSacfvbJRKkhmjJvSkzTEKemSNVoWi4Q94ZPvz"
     }
   },
   "defaultRpcConsensusType": "fallback"

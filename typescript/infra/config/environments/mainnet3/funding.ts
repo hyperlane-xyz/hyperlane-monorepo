@@ -139,6 +139,7 @@ export const keyFunderConfig: KeyFunderConfig<
     osmosis: '0',
     solanamainnet: '0',
     eclipsemainnet: '0',
+    soon: '0',
   },
   // if not set, keyfunder defaults to 0
   desiredKathyBalancePerChain: {
@@ -194,6 +195,7 @@ export const keyFunderConfig: KeyFunderConfig<
     osmosis: '0',
     eclipsemainnet: '0',
     solanamainnet: '0',
+    soon: '0',
   },
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
@@ -249,5 +251,6 @@ export const keyFunderConfig: KeyFunderConfig<
     osmosis: '0',
     eclipsemainnet: '0',
     solanamainnet: '0',
+    soon: '0',
   },
 };

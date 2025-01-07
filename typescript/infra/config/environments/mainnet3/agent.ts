@@ -149,6 +149,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: true,
     stride: false,
     superseed: true,
     superpositionmainnet: true,
@@ -262,6 +263,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: true,
     stride: true,
     superseed: true,
     superpositionmainnet: true,
@@ -374,6 +376,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: false,
     stride: true,
     superseed: true,
     superpositionmainnet: true,
@@ -622,7 +625,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f73dcc3-20241229-154524',
+      tag: 'a470a5b-20250107-144236',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -632,7 +635,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '05e90bc-20241216-180035',
+      tag: 'a470a5b-20250107-144236',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),

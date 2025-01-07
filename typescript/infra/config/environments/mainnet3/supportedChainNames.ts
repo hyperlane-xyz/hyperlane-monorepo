@@ -91,6 +91,7 @@ export const mainnet3SupportedChainNames = [
   'solanamainnet',
   'soneium',
   'sonic',
+  'soon',
   'stride',
   'superseed',
   'superpositionmainnet',

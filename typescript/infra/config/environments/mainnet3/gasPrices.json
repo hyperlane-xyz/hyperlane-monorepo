@@ -355,6 +355,10 @@
     "amount": "1.1",
     "decimals": 9
   },
+  "soon": {
+    "amount": "0.0000001",
+    "decimals": 1
+  },
   "stride": {
     "amount": "0.005",
     "decimals": 1
