@@ -1286,6 +1286,9 @@
       ],
       "rpcUrls": [
         {
+          "http": "https://injective-rpc.publicnode.com:443"
+        },
+        {
           "http": "https://sentry.tm.injective.network:443"
         }
       ],
