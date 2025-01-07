@@ -333,8 +333,8 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
             );
             println!(
                 "Geforce, IGP payment: {:?}(limit {:?})",
-                payments[1].0.inner().payment,
-                payments[1].0.inner().gas_amount
+                payments[0].0.inner().payment,
+                payments[0].0.inner().gas_amount
             );
         }
 

@@ -135,6 +135,10 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             raw_gas_payment_enforcement_path,
             &raw_gas_payment_enforcement,
         );
+        println!(
+            "SCOOBY DOO gas_payment_enforcement_parser: {:?}",
+            gas_payment_enforcement_parser
+        );
         let mut gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
             itr.filter_map(|policy| {
                 let policy_type = policy.chain(&mut err).get_opt_key("type").parse_string().end();
