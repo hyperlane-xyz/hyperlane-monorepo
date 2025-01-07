@@ -128,7 +128,7 @@ impl GasPaymentEnforcer {
                 "Evaluating if message meets gas payment requirement",
             );
             println!(
-                "DELOREN policy: {:?}, {:?}, {:?}",
+                "DELOREAN policy: {:?}, {:?}, {:?}",
                 policy, &current_payment, &current_expenditure
             );
             return policy
