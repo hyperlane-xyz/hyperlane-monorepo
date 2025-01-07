@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 
 use hyperlane_core::{
     Decode, Encode, GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
@@ -204,6 +204,8 @@ impl HyperlaneRocksDB {
         // rather than by `message_id` (not guaranteed to be recurring), so that leaves can be retrieved
         // based on insertion order.
         self.store_merkle_tree_insertion_by_leaf_index(&insertion.index(), insertion)?;
+
+        info!(?insertion, "~~~ Storing new tree insertion in db");
 
         self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
 
