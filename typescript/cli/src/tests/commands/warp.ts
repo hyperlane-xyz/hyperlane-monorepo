@@ -93,19 +93,41 @@ export async function hyperlaneWarpApply(
         --yes`;
 }
 
-export async function hyperlaneWarpRead(
-  chain: string,
-  warpAddress: string,
-  warpDeployPath: string,
-) {
+export function hyperlaneWarpReadRaw({
+  chain,
+  warpAddress,
+  outputPath,
+  privateKey,
+  symbol,
+}: {
+  chain?: string;
+  symbol?: string;
+  privateKey?: string;
+  warpAddress?: string;
+  outputPath?: string;
+}): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
-        --address ${warpAddress} \
-        --chain ${chain} \
-        --key ${ANVIL_KEY} \
+        ${warpAddress ? ['--address', warpAddress] : []} \
+        ${chain ? ['--chain', chain] : []} \
+        ${symbol ? ['--symbol', symbol] : []} \
+        ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
-        --config ${warpDeployPath}`;
+        ${outputPath ? ['--config', outputPath] : []}`;
+}
+
+export function hyperlaneWarpRead(
+  chain: string,
+  warpAddress: string,
+  warpDeployPath: string,
+): ProcessPromise {
+  return hyperlaneWarpReadRaw({
+    chain,
+    warpAddress,
+    outputPath: warpDeployPath,
+    privateKey: ANVIL_KEY,
+  });
 }
 
 export function hyperlaneWarpCheck(
