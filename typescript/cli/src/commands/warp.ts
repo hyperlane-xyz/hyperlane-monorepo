@@ -287,10 +287,9 @@ const send: CommandModuleWithWriteContext<
 
     let chains: ChainName[] = warpCoreConfig.tokens.map((t) => t.chainName);
     if (roundTrip) {
-      // Appends the reverse of the array to roundtrip, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
-      // We make a copy because .reverse() is mutating
-      const reversed = [...chains].reverse().slice(1, chains.length + 1);
-      chains.push(...chains, ...reversed);
+      // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
+      const reversed = [...chains].reverse().slice(1, chains.length + 1); // We make a copy because .reverse() is mutating
+      chains.push(...reversed);
     } else {
       // Assume we want to use use `--origin` and `--destination` params, prompt as needed.
       const chainMetadata = objFilter(
