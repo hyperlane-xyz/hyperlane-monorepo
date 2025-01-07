@@ -1,7 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
+import { ChainName, ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -14,7 +14,7 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logCommandHeader, logGreen } from '../logger.js';
+import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
 import {
@@ -282,17 +282,27 @@ const send: CommandModuleWithWriteContext<
       context,
     });
 
+    let chains: ChainName[];
+    if (origin && destination) {
+      chains = [origin, destination];
+    } else {
+      // Send to all chains in WarpCoreConfig
+      chains = warpCoreConfig.tokens.map((t) => t.chainName);
+      // Appends the reverse of the array to roundtrip
+      chains = [...chains, ...chains.reverse().slice(1, chains.length + 1)];
+    }
+    logBlue(`🚀 Sending a message for chains: ${chains.join(' ➡️ ')}`);
     await sendTestTransfer({
       context,
       warpCoreConfig,
-      origin,
-      destination,
+      chains,
       amount,
       recipient,
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,
     });
+    logGreen(`✅ Sending a message for chains: ${chains.join(' ➡️ ')}`);
     process.exit(0);
   },
 };
