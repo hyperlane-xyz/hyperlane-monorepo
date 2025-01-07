@@ -46,7 +46,7 @@ color-eyre = "0.6"
 config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
-cosmrs = { version = "0.15.0", default-features = false, features = [
+cosmrs = { version = "0.16.0", default-features = false, features = [
   "cosmwasm",
   "rpc",
   "tokio",
@@ -134,16 +134,16 @@ static_assertions = "1.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 tempfile = "3.3"
-tendermint = "0.34.1"
-tendermint-rpc = { version = "0.34.1", features = ["http-client", "tokio"] }
+tendermint = "0.35.0"
+tendermint-rpc = { version = "0.35.0", features = ["http-client", "tokio"] }
 thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
-tokio = { version = "1.4", features = ["parking_lot", "tracing"] }
+tokio = { version = "1.42.0", features = ["parking_lot", "tracing"] }
 tokio-metrics = { version = "0.3.1", default-features = false }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
-tonic = "=0.10.2"
+tonic = "0.11.0"
 tracing = { version = "0.1" }
 tracing-error = "0.2"
 tracing-futures = "0.2"
