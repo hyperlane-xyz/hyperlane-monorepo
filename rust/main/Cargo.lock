@@ -6990,6 +6990,7 @@ dependencies = [
  "dhat",
  "ethers",
  "ethers-contract",
+ "ethers-prometheus",
  "eyre",
  "futures",
  "futures-util",
@@ -7015,6 +7016,7 @@ dependencies = [
  "tokio-test",
  "tracing",
  "tracing-futures",
+ "tracing-test",
  "typetag",
 ]
 

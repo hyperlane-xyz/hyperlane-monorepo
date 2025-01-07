@@ -33,7 +33,7 @@ pub struct RelayerSettings {
     #[as_mut]
     #[deref]
     #[deref_mut]
-    base: Settings,
+    pub base: Settings,
 
     /// Database path
     pub db: PathBuf,
