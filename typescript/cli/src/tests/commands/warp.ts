@@ -36,31 +36,15 @@ export function hyperlaneWarpDeployRaw({
   skipConfirmationPrompts?: boolean;
   privateKey?: string;
 }): ProcessPromise {
-  if (hypKey) {
-    return $`HYP_KEY=${hypKey} yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : ''
+  } yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
-        ${warpCorePath ? ['--config', warpCorePath] : []} \
+        ${warpCorePath ? ['--config', warpCorePath] : ''} \
+        ${privateKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
-        ${skipConfirmationPrompts ? '--yes' : ''}`;
-  }
-
-  if (privateKey) {
-    return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
-        --registry ${REGISTRY_PATH} \
-        --overrides " " \
-        ${warpCorePath ? ['--config', warpCorePath] : []} \
-        --key ${privateKey} \
-        --verbosity debug \
-        ${skipConfirmationPrompts ? '--yes' : ''}`;
-  }
-
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
-      --registry ${REGISTRY_PATH} \
-      --overrides " " \
-      ${warpCorePath ? ['--config', warpCorePath] : []} \
-      --verbosity debug \
-      ${skipConfirmationPrompts ? '--yes' : ''}`;
+        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
 }
 
 /**
@@ -109,12 +93,12 @@ export function hyperlaneWarpReadRaw({
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
-        ${warpAddress ? ['--address', warpAddress] : []} \
-        ${chain ? ['--chain', chain] : []} \
-        ${symbol ? ['--symbol', symbol] : []} \
-        ${privateKey ? ['--key', privateKey] : []} \
+        ${warpAddress ? ['--address', warpAddress] : ''} \
+        ${chain ? ['--chain', chain] : ''} \
+        ${symbol ? ['--symbol', symbol] : ''} \
+        ${privateKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
-        ${outputPath ? ['--config', outputPath] : []}`;
+        ${outputPath ? ['--config', outputPath] : ''}`;
 }
 
 export function hyperlaneWarpRead(
@@ -142,14 +126,14 @@ export function hyperlaneWarpCheckRaw({
   hypKey?: string;
 }): ProcessPromise {
   return $`${
-    hypKey && !privateKey ? ['HYP_KEY=' + hypKey] : []
+    hypKey && !privateKey ? ['HYP_KEY=' + hypKey] : ''
   } yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
-        ${symbol ? ['--symbol', symbol] : []} \
-        ${privateKey && !hypKey ? ['--key', privateKey] : []} \
+        ${symbol ? ['--symbol', symbol] : ''} \
+        ${privateKey && !hypKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
-        ${warpDeployPath ? ['--config', warpDeployPath] : []}`;
+        ${warpDeployPath ? ['--config', warpDeployPath] : ''}`;
 }
 
 export function hyperlaneWarpCheck(
