@@ -326,18 +326,6 @@ impl HyperlaneLogStore<InterchainGasPayment> for HyperlaneRocksDB {
         &self,
         payments: &[(Indexed<InterchainGasPayment>, LogMeta)],
     ) -> Result<u32> {
-        if payments.len() > 0 {
-            println!(
-                "Geforce, IGP for message {:?}",
-                payments[0].0.inner().message_id
-            );
-            println!(
-                "Geforce, IGP payment: {:?}(limit {:?})",
-                payments[0].0.inner().payment,
-                payments[0].0.inner().gas_amount
-            );
-        }
-
         store_and_count_new(
             self,
             payments,
