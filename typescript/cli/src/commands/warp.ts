@@ -2,7 +2,7 @@ import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
 import { ChainName, ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
-import { objFilter } from '@hyperlane-xyz/utils';
+import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -310,10 +310,9 @@ const send: CommandModuleWithWriteContext<
         );
 
       chains = [origin, destination].filter((c) => chains.includes(c));
-    }
 
-    if (chains.length < 2) {
-      throw Error(
+      assert(
+        chains.length === 2,
         `Origin (${origin}) or destination (${destination}) are not part of the warp route.`,
       );
     }
