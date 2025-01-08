@@ -378,7 +378,6 @@ pub fn initiate_solana_hyperlane_transfer(
         .arg("gas", "100000")
         .run()
         .join();
-
     message_id
 }
 
@@ -409,18 +408,18 @@ pub fn initiate_solana_non_igp_paying_transfer(
         .arg("program-id", "CGn8yNtSD3aTTqJfYhUb6s1aVTN75NzwtsFKo1e83aga")
         .run_with_output()
         .join();
-    let another_message_id = get_message_id_from_logs(output.clone())
+    let non_matching_igp_message_id = get_message_id_from_logs(output.clone())
         .unwrap_or_else(|| panic!("failed to get message id from logs: {:?}", output));
 
     log!(
-        "found message id for non matching igp: {}",
-        another_message_id
+        "paying gas to a different IGP account for message id: {}",
+        non_matching_igp_message_id
     );
     sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("igp")
         .cmd("pay-for-gas")
         .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
-        .arg("message-id", another_message_id.clone())
+        .arg("message-id", non_matching_igp_message_id.clone())
         .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
         .arg("gas", "100000")
         .arg(
@@ -429,8 +428,7 @@ pub fn initiate_solana_non_igp_paying_transfer(
         )
         .run()
         .join();
-
-    another_message_id
+    non_matching_igp_message_id
 }
 
 fn get_message_id_from_logs(logs: Vec<String>) -> Option<String> {

@@ -512,7 +512,7 @@ fn main() -> ExitCode {
                 break;
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
                 // we ran out of time
-                log!("CI timeout reached before invariants were met");
+                log!("CI timeout reached before queues emptied");
                 failure_occurred = true;
                 break;
             }

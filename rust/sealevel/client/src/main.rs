@@ -431,7 +431,7 @@ struct InitIgpAccountArgs {
     #[arg(long)]
     gas_oracle_config_file: Option<PathBuf>,
     #[arg(long)]
-    account_salt: Option<String>,
+    account_salt: Option<String>, // optional salt for deterministic account creation
 }
 
 #[derive(Args)]
@@ -451,7 +451,7 @@ struct InitOverheadIgpAccountArgs {
     #[arg(long)]
     overhead_config_file: Option<PathBuf>,
     #[arg(long)]
-    account_salt: Option<String>,
+    account_salt: Option<String>, // optional salt for deterministic account creation
 }
 
 #[derive(Args)]
@@ -486,7 +486,7 @@ struct PayForGasArgs {
     #[arg(long)]
     gas: u64,
     #[arg(long)]
-    account_salt: Option<String>,
+    account_salt: Option<String>, // optional salt for paying gas to a deterministically derived account
 }
 
 #[derive(Args)]

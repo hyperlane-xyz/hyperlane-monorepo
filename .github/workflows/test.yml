@@ -293,7 +293,6 @@ jobs:
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
-          HYP_LOG_LEVEL: 'info'
           SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
 
   env-test:

@@ -120,8 +120,6 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 init.gas_oracle_config_file,
             );
 
-            println!("SOYLANA IGPA: {:?}, salt: {:?}", igp_account, salt);
-
             let artifacts = IgpAccountsArtifacts {
                 salt,
                 igp_account: Some(igp_account),
@@ -235,10 +233,6 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             let (overhead_igp_account, _) = Pubkey::find_program_address(
                 hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
                 &payment_details.program_id,
-            );
-            println!(
-                "SOYLANA paid to IGP account: {:?}, {:?}",
-                igp_account, overhead_igp_account
             );
             let (ixn, gas_payment_data_account) =
                 hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
