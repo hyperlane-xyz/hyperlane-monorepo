@@ -14,6 +14,7 @@ import {
   ProtocolType,
   addBufferToGasLimit,
   addressToBytes32,
+  assert,
   bytes32ToAddress,
   isZeroishAddress,
   messageId,
@@ -30,12 +31,11 @@ import {
   HyperlaneAddressesMap,
   HyperlaneContracts,
 } from '../contracts/types.js';
-import { OwnableConfig } from '../deploy/types.js';
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { RouterConfig } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 import { findMatchingLogEvents } from '../utils/logUtils.js';
 
 import { CoreFactories, coreFactories } from './contracts.js';
@@ -204,9 +204,16 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
       mailbox.on<DispatchEvent>(
         mailbox.filters.Dispatch(),
         (_sender, _destination, _recipient, message, event) => {
-          const parsed = HyperlaneCore.parseDispatchedMessage(message);
-          this.logger.info(`Observed message ${parsed.id} on ${originChain}`);
-          return handler(parsed, event);
+          const dispatched = HyperlaneCore.parseDispatchedMessage(message);
+
+          // add human readable chain names
+          dispatched.parsed.originChain = this.getOrigin(dispatched);
+          dispatched.parsed.destinationChain = this.getDestination(dispatched);
+
+          this.logger.info(
+            `Observed message ${dispatched.id} on ${originChain} to ${dispatched.parsed.destinationChain}`,
+          );
+          return handler(dispatched, event);
         },
       );
     });
@@ -307,13 +314,18 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     message: DispatchedMessage,
   ): Promise<ethers.ContractReceipt> {
     const destinationChain = this.getDestination(message);
-    const mailbox = this.contractsMap[destinationChain].mailbox;
+    const mailbox = this.getContracts(destinationChain).mailbox;
 
     const processedBlock = await mailbox.processedAt(message.id);
     const events = await mailbox.queryFilter(
       mailbox.filters.ProcessId(message.id),
       processedBlock,
       processedBlock,
+    );
+
+    assert(
+      events.length === 1,
+      `Expected exactly one process event, got ${events.length}`,
     );
     const processedEvent = events[0];
     return processedEvent.getTransactionReceipt();
@@ -422,6 +434,8 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     if (matching.length === 0) {
       throw new Error(`No dispatch event found for message ${messageId}`);
     }
+
+    assert(matching.length === 1, 'Multiple dispatch events found');
     const event = matching[0]; // only 1 event per message ID
     return event.getTransactionReceipt();
   }

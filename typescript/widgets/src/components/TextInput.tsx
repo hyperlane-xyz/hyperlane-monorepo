@@ -1,4 +1,4 @@
-import React, { ChangeEvent, InputHTMLAttributes } from 'react';
+import React, { ChangeEvent, InputHTMLAttributes, forwardRef } from 'react';
 
 export type InputProps = Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -8,18 +8,24 @@ export type InputProps = Omit<
   className?: string;
 };
 
-export function TextInput({ onChange, className, ...props }: InputProps) {
+export function _TextInput(
+  { onChange, className, ...props }: InputProps,
+  ref: React.Ref<HTMLInputElement>,
+) {
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (onChange) onChange(e?.target?.value || '');
   };
 
   return (
     <input
+      ref={ref}
       type="text"
       autoComplete="off"
       onChange={handleChange}
-      className={`htw-bg-gray-100 focus:htw-bg-gray-200 disabled:htw-bg-gray-500 htw-outline-none htw-transition-all htw-duration-300 ${className}`}
+      className={`htw-bg-gray-100 focus:htw-bg-gray-200 disabled:htw-bg-gray-500 htw-outline-none focus:htw-outline-none htw-transition-all htw-duration-300 ${className}`}
       {...props}
     />
   );
 }
+
+export const TextInput = forwardRef(_TextInput);

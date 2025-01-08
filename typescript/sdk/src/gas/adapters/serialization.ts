@@ -1,11 +1,12 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { PublicKey } from '@solana/web3.js';
 
 import { Domain } from '@hyperlane-xyz/utils';
 
 import {
   SealevelAccountDataWrapper,
+  SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
+  getSealevelSimulationReturnDataSchema,
 } from '../../utils/sealevelSerialization.js';
 
 // Should match https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-igp/src/accounts.rs#L24
@@ -87,6 +88,77 @@ export const SealevelOverheadIgpDataSchema = new Map<any, any>([
         ['inner', [32]],
         ['gas_overheads', { kind: 'map', key: 'u32', value: 'u64' }],
       ],
+    },
+  ],
+]);
+
+/**
+ * IGP instruction Borsh Schema
+ */
+
+// Should match Instruction in https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/8f8853bcd7105a6dd7af3a45c413b137ded6e888/rust/sealevel/programs/hyperlane-sealevel-igp/src/instruction.rs#L19-L42
+export enum SealeveIgpInstruction {
+  Init,
+  InitIgp,
+  InitOverheadIgp,
+  PayForGas,
+  QuoteGasPayment,
+  TransferIgpOwnership,
+  TransferOverheadIgpOwnership,
+  SetIgpBeneficiary,
+  SetDestinationGasOverheads,
+  SetGasOracleConfigs,
+  Claim,
+}
+
+export class SealevelIgpQuoteGasPaymentInstruction {
+  destination_domain!: number;
+  gas_amount!: bigint;
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelIgpQuoteGasPaymentSchema = new Map<any, any>([
+  [
+    SealevelInstructionWrapper,
+    {
+      kind: 'struct',
+      fields: [
+        ['instruction', 'u8'],
+        ['data', SealevelIgpQuoteGasPaymentInstruction],
+      ],
+    },
+  ],
+  [
+    SealevelIgpQuoteGasPaymentInstruction,
+    {
+      kind: 'struct',
+      fields: [
+        ['destination_domain', 'u32'],
+        ['gas_amount', 'u64'],
+      ],
+    },
+  ],
+]);
+
+export class SealevelIgpQuoteGasPaymentResponse {
+  payment_quote!: bigint;
+  constructor(public readonly fields: any) {
+    Object.assign(this, fields);
+  }
+}
+
+export const SealevelIgpQuoteGasPaymentResponseSchema = new Map<any, any>([
+  [
+    SealevelAccountDataWrapper,
+    getSealevelSimulationReturnDataSchema(SealevelIgpQuoteGasPaymentResponse),
+  ],
+  [
+    SealevelIgpQuoteGasPaymentResponse,
+    {
+      kind: 'struct',
+      fields: [['payment_quote', 'u64']],
     },
   ],
 ]);

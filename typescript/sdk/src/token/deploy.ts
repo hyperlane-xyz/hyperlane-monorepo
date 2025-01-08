@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { constants } from 'ethers';
 
 import {
@@ -8,7 +7,6 @@ import {
   IERC4626__factory,
   IXERC20Lockbox__factory,
 } from '@hyperlane-xyz/core';
-import { TokenType } from '@hyperlane-xyz/sdk';
 import { assert, objKeys, objMap, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
@@ -18,7 +16,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { ChainName } from '../types.js';
 
-import { gasOverhead } from './config.js';
+import { TokenType, gasOverhead } from './config.js';
 import {
   HypERC20Factories,
   HypERC721Factories,
@@ -29,18 +27,20 @@ import {
   hypERC721factories,
 } from './contracts.js';
 import {
-  TokenRouterConfig,
-  isCollateralConfig,
-  isNativeConfig,
-  isSyntheticConfig,
-  isSyntheticRebaseConfig,
+  HypTokenRouterConfig,
+  TokenMetadata,
+  TokenMetadataSchema,
+  WarpRouteDeployConfig,
+  isCollateralTokenConfig,
+  isNativeTokenConfig,
+  isSyntheticRebaseTokenConfig,
+  isSyntheticTokenConfig,
   isTokenMetadata,
-} from './schemas.js';
-import { TokenMetadata, WarpRouteDeployConfig } from './types.js';
+} from './types.js';
 
 abstract class TokenDeployer<
   Factories extends TokenFactories,
-> extends GasRouterDeployer<TokenRouterConfig, Factories> {
+> extends GasRouterDeployer<HypTokenRouterConfig, Factories> {
   constructor(
     multiProvider: MultiProvider,
     factories: Factories,
@@ -57,15 +57,18 @@ abstract class TokenDeployer<
     }); // factories not used in deploy
   }
 
-  async constructorArgs(_: ChainName, config: TokenRouterConfig): Promise<any> {
-    if (isCollateralConfig(config)) {
+  async constructorArgs(
+    _: ChainName,
+    config: HypTokenRouterConfig,
+  ): Promise<any> {
+    if (isCollateralTokenConfig(config)) {
       return [config.token, config.mailbox];
-    } else if (isNativeConfig(config)) {
+    } else if (isNativeTokenConfig(config)) {
       return config.scale ? [config.scale, config.mailbox] : [config.mailbox];
-    } else if (isSyntheticConfig(config)) {
+    } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, config.mailbox];
-    } else if (isSyntheticRebaseConfig(config)) {
+    } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
@@ -77,7 +80,7 @@ abstract class TokenDeployer<
 
   async initializeArgs(
     chain: ChainName,
-    config: TokenRouterConfig,
+    config: HypTokenRouterConfig,
   ): Promise<any> {
     const signer = await this.multiProvider.getSigner(chain).getAddress();
     const defaultArgs = [
@@ -86,11 +89,11 @@ abstract class TokenDeployer<
       // TransferOwnership will happen later in RouterDeployer
       signer,
     ];
-    if (isCollateralConfig(config) || isNativeConfig(config)) {
+    if (isCollateralTokenConfig(config) || isNativeTokenConfig(config)) {
       return defaultArgs;
-    } else if (isSyntheticConfig(config)) {
+    } else if (isSyntheticTokenConfig(config)) {
       return [config.totalSupply, config.name, config.symbol, ...defaultArgs];
-    } else if (isSyntheticRebaseConfig(config)) {
+    } else if (isSyntheticRebaseTokenConfig(config)) {
       return [0, config.name, config.symbol, ...defaultArgs];
     } else {
       throw new Error('Unknown collateral type when initializing arguments');
@@ -106,17 +109,20 @@ abstract class TokenDeployer<
 
     for (const [chain, config] of Object.entries(configMap)) {
       if (isTokenMetadata(config)) {
-        return config;
+        return TokenMetadataSchema.parse(config);
       }
 
-      if (isNativeConfig(config)) {
+      if (isNativeTokenConfig(config)) {
         const nativeToken = multiProvider.getChainMetadata(chain).nativeToken;
         if (nativeToken) {
-          return { totalSupply: DERIVED_TOKEN_SUPPLY, ...nativeToken };
+          return TokenMetadataSchema.parse({
+            totalSupply: DERIVED_TOKEN_SUPPLY,
+            ...nativeToken,
+          });
         }
       }
 
-      if (isCollateralConfig(config)) {
+      if (isCollateralTokenConfig(config)) {
         const provider = multiProvider.getProvider(chain);
 
         if (config.isNft) {
@@ -128,11 +134,11 @@ abstract class TokenDeployer<
             erc721.name(),
             erc721.symbol(),
           ]);
-          return {
+          return TokenMetadataSchema.parse({
             name,
             symbol,
             totalSupply: DERIVED_TOKEN_SUPPLY,
-          };
+          });
         }
 
         let token: string;
@@ -161,7 +167,12 @@ abstract class TokenDeployer<
           erc20.decimals(),
         ]);
 
-        return { name, symbol, decimals, totalSupply: DERIVED_TOKEN_SUPPLY };
+        return TokenMetadataSchema.parse({
+          name,
+          symbol,
+          decimals,
+          totalSupply: DERIVED_TOKEN_SUPPLY,
+        });
       }
     }
 
@@ -215,12 +226,12 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
     throw new Error('No matching contract found');
   }
 
-  routerContractKey(config: TokenRouterConfig): keyof HypERC20Factories {
+  routerContractKey(config: HypTokenRouterConfig): keyof HypERC20Factories {
     assert(config.type in hypERC20factories, 'Invalid ERC20 token type');
     return config.type as keyof HypERC20Factories;
   }
 
-  routerContractName(config: TokenRouterConfig): string {
+  routerContractName(config: HypTokenRouterConfig): string {
     return hypERC20contracts[this.routerContractKey(config)];
   }
 }
@@ -249,12 +260,12 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
     throw new Error('No matching contract found');
   }
 
-  routerContractKey(config: TokenRouterConfig): keyof HypERC721Factories {
+  routerContractKey(config: HypTokenRouterConfig): keyof HypERC721Factories {
     assert(config.type in hypERC721factories, 'Invalid ERC721 token type');
     return config.type as keyof HypERC721Factories;
   }
 
-  routerContractName(config: TokenRouterConfig): string {
+  routerContractName(config: HypTokenRouterConfig): string {
     return hypERC721contracts[this.routerContractKey(config)];
   }
 }

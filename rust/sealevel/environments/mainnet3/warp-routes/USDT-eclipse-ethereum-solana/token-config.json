@@ -1,0 +1,23 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "splTokenProgram": "token"
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Tether USD",
+    "symbol": "USDT",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/13ef3e3b8447ba446c562b7fb9b769324d35e6c0/deployments/warp_routes/USDT/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+    "foreignDeployment": "0x647C621CEb36853Ef6A907E397Adf18568E70543"
+  }
+}

@@ -7,7 +7,10 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_base::{
+    db::{HyperlaneDb, HyperlaneRocksDB},
+    CoreMetrics,
+};
 use hyperlane_core::{HyperlaneDomain, MerkleTreeInsertion};
 use prometheus::IntGauge;
 use tokio::sync::RwLock;
@@ -71,8 +74,9 @@ impl MerkleTreeProcessor {
             .retrieve_merkle_tree_insertion_by_leaf_index(&self.leaf_index)?
         {
             // Update the metrics
+            // we assume that leaves are inserted in order so this will be monotonically increasing
             self.metrics
-                .max_leaf_index_gauge
+                .latest_leaf_index_gauge
                 .set(insertion.index() as i64);
             Some(insertion)
         } else {
@@ -85,17 +89,15 @@ impl MerkleTreeProcessor {
 
 #[derive(Debug)]
 pub struct MerkleTreeProcessorMetrics {
-    max_leaf_index_gauge: IntGauge,
+    latest_leaf_index_gauge: IntGauge,
 }
 
 impl MerkleTreeProcessorMetrics {
-    pub fn new() -> Self {
+    pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain) -> Self {
         Self {
-            max_leaf_index_gauge: IntGauge::new(
-                "max_leaf_index_gauge",
-                "The max merkle tree leaf index",
-            )
-            .unwrap(),
+            latest_leaf_index_gauge: metrics
+                .latest_leaf_index()
+                .with_label_values(&[origin.name()]),
         }
     }
 }

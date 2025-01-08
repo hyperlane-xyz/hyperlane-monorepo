@@ -3,8 +3,8 @@ import { ethers } from 'ethers';
 import {
   AddressBytes32,
   addressToBytes32,
-  assert,
   eqAddress,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -66,11 +66,7 @@ export class HyperlaneRouterChecker<
       });
     }
 
-    if (config.hook) {
-      assert(
-        typeof config.hook === 'string',
-        'Hook objects not supported in router checker',
-      );
+    if (config.hook && typeof config.hook === 'string') {
       const hook = await router.hook();
       if (!eqAddress(hook, config.hook as string)) {
         this.addViolation({
@@ -104,7 +100,10 @@ export class HyperlaneRouterChecker<
 
       let expectedConfig = config.interchainSecurityModule;
 
-      if (typeof expectedConfig === 'string') {
+      if (
+        typeof expectedConfig === 'string' &&
+        !isZeroishAddress(expectedConfig)
+      ) {
         expectedConfig = await ismReader.deriveIsmConfig(expectedConfig);
       }
 

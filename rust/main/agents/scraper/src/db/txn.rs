@@ -94,6 +94,7 @@ impl ScraperDb {
                     recipient: Set(txn.recipient.as_ref().map(address_to_bytes)),
                     max_fee_per_gas: Set(txn.max_fee_per_gas.map(u256_to_decimal)),
                     cumulative_gas_used: Set(u256_to_decimal(receipt.cumulative_gas_used)),
+                    raw_input_data: Set(txn.raw_input_data.clone()),
                 })
             })
             .collect::<Result<Vec<_>>>()?;

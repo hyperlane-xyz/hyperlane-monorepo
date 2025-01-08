@@ -12,11 +12,12 @@ use hyperlane_base::{
     broadcast::BroadcastMpscSender,
     db::{HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
-    settings::ChainConf,
+    settings::{ChainConf, IndexSettings},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
     HyperlaneAgentCore, SyncOptions,
 };
 use hyperlane_core::{
+    rpc_clients::call_and_retry_n_times, ChainCommunicationError, ContractSyncCursor,
     HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, MerkleTreeInsertion, QueueOperation,
     H512, U256,
 };
@@ -49,6 +50,9 @@ use crate::{
     processor::ProcessorExt,
 };
 use crate::{processor::Processor, server::ENDPOINT_MESSAGES_QUEUE_SIZE};
+
+const CURSOR_BUILDING_ERROR: &str = "Error building cursor for origin";
+const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
 struct ContextKey {
@@ -148,6 +152,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                false,
             )
             .await?
             .into_iter()
@@ -162,6 +167,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                false,
             )
             .await?
             .into_iter()
@@ -176,6 +182,7 @@ impl BaseAgent for Relayer {
                 dbs.iter()
                     .map(|(d, db)| (d.clone(), Arc::new(db.clone())))
                     .collect(),
+                false,
             )
             .await?
             .into_iter()
@@ -311,10 +318,11 @@ impl BaseAgent for Relayer {
                 }));
             tasks.push(console_server.instrument(info_span!("Tokio console server")));
         }
-        let sender = BroadcastSender::<MatchingList>::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
+        let sender = BroadcastSender::new(ENDPOINT_MESSAGES_QUEUE_SIZE);
         // send channels by destination chain
         let mut send_channels = HashMap::with_capacity(self.destination_chains.len());
         let mut prep_queues = HashMap::with_capacity(self.destination_chains.len());
+
         for (dest_domain, dest_conf) in &self.destination_chains {
             let (send_channel, receive_channel) = mpsc::unbounded_channel::<QueueOperation>();
             send_channels.insert(dest_domain.id(), send_channel);
@@ -354,6 +362,7 @@ impl BaseAgent for Relayer {
         }
 
         for origin in &self.origin_chains {
+            self.chain_metrics.set_critical_error(origin.name(), false);
             let maybe_broadcaster = self
                 .message_syncs
                 .get(origin)
@@ -377,7 +386,7 @@ impl BaseAgent for Relayer {
             );
         }
         // run server
-        let custom_routes = relayer_server::Server::new()
+        let custom_routes = relayer_server::Server::new(self.origin_chains.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
             .routes();
@@ -412,6 +421,34 @@ impl BaseAgent for Relayer {
 }
 
 impl Relayer {
+    fn record_critical_error(
+        &self,
+        origin: &HyperlaneDomain,
+        err: ChainCommunicationError,
+        message: &str,
+    ) {
+        error!(?err, origin=?origin, "{message}");
+        self.chain_metrics.set_critical_error(origin.name(), true);
+    }
+
+    async fn instantiate_cursor_with_retries<T: 'static>(
+        contract_sync: Arc<dyn ContractSyncer<T>>,
+        index_settings: IndexSettings,
+    ) -> Result<Box<dyn ContractSyncCursor<T>>, ChainCommunicationError> {
+        call_and_retry_n_times(
+            || {
+                let contract_sync = contract_sync.clone();
+                let index_settings = index_settings.clone();
+                Box::pin(async move {
+                    let cursor = contract_sync.cursor(index_settings).await?;
+                    Ok(cursor)
+                })
+            },
+            CURSOR_INSTANTIATION_ATTEMPTS,
+        )
+        .await
+    }
+
     async fn run_message_sync(
         &self,
         origin: &HyperlaneDomain,
@@ -419,10 +456,16 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .cursor(index_settings)
-            .await
-            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
+        let cursor_instantiation_result =
+            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
+                .await;
+        let cursor = match cursor_instantiation_result {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
+                return tokio::spawn(async {}).instrument(info_span!("MessageSync"));
+            }
+        };
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -444,10 +487,16 @@ impl Relayer {
             .get(origin)
             .unwrap()
             .clone();
-        let cursor = contract_sync
-            .cursor(index_settings)
-            .await
-            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
+        let cursor_instantiation_result =
+            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
+                .await;
+        let cursor = match cursor_instantiation_result {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
+                return tokio::spawn(async {}).instrument(info_span!("IgpSync"));
+            }
+        };
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -468,10 +517,16 @@ impl Relayer {
     ) -> Instrumented<JoinHandle<()>> {
         let index_settings = self.as_ref().settings.chains[origin.name()].index.clone();
         let contract_sync = self.merkle_tree_hook_syncs.get(origin).unwrap().clone();
-        let cursor = contract_sync
-            .cursor(index_settings)
-            .await
-            .unwrap_or_else(|err| panic!("Error getting cursor for origin {origin}: {err}"));
+        let cursor_instantiation_result =
+            Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
+                .await;
+        let cursor = match cursor_instantiation_result {
+            Ok(cursor) => cursor,
+            Err(err) => {
+                self.record_critical_error(origin, err, CURSOR_BUILDING_ERROR);
+                return tokio::spawn(async {}).instrument(info_span!("MerkleTreeHookSync"));
+            }
+        };
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
@@ -533,7 +588,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
-        let metrics = MerkleTreeProcessorMetrics::new();
+        let metrics = MerkleTreeProcessorMetrics::new(&self.core.metrics, origin);
         let merkle_tree_processor = MerkleTreeProcessor::new(
             self.dbs.get(origin).unwrap().clone(),
             metrics,

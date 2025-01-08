@@ -3,7 +3,9 @@ use std::str::FromStr;
 use derive_new::new;
 use url::Url;
 
-use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber};
+use hyperlane_core::{
+    config::OperationBatchConfig, ChainCommunicationError, FixedPointNumber, NativeToken,
+};
 
 /// Cosmos connection configuration
 #[derive(Debug, Clone)]
@@ -58,15 +60,6 @@ impl TryFrom<RawCosmosAmount> for CosmosAmount {
             amount: FixedPointNumber::from_str(&raw.amount)?,
         })
     }
-}
-
-/// Chain native token denomination and number of decimal places
-#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
-pub struct NativeToken {
-    /// The number of decimal places in token which can be expressed by denomination
-    pub decimals: u32,
-    /// Denomination of the token
-    pub denom: String,
 }
 
 /// An error type when parsing a connection configuration.

@@ -33,14 +33,14 @@ export async function sendTestMessage({
   if (!origin) {
     origin = await runSingleChainSelectionStep(
       chainMetadata,
-      'Select the origin chain',
+      'Select the origin chain:',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
       chainMetadata,
-      'Select the destination chain',
+      'Select the destination chain:',
     );
   }
 
@@ -97,7 +97,7 @@ async function executeDelivery({
       destination,
       formattedRecipient,
       messageBody,
-      // override the the default hook (with IGP) for self-relay to avoid race condition with the production relayer
+      // override the default hook (with IGP) for self-relay to avoid race condition with the production relayer
       selfRelay ? chainAddresses[origin].merkleTreeHook : undefined,
     );
     logBlue(`Sent message from ${origin} to ${recipient} on ${destination}.`);

@@ -9,6 +9,7 @@ import {
   invertKeysAndValues,
   isObjEmpty,
   isObject,
+  mustGet,
   objFilter,
   objKeys,
   objLength,
@@ -338,6 +339,18 @@ describe('Object utilities', () => {
           b: 2,
         },
       });
+    });
+  });
+
+  describe('mustGet', () => {
+    it('should return the value if it exists', () => {
+      const obj = { a: 1, b: 2 };
+      expect(mustGet(obj, 'a')).to.equal(1);
+    });
+
+    it('should throw an error if the value does not exist', () => {
+      const obj = { a: 1, b: 2 };
+      expect(() => mustGet(obj, 'c')).to.Throw();
     });
   });
 });

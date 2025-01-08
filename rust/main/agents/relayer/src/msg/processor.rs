@@ -86,24 +86,29 @@ impl ForwardBackwardIterator {
         loop {
             let high_nonce_message_status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
             let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
-            // Always prioritize the high nonce message
+
             match (high_nonce_message_status, low_nonce_message_status) {
-                // Keep iterating if only processed messages are found
+                // Always prioritize advancing the the high nonce iterator, as
+                // we have a preference for higher nonces
                 (MessageStatus::Processed, _) => {
                     self.high_nonce_iter.iterate();
                 }
-                (_, MessageStatus::Processed) => {
-                    self.low_nonce_iter.iterate();
-                }
-                // Otherwise return - either a processable message or nothing to process
                 (MessageStatus::Processable(high_nonce_message), _) => {
                     self.high_nonce_iter.iterate();
                     return Ok(Some(high_nonce_message));
+                }
+
+                // Low nonce messages are only processed if the high nonce iterator
+                // can't make any progress
+                (_, MessageStatus::Processed) => {
+                    self.low_nonce_iter.iterate();
                 }
                 (_, MessageStatus::Processable(low_nonce_message)) => {
                     self.low_nonce_iter.iterate();
                     return Ok(Some(low_nonce_message));
                 }
+
+                // If both iterators give us unindexed messages, there are no messages at the moment
                 (MessageStatus::Unindexed, MessageStatus::Unindexed) => return Ok(None),
             }
             // This loop may iterate through millions of processed messages, blocking the runtime.
@@ -157,7 +162,7 @@ impl DirectionalNonceIterator {
     }
 
     fn try_get_next_nonce(
-        &mut self,
+        &self,
         metrics: &MessageProcessorMetrics,
     ) -> Result<MessageStatus<HyperlaneMessage>> {
         if let Some(message) = self.indexed_message_with_nonce()? {
