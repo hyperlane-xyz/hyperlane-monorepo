@@ -20,13 +20,13 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
   EXAMPLES_PATH,
-  REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   deployOrUseExistingCore,
   extendWarpConfig,
+  getCombinedWarpRoutePath,
   getDomainId,
   updateOwner,
 } from '../commands/helpers.js';
@@ -161,7 +161,10 @@ describe('hyperlane warp apply e2e tests', async function () {
       warpDeployPath: warpConfigPath,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig1 = await readWarpConfig(
@@ -215,7 +218,10 @@ describe('hyperlane warp apply e2e tests', async function () {
       strategyUrl: `${EXAMPLES_PATH}/submit/strategy/json-rpc-chain-strategy.yaml`,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig1 = await readWarpConfig(
@@ -270,7 +276,10 @@ describe('hyperlane warp apply e2e tests', async function () {
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
     await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
 
     const updatedWarpDeployConfig_2 = await readWarpConfig(
       CHAIN_NAME_2,
@@ -330,7 +339,10 @@ describe('hyperlane warp apply e2e tests', async function () {
     writeYamlOrJson(warpConfigPath, warpDeployConfig);
     await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-anvil3-config.yaml`;
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig_2 = await readWarpConfig(

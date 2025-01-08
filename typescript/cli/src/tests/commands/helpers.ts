@@ -48,6 +48,15 @@ export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deplo
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/warp-route-deployment.yaml`;
 export const WARP_CORE_CONFIG_PATH_2 = `${REGISTRY_PATH}/deployments/warp_routes/ETH/anvil2-config.yaml`;
 
+export function getCombinedWarpRoutePath(
+  tokenSymbol: string,
+  chains: string[],
+): string {
+  return `${REGISTRY_PATH}/deployments/warp_routes/${tokenSymbol.toUpperCase()}/${chains.join(
+    '-',
+  )}-config.yaml`;
+}
+
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 
 export enum KeyBoardKeys {

@@ -18,11 +18,11 @@ import {
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
-  REGISTRY_PATH,
   TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deployOrUseExistingCore,
   deployToken,
+  getCombinedWarpRoutePath,
   handlePrompts,
 } from '../commands/helpers.js';
 import {
@@ -53,7 +53,10 @@ describe('hyperlane warp check e2e tests', async function () {
   describe('HYP_KEY=... hyperlane warp check --config ...', () => {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
       const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${tokenSymbol}/anvil2-anvil3-config.yaml`;
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        tokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
@@ -104,7 +107,10 @@ describe('hyperlane warp check e2e tests', async function () {
   describe('hyperlane warp check --key ... --config ...', () => {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
       const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${tokenSymbol}/anvil2-anvil3-config.yaml`;
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        tokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
@@ -155,7 +161,10 @@ describe('hyperlane warp check e2e tests', async function () {
   describe('hyperlane warp check --symbol ... --config ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${tokenSymbol}/anvil2-anvil3-config.yaml`;
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        tokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
@@ -219,7 +228,10 @@ describe('hyperlane warp check e2e tests', async function () {
   describe('hyperlane warp check --symbol ... --config ... --key ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
       const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${tokenSymbol}/anvil2-anvil3-config.yaml`;
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        tokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
           type: TokenType.collateral,
@@ -264,7 +276,10 @@ describe('hyperlane warp check e2e tests', async function () {
 
     it(`should find differences between the local config and the on chain config`, async function () {
       const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${tokenSymbol}/anvil2-anvil3-config.yaml`;
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        tokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
 
       const wrongOwner = randomAddress();
 

@@ -27,12 +27,12 @@ import {
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   KeyBoardKeys,
-  REGISTRY_PATH,
   TestPromptAction,
   WARP_DEPLOY_OUTPUT_PATH,
   deploy4626Vault,
   deployOrUseExistingCore,
   deployToken,
+  getCombinedWarpRoutePath,
   handlePrompts,
   sendWarpRouteMessageRoundTrip,
 } from '../commands/helpers.js';
@@ -46,7 +46,10 @@ chai.use(chaiAsPromised);
 const expect = chai.expect;
 chai.should();
 
-const WARP_CORE_CONFIG_PATH_2_3 = `${REGISTRY_PATH}/deployments/warp_routes/VAULT/anvil2-anvil3-config.yaml`;
+const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('VAULT', [
+  CHAIN_NAME_2,
+  CHAIN_NAME_3,
+]);
 
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -112,7 +115,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
         token.symbol(),
         token.decimals(),
       ]);
-      const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${expectedTokenSymbol}/anvil2-anvil3-config.yaml`;
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        expectedTokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
@@ -241,7 +247,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
         token.symbol(),
         token.decimals(),
       ]);
-      const COMBINED_WARP_CORE_CONFIG_PATH = `${REGISTRY_PATH}/deployments/warp_routes/${expectedTokenSymbol}/anvil2-anvil3-config.yaml`;
+      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+        expectedTokenSymbol,
+        [CHAIN_NAME_2, CHAIN_NAME_3],
+      );
 
       const warpConfig: WarpRouteDeployConfig = {
         [CHAIN_NAME_2]: {
