@@ -34,7 +34,7 @@ export const getBaseZeronetworkJackieChainWarpConfig = async (
     ...routerConfig.zeronetwork,
     owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
     proxyAdmin: {
-      owner: abacusWorksEnvOwnerConfig.base.owner,
+      owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
       address: '0x175B542ff2583f6c44059233Ed65f29e2fcAb930',
     },
     type: TokenType.synthetic,

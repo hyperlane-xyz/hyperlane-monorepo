@@ -34,7 +34,7 @@ export const getBaseZeronetworkMigglesConfig = async (
     ...routerConfig.zeronetwork,
     owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
     proxyAdmin: {
-      owner: abacusWorksEnvOwnerConfig.base.owner,
+      owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
       address: '0xc703DcF5ceaf33214dA115E1c86977A9b5590B59',
     },
     type: TokenType.synthetic,
