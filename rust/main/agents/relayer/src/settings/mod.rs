@@ -154,7 +154,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
         };
 
         let gas_payment_enforcement_parser = ValueParser::new(
-            raw_gas_payment_enforcement_path.clone(),
+            raw_gas_payment_enforcement_path,
             &raw_gas_payment_enforcement,
         );
 
