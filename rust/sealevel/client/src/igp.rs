@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::{
     artifacts::{read_json, try_read_json, write_json, SingularProgramIdArtifact},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    cmd_utils::{create_new_directory, deploy_program},
     read_core_program_ids,
     router::ChainMetadata,
     Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
@@ -75,7 +75,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 .expect("Invalid chain name");
 
             let program_id =
-                deploy_igp_program(&mut ctx, &deploy.built_so_dir, true, &key_dir, local_domain);
+                deploy_igp_program(&mut ctx, &deploy.built_so_dir, &key_dir, local_domain);
 
             write_json::<SingularProgramIdArtifact>(
                 &chain_dir.join("program-ids.json"),
@@ -453,27 +453,21 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
 fn deploy_igp_program(
     ctx: &mut Context,
     built_so_dir: &Path,
-    use_existing_keys: bool,
     key_dir: &Path,
     local_domain: u32,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_igp-keypair.json",
-        use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_igp",
         built_so_dir
             .join("hyperlane_sealevel_igp.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-    );
+    )
+    .unwrap();
 
     println!("Deployed IGP at program ID {}", program_id);
 

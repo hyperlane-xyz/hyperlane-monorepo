@@ -161,7 +161,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
         .working_dir(&out_path)
         .run()
         .join();
-    log!("Remove temporary solana files");
+    log!("Removing temporary solana files");
     fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
         .expect("Failed to remove solana program archive");
 
@@ -234,8 +234,7 @@ pub fn start_solana_test_validator(
         .arg("environment", SOLANA_ENV_NAME)
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("built-so-dir", SBF_OUT_PATH)
-        .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE)
-        .flag("use-existing-keys");
+        .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE);
 
     sealevel_client_deploy_core
         .clone()

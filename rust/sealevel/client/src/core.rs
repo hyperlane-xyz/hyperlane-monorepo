@@ -3,7 +3,6 @@ use hyperlane_sealevel_mailbox::protocol_fee::ProtocolFee;
 use serde::{Deserialize, Serialize};
 
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
 use solana_sdk::{compute_budget, compute_budget::ComputeBudgetInstruction};
 
 use std::collections::HashMap;
@@ -13,7 +12,7 @@ use crate::cmd_utils::get_compute_unit_price_micro_lamports_for_chain_name;
 use crate::ONE_SOL_IN_LAMPORTS;
 use crate::{
     artifacts::{read_json, write_json},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    cmd_utils::{create_new_directory, deploy_program},
     multisig_ism::deploy_multisig_ism_message_id,
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
@@ -89,7 +88,6 @@ pub(crate) fn process_core_cmd(mut ctx: Context, cmd: CoreCmd) {
             let ism_program_id = deploy_multisig_ism_message_id(
                 &mut ctx,
                 &core.built_so_dir,
-                core.use_existing_keys,
                 &key_dir,
                 core.local_domain,
             );
@@ -123,23 +121,18 @@ fn deploy_mailbox(
     default_ism: Pubkey,
     local_domain: u32,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_mailbox-keypair.json",
-        core.use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_mailbox",
         core.built_so_dir
             .join("hyperlane_sealevel_mailbox.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-    );
+    )
+    .unwrap();
 
     println!("Deployed Mailbox at program ID {}", program_id);
 
@@ -182,23 +175,18 @@ fn deploy_validator_announce(
     key_dir: &Path,
     mailbox_program_id: Pubkey,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_validator_announce-keypair.json",
-        core.use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_validator_announce",
         core.built_so_dir
             .join("hyperlane_sealevel_validator_announce.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         core.local_domain,
-    );
+    )
+    .unwrap();
 
     println!("Deployed ValidatorAnnounce at program ID {}", program_id);
 
@@ -224,13 +212,6 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
         accounts::{GasOracle, RemoteGasData},
         instruction::{GasOracleConfig, GasOverheadConfig},
     };
-
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_igp-keypair.json",
-        core.use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
 
     let mut gas_oracle_configs = core
         .gas_oracle_config_file
@@ -275,16 +256,18 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
         .into_values()
         .collect::<Vec<_>>();
 
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_igp",
         core.built_so_dir
             .join("hyperlane_sealevel_igp.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         core.local_domain,
-    );
+    )
+    .unwrap();
 
     println!("Deployed IGP at program ID {}", program_id);
 
