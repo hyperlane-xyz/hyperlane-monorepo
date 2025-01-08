@@ -99,6 +99,7 @@ export const mainnet3SupportedChainNames = [
   'taiko',
   'tangle',
   'telos',
+  'torus',
   'treasure',
   'unichain',
   'vana',

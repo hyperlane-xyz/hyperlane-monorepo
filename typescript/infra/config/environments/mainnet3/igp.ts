@@ -27,8 +27,8 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote, ethereumChainNames);
-  // Moonbeam gas usage can be up to 4x higher than vanilla EVM
-  if (remote === 'moonbeam') {
+  // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
+  if (remote === 'moonbeam' || remote === 'torus') {
     overhead *= 4;
   }
   // ZkSync gas usage is different from the EVM and tends to give high
