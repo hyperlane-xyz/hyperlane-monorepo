@@ -249,7 +249,7 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
             if let Ok(sealevel_payment) = self.get_payment_with_sequence(nonce.into()).await {
                 let igp_account_filter = self.igp.igp_account;
                 let mut payment = *sealevel_payment.payment.inner();
-                // If fees is paid to a different IGP account, we zero out the payment to make sure the db entries is contiguous but the gasEnforcer will reject the message (if not set to none policy)
+                // If fees is paid to a different IGP account, we zero out the payment to make sure the db entries are contiguous, but at the same time, gasEnforcer will reject the message (if not set to none policy)
                 if igp_account_filter != sealevel_payment.igp_account_pubkey {
                     tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, neutralizing payment");
 
