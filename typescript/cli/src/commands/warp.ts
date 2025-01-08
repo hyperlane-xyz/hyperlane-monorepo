@@ -309,7 +309,13 @@ const send: CommandModuleWithWriteContext<
           'Select the destination chain:',
         );
 
-      chains = chains.filter((c) => c === origin || c === destination);
+      chains = [origin, destination].filter((c) => chains.includes(c));
+    }
+
+    if (chains.length < 2) {
+      throw Error(
+        `Origin (${origin}) or destination (${destination}) are not part of the warp route.`,
+      );
     }
 
     logBlue(`🚀 Sending a message for chains: ${chains.join(' ➡️ ')}`);
