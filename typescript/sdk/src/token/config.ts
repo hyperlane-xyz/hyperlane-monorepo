@@ -1,9 +1,11 @@
 export enum TokenType {
   synthetic = 'synthetic',
+  syntheticRebase = 'syntheticRebase',
   fastSynthetic = 'fastSynthetic',
   syntheticUri = 'syntheticUri',
   collateral = 'collateral',
   collateralVault = 'collateralVault',
+  collateralVaultRebase = 'collateralVaultRebase',
   XERC20 = 'xERC20',
   XERC20Lockbox = 'xERC20Lockbox',
   collateralFiat = 'collateralFiat',
@@ -12,11 +14,6 @@ export enum TokenType {
   native = 'native',
   nativeScaled = 'nativeScaled',
 }
-
-export const CollateralExtensions = [
-  TokenType.collateral,
-  TokenType.collateralVault,
-];
 
 export const gasOverhead = (tokenType: TokenType): number => {
   switch (tokenType) {

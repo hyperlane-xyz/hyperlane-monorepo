@@ -13,8 +13,14 @@ use crate::program::Program;
 use crate::utils::{as_task, concat_path, AgentHandles, ArbitraryData, TaskHandle};
 use crate::SOLANA_AGNET_BIN_PATH;
 
-/// The Solana CLI tool version to download and use.
-const SOLANA_CLI_VERSION: &str = "1.14.20";
+/// Solana CLI version for compiling programs
+pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
+pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/solana-labs/solana";
+
+/// Solana version used by mainnet validators
+pub const SOLANA_NETWORK_CLI_VERSION: &str = "2.0.13";
+pub const SOLANA_NETWORK_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
+
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
     "https://github.com/hyperlane-xyz/solana-program-library/releases/download/2024-08-23/spl.tar.gz";
 
@@ -71,10 +77,17 @@ const SOLANA_OVERHEAD_CONFIG_FILE: &str = "../sealevel/environments/local-e2e/ov
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
-pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
+pub fn install_solana_cli_tools(
+    release_url: String,
+    release_version: String,
+) -> (PathBuf, impl ArbitraryData) {
     let solana_download_dir = tempdir().unwrap();
     let solana_tools_dir = tempdir().unwrap();
-    log!("Downloading solana cli release v{}", SOLANA_CLI_VERSION);
+    log!(
+        "Downloading solana cli release v{} from {}",
+        release_version,
+        release_url
+    );
     let solana_release_name = {
         // best effort to pick one of the supported targets
         let target = if cfg!(target_os = "linux") {
@@ -97,7 +110,9 @@ pub fn install_solana_cli_tools() -> (PathBuf, impl ArbitraryData) {
     Program::new("curl")
         .arg("output", &solana_archive_name)
         .flag("location")
-        .cmd(format!("https://github.com/solana-labs/solana/releases/download/v{SOLANA_CLI_VERSION}/{solana_archive_name}"))
+        .cmd(format!(
+            "https://{release_url}/releases/download/v{release_version}/{solana_archive_name}"
+        ))
         .flag("silent")
         .working_dir(solana_download_dir.as_ref().to_str().unwrap())
         .run()
@@ -144,7 +159,7 @@ pub fn build_solana_programs(solana_cli_tools_path: PathBuf) -> PathBuf {
         .working_dir(&out_path)
         .run()
         .join();
-    log!("Remove temporary solana files");
+    log!("Removing temporary solana files");
     fs::remove_file(concat_path(&out_path, "spl.tar.gz"))
         .expect("Failed to remove solana program archive");
 
@@ -217,8 +232,7 @@ pub fn start_solana_test_validator(
         .arg("environment", SOLANA_ENV_NAME)
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("built-so-dir", SBF_OUT_PATH)
-        .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE)
-        .flag("use-existing-keys");
+        .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE);
 
     sealevel_client_deploy_core
         .clone()

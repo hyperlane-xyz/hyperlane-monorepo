@@ -41,8 +41,11 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
   typeof testnet4SupportedChainNames
 > = {
   [Role.Validator]: {
+    abstracttestnet: true,
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet2: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -55,6 +58,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    inksepolia: true,
+    odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -63,12 +68,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sepolia: true,
     solanatestnet: false,
     soneiumtestnet: true,
+    sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    treasuretopaz: true,
+    unichaintestnet: true,
   },
   [Role.Relayer]: {
+    abstracttestnet: true,
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet2: true,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -81,6 +92,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    inksepolia: true,
+    odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
@@ -89,12 +102,18 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sepolia: true,
     solanatestnet: false,
     soneiumtestnet: true,
+    sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: true,
+    treasuretopaz: true,
+    unichaintestnet: true,
   },
   [Role.Scraper]: {
+    abstracttestnet: true,
+    alephzeroevmtestnet: true,
     alfajores: true,
     arbitrumsepolia: true,
+    arcadiatestnet2: false,
     basesepolia: true,
     berabartio: true,
     bsctestnet: true,
@@ -102,23 +121,26 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     citreatestnet: true,
     connextsepolia: false,
     ecotestnet: true,
-    // Cannot scrape non-EVM chains
     eclipsetestnet: false,
     formtestnet: true,
     fuji: true,
     holesky: true,
     // hyperliquidevmtestnet: false,
+    inksepolia: true,
+    odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
     // plumetestnet: true,
     polygonamoy: true,
     scrollsepolia: true,
     sepolia: true,
-    // Cannot scrape non-EVM chains
     solanatestnet: false,
     soneiumtestnet: true,
+    sonictestnet: true,
     suavetoliman: true,
     superpositiontestnet: false,
+    treasuretopaz: true,
+    unichaintestnet: true,
   },
 };
 
@@ -197,11 +219,11 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6c45a05-20240927-172800',
+      tag: '7c0c967-20241218-173053',
     },
     blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
     gasPaymentEnforcement,
-    metricAppContexts: [
+    metricAppContextsGetter: () => [
       {
         name: 'helloworld',
         matchingList: routerMatchingList(
@@ -219,7 +241,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6c45a05-20240927-172800',
+      tag: 'bb4e82b-20241107-190434',
     },
     chains: validatorChainConfig(Contexts.Hyperlane),
     resources: validatorResources,
@@ -228,7 +250,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '6c45a05-20240927-172800',
+      tag: 'd84d8da-20241217-172447',
     },
     resources: scraperResources,
   },
@@ -243,7 +265,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '5a0d68b-20240916-144115',
+      tag: '7c0c967-20241218-173053',
     },
     whitelist: [...releaseCandidateHelloworldMatchingList],
     blacklist: relayBlacklist,

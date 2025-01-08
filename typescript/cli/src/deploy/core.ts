@@ -1,18 +1,18 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { DeployedCoreAddresses } from '@hyperlane-xyz/sdk';
 import {
   ChainMap,
   ChainName,
   ContractVerifier,
   CoreConfig,
+  DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
-import { getOrRequestApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
@@ -34,6 +34,7 @@ interface DeployParams {
 interface ApplyParams extends DeployParams {
   deployedCoreAddresses: DeployedCoreAddresses;
 }
+
 /**
  * Executes the core deploy command.
  */
@@ -42,7 +43,6 @@ export async function runCoreDeploy(params: DeployParams) {
   let chain = params.chain;
 
   const {
-    signer,
     isDryRun,
     chainMetadata,
     dryRunChain,
@@ -61,13 +61,14 @@ export async function runCoreDeploy(params: DeployParams) {
       'Select chain to connect:',
     );
   }
-
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
-    apiKeys = await getOrRequestApiKeys([chain], chainMetadata);
+    apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
+
+  const signer = multiProvider.getSigner(chain);
 
   const deploymentParams: DeployParams = {
-    context,
+    context: { ...context, signer },
     chain,
     config,
   };
@@ -126,7 +127,11 @@ export async function runCoreApply(params: ApplyParams) {
   if (transactions.length) {
     logGray('Updating deployed core contracts');
     for (const transaction of transactions) {
-      await multiProvider.sendTransaction(chain, transaction);
+      await multiProvider.sendTransaction(
+        // Using the provided chain id because there might be remote chain transactions included in the batch
+        transaction.chainId ?? chain,
+        transaction,
+      );
     }
 
     logGreen(`Core config updated on ${chain}.`);

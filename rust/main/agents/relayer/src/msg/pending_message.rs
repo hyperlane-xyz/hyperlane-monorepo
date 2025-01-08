@@ -82,6 +82,9 @@ pub struct PendingMessage {
     #[new(default)]
     #[serde(skip_serializing)]
     metadata: Option<Vec<u8>>,
+    #[new(default)]
+    #[serde(skip_serializing)]
+    metric: Option<Arc<IntGauge>>,
 }
 
 impl Debug for PendingMessage {
@@ -162,6 +165,14 @@ impl PendingOperation for PendingMessage {
 
     fn destination_domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
+    }
+
+    fn sender_address(&self) -> &H256 {
+        &self.message.sender
+    }
+
+    fn recipient_address(&self) -> &H256 {
+        &self.message.recipient
     }
 
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
@@ -327,7 +338,7 @@ impl PendingOperation for PendingMessage {
         PendingOperationResult::Success
     }
 
-    #[instrument]
+    #[instrument(skip(self), fields(id=?self.id(), domain=%self.destination_domain()))]
     async fn submit(&mut self) -> PendingOperationResult {
         if self.submitted {
             // this message has already been submitted, possibly not by us
@@ -457,7 +468,7 @@ impl PendingOperation for PendingMessage {
             actual_gas_for_message = ?gas_used_by_operation,
             message_gas_estimate = ?operation_estimate,
             submission_gas_estimate = ?submission_estimated_cost,
-            message = ?self.message,
+            hyp_message = ?self.message,
             "Gas used by message submission"
         );
     }
@@ -480,6 +491,14 @@ impl PendingOperation for PendingMessage {
 
     fn try_get_mailbox(&self) -> Option<Arc<dyn Mailbox>> {
         Some(self.ctx.destination_mailbox.clone())
+    }
+
+    fn get_metric(&self) -> Option<Arc<IntGauge>> {
+        self.metric.clone()
+    }
+
+    fn set_metric(&mut self, metric: Arc<IntGauge>) {
+        self.metric = Some(metric);
     }
 }
 

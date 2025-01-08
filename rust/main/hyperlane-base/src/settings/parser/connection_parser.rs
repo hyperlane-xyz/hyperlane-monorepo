@@ -1,10 +1,13 @@
 use eyre::eyre;
+use hyperlane_sealevel::{
+    HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
+};
 use url::Url;
 
 use h_eth::TransactionOverrides;
+
 use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
-use hyperlane_cosmos::NativeToken;
+use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol, NativeToken};
 
 use crate::settings::envs::*;
 use crate::settings::ChainConnectionConf;
@@ -137,24 +140,7 @@ pub fn build_cosmos_connection_conf(
         .parse_u64()
         .end();
 
-    let native_token_decimals = chain
-        .chain(err)
-        .get_key("nativeToken")
-        .get_key("decimals")
-        .parse_u32()
-        .unwrap_or(18);
-
-    let native_token_denom = chain
-        .chain(err)
-        .get_key("nativeToken")
-        .get_key("denom")
-        .parse_string()
-        .unwrap_or("");
-
-    let native_token = NativeToken {
-        decimals: native_token_decimals,
-        denom: native_token_denom.to_owned(),
-    };
+    let native_token = parse_native_token(chain, err, 18);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -162,7 +148,7 @@ pub fn build_cosmos_connection_conf(
     } else {
         Some(ChainConnectionConf::Cosmos(h_cosmos::ConnectionConf::new(
             grpcs,
-            rpcs.first().unwrap().to_string(),
+            rpcs.to_owned(),
             chain_id.unwrap().to_string(),
             prefix.unwrap().to_string(),
             canonical_asset.unwrap(),
@@ -171,6 +157,198 @@ pub fn build_cosmos_connection_conf(
             operation_batch,
             native_token,
         )))
+    }
+}
+
+fn build_sealevel_connection_conf(
+    url: &Url,
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    operation_batch: OperationBatchConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+
+    let native_token = parse_native_token(chain, err, 9);
+    let priority_fee_oracle = parse_sealevel_priority_fee_oracle_config(chain, &mut local_err);
+    let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
+            url: url.clone(),
+            operation_batch,
+            native_token,
+            priority_fee_oracle: priority_fee_oracle.unwrap(),
+            transaction_submitter: transaction_submitter.unwrap(),
+        }))
+    }
+}
+
+fn parse_native_token(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    default_decimals: u32,
+) -> NativeToken {
+    let native_token_decimals = chain
+        .chain(err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("decimals")
+        .parse_u32()
+        .unwrap_or(default_decimals);
+
+    let native_token_denom = chain
+        .chain(err)
+        .get_opt_key("nativeToken")
+        .get_opt_key("denom")
+        .parse_string()
+        .unwrap_or("");
+
+    NativeToken {
+        decimals: native_token_decimals,
+        denom: native_token_denom.to_owned(),
+    }
+}
+
+fn parse_sealevel_priority_fee_oracle_config(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<PriorityFeeOracleConfig> {
+    let value_parser = chain.chain(err).get_opt_key("priorityFeeOracle").end();
+
+    let priority_fee_oracle = if let Some(value_parser) = value_parser {
+        let oracle_type = value_parser
+            .chain(err)
+            .get_key("type")
+            .parse_string()
+            .end()
+            .or_else(|| {
+                err.push(
+                    &value_parser.cwp + "type",
+                    eyre!("Missing priority fee oracle type"),
+                );
+                None
+            })
+            .unwrap_or_default();
+
+        match oracle_type {
+            "constant" => {
+                let fee = value_parser
+                    .chain(err)
+                    .get_key("fee")
+                    .parse_u64()
+                    .end()
+                    .unwrap_or(0);
+                Some(PriorityFeeOracleConfig::Constant(fee))
+            }
+            "helius" => {
+                let fee_level = parse_helius_priority_fee_level(&value_parser, err);
+                if !err.is_ok() {
+                    return None;
+                }
+                let config = HeliusPriorityFeeOracleConfig {
+                    url: value_parser
+                        .chain(err)
+                        .get_key("url")
+                        .parse_from_str("Invalid url")
+                        .end()
+                        .unwrap(),
+                    fee_level: fee_level.unwrap(),
+                };
+                Some(PriorityFeeOracleConfig::Helius(config))
+            }
+            _ => {
+                err.push(
+                    &value_parser.cwp + "type",
+                    eyre!("Unknown priority fee oracle type"),
+                );
+                None
+            }
+        }
+    } else {
+        // If not specified at all, use default
+        Some(PriorityFeeOracleConfig::default())
+    };
+
+    priority_fee_oracle
+}
+
+fn parse_helius_priority_fee_level(
+    value_parser: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<HeliusPriorityFeeLevel> {
+    let level = value_parser
+        .chain(err)
+        .get_opt_key("feeLevel")
+        .parse_string()
+        .end();
+
+    if let Some(level) = level {
+        match level.to_lowercase().as_str() {
+            "recommended" => Some(HeliusPriorityFeeLevel::Recommended),
+            "min" => Some(HeliusPriorityFeeLevel::Min),
+            "low" => Some(HeliusPriorityFeeLevel::Low),
+            "medium" => Some(HeliusPriorityFeeLevel::Medium),
+            "high" => Some(HeliusPriorityFeeLevel::High),
+            "veryhigh" => Some(HeliusPriorityFeeLevel::VeryHigh),
+            "unsafemax" => Some(HeliusPriorityFeeLevel::UnsafeMax),
+            _ => {
+                err.push(
+                    &value_parser.cwp + "feeLevel",
+                    eyre!("Unknown priority fee level"),
+                );
+                None
+            }
+        }
+    } else {
+        // If not specified at all, use the default
+        Some(HeliusPriorityFeeLevel::default())
+    }
+}
+
+fn parse_transaction_submitter_config(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<h_sealevel::TransactionSubmitterConfig> {
+    let submitter_type = chain
+        .chain(err)
+        .get_opt_key("transactionSubmitter")
+        .get_opt_key("type")
+        .parse_string()
+        .end();
+
+    if let Some(submitter_type) = submitter_type {
+        match submitter_type.to_lowercase().as_str() {
+            "rpc" => {
+                let url = chain
+                    .chain(err)
+                    .get_opt_key("transactionSubmitter")
+                    .get_opt_key("url")
+                    .parse_from_str("Invalid url")
+                    .end();
+                Some(h_sealevel::TransactionSubmitterConfig::Rpc { url })
+            }
+            "jito" => {
+                let url = chain
+                    .chain(err)
+                    .get_opt_key("transactionSubmitter")
+                    .get_opt_key("url")
+                    .parse_from_str("Invalid url")
+                    .end();
+                Some(h_sealevel::TransactionSubmitterConfig::Jito { url })
+            }
+            _ => {
+                err.push(
+                    &chain.cwp + "transactionSubmitter.type",
+                    eyre!("Unknown transaction submitter type"),
+                );
+                None
+            }
+        }
+    } else {
+        // If not specified at all, use default
+        Some(h_sealevel::TransactionSubmitterConfig::default())
     }
 }
 
@@ -194,12 +372,10 @@ pub fn build_connection_conf(
             .iter()
             .next()
             .map(|url| ChainConnectionConf::Fuel(h_fuel::ConnectionConf { url: url.clone() })),
-        HyperlaneDomainProtocol::Sealevel => rpcs.iter().next().map(|url| {
-            ChainConnectionConf::Sealevel(h_sealevel::ConnectionConf {
-                url: url.clone(),
-                operation_batch,
-            })
-        }),
+        HyperlaneDomainProtocol::Sealevel => rpcs
+            .iter()
+            .next()
+            .and_then(|url| build_sealevel_connection_conf(url, chain, err, operation_batch)),
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
         }

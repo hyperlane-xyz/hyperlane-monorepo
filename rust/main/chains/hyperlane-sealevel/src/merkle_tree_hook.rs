@@ -1,14 +1,13 @@
-use std::{num::NonZeroU64, ops::RangeInclusive};
+use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle, ChainCommunicationError, ChainResult, Checkpoint,
     HyperlaneChain, HyperlaneMessage, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, SequenceAwareIndexer,
+    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer,
 };
 use hyperlane_sealevel_mailbox::accounts::OutboxAccount;
-use solana_sdk::commitment_config::CommitmentConfig;
 use tracing::instrument;
 
 use crate::{SealevelMailbox, SealevelMailboxIndexer};
@@ -17,21 +16,16 @@ use crate::{SealevelMailbox, SealevelMailboxIndexer};
 impl MerkleTreeHook for SealevelMailbox {
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn tree(&self, lag: Option<NonZeroU64>) -> ChainResult<IncrementalMerkle> {
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
         assert!(
-            lag.is_none(),
+            reorg_period.is_none(),
             "Sealevel does not support querying point-in-time"
         );
 
         let outbox_account = self
             .rpc()
-            .get_account_with_commitment(&self.outbox.0, CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value
-            .ok_or_else(|| {
-                ChainCommunicationError::from_other_str("Could not find account data")
-            })?;
+            .get_account_with_finalized_commitment(&self.outbox.0)
+            .await?;
         let outbox = OutboxAccount::fetch(&mut outbox_account.data.as_ref())
             .map_err(ChainCommunicationError::from_other)?
             .into_inner();
@@ -41,13 +35,13 @@ impl MerkleTreeHook for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn latest_checkpoint(&self, lag: Option<NonZeroU64>) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         assert!(
-            lag.is_none(),
+            reorg_period.is_none(),
             "Sealevel does not support querying point-in-time"
         );
 
-        let tree = self.tree(lag).await?;
+        let tree = self.tree(reorg_period).await?;
 
         let root = tree.root();
         let count: u32 = tree
@@ -70,8 +64,8 @@ impl MerkleTreeHook for SealevelMailbox {
 
     #[instrument(err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
-    async fn count(&self, _maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let tree = self.tree(_maybe_lag).await?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let tree = self.tree(reorg_period).await?;
 
         tree.count()
             .try_into()
@@ -99,7 +93,10 @@ impl Indexer<MerkleTreeInsertion> for SealevelMerkleTreeHookIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Indexer::<HyperlaneMessage>::get_finalized_block_number(&self.0).await
+        // we should not report block height since SequenceAwareIndexer uses block slot in
+        // `latest_sequence_count_and_tip` and we should not report block slot here
+        // since block slot cannot be used as watermark
+        unimplemented!()
     }
 }
 

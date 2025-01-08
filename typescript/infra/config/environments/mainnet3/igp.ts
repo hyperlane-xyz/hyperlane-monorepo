@@ -1,12 +1,21 @@
-import { ChainMap, ChainName, HookType, IgpConfig } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainName,
+  ChainTechnicalStack,
+  HookType,
+  IgpConfig,
+  getTokenExchangeRateFromValues,
+} from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
+  EXCHANGE_RATE_MARGIN_PCT,
   getAllStorageGasOracleConfigs,
   getOverhead,
-  getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
+import { mustGetChainNativeToken } from '../../../src/utils/utils.js';
+import { getChain } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
@@ -16,22 +25,37 @@ import rawTokenPrices from './tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
-const getOverheadWithOverrides = (local: ChainName, remote: ChainName) => {
+export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote, ethereumChainNames);
+  // Moonbeam gas usage can be up to 4x higher than vanilla EVM
   if (remote === 'moonbeam') {
     overhead *= 4;
   }
+  // ZkSync gas usage is different from the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
+    overhead *= 2;
+  }
   return overhead;
-};
+}
 
 const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
     gasPrices,
     (local, remote) =>
-      getTokenExchangeRateFromValues(local, remote, tokenPrices),
+      getTokenExchangeRateFromValues({
+        local,
+        remote,
+        tokenPrices,
+        exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
+        decimals: {
+          local: mustGetChainNativeToken(local).decimals,
+          remote: mustGetChainNativeToken(remote).decimals,
+        },
+      }),
     (local) => parseFloat(tokenPrices[local]),
-    getOverheadWithOverrides,
+    (local, remote) => getOverheadWithOverrides(local, remote),
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(

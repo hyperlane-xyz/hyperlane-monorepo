@@ -11,13 +11,16 @@ import {TestMailbox} from "../../contracts/test/TestMailbox.sol";
 import {StaticMerkleRootMultisigIsmFactory, StaticMessageIdMultisigIsmFactory} from "../../contracts/isms/multisig/StaticMultisigIsm.sol";
 import {MerkleRootMultisigIsmMetadata} from "../../contracts/isms/libs/MerkleRootMultisigIsmMetadata.sol";
 import {CheckpointLib} from "../../contracts/libs/CheckpointLib.sol";
-import {StaticThresholdAddressSetFactory} from "../../contracts/libs/StaticAddressSetFactory.sol";
+import {IThresholdAddressFactory} from "../../contracts/interfaces/IThresholdAddressFactory.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MerkleTreeHook} from "../../contracts/hooks/MerkleTreeHook.sol";
 import {TestMerkleTreeHook} from "../../contracts/test/TestMerkleTreeHook.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {ThresholdTestUtils} from "./IsmTestUtils.sol";
+import {StorageMessageIdMultisigIsm, StorageMerkleRootMultisigIsm, StorageMessageIdMultisigIsmFactory, StorageMerkleRootMultisigIsmFactory, AbstractStorageMultisigIsm} from "../../contracts/isms/multisig/StorageMultisigIsm.sol";
+
+uint8 constant MAX_VALIDATORS = 20;
 
 /// @notice since we removed merkle tree from the mailbox, we need to include the MerkleTreeHook in the test
 abstract contract AbstractMultisigIsmTest is Test {
@@ -32,7 +35,7 @@ abstract contract AbstractMultisigIsmTest is Test {
     string constant prefixKey = "prefix";
 
     uint32 constant ORIGIN = 11;
-    StaticThresholdAddressSetFactory factory;
+    IThresholdAddressFactory factory;
     IInterchainSecurityModule ism;
     TestMerkleTreeHook internal merkleTreeHook;
     TestPostDispatchHook internal noopHook;
@@ -163,7 +166,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(0 < m && m <= n && n < MAX_VALIDATORS);
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
         assertTrue(ism.verify(metadata, message));
@@ -177,7 +180,7 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
+        vm.assume(0 < m && m <= n && n < MAX_VALIDATORS);
         bytes memory message = getMessage(destination, recipient, body);
         bytes memory metadata = getMetadata(m, n, seed, message);
 
@@ -185,6 +188,42 @@ abstract contract AbstractMultisigIsmTest is Test {
         uint256 index = uint256(seed) % metadata.length;
         metadata[index] = ~metadata[index];
         assertFalse(ism.verify(metadata, message));
+    }
+
+    function test_verify_revertWhen_duplicateSignatures(
+        uint32 destination,
+        bytes32 recipient,
+        bytes calldata body,
+        uint8 m,
+        uint8 n,
+        bytes32 seed
+    ) public virtual {
+        vm.assume(1 < m && m <= n && n < 10);
+        bytes memory message = getMessage(destination, recipient, body);
+        bytes memory metadata = getMetadata(m, n, seed, message);
+
+        bytes memory duplicateMetadata = new bytes(metadata.length);
+        for (uint256 i = 0; i < metadata.length - 65; i++) {
+            duplicateMetadata[i] = metadata[i];
+        }
+        for (uint256 i = 0; i < 65; i++) {
+            duplicateMetadata[metadata.length - 65 + i] = metadata[
+                metadata.length - 130 + i
+            ];
+        }
+
+        vm.expectRevert("!threshold");
+        ism.verify(duplicateMetadata, message);
+    }
+
+    function testZeroThreshold() public virtual {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 0);
+    }
+
+    function testThresholdExceedsLength() public virtual {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 2);
     }
 }
 
@@ -280,5 +319,95 @@ contract MessageIdMultisigIsmTest is AbstractMultisigIsmTest {
         fixturePrefix(root, index, merkleTreeAddress);
 
         return abi.encodePacked(merkleTreeAddress, root, index);
+    }
+}
+
+abstract contract StorageMultisigIsmTest is AbstractMultisigIsmTest {
+    event ValidatorsAndThresholdSet(address[] validators, uint8 threshold);
+    event Initialized(uint8 version);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
+    function test_initialize(
+        bytes32 seed,
+        address[] memory validators,
+        uint8 threshold
+    ) public {
+        vm.assume(
+            0 < threshold &&
+                threshold <= validators.length &&
+                validators.length <= MAX_VALIDATORS
+        );
+
+        addValidators(threshold, uint8(validators.length), seed);
+
+        vm.expectRevert("Initializable: contract is already initialized");
+        AbstractStorageMultisigIsm(address(ism)).initialize(
+            address(this),
+            validators,
+            threshold
+        );
+    }
+
+    function test_setValidatorsAndThreshold(
+        bytes32 seed,
+        address[] memory validators,
+        uint8 threshold
+    ) public {
+        vm.assume(
+            0 < threshold &&
+                threshold <= validators.length &&
+                validators.length <= MAX_VALIDATORS
+        );
+
+        addValidators(threshold, uint8(validators.length), seed);
+
+        AbstractStorageMultisigIsm storageIsm = AbstractStorageMultisigIsm(
+            address(ism)
+        );
+
+        address owner = storageIsm.owner();
+        address antiOwner = address(~bytes20(owner));
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(antiOwner);
+        storageIsm.setValidatorsAndThreshold(validators, threshold);
+
+        vm.expectRevert("Invalid threshold");
+        vm.prank(owner);
+        storageIsm.setValidatorsAndThreshold(
+            validators,
+            uint8(validators.length + 1)
+        );
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit ValidatorsAndThresholdSet(validators, threshold);
+        storageIsm.setValidatorsAndThreshold(validators, threshold);
+        (address[] memory _validators, uint8 _threshold) = storageIsm
+            .validatorsAndThreshold("0x");
+        assertEq(_threshold, threshold);
+        assertEq(_validators, validators);
+    }
+}
+
+contract StorageMessageIdMultisigIsmTest is
+    StorageMultisigIsmTest,
+    MessageIdMultisigIsmTest
+{
+    function setUp() public override {
+        super.setUp();
+        factory = new StorageMessageIdMultisigIsmFactory();
+    }
+}
+
+contract StorageMerkleRootMultisigIsmTest is
+    StorageMultisigIsmTest,
+    MerkleRootMultisigIsmTest
+{
+    function setUp() public override {
+        super.setUp();
+        factory = new StorageMerkleRootMultisigIsmFactory();
     }
 }

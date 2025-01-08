@@ -1,17 +1,13 @@
-import { ethers } from 'ethers';
 import { z } from 'zod';
 
-import {
-  CallDataSchema,
-  PopulatedTransactionSchema,
-  PopulatedTransactionsSchema,
-} from './schemas.js';
+import { ZHash } from '../../metadata/customZodTypes.js';
 
-export type PopulatedTransaction = z.infer<typeof PopulatedTransactionSchema> &
-  ethers.PopulatedTransaction;
-export type PopulatedTransactions = z.infer<
-  typeof PopulatedTransactionsSchema
-> &
-  ethers.PopulatedTransaction[];
+export const BigNumberSchema = z.string();
+
+export const CallDataSchema = z.object({
+  to: ZHash,
+  data: z.string(),
+  value: BigNumberSchema.optional(),
+});
 
 export type CallData = z.infer<typeof CallDataSchema>;

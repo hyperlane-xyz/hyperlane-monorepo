@@ -1,3 +1,5 @@
+use std::thread::sleep;
+
 use borsh::BorshDeserialize;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, HyperlaneMessage, H256,
@@ -975,6 +977,10 @@ async fn test_process_errors_if_message_already_processed() {
     )
     .await
     .unwrap();
+
+    // there's a race condition that isn't fixed by setting `CommitmentLevel::Confirmed`
+    // just wait a bit to ensure the message is processed
+    sleep(std::time::Duration::from_secs(1));
 
     let result = process(
         &mut banks_client,

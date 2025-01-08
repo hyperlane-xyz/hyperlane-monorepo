@@ -4,9 +4,19 @@
  */
 import { SafeParseReturnType, z } from 'zod';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+
+import { ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
+
+export enum EthJsonRpcBlockParameterTag {
+  Earliest = 'earliest',
+  Latest = 'latest',
+  Safe = 'safe',
+  Finalized = 'finalized',
+  Pending = 'pending',
+}
 
 export enum ExplorerFamily {
   Etherscan = 'etherscan',
@@ -17,6 +27,10 @@ export enum ExplorerFamily {
 
 export enum ChainTechnicalStack {
   ArbitrumNitro = 'arbitrumnitro',
+  OpStack = 'opstack',
+  PolygonCDK = 'polygoncdk',
+  PolkadotSubstrate = 'polkadotsubstrate',
+  ZkSync = 'zksync',
   Other = 'other',
 }
 
@@ -67,6 +81,29 @@ export const RpcUrlSchema = z.object({
 
 export type RpcUrl = z.infer<typeof RpcUrlSchema>;
 
+export const BlockExplorerSchema = z.object({
+  name: z.string().describe('A human readable name for the explorer.'),
+  url: z.string().url().describe('The base URL for the explorer.'),
+  apiUrl: z
+    .string()
+    .url()
+    .describe('The base URL for requests to the explorer API.'),
+  apiKey: z
+    .string()
+    .optional()
+    .describe(
+      'An API key for the explorer (recommended for better reliability).',
+    ),
+  family: z
+    .nativeEnum(ExplorerFamily)
+    .optional()
+    .describe(
+      'The type of the block explorer. See ExplorerFamily for valid values.',
+    ),
+});
+
+export type BlockExplorer = z.infer<typeof BlockExplorerSchema>;
+
 export const NativeTokenSchema = z.object({
   name: z.string(),
   symbol: z.string(),
@@ -87,28 +124,7 @@ export const ChainMetadataSchemaObject = z.object({
     .describe('The human readable address prefix for the chains using bech32.'),
 
   blockExplorers: z
-    .array(
-      z.object({
-        name: z.string().describe('A human readable name for the explorer.'),
-        url: z.string().url().describe('The base URL for the explorer.'),
-        apiUrl: z
-          .string()
-          .url()
-          .describe('The base URL for requests to the explorer API.'),
-        apiKey: z
-          .string()
-          .optional()
-          .describe(
-            'An API key for the explorer (recommended for better reliability).',
-          ),
-        family: z
-          .nativeEnum(ExplorerFamily)
-          .optional()
-          .describe(
-            'The type of the block explorer. See ExplorerFamily for valid values.',
-          ),
-      }),
-    )
+    .array(BlockExplorerSchema)
     .optional()
     .describe('A list of block explorers with data for this chain'),
 
@@ -117,9 +133,12 @@ export const ChainMetadataSchemaObject = z.object({
       confirmations: ZUint.describe(
         'Number of blocks to wait before considering a transaction confirmed.',
       ),
-      reorgPeriod: ZUint.optional().describe(
-        'Number of blocks before a transaction has a near-zero chance of reverting.',
-      ),
+      reorgPeriod: z
+        .union([ZUint, z.string()])
+        .optional()
+        .describe(
+          'Number of blocks before a transaction has a near-zero chance of reverting or block tag.',
+        ),
       estimateBlockTime: z
         .number()
         .positive()
@@ -168,8 +187,8 @@ export const ChainMetadataSchemaObject = z.object({
       'A shorter human-readable name of the chain for use in user interfaces.',
     ),
 
-  domainId: ZNzUint.optional().describe(
-    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value if present, but otherwise fallback to `chainId`.',
+  domainId: ZNzUint.describe(
+    'The domainId of the chain, should generally default to `chainId`. Consumer of `ChainMetadata` should use this value or `name` as a unique identifier.',
   ),
 
   gasCurrencyCoinGeckoId: z
@@ -230,7 +249,7 @@ export const ChainMetadataSchemaObject = z.object({
 
   rpcUrls: z
     .array(RpcUrlSchema)
-    .nonempty()
+    .min(1)
     .describe('The list of RPC endpoints for interacting with the chain.'),
 
   slip44: z.number().optional().describe('The SLIP-0044 coin type.'),
@@ -341,11 +360,6 @@ export type ChainMetadata<Ext = object> = z.infer<
 > &
   Ext;
 
-export type BlockExplorer = Exclude<
-  ChainMetadata['blockExplorers'],
-  undefined
->[number];
-
 export function safeParseChainMetadata(
   c: ChainMetadata,
 ): SafeParseReturnType<ChainMetadata, ChainMetadata> {
@@ -368,8 +382,22 @@ export function getChainIdNumber(chainMetadata: ChainMetadata): number {
   else throw new Error('ChainId is not a number, chain may be of Cosmos type');
 }
 
-export function getReorgPeriod(chainMetadata: ChainMetadata): number {
+export function getReorgPeriod(chainMetadata: ChainMetadata): string | number {
   if (chainMetadata.blocks?.reorgPeriod !== undefined)
     return chainMetadata.blocks.reorgPeriod;
   else throw new Error('Chain has no reorg period');
+}
+
+export function mergeChainMetadata(
+  base: ChainMetadata,
+  overrides: Partial<ChainMetadata> | undefined,
+): ChainMetadata {
+  return objMerge<ChainMetadata>(base, overrides || {}, 10, true);
+}
+
+export function mergeChainMetadataMap(
+  base: ChainMap<ChainMetadata>,
+  overrides: ChainMap<Partial<ChainMetadata> | undefined> | undefined,
+): ChainMap<ChainMetadata> {
+  return objMerge<ChainMap<ChainMetadata>>(base, overrides || {}, 10, true);
 }

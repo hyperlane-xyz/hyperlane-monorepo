@@ -29,13 +29,13 @@ import {
   HyperlaneFactories,
 } from '../contracts/types.js';
 import { HookConfig } from '../hook/types.js';
-import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import type { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
 import { InterchainAccount } from '../middleware/account/InterchainAccount.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { MailboxClientConfig } from '../router/types.js';
-import { ChainMap, ChainName } from '../types.js';
+import { ChainMap, ChainName, OwnableConfig } from '../types.js';
 
 import {
   UpgradeConfig,
@@ -45,7 +45,6 @@ import {
   proxyConstructorArgs,
   proxyImplementation,
 } from './proxy.js';
-import { OwnableConfig } from './types.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 import {
   ContractVerificationInput,
@@ -74,6 +73,8 @@ export abstract class HyperlaneDeployer<
   public cachedAddresses: HyperlaneAddressesMap<any> = {};
   public deployedContracts: HyperlaneContractsMap<Factories> = {};
 
+  protected cachingEnabled = true;
+
   protected logger: Logger;
   chainTimeoutMs: number;
 
@@ -86,7 +87,6 @@ export abstract class HyperlaneDeployer<
   ) {
     this.logger = options?.logger ?? rootLogger.child({ module: 'deployer' });
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 15 * 60 * 1000; // 15 minute timeout per chain
-    this.options.ismFactory?.setDeployer(this);
     if (Object.keys(icaAddresses).length > 0) {
       this.options.icaApp = InterchainAccount.fromAddressesMap(
         icaAddresses,
@@ -374,7 +374,7 @@ export abstract class HyperlaneDeployer<
     shouldRecover = true,
     implementationAddress?: Address,
   ): Promise<ReturnType<F['deploy']>> {
-    if (shouldRecover) {
+    if (this.cachingEnabled && shouldRecover) {
       const cachedContract = this.readCache(chain, factory, contractName);
       if (cachedContract) {
         if (this.recoverVerificationInputs) {

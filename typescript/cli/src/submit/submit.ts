@@ -1,4 +1,5 @@
 import {
+  EV5GnosisSafeTxBuilder,
   EV5GnosisSafeTxSubmitter,
   EV5ImpersonatedAccountTxSubmitter,
   EV5InterchainAccountTxTransformer,
@@ -38,13 +39,19 @@ async function getSubmitter<TProtocol extends ProtocolType>(
 ): Promise<TxSubmitterInterface<TProtocol>> {
   switch (submitterMetadata.type) {
     case TxSubmitterType.JSON_RPC:
-      return new EV5JsonRpcTxSubmitter(multiProvider);
+      return new EV5JsonRpcTxSubmitter(multiProvider, {
+        ...submitterMetadata,
+      });
     case TxSubmitterType.IMPERSONATED_ACCOUNT:
       return new EV5ImpersonatedAccountTxSubmitter(multiProvider, {
         ...submitterMetadata,
       });
     case TxSubmitterType.GNOSIS_SAFE:
       return EV5GnosisSafeTxSubmitter.create(multiProvider, {
+        ...submitterMetadata,
+      });
+    case TxSubmitterType.GNOSIS_TX_BUILDER:
+      return EV5GnosisSafeTxBuilder.create(multiProvider, {
         ...submitterMetadata,
       });
     default:

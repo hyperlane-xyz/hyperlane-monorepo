@@ -1,4 +1,4 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { ProtocolTypedTransaction } from '../../ProviderType.js';
 
@@ -14,6 +14,6 @@ export interface TxTransformerInterface<TProtocol extends ProtocolType> {
    * @param txs The array of transactions to transform
    */
   transform(
-    ...txs: ProtocolTypedTransaction<TProtocol>['transaction'][]
-  ): Promise<ProtocolTypedTransaction<TProtocol>['transaction'][]>;
+    ...txs: Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]
+  ): Promise<Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]>;
 }

@@ -184,8 +184,6 @@ struct CoreDeploy {
     overhead_config_file: Option<PathBuf>,
     #[arg(long)]
     chain: String,
-    #[arg(long)]
-    use_existing_keys: bool,
     #[arg(long, num_args = 1.., value_delimiter = ',')]
     remote_domains: Vec<u32>,
     #[arg(long)]
@@ -895,7 +893,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
     };
 }
 
-fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
+fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
     match cmd.cmd {
         TokenSubCmd::Query(query) => {
             let (token_account, token_bump) =
@@ -1024,6 +1022,7 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::TransferRemote(xfer) => {
             is_keypair(&xfer.sender).unwrap();
+            ctx.commitment = CommitmentConfig::finalized();
             let sender = read_keypair_file(xfer.sender).unwrap();
 
             let recipient = if xfer.recipient.starts_with("0x") {

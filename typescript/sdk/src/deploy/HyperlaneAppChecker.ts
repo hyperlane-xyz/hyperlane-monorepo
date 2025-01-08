@@ -12,6 +12,7 @@ import {
   eqAddress,
   objMap,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { HyperlaneApp } from '../app/HyperlaneApp.js';
@@ -47,11 +48,7 @@ export abstract class HyperlaneAppChecker<
 
   async check(chainsToCheck?: ChainName[]): Promise<void[]> {
     // Get all EVM chains from config
-    const evmChains = Object.keys(this.configMap).filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
-    );
+    const evmChains = this.getEvmChains();
 
     // Mark any EVM chains that are not deployed
     const appChains = this.app.chains();
@@ -81,7 +78,19 @@ export abstract class HyperlaneAppChecker<
     );
   }
 
+  getEvmChains(): ChainName[] {
+    return Object.keys(this.configMap).filter(
+      (chain) =>
+        this.multiProvider.getChainMetadata(chain).protocol ===
+        ProtocolType.Ethereum,
+    );
+  }
+
   addViolation(violation: CheckerViolation): void {
+    if (violation.type === ViolationType.BytecodeMismatch) {
+      rootLogger.warn({ violation }, `Found bytecode mismatch. Ignoring...`);
+      return;
+    }
     this.violations.push(violation);
   }
 
@@ -128,7 +137,7 @@ export abstract class HyperlaneAppChecker<
             const actualProxyAdminOwner =
               await actualProxyAdminContract.owner();
             const expectedOwner = this.getOwner(
-              actualProxyAdminOwner,
+              owner,
               'proxyAdmin',
               ownableOverrides,
             );
@@ -139,7 +148,7 @@ export abstract class HyperlaneAppChecker<
                 type: ViolationType.Owner,
                 actual: actualProxyAdminOwner,
                 expected: expectedOwner,
-                contract,
+                contract: actualProxyAdminContract,
               };
               this.addViolation(violation);
             }
@@ -208,7 +217,7 @@ export abstract class HyperlaneAppChecker<
     return bytecode.substring(0, bytecode.length - 90);
   }
 
-  private getOwner(
+  protected getOwner(
     owner: Address,
     contractName: string,
     ownableOverrides?: Record<string, Address>,

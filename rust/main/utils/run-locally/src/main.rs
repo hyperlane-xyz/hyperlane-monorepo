@@ -51,6 +51,7 @@ mod invariants;
 mod logging;
 mod metrics;
 mod program;
+mod server;
 mod solana;
 mod utils;
 
@@ -153,6 +154,8 @@ fn main() -> ExitCode {
     .unwrap();
 
     let config = Config::load();
+    log!("Running with config: {:?}", config);
+
     let mut validator_origin_chains = ["test1", "test2", "test3"].to_vec();
     let mut validator_keys = ETH_VALIDATOR_KEYS.to_vec();
     let mut validator_count: usize = validator_keys.len();
@@ -286,12 +289,19 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
         .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
-        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
         .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
         .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         );
+    let scraper_env = if config.sealevel_enabled {
+        scraper_env.hyp_env(
+            "CHAINSTOSCRAPE",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
+        )
+    } else {
+        scraper_env.hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
+    };
 
     let mut state = State::default();
 
@@ -313,7 +323,11 @@ fn main() -> ExitCode {
     //
 
     let solana_paths = if config.sealevel_enabled {
-        let (solana_path, solana_path_tempdir) = install_solana_cli_tools().join();
+        let (solana_path, solana_path_tempdir) = install_solana_cli_tools(
+            SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
+            SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
+        )
+        .join();
         state.data.push(Box::new(solana_path_tempdir));
         let solana_program_builder = build_solana_programs(solana_path.clone());
         Some((solana_program_builder.join(), solana_path))
@@ -358,8 +372,14 @@ fn main() -> ExitCode {
     }
 
     let solana_ledger_dir = tempdir().unwrap();
-    let solana_config_path = if let Some((solana_program_path, solana_path)) = solana_paths.clone()
-    {
+    let solana_config_path = if let Some((solana_program_path, _)) = solana_paths.clone() {
+        // use the agave 2.x validator version to ensure mainnet compatibility
+        let (solana_path, solana_path_tempdir) = install_solana_cli_tools(
+            SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
+            SOLANA_NETWORK_CLI_VERSION.to_owned(),
+        )
+        .join();
+        state.data.push(Box::new(solana_path_tempdir));
         let start_solana_validator = start_solana_test_validator(
             solana_path.clone(),
             solana_program_path,
@@ -463,6 +483,10 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
+
+    // test retry request
+    let resp = server::run_retry_request().expect("Failed to process retry request");
+    assert!(resp.matched > 0);
 
     if !post_startup_invariants(&checkpoints_dirs) {
         log!("Failure: Post startup invariants are not met");

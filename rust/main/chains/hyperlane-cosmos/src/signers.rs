@@ -1,7 +1,7 @@
 use cosmrs::crypto::{secp256k1::SigningKey, PublicKey};
-use hyperlane_core::ChainResult;
+use hyperlane_core::{AccountAddressType, ChainResult};
 
-use crate::{address::CosmosAddress, HyperlaneCosmosError};
+use crate::{CosmosAddress, HyperlaneCosmosError};
 
 #[derive(Clone, Debug)]
 /// Signer for cosmos chain
@@ -22,8 +22,14 @@ impl Signer {
     /// # Arguments
     /// * `private_key` - private key for signer
     /// * `prefix` - prefix for signer address
-    pub fn new(private_key: Vec<u8>, prefix: String) -> ChainResult<Self> {
-        let address = CosmosAddress::from_privkey(&private_key, &prefix)?.address();
+    /// * `account_address_type` - the type of account address used for signer
+    pub fn new(
+        private_key: Vec<u8>,
+        prefix: String,
+        account_address_type: &AccountAddressType,
+    ) -> ChainResult<Self> {
+        let address =
+            CosmosAddress::from_privkey(&private_key, &prefix, account_address_type)?.address();
         let signing_key = Self::build_signing_key(&private_key)?;
         let public_key = signing_key.public_key();
         Ok(Self {

@@ -6,7 +6,7 @@ import {
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import {
   ChainNameOrId,
@@ -14,17 +14,20 @@ import {
   getSafe,
   getSafeService,
 } from '@hyperlane-xyz/sdk';
-import { Address, CallData } from '@hyperlane-xyz/utils';
+import { Address, CallData, eqAddress, retryAsync } from '@hyperlane-xyz/utils';
+
+import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
+import { AnnotatedCallData } from '../govern/HyperlaneAppGovernor.js';
 
 export async function getSafeAndService(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeAddress: Address,
 ) {
-  const safeSdk: Safe.default = await getSafe(
-    chain,
-    multiProvider,
-    safeAddress,
+  const safeSdk: Safe.default = await retryAsync(
+    () => getSafe(chain, multiProvider, safeAddress),
+    5,
+    1000,
   );
   const safeService: SafeApiKit.default = getSafeService(chain, multiProvider);
   return { safeSdk, safeService };
@@ -36,6 +39,52 @@ export function createSafeTransactionData(call: CallData): MetaTransactionData {
     data: call.data.toString(),
     value: call.value?.toString() || '0',
   };
+}
+
+export async function executeTx(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  safeAddress: Address,
+  safeTxHash: string,
+): Promise<void> {
+  const { safeSdk, safeService } = await getSafeAndService(
+    chain,
+    multiProvider,
+    safeAddress,
+  );
+  const safeTransaction = await safeService.getTransaction(safeTxHash);
+  if (!safeTransaction) {
+    throw new Error(`Failed to fetch transaction details for ${safeTxHash}`);
+  }
+
+  // Throw if the safe doesn't have enough balance to cover the gas
+  let estimate;
+  try {
+    estimate = await safeService.estimateSafeTransaction(
+      safeAddress,
+      safeTransaction,
+    );
+  } catch (error) {
+    throw new Error(
+      `Failed to estimate gas for Safe transaction ${safeTxHash} on chain ${chain}: ${error}`,
+    );
+  }
+  const balance = await multiProvider
+    .getProvider(chain)
+    .getBalance(safeAddress);
+  if (balance.lt(estimate.safeTxGas)) {
+    throw new Error(
+      `Safe ${safeAddress} on ${chain} has insufficient balance (${balance.toString()}) for estimated gas (${
+        estimate.safeTxGas
+      })`,
+    );
+  }
+
+  await safeSdk.executeTransaction(safeTransaction);
+
+  console.log(
+    chalk.green.bold(`Executed transaction ${safeTxHash} on ${chain}`),
+  );
 }
 
 export async function createSafeTransaction(
@@ -112,6 +161,31 @@ export async function deleteAllPendingSafeTxs(
   );
 }
 
+export async function getSafeTx(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  safeTxHash: string,
+): Promise<any> {
+  const txServiceUrl =
+    multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
+
+  // Fetch the transaction details to get the proposer
+  const txDetailsUrl = `${txServiceUrl}/api/v1/multisig-transactions/${safeTxHash}/`;
+  const txDetailsResponse = await fetch(txDetailsUrl, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!txDetailsResponse.ok) {
+    console.error(
+      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+    );
+    return;
+  }
+
+  return txDetailsResponse.json();
+}
+
 export async function deleteSafeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
@@ -119,7 +193,7 @@ export async function deleteSafeTx(
   safeTxHash: string,
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
-  const domainId = multiProvider.getDomainId(chain);
+  const chainId = multiProvider.getEvmChainId(chain);
   const txServiceUrl =
     multiProvider.getChainMetadata(chain).gnosisSafeTransactionServiceUrl;
 
@@ -176,7 +250,7 @@ export async function deleteSafeTx(
       domain: {
         name: 'Safe Transaction Service',
         version: '1.0',
-        chainId: domainId,
+        chainId: chainId,
         verifyingContract: safeAddress,
       },
       primaryType: 'DeleteRequest',
@@ -221,4 +295,51 @@ export async function deleteSafeTx(
       error,
     );
   }
+}
+
+export async function updateSafeOwner(
+  safeSdk: Safe.default,
+): Promise<AnnotatedCallData[]> {
+  const threshold = await safeSdk.getThreshold();
+  const owners = await safeSdk.getOwners();
+  const newOwners = safeSigners.signers;
+  const ownersToRemove = owners.filter(
+    (owner) => !newOwners.some((newOwner) => eqAddress(owner, newOwner)),
+  );
+  const ownersToAdd = newOwners.filter(
+    (newOwner) => !owners.some((owner) => eqAddress(newOwner, owner)),
+  );
+
+  console.log(chalk.magentaBright('Owners to remove:', ownersToRemove));
+  console.log(chalk.magentaBright('Owners to add:', ownersToAdd));
+
+  const transactions: AnnotatedCallData[] = [];
+
+  for (const ownerToRemove of ownersToRemove) {
+    const { data: removeTxData } = await safeSdk.createRemoveOwnerTx({
+      ownerAddress: ownerToRemove,
+      threshold,
+    });
+    transactions.push({
+      to: removeTxData.to,
+      data: removeTxData.data,
+      value: BigNumber.from(removeTxData.value),
+      description: `Remove safe owner ${ownerToRemove}`,
+    });
+  }
+
+  for (const ownerToAdd of ownersToAdd) {
+    const { data: addTxData } = await safeSdk.createAddOwnerTx({
+      ownerAddress: ownerToAdd,
+      threshold,
+    });
+    transactions.push({
+      to: addTxData.to,
+      data: addTxData.data,
+      value: BigNumber.from(addTxData.value),
+      description: `Add safe owner ${ownerToAdd}`,
+    });
+  }
+
+  return transactions;
 }

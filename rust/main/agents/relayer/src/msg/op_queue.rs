@@ -6,7 +6,7 @@ use prometheus::{IntGauge, IntGaugeVec};
 use tokio::sync::{broadcast::Receiver, Mutex};
 use tracing::{debug, info, instrument};
 
-use crate::server::MessageRetryRequest;
+use crate::server::{MessageRetryRequest, MessageRetryResponse};
 
 pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>>;
 
@@ -16,7 +16,7 @@ pub type OperationPriorityQueue = Arc<Mutex<BinaryHeap<Reverse<QueueOperation>>>
 pub struct OpQueue {
     metrics: IntGaugeVec,
     queue_metrics_label: String,
-    retry_rx: Arc<Mutex<Receiver<MessageRetryRequest>>>,
+    retry_receiver: Arc<Mutex<Receiver<MessageRetryRequest>>>,
     #[new(default)]
     pub queue: OperationPriorityQueue,
 }
@@ -29,11 +29,8 @@ impl OpQueue {
     /// it's very likely that its status has just changed, so this forces the caller to consider the new status
     #[instrument(skip(self), ret, fields(queue_label=%self.queue_metrics_label), level = "trace")]
     pub async fn push(&self, mut op: QueueOperation, new_status: Option<PendingOperationStatus>) {
-        if let Some(new_status) = new_status {
-            op.set_status(new_status);
-        }
-        // increment the metric before pushing onto the queue, because we lose ownership afterwards
-        self.get_operation_metric(op.as_ref()).inc();
+        let new_metric = Arc::new(self.get_new_operation_metric(op.as_ref(), new_status.clone()));
+        op.set_status_and_update_metrics(new_status, new_metric);
 
         self.queue.lock().await.push(Reverse(op));
     }
@@ -52,9 +49,6 @@ impl OpQueue {
         let mut queue = self.queue.lock().await;
         let mut popped = vec![];
         while let Some(Reverse(op)) = queue.pop() {
-            // even if the metric is decremented here, the operation may fail to process and be re-added to the queue.
-            // in those cases, the queue length will look like it has spikes whose sizes are at most `limit`
-            self.get_operation_metric(op.as_ref()).dec();
             popped.push(op);
             if popped.len() >= limit {
                 break;
@@ -78,39 +72,82 @@ impl OpQueue {
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
         let mut message_retry_requests = vec![];
-        while let Ok(message_id) = self.retry_rx.lock().await.try_recv() {
-            message_retry_requests.push(message_id);
+
+        while let Ok(retry_request) = self.retry_receiver.lock().await.try_recv() {
+            let uuid = retry_request.uuid.clone();
+            message_retry_requests.push((
+                retry_request,
+                MessageRetryResponse {
+                    uuid,
+                    evaluated: 0,
+                    matched: 0,
+                },
+            ));
         }
+
         if message_retry_requests.is_empty() {
             return;
         }
+
         let mut queue = self.queue.lock().await;
+        let queue_length = queue.len();
+
         let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()
             .map(|Reverse(mut op)| {
-                // Can check for equality here because of the PartialEq implementation for MessageRetryRequest,
-                // but can't use `contains` because the types are different
-                if message_retry_requests.iter().any(|r| r == op) {
+                let matched_requests: Vec<_> = message_retry_requests
+                    .iter_mut()
+                    .filter_map(|(retry_req, retry_response)| {
+                        // update retry metrics
+                        if retry_req.pattern.op_matches(&op) {
+                            debug!(uuid = retry_req.uuid, "Matched request");
+                            retry_response.matched += 1;
+                            Some(retry_req.uuid.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !matched_requests.is_empty() {
                     info!(
                         operation = %op,
                         queue_label = %self.queue_metrics_label,
                         "Retrying OpQueue operation"
                     );
-                    op.reset_attempts()
+                    op.reset_attempts();
                 }
                 Reverse(op)
             })
             .collect();
+
+        for (retry_req, mut retry_response) in message_retry_requests {
+            retry_response.evaluated = queue_length;
+            tracing::debug!(
+                uuid = retry_response.uuid,
+                evaluated = retry_response.evaluated,
+                matched = retry_response.matched,
+                "Sending relayer retry response back"
+            );
+            if let Err(err) = retry_req.transmitter.send(retry_response).await {
+                tracing::error!(?err, "Failed to send retry response");
+            }
+        }
         queue.append(&mut reprioritized_queue);
     }
 
     /// Get the metric associated with this operation
-    fn get_operation_metric(&self, operation: &dyn PendingOperation) -> IntGauge {
+    fn get_new_operation_metric(
+        &self,
+        operation: &dyn PendingOperation,
+        new_status: Option<PendingOperationStatus>,
+    ) -> IntGauge {
         let (destination, app_context) = operation.get_operation_labels();
+        let new_metric_status = new_status.unwrap_or(operation.status());
         self.metrics.with_label_values(&[
             &destination,
             &self.queue_metrics_label,
-            &operation.status().to_string(),
+            &new_metric_status.to_string(),
             &app_context,
         ])
     }
@@ -118,21 +155,30 @@ impl OpQueue {
 
 #[cfg(test)]
 pub mod test {
+    use crate::{server::ENDPOINT_MESSAGES_QUEUE_SIZE, settings::matching_list::MatchingList};
+
     use super::*;
+
     use hyperlane_core::{
-        HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
+        HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneDomainTechnicalStack,
+        HyperlaneDomainType, HyperlaneMessage, KnownHyperlaneDomain, PendingOperationResult,
         TryBatchAs, TxOutcome, H256, U256,
     };
     use serde::Serialize;
     use std::{
         collections::VecDeque,
+        str::FromStr,
         time::{Duration, Instant},
     };
-    use tokio::sync;
+    use tokio::sync::{self, mpsc};
 
     #[derive(Debug, Clone, Serialize)]
     pub struct MockPendingOperation {
         id: H256,
+        sender_address: H256,
+        origin_domain_id: u32,
+        destination_domain_id: u32,
+        recipient_address: H256,
         seconds_to_next_attempt: u64,
         destination_domain: HyperlaneDomain,
     }
@@ -142,12 +188,51 @@ pub mod test {
             Self {
                 id: H256::random(),
                 seconds_to_next_attempt,
+                destination_domain_id: destination_domain.id(),
                 destination_domain,
+                sender_address: H256::random(),
+                recipient_address: H256::random(),
+                origin_domain_id: 0,
             }
         }
 
-        pub fn with_id(self, id: H256) -> Self {
-            Self { id, ..self }
+        pub fn with_message_data(message: HyperlaneMessage) -> Self {
+            Self {
+                id: message.id(),
+                sender_address: message.sender,
+                recipient_address: message.recipient,
+                origin_domain_id: message.origin,
+                destination_domain_id: message.destination,
+                seconds_to_next_attempt: 0,
+                destination_domain: HyperlaneDomain::Unknown {
+                    domain_id: message.destination,
+                    domain_name: "test".to_string(),
+                    domain_type: HyperlaneDomainType::Unknown,
+                    domain_protocol: HyperlaneDomainProtocol::Ethereum,
+                    domain_technical_stack: HyperlaneDomainTechnicalStack::Other,
+                },
+            }
+        }
+
+        pub fn with_id(self, id: &str) -> Self {
+            Self {
+                id: H256::from_str(id).unwrap(),
+                ..self
+            }
+        }
+
+        pub fn with_sender_address(self, sender_address: &str) -> Self {
+            Self {
+                sender_address: H256::from_str(sender_address).unwrap(),
+                ..self
+            }
+        }
+
+        pub fn with_recipient_address(self, recipient_address: &str) -> Self {
+            Self {
+                recipient_address: H256::from_str(recipient_address).unwrap(),
+                ..self
+            }
         }
     }
 
@@ -170,6 +255,20 @@ pub mod test {
             self.seconds_to_next_attempt = 0;
         }
 
+        fn sender_address(&self) -> &H256 {
+            &self.sender_address
+        }
+
+        fn recipient_address(&self) -> &H256 {
+            &self.recipient_address
+        }
+
+        fn get_metric(&self) -> Option<Arc<IntGauge>> {
+            None
+        }
+
+        fn set_metric(&mut self, _metric: Arc<IntGauge>) {}
+
         fn priority(&self) -> u32 {
             todo!()
         }
@@ -183,7 +282,7 @@ pub mod test {
         }
 
         fn origin_domain_id(&self) -> u32 {
-            todo!()
+            self.origin_domain_id
         }
 
         fn destination_domain(&self) -> &HyperlaneDomain {
@@ -264,6 +363,7 @@ pub mod test {
     async fn test_multiple_op_queues_message_id() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
+
         let mut op_queue_1 = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
@@ -308,12 +408,22 @@ pub mod test {
                 .await;
         }
 
+        let (transmitter, _receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
+
         // Retry by message ids
         broadcaster
-            .send(MessageRetryRequest::MessageId(op_ids[1]))
+            .send(MessageRetryRequest {
+                uuid: "0e92ace7-ba5d-4a1f-8501-51b6d9d500cf".to_string(),
+                pattern: MatchingList::with_message_id(op_ids[1]),
+                transmitter: transmitter.clone(),
+            })
             .unwrap();
         broadcaster
-            .send(MessageRetryRequest::MessageId(op_ids[2]))
+            .send(MessageRetryRequest {
+                uuid: "59400966-e7fa-4fb9-9372-9a671d4392c3".to_string(),
+                pattern: MatchingList::with_message_id(op_ids[2]),
+                transmitter,
+            })
             .unwrap();
 
         // Pop elements from queue 1
@@ -343,6 +453,7 @@ pub mod test {
     async fn test_destination_domain() {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
+
         let mut op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
@@ -369,11 +480,15 @@ pub mod test {
                 .await;
         }
 
+        let (transmitter, _receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
+
         // Retry by domain
         broadcaster
-            .send(MessageRetryRequest::DestinationDomain(
-                destination_domain_2.id(),
-            ))
+            .send(MessageRetryRequest {
+                uuid: "a5b39473-7cc5-48a1-8bed-565454ba1037".to_string(),
+                pattern: MatchingList::with_destination_domain(destination_domain_2.id()),
+                transmitter,
+            })
             .unwrap();
 
         // Pop elements from queue

@@ -1,0 +1,14 @@
+{
+  "solanamainnet": {
+    "hex": "0x9f9fcd70f9772f30e4cd5646890b640e88c6b82a8417f813aaf81dac0cd468b9",
+    "base58": "Bk79wMjvpPCh5iQcCEjPWFcG1V2TfgdwaBsWBEYFYSNU"
+  },
+  "eclipsemainnet": {
+    "hex": "0x4571f343c286dc844237b550560b90bf5e748a551d60721599b1ac0408d9c08d",
+    "base58": "5g5ujyYUNvdydwyDVCpZwPpgYRqH5RYJRi156cxyE3me"
+  },
+  "ethereum": {
+    "hex": "0x000000000000000000000000647c621ceb36853ef6a907e397adf18568e70543",
+    "base58": "1111111111112QCPXWTcdXUC6jAEEnqQtpRo5TXG"
+  }
+}

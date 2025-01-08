@@ -1,4 +1,4 @@
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   ProtocolTypedProvider,
@@ -22,6 +22,10 @@ export interface TxSubmitterInterface<TProtocol extends ProtocolType> {
    * @param txs The array of transactions to execute
    */
   submit(
-    ...txs: ProtocolTypedTransaction<TProtocol>['transaction'][]
-  ): Promise<ProtocolTypedReceipt<TProtocol>['receipt'][] | void>;
+    ...txs: Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]
+  ): Promise<
+    | ProtocolTypedReceipt<TProtocol>['receipt']
+    | ProtocolTypedReceipt<TProtocol>['receipt'][]
+    | void
+  >;
 }

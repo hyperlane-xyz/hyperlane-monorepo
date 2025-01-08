@@ -2,8 +2,7 @@
 #![allow(missing_docs)]
 
 use std::collections::HashMap;
-use std::num::NonZeroU64;
-use std::ops::RangeInclusive;
+use std::ops::{Mul, RangeInclusive};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,9 +11,10 @@ use ethers::abi::{AbiEncode, Detokenize};
 use ethers::prelude::Middleware;
 use ethers_contract::builders::ContractCall;
 use ethers_contract::{Multicall, MulticallResult};
+use ethers_core::utils::WEI_IN_ETHER;
 use futures_util::future::join_all;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
-use hyperlane_core::{BatchResult, QueueOperation, H512};
+use hyperlane_core::{BatchResult, QueueOperation, ReorgPeriod, H512};
 use itertools::Itertools;
 use tracing::instrument;
 
@@ -31,11 +31,14 @@ use crate::interfaces::i_mailbox::{
     IMailbox as EthereumMailboxInternal, ProcessCall, IMAILBOX_ABI,
 };
 use crate::interfaces::mailbox::DispatchFilter;
-use crate::tx::{call_with_lag, fill_tx_gas_params, report_tx};
-use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, TransactionOverrides};
+use crate::tx::{call_with_reorg_period, fill_tx_gas_params, report_tx};
+use crate::{
+    BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod,
+    TransactionOverrides,
+};
 
 use super::multicall::{self, build_multicall};
-use super::utils::fetch_raw_logs_and_meta;
+use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 
 impl<M> std::fmt::Display for EthereumMailboxInternal<M>
 where
@@ -47,7 +50,7 @@ where
 }
 
 pub struct SequenceIndexerBuilder {
-    pub reorg_period: u32,
+    pub reorg_period: EthereumReorgPeriod,
 }
 
 #[async_trait]
@@ -70,7 +73,7 @@ impl BuildableWithProvider for SequenceIndexerBuilder {
 }
 
 pub struct DeliveryIndexerBuilder {
-    pub reorg_period: u32,
+    pub reorg_period: EthereumReorgPeriod,
 }
 
 #[async_trait]
@@ -100,7 +103,7 @@ where
 {
     contract: Arc<EthereumMailboxInternal<M>>,
     provider: Arc<M>,
-    reorg_period: u32,
+    reorg_period: EthereumReorgPeriod,
 }
 
 impl<M> EthereumMailboxIndexer<M>
@@ -108,7 +111,11 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumMailboxIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, reorg_period: u32) -> Self {
+    pub fn new(
+        provider: Arc<M>,
+        locator: &ContractLocator,
+        reorg_period: EthereumReorgPeriod,
+    ) -> Self {
         let contract = Arc::new(EthereumMailboxInternal::new(
             locator.address,
             provider.clone(),
@@ -122,13 +129,7 @@ where
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .as_u32()
-            .saturating_sub(self.reorg_period))
+        get_finalized_block_number(&self.provider, &self.reorg_period).await
     }
 }
 
@@ -334,6 +335,7 @@ where
             tx,
             self.provider.clone(),
             &self.conn.transaction_overrides.clone(),
+            &self.domain,
         )
         .await
     }
@@ -382,6 +384,7 @@ where
             call,
             provider: self.provider.clone(),
             transaction_overrides: self.conn.transaction_overrides.clone(),
+            domain: self.domain.clone(),
         }
     }
 }
@@ -418,12 +421,18 @@ pub struct SubmittableBatch<M> {
     pub call: ContractCall<M, Vec<MulticallResult>>,
     provider: Arc<M>,
     transaction_overrides: TransactionOverrides,
+    domain: HyperlaneDomain,
 }
 
 impl<M: Middleware + 'static> SubmittableBatch<M> {
     pub async fn submit(self) -> ChainResult<TxOutcome> {
-        let call_with_gas_overrides =
-            fill_tx_gas_params(self.call, self.provider, &self.transaction_overrides).await?;
+        let call_with_gas_overrides = fill_tx_gas_params(
+            self.call,
+            self.provider,
+            &self.transaction_overrides,
+            &self.domain,
+        )
+        .await?;
         let outcome = report_tx(call_with_gas_overrides).await?;
         Ok(outcome.into())
     }
@@ -460,8 +469,9 @@ where
     M: Middleware + 'static,
 {
     #[instrument(skip(self))]
-    async fn count(&self, maybe_lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        let call = call_with_lag(self.contract.nonce(), &self.provider, maybe_lag).await?;
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let call =
+            call_with_reorg_period(self.contract.nonce(), &self.provider, reorg_period).await?;
         let nonce = call.call().await?;
         Ok(nonce)
     }
@@ -486,7 +496,7 @@ where
             .into())
     }
 
-    #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self, message, metadata), fields(metadata=%bytes_to_hex(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
@@ -551,8 +561,8 @@ where
                 arbitrum_node_interface
                     .estimate_retryable_ticket(
                         H160::zero().into(),
-                        // Give the sender a deposit, otherwise it reverts
-                        U256::MAX.into(),
+                        // Give the sender a deposit (100 ETH), otherwise it reverts
+                        WEI_IN_ETHER.mul(100u32),
                         self.contract.address(),
                         U256::zero().into(),
                         H160::zero().into(),
@@ -614,10 +624,10 @@ mod test {
         TxCostEstimate, H160, H256, U256,
     };
 
-    use crate::{contracts::EthereumMailbox, ConnectionConf, RpcConnectionConf};
-
-    /// An amount of gas to add to the estimated gas
-    const GAS_ESTIMATE_BUFFER: u32 = 75_000;
+    use crate::{
+        contracts::EthereumMailbox, tx::apply_gas_estimate_buffer, ConnectionConf,
+        RpcConnectionConf,
+    };
 
     fn get_test_mailbox(
         domain: HyperlaneDomain,
@@ -649,9 +659,9 @@ mod test {
 
     #[tokio::test]
     async fn test_process_estimate_costs_sets_l2_gas_limit_for_arbitrum() {
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet);
         // An Arbitrum Nitro chain
-        let (mailbox, mock_provider) =
-            get_test_mailbox(HyperlaneDomain::Known(KnownHyperlaneDomain::PlumeTestnet));
+        let (mailbox, mock_provider) = get_test_mailbox(domain.clone());
 
         let message = HyperlaneMessage::default();
         let metadata: Vec<u8> = vec![];
@@ -695,8 +705,8 @@ mod test {
             .await
             .unwrap();
 
-        // The TxCostEstimate's gas limit includes the buffer
-        let estimated_gas_limit = gas_limit.saturating_add(GAS_ESTIMATE_BUFFER.into());
+        // The TxCostEstimate's gas limit includes a buffer
+        let estimated_gas_limit = apply_gas_estimate_buffer(gas_limit, &domain).unwrap();
 
         assert_eq!(
             tx_cost_estimate,

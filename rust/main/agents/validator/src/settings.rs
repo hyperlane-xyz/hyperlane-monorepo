@@ -15,7 +15,9 @@ use hyperlane_base::{
         CheckpointSyncerConf, Settings, SignerConf,
     },
 };
-use hyperlane_core::{cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol};
+use hyperlane_core::{
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol, ReorgPeriod,
+};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -36,8 +38,8 @@ pub struct ValidatorSettings {
     pub validator: SignerConf,
     /// The checkpoint syncer configuration
     pub checkpoint_syncer: CheckpointSyncerConf,
-    /// The reorg_period in blocks
-    pub reorg_period: u64,
+    /// The reorg configuration
+    pub reorg_period: ReorgPeriod,
     /// How frequently to check for new checkpoints
     pub interval: Duration,
 }
@@ -122,8 +124,8 @@ impl FromRawConf<RawValidatorSettings> for ValidatorSettings {
             .get_key(origin_chain_name)
             .get_opt_key("blocks")
             .get_opt_key("reorgPeriod")
-            .parse_u64()
-            .unwrap_or(1);
+            .parse_value("Invalid reorgPeriod")
+            .unwrap_or(ReorgPeriod::from_blocks(1));
 
         cfg_unwrap_all!(cwp, err: [base, origin_chain, validator, checkpoint_syncer]);
 

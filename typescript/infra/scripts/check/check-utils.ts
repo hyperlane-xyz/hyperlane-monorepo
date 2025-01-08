@@ -14,6 +14,7 @@ import {
   InterchainAccountConfig,
   InterchainQuery,
   InterchainQueryChecker,
+  MultiProvider,
   attachContractsMapAndGetForeignDeployments,
   hypERC20factories,
   proxiedFactories,
@@ -24,10 +25,12 @@ import { Contexts } from '../../config/contexts.js';
 import { DEPLOYER } from '../../config/environments/mainnet3/owners.js';
 import { getWarpAddresses } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
+import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneHaasGovernor } from '../../src/govern/HyperlaneHaasGovernor.js';
+import { HyperlaneICAChecker } from '../../src/govern/HyperlaneICAChecker.js';
 import { HyperlaneIgpGovernor } from '../../src/govern/HyperlaneIgpGovernor.js';
 import { ProxiedRouterGovernor } from '../../src/govern/ProxiedRouterGovernor.js';
 import { Role } from '../../src/roles.js';
@@ -36,6 +39,7 @@ import { logViolationDetails } from '../../src/utils/violation.js';
 import {
   Modules,
   getArgs as getRootArgs,
+  getWarpRouteIdInteractive,
   withAsDeployer,
   withChains,
   withContext,
@@ -71,9 +75,13 @@ export async function getGovernor(
   chains?: string[],
   fork?: string,
   govern?: boolean,
+  multiProvider: MultiProvider | undefined = undefined,
 ) {
   const envConfig = getEnvironmentConfig(environment);
-  let multiProvider = await envConfig.getMultiProvider();
+  // If the multiProvider is not passed in, get it from the environment
+  if (!multiProvider) {
+    multiProvider = await envConfig.getMultiProvider();
+  }
 
   // must rotate to forked provider before building core contracts
   if (fork) {
@@ -116,6 +124,7 @@ export async function getGovernor(
   );
 
   if (module === Modules.CORE) {
+    chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const checker = new HyperlaneCoreChecker(
       multiProvider,
       core,
@@ -139,7 +148,8 @@ export async function getGovernor(
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.HAAS) {
-    const icaChecker = new InterchainAccountChecker(
+    chainsToSkip.forEach((chain) => delete routerConfig[chain]);
+    const icaChecker = new HyperlaneICAChecker(
       multiProvider,
       ica,
       objFilter(
@@ -147,6 +157,7 @@ export async function getGovernor(
         (chain, _): _ is InterchainAccountConfig => !!icaChainAddresses[chain],
       ),
     );
+    chainsToSkip.forEach((chain) => delete envConfig.core[chain]);
     const coreChecker = new HyperlaneCoreChecker(
       multiProvider,
       core,
@@ -183,7 +194,7 @@ export async function getGovernor(
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
     if (!warpRouteId) {
-      throw new Error('Warp route id required for warp module');
+      warpRouteId = await getWarpRouteIdInteractive();
     }
     const config = await getWarpConfig(multiProvider, envConfig, warpRouteId);
     const warpAddresses = getWarpAddresses(warpRouteId);
@@ -194,14 +205,17 @@ export async function getGovernor(
           ...warpAddresses[key],
         };
 
-        // if the owner in the config is an AW account, set the proxyAdmin to the AW singleton proxyAdmin
-        // this will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin
-        const proxyAdmin = eqAddress(
-          config[key].owner,
-          envConfig.owners[key]?.owner,
-        )
-          ? chainAddresses[key]?.proxyAdmin
-          : undefined;
+        // Use the specified proxyAdmin if it is set in the config
+        let proxyAdmin = config[key].proxyAdmin?.address;
+        // If the owner in the config is an AW account and there is no proxyAdmin in the config,
+        // set the proxyAdmin to the AW singleton proxyAdmin.
+        // This will ensure that the checker will check that any proxies are owned by the singleton proxyAdmin.
+        if (
+          !proxyAdmin &&
+          eqAddress(config[key].owner, envConfig.owners[key]?.owner)
+        ) {
+          proxyAdmin = chainAddresses[key]?.proxyAdmin;
+        }
 
         if (proxyAdmin) {
           obj[key].proxyAdmin = proxyAdmin;

@@ -26,6 +26,8 @@ import {
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
+import { getSafeAndService, updateSafeOwner } from '../utils/safe.js';
+
 import {
   ManualMultiSend,
   MultiSend,
@@ -159,7 +161,28 @@ export abstract class HyperlaneAppGovernor<
       submissionType: SubmissionType,
       multiSend: MultiSend,
     ) => {
-      const callsForSubmissionType = filterCalls(submissionType) || [];
+      const callsForSubmissionType = [];
+      const filteredCalls = filterCalls(submissionType);
+
+      // If calls are being submitted via a safe, we need to check for any safe owner changes first
+      if (submissionType === SubmissionType.SAFE) {
+        try {
+          const { safeSdk } = await getSafeAndService(
+            chain,
+            this.checker.multiProvider,
+            (multiSend as SafeMultiSend).safeAddress,
+          );
+          const updateOwnerCalls = await updateSafeOwner(safeSdk);
+          callsForSubmissionType.push(...updateOwnerCalls);
+        } catch (error) {
+          // Catch but don't throw because we want to try submitting any remaining calls
+          console.error(`Error updating safe owner: ${error}`);
+        }
+      }
+
+      // Add the filtered calls to the calls for submission type
+      callsForSubmissionType.push(...filteredCalls);
+
       if (callsForSubmissionType.length > 0) {
         this.printSeparator();
         const confirmed = await summarizeCalls(
@@ -257,7 +280,6 @@ export abstract class HyperlaneAppGovernor<
 
   protected async inferCallSubmissionTypes() {
     const newCalls: ChainMap<AnnotatedCallData[]> = {};
-
     const pushNewCall = (inferredCall: InferredCall) => {
       newCalls[inferredCall.chain] = newCalls[inferredCall.chain] || [];
       newCalls[inferredCall.chain].push({
@@ -267,20 +289,29 @@ export abstract class HyperlaneAppGovernor<
       });
     };
 
-    for (const chain of Object.keys(this.calls)) {
-      try {
-        for (const call of this.calls[chain]) {
-          const inferredCall = await this.inferCallSubmissionType(chain, call);
-          pushNewCall(inferredCall);
+    const results: ChainMap<InferredCall[]> = {};
+    await Promise.all(
+      Object.keys(this.calls).map(async (chain) => {
+        try {
+          results[chain] = await Promise.all(
+            this.calls[chain].map((call) =>
+              this.inferCallSubmissionType(chain, call),
+            ),
+          );
+        } catch (error) {
+          console.error(
+            chalk.red(
+              `Error inferring call submission types for chain ${chain}: ${error}`,
+            ),
+          );
+          results[chain] = [];
         }
-      } catch (error) {
-        console.error(
-          chalk.red(
-            `Error inferring call submission types for chain ${chain}: ${error}`,
-          ),
-        );
-      }
-    }
+      }),
+    );
+
+    Object.entries(results).forEach(([_, inferredCalls]) => {
+      inferredCalls.forEach(pushNewCall);
+    });
 
     this.calls = newCalls;
   }
@@ -455,6 +486,20 @@ export abstract class HyperlaneAppGovernor<
         await this.checkSubmitterBalance(chain, submitterAddress, call.value);
       }
 
+      // Check if the submitter is the owner of the contract
+      try {
+        const ownable = Ownable__factory.connect(call.to, signer);
+        const owner = await ownable.owner();
+        const isOwner = eqAddress(owner, submitterAddress);
+
+        if (!isOwner) {
+          return false;
+        }
+      } catch {
+        // If the contract does not implement Ownable, just continue
+        // with the next check.
+      }
+
       // Check if the transaction has additional success criteria
       if (
         additionalTxSuccessCriteria &&
@@ -526,6 +571,7 @@ export abstract class HyperlaneAppGovernor<
     chain: ChainName,
     signerAddress: Address,
     safeAddress: string,
+    retries = 3,
   ): Promise<boolean> {
     if (!this.canPropose[chain].has(safeAddress)) {
       try {
@@ -537,25 +583,47 @@ export abstract class HyperlaneAppGovernor<
         );
         this.canPropose[chain].set(safeAddress, canPropose);
       } catch (error) {
+        const errorMessage = (error as Error).message.toLowerCase();
+
+        // Handle invalid MultiSend contract errors
         if (
-          error instanceof Error &&
-          (error.message.includes('Invalid MultiSend contract address') ||
-            error.message.includes(
-              'Invalid MultiSendCallOnly contract address',
-            ))
+          errorMessage.includes('invalid multisend contract address') ||
+          errorMessage.includes('invalid multisendcallonly contract address')
         ) {
-          console.warn(
-            chalk.yellow(`${error.message}: Setting submission type to MANUAL`),
-          );
-          return false;
-        } else {
-          console.error(
-            chalk.red(
-              `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
-            ),
-          );
+          console.warn(chalk.yellow(`Invalid contract: ${errorMessage}.`));
           return false;
         }
+
+        // Handle service unavailable and rate limit errors
+        if (
+          errorMessage.includes('service unavailable') ||
+          errorMessage.includes('too many requests')
+        ) {
+          console.warn(
+            chalk.yellow(
+              `Safe service error for ${safeAddress} on ${chain}: ${errorMessage}. ${retries} retries left.`,
+            ),
+          );
+
+          if (retries > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            return this.checkSafeProposalEligibility(
+              chain,
+              signerAddress,
+              safeAddress,
+              retries - 1,
+            );
+          }
+          return false;
+        }
+
+        // Handle all other errors
+        console.error(
+          chalk.red(
+            `Failed to determine if signer can propose safe transactions on ${chain}. Error: ${error}`,
+          ),
+        );
+        return false;
       }
     }
     return this.canPropose[chain].get(safeAddress) || false;

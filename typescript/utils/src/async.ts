@@ -1,4 +1,5 @@
 import { rootLogger } from './logging.js';
+import { assert } from './validation.js';
 
 /**
  * Return a promise that resolves in ms milliseconds.
@@ -53,6 +54,28 @@ export async function runWithTimeout<T>(
     // @ts-ignore timeout gets set immediately by the promise constructor
     clearTimeout(timeoutId);
   }
+}
+
+/**
+ * Executes a fetch request that fails after a timeout via an AbortController.
+ * @param resource resource to fetch (e.g URL)
+ * @param options fetch call options object
+ * @param timeout timeout MS (default 10_000)
+ * @returns fetch response
+ */
+export async function fetchWithTimeout(
+  resource: RequestInfo,
+  options?: RequestInit,
+  timeout = 10_000,
+) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  const response = await fetch(resource, {
+    ...options,
+    signal: controller.signal,
+  });
+  clearTimeout(id);
+  return response;
 }
 
 /**
@@ -137,6 +160,7 @@ export async function concurrentMap<A, B>(
   mapFn: (val: A, idx: number) => Promise<B>,
 ): Promise<B[]> {
   let res: B[] = [];
+  assert(concurrency > 0, 'concurrency must be greater than 0');
   for (let i = 0; i < xs.length; i += concurrency) {
     const remaining = xs.length - i;
     const sliceSize = Math.min(remaining, concurrency);

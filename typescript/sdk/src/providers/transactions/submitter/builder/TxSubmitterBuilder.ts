@@ -1,7 +1,6 @@
 import { Logger } from 'pino';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { Annotated, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   ProtocolTypedReceipt,
@@ -73,8 +72,12 @@ export class TxSubmitterBuilder<TProtocol extends ProtocolType>
    * @param txs The transactions to submit
    */
   public async submit(
-    ...txs: ProtocolTypedTransaction<TProtocol>['transaction'][]
-  ): Promise<ProtocolTypedReceipt<TProtocol>['receipt'][] | void> {
+    ...txs: Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]
+  ): Promise<
+    | ProtocolTypedReceipt<TProtocol>['receipt']
+    | ProtocolTypedReceipt<TProtocol>['receipt'][]
+    | void
+  > {
     this.logger.debug(
       `Submitting ${txs.length} transactions to the ${this.currentSubmitter.txSubmitterType} submitter...`,
     );

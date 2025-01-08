@@ -91,11 +91,17 @@ export const hookCommandOption: Options = {
     'A path to a JSON or YAML file with Hook configs (for every chain)',
 };
 
+export const DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH =
+  './configs/warp-route-deployment.yaml';
+
+export const DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH = './configs/core-config.yaml';
+export const DEFAULT_STRATEGY_CONFIG_PATH = `${os.homedir()}/.hyperlane/strategies/default-strategy.yaml`;
+
 export const warpDeploymentConfigCommandOption: Options = {
   type: 'string',
   description:
     'A path to a JSON or YAML file with a warp route deployment config.',
-  default: './configs/warp-route-deployment.yaml',
+  default: DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
   alias: 'wd',
 };
 
@@ -134,12 +140,23 @@ export const outputFileCommandOption = (
   demandOption,
 });
 
-export const inputFileCommandOption: Options = {
+interface InputFileCommandOptionConfig
+  extends Pick<Options, 'demandOption' | 'alias' | 'description'> {
+  defaultPath?: string;
+}
+
+export const inputFileCommandOption = ({
+  defaultPath,
+  demandOption = true,
+  description = 'Input file path',
+  alias = 'i',
+}: InputFileCommandOptionConfig = {}): Options => ({
   type: 'string',
-  description: 'Input file path',
-  alias: 'i',
-  demandOption: true,
-};
+  description,
+  default: defaultPath,
+  alias,
+  demandOption,
+});
 
 export const fromAddressCommandOption: Options = {
   type: 'string',
@@ -180,8 +197,8 @@ export const transactionsCommandOption: Options = {
 export const strategyCommandOption: Options = {
   type: 'string',
   description: 'The submission strategy input file path.',
-  alias: 's',
-  demandOption: true,
+  alias: ['s', 'strategy'],
+  demandOption: false,
 };
 
 export const addressCommandOption = (

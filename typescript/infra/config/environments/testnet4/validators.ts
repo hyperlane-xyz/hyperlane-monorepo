@@ -209,18 +209,18 @@ export const validatorChainConfig = (
         'polygonamoy',
       ),
     },
-    hyperliquidevmtestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0xea673a92a23ca319b9d85cc16b248645cd5158da'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'hyperliquidevmtestnet',
-      ),
-    },
+    // hyperliquidevmtestnet: {
+    //   interval: 5,
+    //   reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: ['0xea673a92a23ca319b9d85cc16b248645cd5158da'],
+    //       [Contexts.ReleaseCandidate]: [],
+    //       [Contexts.Neutron]: [],
+    //     },
+    //     'hyperliquidevmtestnet',
+    //   ),
+    // },
     berabartio: {
       interval: 5,
       reorgPeriod: getReorgPeriod('berabartio'),
@@ -291,6 +291,106 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'suavetoliman',
+      ),
+    },
+
+    unichaintestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('unichaintestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x5e99961cf71918308c3b17ef21b5f515a4f86fe5'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'unichaintestnet',
+      ),
+    },
+    sonictestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonictestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x62e6591d00daec3fb658c3d19403828b4e9ddbb3'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'sonictestnet',
+      ),
+    },
+    arcadiatestnet2: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('arcadiatestnet2'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'arcadiatestnet2',
+      ),
+    },
+
+    odysseytestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('odysseytestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'odysseytestnet',
+      ),
+    },
+
+    alephzeroevmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('alephzeroevmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x556cd94bcb6e5773e8df75e7eb3f91909d266a26'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'alephzeroevmtestnet',
+      ),
+    },
+    inksepolia: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('inksepolia'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe61c846aee275070207fcbf43674eb254f06097a'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'inksepolia',
+      ),
+    },
+
+    abstracttestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('abstracttestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x7655bc4c9802bfcb3132b8822155b60a4fbbce3e'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'abstracttestnet',
+      ),
+    },
+    treasuretopaz: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('treasuretopaz'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x9750849beda0a7870462d4685f953fe39033a5ae'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'treasuretopaz',
       ),
     },
   };
