@@ -20,7 +20,9 @@ import { log } from '../logger.js';
 const yamlParse = (
   content: string,
   options?: ParseOptions & DocumentOptions & SchemaOptions & ToJSOptions,
-) => parse(content, { maxAliasCount: -1, ...options });
+) =>
+  // See stackoverflow.com/questions/63075256/why-does-the-npm-yaml-library-have-a-max-alias-number
+  parse(content, { maxAliasCount: -1, ...options });
 
 export const MAX_READ_LINE_OUTPUT = 250;
 
