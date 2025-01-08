@@ -1385,6 +1385,18 @@ export const validatorChainConfig = (
         'soon',
       ),
     },
+    stride: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('stride'),
+      validators: validatorsConfig(
+        {
+          [Contexts.ReleaseCandidate]: [
+            '0x1edadb2330c77769a7e9b48d990289ccdcafa430',
+          ],
+        },
+        'stride',
+      ),
+    },
 
     // fractal: {
     //   interval: 5,
