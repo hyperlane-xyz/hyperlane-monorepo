@@ -2,7 +2,6 @@ use cosmrs::{crypto::PublicKey, AccountId};
 use hyperlane_cosmwasm_interface::types::keccak256_hash;
 use tendermint::account::Id as TendermintAccountId;
 use tendermint::public_key::PublicKey as TendermintPublicKey;
-use tendermint::TendermintKey;
 
 use crypto::decompress_public_key;
 use hyperlane_core::Error::Overflow;
