@@ -42,6 +42,10 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
+import {
+  getEthereumSuperseedUSDTConfig,
+  getOptimismSuperseedOPConfig,
+} from './environments/mainnet3/warp/configGetters/getSuperseedWarpConfigs.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 
 type WarpConfigGetter = (
@@ -86,6 +90,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
   [WarpRouteIds.BobaBsquaredSwellUBTC]: getBobaBsquaredSwellUBTCWarpConfig,
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
+  [WarpRouteIds.EthereumSuperseedUSDT]: getEthereumSuperseedUSDTConfig,
+  [WarpRouteIds.OptimismSuperseedOP]: getOptimismSuperseedOPConfig,
 };
 
 export async function getWarpConfig(
