@@ -20,7 +20,7 @@ export const getBaseZeronetworkBrettConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
-    ...abacusWorksEnvOwnerConfig.base,
+    owner: abacusWorksEnvOwnerConfig.base.owner,
     type: TokenType.collateral,
     token: tokens.base.brett,
     interchainSecurityModule: ISM_CONFIG,
@@ -28,7 +28,7 @@ export const getBaseZeronetworkBrettConfig = async (
 
   const zeronetwork: HypTokenRouterConfig = {
     ...routerConfig.zeronetwork,
-    ...abacusWorksEnvOwnerConfig.zeronetwork,
+    owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
     type: TokenType.synthetic,
     interchainSecurityModule: ISM_CONFIG,
   };
