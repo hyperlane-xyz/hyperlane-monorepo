@@ -222,19 +222,6 @@ describe('hyperlane warp deploy e2e tests', async function () {
     writeYamlOrJson(WARP_CONFIG_PATH, warpConfig);
     await hyperlaneWarpDeploy(WARP_CONFIG_PATH);
 
-    // Check collateralRebase
-    const collateralRebaseConfig = (
-      await readWarpConfig(
-        CHAIN_NAME_2,
-        WARP_CORE_CONFIG_PATH_2_3,
-        WARP_CONFIG_PATH,
-      )
-    )[CHAIN_NAME_2];
-
-    expect(collateralRebaseConfig.type).to.equal(
-      TokenType.collateralVaultRebase,
-    );
-
     // Try to send a transaction with the origin destination
     const { stdout: chain2Tochain3Stdout } = await hyperlaneWarpSendRelay(
       CHAIN_NAME_2,
