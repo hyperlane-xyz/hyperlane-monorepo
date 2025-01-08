@@ -21,6 +21,8 @@ async function main() {
   const parsed = WarpRouteDeployConfigSchema.safeParse(warpConfig);
 
   if (!parsed.success) {
+    console.error('Error parsing warp config:');
+    console.dir(warpConfig, { depth: null });
     console.dir(parsed.error.format(), { depth: null });
     return;
   }
