@@ -125,7 +125,7 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_str("Expected database path")
             .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
 
-        // is_gas_payment_enforcement_set determines if we should be checking for the correct gas payment enforcement policy has been provided with "gasPaymentEnforcement" key
+        // is_gas_payment_enforcement_set determines if we should be checking if the correct gas payment enforcement policy has been provided with "gasPaymentEnforcement" key
         let (
             raw_gas_payment_enforcement_path,
             raw_gas_payment_enforcement,
