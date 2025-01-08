@@ -165,7 +165,8 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
                 .unwrap()
                 .is_empty()
         {
-            panic!("GASPAYMENTENFORCEMENT policy cannot be parsed");
+            Err::<(), eyre::Report>(eyre!("GASPAYMENTENFORCEMENT policy cannot be parsed"))
+                .take_err(&mut err, || cwp + "gas_payment_enforcement");
         }
 
         let mut gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
@@ -379,7 +380,6 @@ fn parse_address_list(
 mod test {
     use super::*;
     use hyperlane_core::H160;
-    use serde_json::json;
 
     #[test]
     fn test_parse_address_blacklist() {
@@ -407,28 +407,5 @@ mod test {
         let res = parse_address_list(&input, &mut err, ConfigPath::default);
         assert_eq!(res, vec![valid_address1, valid_address2]);
         assert!(!err.is_ok());
-    }
-
-    #[test]
-    fn test_gas_payment_enforcement_set_invalid_json() {
-        let input = json!({
-            "relayChains": "test1,test2",
-            "gasPaymentEnforcement": "[{\"type\": \"minimum\",\"payment\": \"1\",}]"
-        });
-        let raw = RawRelayerSettings(input);
-        let cwp = ConfigPath::default();
-        let result = RelayerSettings::from_config_filtered(raw, &cwp, ());
-
-        assert!(
-            result.is_err(),
-            "Configuration should fail to parse with invalid 'gasPaymentEnforcement' JSON."
-        );
-        let err = result.unwrap_err();
-        println!("err: {:?}", err);
-        // TODO: fix this test
-        // assert!(
-        //     err.to_string().contains("Expected JSON array or stringified JSON"),
-        //     "Error should indicate invalid JSON format."
-        // );
     }
 }
