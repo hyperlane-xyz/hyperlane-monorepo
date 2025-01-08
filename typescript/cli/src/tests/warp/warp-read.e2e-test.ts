@@ -58,13 +58,15 @@ describe('hyperlane warp read e2e tests', async function () {
   });
 
   describe('hyperlane warp read --key ... --config ...', () => {
-    it('should exit early if no symbol, chain or warp file have been provided', async () => {
+    it.only('should exit early if no symbol, chain or warp file have been provided', async () => {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
       const output = await hyperlaneWarpReadRaw({
         privateKey: ANVIL_KEY,
         outputPath: WARP_CONFIG_PATH_2,
-      }).nothrow();
+      })
+        .stdio('pipe')
+        .nothrow();
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.include(

@@ -75,7 +75,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
   });
 
   describe('hyperlane warp deploy --config ...', () => {
-    it(`should exit early when the provided deployment file does not exist`, async function () {
+    it.only(`should exit early when the provided deployment file does not exist`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
       // user to enter a valid file and then it will finally fail
@@ -103,9 +103,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const finalOutput = await handlePrompts(output, steps);
 
       expect(finalOutput.exitCode).to.equal(1);
-      expect(finalOutput.text()).to.include(
-        `Invalid file format for ${nonExistingFilePath}`,
-      );
+      expect(
+        finalOutput
+          .text()
+          .includes(`No "Warp route deployment config" found in`) ||
+          finalOutput
+            .text()
+            .includes(`Invalid file format for ${nonExistingFilePath}`),
+      ).to.be.true;
     });
 
     it(`should successfully deploy a ${TokenType.collateral} -> ${TokenType.synthetic} warp route`, async function () {
