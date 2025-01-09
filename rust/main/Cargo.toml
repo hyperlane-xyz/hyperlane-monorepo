@@ -198,27 +198,27 @@ overflow-checks = true
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-rev = "f21d9d48993cde80e302b6ac511b95a3e6ad1672"
+rev = "91883d1e8d6fee895f49501fce38ddd86c39a112"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-rev = "f21d9d48993cde80e302b6ac511b95a3e6ad1672"
+rev = "91883d1e8d6fee895f49501fce38ddd86c39a112"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-rev = "f21d9d48993cde80e302b6ac511b95a3e6ad1672"
+rev = "91883d1e8d6fee895f49501fce38ddd86c39a112"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-rev = "f21d9d48993cde80e302b6ac511b95a3e6ad1672"
+rev = "91883d1e8d6fee895f49501fce38ddd86c39a112"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-rev = "f21d9d48993cde80e302b6ac511b95a3e6ad1672"
+rev = "91883d1e8d6fee895f49501fce38ddd86c39a112"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
