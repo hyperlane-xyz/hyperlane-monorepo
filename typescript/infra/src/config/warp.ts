@@ -14,6 +14,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
     weETHs: '0x917cee801a67f933f2e6b33fc0cd1ed2d5909d88',
     pumpBTCsei: '0xe9ebd666954B7F0B5B044704c86B126651f6235d',
     Re7LRT: '0x84631c0d0081FDe56DeB72F6DE77abBbF6A9f93a',
+    WSTETH: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0',
   },
   sei: {
     fastUSD: '0x37a4dD9CED2b19Cfe8FAC251cd727b5787E45269',
@@ -21,6 +22,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
   base: {
     cbBTC: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
     USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    AIXBT: '0x4F9Fd6Be4a90f2620860d680c0d4d5Fb53d1A825',
   },
   bsquared: {
     uBTC: '0x796e4D53067FF374B89b2Ac101ce0c1f72ccaAc2',
