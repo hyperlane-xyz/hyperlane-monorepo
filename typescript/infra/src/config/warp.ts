@@ -21,6 +21,9 @@ export const tokens: ChainMap<Record<string, Address>> = {
   base: {
     cbBTC: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
     USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    jc: '0x93aC8f81e799c3b76112A649715DD86CEa655BDF',
+    brett: '0x532f27101965dd16442E59d40670FaF5eBB142E4',
+    miggles: '0xB1a03EdA10342529bBF8EB700a06C60441fEf25d',
   },
   bsquared: {
     uBTC: '0x796e4D53067FF374B89b2Ac101ce0c1f72ccaAc2',
