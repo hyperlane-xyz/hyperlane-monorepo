@@ -300,7 +300,9 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xbfb8911b72cfb138c7ce517c57d9c691535dc517'],
-          [Contexts.ReleaseCandidate]: [],
+          [Contexts.ReleaseCandidate]: [
+            '0xca024623ee6fe281639aee91c4390b0c4e053918',
+          ],
           [Contexts.Neutron]: [],
         },
         'injective',
