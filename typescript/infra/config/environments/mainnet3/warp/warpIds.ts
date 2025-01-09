@@ -44,4 +44,5 @@ export enum WarpRouteIds {
   EthereumFormWBTC = 'WBTC/ethereum-form',
   EthereumFormWSTETH = 'WSTETH/ethereum-form',
   BaseFormAIXBT = 'AIXBT/base-form',
+  BaseFormGAME = 'GAME/base-form',
 }

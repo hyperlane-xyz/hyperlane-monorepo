@@ -23,6 +23,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
     cbBTC: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
     USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     AIXBT: '0x4F9Fd6Be4a90f2620860d680c0d4d5Fb53d1A825',
+    GAME: '0x1C4CcA7C5DB003824208aDDA61Bd749e55F463a3',
   },
   bsquared: {
     uBTC: '0x796e4D53067FF374B89b2Ac101ce0c1f72ccaAc2',

@@ -13,14 +13,14 @@ const formSafes: ChainMap<Address> = {
   form: '0x41B624412B529409A437f08Ef80bCabE81053650',
 };
 
-export const getBaseFormAIXBTWarpConfig = async (
+export const getBaseFormGAMEWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
     owner: formSafes.base,
     type: TokenType.collateral,
-    token: tokens.base.AIXBT,
+    token: tokens.base.GAME,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 

@@ -21,6 +21,7 @@ import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mai
 import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
 import { getBaseFormAIXBTWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormAIXBTWarpConfig.js';
+import { getBaseFormGAMEWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormGAMEWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
 import { getBobaBsquaredSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
 import { getEclipseEthereumApxEthWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumApxETHWarpConfig.js';
@@ -92,6 +93,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumFormWBTC]: getEthereumFormWBTCWarpConfig,
   [WarpRouteIds.EthereumFormWSTETH]: getEthereumFormWSTETHWarpConfig,
   [WarpRouteIds.BaseFormAIXBT]: getBaseFormAIXBTWarpConfig,
+  [WarpRouteIds.BaseFormGAME]: getBaseFormGAMEWarpConfig,
 };
 
 export async function getWarpConfig(
