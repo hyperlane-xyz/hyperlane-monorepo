@@ -218,5 +218,8 @@
       "0xb825c1bd020cb068f477b320f591b32e26814b5b",
       "0x0a5b31090d4c3c207b9ea6708f938e328f895fce"
     ]
+  },
+  "stride": {
+    "validators": ["0x1edadb2330c77769a7e9b48d990289ccdcafa430"]
   }
 }
