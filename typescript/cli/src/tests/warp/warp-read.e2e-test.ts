@@ -58,7 +58,7 @@ describe('hyperlane warp read e2e tests', async function () {
   });
 
   describe('hyperlane warp read --key ... --config ...', () => {
-    it.only('should exit early if no symbol, chain or warp file have been provided', async () => {
+    it('should exit early if no symbol, chain or warp file have been provided', async () => {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
       const output = await hyperlaneWarpReadRaw({
