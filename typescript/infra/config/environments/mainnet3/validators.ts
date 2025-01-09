@@ -300,7 +300,9 @@ export const validatorChainConfig = (
       validators: validatorsConfig(
         {
           [Contexts.Hyperlane]: ['0xbfb8911b72cfb138c7ce517c57d9c691535dc517'],
-          [Contexts.ReleaseCandidate]: [],
+          [Contexts.ReleaseCandidate]: [
+            '0xca024623ee6fe281639aee91c4390b0c4e053918',
+          ],
           [Contexts.Neutron]: [],
         },
         'injective',
@@ -1408,5 +1410,16 @@ export const validatorChainConfig = (
     //     'fractal',
     //   ),
     // },
+
+    torus: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('torus'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x96982a325c28a842bc8cf61b63000737bb9f1f7d'],
+        },
+        'torus',
+      ),
+    },
   };
 };
