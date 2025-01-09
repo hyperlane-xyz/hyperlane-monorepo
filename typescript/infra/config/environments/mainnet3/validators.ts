@@ -1375,6 +1375,28 @@ export const validatorChainConfig = (
         'rivalz',
       ),
     },
+    soon: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('soon'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0E6723b3C1eD3Db0C24347AA2cf16D28BC2a1F76'],
+        },
+        'soon',
+      ),
+    },
+    stride: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('stride'),
+      validators: validatorsConfig(
+        {
+          [Contexts.ReleaseCandidate]: [
+            '0x1edadb2330c77769a7e9b48d990289ccdcafa430',
+          ],
+        },
+        'stride',
+      ),
+    },
 
     // fractal: {
     //   interval: 5,
@@ -1386,5 +1408,16 @@ export const validatorChainConfig = (
     //     'fractal',
     //   ),
     // },
+
+    torus: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('torus'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x96982a325c28a842bc8cf61b63000737bb9f1f7d'],
+        },
+        'torus',
+      ),
+    },
   };
 };
