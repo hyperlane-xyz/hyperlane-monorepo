@@ -59,6 +59,7 @@ export function updateTokenBalanceMetrics(
   warpCore: WarpCore,
   token: Token,
   balanceInfo: WarpRouteBalance,
+  collateralTokenSymbol: string,
 ) {
   const metrics: WarpRouteMetrics = {
     chain_name: token.chainName,
@@ -67,7 +68,7 @@ export function updateTokenBalanceMetrics(
     wallet_address: token.addressOrDenom,
     token_standard: token.standard,
     warp_route_id: createWarpRouteConfigId(
-      token.symbol,
+      collateralTokenSymbol,
       warpCore.getTokenChains(),
     ),
     related_chain_names: warpCore

@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use once_cell::sync::Lazy;
 use tendermint::abci::EventAttribute;
-use tracing::instrument;
+use tracing::{debug, info, instrument};
 
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::{
@@ -223,61 +223,93 @@ impl CosmosMerkleTreeHookIndexer {
     fn merkle_tree_insertion_parser(
         attrs: &Vec<EventAttribute>,
     ) -> ChainResult<ParsedEvent<MerkleTreeInsertion>> {
+        debug!(
+            ?attrs,
+            "parsing merkle tree insertion from event attributes",
+        );
+
         let mut contract_address: Option<String> = None;
         let mut insertion = IncompleteMerkleTreeInsertion::default();
 
         for attr in attrs {
-            let key = attr.key.as_str();
-            let value = attr.value.as_str();
+            match attr {
+                EventAttribute::V037(a) => {
+                    let key = a.key.as_str();
+                    let value = a.value.as_str();
 
-            match key {
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
-                    contract_address = Some(value.to_string());
-                }
-                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?);
+                    match key {
+                        CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                            contract_address = Some(value.to_string());
+                            debug!(?contract_address, "parsed contract address from plain text");
+                        }
+                        v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                            contract_address = Some(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?);
+                            debug!(?contract_address, "parsed contract address from base64");
+                        }
+
+                        MESSAGE_ID_ATTRIBUTE_KEY => {
+                            insertion.message_id =
+                                Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                            debug!(message_id = ?insertion.message_id, "parsed message_id from plain text");
+                        }
+                        v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
+                            insertion.message_id = Some(H256::from_slice(
+                                hex::decode(String::from_utf8(
+                                    BASE64
+                                        .decode(value)
+                                        .map_err(Into::<HyperlaneCosmosError>::into)?,
+                                )?)?
+                                .as_slice(),
+                            ));
+                            debug!(message_id = ?insertion.message_id, "parsed message_id from base64");
+                        }
+
+                        INDEX_ATTRIBUTE_KEY => {
+                            insertion.leaf_index = Some(value.parse::<u32>()?);
+                            debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from plain text");
+                        }
+                        v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
+                            insertion.leaf_index = Some(
+                                String::from_utf8(
+                                    BASE64
+                                        .decode(value)
+                                        .map_err(Into::<HyperlaneCosmosError>::into)?,
+                                )?
+                                .parse()?,
+                            );
+                            debug!(leaf_index = ?insertion.leaf_index, "parsed leaf_index from base64");
+                        }
+
+                        unknown => {
+                            debug!(?unknown, "unknown attribute");
+                        }
+                    }
                 }
 
-                MESSAGE_ID_ATTRIBUTE_KEY => {
-                    insertion.message_id = Some(H256::from_slice(hex::decode(value)?.as_slice()));
+                EventAttribute::V034(a) => {
+                    unimplemented!();
                 }
-                v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                    insertion.message_id = Some(H256::from_slice(
-                        hex::decode(String::from_utf8(
-                            BASE64
-                                .decode(value)
-                                .map_err(Into::<HyperlaneCosmosError>::into)?,
-                        )?)?
-                        .as_slice(),
-                    ));
-                }
-
-                INDEX_ATTRIBUTE_KEY => {
-                    insertion.leaf_index = Some(value.parse::<u32>()?);
-                }
-                v if *INDEX_ATTRIBUTE_KEY_BASE64 == v => {
-                    insertion.leaf_index = Some(
-                        String::from_utf8(
-                            BASE64
-                                .decode(value)
-                                .map_err(Into::<HyperlaneCosmosError>::into)?,
-                        )?
-                        .parse()?,
-                    );
-                }
-
-                _ => {}
             }
         }
 
         let contract_address = contract_address
             .ok_or_else(|| ChainCommunicationError::from_other_str("missing contract_address"))?;
 
-        Ok(ParsedEvent::new(contract_address, insertion.try_into()?))
+        debug!(
+            ?contract_address,
+            ?insertion,
+            "parsed contract address and insertion",
+        );
+
+        let event = ParsedEvent::new(contract_address, insertion.try_into()?);
+
+        info!(?event, "parsed event");
+
+        Ok(event)
     }
 }
 
@@ -331,7 +363,7 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for CosmosMerkleTreeHookIndexer {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct IncompleteMerkleTreeInsertion {
     leaf_index: Option<u32>,
     message_id: Option<H256>,

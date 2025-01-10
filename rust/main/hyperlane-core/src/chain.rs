@@ -171,12 +171,16 @@ pub enum KnownHyperlaneDomain {
     SolanaMainnet = 1399811149,
     Taiko = 167000,
     Tangle = 5845,
+    Treasure = 61166,
     Viction = 88,
     Worldchain = 480,
     StarknetMainnet = 23448592,
     Xai = 660279,
     Xlayer = 196,
     Zetachain = 7000,
+    Zeronetwork = 543210,
+    Zklink = 810180,
+    Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
 
@@ -195,6 +199,7 @@ pub enum KnownHyperlaneDomain {
 
     // -- Test chains --
     //
+    Abstracttestnet = 11124,
     Alfajores = 44787,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
@@ -208,6 +213,7 @@ pub enum KnownHyperlaneDomain {
     StarknetSepolia = 23448591,
     SuperpositionTestnet = 98985,
     PragmaDevnet = 6363709,
+    Treasuretopaz = 978658,
 }
 
 #[derive(Clone, Serialize)]
@@ -328,12 +334,12 @@ impl KnownHyperlaneDomain {
                 DegenChain, EclipseMainnet, Endurance, Ethereum, Fraxtal, FuseMainnet, Gnosis,
                 InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
-                ReAl, Redstone, Sanko, Sei, SolanaMainnet, StarknetMainnet, Taiko, Tangle, Viction, Worldchain, Xai,
-                Xlayer, Zetachain, Zircuit, ZoraMainnet,
+                ReAl, Redstone, Sanko, Sei, SolanaMainnet, StarknetMainnet, Taiko, Tangle, Treasure, Viction, Worldchain, Xai,
+                Xlayer, Zeronetwork, Zetachain, Zircuit, Zklink, Zksync, ZoraMainnet,
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, PragmaDevnet
+                PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, Abstracttestnet, Treasuretopaz, PragmaDevnet
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
@@ -347,11 +353,12 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber,
+                Abstracttestnet, Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber,
                 DegenChain, Endurance, Ethereum, Fraxtal, Fuji, FuseMainnet, Gnosis,
                 InEvm, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin, Metis, Mint,
                 Mode, Moonbeam, Optimism, Polygon, ProofOfPlay, ReAl, Redstone, Sanko, Sei, Tangle,
-                Taiko, Viction, Worldchain, Xai, Xlayer, Zetachain, Zircuit, ZoraMainnet,
+                Taiko, Treasure, Treasuretopaz, Viction, Worldchain, Xai, Xlayer, Zeronetwork, Zetachain, Zircuit, ZoraMainnet,
+                Zklink, Zksync,
 
                 // Local chains
                 Test1, Test2, Test3,
@@ -394,7 +401,9 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainTechnicalStack::PolkadotSubstrate: [
                 Moonbeam, Tangle
             ],
-            HyperlaneDomainTechnicalStack::ZkSync: [],
+            HyperlaneDomainTechnicalStack::ZkSync: [
+                Abstracttestnet, Treasure, Treasuretopaz, Zeronetwork, Zklink, Zksync,
+            ],
             HyperlaneDomainTechnicalStack::Other: [
                 Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
                 FuseMainnet, Gnosis, Injective, Linea, Lukso, Neutron, Osmosis, Polygon,
@@ -581,6 +590,13 @@ impl HyperlaneDomain {
 
     pub const fn is_injective(&self) -> bool {
         matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
+    }
+
+    pub const fn is_zksync_stack(&self) -> bool {
+        matches!(
+            self.domain_technical_stack(),
+            HyperlaneDomainTechnicalStack::ZkSync
+        )
     }
 
     pub const fn index_mode(&self) -> IndexMode {

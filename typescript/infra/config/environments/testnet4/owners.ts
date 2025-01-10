@@ -13,4 +13,10 @@ export const owners: ChainMap<OwnableConfig> = {
     ]),
   ),
   // [chainMetadata.solanadevnet.name]: SEALEVEL_DEPLOYER_ADDRESS,
+  eclipsetestnet: {
+    owner: 'n/a - nothing owned here',
+  },
+  solanatestnet: {
+    owner: 'n/a - nothing owned here',
+  },
 };

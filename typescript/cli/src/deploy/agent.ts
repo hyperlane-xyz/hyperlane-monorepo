@@ -21,10 +21,11 @@ export async function runKurtosisAgentDeploy({
   relayChains?: string;
   agentConfigurationPath?: string;
 }) {
+  // Future works: decide what to do with this, since its handled in MultiChainResolver - AGENT_KURTOSIS mode
   if (!originChain) {
     originChain = await runSingleChainSelectionStep(
       context.chainMetadata,
-      'Select the origin chain',
+      'Select the origin chain:',
     );
   }
   if (!relayChains) {

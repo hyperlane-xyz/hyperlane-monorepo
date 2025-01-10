@@ -15,6 +15,7 @@ const DomainSchema = z.union([
 const AddressSchema = z.union([z.literal('*'), ZHash, z.array(ZHash)]);
 
 const MatchingListElementSchema = z.object({
+  messageId: AddressSchema.optional(),
   originDomain: DomainSchema.optional(),
   senderAddress: AddressSchema.optional(),
   destinationDomain: DomainSchema.optional(),

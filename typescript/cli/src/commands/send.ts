@@ -17,16 +17,12 @@ export const sendCommand: CommandModule = {
 };
 
 /**
- * Message command
+ * Base options for all message/warp send/status commands
  */
 export const messageOptions: { [k: string]: Options } = {
   origin: {
     type: 'string',
     description: 'Origin chain to send message from',
-  },
-  destination: {
-    type: 'string',
-    description: 'Destination chain to send message to',
   },
   timeout: {
     type: 'number',
@@ -45,6 +41,21 @@ export const messageOptions: { [k: string]: Options } = {
   },
 };
 
+/**
+ * Options for message/warp send command with destination chain specified
+ */
+export const messageSendOptions: { [k: string]: Options } = {
+  ...messageOptions,
+  destination: {
+    type: 'string',
+    description: 'Destination chain to send message to',
+  },
+  'round-trip': {
+    type: 'boolean',
+    description: 'Send test transfers to all chains in WarpCoreConfig',
+  },
+};
+
 export interface MessageOptionsArgTypes {
   origin?: string;
   destination?: string;
@@ -59,7 +70,7 @@ const messageCommand: CommandModuleWithWriteContext<
   command: 'message',
   describe: 'Send a test message to a remote chain',
   builder: {
-    ...messageOptions,
+    ...messageSendOptions,
     body: {
       type: 'string',
       description: 'Optional Message body',

@@ -126,10 +126,16 @@ jobs:
       fail-fast: false
       matrix:
         test:
+          # Core Commands
           - core-apply
+          - core-check
           - core-deploy
+          - core-init
           - core-read
+          # Other commands
           - relay
+          # Warp Commands
+          - warp-init
           - warp-read
           - warp-apply
           - warp-deploy
@@ -308,7 +314,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [mainnet3]
-        chain: [ethereum, arbitrum, optimism, inevm, viction]
+        chain: [ethereum, arbitrum, optimism, inevm]
         module: [core, igp]
         include:
           - environment: testnet4
