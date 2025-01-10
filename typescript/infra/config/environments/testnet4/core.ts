@@ -73,14 +73,14 @@ export const core: ChainMap<CoreConfig> = objMap(
     };
 
     // No static aggregation ISM support on zkSync
-    const defaultZkSyncIsm: RoutingIsmConfig = {
+    const defaultZkSyncIsm = (): RoutingIsmConfig => ({
       type: IsmType.ROUTING,
       domains: objMap(
         originMultisigs,
         (_, multisig): MultisigIsmConfig => messageIdIsm(multisig),
       ),
       ...ownerConfig,
-    };
+    });
 
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
@@ -90,7 +90,7 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     // No static aggregation ISM support on zkSync
     const defaultIsm: AggregationIsmConfig | RoutingIsmConfig = isZksyncChain
-      ? defaultZkSyncIsm
+      ? defaultZkSyncIsm()
       : {
           type: IsmType.AGGREGATION,
           modules: [routingIsm, pausableIsm],
