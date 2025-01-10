@@ -17,47 +17,39 @@ const safeOwners: ChainMap<Address> = {
 export const getEthereumSuperseedUSDTConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const ethereum: HypTokenRouterConfig = {
-    ...routerConfig.ethereum,
-    owner: safeOwners.ethereum,
-    type: TokenType.collateral,
-    token: tokens.ethereum.USDT,
-    interchainSecurityModule: ethers.constants.AddressZero,
-  };
-
-  const superseed: HypTokenRouterConfig = {
-    ...routerConfig.superseed,
-    owner: safeOwners.superseed,
-    type: TokenType.synthetic,
-    interchainSecurityModule: ethers.constants.AddressZero,
-  };
-
   return {
-    ethereum,
-    superseed,
+    ethereum: {
+      ...routerConfig.ethereum,
+      owner: safeOwners.ethereum,
+      type: TokenType.collateral,
+      token: tokens.ethereum.USDT,
+      interchainSecurityModule: ethers.constants.AddressZero,
+    },
+    superseed: {
+      ...routerConfig.superseed,
+      owner: safeOwners.superseed,
+      type: TokenType.synthetic,
+      interchainSecurityModule: ethers.constants.AddressZero,
+    },
   };
 };
 
 export const getOptimismSuperseedOPConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const optimism: HypTokenRouterConfig = {
-    ...routerConfig.optimism,
-    owner: safeOwners.optimism,
-    type: TokenType.collateral,
-    token: tokens.optimism.OP,
-    interchainSecurityModule: ethers.constants.AddressZero,
-  };
-
-  const superseed: HypTokenRouterConfig = {
-    ...routerConfig.superseed,
-    owner: safeOwners.superseed,
-    type: TokenType.synthetic,
-    interchainSecurityModule: ethers.constants.AddressZero,
-  };
-
   return {
-    optimism,
-    superseed,
+    optimism: {
+      ...routerConfig.optimism,
+      owner: safeOwners.optimism,
+      type: TokenType.collateral,
+      token: tokens.optimism.OP,
+      interchainSecurityModule: ethers.constants.AddressZero,
+    },
+    superseed: {
+      ...routerConfig.superseed,
+      owner: safeOwners.superseed,
+      type: TokenType.synthetic,
+      interchainSecurityModule: ethers.constants.AddressZero,
+    },
   };
 };
