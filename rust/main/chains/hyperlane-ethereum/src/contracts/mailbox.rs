@@ -496,7 +496,7 @@ where
             .into())
     }
 
-    #[instrument(skip(self), fields(metadata=%bytes_to_hex(metadata)))]
+    #[instrument(skip(self, message, metadata), fields(metadata=%bytes_to_hex(metadata)))]
     async fn process(
         &self,
         message: &HyperlaneMessage,
