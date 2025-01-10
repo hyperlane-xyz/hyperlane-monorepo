@@ -7625,6 +7625,7 @@
         "from": 1623141
       },
       "transactionOverrides": {
+        "maxFeePerGas": 10000000000,
         "maxPriorityFeePerGas": 1000000000
       }
     },
