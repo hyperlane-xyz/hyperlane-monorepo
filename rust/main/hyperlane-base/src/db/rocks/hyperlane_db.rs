@@ -205,8 +205,6 @@ impl HyperlaneRocksDB {
         // based on insertion order.
         self.store_merkle_tree_insertion_by_leaf_index(&insertion.index(), insertion)?;
 
-        info!(?insertion, "~~~ Storing new tree insertion in db");
-
         self.store_merkle_leaf_index_by_message_id(&insertion.message_id(), &insertion.index())?;
 
         self.store_merkle_tree_insertion_block_number_by_leaf_index(
