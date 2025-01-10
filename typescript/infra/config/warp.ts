@@ -43,6 +43,7 @@ import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/co
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
+import { getEthereumZircuitRstETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRstETHWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
@@ -92,6 +93,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
   [WarpRouteIds.BobaBsquaredSwellUBTC]: getBobaBsquaredSwellUBTCWarpConfig,
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
+  [WarpRouteIds.EthereumZircuitRstETH]: getEthereumZircuitRstETHWarpConfig,
   [WarpRouteIds.EthereumFormWBTC]: getEthereumFormWBTCWarpConfig,
   [WarpRouteIds.EthereumFormWSTETH]: getEthereumFormWSTETHWarpConfig,
   [WarpRouteIds.BaseFormAIXBT]: getBaseFormAIXBTWarpConfig,
