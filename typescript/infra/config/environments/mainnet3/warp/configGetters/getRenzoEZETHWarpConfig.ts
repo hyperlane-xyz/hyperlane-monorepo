@@ -279,6 +279,11 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
   },
 };
 
+export const getRenzoEZETHWarpConfig = getRenzoEZETHWarpConfigGenerator(
+  ezEthSafes,
+  xERC20,
+);
+
 export function getRenzoEZETHWarpConfigGenerator(
   ezEthSafes: Record<string, string>,
   xERC20: Record<(typeof chainsToDeploy)[number], string>,
@@ -381,8 +386,3 @@ export function getRenzoEZETHWarpConfigGenerator(
     return tokenConfig;
   };
 }
-
-export const getRenzoEZETHWarpConfig = getRenzoEZETHWarpConfigGenerator(
-  ezEthSafes,
-  xERC20,
-);
