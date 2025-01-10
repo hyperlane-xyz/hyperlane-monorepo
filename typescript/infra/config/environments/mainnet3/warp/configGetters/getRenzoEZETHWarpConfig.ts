@@ -279,11 +279,12 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
   },
 };
 
-export function getRenzoEZETHWarpConfigGenerator(
-  ezEthSafes: Record<string, string>,
-  xERC20: Record<(typeof chainsToDeploy)[number], string>,
-) {
-  return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
+export const getRenzoEZETHWarpConfigGenerator =
+  (
+    ezEthSafes: Record<string, string>,
+    xERC20: Record<(typeof chainsToDeploy)[number], string>,
+  ) =>
+  async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
     const multiProvider = await config.getMultiProvider();
     const registry = await getMainnet3Registry();
@@ -380,7 +381,6 @@ export function getRenzoEZETHWarpConfigGenerator(
 
     return tokenConfig;
   };
-}
 
 export const getRenzoEZETHWarpConfig = getRenzoEZETHWarpConfigGenerator(
   ezEthSafes,
