@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use eyre::{bail, Result};
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, instrument, trace};
 
 use hyperlane_core::{
     Decode, Encode, GasPaymentKey, HyperlaneDomain, HyperlaneLogStore, HyperlaneMessage,
