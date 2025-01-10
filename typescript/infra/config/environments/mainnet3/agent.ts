@@ -630,7 +630,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '706f69b-20250107-230151',
+      tag: '286b4de-20250108-194715',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,

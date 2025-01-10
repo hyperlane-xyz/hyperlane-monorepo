@@ -23,6 +23,7 @@ export enum WarpRouteIds {
   EthereumFlowCbBTC = 'CBBTC/ethereum-flowmainnet',
   EthereumInevmUSDC = 'USDC/ethereum-inevm',
   EthereumInevmUSDT = 'USDT/ethereum-inevm',
+  EthereumInkUSDC = 'USDC/ethereum-ink',
   EthereumSeiFastUSD = 'FASTUSD/ethereum-sei',
   EthereumSeiPumpBTC = 'pumpBTCsei/ethereum-sei',
   EthereumVanaETH = 'ETH/ethereum-vana',
