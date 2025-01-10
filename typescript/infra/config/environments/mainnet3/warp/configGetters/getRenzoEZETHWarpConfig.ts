@@ -19,7 +19,7 @@ import { getRegistry as getMainnet3Registry } from '../../chains.js';
 import rawTokenPrices from '../../tokenPrices.json';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
-const chainsToDeploy = [
+export const chainsToDeploy = [
   'arbitrum',
   'optimism',
   'base',
