@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { $, ProcessPromise } from 'zx';
+import { $, ProcessOutput, ProcessPromise } from 'zx';
 
 import { ERC20Test__factory, ERC4626Test__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
@@ -34,6 +34,7 @@ export const CHAIN_NAME_3 = 'anvil3';
 
 export const EXAMPLES_PATH = './examples';
 export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
+export const CORE_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config.yaml`;
 export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
 export const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`;
 export const CHAIN_3_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_3}/metadata.yaml`;
@@ -60,22 +61,88 @@ export async function asyncStreamInputWrite(
   await sleep(500);
 }
 
-export async function selectAnvil2AndAnvil3(
-  stream: ProcessPromise,
-): Promise<void> {
-  // Scroll down through the mainnet chains list and select anvil2
-  await asyncStreamInputWrite(
-    stream.stdin,
-    `${KeyBoardKeys.ARROW_DOWN.repeat(3)}${KeyBoardKeys.TAB}`,
-  );
-  // Scroll down through the mainnet chains list again and select anvil3
-  await asyncStreamInputWrite(
-    stream.stdin,
-    `${KeyBoardKeys.ARROW_DOWN.repeat(2)}${KeyBoardKeys.TAB}${
-      KeyBoardKeys.ENTER
-    }`,
-  );
+export type TestPromptAction = {
+  check: (currentOutput: string) => boolean;
+  input: string;
+};
+
+/**
+ * Takes a {@link ProcessPromise} and a list of inputs that will be supplied
+ * in the provided order when the check in the {@link TestPromptAction} matches the output
+ * of the {@link ProcessPromise}.
+ */
+export async function handlePrompts(
+  processPromise: Readonly<ProcessPromise>,
+  actions: TestPromptAction[],
+): Promise<ProcessOutput> {
+  let expectedStep = 0;
+  for await (const out of processPromise.stdout) {
+    const currentLine: string = out.toString();
+
+    const currentAction = actions[expectedStep];
+    if (currentAction && currentAction.check(currentLine)) {
+      // Select mainnet chains
+      await asyncStreamInputWrite(processPromise.stdin, currentAction.input);
+      expectedStep++;
+    }
+  }
+
+  return processPromise;
 }
+
+export const SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER = `${KeyBoardKeys.ARROW_DOWN.repeat(
+  3,
+)}${KeyBoardKeys.TAB}`;
+
+export const SELECT_ANVIL_3_AFTER_ANVIL_2_FROM_MULTICHAIN_PICKER = `${KeyBoardKeys.ARROW_DOWN.repeat(
+  2,
+)}${KeyBoardKeys.TAB}`;
+
+export const SELECT_MAINNET_CHAIN_TYPE_STEP: TestPromptAction = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Select network type'),
+  // Select mainnet chains
+  input: KeyBoardKeys.ENTER,
+};
+
+export const SELECT_ANVIL_2_AND_ANVIL_3_STEPS: ReadonlyArray<TestPromptAction> =
+  [
+    {
+      check: (currentOutput: string) =>
+        currentOutput.includes('--Mainnet Chains--'),
+      input: `${SELECT_ANVIL_2_FROM_MULTICHAIN_PICKER}`,
+    },
+    {
+      check: (currentOutput: string) =>
+        currentOutput.includes('--Mainnet Chains--'),
+      input: `${SELECT_ANVIL_3_AFTER_ANVIL_2_FROM_MULTICHAIN_PICKER}${KeyBoardKeys.ENTER}`,
+    },
+  ];
+
+export const CONFIRM_DETECTED_OWNER_STEP: Readonly<TestPromptAction> = {
+  check: (currentOutput: string) =>
+    currentOutput.includes('Detected owner address as'),
+  input: KeyBoardKeys.ENTER,
+};
+
+export const SETUP_CHAIN_SIGNERS_MANUALLY_STEPS: ReadonlyArray<TestPromptAction> =
+  [
+    {
+      check: (currentOutput) =>
+        currentOutput.includes('Please enter the private key for chain'),
+      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+    },
+    {
+      check: (currentOutput) =>
+        currentOutput.includes('Please enter the private key for chain'),
+      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+    },
+    {
+      check: (currentOutput) =>
+        currentOutput.includes('Please enter the private key for chain'),
+      input: `${ANVIL_KEY}${KeyBoardKeys.ENTER}`,
+    },
+  ];
 
 /**
  * Retrieves the deployed Warp address from the Warp core config.

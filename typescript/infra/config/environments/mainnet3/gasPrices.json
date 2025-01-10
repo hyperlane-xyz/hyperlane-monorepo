@@ -24,7 +24,7 @@
     "decimals": 9
   },
   "arthera": {
-    "amount": "1.025064",
+    "amount": "1.025057",
     "decimals": 9
   },
   "astar": {
@@ -32,7 +32,7 @@
     "decimals": 9
   },
   "astarzkevm": {
-    "amount": "0.263",
+    "amount": "0.087",
     "decimals": 9
   },
   "aurora": {
@@ -48,7 +48,7 @@
     "decimals": 9
   },
   "b3": {
-    "amount": "0.001000252",
+    "amount": "0.001000285",
     "decimals": 9
   },
   "base": {
@@ -68,7 +68,7 @@
     "decimals": 9
   },
   "boba": {
-    "amount": "0.001000068",
+    "amount": "0.001000071",
     "decimals": 9
   },
   "bsc": {
@@ -132,7 +132,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "32.059172476",
+    "amount": "10.885220772",
     "decimals": 9
   },
   "everclear": {
@@ -148,7 +148,7 @@
     "decimals": 9
   },
   "flare": {
-    "amount": "25.0",
+    "amount": "25.932675252",
     "decimals": 9
   },
   "flowmainnet": {
@@ -180,7 +180,7 @@
     "decimals": 9
   },
   "immutablezkevmmainnet": {
-    "amount": "11.00000005",
+    "amount": "11.000000049",
     "decimals": 9
   },
   "inevm": {
@@ -204,11 +204,11 @@
     "decimals": 9
   },
   "linea": {
-    "amount": "0.548523195",
+    "amount": "0.67121914",
     "decimals": 9
   },
   "lisk": {
-    "amount": "0.001001154",
+    "amount": "0.010752839",
     "decimals": 9
   },
   "lukso": {
@@ -224,7 +224,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.003000319",
+    "amount": "0.003000333",
     "decimals": 9
   },
   "mantle": {
@@ -244,7 +244,7 @@
     "decimals": 9
   },
   "mint": {
-    "amount": "0.001000256",
+    "amount": "0.001000252",
     "decimals": 9
   },
   "mode": {
@@ -352,8 +352,12 @@
     "decimals": 9
   },
   "sonic": {
-    "amount": "1.1",
+    "amount": "5.5",
     "decimals": 9
+  },
+  "soon": {
+    "amount": "0.0000001",
+    "decimals": 1
   },
   "stride": {
     "amount": "0.005",
@@ -380,7 +384,11 @@
     "decimals": 9
   },
   "telos": {
-    "amount": "522.500627641",
+    "amount": "522.109974741",
+    "decimals": 9
+  },
+  "torus": {
+    "amount": "31.25",
     "decimals": 9
   },
   "treasure": {
@@ -392,7 +400,7 @@
     "decimals": 9
   },
   "vana": {
-    "amount": "0.005",
+    "amount": "0.312673957",
     "decimals": 9
   },
   "viction": {
@@ -400,7 +408,7 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001000251",
+    "amount": "0.001000346",
     "decimals": 9
   },
   "xai": {
@@ -412,7 +420,7 @@
     "decimals": 9
   },
   "zeronetwork": {
-    "amount": "0.04525",
+    "amount": "0.06",
     "decimals": 9
   },
   "zetachain": {
