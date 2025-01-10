@@ -223,7 +223,7 @@ impl Mailbox for StarknetMailbox {
             .map_err(|e| HyperlaneStarknetError::AccountError(e.to_string()))?;
 
         Ok(TxCostEstimate {
-            gas_limit: HyU256::from(fee_estimate.gas_consumed).0,
+            gas_limit: HyU256::from(fee_estimate.overall_fee).0,
             gas_price: FixedPointNumber::try_from(HyU256::from(fee_estimate.gas_price).0).map_err(
                 |e| {
                     HyperlaneStarknetError::AccountError(format!(
