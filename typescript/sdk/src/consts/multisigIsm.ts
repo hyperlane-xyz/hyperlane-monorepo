@@ -1823,6 +1823,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  torus: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x96982a325c28a842bc8cf61b63000737bb9f1f7d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   treasure: {
     threshold: 3,
     validators: [
