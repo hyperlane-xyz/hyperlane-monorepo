@@ -640,7 +640,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '706f69b-20250107-230151',
+      tag: '2d4963c-20250109-221753',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -650,7 +650,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '706f69b-20250107-230151',
+      tag: '2d4963c-20250109-221753',
     },
     resources: scraperResources,
   },
