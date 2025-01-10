@@ -7623,6 +7623,9 @@
       "validatorAnnounce": "0xb89c6ED617f5F46175E41551350725A09110bbCE",
       "index": {
         "from": 1623141
+      },
+      "transactionOverrides": {
+        "maxPriorityFeePerGas": 1000000000
       }
     },
     "xpla": {
