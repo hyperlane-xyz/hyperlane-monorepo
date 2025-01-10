@@ -124,6 +124,7 @@ pub(crate) fn deploy_all(
     println!("Deploying routing ism");
     let ism_routing = cli.deploy(declarations.hpl_ism_routing, vec![deployer.clone()]);
 
+    // todo: initialize routing ism with correct domains and modules
     println!("Initializing routing ism");
     cli.invoke(
         ism_routing.clone(),
