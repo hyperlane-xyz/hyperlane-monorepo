@@ -1,96 +1,57 @@
-import { EthersAdapter, SafeFactory } from '@safe-global/protocol-kit';
-import { SafeAccountConfig } from '@safe-global/protocol-kit';
+import {
+  EthersAdapter,
+  SafeAccountConfig,
+  SafeFactory,
+} from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 
 import { Contexts } from '../../config/contexts.js';
-import { getChain } from '../../config/registry.js';
+import safeSigners from '../../config/environments/mainnet3/safe/safeSigners.json' assert { type: 'json' };
 import { Role } from '../../src/roles.js';
-import { readJSONAtPath } from '../../src/utils/utils.js';
-import {
-  getArgs,
-  getKeyForRole,
-  withChainRequired,
-  withSafeHomeUrlRequired,
-  withThreshold,
-} from '../agent-utils.js';
-
-const OWNERS_FILE_PATH = 'config/environments/mainnet3/safe/safeSigners.json';
+import { getSafeAndService } from '../../src/utils/safe.js';
+import { getArgs, withChainRequired, withThreshold } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
-  const { chain, safeHomeUrl, threshold } = await withThreshold(
-    withSafeHomeUrlRequired(withChainRequired(getArgs())),
-  ).argv;
+  const { chain, threshold } = await withThreshold(withChainRequired(getArgs()))
+    .argv;
 
-  const chainMetadata = await getChain(chain);
-  const rpcUrls = chainMetadata.rpcUrls;
-  const deployerPrivateKey = await getDeployerPrivateKey();
+  const envConfig = getEnvironmentConfig('mainnet3');
+  const multiProvider = await envConfig.getMultiProvider(
+    Contexts.Hyperlane,
+    Role.Deployer,
+    true,
+    [chain],
+  );
 
-  // Create ethers signer with deployer key
-  const provider = new ethers.providers.JsonRpcProvider(rpcUrls[0].http);
+  const signer = multiProvider.getSigner(chain);
   const ethAdapter = new EthersAdapter({
     ethers,
-    signerOrProvider: new ethers.Wallet(deployerPrivateKey, provider),
+    signerOrProvider: signer,
   });
 
-  let safeFactory;
-  try {
-    safeFactory = await SafeFactory.create({
-      ethAdapter,
-    });
-  } catch (e) {
-    console.error(`Error initializing SafeFactory: ${e}`);
-    process.exit(1);
-  }
+  const safeFactory = await SafeFactory.create({
+    ethAdapter,
+  });
 
-  const ownersConfig = readJSONAtPath(OWNERS_FILE_PATH);
-  const owners = ownersConfig.signers;
-
+  const owners = safeSigners.signers;
   const safeAccountConfig: SafeAccountConfig = {
     owners,
     threshold,
   };
 
-  let safe;
-  try {
-    safe = await safeFactory.deploySafe({ safeAccountConfig });
-  } catch (e) {
-    console.error(`Error deploying Safe: ${e}`);
-    process.exit(1);
-  }
-
+  const safe = await safeFactory.deploySafe({ safeAccountConfig });
   const safeAddress = await safe.getAddress();
-
   console.log(`Safe address: ${safeAddress}`);
-  console.log(`Safe url: ${safeHomeUrl}/home?safe=${chain}:${safeAddress}`);
-  console.log('url may not be correct, please check by following the link');
 
-  try {
-    // TODO: check https://app.safe.global for officially supported chains, filter by chain id
-    const chainsUrl = `${safeHomeUrl.replace(
-      'https://',
-      'https://gateway.',
-    )}/v1/chains`;
-    console.log(`Fetching chain data from ${chainsUrl}`);
-    const response = await fetch(chainsUrl);
-
-    const resultsJson = await response.json();
-
-    const transactionService = resultsJson.results[0].transactionService;
-    console.log(`Chains: ${JSON.stringify(transactionService)}`);
-    console.log(
-      `Add the transaction service url ${transactionService} as gnosisSafeTransactionServiceUrl to the metadata.yml in the registry`,
-    );
-  } catch (e) {
-    console.error(`Could not fetch safe tx service url: ${e}`);
-  }
+  const { safeService } = await getSafeAndService(
+    chain,
+    multiProvider,
+    safeAddress,
+  );
+  const serviceInfo = await safeService.getServiceInfo();
+  console.log(serviceInfo);
 }
-
-const getDeployerPrivateKey = async () => {
-  const key = getKeyForRole('mainnet3', Contexts.Hyperlane, Role.Deployer);
-  await key.fetch();
-
-  return key.privateKey;
-};
 
 main()
   .then()
