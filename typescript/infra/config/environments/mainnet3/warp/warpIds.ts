@@ -44,6 +44,7 @@ export enum WarpRouteIds {
   BobaBsquaredSwellUBTC = 'UBTC/boba-bsquared-swell',
   EthereumSuperseedUSDT = 'USDT/ethereum-superseed',
   OptimismSuperseedOP = 'OP/optimism-superseed',
+  EthereumZircuitRstETH = 'rstETH/ethereum-zircuit',
   EthereumFormWBTC = 'WBTC/ethereum-form',
   EthereumFormWSTETH = 'WSTETH/ethereum-form',
   BaseFormAIXBT = 'AIXBT/base-form',
