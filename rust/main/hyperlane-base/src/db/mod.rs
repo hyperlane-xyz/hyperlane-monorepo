@@ -135,6 +135,11 @@ pub trait HyperlaneDb: Send + Sync {
         leaf_index: &u32,
     ) -> DbResult<Option<MerkleTreeInsertion>>;
 
+    fn store_highest_seen_tree_index(&self, index: &u32) -> DbResult<()>;
+
+    /// Retrieve the highest seen tree index by the syncer
+    fn retrieve_highest_seen_tree_index(&self) -> DbResult<Option<u32>>;
+
     fn store_merkle_leaf_index_by_message_id(
         &self,
         message_id: &H256,

@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     sync::Arc,
+    time::Duration,
 };
 
 use async_trait::async_trait;
@@ -10,7 +11,7 @@ use eyre::Result;
 use futures_util::future::try_join_all;
 use hyperlane_base::{
     broadcast::BroadcastMpscSender,
-    db::{HyperlaneRocksDB, DB},
+    db::{HyperlaneDb, HyperlaneRocksDB, DB},
     metrics::{AgentMetrics, MetricsUpdater},
     settings::{ChainConf, IndexSettings},
     AgentMetadata, BaseAgent, ChainMetrics, ContractSyncMetrics, ContractSyncer, CoreMetrics,
@@ -526,16 +527,38 @@ impl Relayer {
                 return tokio::spawn(async {}).instrument(info_span!("MerkleTreeHookSync"));
             }
         };
-        tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+
+        let origin_clone = origin.clone();
+        let origin_db = Arc::new(self.dbs.get(origin).unwrap().clone());
+        let core_metrics = self.core_metrics.clone();
+
+        let hook_sync_handle = tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
             contract_sync
                 .clone()
                 .sync(
                     "merkle_tree_hook",
                     SyncOptions::new(Some(cursor), tx_id_receiver),
                 )
-                .await
+                .await;
         }))
-        .instrument(info_span!("MerkleTreeHookSync"))
+        .instrument(info_span!("MerkleTreeHookSync"));
+
+        let index_updater_handle =
+            tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+                loop {
+                    Self::update_highest_seen_tree_index(&core_metrics, &origin_db, &origin_clone)
+                        .await;
+
+                    // sleep for 5 seconds, ie, 5 seconds between updates
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+            }))
+            .instrument(info_span!("MerkleTreeHighestSeenIndexUpdater"));
+
+        tokio::spawn(async move {
+            let _ = tokio::join!(hook_sync_handle, index_updater_handle);
+        })
+        .instrument(info_span!("MerkleTreeHookSync_with_IndexUpdater"))
     }
 
     fn run_message_processor(
@@ -619,6 +642,23 @@ impl Relayer {
             });
         }))
         .instrument(span)
+    }
+
+    async fn update_highest_seen_tree_index(
+        core_metrics: &CoreMetrics,
+        origin_db: &Arc<HyperlaneRocksDB>,
+        origin: &HyperlaneDomain,
+    ) {
+        let highest_seen_tree_index = origin_db
+            .retrieve_highest_seen_tree_index()
+            .unwrap_or_default();
+
+        if let Some(highest_seen_tree_index) = highest_seen_tree_index {
+            core_metrics
+                .highest_seen_tree_index()
+                .with_label_values(&[origin.name()])
+                .set(highest_seen_tree_index as i64);
+        }
     }
 }
 

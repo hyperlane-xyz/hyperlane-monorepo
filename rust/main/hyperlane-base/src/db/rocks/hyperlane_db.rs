@@ -25,6 +25,7 @@ const NONCE_PROCESSED: &str = "nonce_processed_";
 const GAS_PAYMENT_BY_SEQUENCE: &str = "gas_payment_by_sequence_";
 const GAS_PAYMENT_BLOCK_BY_SEQUENCE: &str = "gas_payment_block_by_sequence_";
 const HIGHEST_SEEN_MESSAGE_NONCE: &str = "highest_seen_message_nonce_";
+const HIGHEST_SEEN_TREE_INDEX: &str = "highest_seen_tree_index_";
 const GAS_PAYMENT_FOR_MESSAGE_ID: &str = "gas_payment_sequence_for_message_id_v2_";
 const GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_v3_";
 const GAS_EXPENDITURE_FOR_MESSAGE_ID: &str = "gas_expenditure_for_message_id_v2_";
@@ -211,6 +212,12 @@ impl HyperlaneRocksDB {
             &insertion.index(),
             &insertion_block_number,
         )?;
+
+        let current_highest = self.retrieve_highest_seen_tree_index()?.unwrap_or_default();
+        if insertion.index() > current_highest {
+            self.store_highest_seen_tree_index(&insertion.index())?;
+        }
+
         // Return true to indicate the tree insertion was processed
         Ok(true)
     }
@@ -612,6 +619,14 @@ impl HyperlaneDb for HyperlaneRocksDB {
         leaf_index: &u32,
     ) -> DbResult<Option<MerkleTreeInsertion>> {
         self.retrieve_value_by_key(MERKLE_TREE_INSERTION, leaf_index)
+    }
+
+    fn retrieve_highest_seen_tree_index(&self) -> DbResult<Option<u32>> {
+        self.retrieve_value_by_key(HIGHEST_SEEN_TREE_INDEX, &bool::default())
+    }
+
+    fn store_highest_seen_tree_index(&self, index: &u32) -> DbResult<()> {
+        self.store_value_by_key(HIGHEST_SEEN_TREE_INDEX, &bool::default(), index)
     }
 
     fn store_merkle_leaf_index_by_message_id(
