@@ -94,7 +94,19 @@ impl PriorityFeeOracle for HeliusPriorityFeeOracle {
 
         tracing::debug!(?response, "Fetched priority fee from Helius API");
 
-        let fee = response.result.priority_fee_estimate.round() as u64;
+        let mut fee = response.result.priority_fee_estimate.round() as u64;
+
+        if let Ok(max) = std::env::var("HELIUS_MAX_PRIORITY_FEE") {
+            let max_fee = max.parse().unwrap();
+            if fee > max_fee {
+                tracing::info!(
+                    fee,
+                    max_fee,
+                    "Helius priority fee is very high, capping the fee",
+                );
+                fee = max_fee;
+            }
+        }
 
         Ok(fee)
     }
