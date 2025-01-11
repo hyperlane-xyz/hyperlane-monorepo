@@ -401,7 +401,20 @@ impl SealevelRpcClient {
                 / COMPUTE_UNIT_MULTIPLIER_DENOMINATOR,
         );
 
-        let priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+        let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+
+        if let Ok(max_priority_fee) = std::env::var("SVM_MAX_PRIORITY_FEE") {
+            let max_priority_fee = max_priority_fee.parse()?;
+            if priority_fee > max_priority_fee {
+                tracing::info!(
+                    priority_fee,
+                    max_priority_fee,
+                    "Estimated priority fee is very high, capping to a max",
+                );
+                priority_fee = max_priority_fee;
+            }
+        }
+
         // Bump the priority fee to be conservative
         let priority_fee = (priority_fee * PRIORITY_FEE_MULTIPLIER_NUMERATOR)
             / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
