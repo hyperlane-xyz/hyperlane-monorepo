@@ -732,8 +732,14 @@ impl ChainConf {
                 )?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
-            ChainConnectionConf::Starknet(_) => {
-                Err(eyre!("Starknet does not support routing ISM yet")).context(ctx)
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let ism = Box::new(h_starknet::StarknetRoutingIsm::new(
+                    conf,
+                    &locator,
+                    signer.unwrap(),
+                )?);
+                Ok(ism as Box<dyn RoutingIsm>)
             }
         }
         .context(ctx)
