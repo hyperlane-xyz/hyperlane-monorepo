@@ -48,7 +48,10 @@ pub fn termination_invariants_met(
     if lengths.iter().sum::<u32>()
         != ZERO_MERKLE_INSERTION_KATHY_MESSAGES + sol_messages_with_non_matching_igp
     {
-        log!("Relayer queues not empty. Lengths: {:?}", lengths);
+        log!(
+            "Relayer queues contain more messages than the zero-merkle-insertion ones. Lengths: {:?}",
+            lengths
+        );
         return Ok(false);
     };
 
