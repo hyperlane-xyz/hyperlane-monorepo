@@ -1,6 +1,7 @@
 import { CommandType } from '../../../commands/signCommands.js';
 
 import { MultiChainResolver } from './MultiChainResolver.js';
+import { SingleChainResolver } from './SingleChainResolver.js';
 import { ChainResolver } from './types.js';
 
 /**
@@ -23,6 +24,7 @@ export class ChainResolverFactory {
     [CommandType.SUBMIT, () => MultiChainResolver.forStrategyConfig()],
     [CommandType.RELAYER, () => MultiChainResolver.forRelayer()],
     [CommandType.CORE_APPLY, () => MultiChainResolver.forCoreApply()],
+    [CommandType.CORE_DEPLOY, () => new SingleChainResolver()],
   ]);
 
   /**
