@@ -36,6 +36,7 @@ pub fn termination_invariants_met(
         0
     };
 
+    // this is total messages expected to be delivered
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
 
     let lengths = fetch_metric(

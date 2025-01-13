@@ -382,7 +382,7 @@ pub fn initiate_solana_hyperlane_transfer(
 }
 
 #[apply(as_task)]
-pub fn initiate_solana_non_igp_paying_transfer(
+pub fn initiate_solana_non_matching_igp_paying_transfer(
     solana_cli_tools_path: PathBuf,
     solana_config_path: PathBuf,
 ) -> String {
