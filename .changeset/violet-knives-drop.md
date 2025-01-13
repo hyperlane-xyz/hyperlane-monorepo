@@ -2,4 +2,4 @@
 '@hyperlane-xyz/cli': minor
 ---
 
-Support for CORE_DEPLOY in ChainResolverFactory
+Fixing the chain resolver checks and handling for argv.chain
