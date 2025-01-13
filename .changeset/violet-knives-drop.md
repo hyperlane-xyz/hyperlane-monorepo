@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/cli': major
+'@hyperlane-xyz/cli': minor
 ---
 
 Support for CORE_DEPLOY in ChainResolverFactory
