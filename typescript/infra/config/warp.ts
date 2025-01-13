@@ -12,10 +12,6 @@ import {
 } from '../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
-import {
-  getEthereumFormUSDCWarpConfig,
-  getEthereumFormUSDTWarpConfig,
-} from './environments/mainnet3/warp/configGetters/formConfigGetters.js';
 import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAncient8EthereumUSDCWarpConfig.js';
 import { getAppChainBaseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAppchainBaseUSDCWarpConfig.js';
 import { getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig.js';
@@ -36,6 +32,8 @@ import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/conf
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
 import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBscLumiaLUMIAWarpConfig.js';
 import { getEthereumFlowCbBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFlowCbBTCWarpConfig.js';
+import { getEthereumFormUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormUSDCWarpConfig.js';
+import { getEthereumFormUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormUSDTWarpConfig.js';
 import { getEthereumFormWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormWBTCWarpConfig.js';
 import { getEthereumFormWSTETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormWSTETHWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
