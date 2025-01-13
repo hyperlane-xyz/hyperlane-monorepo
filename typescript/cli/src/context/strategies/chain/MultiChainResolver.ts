@@ -24,6 +24,8 @@ import {
 } from '../../../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../../../utils/warp.js';
 
+import { ChainResolver } from './types.js';
+
 enum ChainSelectionMode {
   AGENT_KURTOSIS,
   WARP_CONFIG,
@@ -33,11 +35,13 @@ enum ChainSelectionMode {
   DEFAULT,
 }
 
+// This class could be broken down into multiple strategies
+
 /**
  * @title MultiChainResolver
  * @notice Resolves chains based on the specified selection mode.
  */
-export class MultiChainResolver {
+export class MultiChainResolver implements ChainResolver {
   constructor(private mode: ChainSelectionMode) {}
 
   async resolveChains(argv: ChainMap<any>): Promise<ChainName[]> {
