@@ -27,7 +27,7 @@ export class ChainResolverFactory {
 
   /**
    * @param argv - Command line arguments.
-   * @returns MultiChainResolver - The appropriate chain resolver strategy based on the command type.
+   * @returns ChainResolver - The appropriate chain resolver strategy based on the command type.
    */
   static getStrategy(argv: Record<string, any>): ChainResolver {
     const commandKey = `${argv._[0]}:${argv._[1] || ''}`.trim() as CommandType;
