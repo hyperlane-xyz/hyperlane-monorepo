@@ -652,7 +652,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '53fafa6-20250110-125541',
+      tag: 'abb5a8b-20250113-122226',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -687,7 +687,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'df9c1ed-20250109-151923',
+      tag: 'abb5a8b-20250113-122226',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
