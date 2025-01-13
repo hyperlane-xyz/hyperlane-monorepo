@@ -7453,7 +7453,7 @@ __metadata:
     tsx: "npm:^4.19.1"
     typechain: "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
     typescript: "npm:5.3.3"
-    zksync-ethers: "npm:^5"
+    zksync-ethers: "npm:^5.10.0"
   peerDependencies:
     "@ethersproject/abi": "*"
     "@ethersproject/providers": "*"
@@ -7592,7 +7592,7 @@ __metadata:
     prettier: "npm:^2.8.8"
     syncpack: "npm:^13.0.0"
     tsx: "npm:^4.19.1"
-    zksync-ethers: "npm:^5"
+    zksync-ethers: "npm:^5.10.0"
   languageName: unknown
   linkType: soft
 
@@ -38528,17 +38528,6 @@ __metadata:
     mustache: "npm:^4.2.0"
     stacktracey: "npm:^2.1.8"
   checksum: 10/3ba978fe156727c30a88e044ea42308b85462c6c6b00a63af40dd561cb920ad3102bd68feb06909bf1246358e1293e3f90f86767478474e9afe82b621c9daa0f
-  languageName: node
-  linkType: hard
-
-"zksync-ethers@npm:^5":
-  version: 5.9.2
-  resolution: "zksync-ethers@npm:5.9.2"
-  dependencies:
-    ethers: "npm:~5.7.0"
-  peerDependencies:
-    ethers: ~5.7.0
-  checksum: 10/c765fe5828df4ceaba3477f227125da5783a5907e915ffb2ef67246d7154c8ac1745551f4cec88df5ec23f24d21332a7438b8034278ba8d03d32a36424c500d3
   languageName: node
   linkType: hard
 
