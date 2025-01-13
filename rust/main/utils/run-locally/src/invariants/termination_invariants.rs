@@ -144,10 +144,10 @@ pub fn termination_invariants_met(
     )?;
     // check for each origin that the highest tree index seen by the syncer == # of messages sent + # of double insertions
     // LHS: sum(highest_seen_tree_index) + len(highest_seen_tree_index) (each is index so we add 1 to each)
-    // RHS: eth_messages_expected + (config.kathy_messages as u32 / 4) * 2 (double insertions)
+    // RHS: total_messages_expected + (config.kathy_messages as u32 / 4) * 2 (double insertions)
     assert_eq!(
         highest_seen_tree_index.iter().sum::<u32>() + highest_seen_tree_index.len() as u32,
-        eth_messages_expected + (config.kathy_messages as u32 / 4) * 2
+        total_messages_expected + (config.kathy_messages as u32 / 4) * 2
     );
 
     if let Some((solana_cli_tools_path, solana_config_path)) =
