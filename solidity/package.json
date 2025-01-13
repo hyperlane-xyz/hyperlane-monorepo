@@ -10,7 +10,7 @@
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
     "fx-portal": "^1.0.3",
-    "zksync-ethers": "^5"
+    "zksync-ethers": "^5.10.0"
   },
   "devDependencies": {
     "@layerzerolabs/solidity-examples": "^1.1.0",
