@@ -24,7 +24,7 @@ export async function checkMessageStatus({
   if (!origin) {
     origin = await runSingleChainSelectionStep(
       context.chainMetadata,
-      'Select the origin chain',
+      'Select the origin chain:',
     );
   }
 

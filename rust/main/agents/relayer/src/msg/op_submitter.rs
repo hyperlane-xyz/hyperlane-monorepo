@@ -543,7 +543,7 @@ impl OperationBatch {
         };
 
         if !excluded_ops.is_empty() {
-            warn!(excluded_ops=?excluded_ops, "Either the batch tx would revert, or the operations would revert in the batch. Falling back to serial submission.");
+            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
             OperationBatch::new(excluded_ops, self.domain)
                 .submit_serially(prepare_queue, confirm_queue, metrics)
                 .await;

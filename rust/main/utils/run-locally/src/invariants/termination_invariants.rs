@@ -39,7 +39,10 @@ pub fn termination_invariants_met(
     )?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
     if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
-        log!("Relayer queues not empty. Lengths: {:?}", lengths);
+        log!(
+            "Relayer queues contain more messages than the zero-merkle-insertion ones. Lengths: {:?}",
+            lengths
+        );
         return Ok(false);
     };
 

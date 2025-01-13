@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use tendermint::abci::v0_34;
+use tendermint::v0_37;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmptyStruct {}
@@ -30,10 +32,6 @@ pub struct EventAttribute {
 
 impl From<EventAttribute> for cosmrs::tendermint::abci::EventAttribute {
     fn from(val: EventAttribute) -> Self {
-        cosmrs::tendermint::abci::EventAttribute {
-            key: val.key,
-            value: val.value,
-            index: val.index,
-        }
+        cosmrs::tendermint::abci::EventAttribute::from((val.key, val.value, val.index))
     }
 }
