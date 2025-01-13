@@ -137,7 +137,6 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
-   
     let highest_seen_tree_index: Vec<u32> = fetch_metric(
         RELAYER_METRICS_PORT,
         "hyperlane_highest_seen_tree_index",
@@ -145,10 +144,10 @@ pub fn termination_invariants_met(
     )?;
     // check for each origin that the highest tree index seen by the syncer == # of messages sent + # of double insertions
     // LHS: sum(highest_seen_tree_index) + len(highest_seen_tree_index) (each is index so we add 1 to each)
-    // RHS: eth_messages_expected + (config.kathy_messages as u32 / 4) (double insertions)
+    // RHS: eth_messages_expected + (config.kathy_messages as u32 / 4) * 2 (double insertions)
     assert_eq!(
-        highest_seen_tree_index.iter().sum::<u32>() + highest_seen_tree_index.len() as u32, 
-        eth_messages_expected + (config.kathy_messages as u32 / 4)
+        highest_seen_tree_index.iter().sum::<u32>() + highest_seen_tree_index.len() as u32,
+        eth_messages_expected + (config.kathy_messages as u32 / 4) * 2
     );
 
     if let Some((solana_cli_tools_path, solana_config_path)) =
