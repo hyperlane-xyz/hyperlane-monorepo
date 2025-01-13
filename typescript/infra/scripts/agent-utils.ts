@@ -155,7 +155,11 @@ export function withChain<T>(args: Argv<T>) {
     .alias('c', 'chain');
 }
 
-export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
+export function withChains<T>(
+  args: Argv<T>,
+  chainOptions?: ChainName[],
+  allowDuplicates = false,
+) {
   return (
     args
       .describe('chains', 'Set of chains to perform actions on.')
@@ -165,7 +169,9 @@ export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
         !chainOptions || chainOptions.length === 0 ? getChains() : chainOptions,
       )
       // Ensure chains are unique
-      .coerce('chains', (chains: string[]) => Array.from(new Set(chains)))
+      .coerce('chains', (chains: string[]) =>
+        allowDuplicates ? chains : Array.from(new Set(chains)),
+      )
       .alias('c', 'chains')
   );
 }
@@ -173,8 +179,9 @@ export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
 export function withChainsRequired<T>(
   args: Argv<T>,
   chainOptions?: ChainName[],
+  allowDuplicates = false,
 ) {
-  return withChains(args, chainOptions).demandOption('chains');
+  return withChains(args, chainOptions, allowDuplicates).demandOption('chains');
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {
