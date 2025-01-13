@@ -54,6 +54,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
   },
   optimism: {
     USDC: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+    OP: '0x4200000000000000000000000000000000000042',
   },
   gnosis: {
     WETH: '0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1',
