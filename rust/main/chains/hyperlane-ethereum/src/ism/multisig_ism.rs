@@ -98,7 +98,7 @@ impl<M> MultisigIsm for EthereumMultisigIsm<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err)]
+    #[instrument(err, skip(self, message))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn validators_and_threshold(
         &self,
