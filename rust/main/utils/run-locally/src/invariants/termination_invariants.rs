@@ -38,6 +38,7 @@ pub fn termination_invariants_met(
 
     // this is total messages expected to be delivered
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
+    let total_messages_dispatched = total_messages_expected + sol_messages_with_non_matching_igp;
 
     let lengths = fetch_metric(
         RELAYER_METRICS_PORT,
@@ -140,11 +141,11 @@ pub fn termination_invariants_met(
 
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
-    if gas_payment_events_count < total_messages_expected + sol_messages_with_non_matching_igp {
+    if gas_payment_events_count < total_messages_dispatched {
         log!(
             "Relayer has {} gas payment events, expected at least {}",
             gas_payment_events_count,
-            total_messages_expected + sol_messages_with_non_matching_igp
+            total_messages_dispatched
         );
         return Ok(false);
     }
@@ -165,12 +166,13 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    if dispatched_messages_scraped != total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+    if dispatched_messages_scraped
+        != total_messages_dispatched + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
     {
         log!(
             "Scraper has scraped {} dispatched messages, expected {}",
             dispatched_messages_scraped,
-            total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+            total_messages_dispatched + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
         );
         return Ok(false);
     }
