@@ -18,7 +18,6 @@ import { MINIMUM_TEST_SEND_GAS } from '../consts.js';
 import { WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
-import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
@@ -30,8 +29,7 @@ export const WarpSendLogs = {
 export async function sendTestTransfer({
   context,
   warpCoreConfig,
-  origin,
-  destination,
+  chains,
   amount,
   recipient,
   timeoutSec,
@@ -40,51 +38,41 @@ export async function sendTestTransfer({
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
-  origin?: ChainName; // resolved in signerMiddleware
-  destination?: ChainName; // resolved in signerMiddleware
+  chains: ChainName[];
   amount: string;
   recipient?: string;
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
 }) {
-  const { chainMetadata } = context;
-
-  if (!origin) {
-    origin = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select the origin chain:',
-    );
-  }
-
-  if (!destination) {
-    destination = await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select the destination chain:',
-    );
-  }
-
   await runPreflightChecksForChains({
     context,
-    chains: [origin, destination],
-    chainsToGasCheck: [origin],
+    chains,
     minGas: MINIMUM_TEST_SEND_GAS,
   });
 
-  await timeout(
-    executeDelivery({
-      context,
-      origin,
-      destination,
-      warpCoreConfig,
-      amount,
-      recipient,
-      skipWaitForDelivery,
-      selfRelay,
-    }),
-    timeoutSec * 1000,
-    'Timed out waiting for messages to be delivered',
-  );
+  for (let i = 0; i < chains.length; i++) {
+    const origin = chains[i];
+    const destination = chains[i + 1];
+
+    if (destination) {
+      logBlue(`Sending a message from ${origin} to ${destination}`);
+      await timeout(
+        executeDelivery({
+          context,
+          origin,
+          destination,
+          warpCoreConfig,
+          amount,
+          recipient,
+          skipWaitForDelivery,
+          selfRelay,
+        }),
+        timeoutSec * 1000,
+        'Timed out waiting for messages to be delivered',
+      );
+    }
+  }
 }
 
 async function executeDelivery({
@@ -195,5 +183,5 @@ async function executeDelivery({
 
   // Max wait 10 minutes
   await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);
-  logGreen(`Transfer sent to destination chain!`);
+  logGreen(`Transfer sent to ${destination} chain!`);
 }

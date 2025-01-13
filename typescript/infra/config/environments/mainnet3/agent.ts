@@ -149,6 +149,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: true,
     stride: false,
     superseed: true,
     superpositionmainnet: true,
@@ -156,6 +157,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     telos: true,
+    torus: true,
     treasure: true,
     unichain: true,
     vana: true,
@@ -262,6 +264,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: true,
     stride: true,
     superseed: true,
     superpositionmainnet: true,
@@ -269,6 +272,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     telos: true,
+    torus: true,
     treasure: true,
     unichain: true,
     vana: true,
@@ -374,6 +378,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: false,
     stride: true,
     superseed: true,
     superpositionmainnet: true,
@@ -381,6 +386,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     telos: true,
+    torus: true,
     treasure: true,
     unichain: true,
     vana: true,
@@ -473,6 +479,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     matchingList: [
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
+      // Temporary workaround due to funky Torus gas amounts.
+      { destinationDomain: getDomainId('torus') },
       // Temporary workaround for some high gas amount estimates on Treasure
       ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
@@ -622,7 +630,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f73dcc3-20241229-154524',
+      tag: 'df9c1ed-20250109-151923',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -632,7 +640,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '05e90bc-20241216-180035',
+      tag: '2d4963c-20250109-221753',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -642,7 +650,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3812453-20241224-020703',
+      tag: '2d4963c-20250109-221753',
     },
     resources: scraperResources,
   },
@@ -657,7 +665,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '234704d-20241226-192528',
+      tag: 'df9c1ed-20250109-151923',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

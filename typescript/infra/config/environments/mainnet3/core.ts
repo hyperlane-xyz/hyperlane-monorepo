@@ -74,15 +74,15 @@ export const core: ChainMap<CoreConfig> = objMap(
       ...owner,
     };
 
-    // No static aggregation or domain routing ISM support on zkSync
-    const defaultZkSyncIsm: RoutingIsmConfig = {
+    // No static aggregation ISM support on zkSync
+    const defaultZkSyncIsm = (): RoutingIsmConfig => ({
       type: IsmType.ROUTING,
       domains: objMap(
         originMultisigs,
         (_, multisig): MultisigIsmConfig => messageIdIsm(multisig),
       ),
       ...owner,
-    };
+    });
 
     const pausableIsm: PausableIsmConfig = {
       type: IsmType.PAUSABLE,
@@ -92,7 +92,7 @@ export const core: ChainMap<CoreConfig> = objMap(
 
     // No static aggregation ISM support on zkSync
     const defaultIsm: AggregationIsmConfig | RoutingIsmConfig = isZksyncChain
-      ? defaultZkSyncIsm
+      ? defaultZkSyncIsm()
       : {
           type: IsmType.AGGREGATION,
           modules: [routingIsm, pausableIsm],
