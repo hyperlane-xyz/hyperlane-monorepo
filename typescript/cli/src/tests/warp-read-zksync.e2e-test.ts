@@ -21,7 +21,7 @@ const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/zksync/warp-route-deployment.yaml`;
 const WARP_CORE_CONFIG_PATH_2 = `${ZK_REGISTRY_PATH}/deployments/warp_routes/ETH/${CHAIN_NAME_ZK_2}-config.yaml`;
 
 const TEST_TIMEOUT = 180_000; // Long timeout since these tests can take a while
-describe.skip('WarpRead ZKSync e2e tests', async function () {
+describe.skip('WarpRead ZkSync e2e tests', async function () {
   let zksync2WarpConfig: WarpRouteDeployConfig;
   this.timeout(TEST_TIMEOUT);
   before(async function () {

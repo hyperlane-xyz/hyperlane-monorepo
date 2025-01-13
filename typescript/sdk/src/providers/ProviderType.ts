@@ -30,7 +30,7 @@ import {
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
-  ZKSync = 'zksync',
+  ZkSync = 'zksync',
   EthersV5 = 'ethers-v5',
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
@@ -103,7 +103,7 @@ interface TypedProviderBase<T> {
 }
 
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
-  type: ProviderType.ZKSync;
+  type: ProviderType.ZkSync;
   provider: ZKSyncBaseProvider;
 }
 
@@ -154,7 +154,7 @@ interface TypedContractBase<T> {
 }
 
 export interface ZKSyncContract extends TypedContractBase<ZKSyncBaseContract> {
-  type: ProviderType.ZKSync;
+  type: ProviderType.ZkSync;
   contract: ZKSyncBaseContract;
 }
 export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
@@ -210,7 +210,7 @@ export interface EthersV5Transaction
 }
 export interface ZKSyncTransaction
   extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
-  type: ProviderType.ZKSync;
+  type: ProviderType.ZkSync;
   transaction: zkSyncTypes.TransactionRequest;
 }
 
@@ -257,7 +257,7 @@ interface TypedTransactionReceiptBase<T> {
 
 export interface ZKSyncTransactionReceipt
   extends TypedTransactionReceiptBase<zkSyncTypes.TransactionReceipt> {
-  type: ProviderType.ZKSync;
+  type: ProviderType.ZkSync;
   receipt: zkSyncTypes.TransactionReceipt;
 }
 export interface EthersV5TransactionReceipt

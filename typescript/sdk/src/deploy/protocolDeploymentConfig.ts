@@ -5,7 +5,7 @@ import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
  * @notice An array of chain technical stacks that are not supported for static deployment.
  */
 export const skipStaticDeployment: ChainTechnicalStack[] = [
-  ChainTechnicalStack.ZKSync,
+  ChainTechnicalStack.ZkSync,
 ];
 
 export const isIsmStatic: Record<IsmType, boolean> = {

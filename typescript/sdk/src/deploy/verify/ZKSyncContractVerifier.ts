@@ -17,11 +17,11 @@ import {
 
 /**
  * @title ZKSyncContractVerifier
- * @notice Handles the verification of ZKSync contracts on block explorers
- * @dev This class manages the process of verifying ZKSync contracts, including
+ * @notice Handles the verification of ZkSync contracts on block explorers
+ * @dev This class manages the process of verifying ZkSync contracts, including
  * preparing verification data and submitting it to the appropriate explorer API
  * Note: Etherscan verification is managed by the ContractVerifier class
- * Blockscout verification is not currently supported on ZKSync
+ * Blockscout verification is not currently supported on ZkSync
  */
 export class ZKSyncContractVerifier extends BaseContractVerifier {
   protected logger = rootLogger.child({ module: 'ZKSyncContractVerifier' });

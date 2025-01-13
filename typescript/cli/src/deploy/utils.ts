@@ -45,7 +45,7 @@ export async function runPreflightChecksForChains({
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { multiProvider } = context;
+  const { multiProvider, skipConfirmation } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -63,6 +63,7 @@ export async function runPreflightChecksForChains({
     multiProvider,
     chainsToGasCheck ?? chains,
     minGas,
+    skipConfirmation,
   );
 }
 
@@ -209,7 +210,7 @@ export function isIsmCompatible({
   chainTechnicalStack: ChainTechnicalStack | undefined;
   ismType: IsmType;
 }): boolean {
-  // Static deployment is not available on certain chains (e.g., ZKSync) for aggregation ISMs.
+  // Static deployment is not available on certain chains (e.g., ZkSync) for aggregation ISMs.
   if (!isIsmStatic[ismType]) return true;
   return isStaticDeploymentSupported(chainTechnicalStack);
 }

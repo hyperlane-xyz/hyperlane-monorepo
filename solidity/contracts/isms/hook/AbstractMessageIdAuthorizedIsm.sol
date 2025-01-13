@@ -27,7 +27,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 /**
  * @title AbstractMessageIdAuthorizedIsm
- * @notice Uses external verification options to verify interchain messages which need a authorized caller
+ * @notice Uses external verification options to verify interchain messages which need an authorized caller
  */
 abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,

@@ -48,7 +48,7 @@ outputFileJs="./dist/zksync/buildArtifact.js"
 outputFileTsd="./dist/zksync/buildArtifact.d.ts"
 
 # log that we're in the script
-echo 'Finding and processing hardhat build ZKSync artifact...'
+echo 'Finding and processing hardhat build ZkSync artifact...'
 
 # Find most recently modified JSON build artifact
 if [ "$(uname)" = "Darwin" ]; then

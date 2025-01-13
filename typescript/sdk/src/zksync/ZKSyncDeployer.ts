@@ -45,7 +45,7 @@ export class ZKSyncDeployer {
       },
     );
 
-    assert(artifact, `No ZKSync artifact for contract ${contractTitle} found!`);
+    assert(artifact, `No ZkSync artifact for contract ${contractTitle} found!`);
 
     return artifact as any;
   }

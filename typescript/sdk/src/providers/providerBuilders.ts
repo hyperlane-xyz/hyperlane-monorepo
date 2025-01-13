@@ -118,7 +118,7 @@ export function defaultZKSyncProviderBuilder(
   assert(rpcUrls.length, 'No RPC URLs provided');
   const url = rpcUrls[0].http;
   const provider = new ZKProvider(url, network);
-  return { type: ProviderType.ZKSync, provider };
+  return { type: ProviderType.ZkSync, provider };
 }
 
 // Kept for backwards compatibility
@@ -147,7 +147,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.SolanaWeb3]: defaultSolProviderBuilder,
   [ProviderType.CosmJs]: defaultCosmJsProviderBuilder,
   [ProviderType.CosmJsWasm]: defaultCosmJsWasmProviderBuilder,
-  [ProviderType.ZKSync]: defaultZKSyncProviderBuilder,
+  [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<

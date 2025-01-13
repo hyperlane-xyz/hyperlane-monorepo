@@ -418,8 +418,8 @@ export abstract class HyperlaneDeployer<
 
     const explorer = this.multiProvider.tryGetExplorerApi(chain);
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
-    const isZKSyncExplorer = explorer?.family === ExplorerFamily.ZKSync;
-    const isZKSyncChain = technicalStack === ChainTechnicalStack.ZKSync;
+    const isZKSyncExplorer = explorer?.family === ExplorerFamily.ZkSync;
+    const isZKSyncChain = technicalStack === ChainTechnicalStack.ZkSync;
     const signer = this.multiProvider.getSigner(chain);
     const artifact = await getZKSyncArtifactByContractName(contractName);
 
@@ -469,7 +469,7 @@ export abstract class HyperlaneDeployer<
     if (isZKSyncChain) {
       if (!artifact) {
         throw new Error(
-          `No ZKSync artifact found for contract: ${contractName}`,
+          `No ZkSync artifact found for contract: ${contractName}`,
         );
       }
       verificationInput = await getContractVerificationInputForZKSync({

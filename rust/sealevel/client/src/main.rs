@@ -184,8 +184,6 @@ struct CoreDeploy {
     overhead_config_file: Option<PathBuf>,
     #[arg(long)]
     chain: String,
-    #[arg(long)]
-    use_existing_keys: bool,
     #[arg(long, num_args = 1.., value_delimiter = ',')]
     remote_domains: Vec<u32>,
     #[arg(long)]
