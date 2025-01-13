@@ -243,4 +243,7 @@ export const chainOwners: ChainMap<OwnableConfig> = {
   osmosis: {
     owner: 'n/a - nothing owned here',
   },
+  soon: {
+    owner: 'n/a - nothing owned here',
+  },
 };

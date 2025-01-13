@@ -1,4 +1,10 @@
 import {
+  AgentSealevelHeliusFeeLevel,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelPriorityFeeOracleType,
+  AgentSealevelTransactionSubmitter,
+  AgentSealevelTransactionSubmitterType,
+  ChainName,
   GasPaymentEnforcement,
   GasPaymentEnforcementPolicyType,
   MatchingList,
@@ -7,6 +13,7 @@ import {
 
 import {
   AgentChainConfig,
+  HELIUS_SECRET_URL_MARKER,
   RootAgentConfig,
   getAgentChainNamesFromConfig,
 } from '../../../src/config/agent/agent.js';
@@ -142,6 +149,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: true,
     stride: false,
     superseed: true,
     superpositionmainnet: true,
@@ -149,6 +157,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     telos: true,
+    torus: true,
     treasure: true,
     unichain: true,
     vana: true,
@@ -255,6 +264,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: true,
     stride: true,
     superseed: true,
     superpositionmainnet: true,
@@ -262,6 +272,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     telos: true,
+    torus: true,
     treasure: true,
     unichain: true,
     vana: true,
@@ -367,6 +378,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
+    soon: false,
     stride: true,
     superseed: true,
     superpositionmainnet: true,
@@ -374,6 +386,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     taiko: true,
     tangle: true,
     telos: true,
+    torus: true,
     treasure: true,
     unichain: true,
     vana: true,
@@ -396,12 +409,66 @@ export const hyperlaneContextAgentChainNames = getAgentChainNamesFromConfig(
   mainnet3SupportedChainNames,
 );
 
+const sealevelPriorityFeeOracleConfigGetter = (
+  chain: ChainName,
+): AgentSealevelPriorityFeeOracle => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelPriorityFeeOracleType.Helius,
+      feeLevel: AgentSealevelHeliusFeeLevel.Recommended,
+      // URL is auto populated by the external secrets in the helm chart
+      url: '',
+    };
+  } else if (chain === 'eclipsemainnet') {
+    // As of Dec 23:
+    // Eclipse has recently seen some increased usage with their referral program,
+    // and we have had intermittent issues landing txs. Not many txs on Eclipse use
+    // priority fees, so we use a low priority fee.
+    return {
+      type: AgentSealevelPriorityFeeOracleType.Constant,
+      // 2000 micro lamports of ETH, which at a compute unit limit of 400K
+      // and an ETH price of $3450 (Dec 23, 2024) comes to about $0.00276 USD:
+      // >>> (((2000 / 1e6) * 400000) / 1e9) * 3450
+      // 0.00276
+      fee: '2000',
+    };
+  }
+
+  // For all other chains, we use the constant fee oracle with a fee of 0
+  return {
+    type: AgentSealevelPriorityFeeOracleType.Constant,
+    fee: '0',
+  };
+};
+
+const sealevelTransactionSubmitterConfigGetter = (
+  chain: ChainName,
+): AgentSealevelTransactionSubmitter => {
+  // Special case for Solana mainnet
+  if (chain === 'solanamainnet') {
+    return {
+      type: AgentSealevelTransactionSubmitterType.Rpc,
+      url: HELIUS_SECRET_URL_MARKER,
+    };
+  }
+
+  // For all other chains, use the default RPC transaction submitter
+  return {
+    type: AgentSealevelTransactionSubmitterType.Rpc,
+  };
+};
+
 const contextBase = {
   namespace: environment,
   runEnv: environment,
   environmentChainNames: supportedChainNames,
   aws: {
     region: 'us-east-1',
+  },
+  sealevel: {
+    priorityFeeOracleConfigGetter: sealevelPriorityFeeOracleConfigGetter,
+    transactionSubmitterConfigGetter: sealevelTransactionSubmitterConfigGetter,
   },
 } as const;
 
@@ -412,6 +479,10 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     matchingList: [
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
+      // Temporary workaround due to funky Torus gas amounts.
+      { destinationDomain: getDomainId('torus') },
+      // Temporary workaround for some high gas amount estimates on Treasure
+      ...warpRouteMatchingList(WarpRouteIds.ArbitrumTreasureMAGIC),
     ],
   },
   {
@@ -480,21 +551,21 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '15Gi',
+    memory: '20G',
   },
 };
 
 const validatorResources = {
   requests: {
     cpu: '500m',
-    memory: '1Gi',
+    memory: '1G',
   },
 };
 
 const scraperResources = {
   requests: {
     cpu: '2000m',
-    memory: '4Gi',
+    memory: '4G',
   },
 };
 
@@ -530,6 +601,19 @@ const blacklistedMessageIds = [
   // MAGIC/ethereum-treasure native funding txs
   '0x9d51f4123be816cbaeef2e2b34a5760f633a7cb8a019fe16f88a3227cc22451e',
   '0x663c221137028ceeeb102a98e48b362a7b48d626b93c88c7fdf1871a948b1223',
+
+  // txs between unenrolled routers of
+  // ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet
+  '0x229a832dfdfa23dfc27eb773e6b34e87f329067393f4f7b616251b3d7d52d294',
+  '0xcdfd5294e8b1253263908e1919d27675f80a2e9a3bb339b759810efdbb81faa5',
+
+  // txs between unenrolled routers of
+  // USDT/arbitrum-ethereum-mantle-mode-polygon-scroll-zeronetwork
+  '0x10159bf1b5b2142b882cb060d1da9f9123d82974ca265ba432138221e52c2a27',
+
+  // test tx when route was first deployed, no merkle tree insertion
+  // USDC/ethereum-inevm
+  '0x998746dc822dc15332b8683fb8a29aec22ed3e2f2fb8245c40f56303c5cb6032',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -546,7 +630,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7c0c967-20241218-173053',
+      tag: 'df9c1ed-20250109-151923',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -556,7 +640,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '05e90bc-20241216-180035',
+      tag: '2d4963c-20250109-221753',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -566,7 +650,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd84d8da-20241217-172447',
+      tag: '2d4963c-20250109-221753',
     },
     resources: scraperResources,
   },
@@ -581,7 +665,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7c0c967-20241218-173053',
+      tag: 'df9c1ed-20250109-151923',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -615,7 +699,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '25a927d-20241114-171323',
+      tag: '234704d-20241226-192528',
     },
     blacklist,
     gasPaymentEnforcement,
