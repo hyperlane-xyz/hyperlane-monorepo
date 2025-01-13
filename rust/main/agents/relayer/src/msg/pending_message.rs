@@ -338,7 +338,7 @@ impl PendingOperation for PendingMessage {
         PendingOperationResult::Success
     }
 
-    #[instrument]
+    #[instrument(skip(self), fields(id=?self.id(), domain=%self.destination_domain()))]
     async fn submit(&mut self) -> PendingOperationResult {
         if self.submitted {
             // this message has already been submitted, possibly not by us
