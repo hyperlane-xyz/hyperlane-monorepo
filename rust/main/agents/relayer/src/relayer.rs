@@ -647,10 +647,10 @@ impl Relayer {
             .collect()
     }
 
-    /// Helper function to build and return a hashmap of vaidator announces.
-    /// Any chains that fail to build vaidator announce will not be included
+    /// Helper function to build and return a hashmap of validator announces.
+    /// Any chains that fail to build validator announce will not be included
     /// in the hashmap. Errors will be logged and chain metrics
-    /// will be updated for chains that fail to build vaidator announce.
+    /// will be updated for chains that fail to build validator announce.
     pub async fn build_validator_announces(
         settings: &RelayerSettings,
         core_metrics: &CoreMetrics,
