@@ -33,6 +33,8 @@ import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/conf
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
 import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBscLumiaLUMIAWarpConfig.js';
 import { getEthereumFlowCbBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFlowCbBTCWarpConfig.js';
+import { getEthereumFormUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormUSDCWarpConfig.js';
+import { getEthereumFormUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormUSDTWarpConfig.js';
 import { getEthereumFormWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormWBTCWarpConfig.js';
 import { getEthereumFormWSTETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormWSTETHWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
@@ -100,6 +102,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
   [WarpRouteIds.BobaBsquaredSwellUBTC]: getBobaBsquaredSwellUBTCWarpConfig,
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
+  [WarpRouteIds.EthereumFormUSDT]: getEthereumFormUSDTWarpConfig,
+  [WarpRouteIds.EthereumFormUSDC]: getEthereumFormUSDCWarpConfig,
   [WarpRouteIds.EthereumSuperseedUSDT]: getEthereumSuperseedUSDTConfig,
   [WarpRouteIds.OptimismSuperseedOP]: getOptimismSuperseedOPConfig,
   [WarpRouteIds.EthereumZircuitRstETH]: getEthereumZircuitRstETHWarpConfig,
