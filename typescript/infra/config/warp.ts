@@ -125,7 +125,7 @@ export async function getWarpConfig(
     return configWithoutOwner;
   });
   // Isolate the owners from the router config
-  const abacusWorksEnvOwnerConfig = objMap(routerConfig, (_chain, config) => {
+  const abacusWorksEnvOwnerConfig = objMap(routerConfig, (chain, config) => {
     const { owner, ownerOverrides } = config;
     return {
       owner,
@@ -142,5 +142,22 @@ export async function getWarpConfig(
     );
   }
 
-  return warpConfigGetter(routerConfigWithoutOwner, abacusWorksEnvOwnerConfig);
+  const config = await warpConfigGetter(
+    routerConfigWithoutOwner,
+    abacusWorksEnvOwnerConfig,
+  );
+
+  for (const [chain, chainConfig] of Object.entries(config)) {
+    chainConfig.ownerOverrides = {
+      ...chainConfig.ownerOverrides,
+      ...(envConfig.core[chain]?.ownerOverrides?._safeAddress && {
+        _safeAddress: envConfig.core[chain]?.ownerOverrides?._safeAddress,
+      }),
+      ...(envConfig.core[chain]?.ownerOverrides?._icaAddress && {
+        _safeAddress: envConfig.core[chain]?.ownerOverrides?._icaAddress,
+      }),
+    };
+  }
+
+  return config;
 }
