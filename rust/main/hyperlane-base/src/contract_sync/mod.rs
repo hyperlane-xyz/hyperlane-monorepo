@@ -87,6 +87,7 @@ where
     }
 
     /// Sync logs and write them to the LogStore
+    #[allow(unreachable_code)]
     #[instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, opts))]
     pub async fn sync(&self, label: &'static str, mut opts: SyncOptions<T>) {
         let chain_name = self.domain.as_ref();
@@ -108,6 +109,11 @@ where
                     .await;
             }
         }
+
+        // Although the above loop should never end (unless by panicking),
+        // we put log here to make sure that we see when this method returns normally.
+        // Hopefully, compiler will not optimise this code out.
+        info!(chain = chain_name, label, "contract sync loop exit");
     }
 
     #[instrument(fields(domain=self.domain().name()), skip(self, recv, stored_logs_metric))]

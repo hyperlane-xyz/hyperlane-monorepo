@@ -16,5 +16,6 @@ mod validator;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
+    println!("Validator starting up...");
     agent_main::<Validator>().await
 }

@@ -26,5 +26,6 @@ mod store;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
+    println!("Scraper agent starting up...");
     agent_main::<Scraper>().await
 }

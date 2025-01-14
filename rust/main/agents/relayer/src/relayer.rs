@@ -465,11 +465,11 @@ impl Relayer {
                 return tokio::spawn(async {}).instrument(info_span!("MessageSync"));
             }
         };
+        let origin_name = origin.name().to_string();
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
-            contract_sync
-                .clone()
-                .sync("dispatched_messages", cursor.into())
-                .await
+            let label = "dispatched_messages";
+            contract_sync.clone().sync(label, cursor.into()).await;
+            info!(chain = origin_name, label, "contract sync task exit");
         }))
         .instrument(info_span!("MessageSync"))
     }
@@ -496,14 +496,14 @@ impl Relayer {
                 return tokio::spawn(async {}).instrument(info_span!("IgpSync"));
             }
         };
+        let origin_name = origin.name().to_string();
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            let label = "gas_payments";
             contract_sync
                 .clone()
-                .sync(
-                    "gas_payments",
-                    SyncOptions::new(Some(cursor), tx_id_receiver),
-                )
-                .await
+                .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+                .await;
+            info!(chain = origin_name, label, "contract sync task exit");
         }))
         .instrument(info_span!("IgpSync"))
     }
@@ -526,14 +526,14 @@ impl Relayer {
                 return tokio::spawn(async {}).instrument(info_span!("MerkleTreeHookSync"));
             }
         };
+        let origin_name = origin.name().to_string();
         tokio::spawn(TaskMonitor::instrument(&task_monitor, async move {
+            let label = "merkle_tree_hook";
             contract_sync
                 .clone()
-                .sync(
-                    "merkle_tree_hook",
-                    SyncOptions::new(Some(cursor), tx_id_receiver),
-                )
-                .await
+                .sync(label, SyncOptions::new(Some(cursor), tx_id_receiver))
+                .await;
+            info!(chain = origin_name, label, "contract sync task exit");
         }))
         .instrument(info_span!("MerkleTreeHookSync"))
     }

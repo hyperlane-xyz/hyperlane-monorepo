@@ -18,6 +18,7 @@ mod memory_profiler;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 20)]
 async fn main() -> Result<()> {
+    println!("Relayer starting up...");
     let agent_main_fut = agent_main::<Relayer>();
 
     #[cfg(feature = "memory-profiling")]
