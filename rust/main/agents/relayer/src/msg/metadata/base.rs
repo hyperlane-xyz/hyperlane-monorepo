@@ -22,7 +22,10 @@ use crate::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::{Context, Result};
-use hyperlane_base::db::{HyperlaneDb, HyperlaneRocksDB};
+use hyperlane_base::{
+    cache::{FunctionCallCache, LocalCache, MeteredCache, NoParams},
+    db::{HyperlaneDb, HyperlaneRocksDB},
+};
 use hyperlane_base::{
     settings::{ChainConf, CheckpointSyncerConf},
     CheckpointSyncer, CoreMetrics, MultisigCheckpointSyncer,
@@ -33,6 +36,7 @@ use hyperlane_core::{
     ValidatorAnnounce, H160, H256,
 };
 
+use serde::{de::DeserializeOwned, Serialize};
 use tokio::sync::RwLock;
 use tracing::{debug, info, instrument, warn};
 
@@ -228,6 +232,34 @@ impl MessageMetadataBuilder {
         }
     }
 
+    /// Returns the module type of the ISM.
+    /// This method will attempt to get the value from cache first. If it is a cache miss,
+    /// it will request it from the ISM contract. The result will be cached for future use.
+    ///
+    /// Implicit contract in this method: function name `module_type` matches
+    /// the name of the method `module_type`.
+    async fn call_module_type(&self, ism: &dyn InterchainSecurityModule) -> Result<ModuleType> {
+        let contract_address = Some(ism.address());
+        let fn_name = "module_type";
+
+        match self
+            .get_cached_call_result::<ModuleType>(contract_address, fn_name, &NoParams)
+            .await
+        {
+            Some(module_type) => Ok(module_type),
+            None => {
+                let module_type = ism
+                    .module_type()
+                    .await
+                    .context("When fetching module type")?;
+
+                self.cache_call_result(contract_address, fn_name, &NoParams, &module_type)
+                    .await;
+                Ok(module_type)
+            }
+        }
+    }
+
     #[instrument(err, skip(self, message), fields(destination_domain=self.destination_domain().name()), ret)]
     pub async fn build_ism_and_metadata(
         &self,
@@ -239,10 +271,8 @@ impl MessageMetadataBuilder {
             .await
             .context("When building ISM")?;
 
-        let module_type = ism
-            .module_type()
-            .await
-            .context("When fetching module type")?;
+        let module_type = self.call_module_type(&ism).await?;
+
         let cloned = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
@@ -281,6 +311,7 @@ pub struct BaseMetadataBuilder {
     allow_local_checkpoint_syncers: bool,
     metrics: Arc<CoreMetrics>,
     db: HyperlaneRocksDB,
+    cache: MeteredCache<LocalCache>,
     app_context_classifier: IsmAwareAppContextClassifier,
     #[new(value = "7")]
     max_depth: u32,
@@ -333,6 +364,38 @@ impl BaseMetadataBuilder {
             .db
             .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
         Ok(merkle_leaf)
+    }
+
+    pub async fn cache_call_result(
+        &self,
+        contract_address: Option<H256>,
+        method: &str,
+        call_params: &(impl Serialize + Send + Sync),
+        result: &(impl Serialize + Send + Sync),
+    ) {
+        self.cache
+            .cache_call_result(contract_address, method, call_params, result)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when caching call result for {:?}", method);
+            })
+            .ok();
+    }
+
+    pub async fn get_cached_call_result<T: DeserializeOwned>(
+        &self,
+        contract_address: Option<H256>,
+        method: &str,
+        serialized_params: &(impl Serialize + Send + Sync),
+    ) -> Option<T> {
+        self.cache
+            .get_cached_call_result(contract_address, method, serialized_params)
+            .await
+            .map_err(|err| {
+                warn!(error = %err, "Error when fetching cached call result for {:?}", method);
+            })
+            .ok()
+            .flatten()
     }
 
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {
