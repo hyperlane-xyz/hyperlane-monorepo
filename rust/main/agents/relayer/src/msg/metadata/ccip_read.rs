@@ -27,7 +27,7 @@ pub struct CcipReadIsmMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for CcipReadIsmMetadataBuilder {
-    #[instrument(err, skip(self))]
+    #[instrument(err, skip(self, message))]
     async fn build(
         &self,
         ism_address: H256,

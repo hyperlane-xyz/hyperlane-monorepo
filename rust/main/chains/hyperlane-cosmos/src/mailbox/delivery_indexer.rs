@@ -60,34 +60,42 @@ impl CosmosMailboxDeliveryIndexer {
         let mut message_id: Option<Delivery> = None;
 
         for attr in attrs {
-            let key = attr.key.as_str();
-            let value = attr.value.as_str();
+            match attr {
+                EventAttribute::V037(a) => {
+                    let key = a.key.as_str();
+                    let value = a.value.as_str();
 
-            match key {
-                CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
-                    contract_address = Some(value.to_string());
-                }
-                v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
-                    contract_address = Some(String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?);
+                    match key {
+                        CONTRACT_ADDRESS_ATTRIBUTE_KEY => {
+                            contract_address = Some(value.to_string());
+                        }
+                        v if *CONTRACT_ADDRESS_ATTRIBUTE_KEY_BASE64 == v => {
+                            contract_address = Some(String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?);
+                        }
+
+                        MESSAGE_ID_ATTRIBUTE_KEY => {
+                            message_id = Some(value.parse::<H256>()?);
+                        }
+                        v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
+                            let hex = String::from_utf8(
+                                BASE64
+                                    .decode(value)
+                                    .map_err(Into::<HyperlaneCosmosError>::into)?,
+                            )?;
+                            message_id = Some(hex.parse::<H256>()?);
+                        }
+
+                        _ => {}
+                    }
                 }
 
-                MESSAGE_ID_ATTRIBUTE_KEY => {
-                    message_id = Some(value.parse::<H256>()?);
+                EventAttribute::V034(a) => {
+                    unimplemented!();
                 }
-                v if *MESSAGE_ID_ATTRIBUTE_KEY_BASE64 == v => {
-                    let hex = String::from_utf8(
-                        BASE64
-                            .decode(value)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?,
-                    )?;
-                    message_id = Some(hex.parse::<H256>()?);
-                }
-
-                _ => {}
             }
         }
 
