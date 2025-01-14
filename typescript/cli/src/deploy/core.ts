@@ -9,6 +9,7 @@ import {
   DeployedCoreAddresses,
   EvmCoreModule,
   ExplorerLicenseType,
+  isIsmCompatible,
 } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -21,7 +22,6 @@ import { indentYamlOrJson } from '../utils/files.js';
 
 import {
   completeDeploy,
-  isIsmCompatible,
   prepareDeploy,
   runDeployPlanStep,
   runPreflightChecksForChains,

@@ -202,7 +202,12 @@ export {
   WeightedMultisigIsmConfig,
   WeightedMultisigIsmConfigSchema,
 } from './ism/types.js';
-export { collectValidators, moduleCanCertainlyVerify } from './ism/utils.js';
+export {
+  collectValidators,
+  moduleCanCertainlyVerify,
+  isStaticDeploymentSupported,
+  isIsmCompatible,
+} from './ism/utils.js';
 export {
   AgentChainMetadata,
   AgentChainMetadataSchema,
@@ -642,9 +647,3 @@ export {
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 
 export { MailboxClientConfigSchema as mailboxClientConfigSchema } from './router/types.js';
-
-export {
-  isStaticDeploymentSupported,
-  isIsmStatic,
-  skipStaticDeployment,
-} from './deploy/protocolDeploymentConfig.js';

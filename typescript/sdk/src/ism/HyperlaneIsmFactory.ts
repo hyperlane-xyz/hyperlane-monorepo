@@ -48,10 +48,6 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import {
-  isIsmStatic,
-  isStaticDeploymentSupported,
-} from '../deploy/protocolDeploymentConfig.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -69,7 +65,7 @@ import {
   RoutingIsmDelta,
   WeightedMultisigIsmConfig,
 } from './types.js';
-import { routingModuleDelta } from './utils.js';
+import { isIsmCompatible, routingModuleDelta } from './utils.js';
 
 const ismFactories = {
   [IsmType.PAUSABLE]: new PausableIsm__factory(),
@@ -155,7 +151,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     // For static ISM types it checks whether the technical stack supports static contract deployment
     assert(
-      !isIsmStatic[ismType] || isStaticDeploymentSupported(technicalStack),
+      isIsmCompatible({ chainTechnicalStack: technicalStack, ismType }),
       `Technical stack ${technicalStack} is not compatible with ${ismType}`,
     );
 
