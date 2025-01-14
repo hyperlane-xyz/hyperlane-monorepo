@@ -1,5 +1,3 @@
-import { BigNumber as BigNumberJs } from 'bignumber.js';
-
 import { ChainMap, GasPriceConfig } from '@hyperlane-xyz/sdk';
 
 import {
@@ -9,10 +7,16 @@ import {
 
 import { testChainNames } from './chains.js';
 
-const TEST_TOKEN_EXCHANGE_RATE = new BigNumberJs('1');
+const TEST_TOKEN_EXCHANGE_RATE = '1';
 const TEST_GAS_PRICE_CONFIG: GasPriceConfig = {
   amount: '2',
   decimals: 9, // gwei
+};
+
+const tokenPrices: ChainMap<string> = {
+  test1: TEST_TOKEN_EXCHANGE_RATE,
+  test2: TEST_TOKEN_EXCHANGE_RATE,
+  test3: TEST_TOKEN_EXCHANGE_RATE,
 };
 
 const gasPrices: ChainMap<GasPriceConfig> = {
@@ -22,8 +26,4 @@ const gasPrices: ChainMap<GasPriceConfig> = {
 };
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
-  getAllStorageGasOracleConfigs(
-    testChainNames,
-    gasPrices,
-    (_local, _remote) => TEST_TOKEN_EXCHANGE_RATE,
-  );
+  getAllStorageGasOracleConfigs(testChainNames, tokenPrices, gasPrices);

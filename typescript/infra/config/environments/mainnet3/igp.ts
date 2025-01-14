@@ -44,18 +44,6 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
     supportedChainNames,
     tokenPrices,
     gasPrices,
-    // (local, remote) =>
-    //   getTokenExchangeRateFromValues({
-    //     local,
-    //     remote,
-    //     tokenPrices,
-    //     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
-    //     decimals: {
-    //       local: mustGetChainNativeToken(local).decimals,
-    //       remote: mustGetChainNativeToken(remote).decimals,
-    //     },
-    //   }),
-    // (local) => parseFloat(tokenPrices[local]),
     (local, remote) => getOverheadWithOverrides(local, remote),
   );
 
