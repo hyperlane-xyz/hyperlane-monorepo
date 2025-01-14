@@ -1,17 +1,23 @@
+import { BigNumber as BigNumberJs } from 'bignumber.js';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  ChainGasOracleParams,
   ChainMap,
   ChainName,
   GasPriceConfig,
   StorageGasOracleConfig,
   TOKEN_EXCHANGE_RATE_SCALE,
   defaultMultisigConfigs,
+  getLocalStorageGasOracleConfig,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 
-import { isEthereumProtocolChain } from '../utils/utils.js';
+import {
+  isEthereumProtocolChain,
+  mustGetChainNativeToken,
+} from '../utils/utils.js';
 
 // gas oracle configs for each chain, which includes
 // a map for each chain's remote chains
@@ -33,57 +39,27 @@ function getLocalStorageGasOracleConfigOverride(
   local: ChainName,
   remotes: ChainName[],
   gasPrices: ChainMap<GasPriceConfig>,
-  getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
+  getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumberJs,
   getTokenUsdPrice?: (chain: ChainName) => number,
   getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): ChainMap<StorageGasOracleConfig> {
-  return remotes.reduce((agg, remote) => {
-    let exchangeRate = getTokenExchangeRate(local, remote);
-    if (!gasPrices[remote]) {
-      // Will run into this case when adding new chains
-      console.warn(chalk.yellow(`No gas price set for ${remote}`));
-      return agg;
-    }
+  const gasOracleParams = [local, ...remotes].reduce((agg, remote) => {
+    agg[remote] = {
+      gasPrice: gasPrices[remote],
+      nativeToken: {
+        price: getTokenUsdPrice ? getTokenUsdPrice(remote).toString() : '0',
+        decimals: mustGetChainNativeToken(remote).decimals,
+      },
+    };
+    return agg;
+  }, {} as ChainMap<ChainGasOracleParams>);
 
-    // First parse as a number, so we have floating point precision.
-    // Recall it's possible to have gas prices that are not integers, even
-    // after converting to the "wei" version of the token.
-    let gasPrice =
-      parseFloat(gasPrices[remote].amount) *
-      Math.pow(10, gasPrices[remote].decimals);
-    if (isNaN(gasPrice)) {
-      throw new Error(
-        `Invalid gas price for chain ${remote}: ${gasPrices[remote]}`,
-      );
-    }
-
-    // We have very little precision and ultimately need an integer value for
-    // the gas price that will be set on-chain. We scale up the gas price and
-    // scale down the exchange rate by the same factor.
-    if (gasPrice < 10 && gasPrice % 1 !== 0) {
-      // Scale up the gas price by 1e4
-      const gasPriceScalingFactor = 1e4;
-
-      // Check that there's no significant underflow when applying
-      // this to the exchange rate:
-      const adjustedExchangeRate = exchangeRate.div(gasPriceScalingFactor);
-      const recoveredExchangeRate = adjustedExchangeRate.mul(
-        gasPriceScalingFactor,
-      );
-      if (recoveredExchangeRate.mul(100).div(exchangeRate).lt(99)) {
-        throw new Error('Too much underflow when downscaling exchange rate');
-      }
-
-      // Apply the scaling factor
-      exchangeRate = adjustedExchangeRate;
-      gasPrice *= gasPriceScalingFactor;
-    }
-
-    // Our integer gas price.
-    let gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
-
-    // If we have access to these, let's use the USD prices to apply some minimum
-    // typical USD payment heuristics.
+  const gasPriceModifier = (
+    local: ChainName,
+    remote: ChainName,
+    exchangeRate: BigNumber,
+    gasPrice: BigNumber,
+  ) => {
     if (getTokenUsdPrice && getOverhead) {
       const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
         local,
@@ -92,7 +68,7 @@ function getLocalStorageGasOracleConfigOverride(
       );
       const typicalIgpQuoteUsd = getUsdQuote(
         local,
-        gasPriceBn,
+        gasPrice,
         exchangeRate,
         typicalRemoteGasAmount,
         getTokenUsdPrice,
@@ -104,20 +80,102 @@ function getLocalStorageGasOracleConfigOverride(
         const minIgpQuote = ethers.utils.parseEther(
           (minUsdCost / getTokenUsdPrice(local)).toPrecision(8),
         );
-        gasPriceBn = minIgpQuote
+        return minIgpQuote
           .mul(TOKEN_EXCHANGE_RATE_SCALE)
           .div(exchangeRate.mul(typicalRemoteGasAmount));
       }
     }
+    return gasPrice;
+  };
 
-    return {
-      ...agg,
-      [remote]: {
-        tokenExchangeRate: exchangeRate,
-        gasPrice: gasPriceBn,
-      },
-    };
-  }, {});
+  return getLocalStorageGasOracleConfig({
+    local,
+    gasOracleParams,
+    exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
+    gasPriceModifier,
+  });
+
+  // return remotes.reduce((agg, remote) => {
+  //   let exchangeRate = getTokenExchangeRate(local, remote);
+  //   if (!gasPrices[remote]) {
+  //     // Will run into this case when adding new chains
+  //     console.warn(chalk.yellow(`No gas price set for ${remote}`));
+  //     return agg;
+  //   }
+
+  //   // First parse as a number, so we have floating point precision.
+  //   // Recall it's possible to have gas prices that are not integers, even
+  //   // after converting to the "wei" version of the token.
+  //   let gasPrice =
+  //     parseFloat(gasPrices[remote].amount) *
+  //     Math.pow(10, gasPrices[remote].decimals);
+  //   if (isNaN(gasPrice)) {
+  //     throw new Error(
+  //       `Invalid gas price for chain ${remote}: ${gasPrices[remote]}`,
+  //     );
+  //   }
+
+  //   // We have very little precision and ultimately need an integer value for
+  //   // the gas price that will be set on-chain. We scale up the gas price and
+  //   // scale down the exchange rate by the same factor.
+  //   if (gasPrice < 10 && gasPrice % 1 !== 0) {
+  //     // Scale up the gas price by 1e4
+  //     const gasPriceScalingFactor = 1e4;
+
+  //     // Check that there's no significant underflow when applying
+  //     // this to the exchange rate:
+  //     const adjustedExchangeRate = exchangeRate.div(gasPriceScalingFactor);
+  //     const recoveredExchangeRate = adjustedExchangeRate.mul(
+  //       gasPriceScalingFactor,
+  //     );
+  //     if (recoveredExchangeRate.mul(100).div(exchangeRate).lt(99)) {
+  //       throw new Error('Too much underflow when downscaling exchange rate');
+  //     }
+
+  //     // Apply the scaling factor
+  //     exchangeRate = adjustedExchangeRate;
+  //     gasPrice *= gasPriceScalingFactor;
+  //   }
+
+  //   // Our integer gas price.
+  //   let gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
+
+  //   // If we have access to these, let's use the USD prices to apply some minimum
+  //   // typical USD payment heuristics.
+  //   if (getTokenUsdPrice && getOverhead) {
+  //     const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
+  //       local,
+  //       remote,
+  //       getOverhead,
+  //     );
+  //     const typicalIgpQuoteUsd = getUsdQuote(
+  //       local,
+  //       gasPriceBn,
+  //       exchangeRate,
+  //       typicalRemoteGasAmount,
+  //       getTokenUsdPrice,
+  //     );
+
+  //     const minUsdCost = getMinUsdCost(local, remote);
+  //     if (typicalIgpQuoteUsd < minUsdCost) {
+  //       // Adjust the gasPrice to meet the minimum cost
+  //       const minIgpQuote = ethers.utils.parseEther(
+  //         (minUsdCost / getTokenUsdPrice(local)).toPrecision(8),
+  //       );
+  //       gasPriceBn = minIgpQuote
+  //         .mul(TOKEN_EXCHANGE_RATE_SCALE)
+  //         .div(exchangeRate.mul(typicalRemoteGasAmount));
+  //     }
+  //   }
+
+  //   return {
+  //     ...agg,
+  //     [remote]: {
+  //       tokenExchangeRate: exchangeRate,
+  //       gasPrice: gasPriceBn,
+  //     },
+  //   };
+  // }, {});
 }
 
 export function getTypicalRemoteGasAmount(
@@ -204,7 +262,7 @@ export function getOverhead(
 export function getAllStorageGasOracleConfigs(
   chainNames: ChainName[],
   gasPrices: ChainMap<GasPriceConfig>,
-  getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumber,
+  getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumberJs,
   getTokenUsdPrice?: (chain: ChainName) => number,
   getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): AllStorageGasOracleConfigs {

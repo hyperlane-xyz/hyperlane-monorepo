@@ -1,11 +1,13 @@
 import { Provider } from '@ethersproject/providers';
+import { BigNumber as BigNumberJs } from 'bignumber.js';
+import { assert } from 'console';
 import { BigNumber, ethers } from 'ethers';
 
 import { ProtocolType, convertDecimals, objMap } from '@hyperlane-xyz/utils';
 
 import {
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-  TOKEN_EXCHANGE_RATE_SCALE,
+  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
+  TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL,
 } from '../consts/igp.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { AgentCosmosGasPrice } from '../metadata/agentConfig.js';
@@ -114,29 +116,61 @@ export function getTokenExchangeRateFromValues({
   tokenPrices: ChainMap<string>;
   exchangeRateMarginPct: number;
   decimals: { local: number; remote: number };
-}): BigNumber {
+}): BigNumberJs {
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
   const defaultValue = '1';
-  const localValue = ethers.utils.parseUnits(
-    tokenPrices[local] ?? defaultValue,
-    TOKEN_EXCHANGE_RATE_DECIMALS,
-  );
-  const remoteValue = ethers.utils.parseUnits(
-    tokenPrices[remote] ?? defaultValue,
-    TOKEN_EXCHANGE_RATE_DECIMALS,
-  );
+  const localValue = new BigNumberJs(tokenPrices[local] ?? defaultValue);
+  const remoteValue = new BigNumberJs(tokenPrices[remote] ?? defaultValue);
 
+  console.log(
+    'yeet 1',
+    local,
+    remote,
+    'localValue',
+    localValue.toString(),
+    'remoteValue',
+    remoteValue.toString(),
+  );
   // This does not yet account for decimals!
-  let exchangeRate = remoteValue.mul(TOKEN_EXCHANGE_RATE_SCALE).div(localValue);
+  let exchangeRate = remoteValue.div(localValue);
+  console.log('yeet 2', local, remote, 'exchangeRate', exchangeRate.toString());
   // Apply the premium
-  exchangeRate = exchangeRate.mul(100 + exchangeRateMarginPct).div(100);
+  exchangeRate = exchangeRate.times(100 + exchangeRateMarginPct).div(100);
+  console.log('yeet 3', local, remote, 'exchangeRate', exchangeRate.toString());
 
-  return BigNumber.from(
-    convertDecimals(decimals.remote, decimals.local, exchangeRate.toString()),
+  const value = convertDecimals(decimals.remote, decimals.local, exchangeRate);
+  console.log('yeet 4', local, remote, 'value', value.toString());
+  assert(
+    value.isGreaterThan(0),
+    'Exchange rate must be greater than 0, possible loss of precision',
   );
+  return value;
 }
+
+function getProtocolSpecificExchangeRate(
+  exchangeRate: BigNumberJs,
+  protocolType: ProtocolType,
+): BigNumber {
+  let multiplierDecimals = 1;
+  if (protocolType === ProtocolType.Ethereum) {
+    multiplierDecimals = TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM;
+  } else if (protocolType === ProtocolType.Sealevel) {
+    multiplierDecimals = TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL;
+  } else {
+    // TODO: add support for other protocols. Default to Ethereum for now.
+    multiplierDecimals = TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM;
+  }
+  const multiplier = new BigNumberJs(10).pow(multiplierDecimals);
+  const integer = exchangeRate
+    .times(multiplier)
+    .integerValue(BigNumberJs.ROUND_FLOOR)
+    .toString(10);
+  return BigNumber.from(integer);
+}
+
+// The move is to somehow scale up the gas price and scale down the exchange rate by the same factor.
 
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
 // Accommodates small non-integer gas prices by scaling up the gas price
@@ -145,10 +179,17 @@ export function getLocalStorageGasOracleConfig({
   local,
   gasOracleParams,
   exchangeRateMarginPct,
+  gasPriceModifier,
 }: {
   local: ChainName;
   gasOracleParams: ChainMap<ChainGasOracleParams>;
   exchangeRateMarginPct: number;
+  gasPriceModifier?: (
+    local: ChainName,
+    remote: ChainName,
+    exchangeRate: BigNumber,
+    gasPrice: BigNumber,
+  ) => BigNumber;
 }): ChainMap<StorageGasOracleConfig> {
   const remotes = Object.keys(gasOracleParams).filter(
     (remote) => remote !== local,
@@ -160,13 +201,27 @@ export function getLocalStorageGasOracleConfig({
   const localDecimals = gasOracleParams[local].nativeToken.decimals;
   return remotes.reduce((agg, remote) => {
     const remoteDecimals = gasOracleParams[remote].nativeToken.decimals;
-    let exchangeRate = getTokenExchangeRateFromValues({
+    let exchangeRateFloat = getTokenExchangeRateFromValues({
       local,
       remote,
       tokenPrices,
       exchangeRateMarginPct,
       decimals: { local: localDecimals, remote: remoteDecimals },
     });
+
+    console.log(
+      'exchangeRateFloat before protocol specific',
+      exchangeRateFloat.toString(),
+    );
+    let exchangeRate = getProtocolSpecificExchangeRate(
+      exchangeRateFloat,
+      // TODO need to get this
+      ProtocolType.Ethereum,
+    );
+    console.log(
+      'exchangeRate after protocol specific',
+      exchangeRate.toString(),
+    );
 
     // First parse as a number, so we have floating point precision.
     // Recall it's possible to have gas prices that are not integers, even
@@ -203,7 +258,11 @@ export function getLocalStorageGasOracleConfig({
     }
 
     // Our integer gas price.
-    const gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
+    let gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
+
+    if (gasPriceModifier) {
+      gasPriceBn = gasPriceModifier(local, remote, exchangeRate, gasPriceBn);
+    }
 
     return {
       ...agg,

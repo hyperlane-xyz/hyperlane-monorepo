@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { z } from 'zod';
 
-import { TOKEN_EXCHANGE_RATE_DECIMALS } from '../../consts/igp.js';
+import { TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM } from '../../consts/igp.js';
 
 export const StorageGasOracleConfigSchema = z.object({
   gasPrice: z.string(),
@@ -26,7 +26,7 @@ export const formatGasOracleConfig = (
 } => ({
   tokenExchangeRate: ethers.utils.formatUnits(
     config.tokenExchangeRate,
-    TOKEN_EXCHANGE_RATE_DECIMALS,
+    TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
   ),
   gasPrice: ethers.utils.formatUnits(config.gasPrice, 'gwei'),
 });

@@ -5,7 +5,7 @@ import {
   HexString,
   ProtocolType,
   assert,
-  convertDecimals,
+  convertDecimalsIntegerString,
   convertToProtocolAddress,
   isValidAddress,
   isZeroishAddress,
@@ -502,7 +502,7 @@ export class WarpCore {
       );
     }
 
-    const destinationBalanceInOriginDecimals = convertDecimals(
+    const destinationBalanceInOriginDecimals = convertDecimalsIntegerString(
       destinationToken.decimals,
       originToken.decimals,
       destinationBalance.toString(),
@@ -679,7 +679,7 @@ export class WarpCore {
 
     // Convert the minDestinationTransferAmount to an origin amount
     const minOriginTransferAmount = destinationToken.amount(
-      convertDecimals(
+      convertDecimalsIntegerString(
         originToken.decimals,
         destinationToken.decimals,
         minDestinationTransferAmount.toString(),

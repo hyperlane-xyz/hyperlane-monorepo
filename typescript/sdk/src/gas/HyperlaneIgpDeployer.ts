@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/core';
 import { eqAddress, rootLogger } from '@hyperlane-xyz/utils';
 
-import { TOKEN_EXCHANGE_RATE_SCALE } from '../consts/igp.js';
+import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
@@ -144,7 +144,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       const exampleRemoteGasCost = desiredData.tokenExchangeRate
         .mul(desiredData.gasPrice)
         .mul(exampleRemoteGas)
-        .div(TOKEN_EXCHANGE_RATE_SCALE);
+        .div(TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM);
       this.logger.info(
         `${chain} -> ${remote}: ${exampleRemoteGas} remote gas cost: ${ethers.utils.formatEther(
           exampleRemoteGasCost,
