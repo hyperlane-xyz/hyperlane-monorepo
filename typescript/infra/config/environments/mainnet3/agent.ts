@@ -374,7 +374,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     morph: true,
     nero: true,
-    neutron: true,
+    // Jan 14th - temporarily disabled while Neutron chain is down and RPCs give issues, causing scraper startup problems
+    neutron: false,
     oortmainnet: true,
     optimism: true,
     orderly: true,
@@ -397,7 +398,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
-    soon: false,
+    soon: true,
     stride: true,
     // subtensor: true,
     superseed: true,
@@ -672,7 +673,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '53fafa6-20250110-125541',
+      tag: 'd365e55-20250114-011047',
     },
     resources: scraperResources,
   },
