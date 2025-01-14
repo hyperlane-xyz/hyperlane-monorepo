@@ -25,18 +25,21 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
+    tokenPrices,
     gasPrices,
-    (local, remote) =>
-      getTokenExchangeRateFromValues({
-        local,
-        remote,
-        tokenPrices,
-        exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
-        decimals: {
-          local: mustGetChainNativeToken(local).decimals,
-          remote: mustGetChainNativeToken(remote).decimals,
-        },
-      }),
+    // (local, remote) => {
+    //   console.log('testnet4 tokenPrices before!!', tokenPrices);
+    //   return getTokenExchangeRateFromValues({
+    //     local,
+    //     remote,
+    //     tokenPrices,
+    //     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
+    //     decimals: {
+    //       local: mustGetChainNativeToken(local).decimals,
+    //       remote: mustGetChainNativeToken(remote).decimals,
+    //     },
+    //   })
+    // }
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(

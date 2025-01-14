@@ -38,16 +38,15 @@ export const TYPICAL_HANDLE_GAS_USAGE = 50_000;
 function getLocalStorageGasOracleConfigOverride(
   local: ChainName,
   remotes: ChainName[],
+  tokenPrices: ChainMap<string>,
   gasPrices: ChainMap<GasPriceConfig>,
-  getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumberJs,
-  getTokenUsdPrice?: (chain: ChainName) => number,
   getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): ChainMap<StorageGasOracleConfig> {
   const gasOracleParams = [local, ...remotes].reduce((agg, remote) => {
     agg[remote] = {
       gasPrice: gasPrices[remote],
       nativeToken: {
-        price: getTokenUsdPrice ? getTokenUsdPrice(remote).toString() : '0',
+        price: tokenPrices[remote],
         decimals: mustGetChainNativeToken(remote).decimals,
       },
     };
@@ -60,25 +59,25 @@ function getLocalStorageGasOracleConfigOverride(
     exchangeRate: BigNumber,
     gasPrice: BigNumber,
   ) => {
-    if (getTokenUsdPrice && getOverhead) {
+    if (getOverhead) {
       const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
         local,
         remote,
         getOverhead,
       );
+      const localTokenUsdPrice = parseFloat(tokenPrices[local]);
       const typicalIgpQuoteUsd = getUsdQuote(
-        local,
+        localTokenUsdPrice,
         gasPrice,
         exchangeRate,
         typicalRemoteGasAmount,
-        getTokenUsdPrice,
       );
 
       const minUsdCost = getMinUsdCost(local, remote);
       if (typicalIgpQuoteUsd < minUsdCost) {
         // Adjust the gasPrice to meet the minimum cost
         const minIgpQuote = ethers.utils.parseEther(
-          (minUsdCost / getTokenUsdPrice(local)).toPrecision(8),
+          (minUsdCost / localTokenUsdPrice).toPrecision(8),
         );
         return minIgpQuote
           .mul(TOKEN_EXCHANGE_RATE_SCALE)
@@ -225,18 +224,17 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
 }
 
 function getUsdQuote(
-  local: ChainName,
+  localTokenUsdPrice: number,
   gasPrice: BigNumber,
   exchangeRate: BigNumber,
   remoteGasAmount: number,
-  getTokenUsdPrice: (chain: ChainName) => number,
 ): number {
   const quote = gasPrice
     .mul(exchangeRate)
     .mul(remoteGasAmount)
     .div(TOKEN_EXCHANGE_RATE_SCALE);
   const quoteUsd =
-    getTokenUsdPrice(local) * parseFloat(ethers.utils.formatEther(quote));
+    localTokenUsdPrice * parseFloat(ethers.utils.formatEther(quote));
 
   return quoteUsd;
 }
@@ -261,9 +259,8 @@ export function getOverhead(
 // Gets the map of remote gas oracle configs for each local chain
 export function getAllStorageGasOracleConfigs(
   chainNames: ChainName[],
+  tokenPrices: ChainMap<string>,
   gasPrices: ChainMap<GasPriceConfig>,
-  getTokenExchangeRate: (local: ChainName, remote: ChainName) => BigNumberJs,
-  getTokenUsdPrice?: (chain: ChainName) => number,
   getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): AllStorageGasOracleConfigs {
   return chainNames.filter(isEthereumProtocolChain).reduce((agg, local) => {
@@ -273,9 +270,8 @@ export function getAllStorageGasOracleConfigs(
       [local]: getLocalStorageGasOracleConfigOverride(
         local,
         remotes,
+        tokenPrices,
         gasPrices,
-        getTokenExchangeRate,
-        getTokenUsdPrice,
         getOverhead,
       ),
     };

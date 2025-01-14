@@ -117,6 +117,7 @@ export function getTokenExchangeRateFromValues({
   exchangeRateMarginPct: number;
   decimals: { local: number; remote: number };
 }): BigNumberJs {
+  console.log('bruh tokenPrices', tokenPrices);
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
@@ -124,14 +125,22 @@ export function getTokenExchangeRateFromValues({
   const localValue = new BigNumberJs(tokenPrices[local] ?? defaultValue);
   const remoteValue = new BigNumberJs(tokenPrices[remote] ?? defaultValue);
 
+  if (localValue.isZero() || remoteValue.isZero()) {
+    console.log('exchangeRateMarginPct', exchangeRateMarginPct, decimals);
+    // print stacktrace
+    console.trace();
+  }
+
   console.log(
     'yeet 1',
     local,
     remote,
     'localValue',
     localValue.toString(),
+    tokenPrices[local],
     'remoteValue',
     remoteValue.toString(),
+    tokenPrices[remote],
   );
   // This does not yet account for decimals!
   let exchangeRate = remoteValue.div(localValue);

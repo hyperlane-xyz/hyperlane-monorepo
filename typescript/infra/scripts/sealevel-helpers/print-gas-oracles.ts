@@ -11,29 +11,29 @@ async function main() {
 
   const environmentConfig = getEnvironmentConfig(args.environment);
 
-  // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
-  const gasOracles = objMap(environmentConfig.igp, (origin, igpConfig) => {
-    console.log('origin', origin, 'igpConfig', igpConfig);
-    let a = objMap(igpConfig.oracleConfig, (destination, oracleConfig) => {
-      console.log('origin', origin, 'destination', destination);
-      console.log(
-        'oracleConfig',
-        oracleConfig,
-        'overhead',
-        igpConfig?.overhead?.[destination],
-      );
-      return {
-        oracleConfig,
-        overhead: igpConfig?.overhead?.[destination],
-      };
-    });
-    // console.log('a', a, 'origin');
-    return 'sup';
-  });
+  // // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
+  // const gasOracles = objMap(environmentConfig.igp, (origin, igpConfig) => {
+  //   console.log('origin', origin, 'igpConfig', igpConfig);
+  //   let a = objMap(igpConfig.oracleConfig, (destination, oracleConfig) => {
+  //     console.log('origin', origin, 'destination', destination);
+  //     console.log(
+  //       'oracleConfig',
+  //       oracleConfig,
+  //       'overhead',
+  //       igpConfig?.overhead?.[destination],
+  //     );
+  //     return {
+  //       oracleConfig,
+  //       overhead: igpConfig?.overhead?.[destination],
+  //     };
+  //   });
+  //   // console.log('a', a, 'origin');
+  //   return 'sup';
+  // });
 
   console.log('do we get here ?');
 
-  console.log(JSON.stringify(gasOracles, null, 2));
+  // console.log(JSON.stringify(gasOracles, null, 2));
 }
 
 main().catch((err) => {
