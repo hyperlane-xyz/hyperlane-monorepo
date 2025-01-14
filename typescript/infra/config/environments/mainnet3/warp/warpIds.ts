@@ -50,4 +50,5 @@ export enum WarpRouteIds {
   BaseFormAIXBT = 'AIXBT/base-form',
   BaseFormGAME = 'GAME/base-form',
   ArtelaBaseUSDC = 'USDC/artela-base',
+  ArtelaBaseWETH = 'WETH/artela-base',
 }
