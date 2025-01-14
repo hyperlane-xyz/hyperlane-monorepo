@@ -6,7 +6,10 @@ import {
   ERC20Test__factory,
   ERC4626Test__factory,
 } from '@hyperlane-xyz/core';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  ChainAddresses,
+  createWarpRouteConfigId,
+} from '@hyperlane-xyz/registry';
 import {
   HypTokenRouterConfig,
   WarpCoreConfig,
@@ -52,8 +55,9 @@ export function getCombinedWarpRoutePath(
   tokenSymbol: string,
   chains: string[],
 ): string {
-  return `${REGISTRY_PATH}/deployments/warp_routes/${tokenSymbol.toUpperCase()}/${chains.join(
-    '-',
+  return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
+    tokenSymbol.toUpperCase(),
+    chains,
   )}-config.yaml`;
 }
 
