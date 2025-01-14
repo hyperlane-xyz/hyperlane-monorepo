@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '05e90bc-20241216-180025',
+    tag: 'dc89eb1-20250110-113045',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -26,12 +26,14 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   // desired balance config, must be set for each chain
   desiredBalancePerChain: {
+    // acala: '5',
     ancient8: '0.5',
     alephzeroevmmainnet: '100',
     apechain: '50',
     appchain: '0.05',
     arbitrum: '0.5',
     arbitrumnova: '0.05',
+    artela: '2',
     arthera: '0.1',
     astar: '100',
     astarzkevm: '0.05',
@@ -46,7 +48,7 @@ export const keyFunderConfig: KeyFunderConfig<
     boba: '0.05',
     bsc: '5',
     bsquared: '0.002',
-    celo: '3',
+    celo: '4',
     cheesechain: '50',
     chilizmainnet: '200',
     conflux: '100',
@@ -70,13 +72,15 @@ export const keyFunderConfig: KeyFunderConfig<
     fusemainnet: '20',
     gnosis: '5',
     gravity: '500',
+    guru: '100',
     harmony: '500',
+    hemi: '0.05',
     immutablezkevmmainnet: '25',
     inevm: '3',
     ink: '0.05',
     kaia: '250',
     kroma: '0.05',
-    linea: '0.2',
+    linea: '1',
     lisk: '0.05',
     lukso: '20',
     lumia: '1',
@@ -89,15 +93,16 @@ export const keyFunderConfig: KeyFunderConfig<
     mint: '0.05',
     mode: '0.2',
     molten: '3',
-    moonbeam: '5',
-    morph: '0.05',
+    moonbeam: '100',
+    morph: '0.1',
+    nero: '5',
     oortmainnet: '2000',
     optimism: '0.5',
     orderly: '0.05',
-    polygon: '20',
+    polygon: '40',
     polygonzkevm: '0.5',
     polynomialfi: '0.05',
-    prom: '5',
+    prom: '18',
     proofofplay: '0.05',
     rarichain: '0.05',
     real: '0.1',
@@ -113,13 +118,15 @@ export const keyFunderConfig: KeyFunderConfig<
     sonic: '0.5',
     // ignore non-evm chains
     stride: '0',
+    // subtensor: '0.05',
     superseed: '0.05',
     superpositionmainnet: '0.05',
     swell: '0.05',
     taiko: '0.2',
     tangle: '2',
     telos: '100',
-    treasure: '100',
+    torus: '5',
+    treasure: '900',
     unichain: '0.05',
     // temporarily low until we're able to fund more
     vana: '0.001',
@@ -127,6 +134,7 @@ export const keyFunderConfig: KeyFunderConfig<
     worldchain: '0.2',
     xai: '20',
     xlayer: '0.5',
+    xpla: '100',
     zeronetwork: '0.05',
     zetachain: '20',
     zircuit: '0.02',
@@ -139,6 +147,7 @@ export const keyFunderConfig: KeyFunderConfig<
     osmosis: '0',
     solanamainnet: '0',
     eclipsemainnet: '0',
+    soon: '0',
   },
   // if not set, keyfunder defaults to 0
   desiredKathyBalancePerChain: {
@@ -194,6 +203,7 @@ export const keyFunderConfig: KeyFunderConfig<
     osmosis: '0',
     eclipsemainnet: '0',
     solanamainnet: '0',
+    soon: '0',
   },
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
@@ -249,5 +259,6 @@ export const keyFunderConfig: KeyFunderConfig<
     osmosis: '0',
     eclipsemainnet: '0',
     solanamainnet: '0',
+    soon: '0',
   },
 };

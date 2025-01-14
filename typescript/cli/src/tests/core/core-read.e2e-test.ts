@@ -8,9 +8,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../utils/files.js';
-
-import { hyperlaneCoreDeploy, readCoreConfig } from './commands/core.js';
+import { readYamlOrJson } from '../../utils/files.js';
+import { hyperlaneCoreDeploy, readCoreConfig } from '../commands/core.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -18,7 +17,7 @@ import {
   CORE_CONFIG_PATH,
   CORE_READ_CONFIG_PATH_2,
   DEFAULT_E2E_TEST_TIMEOUT,
-} from './commands/helpers.js';
+} from '../commands/helpers.js';
 
 describe('hyperlane core read e2e tests', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
