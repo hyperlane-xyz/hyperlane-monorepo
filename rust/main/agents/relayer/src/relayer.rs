@@ -638,7 +638,6 @@ impl Relayer {
             .filter_map(|(origin, mailbox_res)| match mailbox_res {
                 Ok(mailbox) => Some((origin, mailbox)),
                 Err(err) => {
-                    let message = err.to_string();
                     error!(?err, origin=?origin, "Critical error when building mailbox");
                     chain_metrics.set_critical_error(origin.name(), true);
                     None
@@ -647,10 +646,10 @@ impl Relayer {
             .collect()
     }
 
-    /// Helper function to build and return a hashmap of vaidator announces.
-    /// Any chains that fail to build vaidator announce will not be included
+    /// Helper function to build and return a hashmap of validator announces.
+    /// Any chains that fail to build validator announce will not be included
     /// in the hashmap. Errors will be logged and chain metrics
-    /// will be updated for chains that fail to build vaidator announce.
+    /// will be updated for chains that fail to build validator announce.
     pub async fn build_validator_announces(
         settings: &RelayerSettings,
         core_metrics: &CoreMetrics,
