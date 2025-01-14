@@ -154,7 +154,7 @@ export async function getWarpConfig(
         _safeAddress: envConfig.core[chain]?.ownerOverrides?._safeAddress,
       }),
       ...(envConfig.core[chain]?.ownerOverrides?._icaAddress && {
-        _safeAddress: envConfig.core[chain]?.ownerOverrides?._icaAddress,
+        _icaAddress: envConfig.core[chain]?.ownerOverrides?._icaAddress,
       }),
     };
   }
