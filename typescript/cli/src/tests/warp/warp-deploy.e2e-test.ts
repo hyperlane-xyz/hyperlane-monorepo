@@ -508,7 +508,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         },
       };
 
-      writeYamlOrJson(CORE_CONFIG_PATH, warpConfig);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
       // Try to send a transaction with the origin destination
