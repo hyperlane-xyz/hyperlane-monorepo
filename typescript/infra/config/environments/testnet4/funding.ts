@@ -52,9 +52,11 @@ export const keyFunderConfig: KeyFunderConfig<
     polygonamoy: '0.2',
     scrollsepolia: '1',
     sepolia: '5',
-    // no funding for solana
+    // no funding for SVM chains
     solanatestnet: '0',
     soneiumtestnet: '0.1',
+    // no funding for SVM chains
+    sonicsvmtestnet: '0',
     sonictestnet: '1',
     suavetoliman: '0.1',
     superpositiontestnet: '1',

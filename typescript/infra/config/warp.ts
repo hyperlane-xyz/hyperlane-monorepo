@@ -25,6 +25,7 @@ import { getBaseFormAIXBTWarpConfig } from './environments/mainnet3/warp/configG
 import { getBaseFormGAMEWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormGAMEWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
 import { getBobaBsquaredSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
+import { getBscEthereumLumiaPrismPNDRWarpConfig } from './environments/mainnet3/warp/configGetters/getBscEthereumLumiaPNDRWarpConfig.js';
 import { getEclipseEthereumApxEthWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumApxETHWarpConfig.js';
 import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumSolanaUSDTWarpConfig.js';
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
@@ -33,6 +34,8 @@ import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/conf
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
 import { getEthereumBscLUMIAWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumBscLumiaLUMIAWarpConfig.js';
 import { getEthereumFlowCbBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFlowCbBTCWarpConfig.js';
+import { getEthereumFormUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormUSDCWarpConfig.js';
+import { getEthereumFormUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormUSDTWarpConfig.js';
 import { getEthereumFormWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormWBTCWarpConfig.js';
 import { getEthereumFormWSTETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumFormWSTETHWarpConfig.js';
 import { getEthereumInevmUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumInevmUSDCWarpConfig.js';
@@ -49,6 +52,10 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
+import {
+  getEthereumSuperseedUSDTConfig,
+  getOptimismSuperseedOPConfig,
+} from './environments/mainnet3/warp/configGetters/getSuperseedWarpConfigs.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 
 type WarpConfigGetter = (
@@ -67,6 +74,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
+  [WarpRouteIds.BscEthereumLumiaPrismPNDR]:
+    getBscEthereumLumiaPrismPNDRWarpConfig,
   [WarpRouteIds.EthereumFlowCbBTC]: getEthereumFlowCbBTCWarpConfig,
   [WarpRouteIds.EthereumInkUSDC]: getEthereumInkUSDCConfig,
   [WarpRouteIds.EthereumSeiFastUSD]: getEthereumSeiFastUSDWarpConfig,
@@ -95,6 +104,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
   [WarpRouteIds.BobaBsquaredSwellUBTC]: getBobaBsquaredSwellUBTCWarpConfig,
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
+  [WarpRouteIds.EthereumFormUSDT]: getEthereumFormUSDTWarpConfig,
+  [WarpRouteIds.EthereumFormUSDC]: getEthereumFormUSDCWarpConfig,
+  [WarpRouteIds.EthereumSuperseedUSDT]: getEthereumSuperseedUSDTConfig,
+  [WarpRouteIds.OptimismSuperseedOP]: getOptimismSuperseedOPConfig,
   [WarpRouteIds.EthereumZircuitRstETH]: getEthereumZircuitRstETHWarpConfig,
   [WarpRouteIds.EthereumFormWBTC]: getEthereumFormWBTCWarpConfig,
   [WarpRouteIds.EthereumFormWSTETH]: getEthereumFormWSTETHWarpConfig,

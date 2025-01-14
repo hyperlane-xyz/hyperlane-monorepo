@@ -14,6 +14,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
     weETHs: '0x917cee801a67f933f2e6b33fc0cd1ed2d5909d88',
     pumpBTCsei: '0xe9ebd666954B7F0B5B044704c86B126651f6235d',
     Re7LRT: '0x84631c0d0081FDe56DeB72F6DE77abBbF6A9f93a',
+    PNDR: '0x73624d2dEF952C77a1f3B5AD995eef53E49639EC',
     rstETH: '0x7a4EffD87C2f3C55CA251080b1343b605f327E3a',
     WSTETH: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0',
   },
@@ -54,6 +55,7 @@ export const tokens: ChainMap<Record<string, Address>> = {
   },
   optimism: {
     USDC: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+    OP: '0x4200000000000000000000000000000000000042',
   },
   gnosis: {
     WETH: '0x6A023CCd1ff6F2045C3309768eAd9E68F978f6e1',
