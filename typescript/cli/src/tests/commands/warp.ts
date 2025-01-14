@@ -25,15 +25,37 @@ export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
 /**
  * Deploys the Warp route to the specified chain using the provided config.
  */
-export async function hyperlaneWarpDeploy(warpCorePath: string) {
-  // --overrides is " " to allow local testing to work
-  return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
+export function hyperlaneWarpDeployRaw({
+  warpCorePath,
+  hypKey,
+  skipConfirmationPrompts,
+  privateKey,
+}: {
+  warpCorePath?: string;
+  hypKey?: string;
+  skipConfirmationPrompts?: boolean;
+  privateKey?: string;
+}): ProcessPromise {
+  return $`${
+    hypKey ? ['HYP_KEY=' + hypKey] : ''
+  } yarn workspace @hyperlane-xyz/cli run hyperlane warp deploy \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
-        --config ${warpCorePath} \
-        --key ${ANVIL_KEY} \
+        ${warpCorePath ? ['--config', warpCorePath] : ''} \
+        ${privateKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
-        --yes`;
+        ${skipConfirmationPrompts ? ['--yes'] : ''}`;
+}
+
+/**
+ * Deploys the Warp route to the specified chain using the provided config.
+ */
+export function hyperlaneWarpDeploy(warpCorePath: string): ProcessPromise {
+  return hyperlaneWarpDeployRaw({
+    privateKey: ANVIL_KEY,
+    warpCorePath: warpCorePath,
+    skipConfirmationPrompts: true,
+  });
 }
 
 /**
@@ -55,27 +77,83 @@ export async function hyperlaneWarpApply(
         --yes`;
 }
 
-export async function hyperlaneWarpRead(
-  chain: string,
-  warpAddress: string,
-  warpDeployPath: string,
-) {
+export function hyperlaneWarpReadRaw({
+  chain,
+  warpAddress,
+  outputPath,
+  privateKey,
+  symbol,
+}: {
+  chain?: string;
+  symbol?: string;
+  privateKey?: string;
+  warpAddress?: string;
+  outputPath?: string;
+}): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp read \
         --registry ${REGISTRY_PATH} \
         --overrides " " \
-        --address ${warpAddress} \
-        --chain ${chain} \
-        --key ${ANVIL_KEY} \
+        ${warpAddress ? ['--address', warpAddress] : ''} \
+        ${chain ? ['--chain', chain] : ''} \
+        ${symbol ? ['--symbol', symbol] : ''} \
+        ${privateKey ? ['--key', privateKey] : ''} \
         --verbosity debug \
-        --config ${warpDeployPath}`;
+        ${outputPath ? ['--config', outputPath] : ''}`;
 }
 
-export async function hyperlaneWarpSendRelay(
+export function hyperlaneWarpRead(
+  chain: string,
+  warpAddress: string,
+  warpDeployPath: string,
+): ProcessPromise {
+  return hyperlaneWarpReadRaw({
+    chain,
+    warpAddress,
+    outputPath: warpDeployPath,
+    privateKey: ANVIL_KEY,
+  });
+}
+
+export function hyperlaneWarpCheckRaw({
+  warpDeployPath,
+  symbol,
+  privateKey,
+  hypKey,
+}: {
+  symbol?: string;
+  privateKey?: string;
+  warpDeployPath?: string;
+  hypKey?: string;
+}): ProcessPromise {
+  return $`${
+    hypKey && !privateKey ? ['HYP_KEY=' + hypKey] : ''
+  } yarn workspace @hyperlane-xyz/cli run hyperlane warp check \
+        --registry ${REGISTRY_PATH} \
+        --overrides " " \
+        ${symbol ? ['--symbol', symbol] : ''} \
+        ${privateKey && !hypKey ? ['--key', privateKey] : ''} \
+        --verbosity debug \
+        ${warpDeployPath ? ['--config', warpDeployPath] : ''}`;
+}
+
+export function hyperlaneWarpCheck(
+  warpDeployPath: string,
+  symbol: string,
+): ProcessPromise {
+  return hyperlaneWarpCheckRaw({
+    warpDeployPath,
+    privateKey: ANVIL_KEY,
+    symbol,
+  });
+}
+
+export function hyperlaneWarpSendRelay(
   origin: string,
   destination: string,
   warpCorePath: string,
   relay = true,
-) {
+  value = 1,
+): ProcessPromise {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp send \
         ${relay ? '--relay' : ''} \
         --registry ${REGISTRY_PATH} \
@@ -85,7 +163,8 @@ export async function hyperlaneWarpSendRelay(
         --warp ${warpCorePath} \
         --key ${ANVIL_KEY} \
         --verbosity debug \
-        --yes`;
+        --yes \
+        --amount ${value}`;
 }
 
 /**

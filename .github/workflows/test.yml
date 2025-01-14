@@ -135,10 +135,12 @@ jobs:
           # Other commands
           - relay
           # Warp Commands
+          - warp-apply
+          - warp-check
+          - warp-deploy
           - warp-init
           - warp-read
-          - warp-apply
-          - warp-deploy
+          - warp-send
     steps:
       - uses: actions/checkout@v4
         with:
