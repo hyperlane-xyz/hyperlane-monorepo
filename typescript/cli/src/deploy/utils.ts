@@ -5,13 +5,9 @@ import {
   ChainMap,
   ChainMetadata,
   ChainName,
-  ChainTechnicalStack,
   IsmConfig,
-  IsmType,
   MultisigConfig,
   getLocalProvider,
-  isIsmStatic,
-  isStaticDeploymentSupported,
 } from '@hyperlane-xyz/sdk';
 import { Address, ProtocolType } from '@hyperlane-xyz/utils';
 
@@ -194,23 +190,4 @@ function transformChainMetadataForDisplay(chainMetadata: ChainMetadata) {
     'Native Token: Name': chainMetadata.nativeToken?.name,
     'Native Token: Decimals': chainMetadata.nativeToken?.decimals,
   };
-}
-
-/**
- * Checks if the given chain technical stack is compatible with the core configuration.
- *
- * @param {ChainTechnicalStack | undefined} params.chainTechnicalStack - The technical stack of the chain.
- * @param {CoreConfig} params.config - The core configuration to check.
- * @returns {boolean} True if the configuration is compatible, false otherwise.
- */
-export function isIsmCompatible({
-  chainTechnicalStack,
-  ismType,
-}: {
-  chainTechnicalStack: ChainTechnicalStack | undefined;
-  ismType: IsmType;
-}): boolean {
-  // Static deployment is not available on certain chains (e.g., ZkSync) for aggregation ISMs.
-  if (!isIsmStatic[ismType]) return true;
-  return isStaticDeploymentSupported(chainTechnicalStack);
 }

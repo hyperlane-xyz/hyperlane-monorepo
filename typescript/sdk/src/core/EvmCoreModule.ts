@@ -34,7 +34,6 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
 } from '../deploy/contracts.js';
-import { isStaticDeploymentSupported } from '../deploy/protocolDeploymentConfig.js';
 import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { createDefaultProxyFactoryFactories } from '../deploy/proxyFactoryUtils.js';
 import { ProxyFactoryFactoriesAddresses } from '../deploy/types.js';
@@ -44,6 +43,7 @@ import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
+import { isStaticDeploymentSupported } from '../ism/utils.js';
 import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
