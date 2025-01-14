@@ -25,5 +25,14 @@
             "gasPrice": "28",
             "tokenDecimals": 9
         }
+    },
+    {
+        "domain": 15153042,
+        "gasOracle": {
+            "type": "remoteGasData",
+            "tokenExchangeRate": "10000000000000000000",
+            "gasPrice": "28",
+            "tokenDecimals": 9
+        }
     }
 ]

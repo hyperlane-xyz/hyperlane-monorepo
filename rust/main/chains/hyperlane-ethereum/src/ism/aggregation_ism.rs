@@ -92,7 +92,7 @@ impl<M> AggregationIsm for EthereumAggregationIsm<M>
 where
     M: Middleware + 'static,
 {
-    #[instrument(err)]
+    #[instrument(err, skip(self, message))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn modules_and_threshold(
         &self,
