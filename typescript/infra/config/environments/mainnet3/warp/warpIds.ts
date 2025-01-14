@@ -6,6 +6,7 @@ export enum WarpRouteIds {
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
   ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
   ArbitrumTreasureMAGIC = 'MAGIC/arbitrum-treasure',
+  BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
@@ -51,4 +52,6 @@ export enum WarpRouteIds {
   BaseFormGAME = 'GAME/base-form',
   ArtelaBaseUSDC = 'USDC/artela-base',
   ArtelaBaseWETH = 'WETH/artela-base',
+  SolanaSoonBonk = 'Bonk/solanamainnet-soon',
+  SolanaSoonSOL = 'SOL/solanamainnet-soon',
 }
