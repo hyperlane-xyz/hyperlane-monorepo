@@ -39,7 +39,7 @@ ChainWithBigSize.args = {
 };
 
 export const ChainWithBackgrounAndBig = Template.bind({});
-ChainWithBackgrounAndBig.args = {
+ChainWithBackgroundAndBig.args = {
   chainName: 'ethereum',
   size: 100,
   background: true,
