@@ -662,8 +662,7 @@ impl Relayer {
             .filter_map(|(origin, mailbox_res)| match mailbox_res {
                 Ok(mailbox) => Some((origin, mailbox)),
                 Err(err) => {
-                    let message = err.to_string();
-                    error!(?err, origin=?origin, "{message}");
+                    error!(?err, origin=?origin, "Critical error when building validator announce");
                     chain_metrics.set_critical_error(origin.name(), true);
                     None
                 }
