@@ -178,7 +178,7 @@ export class ContractVerifier extends BaseContractVerifier {
     if (isGetRequest) url.search = params.toString();
 
     switch (family) {
-      case ExplorerFamily.ZKSync:
+      case ExplorerFamily.ZkSync:
       case ExplorerFamily.Etherscan:
         timeout = 5000;
         break;

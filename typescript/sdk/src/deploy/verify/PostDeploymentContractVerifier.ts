@@ -38,8 +38,8 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
         // can check explorer family here to avoid doing these checks for each input in verifier
         const { family } = this.multiProvider.getExplorerApi(chain);
 
-        if (family === ExplorerFamily.ZKSync) {
-          this.logger.debug('Using ZKSync verifier');
+        if (family === ExplorerFamily.ZkSync) {
+          this.logger.debug('Using ZkSync verifier');
           this.contractVerifier = new ZKSyncContractVerifier(
             this.multiProvider,
           );

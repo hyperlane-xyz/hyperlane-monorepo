@@ -158,7 +158,7 @@ export async function getConstructorArgumentsApi({
         multiProvider,
       });
       break;
-    case ExplorerFamily.ZKSync:
+    case ExplorerFamily.ZkSync:
       constructorArgs = await getZKSyncConstructorArgs({
         chainName,
         contractAddress,
@@ -263,7 +263,7 @@ export async function getZKSyncConstructorArgs({
     multiProvider.getExplorerApi(chainName);
 
   // Create the API URL using Registry blockExplorers.apiUrl
-  // Assumes that ZKSync uses something like `https://zero-network.calderaexplorer.xyz/verification/contract_verification`.
+  // Assumes that ZkSync uses something like `https://zero-network.calderaexplorer.xyz/verification/contract_verification`.
   const blockExplorerApiUrl = new URL('/api', new URL(apiUrl).origin).href;
 
   // Truncate the deployment bytecode
