@@ -253,7 +253,7 @@ impl BaseAgent for Relayer {
                     origin.clone(),
                     destination_chain_setup.clone(),
                     prover_syncs[origin].clone(),
-                    validator_annonce.clone(),
+                    validator_announce.clone(),
                     settings.allow_local_checkpoint_syncers,
                     core.metrics.clone(),
                     db,
