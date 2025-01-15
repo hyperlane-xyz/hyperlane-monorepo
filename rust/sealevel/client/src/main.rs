@@ -404,6 +404,7 @@ enum IgpSubCmd {
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
     TransferOverheadIgpOwnership(TransferIgpOwnership),
+    Configure(ConfigureIgpArgs),
 }
 
 #[derive(Args)]
@@ -553,6 +554,20 @@ enum GasOverheadSubCmd {
 struct SetGasOverheadArgs {
     #[arg(long)]
     gas_overhead: u64,
+}
+
+#[derive(Args)]
+struct ConfigureIgpArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    local_chain: String,
+    #[arg(long)]
+    gas_oracle_config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    account_salt: Option<H256>,
 }
 
 #[derive(Args)]

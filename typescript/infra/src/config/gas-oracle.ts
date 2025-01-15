@@ -147,6 +147,11 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     minUsdCost = Math.max(minUsdCost, 1.5);
   }
 
+  // For all SVM chains, min cost is 0.50 USD to cover rent needs
+  if (getChain(remote).protocol === ProtocolType.Sealevel) {
+    minUsdCost = Math.max(minUsdCost, 0.5);
+  }
+
   const remoteMinCostOverrides: ChainMap<number> = {
     // For Ethereum L2s, we need to account for the L1 DA costs that
     // aren't accounted for directly in the gas price.
@@ -167,6 +172,8 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     taiko: 0.5,
     // Nexus adjustment
     neutron: 0.5,
+    // For Solana, min cost is 1.50 USD
+    solanamainnet: 1.5,
   };
   const override = remoteMinCostOverrides[remote];
   if (override !== undefined) {

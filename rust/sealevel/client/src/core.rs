@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::{compute_budget, compute_budget::ComputeBudgetInstruction};
 
-use std::collections::HashMap;
 use std::{fs::File, path::Path};
 
 use crate::cmd_utils::get_compute_unit_price_micro_lamports_for_chain_name;
@@ -17,7 +16,6 @@ use crate::{
     Context, CoreCmd, CoreDeploy, CoreSubCmd,
 };
 use hyperlane_core::H256;
-use hyperlane_sealevel_igp::accounts::{SOL_DECIMALS, TOKEN_EXCHANGE_RATE_SCALE};
 
 pub(crate) fn adjust_gas_price_if_needed(chain_name: &str, ctx: &mut Context) {
     if chain_name.eq("solanamainnet") {
@@ -206,56 +204,10 @@ fn deploy_validator_announce(
     program_id
 }
 
+// Deploys the IGP program and initializes the zero salt IGP and overhead IGP accounts.
+// Configuration of gas oracles is expected to be done separately.
 #[allow(clippy::too_many_arguments)]
 fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, Pubkey, Pubkey) {
-    use hyperlane_sealevel_igp::{
-        accounts::{GasOracle, RemoteGasData},
-        instruction::{GasOracleConfig, GasOverheadConfig},
-    };
-
-    let mut gas_oracle_configs = core
-        .gas_oracle_config_file
-        .as_deref()
-        .map(|p| {
-            let file = File::open(p).expect("Failed to open oracle config file");
-            serde_json::from_reader::<_, Vec<GasOracleConfig>>(file)
-                .expect("Failed to parse oracle config file")
-        })
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|c| c.domain != core.local_domain)
-        .map(|c| (c.domain, c))
-        .collect::<HashMap<_, _>>();
-    for &remote in &core.remote_domains {
-        gas_oracle_configs
-            .entry(remote)
-            .or_insert_with(|| GasOracleConfig {
-                domain: remote,
-                gas_oracle: Some(GasOracle::RemoteGasData(RemoteGasData {
-                    token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
-                    gas_price: 1,
-                    token_decimals: SOL_DECIMALS,
-                })),
-            });
-    }
-    let gas_oracle_configs = gas_oracle_configs.into_values().collect::<Vec<_>>();
-
-    let overhead_configs = core
-        .overhead_config_file
-        .as_deref()
-        .map(|p| {
-            let file = File::open(p).expect("Failed to open overhead config file");
-            serde_json::from_reader::<_, Vec<GasOverheadConfig>>(file)
-                .expect("Failed to parse overhead config file")
-        })
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|c| c.destination_domain != core.local_domain)
-        .map(|c| (c.destination_domain, c))
-        .collect::<HashMap<_, _>>() // dedup
-        .into_values()
-        .collect::<Vec<_>>();
-
     let program_id = deploy_program(
         ctx.payer_keypair_path(),
         key_dir,
@@ -318,47 +270,6 @@ fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, 
     );
 
     println!("Initialized overhead IGP account {}", overhead_igp_account);
-
-    if !gas_oracle_configs.is_empty() {
-        let domains = gas_oracle_configs
-            .iter()
-            .map(|c| c.domain)
-            .collect::<Vec<_>>();
-        let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
-            program_id,
-            igp_account,
-            ctx.payer_pubkey,
-            gas_oracle_configs,
-        )
-        .unwrap();
-
-        ctx.new_txn().add(instruction).send_with_payer();
-
-        println!("Set gas oracle for remote domains {domains:?}",);
-    } else {
-        println!("Skipping settings gas oracle config");
-    }
-
-    if !overhead_configs.is_empty() {
-        let domains = overhead_configs
-            .iter()
-            .map(|c| c.destination_domain)
-            .collect::<Vec<_>>();
-
-        let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
-            program_id,
-            overhead_igp_account,
-            ctx.payer_pubkey,
-            overhead_configs,
-        )
-        .unwrap();
-
-        ctx.new_txn().add(instruction).send_with_payer();
-
-        println!("Set gas overheads for remote domains {domains:?}",)
-    } else {
-        println!("Skipping setting gas overheads");
-    }
 
     (program_id, overhead_igp_account, igp_account)
 }
