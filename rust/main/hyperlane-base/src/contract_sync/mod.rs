@@ -87,7 +87,6 @@ where
     }
 
     /// Sync logs and write them to the LogStore
-    #[allow(unreachable_code)]
     #[instrument(name = "ContractSync", fields(domain=self.domain().name()), skip(self, opts))]
     pub async fn sync(&self, label: &'static str, mut opts: SyncOptions<T>) {
         let chain_name = self.domain.as_ref();
@@ -107,6 +106,11 @@ where
             if let Some(cursor) = opts.cursor.as_mut() {
                 self.fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
                     .await;
+            }
+
+            // Added so that we confuse compiler that it is an infinite loop
+            if false {
+                break;
             }
         }
 
