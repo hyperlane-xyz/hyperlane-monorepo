@@ -15,7 +15,7 @@ import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
   const { environment, chains, txHashes } = await withTxHashes(
-    withChainsRequired(getArgs()),
+    withChainsRequired(getArgs(), undefined, true),
   ).argv;
 
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -49,7 +49,7 @@ async function main() {
       try {
         const results = await reader.read(chain, tx);
         console.log(`Finished reading tx ${txHash} on ${chain}`);
-        return [chain, results];
+        return { chain, results };
       } catch (err) {
         console.error('Error reading transaction', err, chain, tx);
         process.exit(1);
@@ -57,7 +57,18 @@ async function main() {
     }),
   );
 
-  const chainResults = Object.fromEntries(chainResultEntries);
+  // Just in case there are multiple results per chain, make the entries an array.
+  const chainResults = chainResultEntries.reduce(
+    (acc: any, { chain, results }) => {
+      if (!acc[chain]) {
+        acc[chain] = [];
+      }
+      acc[chain].push(results);
+      return acc;
+    },
+    {},
+  );
+
   console.log(stringifyObject(chainResults, 'yaml', 2));
 
   if (reader.errors.length) {

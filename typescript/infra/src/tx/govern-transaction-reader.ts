@@ -39,7 +39,7 @@ import {
 import { DeployEnvironment } from '../config/environment.js';
 import { getSafeAndService } from '../utils/safe.js';
 
-interface GovernTransaction extends Record<string, any> {
+export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;
 }
 
