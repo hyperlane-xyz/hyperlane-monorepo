@@ -86,12 +86,12 @@ fn categorize_client_response<R>(
                 // We don't want to retry errors that are probably not going to work if we keep
                 // retrying them or that indicate an error in higher-order logic and not
                 // transient provider (connection or other) errors.
-                warn!(error=%e, "Non-retryable JsonRpcError in http provider");
+                error!(error=%e, "Non-retryable JsonRpcError in http provider");
                 NonRetryableErr(JsonRpcError(e))
             } else {
                 // the assumption is this is not a "provider error" but rather an invalid
                 // request, e.g. nonce too low, not enough gas, ...
-                info!(error=%e, "Retryable JsonRpcError in http provider");
+                warn!(error=%e, "Retryable JsonRpcError in http provider");
                 RetryableErr(JsonRpcError(e))
             }
         }
