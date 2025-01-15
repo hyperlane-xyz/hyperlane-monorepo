@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::settings::matching_list::MatchingList;
+use crate::{msg::op_submitter::SUBMITTER_QUEUE_COUNT, settings::matching_list::MatchingList};
 use axum::{extract::State, routing, Json, Router};
 use derive_new::new;
 use serde::{Deserialize, Serialize};
@@ -52,7 +52,8 @@ async fn retry_message(
     // Create a channel that can hold each chain's SerialSubmitter
     // message retry responses.
     // 3 queues for each chain (prepare, submit, confirm)
-    let (transmitter, mut receiver) = mpsc::channel(3 * state.destination_chains);
+    let (transmitter, mut receiver) =
+        mpsc::channel(SUBMITTER_QUEUE_COUNT * state.destination_chains);
     state
         .retry_request_transmitter
         .send(Arc::new(MessageRetryRequest {

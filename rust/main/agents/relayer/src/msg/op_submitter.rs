@@ -37,6 +37,8 @@ use crate::server::MessageRetryRequest;
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
 
+pub const SUBMITTER_QUEUE_COUNT: usize = 3;
+
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
 /// chain. It is designed to be used in a scenario allowing only one
