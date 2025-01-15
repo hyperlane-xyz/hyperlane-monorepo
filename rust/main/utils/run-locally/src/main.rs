@@ -492,7 +492,7 @@ fn create_common_agent() -> Program {
 }
 
 fn create_relayer(config: &Config, rocks_db_dir: &TempDir) -> Program {
-    let relayer_db = concat_path(&rocks_db_dir, "relayer");
+    let relayer_db = concat_path(rocks_db_dir, "relayer");
 
     let common_agent_env = create_common_agent();
 
@@ -546,15 +546,14 @@ fn create_relayer(config: &Config, rocks_db_dir: &TempDir) -> Program {
         )
         // default is used for TEST3
         .arg("defaultSigner.key", RELAYER_KEYS[2]);
-    let relayer_env = if config.sealevel_enabled {
+    if config.sealevel_enabled {
         relayer_env.arg(
             "relayChains",
             "test1,test2,test3,sealeveltest1,sealeveltest2",
         )
     } else {
         relayer_env.arg("relayChains", "test1,test2,test3")
-    };
-    relayer_env
+    }
 }
 
 fn run_restart_check(config: &Config, state: &mut State, rocks_db_dir: TempDir) -> ExitCode {
@@ -567,7 +566,7 @@ fn run_restart_check(config: &Config, state: &mut State, rocks_db_dir: TempDir) 
     log!("Restarting relayer...");
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
 
-    log!("Waiting for relayer to read db...");
+    log!("Wait for relayer to read db...");
     sleep(Duration::from_secs(30));
 
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
@@ -578,7 +577,10 @@ fn run_restart_check(config: &Config, state: &mut State, rocks_db_dir: TempDir) 
 
     log!("Checking message statuses were retrieved from logs...");
     let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
-    assert_eq!(log_counts.get(RETRIEVED_MESSGE_LOG), Some(&10));
+    assert_eq!(
+        log_counts.get(RETRIEVED_MESSGE_LOG),
+        Some(&ZERO_MERKLE_INSERTION_KATHY_MESSAGES)
+    );
 
     ExitCode::SUCCESS
 }
