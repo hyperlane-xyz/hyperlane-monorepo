@@ -1,5 +1,12 @@
 # @hyperlane-xyz/sdk
 
+## 8.2.0
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.2.0
+- @hyperlane-xyz/core@5.9.2
+
 ## 8.1.0
 
 ### Minor Changes
