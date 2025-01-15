@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cli
 
+## 8.1.0
+
+### Minor Changes
+
+- 2d018fa7a: Fix hyperlane warp send where --origin and --destination are out of order
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
 ## 8.0.0
 
 ### Minor Changes

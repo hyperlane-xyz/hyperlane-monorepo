@@ -43,6 +43,8 @@ export enum WarpRouteIds {
   ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet = 'ETH/arbitrum-base-blast-bsc-ethereum-gnosis-lisk-mantle-mode-optimism-polygon-scroll-zeronetwork-zoramainnet',
   AppchainBaseUSDC = 'USDC/appchain-base',
   BobaBsquaredSwellUBTC = 'UBTC/boba-bsquared-swell',
+  EthereumFormUSDT = 'USDT/ethereum-form',
+  EthereumFormUSDC = 'USDC/ethereum-form',
   EthereumSuperseedUSDT = 'USDT/ethereum-superseed',
   OptimismSuperseedOP = 'OP/optimism-superseed',
   EthereumZircuitRstETH = 'rstETH/ethereum-zircuit',
@@ -50,6 +52,8 @@ export enum WarpRouteIds {
   EthereumFormWSTETH = 'WSTETH/ethereum-form',
   BaseFormAIXBT = 'AIXBT/base-form',
   BaseFormGAME = 'GAME/base-form',
+  ArtelaBaseUSDC = 'USDC/artela-base',
+  ArtelaBaseWETH = 'WETH/artela-base',
   SolanaSoonBonk = 'Bonk/solanamainnet-soon',
   SolanaSoonSOL = 'SOL/solanamainnet-soon',
 }
