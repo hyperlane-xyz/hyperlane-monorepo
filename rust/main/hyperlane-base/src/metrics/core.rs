@@ -38,7 +38,7 @@ pub struct CoreMetrics {
     span_counts: IntCounterVec,
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
-    latest_leaf_index: IntGaugeVec,
+    latest_tree_insertion_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
@@ -113,9 +113,9 @@ impl CoreMetrics {
             registry
         )?;
 
-        let latest_leaf_index = register_int_gauge_vec_with_registry!(
+        let latest_tree_insertion_index = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("latest_leaf_index"),
+                namespaced!("latest_tree_insertion_index"),
                 "Latest leaf index inserted into the merkle tree",
                 const_labels_ref
             ),
@@ -188,7 +188,7 @@ impl CoreMetrics {
             span_counts,
             span_events,
             last_known_message_nonce,
-            latest_leaf_index,
+            latest_tree_insertion_index,
 
             submitter_queue_length,
 
@@ -325,8 +325,8 @@ impl CoreMetrics {
     ///
     /// Labels:
     /// - `origin`: Origin chain the leaf index is being tracked at.
-    pub fn latest_leaf_index(&self) -> IntGaugeVec {
-        self.latest_leaf_index.clone()
+    pub fn latest_tree_insertion_index(&self) -> IntGaugeVec {
+        self.latest_tree_insertion_index.clone()
     }
 
     /// Latest message nonce in the validator.
