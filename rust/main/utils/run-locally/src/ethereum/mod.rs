@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
@@ -91,4 +92,66 @@ pub async fn deploy_multicall() {
         .await
         .unwrap();
     log!("Successfully deployed multicall contract...");
+}
+
+pub async fn simulate_reorg() {
+    let merkle_tree_hook_address =
+        H160::from_str("0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E").unwrap();
+    let slot = U256::from(103);
+    let value =
+        H256::from_str("0x0000000000000000000000000000000000000000000000000000000000000001")
+            .unwrap();
+
+    let anvil_rpc_url = "http://127.0.0.1:8545";
+    let provider = Provider::<Http>::try_from(anvil_rpc_url)
+        .unwrap()
+        .interval(Duration::from_millis(50u64));
+
+    // let start_slot = 0;
+    // let end_slot = 120;
+    // for slot in start_slot..end_slot {
+    //     match provider
+    //         .request::<(H160, U256, &str), H256>(
+    //             "eth_getStorageAt",
+    //             (merkle_tree_hook_address, U256::from(slot), "latest"),
+    //         )
+    //         .await
+    //     {
+    //         Ok(value) => println!("Slot {}: {}", slot, value),
+    //         Err(e) => log!("Error fetching slot {}: {}", slot, e),
+    //     }
+    // }
+
+    // get current storage value
+    let current_value = provider
+        .request::<(H160, U256, &str), H256>(
+            "eth_getStorageAt",
+            (merkle_tree_hook_address, slot, "latest"),
+        )
+        .await
+        .unwrap();
+    log!("Current storage value: {}", current_value);
+    // // panic here
+    // panic!("Current storage value");
+
+    let result = provider
+        .request::<(H160, U256, H256), bool>(
+            "anvil_setStorageAt",
+            (merkle_tree_hook_address, slot, value),
+        )
+        .await
+        .unwrap();
+    println!(
+        "Successfully set storage at slot {} to value {} = {:?}",
+        slot, value, result
+    );
+    // get new storage value
+    let new_value = provider
+        .request::<(H160, U256, &str), H256>(
+            "eth_getStorageAt",
+            (merkle_tree_hook_address, slot, "latest"),
+        )
+        .await
+        .unwrap();
+    println!("New storage value: {}", new_value);
 }

@@ -37,7 +37,7 @@ use tempfile::tempdir;
 
 use crate::{
     config::Config,
-    ethereum::start_anvil,
+    ethereum::{simulate_reorg, start_anvil},
     invariants::{post_startup_invariants, termination_invariants_met, SOL_MESSAGES_EXPECTED},
     metrics::agent_balance_sum,
     solana::*,
@@ -474,6 +474,12 @@ fn main() -> ExitCode {
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
+
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(simulate_reorg());
 
     // Send half the kathy messages after the relayer comes up
     kathy_env_double_insertion.clone().run().join();
