@@ -20,6 +20,8 @@ import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } f
 import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumZircuitAmphrETHWarpConfig.js';
 import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
+import { getArtelaBaseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getArtelaBaseUSDCWarpConfig.js';
+import { getArtelaBaseWETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArtelaBaseWETHWarpConfig.js';
 import { getBaseFormAIXBTWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormAIXBTWarpConfig.js';
 import { getBaseFormGAMEWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormGAMEWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
@@ -111,6 +113,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumFormWSTETH]: getEthereumFormWSTETHWarpConfig,
   [WarpRouteIds.BaseFormAIXBT]: getBaseFormAIXBTWarpConfig,
   [WarpRouteIds.BaseFormGAME]: getBaseFormGAMEWarpConfig,
+  [WarpRouteIds.ArtelaBaseUSDC]: getArtelaBaseUSDCWarpConfig,
+  [WarpRouteIds.ArtelaBaseWETH]: getArtelaBaseWETHWarpConfig,
 };
 
 export async function getWarpConfig(
