@@ -1,5 +1,5 @@
 use ethers::providers::HttpClientError;
-use tracing::{info, trace, warn};
+use tracing::{error, info, trace, warn};
 
 pub use self::{fallback::*, provider::*, retrying::*, trait_builder::*};
 
