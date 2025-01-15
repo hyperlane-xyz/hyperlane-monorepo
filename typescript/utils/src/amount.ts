@@ -130,9 +130,7 @@ export function convertDecimals(
   if (fromDecimals === toDecimals) return amount;
   else if (fromDecimals > toDecimals) {
     const difference = fromDecimals - toDecimals;
-    return amount
-      .div(BigNumber(10).pow(difference))
-      .integerValue(BigNumber.ROUND_FLOOR);
+    return amount.div(BigNumber(10).pow(difference));
   }
   // fromDecimals < toDecimals
   else {

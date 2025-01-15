@@ -13,3 +13,10 @@ export const TOKEN_EXCHANGE_RATE_SCALE_SEALEVEL = ethers.utils.parseUnits(
   '1',
   TOKEN_EXCHANGE_RATE_DECIMALS_SEALEVEL,
 );
+
+export const TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS = 10;
+
+export const TOKEN_EXCHANGE_RATE_SCALE_COSMOS = ethers.utils.parseUnits(
+  '1',
+  TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS,
+);

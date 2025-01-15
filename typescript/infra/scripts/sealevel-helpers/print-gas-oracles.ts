@@ -14,7 +14,10 @@ async function main() {
   // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
   const gasOracles = objMap(environmentConfig.igp, (origin, igpConfig) => {
     console.log('origin', origin, 'igpConfig', igpConfig);
-    let a = objMap(igpConfig.oracleConfig, (destination, oracleConfig) => {
+    if (!igpConfig.oracleConfig) {
+      return {};
+    }
+    return objMap(igpConfig.oracleConfig, (destination, oracleConfig) => {
       console.log('origin', origin, 'destination', destination);
       console.log(
         'oracleConfig',
@@ -27,14 +30,11 @@ async function main() {
         overhead: igpConfig?.overhead?.[destination],
       };
     });
-    // console.log('a', a, 'origin');
-    // return 'sup';
-    return a;
   });
 
   console.log('do we get here ?');
 
-  console.log('keys?', Object.keys(gasOracles));
+  console.log('keys?', stringifyObject(Object.keys(gasOracles)));
 
   console.log(stringifyObject(gasOracles, 'yaml'));
 }

@@ -13,6 +13,17 @@ export type StorageGasOracleConfig = z.output<
   typeof StorageGasOracleConfigSchema
 >;
 
+export const ProtocolAgnositicGasOracleConfigSchema =
+  StorageGasOracleConfigSchema.extend({
+    // The number of decimals of the remote native token.
+    tokenDecimals: z.number(),
+  });
+
+// Gas data to configure on a single destination chain.
+export type ProtocolAgnositicGasOracleConfig = z.output<
+  typeof ProtocolAgnositicGasOracleConfigSchema
+>;
+
 export type OracleData = {
   tokenExchangeRate: ethers.BigNumber;
   gasPrice: ethers.BigNumber;

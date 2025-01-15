@@ -129,6 +129,8 @@ export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
 export {
   StorageGasOracleConfig,
   StorageGasOracleConfigSchema,
+  ProtocolAgnositicGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigSchema,
 } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
@@ -422,7 +424,7 @@ export {
   getCosmosChainGasPrice,
   getGasPrice,
   getLocalStorageGasOracleConfig,
-  getTokenExchangeRateFromValues,
+  getProtocolSpecificExchangeRateScale,
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';

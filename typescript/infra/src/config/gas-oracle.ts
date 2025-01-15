@@ -7,14 +7,23 @@ import {
   ChainMap,
   ChainName,
   GasPriceConfig,
+  ProtocolAgnositicGasOracleConfig,
   StorageGasOracleConfig,
-  TOKEN_EXCHANGE_RATE_SCALE,
   defaultMultisigConfigs,
   getLocalStorageGasOracleConfig,
+  getProtocolSpecificExchangeRateScale,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  convertDecimals,
+  convertDecimalsIntegerString,
+  fromWei,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
+import { getChain } from '../../config/registry.js';
 import {
   isEthereumProtocolChain,
   mustGetChainNativeToken,
@@ -43,6 +52,11 @@ function getLocalStorageGasOracleConfigOverride(
   gasPrices: ChainMap<GasPriceConfig>,
   getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): ChainMap<StorageGasOracleConfig> {
+  const localProtocolType = getChain(local).protocol;
+  const localExchangeRateScale =
+    getProtocolSpecificExchangeRateScale(localProtocolType);
+  const localNativeTokenDecimals = mustGetChainNativeToken(local).decimals;
+
   const gasOracleParams = [local, ...remotes].reduce((agg, remote) => {
     agg[remote] = {
       gasPrice: gasPrices[remote],
@@ -57,9 +71,8 @@ function getLocalStorageGasOracleConfigOverride(
   const gasPriceModifier = (
     local: ChainName,
     remote: ChainName,
-    exchangeRate: BigNumber,
-    gasPrice: BigNumber,
-  ) => {
+    gasOracleConfig: ProtocolAgnositicGasOracleConfig,
+  ): BigNumberJs.Value => {
     if (getOverhead) {
       const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
         local,
@@ -69,29 +82,48 @@ function getLocalStorageGasOracleConfigOverride(
       const localTokenUsdPrice = parseFloat(tokenPrices[local]);
       const typicalIgpQuoteUsd = getUsdQuote(
         localTokenUsdPrice,
-        gasPrice,
-        exchangeRate,
+        localExchangeRateScale,
+        localNativeTokenDecimals,
+        localProtocolType,
+        gasOracleConfig,
         typicalRemoteGasAmount,
       );
 
       const minUsdCost = getMinUsdCost(local, remote);
       if (typicalIgpQuoteUsd < minUsdCost) {
         // Adjust the gasPrice to meet the minimum cost
-        const minIgpQuote = ethers.utils.parseEther(
-          (minUsdCost / localTokenUsdPrice).toPrecision(8),
+        const minIgpQuoteWei = toWei(
+          new BigNumberJs(minUsdCost).div(localTokenUsdPrice),
+          localNativeTokenDecimals,
         );
-        return minIgpQuote
-          .mul(TOKEN_EXCHANGE_RATE_SCALE)
-          .div(exchangeRate.mul(typicalRemoteGasAmount));
+        console.log('minIgpQuoteWei', minIgpQuoteWei);
+        let newGasPrice = new BigNumberJs(minIgpQuoteWei)
+          .times(localExchangeRateScale.toString())
+          .div(
+            new BigNumberJs(gasOracleConfig.tokenExchangeRate).times(
+              typicalRemoteGasAmount,
+            ),
+          );
+        console.log('newGasPrice', newGasPrice);
+        if (localProtocolType === ProtocolType.Sealevel) {
+          // On Sealevel, the exchange rate doesn't consider decimals.
+          // We therefor explicitly convert decimals to remote decimals.
+          newGasPrice = convertDecimals(
+            localNativeTokenDecimals,
+            gasOracleConfig.tokenDecimals,
+            newGasPrice.toString(),
+          );
+          // assert(newGasPrice.gt(0), 'newGasPrice must be greater than 0');
+          return newGasPrice;
+        }
       }
     }
-    return gasPrice;
+    return gasOracleConfig.gasPrice;
   };
 
   return getLocalStorageGasOracleConfig({
     local,
-    localProtocolType: ProtocolType.Ethereum,
-    // getChain(local).protocolType,
+    localProtocolType,
     gasOracleParams,
     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
     gasPriceModifier,
@@ -146,16 +178,27 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
 
 function getUsdQuote(
   localTokenUsdPrice: number,
-  gasPrice: BigNumber,
-  exchangeRate: BigNumber,
+  localExchangeRateScale: BigNumber,
+  localNativeTokenDecimals: number,
+  localProtocolType: ProtocolType,
+  gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   remoteGasAmount: number,
 ): number {
-  const quote = gasPrice
-    .mul(exchangeRate)
+  let quote = BigNumber.from(gasOracleConfig.gasPrice)
+    .mul(gasOracleConfig.tokenExchangeRate)
     .mul(remoteGasAmount)
-    .div(TOKEN_EXCHANGE_RATE_SCALE);
+    .div(localExchangeRateScale)
+    .toString();
+  if (localProtocolType === ProtocolType.Sealevel) {
+    // Convert decimals to local decimals
+    quote = convertDecimals(
+      gasOracleConfig.tokenDecimals,
+      localNativeTokenDecimals,
+      quote,
+    ).toString();
+  }
   const quoteUsd =
-    localTokenUsdPrice * parseFloat(ethers.utils.formatEther(quote));
+    localTokenUsdPrice * parseFloat(fromWei(quote, localNativeTokenDecimals));
 
   return quoteUsd;
 }
@@ -186,17 +229,28 @@ export function getAllStorageGasOracleConfigs(
 ): AllStorageGasOracleConfigs {
   // return chainNames.filter(isEthereumProtocolChain).
 
-  return chainNames.reduce((agg, local) => {
-    const remotes = chainNames.filter((chain) => local !== chain);
-    return {
-      ...agg,
-      [local]: getLocalStorageGasOracleConfigOverride(
-        local,
-        remotes,
-        tokenPrices,
-        gasPrices,
-        getOverhead,
-      ),
-    };
-  }, {}) as AllStorageGasOracleConfigs;
+  return chainNames
+    .filter((chain) => {
+      // For now, only support Ethereum and Sealevel chains.
+      // Cosmos chains should be supported in the future, but at the moment
+      // are more subject to loss of precision issues in the exchange rate,
+      // where we'd need to scale the gas price accordingly.
+      const protocol = getChain(chain).protocol;
+      return (
+        protocol === ProtocolType.Ethereum || protocol === ProtocolType.Sealevel
+      );
+    })
+    .reduce((agg, local) => {
+      const remotes = chainNames.filter((chain) => local !== chain);
+      return {
+        ...agg,
+        [local]: getLocalStorageGasOracleConfigOverride(
+          local,
+          remotes,
+          tokenPrices,
+          gasPrices,
+          getOverhead,
+        ),
+      };
+    }, {}) as AllStorageGasOracleConfigs;
 }

@@ -339,4 +339,25 @@ mod test {
         let result = convert_decimals(num, from_decimals, to_decimals);
         assert_eq!(result, U256::from(0u128));
     }
+
+    // fn test_igp_quoting_to_ethereum() {
+    //     let igp = Igp {
+    //         bump_seed: 0,
+    //         salt: H256::default(),
+    //         owner: None,
+    //         beneficiary: Pubkey::new_unique(),
+    //         gas_oracles: {
+    //             let mut gas_oracles = HashMap::new();
+    //             gas_oracles.insert(
+    //                 1,
+    //                 GasOracle::RemoteGasData(RemoteGasData {
+    //                     token_exchange_rate: 15000000000000000000,
+    //                     gas_price: 10000000000,
+    //                     token_decimals: 18,
+    //                 }),
+    //             );
+    //             gas_oracles
+    //         },
+    //     };
+    // }
 }
