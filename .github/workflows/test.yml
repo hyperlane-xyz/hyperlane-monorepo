@@ -333,9 +333,9 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment with retries
-        uses: nick-fields/retry@v2
+        uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 10
+          timeout_minutes: 8
           max_attempts: 3
           retry_wait_seconds: 30
           command: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
