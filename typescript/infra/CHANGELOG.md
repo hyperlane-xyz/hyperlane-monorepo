@@ -1,5 +1,17 @@
 # @hyperlane-xyz/infra
 
+## 8.2.0
+
+### Minor Changes
+
+- 28becff74: Add Artela/Base USDC and WETH warp route config
+
+### Patch Changes
+
+- @hyperlane-xyz/helloworld@8.2.0
+- @hyperlane-xyz/sdk@8.2.0
+- @hyperlane-xyz/utils@8.2.0
+
 ## 8.1.0
 
 ### Minor Changes

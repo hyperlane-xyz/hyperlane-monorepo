@@ -1,5 +1,16 @@
 # @hyperlane-xyz/cli
 
+## 8.2.0
+
+### Minor Changes
+
+- aad2c2d1e: Fixing the chain resolver checks and handling for argv.chain
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@8.2.0
+- @hyperlane-xyz/utils@8.2.0
+
 ## 8.1.0
 
 ### Minor Changes
