@@ -512,7 +512,10 @@ impl PendingMessage {
     ) -> Self {
         // Attempt to fetch status about message from database
         let mut pm = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
-            Ok(Some(status)) => Self::new(message, ctx, status, app_context),
+            Ok(Some(status)) => {
+                tracing::debug!(?status, "Message status retrieved from db");
+                Self::new(message, ctx, status, app_context)
+            }
             _ => Self::new(
                 message,
                 ctx,
