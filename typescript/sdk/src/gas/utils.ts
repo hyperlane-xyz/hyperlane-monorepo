@@ -231,6 +231,14 @@ export function getLocalStorageGasOracleConfig({
 
     if (localProtocolType !== ProtocolType.Sealevel) {
       // On all chains other than Sealevel, we need to adjust the exchange rate for decimals
+      console.log(
+        'exchangeRateFloat before convertDecimals',
+        exchangeRateFloat.toString(),
+        'localDecimals',
+        localDecimals,
+        'remoteDecimals',
+        remoteDecimals,
+      );
       exchangeRateFloat = convertDecimals(
         remoteDecimals,
         localDecimals,
@@ -264,46 +272,6 @@ export function getLocalStorageGasOracleConfig({
       );
     }
 
-    const adjustForPrecisionLoss = (
-      newGasPriceValue: BigNumberJs.Value,
-      newExchangeRate: BigNumber,
-    ): ProtocolAgnositicGasOracleConfig => {
-      let newGasPrice = new BigNumberJs(newGasPriceValue);
-      // We have very little precision and ultimately need an integer value for
-      // the gas price that will be set on-chain. We scale up the gas price and
-      // scale down the exchange rate by the same factor.
-      if (newGasPrice.lt(10) && newGasPrice.mod(1) !== new BigNumberJs(0)) {
-        // Scale up the gas price by 1e4
-        const gasPriceScalingFactor = 1e4;
-
-        // Check that there's no significant underflow when applying
-        // this to the exchange rate:
-        const adjustedExchangeRate = newExchangeRate.div(gasPriceScalingFactor);
-        const recoveredExchangeRate = adjustedExchangeRate.mul(
-          gasPriceScalingFactor,
-        );
-        if (recoveredExchangeRate.mul(100).div(newExchangeRate).lt(99)) {
-          throw new Error('Too much underflow when downscaling exchange rate');
-        }
-
-        newGasPrice = newGasPrice.times(gasPriceScalingFactor);
-      }
-
-      const newGasPriceInteger = newGasPrice.integerValue(
-        BigNumberJs.ROUND_CEIL,
-      );
-      assert(
-        newGasPriceInteger.gt(0),
-        'Gas price must be greater than 0, possible loss of precision',
-      );
-
-      return {
-        tokenExchangeRate: newExchangeRate.toString(),
-        gasPrice: newGasPriceInteger.toString(),
-        tokenDecimals: remoteDecimals,
-      };
-    };
-
     // Our integer gas price.
     // let gasPriceBn = BigNumber.from(Math.ceil(gasPrice));
 
@@ -313,12 +281,17 @@ export function getLocalStorageGasOracleConfig({
     //   tokenDecimals: remoteDecimals,
     // };
 
-    let gasOracleConfig = adjustForPrecisionLoss(gasPrice, exchangeRate);
+    let gasOracleConfig = adjustForPrecisionLoss(
+      gasPrice,
+      exchangeRate,
+      remoteDecimals,
+    );
 
     if (gasPriceModifier) {
       gasOracleConfig = adjustForPrecisionLoss(
         gasPriceModifier(local, remote, gasOracleConfig),
         BigNumber.from(gasOracleConfig.tokenExchangeRate),
+        remoteDecimals,
       );
     }
 
@@ -327,6 +300,55 @@ export function getLocalStorageGasOracleConfig({
       [remote]: gasOracleConfig,
     };
   }, {} as ChainMap<ProtocolAgnositicGasOracleConfig>);
+}
+
+function adjustForPrecisionLoss(
+  gasPriceValue: BigNumberJs.Value,
+  exchangeRate: BigNumber,
+  remoteDecimals: number,
+): ProtocolAgnositicGasOracleConfig {
+  let newGasPrice = new BigNumberJs(gasPriceValue);
+  let newExchangeRate = exchangeRate;
+  // We have very little precision and ultimately need an integer value for
+  // the gas price that will be set on-chain. We scale up the gas price and
+  // scale down the exchange rate by the same factor.
+  if (newGasPrice.lt(10) && newGasPrice.mod(1) !== new BigNumberJs(0)) {
+    // Scale up the gas price by 1e4
+    const gasPriceScalingFactor = 1e4;
+
+    // Check that there's no significant underflow when applying
+    // this to the exchange rate:
+    const adjustedExchangeRate = newExchangeRate.div(gasPriceScalingFactor);
+    const recoveredExchangeRate = adjustedExchangeRate.mul(
+      gasPriceScalingFactor,
+    );
+    if (recoveredExchangeRate.mul(100).div(newExchangeRate).lt(99)) {
+      throw new Error('Too much underflow when downscaling exchange rate');
+    }
+
+    console.log(
+      'gasPriceValue',
+      gasPriceValue,
+      'newGasPrice',
+      newGasPrice.toString(),
+      'gasPriceScalingFactor',
+      gasPriceScalingFactor.toString(),
+    );
+    newGasPrice = newGasPrice.times(gasPriceScalingFactor);
+    newExchangeRate = adjustedExchangeRate;
+  }
+
+  const newGasPriceInteger = newGasPrice.integerValue(BigNumberJs.ROUND_CEIL);
+  assert(
+    newGasPriceInteger.gt(0),
+    'Gas price must be greater than 0, possible loss of precision',
+  );
+
+  return {
+    tokenExchangeRate: newExchangeRate.toString(),
+    gasPrice: newGasPriceInteger.toString(),
+    tokenDecimals: remoteDecimals,
+  };
 }
 
 // class ProtocolAgnosticGasOracleConfigClass {

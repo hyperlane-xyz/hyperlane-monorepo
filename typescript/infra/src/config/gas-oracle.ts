@@ -114,8 +114,8 @@ function getLocalStorageGasOracleConfigOverride(
             newGasPrice.toString(),
           );
           // assert(newGasPrice.gt(0), 'newGasPrice must be greater than 0');
-          return newGasPrice;
         }
+        return newGasPrice;
       }
     }
     return gasOracleConfig.gasPrice;
