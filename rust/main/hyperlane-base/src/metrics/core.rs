@@ -39,7 +39,6 @@ pub struct CoreMetrics {
     span_events: IntCounterVec,
     last_known_message_nonce: IntGaugeVec,
     latest_tree_insertion: IntGaugeVec,
-    highest_seen_tree_index: IntGaugeVec,
     submitter_queue_length: IntGaugeVec,
 
     operations_processed_count: IntCounterVec,
@@ -123,15 +122,6 @@ impl CoreMetrics {
             &["origin"],
             registry
         )?;
-        let highest_seen_tree_index = register_int_gauge_vec_with_registry!(
-            opts!(
-                namespaced!("highest_seen_tree_index"),
-                "Highest tree index seen by the relayer",
-                const_labels_ref
-            ),
-            &["origin"],
-            registry
-        )?;
 
         let observed_validator_latest_index = register_int_gauge_vec_with_registry!(
             opts!(
@@ -199,7 +189,6 @@ impl CoreMetrics {
             span_events,
             last_known_message_nonce,
             latest_tree_insertion,
-            highest_seen_tree_index,
 
             submitter_queue_length,
 
@@ -338,14 +327,6 @@ impl CoreMetrics {
     /// - `origin`: Origin chain the leaf index is being tracked at.
     pub fn latest_tree_insertion(&self) -> IntGaugeVec {
         self.latest_tree_insertion.clone()
-    }
-
-    /// Reports the current highest tree index seen by the relayer.
-    ///
-    /// Labels:
-    /// - `origin`: Origin chain the tree index is being tracked at.
-    pub fn highest_seen_tree_index(&self) -> IntGaugeVec {
-        self.highest_seen_tree_index.clone()
     }
 
     /// Latest message nonce in the validator.

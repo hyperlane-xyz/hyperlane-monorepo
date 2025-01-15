@@ -464,8 +464,7 @@ mod test {
             ) -> DbResult<Option<u64>>;
             fn store_highest_seen_message_nonce_number(&self, nonce: &u32) -> DbResult<()>;
             fn retrieve_highest_seen_message_nonce_number(&self) -> DbResult<Option<u32>>;
-            fn store_highest_seen_tree_index(&self, index: &u32) -> DbResult<()>;
-            fn retrieve_highest_seen_tree_index(&self) -> DbResult<Option<u32>>;
+
         }
     }
 
