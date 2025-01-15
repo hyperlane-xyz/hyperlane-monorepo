@@ -41,7 +41,7 @@ export const core: ChainMap<CoreConfig> = objMap(
     );
 
     const isZksyncChain =
-      getChain(local).technicalStack === ChainTechnicalStack.ZkSync;
+      getChain(local).technicalStack === ChainTechnicalStack.ZKSync;
 
     // zkSync uses a different ISM for the merkle root
     const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig =>
