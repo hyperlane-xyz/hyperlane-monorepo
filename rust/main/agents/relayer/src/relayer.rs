@@ -247,7 +247,7 @@ impl BaseAgent for Relayer {
                 };
 
             // only iterate through origin chains that were successfully instantiated
-            for (origin, validator_annonce) in validator_announces.iter() {
+            for (origin, validator_announce) in validator_announces.iter() {
                 let db = dbs.get(origin).unwrap().clone();
                 let metadata_builder = BaseMetadataBuilder::new(
                     origin.clone(),
