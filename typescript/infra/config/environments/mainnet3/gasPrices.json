@@ -1,8 +1,4 @@
 {
-  "acala": {
-    "amount": "100.007736839",
-    "decimals": 9
-  },
   "ancient8": {
     "amount": "0.001000252",
     "decimals": 9
@@ -32,7 +28,7 @@
     "decimals": 9
   },
   "arthera": {
-    "amount": "1.025069",
+    "amount": "1.025195",
     "decimals": 9
   },
   "astar": {
@@ -56,7 +52,7 @@
     "decimals": 9
   },
   "b3": {
-    "amount": "0.001000252",
+    "amount": "0.001000265",
     "decimals": 9
   },
   "base": {
@@ -100,7 +96,7 @@
     "decimals": 9
   },
   "conflux": {
-    "amount": "20.0",
+    "amount": "20.0137155",
     "decimals": 9
   },
   "conwai": {
@@ -224,7 +220,7 @@
     "decimals": 9
   },
   "lisk": {
-    "amount": "0.016350221",
+    "amount": "0.068378422",
     "decimals": 9
   },
   "lukso": {
@@ -240,7 +236,7 @@
     "decimals": 9
   },
   "mantapacific": {
-    "amount": "0.003000336",
+    "amount": "0.003000503",
     "decimals": 9
   },
   "mantle": {
@@ -260,7 +256,7 @@
     "decimals": 9
   },
   "mint": {
-    "amount": "0.001000252",
+    "amount": "0.001000258",
     "decimals": 9
   },
   "mode": {
@@ -383,10 +379,6 @@
     "amount": "0.005",
     "decimals": 1
   },
-  "subtensor": {
-    "amount": "10.0",
-    "decimals": 9
-  },
   "superseed": {
     "amount": "0.001000252",
     "decimals": 9
@@ -432,7 +424,7 @@
     "decimals": 9
   },
   "worldchain": {
-    "amount": "0.001000345",
+    "amount": "0.00100025",
     "decimals": 9
   },
   "xai": {
