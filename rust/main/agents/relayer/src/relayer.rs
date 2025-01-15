@@ -632,7 +632,7 @@ impl Relayer {
         chain_metrics: &ChainMetrics,
     ) -> HashMap<HyperlaneDomain, Arc<dyn Mailbox>> {
         settings
-            .build_mailboxes(settings.destination_chains.iter(), &core_metrics)
+            .build_mailboxes(settings.destination_chains.iter(), core_metrics)
             .await
             .into_iter()
             .filter_map(|(origin, mailbox_res)| match mailbox_res {
@@ -656,7 +656,7 @@ impl Relayer {
         chain_metrics: &ChainMetrics,
     ) -> HashMap<HyperlaneDomain, Arc<dyn ValidatorAnnounce>> {
         settings
-            .build_validator_announces(settings.origin_chains.iter(), &core_metrics)
+            .build_validator_announces(settings.origin_chains.iter(), core_metrics)
             .await
             .into_iter()
             .filter_map(|(origin, mailbox_res)| match mailbox_res {
