@@ -7,31 +7,32 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
 } from '../../../../../src/config/warp.js';
-import { DEPLOYER } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
-// Need to transfer ownership later
+// Cod3x SAFE
+const baseOwner = '0xfEfcb2fb19b9A70B30646Fdc1A0860Eb12F7ff8b';
+// Cod3x Squads vault
+const solanamainnetOwner = '7dRAVvdmV3dy4JieuRAirBQ9oSpYaHgmYwupoK5YZcFR';
 
 export async function getBaseSolanamainnetTONYWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   let base: HypTokenRouterConfig = {
-    ...routerConfig.base,
-    ...getOwnerConfigForAddress(DEPLOYER),
+    mailbox: routerConfig.base.mailbox,
+    owner: baseOwner,
     type: TokenType.collateral,
     token: tokens.base.TONY,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const solanamainnet: HypTokenRouterConfig = {
-    ...routerConfig.solanamainnet,
-    ...getOwnerConfigForAddress(DEPLOYER),
+    mailbox: routerConfig.solanamainnet.mailbox,
+    owner: solanamainnetOwner,
     type: TokenType.synthetic,
     foreignDeployment: '4AQVPTCAeLswnjksQdutxUDuxEJxUBwoWmVimGuPtGSt',
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
