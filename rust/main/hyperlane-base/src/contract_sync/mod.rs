@@ -98,8 +98,13 @@ where
             .metrics
             .stored_events
             .with_label_values(&[label, chain_name]);
+        let iteration_metric = self
+            .metrics
+            .iterations
+            .with_label_values(&[label, chain_name]);
 
         loop {
+            iteration_metric.inc();
             if let Some(rx) = opts.tx_id_receiver.as_mut() {
                 self.fetch_logs_from_receiver(rx, &stored_logs_metric).await;
             }
