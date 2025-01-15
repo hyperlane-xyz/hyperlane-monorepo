@@ -33,7 +33,7 @@ pub struct RelayerSettings {
     #[as_mut]
     #[deref]
     #[deref_mut]
-    base: Settings,
+    pub base: Settings,
 
     /// Database path
     pub db: PathBuf,
@@ -125,16 +125,50 @@ impl FromRawConf<RawRelayerSettings> for RelayerSettings {
             .parse_from_str("Expected database path")
             .unwrap_or_else(|| std::env::current_dir().unwrap().join("hyperlane_db"));
 
-        let (raw_gas_payment_enforcement_path, raw_gas_payment_enforcement) = p
-            .get_opt_key("gasPaymentEnforcement")
-            .take_config_err_flat(&mut err)
-            .and_then(parse_json_array)
-            .unwrap_or_else(|| (&p.cwp + "gas_payment_enforcement", Value::Array(vec![])));
+        // is_gas_payment_enforcement_set determines if we should be checking for the correct gas payment enforcement policy has been provided with "gasPaymentEnforcement" key
+        let (
+            raw_gas_payment_enforcement_path,
+            raw_gas_payment_enforcement,
+            is_gas_payment_enforcement_set,
+        ) = {
+            match p.get_opt_key("gasPaymentEnforcement") {
+                Ok(Some(parser)) => match parse_json_array(parser) {
+                    Some((path, value)) => (path, value, true),
+                    None => (
+                        &p.cwp + "gas_payment_enforcement",
+                        Value::Array(vec![]),
+                        true,
+                    ),
+                },
+                Ok(None) => (
+                    &p.cwp + "gas_payment_enforcement",
+                    Value::Array(vec![]),
+                    false,
+                ),
+                Err(_) => (
+                    &p.cwp + "gas_payment_enforcement",
+                    Value::Array(vec![]),
+                    false,
+                ),
+            }
+        };
 
         let gas_payment_enforcement_parser = ValueParser::new(
             raw_gas_payment_enforcement_path,
             &raw_gas_payment_enforcement,
         );
+
+        if is_gas_payment_enforcement_set
+            && gas_payment_enforcement_parser
+                .val
+                .as_array()
+                .unwrap()
+                .is_empty()
+        {
+            Err::<(), eyre::Report>(eyre!("GASPAYMENTENFORCEMENT policy cannot be parsed"))
+                .take_err(&mut err, || cwp + "gas_payment_enforcement");
+        }
+
         let mut gas_payment_enforcement = gas_payment_enforcement_parser.into_array_iter().map(|itr| {
             itr.filter_map(|policy| {
                 let policy_type = policy.chain(&mut err).get_opt_key("type").parse_string().end();
