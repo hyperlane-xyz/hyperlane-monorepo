@@ -21,6 +21,7 @@ runs:
       with:
         repository: hyperlane-xyz/hyperlane-registry
         ref: ${{ env.REGISTRY_VERSION }}
+        fetch-depth: 0
         path: ./hyperlane-registry
 
     - name: Move hyperlane-registry to parent directory

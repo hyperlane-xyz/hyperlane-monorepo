@@ -51,7 +51,6 @@ mod invariants;
 mod logging;
 mod metrics;
 mod program;
-mod server;
 mod solana;
 mod utils;
 
@@ -228,7 +227,7 @@ fn main() -> ExitCode {
             "GASPAYMENTENFORCEMENT",
             r#"[{
                 "type": "minimum",
-                "payment": "1",
+                "payment": "1"
             }]"#,
         )
         .arg(
@@ -466,6 +465,11 @@ fn main() -> ExitCode {
             initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
                 .join();
         }
+        initiate_solana_non_matching_igp_paying_transfer(
+            solana_path.clone(),
+            solana_config_path.clone(),
+        )
+        .join();
     }
 
     log!("Setup complete! Agents running in background...");
@@ -483,10 +487,6 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
-
-    // test retry request
-    let resp = server::run_retry_request().expect("Failed to process retry request");
-    assert!(resp.matched > 0);
 
     if !post_startup_invariants(&checkpoints_dirs) {
         log!("Failure: Post startup invariants are not met");

@@ -42,7 +42,7 @@ tonic = { workspace = true, features = [
     "transport",
     "tls",
     "tls-roots",
-    "tls-roots-common",
+    "tls-native-roots",
 ] }
 tracing = { workspace = true }
 tracing-futures = { workspace = true }

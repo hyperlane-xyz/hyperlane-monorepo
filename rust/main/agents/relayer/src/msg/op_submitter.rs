@@ -32,7 +32,7 @@ use hyperlane_core::{
 };
 
 use crate::msg::pending_message::CONFIRM_DELAY;
-use crate::server::MessageRetryRequest;
+use crate::settings::matching_list::MatchingList;
 
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
@@ -105,7 +105,7 @@ impl SerialSubmitter {
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
-        retry_op_transmitter: Sender<MessageRetryRequest>,
+        retry_op_transmitter: Sender<MatchingList>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
         task_monitor: TaskMonitor,
@@ -543,7 +543,7 @@ impl OperationBatch {
         };
 
         if !excluded_ops.is_empty() {
-            warn!(excluded_ops=?excluded_ops, "Either the batch tx would revert, or the operations would revert in the batch. Falling back to serial submission.");
+            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
             OperationBatch::new(excluded_ops, self.domain)
                 .submit_serially(prepare_queue, confirm_queue, metrics)
                 .await;
