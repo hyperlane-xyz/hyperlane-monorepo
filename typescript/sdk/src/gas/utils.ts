@@ -117,19 +117,12 @@ export function getTokenExchangeRateFromValues({
   exchangeRateMarginPct: number;
   decimals: { local: number; remote: number };
 }): BigNumberJs {
-  console.log('bruh tokenPrices', tokenPrices);
   // Workaround for chicken-egg dependency problem.
   // We need to provide some default value here to satisfy the config on initial load,
   // whilst knowing that it will get overwritten when a script actually gets run.
   const defaultValue = '1';
   const localValue = new BigNumberJs(tokenPrices[local] ?? defaultValue);
   const remoteValue = new BigNumberJs(tokenPrices[remote] ?? defaultValue);
-
-  if (localValue.isZero() || remoteValue.isZero()) {
-    console.log('exchangeRateMarginPct', exchangeRateMarginPct, decimals);
-    // print stacktrace
-    console.trace();
-  }
 
   console.log(
     'yeet 1',
@@ -186,11 +179,13 @@ function getProtocolSpecificExchangeRate(
 // and scaling down the exchange rate by the same factor.
 export function getLocalStorageGasOracleConfig({
   local,
+  localProtocolType,
   gasOracleParams,
   exchangeRateMarginPct,
   gasPriceModifier,
 }: {
   local: ChainName;
+  localProtocolType: ProtocolType;
   gasOracleParams: ChainMap<ChainGasOracleParams>;
   exchangeRateMarginPct: number;
   gasPriceModifier?: (
@@ -225,7 +220,7 @@ export function getLocalStorageGasOracleConfig({
     let exchangeRate = getProtocolSpecificExchangeRate(
       exchangeRateFloat,
       // TODO need to get this
-      ProtocolType.Ethereum,
+      localProtocolType,
     );
     console.log(
       'exchangeRate after protocol specific',

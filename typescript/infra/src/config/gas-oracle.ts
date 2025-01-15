@@ -13,6 +13,7 @@ import {
   getLocalStorageGasOracleConfig,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   isEthereumProtocolChain,
@@ -89,6 +90,8 @@ function getLocalStorageGasOracleConfigOverride(
 
   return getLocalStorageGasOracleConfig({
     local,
+    localProtocolType: ProtocolType.Ethereum,
+    // getChain(local).protocolType,
     gasOracleParams,
     exchangeRateMarginPct: EXCHANGE_RATE_MARGIN_PCT,
     gasPriceModifier,
@@ -181,7 +184,9 @@ export function getAllStorageGasOracleConfigs(
   gasPrices: ChainMap<GasPriceConfig>,
   getOverhead?: (local: ChainName, remote: ChainName) => number,
 ): AllStorageGasOracleConfigs {
-  return chainNames.filter(isEthereumProtocolChain).reduce((agg, local) => {
+  // return chainNames.filter(isEthereumProtocolChain).
+
+  return chainNames.reduce((agg, local) => {
     const remotes = chainNames.filter((chain) => local !== chain);
     return {
       ...agg,

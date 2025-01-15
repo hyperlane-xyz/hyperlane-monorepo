@@ -4,22 +4,19 @@ import {
   ChainTechnicalStack,
   HookType,
   IgpConfig,
-  getTokenExchangeRateFromValues,
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
   AllStorageGasOracleConfigs,
-  EXCHANGE_RATE_MARGIN_PCT,
   getAllStorageGasOracleConfigs,
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
-import { mustGetChainNativeToken } from '../../../src/utils/utils.js';
 import { getChain } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
-import { DEPLOYER, ethereumChainOwners } from './owners.js';
+import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
 import rawTokenPrices from './tokenPrices.json';
 
@@ -48,7 +45,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(
-  ethereumChainOwners,
+  chainOwners,
   (local, owner): IgpConfig => ({
     type: HookType.INTERCHAIN_GAS_PAYMASTER,
     ...owner,
