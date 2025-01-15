@@ -15,6 +15,8 @@
   },
   "base": {
     "type": "synthetic",
+    "name": "Artela",
+    "symbol": "ART",
     "decimals": 18,
     "foreignDeployment": "0x228c5101b2C63b9d620a3e8FEa7eC14263F82569"
   }
