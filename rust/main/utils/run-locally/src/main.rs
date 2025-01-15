@@ -51,6 +51,7 @@ mod invariants;
 mod logging;
 mod metrics;
 mod program;
+mod server;
 mod solana;
 mod utils;
 
@@ -539,6 +540,9 @@ fn main() -> ExitCode {
 
         sleep(Duration::from_secs(5));
     }
+    // test retry request
+    let resp = server::run_retry_request().expect("Failed to process retry request");
+    assert!(resp.matched > 0);
 
     report_test_result(failure_occurred)
 }
