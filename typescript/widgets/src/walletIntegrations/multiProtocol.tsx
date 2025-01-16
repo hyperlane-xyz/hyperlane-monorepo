@@ -40,11 +40,14 @@ const logger = widgetLogger.child({
   module: 'walletIntegrations/multiProtocol',
 });
 
+type NonStarknetProtocol = Exclude<ProtocolType, 'starknet'>;
+type ProtocolRecord<T> = Record<NonStarknetProtocol, T>;
+
 export function useAccounts(
   multiProvider: MultiProtocolProvider,
   blacklistedAddresses: Address[] = [],
 ): {
-  accounts: Record<Exclude<ProtocolType, 'starknet'>, AccountInfo>;
+  accounts: ProtocolRecord<AccountInfo>;
   readyAccounts: Array<AccountInfo>;
 } {
   const evmAccountInfo = useEthereumAccount(multiProvider);
@@ -103,7 +106,7 @@ export function useAccountAddressForChain(
 export function getAccountAddressForChain(
   multiProvider: MultiProtocolProvider,
   chainName?: ChainName,
-  accounts?: Record<Exclude<ProtocolType, 'starknet'>, AccountInfo>,
+  accounts?: ProtocolRecord<AccountInfo>,
 ): Address | undefined {
   if (!chainName || !accounts) return undefined;
   const protocol = multiProvider.getProtocol(chainName);
@@ -119,7 +122,7 @@ export function getAccountAddressForChain(
 export function getAccountAddressAndPubKey(
   multiProvider: MultiProtocolProvider,
   chainName?: ChainName,
-  accounts?: Record<Exclude<ProtocolType, 'starknet'>, AccountInfo>,
+  accounts?: ProtocolRecord<AccountInfo>,
 ): { address?: Address; publicKey?: Promise<HexString> } {
   const address = getAccountAddressForChain(multiProvider, chainName, accounts);
   if (!accounts || !chainName || !address) return {};
@@ -128,10 +131,7 @@ export function getAccountAddressAndPubKey(
   return { address, publicKey };
 }
 
-export function useWalletDetails(): Record<
-  Exclude<ProtocolType, 'starknet'>,
-  WalletDetails
-> {
+export function useWalletDetails(): ProtocolRecord<WalletDetails> {
   const evmWallet = useEthereumWalletDetails();
   const solWallet = useSolanaWalletDetails();
   const cosmosWallet = useCosmosWalletDetails();
@@ -146,10 +146,7 @@ export function useWalletDetails(): Record<
   );
 }
 
-export function useConnectFns(): Record<
-  Exclude<ProtocolType, 'starknet'>,
-  () => void
-> {
+export function useConnectFns(): ProtocolRecord<() => void> {
   const onConnectEthereum = useEthereumConnectFn();
   const onConnectSolana = useSolanaConnectFn();
   const onConnectCosmos = useCosmosConnectFn();
@@ -164,10 +161,7 @@ export function useConnectFns(): Record<
   );
 }
 
-export function useDisconnectFns(): Record<
-  Exclude<ProtocolType, 'starknet'>,
-  () => Promise<void>
-> {
+export function useDisconnectFns(): ProtocolRecord<() => Promise<void>> {
   const disconnectEvm = useEthereumDisconnectFn();
   const disconnectSol = useSolanaDisconnectFn();
   const disconnectCosmos = useCosmosDisconnectFn();
@@ -203,7 +197,7 @@ export function useDisconnectFns(): Record<
 }
 
 export function useActiveChains(multiProvider: MultiProtocolProvider): {
-  chains: Record<Exclude<ProtocolType, 'starknet'>, ActiveChainInfo>;
+  chains: ProtocolRecord<ActiveChainInfo>;
   readyChains: Array<ActiveChainInfo>;
 } {
   const evmChain = useEthereumActiveChain(multiProvider);
@@ -230,7 +224,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
 
 export function useTransactionFns(
   multiProvider: MultiProtocolProvider,
-): Record<Exclude<ProtocolType, 'starknet'>, ChainTransactionFns> {
+): ProtocolRecord<ChainTransactionFns> {
   const { switchNetwork: onSwitchEvmNetwork, sendTransaction: onSendEvmTx } =
     useEthereumTransactionFns(multiProvider);
   const { switchNetwork: onSwitchSolNetwork, sendTransaction: onSendSolTx } =
