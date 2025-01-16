@@ -199,7 +199,12 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'TIA.n',
     name: 'TIA.n',
   },
+
+  // Starknet
   [TokenStandard.CwHypSynthetic]: null,
+  [TokenStandard.StarknetHypNative]: null,
+  [TokenStandard.StarknetHypCollateral]: null,
+  [TokenStandard.StarknetHypSynthetic]: null,
 };
 
 const PROTOCOL_TO_ADDRESS_FOR_BALANCE_CHECK: Partial<
