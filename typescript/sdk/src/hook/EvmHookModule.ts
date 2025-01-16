@@ -631,6 +631,8 @@ export class EvmHookModule extends HyperlaneModule<
       );
     }
 
+    this.logger.debug(`Deploying hook of type ${config.type}`);
+
     switch (config.type) {
       case HookType.MERKLE_TREE:
         return this.deployer.deployContract(this.chain, HookType.MERKLE_TREE, [

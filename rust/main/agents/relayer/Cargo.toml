@@ -56,9 +56,11 @@ hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 once_cell.workspace = true
 mockall.workspace = true
 tokio-test.workspace = true
+tracing-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
 hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async", "test-utils"] }
+ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
 
 [features]
 default = ["color-eyre", "oneline-errors"]
