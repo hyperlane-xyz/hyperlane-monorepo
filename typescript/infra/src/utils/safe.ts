@@ -231,7 +231,7 @@ export async function deleteSafeTx(
 
   // Compare proposer to signer
   const signerAddress = await signer.getAddress();
-  if (proposer !== signerAddress) {
+  if (!eqAddress(proposer, signerAddress)) {
     rootLogger.info(
       chalk.italic(
         `Skipping deletion of transaction ${safeTxHash} proposed by ${proposer}`,
