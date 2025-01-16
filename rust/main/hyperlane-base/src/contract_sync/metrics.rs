@@ -26,8 +26,8 @@ pub struct ContractSyncMetrics {
     /// See `last_known_message_nonce` in CoreMetrics.
     pub message_nonce: IntGaugeVec,
 
-    /// Contract sync iteration metric
-    pub iterations: IntCounterVec,
+    /// Contract sync liveness metric
+    pub liveness_metrics: IntGaugeVec,
 
     /// Metrics for SequenceAware and RateLimited cursors.
     pub cursor_metrics: Arc<CursorMetrics>,
@@ -52,13 +52,13 @@ impl ContractSyncMetrics {
             )
             .expect("failed to register stored_events metric");
 
-        let iterations = metrics
-            .new_int_counter(
-                "contract_sync_iterations",
-                "Number of iterations made by contract sync",
+        let liveness_metrics = metrics
+            .new_int_gauge(
+                "contract_sync_liveness",
+                "Last timestamp observed by contract sync",
                 &["data_type", "chain"],
             )
-            .expect("failed to register iterations metric");
+            .expect("failed to register liveness metric");
 
         let message_nonce = metrics.last_known_message_nonce();
         let cursor_metrics = Arc::new(CursorMetrics::new(metrics));
@@ -67,7 +67,7 @@ impl ContractSyncMetrics {
             indexed_height,
             stored_events,
             message_nonce,
-            iterations,
+            liveness_metrics,
             cursor_metrics,
         }
     }
