@@ -258,12 +258,21 @@ export class GovernTransactionReader {
       insight = `Unenroll remote routers for ${insights.join(', ')}`;
     }
 
+    if (
+      decoded.functionFragment.name ===
+      tokenRouterInterface.functions['transferOwnership(address)'].name
+    ) {
+      const [newOwner] = decoded.args;
+      insight = `Transfer ownership to ${newOwner}`;
+    }
+
     assert(tx.to, 'Warp Module transaction must have a to address');
-    const token = this.warpRouteIndex[chain][tx.to.toLowerCase()];
+    const tokenAddress = tx.to.toLowerCase();
+    const token = this.warpRouteIndex[chain][tokenAddress];
 
     return {
       chain,
-      to: `${token.symbol} (${token.name}, ${token.standard})`,
+      to: `${token.symbol} (${token.name}, ${token.standard}, ${tokenAddress})`,
       insight,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
