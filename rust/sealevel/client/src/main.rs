@@ -184,8 +184,6 @@ struct CoreDeploy {
     overhead_config_file: Option<PathBuf>,
     #[arg(long)]
     chain: String,
-    #[arg(long)]
-    use_existing_keys: bool,
     #[arg(long, num_args = 1.., value_delimiter = ',')]
     remote_domains: Vec<u32>,
     #[arg(long)]
@@ -432,6 +430,8 @@ struct InitIgpAccountArgs {
     context: Option<String>,
     #[arg(long)]
     gas_oracle_config_file: Option<PathBuf>,
+    #[arg(long)]
+    account_salt: Option<String>, // optional salt for deterministic account creation
 }
 
 #[derive(Args)]
@@ -450,6 +450,8 @@ struct InitOverheadIgpAccountArgs {
     context: Option<String>,
     #[arg(long)]
     overhead_config_file: Option<PathBuf>,
+    #[arg(long)]
+    account_salt: Option<String>, // optional salt for deterministic account creation
 }
 
 #[derive(Args)]
@@ -483,6 +485,8 @@ struct PayForGasArgs {
     destination_domain: u32,
     #[arg(long)]
     gas: u64,
+    #[arg(long)]
+    account_salt: Option<String>, // optional salt for paying gas to a deterministically derived account
 }
 
 #[derive(Args)]
