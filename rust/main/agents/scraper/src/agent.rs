@@ -229,7 +229,7 @@ impl Scraper {
         let mut scrapers: HashMap<u32, ChainScraper> = HashMap::new();
 
         for domain in settings.chains_to_scrape.iter() {
-            match Self::build_chain_scraper(domain, &settings, metrics.clone(), scraper_db.clone())
+            match Self::build_chain_scraper(domain, settings, metrics.clone(), scraper_db.clone())
                 .await
             {
                 Ok(scraper) => {
