@@ -5,7 +5,7 @@ use derive_more::AsRef;
 use futures::future::try_join_all;
 use hyperlane_core::{Delivery, HyperlaneDomain, HyperlaneMessage, InterchainGasPayment, H512};
 use tokio::{sync::mpsc::Receiver as MpscReceiver, task::JoinHandle};
-use tracing::{info_span, instrument::Instrumented, trace, Instrument};
+use tracing::{info, info_span, instrument::Instrumented, trace, Instrument};
 
 use hyperlane_base::{
     broadcast::BroadcastMpscSender, metrics::AgentMetrics, settings::IndexSettings, AgentMetadata,
@@ -59,18 +59,24 @@ impl BaseAgent for Scraper {
         let mut scrapers: HashMap<u32, ChainScraper> = HashMap::new();
 
         for domain in settings.chains_to_scrape.iter() {
+            info!(domain = domain.name(), "create chain scraper for domain");
             let chain_setup = settings.chain_setup(domain).expect("Missing chain config");
+            info!(domain = domain.name(), "create HyperlaneProvider");
+            let provider = settings
+                .build_provider(domain, &metrics.clone())
+                .await?
+                .into();
+            info!(domain = domain.name(), "create HyperlaneDbStore");
             let store = HyperlaneDbStore::new(
                 db.clone(),
-                chain_setup.addresses.mailbox,
                 domain.clone(),
-                settings
-                    .build_provider(domain, &metrics.clone())
-                    .await?
-                    .into(),
+                chain_setup.addresses.mailbox,
+                chain_setup.addresses.interchain_gas_paymaster,
+                provider,
                 &chain_setup.index.clone(),
             )
             .await?;
+            info!(domain = domain.name(), "insert chain scraper");
             scrapers.insert(
                 domain.id(),
                 ChainScraper {
@@ -198,6 +204,7 @@ impl Scraper {
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 store.into(),
+                true,
             )
             .await
             .unwrap();
@@ -224,11 +231,12 @@ impl Scraper {
         let sync = self
             .as_ref()
             .settings
-            .watermark_contract_sync::<Delivery, _>(
+            .contract_sync::<Delivery, _>(
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
                 Arc::new(store.clone()) as _,
+                true,
             )
             .await
             .unwrap();
@@ -256,11 +264,12 @@ impl Scraper {
         let sync = self
             .as_ref()
             .settings
-            .watermark_contract_sync::<InterchainGasPayment, _>(
+            .contract_sync::<InterchainGasPayment, _>(
                 &domain,
                 &metrics.clone(),
                 &contract_sync_metrics.clone(),
-                Arc::new(store.clone()),
+                Arc::new(store.clone()) as _,
+                true,
             )
             .await
             .unwrap();

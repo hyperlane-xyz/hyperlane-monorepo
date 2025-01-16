@@ -153,6 +153,8 @@ fn main() -> ExitCode {
     .unwrap();
 
     let config = Config::load();
+    log!("Running with config: {:?}", config);
+
     let mut validator_origin_chains = ["test1", "test2", "test3"].to_vec();
     let mut validator_keys = ETH_VALIDATOR_KEYS.to_vec();
     let mut validator_count: usize = validator_keys.len();
@@ -225,7 +227,7 @@ fn main() -> ExitCode {
             "GASPAYMENTENFORCEMENT",
             r#"[{
                 "type": "minimum",
-                "payment": "1",
+                "payment": "1"
             }]"#,
         )
         .arg(
@@ -286,12 +288,19 @@ fn main() -> ExitCode {
         .hyp_env("CHAINS_TEST2_CUSTOMRPCURLS", "http://127.0.0.1:8545")
         .hyp_env("CHAINS_TEST3_RPCCONSENSUSTYPE", "quorum")
         .hyp_env("CHAINS_TEST3_CUSTOMRPCURLS", "http://127.0.0.1:8545")
-        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
         .hyp_env("METRICSPORT", SCRAPER_METRICS_PORT)
         .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         );
+    let scraper_env = if config.sealevel_enabled {
+        scraper_env.hyp_env(
+            "CHAINSTOSCRAPE",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
+        )
+    } else {
+        scraper_env.hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
+    };
 
     let mut state = State::default();
 
@@ -456,6 +465,11 @@ fn main() -> ExitCode {
             initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
                 .join();
         }
+        initiate_solana_non_matching_igp_paying_transfer(
+            solana_path.clone(),
+            solana_config_path.clone(),
+        )
+        .join();
     }
 
     log!("Setup complete! Agents running in background...");

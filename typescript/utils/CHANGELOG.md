@@ -1,5 +1,25 @@
 # @hyperlane-xyz/utils
 
+## 8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- 79f8197f3: Added `isPrivateKeyEvm` function for validating EVM private keys
+
+### Patch Changes
+
+- 8834a8c92: Require concurrency > 0 for concurrentMap
+
+## 7.3.0
+
+## 7.2.0
+
+### Minor Changes
+
+- fa6d5f5c6: Add toUpperCamelCase and deepFind functions
+
 ## 7.1.0
 
 ### Minor Changes

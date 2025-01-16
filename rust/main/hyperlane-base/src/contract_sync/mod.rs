@@ -107,7 +107,17 @@ where
                 self.fetch_logs_with_cursor(cursor, &stored_logs_metric, &indexed_height_metric)
                     .await;
             }
+
+            // Added so that we confuse compiler that it is an infinite loop
+            if false {
+                break;
+            }
         }
+
+        // Although the above loop should never end (unless by panicking),
+        // we put log here to make sure that we see when this method returns normally.
+        // Hopefully, compiler will not optimise this code out.
+        info!(chain = chain_name, label, "contract sync loop exit");
     }
 
     #[instrument(fields(domain=self.domain().name()), skip(self, recv, stored_logs_metric))]
@@ -312,6 +322,8 @@ where
         Ok(Box::new(
             RateLimitedContractSyncCursor::new(
                 Arc::new(self.indexer.clone()),
+                self.metrics.cursor_metrics.clone(),
+                self.domain(),
                 self.store.clone(),
                 index_settings.chunk_size,
                 index_settings.from,
@@ -352,6 +364,8 @@ where
     ) -> Result<Box<dyn ContractSyncCursor<T>>> {
         Ok(Box::new(
             ForwardBackwardSequenceAwareSyncCursor::new(
+                self.domain(),
+                self.metrics.cursor_metrics.clone(),
                 self.indexer.clone(),
                 Arc::new(self.store.clone()),
                 index_settings.chunk_size,

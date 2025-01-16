@@ -24,6 +24,9 @@ export const chainsToSkip: ChainName[] = [
   // mainnets
   'zksync',
   'zeronetwork',
+  'zklink',
+  'treasure',
+
   // testnets
   'abstracttestnet',
   'treasuretopaz',

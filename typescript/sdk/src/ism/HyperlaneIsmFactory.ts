@@ -14,6 +14,7 @@ import {
   IMultisigIsm__factory,
   IRoutingIsm,
   IStaticWeightedMultisigIsm,
+  InterchainAccountIsm__factory,
   OPStackIsm__factory,
   PausableIsm__factory,
   StaticAddressSetFactory,
@@ -53,6 +54,7 @@ import {
   AggregationIsmConfig,
   DeployedIsm,
   DeployedIsmType,
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
   MultisigIsmConfig,
@@ -129,7 +131,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     const logger = this.logger.child({ destination, ismType });
 
     logger.debug(
-      `Deploying ${ismType} to ${destination} ${
+      `Deploying ISM of type ${ismType} to ${destination} ${
         origin ? `(for verifying ${origin})` : ''
       }`,
     );
@@ -152,6 +154,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         break;
       case IsmType.ROUTING:
       case IsmType.FALLBACK_ROUTING:
+      case IsmType.ICA_ROUTING:
         contract = await this.deployRoutingIsm({
           destination,
           config,
@@ -318,6 +321,43 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     existingIsmAddress?: Address;
     logger: Logger;
   }): Promise<IRoutingIsm> {
+    const { config } = params;
+
+    if (config.type === IsmType.ICA_ROUTING) {
+      return this.deployIcaIsm(params);
+    }
+
+    return this.deployOwnableRoutingIsm({
+      ...params,
+      // Can't pass params directly because ts will complain that the types do not match
+      config,
+    });
+  }
+
+  private async deployIcaIsm(params: {
+    destination: ChainName;
+    config: RoutingIsmConfig;
+    mailbox?: Address;
+  }): Promise<IRoutingIsm> {
+    if (!params.mailbox) {
+      throw new Error('Mailbox address is required for deploying ICA ISM');
+    }
+
+    return this.multiProvider.handleDeploy(
+      params.destination,
+      new InterchainAccountIsm__factory(),
+      [params.mailbox],
+    );
+  }
+
+  private async deployOwnableRoutingIsm(params: {
+    destination: ChainName;
+    config: DomainRoutingIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+    existingIsmAddress?: Address;
+    logger: Logger;
+  }): Promise<IRoutingIsm> {
     const { destination, config, mailbox, existingIsmAddress, logger } = params;
     const overrides = this.multiProvider.getTransactionOverrides(destination);
     const domainRoutingIsmFactory =
@@ -360,6 +400,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       ).owner();
       isOwner = eqAddress(await signer.getAddress(), owner);
     }
+
     // reconfiguring existing routing ISM
     if (existingIsmAddress && isOwner && !delta.mailbox) {
       const isms: Record<Domain, Address> = {};
@@ -466,7 +507,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           .map((log) => {
             try {
               return domainRoutingIsmFactory.interface.parseLog(log);
-            } catch (e) {
+            } catch {
               return undefined;
             }
           })

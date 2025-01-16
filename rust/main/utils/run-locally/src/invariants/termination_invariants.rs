@@ -7,7 +7,7 @@ use crate::utils::get_matching_lines;
 use maplit::hashmap;
 use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 
-use crate::invariants::SOL_MESSAGES_EXPECTED;
+use crate::invariants::common::{SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP};
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
 use crate::{
@@ -30,7 +30,15 @@ pub fn termination_invariants_met(
     } else {
         0
     };
+    let sol_messages_with_non_matching_igp = if config.sealevel_enabled {
+        SOL_MESSAGES_WITH_NON_MATCHING_IGP
+    } else {
+        0
+    };
+
+    // this is total messages expected to be delivered
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
+    let total_messages_dispatched = total_messages_expected + sol_messages_with_non_matching_igp;
 
     let lengths = fetch_metric(
         RELAYER_METRICS_PORT,
@@ -38,8 +46,13 @@ pub fn termination_invariants_met(
         &hashmap! {},
     )?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
-    if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
-        log!("Relayer queues not empty. Lengths: {:?}", lengths);
+    if lengths.iter().sum::<u32>()
+        != ZERO_MERKLE_INSERTION_KATHY_MESSAGES + sol_messages_with_non_matching_igp
+    {
+        log!(
+            "Relayer queues contain more messages than the zero-merkle-insertion ones. Lengths: {:?}",
+            lengths
+        );
         return Ok(false);
     };
 
@@ -92,9 +105,12 @@ pub fn termination_invariants_met(
     // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
+    let gas_expenditure_log_count = log_counts.get(GAS_EXPENDITURE_LOG_MESSAGE).unwrap();
     assert!(
-        log_counts.get(GAS_EXPENDITURE_LOG_MESSAGE).unwrap() >= &total_messages_expected,
-        "Didn't record gas payment for all delivered messages"
+        gas_expenditure_log_count >= &total_messages_expected,
+        "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
+        gas_expenditure_log_count,
+        total_messages_expected
     );
     // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
     assert!(
@@ -123,23 +139,13 @@ pub fn termination_invariants_met(
         "Verbose logs not expected at the log level set in e2e"
     );
 
-    let gas_payment_sealevel_events_count = fetch_metric(
-        RELAYER_METRICS_PORT,
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {
-                "data_type" => "gas_payments",
-                "chain" => "sealeveltest",
-        },
-    )?
-    .iter()
-    .sum::<u32>();
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
-    if gas_payment_events_count < total_messages_expected {
+    if gas_payment_events_count < total_messages_dispatched {
         log!(
             "Relayer has {} gas payment events, expected at least {}",
             gas_payment_events_count,
-            total_messages_expected
+            total_messages_dispatched
         );
         return Ok(false);
     }
@@ -160,11 +166,13 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    if dispatched_messages_scraped != eth_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+    if dispatched_messages_scraped
+        != total_messages_dispatched + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+    {
         log!(
             "Scraper has scraped {} dispatched messages, expected {}",
             dispatched_messages_scraped,
-            eth_messages_expected
+            total_messages_dispatched + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
         );
         return Ok(false);
     }
@@ -176,15 +184,11 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    // The relayer and scraper should have the same number of gas payments.
-    // TODO: Sealevel gas payments are not yet included in the event count.
-    // For now, treat as an exception in the invariants.
-    let expected_gas_payments = gas_payment_events_count - gas_payment_sealevel_events_count;
-    if gas_payments_scraped != expected_gas_payments {
+    if gas_payments_scraped != gas_payment_events_count {
         log!(
             "Scraper has scraped {} gas payments, expected {}",
             gas_payments_scraped,
-            expected_gas_payments
+            gas_payment_events_count
         );
         return Ok(false);
     }
@@ -196,11 +200,11 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    if delivered_messages_scraped != eth_messages_expected {
+    if delivered_messages_scraped != total_messages_expected {
         log!(
             "Scraper has scraped {} delivered messages, expected {}",
             delivered_messages_scraped,
-            eth_messages_expected
+            total_messages_expected + sol_messages_with_non_matching_igp
         );
         return Ok(false);
     }

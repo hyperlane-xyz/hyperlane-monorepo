@@ -35,7 +35,10 @@ import { owners } from '../../config/environments/testnet4/owners.js';
 import { CloudAgentKey } from '../../src/agents/keys.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { Role } from '../../src/roles.js';
-import { startMetricsServer } from '../../src/utils/metrics.js';
+import {
+  getWalletBalanceGauge,
+  startMetricsServer,
+} from '../../src/utils/metrics.js';
 import { assertChain, diagonalize } from '../../src/utils/utils.js';
 import { getArgs, withContext } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -70,19 +73,7 @@ const messageReceiptSeconds = new Counter({
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
-const walletBalance = new Gauge({
-  name: 'hyperlane_wallet_balance',
-  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
-  registers: [metricsRegister],
-  labelNames: [
-    'chain',
-    'wallet_address',
-    'wallet_name',
-    'token_address',
-    'token_symbol',
-    'token_name',
-  ],
-});
+const walletBalance = getWalletBalanceGauge(metricsRegister);
 
 /** The maximum number of messages we will allow to get queued up if we are sending too slowly. */
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;
@@ -489,8 +480,8 @@ async function sendMessage(
   });
 
   await timeout(
-    // Will check for up to 12 minutes
-    core.waitForMessagesProcessed(origin, destination, receipt, 5000, 144),
+    // Retry indefinitely, but rely on the timeout to break out
+    core.waitForMessagesProcessed(origin, destination, receipt, 5000),
     messageReceiptTimeout,
     'Timeout waiting for message to be received',
   );

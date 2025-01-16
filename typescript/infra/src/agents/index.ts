@@ -1,8 +1,14 @@
 import fs from 'fs';
 import { join } from 'path';
 
-import { ChainName, RelayerConfig, RpcConsensusType } from '@hyperlane-xyz/sdk';
-import { objFilter, objOmit, objOmitKeys, pick } from '@hyperlane-xyz/utils';
+import {
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelTransactionSubmitter,
+  ChainName,
+  RelayerConfig,
+  RpcConsensusType,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, objOmitKeys } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
@@ -87,12 +93,33 @@ export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> 
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
           }
+
+          let priorityFeeOracle: AgentSealevelPriorityFeeOracle | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            priorityFeeOracle =
+              this.config.rawConfig.sealevel?.priorityFeeOracleConfigGetter?.(
+                chain,
+              );
+          }
+
+          let transactionSubmitter:
+            | AgentSealevelTransactionSubmitter
+            | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            transactionSubmitter =
+              this.config.rawConfig.sealevel?.transactionSubmitterConfigGetter?.(
+                chain,
+              );
+          }
+
           return {
             name: chain,
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
             maxBatchSize: 32,
+            priorityFeeOracle,
+            transactionSubmitter,
           };
         }),
       },

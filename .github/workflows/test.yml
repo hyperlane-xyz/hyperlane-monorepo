@@ -54,6 +54,10 @@ jobs:
             exit 1
           fi
 
+      # Check for mismatched dep versions across the monorepo
+      - name: syncpack
+        run: yarn syncpack list-mismatches
+
   lint-prettier:
     runs-on: ubuntu-latest
     needs: [yarn-install]
@@ -72,6 +76,12 @@ jobs:
             .yarn
           key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           fail-on-cache-miss: true
+
+      # Build required before linting or the intra-monorepo package cycle checking won't work
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: lint
         run: yarn lint
@@ -116,8 +126,16 @@ jobs:
       fail-fast: false
       matrix:
         test:
-          - core
+          # Core Commands
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-init
+          - core-read
+          # Other commands
           - relay
+          # Warp Commands
+          - warp-init
           - warp-read
           - warp-apply
           - warp-deploy
@@ -289,7 +307,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [mainnet3]
-        chain: [ethereum, arbitrum, optimism, inevm, viction]
+        chain: [ethereum, arbitrum, optimism, inevm]
         module: [core, igp]
         include:
           - environment: testnet4

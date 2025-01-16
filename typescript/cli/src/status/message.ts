@@ -2,17 +2,15 @@ import type { TransactionReceipt } from '@ethersproject/providers';
 import { input } from '@inquirer/prompts';
 
 import { ChainName, HyperlaneCore, HyperlaneRelayer } from '@hyperlane-xyz/sdk';
-import { assert, parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
-import { log, logBlue, logGray, logGreen, logRed } from '../logger.js';
+import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { stubMerkleTreeConfig } from '../utils/relay.js';
 
 export async function checkMessageStatus({
   context,
   messageId,
-  destination,
   origin,
   selfRelay,
   dispatchTx,
@@ -20,26 +18,19 @@ export async function checkMessageStatus({
   context: WriteCommandContext;
   dispatchTx?: string;
   messageId?: string;
-  destination?: ChainName;
   origin?: ChainName;
   selfRelay?: boolean;
 }) {
   if (!origin) {
     origin = await runSingleChainSelectionStep(
       context.chainMetadata,
-      'Select the origin chain',
+      'Select the origin chain:',
     );
   }
 
-  if (!messageId) {
-    messageId = await input({
-      message: 'Please specify the message id',
-    });
-  }
-
-  const chainAddresses = await context.registry.getAddresses();
+  const coreAddresses = await context.registry.getAddresses();
   const core = HyperlaneCore.fromAddressesMap(
-    chainAddresses,
+    coreAddresses,
     context.multiProvider,
   );
 
@@ -50,9 +41,12 @@ export async function checkMessageStatus({
       .getProvider(origin)
       .getTransactionReceipt(dispatchTx);
   } else {
+    messageId ??= await input({
+      message: 'Please specify the message id',
+    });
     try {
       dispatchedReceipt = await core.getDispatchTx(origin, messageId);
-    } catch (e) {
+    } catch {
       logRed(`Failed to infer dispatch transaction for message ${messageId}`);
 
       dispatchTx = await input({
@@ -64,44 +58,29 @@ export async function checkMessageStatus({
     }
   }
 
-  const messages = core.getDispatchedMessages(dispatchedReceipt!);
-  const match = messages.find((m) => m.id === messageId);
-  assert(match, `Message ${messageId} not found in dispatch tx ${dispatchTx}`);
-  const message = match;
-  try {
-    const { amount, recipient } = parseWarpRouteMessage(message.parsed.body);
-    logGray(`Warping ${amount} to ${recipient}`);
-    // eslint-disable-next-line no-empty
-  } catch {}
+  const messages = core.getDispatchedMessages(dispatchedReceipt);
 
-  let deliveredTx: TransactionReceipt;
-
-  log(`Checking status of message ${messageId} on ${destination}`);
-  const delivered = await core.isDelivered(message);
-  if (delivered) {
-    logGreen(`Message ${messageId} was delivered`);
-    deliveredTx = await core.getProcessedReceipt(message);
-  } else {
-    logBlue(`Message ${messageId} was not yet delivered`);
-
-    if (!selfRelay) {
-      return;
+  const undelivered = [];
+  for (const message of messages) {
+    log(
+      `Checking status of message ${message.id} on ${message.parsed.destinationChain}`,
+    );
+    const delivered = await core.isDelivered(message);
+    if (delivered) {
+      logGreen(`Message ${message.id} was delivered`);
+    } else {
+      logBlue(`Message ${message.id} was not yet delivered`);
+      undelivered.push(message);
     }
-
-    const relayer = new HyperlaneRelayer({ core });
-
-    const hookAddress = await core.getSenderHookAddress(message);
-    const merkleAddress = chainAddresses[origin].merkleTreeHook;
-    stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
-
-    deliveredTx = await relayer.relayMessage(dispatchedReceipt);
   }
 
-  logGreen(
-    `Message ${messageId} delivered in ${
-      context.multiProvider.tryGetExplorerTxUrl(message.parsed.destination, {
-        hash: deliveredTx.transactionHash,
-      }) ?? deliveredTx.transactionHash
-    }`,
-  );
+  if (selfRelay) {
+    const relayer = new HyperlaneRelayer({ core });
+    for (const message of undelivered) {
+      const hookAddress = await core.getSenderHookAddress(message);
+      const merkleAddress = coreAddresses[origin].merkleTreeHook;
+      stubMerkleTreeConfig(relayer, origin, hookAddress, merkleAddress);
+    }
+    await relayer.relayAll(dispatchedReceipt, undelivered);
+  }
 }

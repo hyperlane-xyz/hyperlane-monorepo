@@ -1,9 +1,9 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 
 use eyre::{eyre, Context, Result};
-use futures_util::future::try_join_all;
+use futures_util::future::join_all;
 use hyperlane_core::{
-    HyperlaneChain, HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
+    HyperlaneDomain, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
     Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
@@ -132,11 +132,11 @@ macro_rules! build_contract_fns {
             &self,
             domains: impl Iterator<Item = &HyperlaneDomain>,
             metrics: &CoreMetrics,
-        ) -> Result<HashMap<HyperlaneDomain, Arc<$ret>>> {
-            try_join_all(domains.map(|d| self.$singular(d, metrics)))
-                .await?
+        ) -> HashMap<HyperlaneDomain, eyre::Result<Arc<$ret>>> {
+            join_all(domains.map(|d| async { (d.clone(), self.$singular(d, metrics).await) }))
+                .await
                 .into_iter()
-                .map(|i| Ok((i.domain().clone(), Arc::from(i))))
+                .map(|(d, future)| (d, future.map(|f| Arc::from(f))))
                 .collect()
         }
     };
@@ -151,13 +151,14 @@ impl Settings {
     build_contract_fns!(build_validator_announce, build_validator_announces -> dyn ValidatorAnnounce);
     build_contract_fns!(build_provider, build_providers -> dyn HyperlaneProvider);
 
-    /// Build a contract sync for type `T` using log store `D`
+    /// Build a contract sync for type `T` using log store `S`
     pub async fn sequenced_contract_sync<T, S>(
         &self,
         domain: &HyperlaneDomain,
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         store: Arc<S>,
+        advanced_log_meta: bool,
     ) -> eyre::Result<Arc<SequencedDataContractSync<T>>>
     where
         T: Indexable + Debug,
@@ -166,7 +167,8 @@ impl Settings {
     {
         let setup = self.chain_setup(domain)?;
         // Currently, all indexers are of the `SequenceIndexer` type
-        let indexer = SequenceIndexer::<T>::try_from_with_metrics(setup, metrics).await?;
+        let indexer =
+            SequenceIndexer::<T>::try_from_with_metrics(setup, metrics, advanced_log_meta).await?;
         Ok(Arc::new(ContractSync::new(
             domain.clone(),
             store.clone() as SequenceAwareLogStore<_>,
@@ -175,13 +177,14 @@ impl Settings {
         )))
     }
 
-    /// Build a contract sync for type `T` using log store `D`
+    /// Build a contract sync for type `T` using log store `S`
     pub async fn watermark_contract_sync<T, S>(
         &self,
         domain: &HyperlaneDomain,
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         store: Arc<S>,
+        advanced_log_meta: bool,
     ) -> eyre::Result<Arc<WatermarkContractSync<T>>>
     where
         T: Indexable + Debug,
@@ -190,7 +193,8 @@ impl Settings {
     {
         let setup = self.chain_setup(domain)?;
         // Currently, all indexers are of the `SequenceIndexer` type
-        let indexer = SequenceIndexer::<T>::try_from_with_metrics(setup, metrics).await?;
+        let indexer =
+            SequenceIndexer::<T>::try_from_with_metrics(setup, metrics, advanced_log_meta).await?;
         Ok(Arc::new(ContractSync::new(
             domain.clone(),
             store.clone() as WatermarkLogStore<_>,
@@ -208,6 +212,7 @@ impl Settings {
         metrics: &CoreMetrics,
         sync_metrics: &ContractSyncMetrics,
         stores: HashMap<HyperlaneDomain, Arc<S>>,
+        advanced_log_meta: bool,
     ) -> Result<HashMap<HyperlaneDomain, Arc<dyn ContractSyncer<T>>>>
     where
         T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
@@ -220,26 +225,10 @@ impl Settings {
         // TODO: parallelize these calls again
         let mut syncs = vec![];
         for domain in domains {
-            let sync = match T::indexing_cursor(domain.domain_protocol()) {
-                CursorType::SequenceAware => self
-                    .sequenced_contract_sync(
-                        domain,
-                        metrics,
-                        sync_metrics,
-                        stores.get(domain).unwrap().clone(),
-                    )
-                    .await
-                    .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
-                CursorType::RateLimited => self
-                    .watermark_contract_sync(
-                        domain,
-                        metrics,
-                        sync_metrics,
-                        stores.get(domain).unwrap().clone(),
-                    )
-                    .await
-                    .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
-            };
+            let store = stores.get(domain).unwrap().clone();
+            let sync = self
+                .contract_sync(domain, metrics, sync_metrics, store, advanced_log_meta)
+                .await?;
             syncs.push(sync);
         }
 
@@ -247,5 +236,37 @@ impl Settings {
             .into_iter()
             .map(|i| Ok((i.domain().clone(), i)))
             .collect()
+    }
+
+    /// Build single contract sync.
+    /// All contracts have to implement both sequenced and
+    /// watermark trait bounds
+    pub async fn contract_sync<T, S>(
+        &self,
+        domain: &HyperlaneDomain,
+        metrics: &CoreMetrics,
+        sync_metrics: &ContractSyncMetrics,
+        store: Arc<S>,
+        advanced_log_meta: bool,
+    ) -> Result<Arc<dyn ContractSyncer<T>>>
+    where
+        T: Indexable + Debug + Send + Sync + Clone + Eq + Hash + 'static,
+        SequenceIndexer<T>: TryFromWithMetrics<ChainConf>,
+        S: HyperlaneLogStore<T>
+            + HyperlaneSequenceAwareIndexerStoreReader<T>
+            + HyperlaneWatermarkedLogStore<T>
+            + 'static,
+    {
+        let sync = match T::indexing_cursor(domain.domain_protocol()) {
+            CursorType::SequenceAware => self
+                .sequenced_contract_sync(domain, metrics, sync_metrics, store, advanced_log_meta)
+                .await
+                .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
+            CursorType::RateLimited => self
+                .watermark_contract_sync(domain, metrics, sync_metrics, store, advanced_log_meta)
+                .await
+                .map(|r| r as Arc<dyn ContractSyncer<T>>)?,
+        };
+        Ok(sync)
     }
 }

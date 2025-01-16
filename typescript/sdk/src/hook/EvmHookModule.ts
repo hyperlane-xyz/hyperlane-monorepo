@@ -56,13 +56,13 @@ import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
-import { HookConfigSchema } from './schemas.js';
 import {
   AggregationHookConfig,
   ArbL2ToL1HookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
+  HookConfigSchema,
   HookType,
   IgpHookConfig,
   MUTABLE_HOOK_TYPE,
@@ -104,7 +104,7 @@ export class EvmHookModule extends HyperlaneModule<
   // Transaction overrides for the chain
   protected readonly txOverrides: Partial<ethers.providers.TransactionRequest>;
 
-  protected constructor(
+  constructor(
     protected readonly multiProvider: MultiProvider,
     params: HyperlaneModuleParams<
       HookConfig,
@@ -243,7 +243,7 @@ export class EvmHookModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HookConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
-    coreAddresses: CoreAddresses;
+    coreAddresses: Omit<CoreAddresses, 'validatorAnnounce'>;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmHookModule> {
@@ -630,6 +630,8 @@ export class EvmHookModule extends HyperlaneModule<
         this.multiProvider.getSignerOrProvider(this.args.chain),
       );
     }
+
+    this.logger.debug(`Deploying hook of type ${config.type}`);
 
     switch (config.type) {
       case HookType.MERKLE_TREE:

@@ -35,7 +35,6 @@ import {
   fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
-  skipConfirmationOption,
 } from './options.js';
 
 /**
@@ -82,7 +81,7 @@ export const apply: CommandModuleWithWriteContext<{
     )) as DeployedCoreAddresses;
     DeployedCoreAddressesSchema.parse(addresses);
 
-    const config = await readCoreDeployConfigs(configFilePath);
+    const config = readCoreDeployConfigs(configFilePath);
 
     await runCoreApply({
       context,
@@ -117,7 +116,6 @@ export const deploy: CommandModuleWithWriteContext<{
     ),
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
-    'skip-confirmation': skipConfirmationOption,
   },
   handler: async ({ context, chain, config: configFilePath, dryRun }) => {
     logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
@@ -171,6 +169,7 @@ export const read: CommandModuleWithContext<{
   chain: string;
   config: string;
   mailbox?: string;
+  interchainAccountRouter?: string;
 }> = {
   command: 'read',
   describe: 'Reads onchain Core configuration for a given mailbox address',
@@ -192,7 +191,11 @@ export const read: CommandModuleWithContext<{
   handler: async ({ context, chain, mailbox, config: configFilePath }) => {
     logCommandHeader('Hyperlane Core Read');
 
-    const coreConfig = await executeCoreRead({ context, chain, mailbox });
+    const coreConfig = await executeCoreRead({
+      context,
+      chain,
+      mailbox,
+    });
 
     writeYamlOrJson(configFilePath, coreConfig, 'yaml');
     logGreen(`✅ Core config written successfully to ${configFilePath}:\n`);
@@ -222,7 +225,7 @@ export const check: CommandModuleWithContext<{
     },
     config: inputFileCommandOption({
       defaultPath: DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
-      description: 'The path to a a Core Config JSON or YAML file.',
+      description: 'The path to a Core Config JSON or YAML file.',
       demandOption: false,
     }),
   },

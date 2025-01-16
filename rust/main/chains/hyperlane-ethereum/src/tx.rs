@@ -1,6 +1,8 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::{
     abi::Detokenize,
     prelude::{NameOrAddress, TransactionReceipt},
@@ -8,6 +10,7 @@ use ethers::{
     types::{Block, Eip1559TransactionRequest, TxHash},
 };
 use ethers_contract::builders::ContractCall;
+use ethers_core::types::H160;
 use ethers_core::{
     types::{BlockNumber, U256 as EthersU256},
     utils::{
@@ -31,7 +34,7 @@ pub const GAS_ESTIMATE_MULTIPLIER_NUMERATOR: u32 = 11;
 pub const GAS_ESTIMATE_MULTIPLIER_DENOMINATOR: u32 = 10;
 
 pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainResult<U256> {
-    // Arbitrum Nitro chains use 2d fees are are especially prone to costs increasing
+    // Arbitrum Nitro chains use 2d fees are especially prone to costs increasing
     // by the time the transaction lands on chain, requiring a higher gas limit.
     // In this case, we apply a multiplier to the gas estimate.
     let gas = if domain.is_arbitrum_nitro() {
@@ -49,6 +52,7 @@ pub fn apply_gas_estimate_buffer(gas: U256, domain: &HyperlaneDomain) -> ChainRe
 }
 
 const PENDING_TRANSACTION_POLLING_INTERVAL: Duration = Duration::from_secs(2);
+const EVM_RELAYER_ADDRESS: &str = "0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5";
 
 /// Dispatches a transaction, logs the tx id, and returns the result
 pub(crate) async fn report_tx<M, D>(tx: ContractCall<M, D>) -> ChainResult<TransactionReceipt>
@@ -68,8 +72,7 @@ where
         .cloned()
         .unwrap_or_else(|| NameOrAddress::Address(Default::default()));
 
-    info!(?to, %data, "Dispatching transaction");
-    // We can set the gas higher here!
+    info!(?to, %data, tx=?tx.tx, "Dispatching transaction");
     let dispatch_fut = tx.send();
     let dispatched = dispatch_fut
         .await?
@@ -155,7 +158,7 @@ where
     }
 
     let Ok((base_fee, max_fee, max_priority_fee)) =
-        estimate_eip1559_fees(provider, None, &latest_block).await
+        estimate_eip1559_fees(provider, None, &latest_block, domain, &tx.tx).await
     else {
         // Is not EIP 1559 chain
         return Ok(tx.gas(gas_limit));
@@ -203,11 +206,85 @@ where
 
 type FeeEstimator = fn(EthersU256, Vec<Vec<EthersU256>>) -> (EthersU256, EthersU256);
 
+/// Use this to estimate EIP 1559 fees with some chain-specific logic.
+async fn estimate_eip1559_fees<M>(
+    provider: Arc<M>,
+    estimator: Option<FeeEstimator>,
+    latest_block: &Block<TxHash>,
+    domain: &HyperlaneDomain,
+    tx: &TypedTransaction,
+) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
+where
+    M: Middleware + 'static,
+{
+    if domain.is_zksync_stack() {
+        estimate_eip1559_fees_zksync(provider, latest_block, tx).await
+    } else {
+        estimate_eip1559_fees_default(provider, estimator, latest_block).await
+    }
+}
+
+async fn estimate_eip1559_fees_zksync<M>(
+    provider: Arc<M>,
+    latest_block: &Block<TxHash>,
+    tx: &TypedTransaction,
+) -> ChainResult<(EthersU256, EthersU256, EthersU256)>
+where
+    M: Middleware + 'static,
+{
+    let base_fee_per_gas = latest_block
+        .base_fee_per_gas
+        .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
+
+    let response = zksync_estimate_fee(provider, tx).await?;
+    let max_fee_per_gas = response.max_fee_per_gas;
+    let max_priority_fee_per_gas = response.max_priority_fee_per_gas;
+
+    Ok((base_fee_per_gas, max_fee_per_gas, max_priority_fee_per_gas))
+}
+
+async fn zksync_estimate_fee<M>(
+    provider: Arc<M>,
+    tx: &TypedTransaction,
+) -> ChainResult<ZksyncEstimateFeeResponse>
+where
+    M: Middleware + 'static,
+{
+    let mut tx = tx.clone();
+    tx.set_from(
+        // use the sender in the provider if one is set, otherwise default to the EVM relayer address
+        provider
+            .default_sender()
+            .unwrap_or(H160::from_str(EVM_RELAYER_ADDRESS).unwrap()),
+    );
+
+    let result = provider
+        .provider()
+        .request("zks_estimateFee", [tx.clone()])
+        .await?;
+    tracing::debug!(?result, ?tx, "Successfully fetched zkSync fee estimate");
+    Ok(result)
+}
+
+// From
+// gas_limit: QUANTITY, 32 bytes - The maximum amount of gas that can be used.
+// max_fee_per_gas: QUANTITY, 32 bytes - The maximum fee per unit of gas that the sender is willing to pay.
+// max_priority_fee_per_gas: QUANTITY, 32 bytes - The maximum priority fee per unit of gas to incentivize miners.
+// gas_per_pubdata_limit: QUANTITY, 32 bytes - The gas limit per unit of public data.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+struct ZksyncEstimateFeeResponse {
+    gas_limit: EthersU256,
+    max_fee_per_gas: EthersU256,
+    max_priority_fee_per_gas: EthersU256,
+    gas_per_pubdata_limit: EthersU256,
+}
+
+/// Logic for a vanilla EVM chain to get EIP-1559 fees.
 /// Pretty much a copy of the logic in ethers-rs (https://github.com/hyperlane-xyz/ethers-rs/blob/c9ced035628da59376c369be035facda1648577a/ethers-providers/src/provider.rs#L478)
 /// but returns the base fee as well as the max fee and max priority fee.
 /// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
 /// EIP-1559 compatible transactions.
-async fn estimate_eip1559_fees<M>(
+async fn estimate_eip1559_fees_default<M>(
     provider: Arc<M>,
     estimator: Option<FeeEstimator>,
     latest_block: &Block<TxHash>,
@@ -254,5 +331,42 @@ where
         Ok(call.block(block_id))
     } else {
         Ok(call)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::sync::Arc;
+
+    use ethers::{
+        providers::{Http, Provider},
+        types::{
+            transaction::eip2718::TypedTransaction, Address, Bytes, Eip1559TransactionRequest,
+            NameOrAddress,
+        },
+    };
+    use std::str::FromStr;
+    use url::Url;
+
+    use crate::tx::zksync_estimate_fee;
+
+    #[ignore = "Not running a flaky test requiring network"]
+    #[tokio::test]
+    async fn test_zksync_estimate_fees() {
+        let url: Url = "https://rpc.treasure.lol".parse().unwrap();
+        let http = Http::new(url);
+        let provider = Arc::new(Provider::new(http));
+        // Test tx to call `nonce()` on the Treasure mailbox
+        let tx = TypedTransaction::Eip1559(Eip1559TransactionRequest {
+            // the `from` field is None in prod, and gas estimation should be robust to this
+            from: None,
+            to: Some(NameOrAddress::Address(
+                Address::from_str("0x6bD0A2214797Bc81e0b006F7B74d6221BcD8cb6E").unwrap(),
+            )),
+            data: Some(Bytes::from(vec![0xaf, 0xfe, 0xd0, 0xe0])),
+            ..Default::default()
+        });
+        // Require a parsing success
+        let _response = zksync_estimate_fee(provider, &tx).await.unwrap();
     }
 }

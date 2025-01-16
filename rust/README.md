@@ -15,6 +15,15 @@ info: This is the version for the rustup toolchain manager, not the rustc compil
 info: The currently active `rustc` version is `rustc 1.72.1 (d5c2e9c34 2023-09-13)`
 ```
 
+### Overview of Rust Workspaces
+
+There are two Rust workspaces in this directory:
+
+- [main](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/main/rust/main): The offchain agents workspace, most notably comprised of the relayer, validator, scraper and the Rust end-to-end tests (in `utils/run-locally`)
+- [sealevel](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/main/rust/sealevel): Hyperlane smart contracts and tooling for the SVM, implemented in native Rust.
+
+You can only run `cargo build` after `cd`-ing into one of these workspaces.
+
 #### Apple Silicon
 
 If your device has an Apple Silicon processor, you may need to install Rosetta 2:
@@ -23,7 +32,9 @@ If your device has an Apple Silicon processor, you may need to install Rosetta 2
 softwareupdate --install-rosetta --agree-to-license
 ```
 
-### Running Locally
+### Running Agents Locally
+
+Make sure you're in the `main` workspace.
 
 To run the validator, run:
 
@@ -108,11 +119,10 @@ cargo test --release --package run-locally --bin run-locally --features cosmos -
 ### Building Agent Docker Images
 
 There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a
-production environment.
+production environment. You should run this at the top level of the repo.
 
 ```bash
-cd rust
-./build.sh <image_tag>
+./rust/build.sh <image_tag>
 ```
 
 ### Deploy Procedure
@@ -174,7 +184,7 @@ For Ethereum and Celo connections we use
 We use the tokio async runtime environment. Please see the docs
 [here](https://docs.rs/tokio/1.1.0/tokio/).
 
-### Repo layout
+### `main` workspace layout
 
 - `hyperlane-base`
   - lowest dependency hyperlane utilities
@@ -190,11 +200,9 @@ We use the tokio async runtime environment. Please see the docs
     - traits (interfaces) for the on-chain contracts
     - model implementations of the contracts in rust
     - merkle tree implementations (for provers)
-- `chains/hyperlane-ethereum`
+- `chains/hyperlane-*`
+  - VM-specific integration of the agents
   - depends on hyperlane-core (and transitively hyperlane-base)
-  - interfaces to the ethereum contracts
-- `chains/hyperlane-fuel`
-  - depends on hyperlane-core
-  - interfaces to the fuel contracts
+  - interfaces with the contracts of that VM (e.g `ethereum`, `sealevel`, `cosmos`, `fuel`, etc)
 - `agents`
   - each of the off-chain agents implemented thus far

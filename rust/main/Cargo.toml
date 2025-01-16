@@ -46,7 +46,7 @@ color-eyre = "0.6"
 config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
-cosmrs = { version = "0.14", default-features = false, features = [
+cosmrs = { version = "0.18.0", default-features = false, features = [
   "cosmwasm",
   "rpc",
   "tokio",
@@ -73,12 +73,12 @@ bech32 = "0.9.1"
 elliptic-curve = "0.13.8"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-http = "0.2.12"
+http = "1.2.0"
 hyper = "0.14"
 hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
 injective-protobuf = "0.2.2"
-injective-std = "=0.1.5"
+injective-std = "1.13.2-hyperlane-2025-01-09-11-28"
 itertools = "*"
 jobserver = "=0.1.26"
 jsonrpc-core = "18.0"
@@ -127,22 +127,23 @@ sha256 = "1.1.4"
 sha3 = "0.10"
 solana-account-decoder = "=1.14.13"
 solana-client = "=1.14.13"
+solana-program = "=1.14.13"
 solana-sdk = "=1.14.13"
 solana-transaction-status = "=1.14.13"
 static_assertions = "1.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 tempfile = "3.3"
-tendermint = "0.32.2"
-tendermint-rpc = { version = "0.32.0", features = ["http-client", "tokio"] }
+tendermint = "0.38.1"
+tendermint-rpc = { version = "0.38.1", features = ["http-client", "tokio"] }
 thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
-tokio = { version = "1.4", features = ["parking_lot", "tracing"] }
+tokio = { version = "1.42.0", features = ["parking_lot", "tracing"] }
 tokio-metrics = { version = "0.3.1", default-features = false }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
-tonic = "0.9.2"
+tonic = "0.12.3"
 tracing = { version = "0.1" }
 tracing-error = "0.2"
 tracing-futures = "0.2"
@@ -197,27 +198,27 @@ overflow-checks = true
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
@@ -299,12 +300,7 @@ version = "=0.1.0"
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
 branch = "hyperlane"
 
-[patch.crates-io.tendermint]
-branch = "trevor/0.32.2-fork"
-git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
-version = "=0.32.2"
-
-[patch.crates-io.tendermint-rpc]
-branch = "trevor/0.32.2-fork"
-git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
-version = "=0.32.2"
+[patch.crates-io.injective-std]
+version = "1.13.2-hyperlane-2025-01-09-11-28"
+git = "https://github.com/hyperlane-xyz/cw-injective.git"
+tag = "1.13.2-hyperlane-2025-01-09-11-28"

@@ -1,5 +1,85 @@
 # @hyperlane-xyz/infra
 
+## 8.1.0
+
+### Minor Changes
+
+- 2d4963c62: Add USDC between Ink and Ethereum
+- fc80df5b4: Add rstETH/ethereum-zircuit warp config
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/helloworld@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+- 0e83758f4: added ubtc route extension config + usdc from appchain to base
+
+### Patch Changes
+
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [fd20bb1e9]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [71aefa03e]
+- Updated dependencies [9f6b8c514]
+- Updated dependencies [82cebabe4]
+- Updated dependencies [95cc9571e]
+- Updated dependencies [c690ca82f]
+- Updated dependencies [5942e9cff]
+- Updated dependencies [de1190656]
+- Updated dependencies [e9911bb9d]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/helloworld@8.0.0
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
+## 7.3.0
+
+### Minor Changes
+
+- 1ca857451: add USDC, USDT, cbBTC and ETH zeronetwork warp routes support in infra
+- 323f0f158: Add ICAs management in core apply command
+
+### Patch Changes
+
+- Updated dependencies [2054f4f5b]
+- Updated dependencies [a96448fa6]
+- Updated dependencies [170a0fc73]
+- Updated dependencies [9a09afcc7]
+- Updated dependencies [24784af95]
+- Updated dependencies [3e8dd70ac]
+- Updated dependencies [aa1ea9a48]
+- Updated dependencies [665a7b8d8]
+- Updated dependencies [f0b98fdef]
+- Updated dependencies [ff9e8a72b]
+- Updated dependencies [97c1f80b7]
+- Updated dependencies [323f0f158]
+- Updated dependencies [61157097b]
+  - @hyperlane-xyz/sdk@7.3.0
+  - @hyperlane-xyz/helloworld@7.3.0
+  - @hyperlane-xyz/utils@7.3.0
+
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [81ab4332f]
+- Updated dependencies [4b3537470]
+- Updated dependencies [fa6d5f5c6]
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/sdk@7.2.0
+  - @hyperlane-xyz/utils@7.2.0
+  - @hyperlane-xyz/helloworld@7.2.0
+
 ## 7.1.0
 
 ### Minor Changes

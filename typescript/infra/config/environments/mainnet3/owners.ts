@@ -56,12 +56,13 @@ export const safes: ChainMap<Address> = {
   endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
   zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
+  swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 };
 
 export const icaOwnerChain = 'ethereum';
 
 // Found by running:
-// yarn tsx ./scripts/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
+// yarn tsx ./scripts/keys/get-owner-ica.ts -e mainnet3 --ownerChain ethereum --destinationChains <chain1> <chain2> ...
 export const icas: Partial<
   Record<(typeof supportedChainNames)[number], Address>
 > = {
@@ -157,6 +158,45 @@ export const icas: Partial<
   superpositionmainnet: '0x5F17Dc2e1fd1371dc6e694c51f22aBAF8E27667B',
   flame: '0x4F3d85360840497Cd1bc34Ca55f27629eee2AA2e',
   prom: '0x1cDd3C143387cD1FaE23e2B66bc3F409D073aC3D',
+
+  // Nov 21, 2024 batch
+  // ----------------------------------------------------------
+  boba: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
+  duckchain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
+  unichain: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
+  vana: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
+  bsquared: '0xd9564EaaA68A327933f758A54450D3A0531E60BB',
+  superseed: '0x29dfa34765e29ea353FC8aB70A19e32a5578E603',
+
+  // Dec 4, 2024 batch
+  // ----------------------------------------------------------
+  // swell: '0xff8326468e7AaB51c53D3569cf7C45Dd54c11687', // already has a safe
+  lumiaprism: '0xAFfA863646D1bC74ecEC0dB1070f069Af065EBf5',
+  appchain: '0x4F25DFFd10A6D61C365E1a605d07B2ab0E82A7E6',
+
+  // Dec 13, 2024 batch
+  // ----------------------------------------------------------
+  arthera: '0x962e4E5F5e47e1Ab5361eE0B5108Ebeb9Fa5c99B',
+  aurora: '0x853f40c807cbb08EDd19B326b9b6A669bf3c274c',
+  conflux: '0xac8f0e306A126312C273080d149ca01d461603FE',
+  conwai: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  corn: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  evmos: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  form: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  ink: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
+  rivalz: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
+  soneium: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  sonic: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
+  telos: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
+
+  // Jan 13, 2025 batch
+  // ----------------------------------------------------------
+  artela: '0x745CEA119757ea3e27093da590bC91f408bD4448',
+  guru: '0x825cF3d703F384E4aA846BA72eCf70f1985C91b6',
+  hemi: '0x8D18CBB212920e5ef070b23b813d82F8981cC276',
+  nero: '0xbBdb1682B2922C282b56DD716C29db5EFbdb5632',
+  torus: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
+  xpla: '0x24832680dF0468967F413be1C83acfE24154F88D',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
@@ -210,6 +250,9 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     owner: 'n/a - nothing owned here',
   },
   osmosis: {
+    owner: 'n/a - nothing owned here',
+  },
+  soon: {
     owner: 'n/a - nothing owned here',
   },
 };

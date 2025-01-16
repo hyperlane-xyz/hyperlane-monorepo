@@ -1,3 +1,4 @@
+import { checkbox, select } from '@inquirer/prompts';
 import path, { join } from 'path';
 import yargs, { Argv } from 'yargs';
 
@@ -23,6 +24,7 @@ import {
 
 import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
+import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
 import {
   getChain,
@@ -259,6 +261,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .default('concurrentDeploy', false);
 }
 
+export function withConcurrency<T>(args: Argv<T>) {
+  return args
+    .describe('concurrency', 'Number of concurrent deploys')
+    .number('concurrency')
+    .default('concurrency', 1);
+}
+
 export function withRpcUrls<T>(args: Argv<T>) {
   return args
     .describe(
@@ -268,6 +277,51 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .string('rpcUrls')
     .demandOption('rpcUrls')
     .alias('r', 'rpcUrls');
+}
+
+export function withTxHashes<T>(args: Argv<T>) {
+  return args
+    .describe('txHashes', 'transaction hash')
+    .string('txHashes')
+    .array('txHashes')
+    .demandOption('txHashes')
+    .alias('t', 'txHashes');
+}
+
+// Interactively gets a single warp route ID
+export async function getWarpRouteIdInteractive() {
+  const choices = Object.values(WarpRouteIds).map((id) => ({
+    value: id,
+  }));
+  return select({
+    message: 'Select Warp Route ID',
+    choices,
+    pageSize: 30,
+  });
+}
+
+// Interactively gets multiple warp route IDs
+export async function getWarpRouteIdsInteractive() {
+  const choices = Object.values(WarpRouteIds)
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
+
+  let selection: WarpRouteIds[] = [];
+
+  while (!selection.length) {
+    selection = await checkbox({
+      message: 'Select Warp Route IDs',
+      choices,
+      pageSize: 30,
+    });
+    if (!selection.length) {
+      console.log('Please select at least one Warp Route ID');
+    }
+  }
+
+  return selection;
 }
 
 // not requiring to build coreConfig to get agentConfig
@@ -329,7 +383,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   // Sanity check that the validator agent config is valid.
-  ensureValidatorConfigConsistency(agentConfig);
+  ensureValidatorConfigConsistency(agentConfig, context);
 
   return {
     agentConfig,
@@ -357,12 +411,21 @@ export function getAgentConfig(
 }
 
 // Ensures that the validator context chain names are in sync with the validator config.
-export function ensureValidatorConfigConsistency(agentConfig: RootAgentConfig) {
+export function ensureValidatorConfigConsistency(
+  agentConfig: RootAgentConfig,
+  context: Contexts,
+) {
   const validatorContextChainNames = new Set(
     agentConfig.contextChainNames.validator,
   );
   const validatorConfigChains = new Set(
-    Object.keys(agentConfig.validators?.chains || {}),
+    Object.entries(agentConfig.validators?.chains || {})
+      .filter(([_, chainConfig]) =>
+        chainConfig.validators.some((validator) =>
+          validator.name.startsWith(`${context}-`),
+        ),
+      )
+      .map(([chain]) => chain),
   );
   const symDiff = symmetricDifference(
     validatorContextChainNames,

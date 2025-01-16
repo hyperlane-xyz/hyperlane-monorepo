@@ -1,5 +1,4 @@
 import { checkbox } from '@inquirer/prompts';
-import yargs from 'yargs';
 
 import { Contexts } from '../../config/contexts.js';
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
@@ -9,6 +8,7 @@ import {
   assertCorrectKubeContext,
   getAgentConfig,
   getArgs,
+  getWarpRouteIdsInteractive,
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -35,31 +35,16 @@ async function main() {
     await helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade);
   };
 
+  // First try to uninstall any stale Warp Monitors.
+  // This can happen if a Warp Route ID is changed or removed.
+  await WarpRouteMonitorHelmManager.uninstallUnknownWarpMonitorReleases(
+    environment,
+  );
+
   for (const id of warpRouteIds) {
     console.log(`Deploying Warp Monitor for Warp Route ID: ${id}`);
     await deployWarpMonitor(id);
   }
-}
-
-async function getWarpRouteIdsInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
-
-  let selection: WarpRouteIds[] = [];
-
-  while (!selection.length) {
-    selection = await checkbox({
-      message: 'Select Warp Route IDs to deploy',
-      choices,
-      pageSize: 30,
-    });
-    if (!selection.length) {
-      console.log('Please select at least one Warp Route ID');
-    }
-  }
-
-  return selection;
 }
 
 main()

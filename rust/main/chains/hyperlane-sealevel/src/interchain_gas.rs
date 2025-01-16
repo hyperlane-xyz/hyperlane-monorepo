@@ -91,7 +91,8 @@ impl InterchainGasPaymaster for SealevelInterchainGasPaymaster {}
 pub struct SealevelInterchainGasPaymasterIndexer {
     rpc_client: SealevelRpcClient,
     igp: SealevelInterchainGasPaymaster,
-    _log_meta_composer: LogMetaComposer,
+    log_meta_composer: LogMetaComposer,
+    advanced_log_meta: bool,
 }
 
 /// IGP payment data on Sealevel
@@ -107,6 +108,7 @@ impl SealevelInterchainGasPaymasterIndexer {
     pub async fn new(
         conf: &ConnectionConf,
         igp_account_locator: ContractLocator<'_>,
+        advanced_log_meta: bool,
     ) -> ChainResult<Self> {
         // Set the `processed` commitment at rpc level
         let rpc_client = SealevelRpcClient::new(conf.url.to_string());
@@ -122,7 +124,8 @@ impl SealevelInterchainGasPaymasterIndexer {
         Ok(Self {
             rpc_client,
             igp,
-            _log_meta_composer: log_meta_composer,
+            log_meta_composer,
+            advanced_log_meta,
         })
     }
 
@@ -168,23 +171,24 @@ impl SealevelInterchainGasPaymasterIndexer {
             gas_amount: gas_payment_account.gas_amount.into(),
         };
 
-        // let log_meta = self
-        //     .interchain_payment_log_meta(
-        //         U256::from(sequence_number),
-        //         &valid_payment_pda_pubkey,
-        //         &gas_payment_account.slot,
-        //     )
-        //     .await?;
-
-        let log_meta = LogMeta {
-            address: self.igp.program_id.to_bytes().into(),
-            block_number: gas_payment_account.slot,
-            // TODO: get these when building out scraper support.
-            // It's inconvenient to get these :|
-            block_hash: H256::zero(),
-            transaction_id: H512::zero(),
-            transaction_index: 0,
-            log_index: sequence_number.into(),
+        let log_meta = if self.advanced_log_meta {
+            self.interchain_payment_log_meta(
+                U256::from(sequence_number),
+                &valid_payment_pda_pubkey,
+                &gas_payment_account.slot,
+            )
+            .await?
+        } else {
+            LogMeta {
+                address: self.igp.program_id.to_bytes().into(),
+                block_number: gas_payment_account.slot,
+                // TODO: get these when building out scraper support.
+                // It's inconvenient to get these :|
+                block_hash: H256::zero(),
+                transaction_id: H512::zero(),
+                transaction_index: 0,
+                log_index: sequence_number.into(),
+            }
         };
 
         Ok(SealevelGasPayment::new(
@@ -212,7 +216,7 @@ impl SealevelInterchainGasPaymasterIndexer {
         Ok(expected_pubkey)
     }
 
-    async fn _interchain_payment_log_meta(
+    async fn interchain_payment_log_meta(
         &self,
         log_index: U256,
         payment_pda_pubkey: &Pubkey,
@@ -220,7 +224,7 @@ impl SealevelInterchainGasPaymasterIndexer {
     ) -> ChainResult<LogMeta> {
         let block = self.rpc_client.get_block(*payment_pda_slot).await?;
 
-        self._log_meta_composer
+        self.log_meta_composer
             .log_meta(block, log_index, payment_pda_pubkey, payment_pda_slot)
             .map_err(Into::<ChainCommunicationError>::into)
     }
@@ -244,11 +248,17 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         for nonce in range {
             if let Ok(sealevel_payment) = self.get_payment_with_sequence(nonce.into()).await {
                 let igp_account_filter = self.igp.igp_account;
-                if igp_account_filter == sealevel_payment.igp_account_pubkey {
-                    payments.push((sealevel_payment.payment, sealevel_payment.log_meta));
-                } else {
-                    tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, skipping");
+                let mut payment = *sealevel_payment.payment.inner();
+                // If fees is paid to a different IGP account, we zero out the payment to make sure the db entries are contiguous, but at the same time, gasEnforcer will reject the message (if not set to none policy)
+                if igp_account_filter != sealevel_payment.igp_account_pubkey {
+                    tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, neutralizing payment");
+
+                    payment.payment = U256::from(0);
                 }
+                payments.push((
+                    Indexed::new(payment).with_sequence(nonce),
+                    sealevel_payment.log_meta,
+                ));
             }
         }
         Ok(payments)

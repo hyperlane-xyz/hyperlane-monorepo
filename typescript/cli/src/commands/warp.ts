@@ -1,7 +1,8 @@
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import { ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
+import { ChainName, ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
+import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
 import {
@@ -14,17 +15,18 @@ import {
 } from '../context/types.js';
 import { evaluateIfDryRunFailure } from '../deploy/dry-run.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
-import { log, logCommandHeader, logGreen } from '../logger.js';
+import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { runWarpRouteRead } from '../read/warp.js';
 import { sendTestTransfer } from '../send/transfer.js';
+import { runSingleChainSelectionStep } from '../utils/chains.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
   removeEndingSlash,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../utils/input.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
+import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
@@ -40,7 +42,7 @@ import {
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
 } from './options.js';
-import { MessageOptionsArgTypes, messageOptions } from './send.js';
+import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
 
 /**
  * Parent command
@@ -245,7 +247,7 @@ const send: CommandModuleWithWriteContext<
   command: 'send',
   describe: 'Send a test token transfer on a warp route',
   builder: {
-    ...messageOptions,
+    ...messageSendOptions,
     symbol: {
       ...symbolCommandOption,
       demandOption: false,
@@ -275,6 +277,7 @@ const send: CommandModuleWithWriteContext<
     warp,
     amount,
     recipient,
+    roundTrip,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -282,17 +285,52 @@ const send: CommandModuleWithWriteContext<
       context,
     });
 
+    let chains: ChainName[] = warpCoreConfig.tokens.map((t) => t.chainName);
+    if (roundTrip) {
+      // Appends the reverse of the array, excluding the 1st (e.g. [1,2,3] becomes [1,2,3,2,1])
+      const reversed = [...chains].reverse().slice(1, chains.length + 1); // We make a copy because .reverse() is mutating
+      chains.push(...reversed);
+    } else {
+      // Assume we want to use use `--origin` and `--destination` params, prompt as needed.
+      const chainMetadata = objFilter(
+        context.chainMetadata,
+        (key, _metadata): _metadata is any => chains.includes(key),
+      );
+
+      if (!origin)
+        origin = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select the origin chain:',
+        );
+
+      if (!destination)
+        destination = await runSingleChainSelectionStep(
+          chainMetadata,
+          'Select the destination chain:',
+        );
+
+      chains = [origin, destination].filter((c) => chains.includes(c));
+
+      assert(
+        chains.length === 2,
+        `Origin (${origin}) or destination (${destination}) are not part of the warp route.`,
+      );
+    }
+
+    logBlue(`🚀 Sending a message for chains: ${chains.join(' ➡️ ')}`);
     await sendTestTransfer({
       context,
       warpCoreConfig,
-      origin,
-      destination,
+      chains,
       amount,
       recipient,
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,
     });
+    logGreen(
+      `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
+    );
     process.exit(0);
   },
 };
