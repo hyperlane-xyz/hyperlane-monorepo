@@ -11,6 +11,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   Ownable__factory,
   ProxyAdmin__factory,
+  TimelockController__factory,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
@@ -39,6 +40,7 @@ import {
   icaOwnerChain,
   icas,
   safes,
+  timelocks,
 } from '../../config/environments/mainnet3/owners.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { getSafeAndService } from '../utils/safe.js';
@@ -132,6 +134,11 @@ export class GovernTransactionReader {
       return this.readProxyAdminTransaction(chain, tx);
     }
 
+    // If it's to a TimelockController
+    if (this.isTimelockControllerTransaction(chain, tx)) {
+      return this.readTimelockControllerTransaction(chain, tx);
+    }
+
     // If it's a Multisend
     if (await this.isMultisendTransaction(chain, tx)) {
       return this.readMultisendTransaction(chain, tx);
@@ -159,6 +166,68 @@ export class GovernTransactionReader {
       chain,
       insight,
       tx,
+    };
+  }
+
+  private isTimelockControllerTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    return (
+      tx.to !== undefined &&
+      timelocks[chain] !== undefined &&
+      eqAddress(tx.to, timelocks[chain])
+    );
+  }
+
+  private async readTimelockControllerTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in TimelockController transaction');
+    }
+
+    const timelockControllerInterface =
+      TimelockController__factory.createInterface();
+    const decoded = timelockControllerInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    let insight = '';
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
+      ].name
+    ) {
+      const [target, value, data, eta, executor, delay] = decoded.args;
+      insight = `Schedule ${target} to be executed at ${eta} with ${value} ${data}. Executor: ${executor}, Delay: ${delay}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'execute(address,uint256,bytes,bytes32,bytes32)'
+      ].name
+    ) {
+      const [target, value, data, executor] = decoded.args;
+      insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions['cancel(bytes32)'].name
+    ) {
+      const [id] = decoded.args;
+      insight = `Cancel scheduled transaction ${id}`;
+    }
+
+    return {
+      chain,
+      to: `Timelock Controller (${chain} ${timelocks[chain]})`,
+      insight,
     };
   }
 
