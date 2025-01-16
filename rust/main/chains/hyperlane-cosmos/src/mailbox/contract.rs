@@ -183,7 +183,6 @@ impl Mailbox for CosmosMailbox {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        _apply_gas_overrides: bool,
     ) -> ChainResult<TxCostEstimate> {
         let process_message = ProcessMessageRequest {
             process: ProcessMessageRequestInner {

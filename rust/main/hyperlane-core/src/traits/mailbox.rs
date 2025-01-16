@@ -69,7 +69,6 @@ pub trait Mailbox: HyperlaneContract + Send + Sync + Debug {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        apply_gas_overrides: bool,
     ) -> ChainResult<TxCostEstimate>;
 
     /// Get the calldata for a transaction to process a message with a proof

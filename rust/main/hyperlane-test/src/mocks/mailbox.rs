@@ -48,7 +48,6 @@ mock! {
             &self,
             message: &HyperlaneMessage,
             metadata: &[u8],
-            apply_gas_overrides: bool,
         ) -> ChainResult<TxCostEstimate> {}
 
         pub fn process_calldata(
@@ -103,9 +102,8 @@ impl Mailbox for MockMailboxContract {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        apply_gas_overrides: bool,
     ) -> ChainResult<TxCostEstimate> {
-        self.process_estimate_costs(message, metadata, apply_gas_overrides)
+        self.process_estimate_costs(message, metadata)
     }
 
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {

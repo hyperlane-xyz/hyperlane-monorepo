@@ -115,6 +115,7 @@ pub(crate) async fn fill_tx_gas_params<M, D>(
     provider: Arc<M>,
     transaction_overrides: &TransactionOverrides,
     domain: &HyperlaneDomain,
+    with_gas_limit_overrides: bool,
 ) -> ChainResult<ContractCall<M, D>>
 where
     M: Middleware + 'static,
@@ -126,12 +127,13 @@ where
         None => tx.estimate_gas().await?.into(),
     };
 
-    estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
-    let gas_limit: U256 = if let Some(gas_limit) = transaction_overrides.gas_limit {
-        estimated_gas_limit.max(gas_limit)
-    } else {
-        estimated_gas_limit
-    };
+    if with_gas_limit_overrides {
+        estimated_gas_limit = apply_gas_estimate_buffer(estimated_gas_limit, domain)?;
+        if let Some(gas_limit) = transaction_overrides.gas_limit {
+            estimated_gas_limit = estimated_gas_limit.max(gas_limit)
+        }
+    }
+    let gas_limit = estimated_gas_limit;
 
     // Cap the gas limit to the block gas limit
     let latest_block = provider

@@ -657,7 +657,6 @@ impl Mailbox for SealevelMailbox {
         &self,
         _message: &HyperlaneMessage,
         _metadata: &[u8],
-        _apply_gas_overrides: bool,
     ) -> ChainResult<TxCostEstimate> {
         // TODO use correct data upon integrating IGP support
         Ok(TxCostEstimate {
