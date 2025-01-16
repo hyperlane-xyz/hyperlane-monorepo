@@ -708,13 +708,10 @@ mod test {
             .await
             .unwrap();
 
-        // The TxCostEstimate's gas limit includes a buffer
-        let estimated_gas_limit = apply_gas_estimate_buffer(gas_limit, &domain).unwrap();
-
         assert_eq!(
             tx_cost_estimate,
             TxCostEstimate {
-                gas_limit: estimated_gas_limit,
+                gas_limit,
                 gas_price: gas_price.try_into().unwrap(),
                 l2_gas_limit: Some(l2_gas_limit),
             },
