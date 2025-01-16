@@ -105,5 +105,11 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
+  },
+  "flametestnet": {
+    "validators": ["0x0272625243bf2377f87538031fed54e21853cc2d"]
+  },
+  "hyperliquidevmtestnet": {
+    "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   }
 }
