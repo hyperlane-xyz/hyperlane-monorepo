@@ -176,7 +176,7 @@ export class GovernTransactionReader {
     return (
       tx.to !== undefined &&
       timelocks[chain] !== undefined &&
-      eqAddress(tx.to, timelocks[chain])
+      eqAddress(tx.to!, timelocks[chain]!)
     );
   }
 
