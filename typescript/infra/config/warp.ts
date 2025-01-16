@@ -24,6 +24,7 @@ import { getArtelaBaseUSDCWarpConfig } from './environments/mainnet3/warp/config
 import { getArtelaBaseWETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArtelaBaseWETHWarpConfig.js';
 import { getBaseFormAIXBTWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormAIXBTWarpConfig.js';
 import { getBaseFormGAMEWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormGAMEWarpConfig.js';
+import { getBaseSolanamainnetTONYWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseSolanamainnetTONYWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
 import { getBobaBsquaredSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
 import { getBscEthereumLumiaPrismPNDRWarpConfig } from './environments/mainnet3/warp/configGetters/getBscEthereumLumiaPNDRWarpConfig.js';
@@ -75,6 +76,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
+  [WarpRouteIds.BaseSolanamainnetTONY]: getBaseSolanamainnetTONYWarpConfig,
   [WarpRouteIds.BscEthereumLumiaPrismPNDR]:
     getBscEthereumLumiaPrismPNDRWarpConfig,
   [WarpRouteIds.EthereumFlowCbBTC]: getEthereumFlowCbBTCWarpConfig,
