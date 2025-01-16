@@ -13,12 +13,10 @@ import {
 
 import { safes } from '../../config/environments/mainnet3/owners.js';
 import { GovernTransactionReader } from '../../src/tx/govern-transaction-reader.js';
-import { getSafeTx } from '../../src/utils/safe.js';
+import { getPendingTxsForChains, getSafeTx } from '../../src/utils/safe.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
-
-import { getPendingTxsForChains } from './get-pending-txs.js';
 
 const environment = 'mainnet3';
 const safeChains = Object.keys(safes);
@@ -46,6 +44,7 @@ async function main() {
   const pendingTxs = await getPendingTxsForChains(
     !chains || chains.length === 0 ? safeChains : chains,
     multiProvider,
+    safes,
   );
   if (pendingTxs.length === 0) {
     rootLogger.info(chalk.green('No pending transactions found!'));

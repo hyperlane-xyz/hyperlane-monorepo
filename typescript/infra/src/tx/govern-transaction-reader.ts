@@ -8,7 +8,11 @@ import assert from 'assert';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
-import { ProxyAdmin__factory, TokenRouter__factory } from '@hyperlane-xyz/core';
+import {
+  Ownable__factory,
+  ProxyAdmin__factory,
+  TokenRouter__factory,
+} from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
   ChainMap,
@@ -136,6 +140,11 @@ export class GovernTransactionReader {
     // If it's a Warp Module transaction
     if (this.isWarpModuleTransaction(chain, tx)) {
       return this.readWarpModuleTransaction(chain, tx);
+    }
+
+    // If it's an Ownable transaction
+    if (await this.isOwnableTransaction(chain, tx)) {
+      return this.readOwnableTransaction(chain, tx);
     }
 
     const insight = '⚠️ Unknown transaction type';
@@ -629,6 +638,40 @@ export class GovernTransactionReader {
     };
   }
 
+  private async readOwnableTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('⚠️ No data in proxyAdmin transaction');
+    }
+
+    const ownableInterface = Ownable__factory.createInterface();
+    const decoded = ownableInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    let insight;
+    if (
+      decoded.functionFragment.name ===
+      ownableInterface.functions['renounceOwnership()'].name
+    ) {
+      insight = `Renounce ownership`;
+    } else if (
+      decoded.functionFragment.name ===
+      ownableInterface.functions['transferOwnership(address)'].name
+    ) {
+      const [newOwner] = decoded.args;
+      insight = `Transfer ownership to ${newOwner}`;
+    }
+
+    return {
+      chain,
+      insight,
+    };
+  }
+
   isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
     return (
       tx.to !== undefined &&
@@ -668,6 +711,23 @@ export class GovernTransactionReader {
     }
 
     return eqAddress(multiSendCallOnlyAddress, tx.to);
+  }
+
+  async isOwnableTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<boolean> {
+    if (!tx.to) return false;
+    try {
+      const account = Ownable__factory.connect(
+        tx.to,
+        this.multiProvider.getProvider(chain),
+      );
+      await account.owner();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private multiSendCallOnlyAddressCache: ChainMap<string> = {};
