@@ -199,9 +199,9 @@ const STANDARD_TO_TOKEN: Record<TokenStandard, TokenArgs | null> = {
     symbol: 'TIA.n',
     name: 'TIA.n',
   },
+  [TokenStandard.CwHypSynthetic]: null,
 
   // Starknet
-  [TokenStandard.CwHypSynthetic]: null,
   [TokenStandard.StarknetHypNative]: null,
   [TokenStandard.StarknetHypCollateral]: null,
   [TokenStandard.StarknetHypSynthetic]: null,
