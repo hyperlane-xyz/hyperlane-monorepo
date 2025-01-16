@@ -103,7 +103,7 @@ export class ContractVerifier {
     }
 
     if (input.address === ethers.constants.AddressZero) return;
-    if (Array.isArray(input.constructorArguments)) {
+    if (Array.isArray(input.constructorArguements)) {
       verificationLogger.debug(
         'Constructor arguments in legacy format, skipping',
       );
