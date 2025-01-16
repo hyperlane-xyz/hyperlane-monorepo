@@ -91,8 +91,9 @@ async function main() {
   } else {
     rootLogger.info('✅✅✅✅✅ No fatal errors ✅✅✅✅✅');
     const chainResults = Object.fromEntries(chainResultEntries);
-    writeYamlAtPath(`safe-tx-results-${Date.now()}.yaml`, chainResults);
-    rootLogger.info('Results written to safe-tx-results.yaml');
+    const resultsPath = `safe-tx-results-${Date.now()}.yaml`;
+    writeYamlAtPath(resultsPath, chainResults);
+    rootLogger.info(`Results written to ${resultsPath}`);
   }
 }
 

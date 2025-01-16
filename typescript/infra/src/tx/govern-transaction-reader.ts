@@ -189,13 +189,7 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-
     let insight = '';
-
     if (
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['setHook(address)'].name
@@ -273,7 +267,6 @@ export class GovernTransactionReader {
       insight,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
-      args,
     };
   }
 
