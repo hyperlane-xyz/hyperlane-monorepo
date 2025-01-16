@@ -256,7 +256,7 @@ async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
     message:
       'Do you want to set native token properties for this chain config (defaults to ETH)',
   });
-  let symbol, name, decimals;
+  let symbol, name, decimals, denom;
   if (wantNativeConfig) {
     symbol = await input({
       message: "Enter the native token's symbol:",
@@ -267,12 +267,16 @@ async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
     decimals = await input({
       message: "Enter the native token's decimals:",
     });
+    denom = await input({
+      message: "Enter the native token's address:",
+    });
   }
 
   metadata.nativeToken = {
     symbol: symbol ?? 'ETH',
     name: name ?? 'Ether',
     decimals: decimals ? parseInt(decimals, 10) : 18,
+    denom: denom ?? undefined,
   };
 }
 

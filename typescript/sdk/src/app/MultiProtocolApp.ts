@@ -1,4 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
+import { Contract } from 'starknet';
 
 import {
   Address,
@@ -101,6 +102,14 @@ export class BaseStarknetAdapter extends BaseAppAdapter {
 
   public getProvider(): StarknetJsProvider['provider'] {
     return this.multiProvider.getStarknetProvider(this.chainName);
+  }
+
+  public async getERC20Contract(address: Address): Promise<Contract> {
+    const { abi } = await this.getProvider().getClassAt(address);
+    if (!abi) {
+      throw new Error('Contract ABI not found');
+    }
+    return new Contract(abi, address, this.getProvider());
   }
 }
 

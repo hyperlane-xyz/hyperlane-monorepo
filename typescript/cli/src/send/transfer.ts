@@ -1,3 +1,4 @@
+// import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -25,7 +26,6 @@ import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
-// import { stubMerkleTreeConfig } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
 
 export const WarpSendLogs = {
@@ -204,12 +204,22 @@ async function executeDelivery({
         txReceipt = await multiProvider.handleTx(origin, txResponse);
         break;
       }
-      // case ProviderType.Starknet: {
-      //   const starknetSigner = multiProtocolSigner!.getStarknetSigner(origin)!;
-      //   const txResponse = await starknetSigner.execute(tx.transaction);
-      //   txReceipt = await multiProvider.handleTx(origin, txResponse);
-      //   break;
-      // }
+      case ProviderType.Starknet: {
+        const starknetSigner =
+          context.multiProtocolSigner!.getStarknetSigner(origin)!;
+
+        const txResponse = await starknetSigner.execute([
+          tx.transaction as any,
+        ]);
+
+        txReceipt = await starknetSigner.waitForTransaction(
+          txResponse.transaction_hash,
+        );
+
+        console.log({ txReceipt });
+        return;
+        break;
+      }
       default:
         throw new Error(`Unsupported provider type: ${tx.type}`);
     }

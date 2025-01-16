@@ -7,7 +7,10 @@ import {
   ParsedEvents,
 } from 'starknet';
 
-import { getCompiledContract } from '@hyperlane-xyz/starknet-core';
+import {
+  ContractType,
+  getCompiledContract,
+} from '@hyperlane-xyz/starknet-core';
 
 import { DispatchedMessage } from '../core/types.js';
 
@@ -16,6 +19,14 @@ export function getStarknetMailboxContract(
   signer: Account,
 ): Contract {
   const { abi } = getCompiledContract('mailbox');
+  return new Contract(abi, address, signer);
+}
+
+export function getStarknetHypERC20Contract(
+  address: string,
+  signer?: Account,
+): Contract {
+  const { abi } = getCompiledContract('HypErc20', ContractType.TOKEN);
   return new Contract(abi, address, signer);
 }
 

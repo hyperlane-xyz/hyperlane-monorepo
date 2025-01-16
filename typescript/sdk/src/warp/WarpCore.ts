@@ -209,6 +209,7 @@ export class WarpCore {
       return { gasUnits: 0, gasPrice: 0, fee: Number(defaultQuote.amount) };
     }
 
+    // TODO: DOES NOT WORK FOR STARKNET
     // Form transactions to estimate local gas with
     const recipient = convertToProtocolAddress(
       sender,
@@ -585,9 +586,6 @@ export class WarpCore {
     );
     if (originCollateralError) return originCollateralError;
 
-    if (originTokenAmount.token.protocol === ProtocolType.Starknet) {
-      return null;
-    }
     const balancesError = await this.validateTokenBalances(
       originTokenAmount,
       destination,
@@ -738,6 +736,7 @@ export class WarpCore {
         amount: `Insufficient ${interchainQuote.token.symbol} for interchain gas`,
       };
     }
+    return null;
 
     // Check 3: Simulates the transfer by getting the local gas fee
     const localQuote = await this.getLocalTransferFeeAmount({

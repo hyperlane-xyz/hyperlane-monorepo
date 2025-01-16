@@ -4,7 +4,6 @@ import { Wallet, utils as ethersUtils } from 'ethers';
 import {
   addAddressPadding,
   encode,
-  eth,
   num,
   validateAndParseAddress,
 } from 'starknet';
@@ -52,6 +51,10 @@ export function isAddressCosmos(address: Address) {
   );
 }
 
+export function isAddressStarknet(address: Address) {
+  return !!validateAndParseAddress(address);
+}
+
 export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
@@ -60,6 +63,8 @@ export function getAddressProtocolType(address: Address) {
     return ProtocolType.Cosmos;
   } else if (isAddressSealevel(address)) {
     return ProtocolType.Sealevel;
+  } else if (isAddressStarknet(address)) {
+    return ProtocolType.Starknet;
   } else {
     return undefined;
   }
@@ -281,7 +286,7 @@ export function addressToBytesCosmos(address: Address): Uint8Array {
 }
 
 export function addressToBytesStarknet(address: Address): Uint8Array {
-  const normalizedAddress = eth.validateAndParseEthAddress(address);
+  const normalizedAddress = validateAndParseAddress(address);
   return num.hexToBytes(normalizedAddress);
 }
 

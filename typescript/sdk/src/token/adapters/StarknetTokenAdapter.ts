@@ -1,99 +1,93 @@
-import { BigNumber, PopulatedTransaction } from 'ethers';
-import { Contract, uint256 } from 'starknet';
+import { BigNumber } from 'ethers';
+import { CairoOption, CairoOptionVariant, Call } from 'starknet';
 
-import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
+import { Address, Domain } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
+import { getStarknetHypERC20Contract } from '../../utils/starknet.js';
 import { TokenMetadata } from '../types.js';
 
 import {
+  IHypTokenAdapter,
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
 } from './ITokenAdapter.js';
 
+const ETH_ADDRESS =
+  '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7';
+
 export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
   async getBalance(address: Address): Promise<bigint> {
-    // ETH ABI - we only need the balanceOf function
-    const ethContract = new Contract(
-      [
-        {
-          name: 'balanceOf',
-          type: 'function',
-          inputs: [{ name: 'account', type: 'felt' }],
-          outputs: [{ name: 'balance', type: 'Uint256' }],
-          stateMutability: 'view',
-        },
-      ],
-      '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
-      this.getProvider(),
-    );
-
-    // Call balanceOf function
-    const { balance } = await ethContract.balanceOf(address);
-
-    return balance;
+    // On starknet, native tokens are ERC20s
+    const tokenContract = await this.getERC20Contract(ETH_ADDRESS);
+    const res = await tokenContract.balanceOf(address);
+    return res;
   }
 
   async getMetadata(): Promise<TokenMetadata> {
-    // TODO get metadata from chainMetadata config
-    throw new Error('Metadata not available to native tokens');
+    return {
+      symbol: 'ETH',
+      name: 'Ethereum',
+      totalSupply: 0,
+      decimals: 18,
+    };
   }
 
   async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
     return 0n;
   }
 
-  async isApproveRequired(
-    _owner: Address,
-    _spender: Address,
-    _weiAmountOrId: Numberish,
-  ): Promise<boolean> {
+  async isApproveRequired(): Promise<boolean> {
     return false;
   }
 
-  async populateApproveTx(
-    _params: TransferParams,
-  ): Promise<PopulatedTransaction> {
-    throw new Error('Approve not required for native tokens');
+  async populateApproveTx(_params: TransferParams): Promise<Call> {
+    throw new Error('Approve not required for native tokens'); // TODO: double check for starknet
   }
 
   async populateTransferTx({
     weiAmountOrId,
     recipient,
-  }: TransferParams): Promise<PopulatedTransaction> {
-    const value = BigNumber.from(weiAmountOrId.toString());
-    return { value, to: recipient };
+  }: TransferParams): Promise<Call> {
+    const tokenContract = await this.getERC20Contract(ETH_ADDRESS);
+    return tokenContract.populateTransaction.transfer(recipient, weiAmountOrId);
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
-    // Not implemented, native tokens don't have an accessible total supply
     return undefined;
   }
 }
 
-export class StarknetTokenAdapter extends StarknetNativeTokenAdapter {
+export class StarknetHypSyntheticAdapter
+  extends StarknetNativeTokenAdapter
+  implements IHypTokenAdapter<Call>
+{
   constructor(
     public readonly chainName: ChainName,
     public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: Record<string, Address>,
-    public readonly denom: string,
+    public readonly addresses: { token: Address },
   ) {
     super(chainName, multiProvider, addresses);
   }
 
-  override async isApproveRequired(
-    _owner: Address,
-    _spender: Address,
-    _weiAmountOrId: Numberish,
-  ): Promise<boolean> {
-    return false;
+  override async getBalance(address: Address): Promise<bigint> {
+    const tokenContract = await this.getERC20Contract(this.addresses.token);
+    return tokenContract.balanceOf(address);
+  }
+
+  override async populateTransferTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<Call> {
+    const tokenContract = await this.getERC20Contract(this.addresses.token);
+    return tokenContract.populateTransaction.transfer(recipient, weiAmountOrId);
   }
 
   async quoteTransferRemoteGas(
-    destination: Domain,
+    _destination: Domain,
   ): Promise<InterchainGasQuote> {
     return { amount: BigInt(0) };
   }
@@ -103,86 +97,42 @@ export class StarknetTokenAdapter extends StarknetNativeTokenAdapter {
     destination,
     recipient,
     interchainGas,
-  }: TransferRemoteParams): Promise<PopulatedTransaction> {
-    return { value: BigNumber.from(0) };
-  }
-}
-export class StarknetHypSyntheticAdapter extends StarknetNativeTokenAdapter {
-  constructor(
-    public readonly chainName: ChainName,
-    public readonly multiProvider: MultiProtocolProvider,
-    public readonly addresses: Record<string, Address>,
-    public readonly denom: string,
-  ) {
-    super(chainName, multiProvider, addresses);
-  }
+  }: TransferRemoteParams): Promise<Call> {
+    const hypToken = getStarknetHypERC20Contract(this.addresses.token);
+    const nonOption = new CairoOption(CairoOptionVariant.None);
 
-  override async isApproveRequired(
-    _owner: Address,
-    _spender: Address,
-    _weiAmountOrId: Numberish,
-  ): Promise<boolean> {
-    return false;
-  }
-
-  async quoteTransferRemoteGas(
-    destination: Domain,
-  ): Promise<InterchainGasQuote> {
-    return { amount: BigInt(0) };
-  }
-
-  async populateTransferRemoteTx({
-    weiAmountOrId,
-    destination,
-    recipient,
-    interchainGas,
-  }: TransferRemoteParams): Promise<PopulatedTransaction> {
-    // Create contract instance for the token
-    const tokenContract = new Contract(
-      [
-        {
-          name: 'transfer_remote',
-          type: 'function',
-          inputs: [
-            { name: 'destination', type: 'felt' },
-            { name: 'recipient', type: 'felt' },
-            { name: 'amount', type: 'Uint256' },
-          ],
-          outputs: [],
-        },
-      ],
-      this.addresses.token,
-      this.getProvider(),
+    const transferTx = hypToken.populateTransaction.transfer_remote(
+      destination,
+      recipient,
+      BigInt(weiAmountOrId.toString()),
+      BigInt(0),
+      nonOption,
+      nonOption,
     );
 
-    tokenContract.populateTransaction;
-
-    // format evm address to starknet
-    const recipientFelt = uint256.bnToUint256(recipient);
-
-    // Prepare the transfer remote call
-    const transferCall = {
-      contractAddress: this.addresses.token,
-      entrypoint: 'transfer_remote',
-      calldata: [
-        destination.toString(), // destination domain
-        recipientFelt, // recipient address as felt
-        weiAmountOrId.toString(), // amount
-      ],
-    };
-
-    if (interchainGas?.amount && interchainGas.amount > 0n) {
-      // For Starknet, we typically include the gas payment in the same transaction
-      // by adding it to the transfer amount if it's the native token
-      const totalAmount = BigInt(weiAmountOrId) + interchainGas.amount;
-      transferCall.calldata[2] = totalAmount.toString();
-    }
+    // TODO: add gas payment when we support it
 
     return {
-      ...transferCall,
+      ...transferTx,
       value: interchainGas?.amount
         ? BigNumber.from(interchainGas.amount)
-        : undefined,
+        : BigNumber.from(0),
     };
+  }
+
+  async getDomains(): Promise<Domain[]> {
+    return [];
+  }
+
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    return Buffer.from(this.addresses.token);
+  }
+
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    return [];
+  }
+
+  async getBridgedSupply(): Promise<bigint | undefined> {
+    return undefined;
   }
 }

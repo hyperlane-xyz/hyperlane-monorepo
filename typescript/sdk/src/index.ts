@@ -644,3 +644,8 @@ export {
   formatStarknetMessageForEthereum,
   convertU128ArrayToBytes,
 } from './messaging/messageUtils.js';
+
+export {
+  getStarknetHypERC20Contract,
+  getStarknetMailboxContract,
+} from './utils/starknet.js';
