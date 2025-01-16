@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{msg::op_submitter::SUBMITTER_QUEUE_COUNT, settings::matching_list::MatchingList};
 use axum::{extract::State, routing, Json, Router};
 use derive_new::new;
@@ -10,7 +8,7 @@ const MESSAGE_RETRY_API_BASE: &str = "/message_retry";
 
 #[derive(Clone, Debug, new)]
 pub struct MessageRetryApi {
-    retry_request_transmitter: Sender<Arc<MessageRetryRequest>>,
+    retry_request_transmitter: Sender<MessageRetryRequest>,
     destination_chains: usize,
 }
 
@@ -21,7 +19,7 @@ pub struct MessageRetryRequest {
     pub transmitter: mpsc::Sender<MessageRetryQueueResponse>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, new)]
 pub struct MessageRetryQueueResponse {
     /// how many pending operations were evaluated
     pub evaluated: usize,
@@ -56,11 +54,11 @@ async fn retry_message(
         mpsc::channel(SUBMITTER_QUEUE_COUNT * state.destination_chains);
     state
         .retry_request_transmitter
-        .send(Arc::new(MessageRetryRequest {
+        .send(MessageRetryRequest {
             uuid: uuid_string.clone(),
             pattern: retry_req_payload,
             transmitter,
-        }))
+        })
         .map_err(|err| {
             // Technically it's bad practice to print the error message to the user, but
             // this endpoint is for debugging purposes only.
@@ -115,7 +113,7 @@ mod tests {
     #[derive(Debug)]
     struct TestServerSetup {
         pub socket_address: SocketAddr,
-        pub retry_req_rx: Receiver<Arc<MessageRetryRequest>>,
+        pub retry_req_rx: Receiver<MessageRetryRequest>,
     }
 
     fn setup_test_server() -> TestServerSetup {
@@ -141,7 +139,7 @@ mod tests {
     }
 
     async fn send_retry_responses_future(
-        mut retry_request_receiver: Receiver<Arc<MessageRetryRequest>>,
+        mut retry_request_receiver: Receiver<MessageRetryRequest>,
         pending_operations: Vec<QueueOperation>,
         metrics: Vec<(usize, u64)>,
     ) {

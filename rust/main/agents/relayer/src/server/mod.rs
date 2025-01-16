@@ -1,6 +1,6 @@
 use axum::Router;
 use derive_new::new;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 use tokio::sync::broadcast::Sender;
 
 use crate::msg::op_queue::OperationPriorityQueue;
@@ -17,13 +17,13 @@ mod message_retry;
 pub struct Server {
     destination_chains: usize,
     #[new(default)]
-    retry_transmitter: Option<Sender<Arc<MessageRetryRequest>>>,
+    retry_transmitter: Option<Sender<MessageRetryRequest>>,
     #[new(default)]
     op_queues: Option<HashMap<u32, OperationPriorityQueue>>,
 }
 
 impl Server {
-    pub fn with_op_retry(mut self, transmitter: Sender<Arc<MessageRetryRequest>>) -> Self {
+    pub fn with_op_retry(mut self, transmitter: Sender<MessageRetryRequest>) -> Self {
         self.retry_transmitter = Some(transmitter);
         self
     }
