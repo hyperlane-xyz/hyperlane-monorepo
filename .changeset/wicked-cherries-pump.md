@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sdk': minor
+'@hyperlane-xyz/sdk': major
 ---
 
 Support for ZKSync contract deployment and verification

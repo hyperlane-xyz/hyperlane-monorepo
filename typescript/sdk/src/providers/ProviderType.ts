@@ -30,13 +30,13 @@ import {
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
-  ZkSync = 'zksync',
   EthersV5 = 'ethers-v5',
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
   GnosisTxBuilder = 'gnosis-txBuilder',
+  ZkSync = 'zksync',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -102,11 +102,6 @@ interface TypedProviderBase<T> {
   provider: T;
 }
 
-export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
-  type: ProviderType.ZkSync;
-  provider: ZKSyncBaseProvider;
-}
-
 export interface EthersV5Provider
   extends TypedProviderBase<EV5Providers.Provider> {
   type: ProviderType.EthersV5;
@@ -135,6 +130,11 @@ export interface CosmJsWasmProvider
   provider: Promise<CosmWasmClient>;
 }
 
+export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
+  type: ProviderType.ZkSync;
+  provider: ZKSyncBaseProvider;
+}
+
 export type TypedProvider =
   | EthersV5Provider
   // | EthersV6Provider
@@ -153,10 +153,6 @@ interface TypedContractBase<T> {
   contract: T;
 }
 
-export interface ZKSyncContract extends TypedContractBase<ZKSyncBaseContract> {
-  type: ProviderType.ZkSync;
-  contract: ZKSyncBaseContract;
-}
 export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
   type: ProviderType.EthersV5;
   contract: EV5Contract;
@@ -185,6 +181,11 @@ export interface CosmJsWasmContract
   contract: CosmWasmContract;
 }
 
+export interface ZKSyncContract extends TypedContractBase<ZKSyncBaseContract> {
+  type: ProviderType.ZkSync;
+  contract: ZKSyncBaseContract;
+}
+
 export type TypedContract =
   | EthersV5Contract
   // | EthersV6Contract
@@ -207,11 +208,6 @@ export interface EthersV5Transaction
   extends TypedTransactionBase<EV5Transaction> {
   type: ProviderType.EthersV5;
   transaction: EV5Transaction;
-}
-export interface ZKSyncTransaction
-  extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
-  type: ProviderType.ZkSync;
-  transaction: zkSyncTypes.TransactionRequest;
 }
 
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
@@ -238,6 +234,12 @@ export interface CosmJsWasmTransaction
   transaction: ExecuteInstruction;
 }
 
+export interface ZKSyncTransaction
+  extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
+  type: ProviderType.ZkSync;
+  transaction: zkSyncTypes.TransactionRequest;
+}
+
 export type TypedTransaction =
   | EthersV5Transaction
   // | EthersV6Transaction
@@ -255,11 +257,6 @@ interface TypedTransactionReceiptBase<T> {
   receipt: T;
 }
 
-export interface ZKSyncTransactionReceipt
-  extends TypedTransactionReceiptBase<zkSyncTypes.TransactionReceipt> {
-  type: ProviderType.ZkSync;
-  receipt: zkSyncTypes.TransactionReceipt;
-}
 export interface EthersV5TransactionReceipt
   extends TypedTransactionReceiptBase<EV5Providers.TransactionReceipt> {
   type: ProviderType.EthersV5;
@@ -288,6 +285,12 @@ export interface CosmJsWasmTransactionReceipt
   extends TypedTransactionReceiptBase<DeliverTxResponse> {
   type: ProviderType.CosmJsWasm;
   receipt: DeliverTxResponse;
+}
+
+export interface ZKSyncTransactionReceipt
+  extends TypedTransactionReceiptBase<zkSyncTypes.TransactionReceipt> {
+  type: ProviderType.ZkSync;
+  receipt: zkSyncTypes.TransactionReceipt;
 }
 
 export type TypedTransactionReceipt =
