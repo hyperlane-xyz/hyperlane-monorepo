@@ -10,32 +10,37 @@ import {
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
-const ARTELA_OWNER = '0x801e8135867D65e742eb070A9fC0aD9c2f69B4cd';
-const ART_ON_SOLANA_ADDRESS = 'ELAJhVNCRfipNT99YTfPBGTAgyD5x9mEv3DYr9fvRM2C';
-const ISM_CONFIG = ethers.constants.AddressZero; // Default ISM
+// Artela MPC wallt
+const EVM_OWNER = '0x801e8135867D65e742eb070A9fC0aD9c2f69B4cd';
+// Artela Squad vault
+const SOLANA_OWNER = 'G4ekReWuTheawZ2DNw5k5iA8pGACt7auKwQeEcGi6GWj';
+
+// Default ISM
+const ISM_CONFIG = ethers.constants.AddressZero;
+
 export const getArtelaBaseSolanaARTWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
-  abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
+  _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const artela: HypTokenRouterConfig = {
-    ...routerConfig.artela,
+    mailbox: routerConfig.artela.mailbox,
+    owner: EVM_OWNER,
     type: TokenType.native,
-    owner: ARTELA_OWNER,
     interchainSecurityModule: ISM_CONFIG,
   };
 
   const base: HypTokenRouterConfig = {
-    ...routerConfig.base,
+    mailbox: routerConfig.base.mailbox,
+    owner: EVM_OWNER,
     type: TokenType.synthetic,
-    owner: ARTELA_OWNER,
     interchainSecurityModule: ISM_CONFIG,
   };
 
   const solanamainnet: HypTokenRouterConfig = {
-    ...routerConfig.solanamainnet,
+    mailbox: routerConfig.solanamainnet.mailbox,
     type: TokenType.synthetic,
-    owner: abacusWorksEnvOwnerConfig.solanamainnet.owner,
-    foreignDeployment: ART_ON_SOLANA_ADDRESS,
+    owner: SOLANA_OWNER,
+    foreignDeployment: 'ELAJhVNCRfipNT99YTfPBGTAgyD5x9mEv3DYr9fvRM2C',
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
   };
 
