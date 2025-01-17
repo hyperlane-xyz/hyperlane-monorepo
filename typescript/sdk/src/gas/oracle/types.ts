@@ -1,7 +1,9 @@
 import { ethers } from 'ethers';
 import { z } from 'zod';
 
-import { TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM } from '../../consts/igp.js';
+import { ProtocolType } from '@hyperlane-xyz/utils';
+
+import { getProtocolExchangeRateDecimals } from '../../consts/igp.js';
 
 export const StorageGasOracleConfigSchema = z.object({
   gasPrice: z.string(),
@@ -30,6 +32,7 @@ export type OracleData = {
 };
 
 export const formatGasOracleConfig = (
+  localChainProtocol: ProtocolType,
   config: OracleData,
 ): {
   tokenExchangeRate: string;
@@ -37,7 +40,7 @@ export const formatGasOracleConfig = (
 } => ({
   tokenExchangeRate: ethers.utils.formatUnits(
     config.tokenExchangeRate,
-    TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
+    getProtocolExchangeRateDecimals(localChainProtocol),
   ),
   gasPrice: ethers.utils.formatUnits(config.gasPrice, 'gwei'),
 });
@@ -67,6 +70,7 @@ export const oracleConfigToOracleData = (
 });
 
 export const serializeDifference = (
+  localChainProtocol: ProtocolType,
   actual: OracleData,
   expected: OracleData,
 ): string => {
@@ -84,6 +88,6 @@ export const serializeDifference = (
     expected.tokenExchangeRate.mul(expected.gasPrice),
   );
 
-  const formatted = formatGasOracleConfig(expected);
+  const formatted = formatGasOracleConfig(localChainProtocol, expected);
   return `Exchange rate: ${formatted.tokenExchangeRate} (${tokenExchangeRateDiff}), Gas price: ${formatted.gasPrice} gwei (${gasPriceDiff}), Product diff: ${productDiff}`;
 };

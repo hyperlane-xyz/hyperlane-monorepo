@@ -26,4 +26,10 @@ const gasPrices: ChainMap<GasPriceConfig> = {
 };
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
-  getAllStorageGasOracleConfigs(testChainNames, tokenPrices, gasPrices);
+  getAllStorageGasOracleConfigs(
+    testChainNames,
+    tokenPrices,
+    gasPrices,
+    (_local, _remote) => 0,
+    false,
+  );

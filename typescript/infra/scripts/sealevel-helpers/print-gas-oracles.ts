@@ -4,7 +4,7 @@ import { writeJsonAtPath } from '../../src/utils/utils.js';
 import { getArgs, withOutFile } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-// This script exists to print the chain metadata configs for a given environment
+// This script exists to print the gas oracle configs for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
 
 async function main() {
@@ -14,28 +14,15 @@ async function main() {
 
   // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
   const gasOracles = objMap(environmentConfig.igp, (origin, igpConfig) => {
-    console.log('origin', origin, 'igpConfig', igpConfig);
+    // If there's no oracle config, don't do anything for this origin
     if (!igpConfig.oracleConfig) {
       return {};
     }
-    return objMap(igpConfig.oracleConfig, (destination, oracleConfig) => {
-      console.log('origin', origin, 'destination', destination);
-      console.log(
-        'oracleConfig',
-        oracleConfig,
-        'overhead',
-        igpConfig?.overhead?.[destination],
-      );
-      return {
-        oracleConfig,
-        overhead: igpConfig?.overhead?.[destination],
-      };
-    });
+    return objMap(igpConfig.oracleConfig, (destination, oracleConfig) => ({
+      oracleConfig,
+      overhead: igpConfig?.overhead?.[destination],
+    }));
   });
-
-  console.log('do we get here ?');
-
-  console.log('keys?', stringifyObject(Object.keys(gasOracles)));
 
   console.log(stringifyObject(gasOracles, 'yaml'));
 

@@ -132,7 +132,11 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         !actual.tokenExchangeRate.eq(desired.tokenExchangeRate)
       ) {
         this.logger.info(
-          `${chain} -> ${remote}: ${serializeDifference(actual, desiredData)}`,
+          `${chain} -> ${remote}: ${serializeDifference(
+            this.multiProvider.getProtocol(chain),
+            actual,
+            desiredData,
+          )}`,
         );
         configsToSet.push({
           remoteDomain,

@@ -11,7 +11,7 @@ import {
   StorageGasOracleConfig,
   defaultMultisigConfigs,
   getLocalStorageGasOracleConfig,
-  getProtocolSpecificExchangeRateScale,
+  getProtocolExchangeRateScale,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -50,13 +50,15 @@ function getLocalStorageGasOracleConfigOverride(
   remotes: ChainName[],
   tokenPrices: ChainMap<string>,
   gasPrices: ChainMap<GasPriceConfig>,
-  getOverhead?: (local: ChainName, remote: ChainName) => number,
+  getOverhead: (local: ChainName, remote: ChainName) => number,
+  applyMinUsdCost: boolean,
 ): ChainMap<StorageGasOracleConfig> {
   const localProtocolType = getChain(local).protocol;
   const localExchangeRateScale =
-    getProtocolSpecificExchangeRateScale(localProtocolType);
+    getProtocolExchangeRateScale(localProtocolType);
   const localNativeTokenDecimals = mustGetChainNativeToken(local).decimals;
 
+  // Construct the gas oracle params for each remote chain
   const gasOracleParams = [local, ...remotes].reduce((agg, remote) => {
     agg[remote] = {
       gasPrice: gasPrices[remote],
@@ -68,57 +70,69 @@ function getLocalStorageGasOracleConfigOverride(
     return agg;
   }, {} as ChainMap<ChainGasOracleParams>);
 
+  // Modifier to adjust the gas price to meet minimum USD cost requirements.
   const gasPriceModifier = (
     local: ChainName,
     remote: ChainName,
     gasOracleConfig: ProtocolAgnositicGasOracleConfig,
   ): BigNumberJs.Value => {
-    if (getOverhead) {
-      const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
-        local,
-        remote,
-        getOverhead,
-      );
-      const localTokenUsdPrice = parseFloat(tokenPrices[local]);
-      const typicalIgpQuoteUsd = getUsdQuote(
-        localTokenUsdPrice,
-        localExchangeRateScale,
-        localNativeTokenDecimals,
-        localProtocolType,
-        gasOracleConfig,
-        typicalRemoteGasAmount,
+    if (!applyMinUsdCost) {
+      return gasOracleConfig.gasPrice;
+    }
+
+    const typicalRemoteGasAmount = getTypicalRemoteGasAmount(
+      local,
+      remote,
+      getOverhead,
+    );
+    const localTokenUsdPrice = parseFloat(tokenPrices[local]);
+    const typicalIgpQuoteUsd = getUsdQuote(
+      localTokenUsdPrice,
+      localExchangeRateScale,
+      localNativeTokenDecimals,
+      localProtocolType,
+      gasOracleConfig,
+      typicalRemoteGasAmount,
+    );
+
+    const minUsdCost = getMinUsdCost(local, remote);
+
+    // If the quote is already above the minimum cost, don't adjust the gas price!
+    if (typicalIgpQuoteUsd >= minUsdCost) {
+      return gasOracleConfig.gasPrice;
+    }
+
+    // If we've gotten here, the quote is less than the minimum cost and we
+    // need to adjust the gas price.
+
+    // The minimum quote we want on the origin, in the lowest origin denomination.
+    const minIgpQuoteWei = toWei(
+      new BigNumberJs(minUsdCost).div(localTokenUsdPrice),
+      localNativeTokenDecimals,
+    );
+    // The new gas price that will give us the minimum quote.
+    // We use a BigNumberJs to allow for non-integer gas prices.
+    // Later in the process, this is made integer-friendly.
+    // This calculation expects that the token exchange rate accounts
+    // for decimals.
+    let newGasPrice = new BigNumberJs(minIgpQuoteWei)
+      .times(localExchangeRateScale.toString())
+      .div(
+        new BigNumberJs(gasOracleConfig.tokenExchangeRate).times(
+          typicalRemoteGasAmount,
+        ),
       );
 
-      const minUsdCost = getMinUsdCost(local, remote);
-      if (typicalIgpQuoteUsd < minUsdCost) {
-        // Adjust the gasPrice to meet the minimum cost
-        const minIgpQuoteWei = toWei(
-          new BigNumberJs(minUsdCost).div(localTokenUsdPrice),
-          localNativeTokenDecimals,
-        );
-        console.log('minIgpQuoteWei', minIgpQuoteWei);
-        let newGasPrice = new BigNumberJs(minIgpQuoteWei)
-          .times(localExchangeRateScale.toString())
-          .div(
-            new BigNumberJs(gasOracleConfig.tokenExchangeRate).times(
-              typicalRemoteGasAmount,
-            ),
-          );
-        console.log('newGasPrice', newGasPrice);
-        if (localProtocolType === ProtocolType.Sealevel) {
-          // On Sealevel, the exchange rate doesn't consider decimals.
-          // We therefor explicitly convert decimals to remote decimals.
-          newGasPrice = convertDecimals(
-            localNativeTokenDecimals,
-            gasOracleConfig.tokenDecimals,
-            newGasPrice.toString(),
-          );
-          // assert(newGasPrice.gt(0), 'newGasPrice must be greater than 0');
-        }
-        return newGasPrice;
-      }
+    if (localProtocolType === ProtocolType.Sealevel) {
+      // On Sealevel, the exchange rate doesn't consider decimals.
+      // We therefore explicitly convert decimals to remote decimals.
+      newGasPrice = convertDecimals(
+        localNativeTokenDecimals,
+        gasOracleConfig.tokenDecimals,
+        newGasPrice.toString(),
+      );
     }
-    return gasOracleConfig.gasPrice;
+    return newGasPrice;
   };
 
   return getLocalStorageGasOracleConfig({
@@ -232,7 +246,8 @@ export function getAllStorageGasOracleConfigs(
   chainNames: ChainName[],
   tokenPrices: ChainMap<string>,
   gasPrices: ChainMap<GasPriceConfig>,
-  getOverhead?: (local: ChainName, remote: ChainName) => number,
+  getOverhead: (local: ChainName, remote: ChainName) => number,
+  applyMinUsdCost: boolean = true,
 ): AllStorageGasOracleConfigs {
   // return chainNames.filter(isEthereumProtocolChain).
 
@@ -257,6 +272,7 @@ export function getAllStorageGasOracleConfigs(
           tokenPrices,
           gasPrices,
           getOverhead,
+          applyMinUsdCost,
         ),
       };
     }, {}) as AllStorageGasOracleConfigs;

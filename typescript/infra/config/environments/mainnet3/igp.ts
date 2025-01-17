@@ -42,6 +42,7 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
     tokenPrices,
     gasPrices,
     (local, remote) => getOverheadWithOverrides(local, remote),
+    true,
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(

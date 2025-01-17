@@ -16,7 +16,13 @@ import rawTokenPrices from './tokenPrices.json';
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
-  getAllStorageGasOracleConfigs(supportedChainNames, tokenPrices, gasPrices);
+  getAllStorageGasOracleConfigs(
+    supportedChainNames,
+    tokenPrices,
+    gasPrices,
+    (local, remote) => getOverhead(local, remote, ethereumChainNames),
+    false,
+  );
 
 export const igp: ChainMap<IgpConfig> = objMap(
   owners,

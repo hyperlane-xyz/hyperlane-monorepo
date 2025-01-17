@@ -9,8 +9,10 @@ export {
 export { S3Config, S3Receipt, S3Wrapper } from './aws/s3.js';
 export { S3Validator } from './aws/validator.js';
 export {
-  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM as TOKEN_EXCHANGE_RATE_DECIMALS,
-  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM as TOKEN_EXCHANGE_RATE_SCALE,
+  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
+  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM,
+  getProtocolExchangeRateDecimals,
+  getProtocolExchangeRateScale,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
 export {
@@ -424,7 +426,6 @@ export {
   getCosmosChainGasPrice,
   getGasPrice,
   getLocalStorageGasOracleConfig,
-  getProtocolSpecificExchangeRateScale,
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';
