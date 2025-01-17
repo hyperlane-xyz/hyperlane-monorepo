@@ -124,6 +124,10 @@ function getLocalStorageGasOracleConfigOverride(
       );
 
     if (localProtocolType === ProtocolType.Sealevel) {
+      assert(
+        gasOracleConfig.tokenDecimals,
+        'Token decimals must be defined for use by local Sealevel chains',
+      );
       // On Sealevel, the exchange rate doesn't consider decimals.
       // We therefore explicitly convert decimals to remote decimals.
       newGasPrice = convertDecimals(
@@ -211,6 +215,10 @@ function getUsdQuote(
     .div(localExchangeRateScale)
     .toString();
   if (localProtocolType === ProtocolType.Sealevel) {
+    assert(
+      gasOracleConfig.tokenDecimals,
+      'Token decimals must be defined for use by local Sealevel chains',
+    );
     // Convert decimals to local decimals
     quote = convertDecimals(
       gasOracleConfig.tokenDecimals,

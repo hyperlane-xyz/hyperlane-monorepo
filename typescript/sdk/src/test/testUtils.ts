@@ -65,6 +65,7 @@ export function testCoreConfig(
 const TEST_ORACLE_CONFIG = {
   gasPrice: ethers.utils.parseUnits('1', 'gwei').toString(),
   tokenExchangeRate: ethers.utils.parseUnits('1', 10).toString(),
+  tokenDecimals: 18,
 };
 
 const TEST_OVERHEAD_COST = 60000;

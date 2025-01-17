@@ -18,7 +18,8 @@ export type StorageGasOracleConfig = z.output<
 export const ProtocolAgnositicGasOracleConfigSchema =
   StorageGasOracleConfigSchema.extend({
     // The number of decimals of the remote native token.
-    tokenDecimals: z.number(),
+    // Optional because it's not required by all protocol types.
+    tokenDecimals: z.number().optional(),
   });
 
 // Gas data to configure on a single destination chain.

@@ -251,7 +251,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.concurrency,
       domainIds,
       async (domainId) => {
-        const chainName = this.multiProvider.getChainName(domainId);
+        const chainMetadata = this.multiProvider.getChainMetadata(domainId);
+        const chainName = chainMetadata.name;
         try {
           const { tokenExchangeRate, gasPrice } =
             await hook.getExchangeRateAndGasPrice(domainId);
@@ -261,6 +262,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           oracleConfig[chainName] = {
             tokenExchangeRate: tokenExchangeRate.toString(),
             gasPrice: gasPrice.toString(),
+            tokenDecimals: chainMetadata?.nativeToken?.decimals,
           };
 
           const { gasOracle } = await hook.destinationGasConfigs(domainId);
