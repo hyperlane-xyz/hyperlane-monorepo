@@ -4,6 +4,7 @@ import {
   ChainMap,
   HypTokenRouterConfig,
   IsmConfig,
+  OwnableConfig,
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
@@ -18,12 +19,16 @@ const DECENT_OWNER = '0x5b234E48a3dD867f0DdA9DAd1DBd554eCE823cA0';
 export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig =
   async (
     routerConfig: ChainMap<RouterConfigWithoutOwner>,
+    abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   ): Promise<ChainMap<HypTokenRouterConfig>> => {
     const ISM_CONFIG: IsmConfig = ethers.constants.AddressZero;
 
     const arbitrum: HypTokenRouterConfig = {
       ...routerConfig.arbitrum,
       owner: DECENT_OWNER,
+      // TODO: remove once we transfer ownership of the proxy admin
+      ownerOverrides: abacusWorksEnvOwnerConfig.arbitrum.ownerOverrides,
+      // END TODO
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
