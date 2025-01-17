@@ -59,7 +59,10 @@ import {
   SealevelNativeTokenAdapter,
   SealevelTokenAdapter,
 } from './adapters/SealevelTokenAdapter.js';
-import { StarknetHypSyntheticAdapter } from './adapters/StarknetTokenAdapter.js';
+import {
+  StarknetHypNativeAdapter,
+  StarknetHypSyntheticAdapter,
+} from './adapters/StarknetTokenAdapter.js';
 
 // Declaring the interface in addition to class allows
 // Typescript to infer the members vars from TokenArgs
@@ -295,8 +298,8 @@ export class Token implements IToken {
       return this.getIbcAdapter(multiProvider, connection);
     } else if (standard === TokenStandard.StarknetHypNative) {
       // TODO: make appropriate adapter
-      return new StarknetHypSyntheticAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
+      return new StarknetHypNativeAdapter(chainName, multiProvider, {
+        warpRouter: addressOrDenom,
       });
     } else if (standard === TokenStandard.StarknetHypSynthetic) {
       return new StarknetHypSyntheticAdapter(chainName, multiProvider, {

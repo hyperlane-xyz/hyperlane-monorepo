@@ -183,12 +183,14 @@ export class WarpCore {
     originToken,
     destination,
     sender,
+    recipient,
     senderPubKey,
     interchainFee,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
+    recipient?: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
   }): Promise<TransactionFeeEstimate> {
@@ -211,8 +213,8 @@ export class WarpCore {
 
     // TODO: DOES NOT WORK FOR STARKNET
     // Form transactions to estimate local gas with
-    const recipient = convertToProtocolAddress(
-      sender,
+    const recipientAddress = convertToProtocolAddress(
+      recipient ?? sender, // TODO: get recipient instead of sender
       destinationMetadata.protocol,
       destinationMetadata.bech32Prefix,
     );
@@ -220,7 +222,7 @@ export class WarpCore {
       originTokenAmount: originToken.amount(1),
       destination,
       sender,
-      recipient,
+      recipient: recipientAddress,
       interchainFee,
     });
 
@@ -257,6 +259,12 @@ export class WarpCore {
         provider,
         gasUnits: EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
       });
+    } else if (
+      txs.length === 2 &&
+      originToken.protocol === ProtocolType.Starknet
+    ) {
+      this.logger.info(`Skipping gas estimation for Starknet`);
+      return { gasUnits: 0, gasPrice: 0, fee: 0 };
     } else {
       throw new Error('Cannot estimate local gas for multiple transactions');
     }
@@ -271,12 +279,14 @@ export class WarpCore {
     originToken,
     destination,
     sender,
+    recipient,
     senderPubKey,
     interchainFee,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
+    recipient?: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
   }): Promise<TokenAmount> {
@@ -295,6 +305,7 @@ export class WarpCore {
       originToken,
       destination,
       sender,
+      recipient,
       senderPubKey,
       interchainFee,
     });
@@ -590,6 +601,7 @@ export class WarpCore {
       originTokenAmount,
       destination,
       sender,
+      recipient,
       senderPubKey,
     );
     if (balancesError) return balancesError;
@@ -705,6 +717,7 @@ export class WarpCore {
     originTokenAmount: TokenAmount,
     destination: ChainNameOrId,
     sender: Address,
+    recipient: Address,
     senderPubKey?: HexString,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
@@ -736,13 +749,13 @@ export class WarpCore {
         amount: `Insufficient ${interchainQuote.token.symbol} for interchain gas`,
       };
     }
-    return null;
 
     // Check 3: Simulates the transfer by getting the local gas fee
     const localQuote = await this.getLocalTransferFeeAmount({
       originToken,
       destination,
       sender,
+      recipient,
       senderPubKey,
       interchainFee: interchainQuote,
     });

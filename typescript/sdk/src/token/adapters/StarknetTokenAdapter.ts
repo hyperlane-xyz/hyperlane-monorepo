@@ -1,7 +1,7 @@
 import { BigNumber } from 'ethers';
-import { CairoOption, CairoOptionVariant, Call } from 'starknet';
+import { CairoOption, CairoOptionVariant, Call, Contract } from 'starknet';
 
-import { Address, Domain } from '@hyperlane-xyz/utils';
+import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -40,12 +40,31 @@ export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
     return 0n;
   }
 
-  async isApproveRequired(): Promise<boolean> {
-    return false;
+  async isApproveRequired(
+    owner: Address,
+    spender: Address,
+    weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    // Native tokens are ERC20s thus need to be approved
+    const { abi } = await this.getProvider().getClassAt(ETH_ADDRESS);
+    const ethToken = new Contract(abi, ETH_ADDRESS);
+
+    const allowance = await ethToken.allowance(owner, spender);
+
+    return BigNumber.from(allowance.toString()).lt(
+      BigNumber.from(weiAmountOrId),
+    );
   }
 
-  async populateApproveTx(_params: TransferParams): Promise<Call> {
-    throw new Error('Approve not required for native tokens'); // TODO: double check for starknet
+  async populateApproveTx({
+    weiAmountOrId,
+    recipient,
+  }: TransferParams): Promise<Call> {
+    // Native tokens are ERC20s thus need to be approved
+    const { abi } = await this.getProvider().getClassAt(ETH_ADDRESS);
+    const ethToken = new Contract(abi, ETH_ADDRESS);
+
+    return ethToken.populateTransaction.approve(recipient, weiAmountOrId);
   }
 
   async populateTransferTx({
@@ -57,6 +76,67 @@ export class StarknetNativeTokenAdapter extends BaseStarknetAdapter {
   }
 
   async getTotalSupply(): Promise<bigint | undefined> {
+    return undefined;
+  }
+}
+
+export class StarknetHypNativeAdapter
+  extends StarknetNativeTokenAdapter
+  implements IHypTokenAdapter<Call>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { warpRouter: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
+    return { amount: BigInt(0) };
+  }
+
+  async populateTransferRemoteTx({
+    weiAmountOrId,
+    destination,
+    recipient,
+  }: TransferRemoteParams): Promise<Call> {
+    const { abi } = await this.getProvider().getClassAt(
+      this.addresses.warpRouter,
+    );
+    const warpRouter = new Contract(abi, this.addresses.warpRouter);
+
+    const nonOption = new CairoOption(CairoOptionVariant.None);
+
+    const transferTx = warpRouter.populateTransaction.transfer_remote(
+      destination,
+      recipient,
+      BigInt('1'),
+      BigInt('1'),
+      nonOption,
+      nonOption,
+    );
+
+    // TODO: add gas payment when we support it
+
+    return transferTx;
+  }
+
+  async getDomains(): Promise<Domain[]> {
+    return [];
+  }
+
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    return Buffer.from(ETH_ADDRESS);
+  }
+
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    return [];
+  }
+
+  async getBridgedSupply(): Promise<bigint | undefined> {
     return undefined;
   }
 }

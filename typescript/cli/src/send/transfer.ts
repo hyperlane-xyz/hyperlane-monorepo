@@ -217,7 +217,7 @@ async function executeDelivery({
         );
 
         console.log({ txReceipt });
-        return;
+
         break;
       }
       default:
@@ -226,6 +226,7 @@ async function executeDelivery({
 
     txReceipts.push(txReceipt);
   }
+  return;
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
   const message: DispatchedMessage =
