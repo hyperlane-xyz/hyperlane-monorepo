@@ -4,7 +4,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { ChainAddresses, WarpRouteOptions } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
   AnnotatedEV5Transaction,
@@ -125,6 +125,8 @@ export async function runWarpRouteDeploy({
     context,
   );
 
+  console.log('warpRouteConfig', warpRouteConfig);
+
   const chains = Object.keys(warpRouteConfig);
 
   let apiKeys: ChainMap<string> = {};
@@ -153,12 +155,15 @@ export async function runWarpRouteDeploy({
 
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
-  const warpCoreConfig = await getWarpCoreConfig(
+  const { warpCoreConfig, warpRouteOptions } = await getWarpCoreConfig(
     deploymentParams,
     deployedContracts,
   );
 
-  await writeDeploymentArtifacts(warpCoreConfig, context);
+  console.log('warpRouteOptions', warpRouteOptions);
+  console.log('warpCoreConfig', warpCoreConfig);
+
+  await writeDeploymentArtifacts(warpCoreConfig, context, warpRouteOptions);
 
   await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
 }
@@ -226,10 +231,11 @@ async function executeDeploy(
 async function writeDeploymentArtifacts(
   warpCoreConfig: WarpCoreConfig,
   context: WriteCommandContext,
+  warpRouteOptions?: WarpRouteOptions,
 ) {
   if (!context.isDryRun) {
     log('Writing deployment artifacts...');
-    await context.registry.addWarpRoute(warpCoreConfig);
+    await context.registry.addWarpRoute(warpCoreConfig, warpRouteOptions);
   }
   log(indentYamlOrJson(yamlStringify(warpCoreConfig, null, 2), 4));
 }
@@ -417,7 +423,10 @@ async function createWarpHook({
 async function getWarpCoreConfig(
   { warpDeployConfig, context }: DeployParams,
   contracts: HyperlaneContractsMap<TokenFactories>,
-): Promise<WarpCoreConfig> {
+): Promise<{
+  warpCoreConfig: WarpCoreConfig;
+  warpRouteOptions?: WarpRouteOptions;
+}> {
   const warpCoreConfig: WarpCoreConfig = { tokens: [] };
 
   // TODO: replace with warp read
@@ -443,7 +452,7 @@ async function getWarpCoreConfig(
 
   fullyConnectTokens(warpCoreConfig);
 
-  return warpCoreConfig;
+  return { warpCoreConfig, warpRouteOptions: { symbol } };
 }
 
 /**
@@ -457,6 +466,7 @@ function generateTokenConfigs(
   name: string,
   decimals: number,
 ): void {
+  console.log('Contracts', contracts);
   for (const [chainName, contract] of Object.entries(contracts)) {
     const config = warpDeployConfig[chainName];
     const collateralAddressOrDenom = isCollateralTokenConfig(config)
@@ -467,7 +477,7 @@ function generateTokenConfigs(
       chainName,
       standard: TOKEN_TYPE_TO_STANDARD[config.type],
       decimals,
-      symbol,
+      symbol: config.symbol || symbol,
       name,
       addressOrDenom:
         contract[warpDeployConfig[chainName].type as keyof TokenFactories]
@@ -592,9 +602,15 @@ async function extendWarpRoute(
     warpCoreConfigByChain,
   );
 
-  const updatedWarpCoreConfig = await getWarpCoreConfig(params, mergedRouters);
+  const { warpCoreConfig: updatedWarpCoreConfig, warpRouteOptions } =
+    await getWarpCoreConfig(params, mergedRouters);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
-  await writeDeploymentArtifacts(updatedWarpCoreConfig, params.context);
+
+  await writeDeploymentArtifacts(
+    updatedWarpCoreConfig,
+    params.context,
+    warpRouteOptions,
+  );
 
   return enrollRemoteRouters(params, mergedRouters);
 }
