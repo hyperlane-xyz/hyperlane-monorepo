@@ -219,7 +219,6 @@ export const createIGPConfig = callWithConfigCreationLogs(
     );
 
     // Calculate storage gas oracle config
-    // TODO come back here
     const oracleConfig = getLocalStorageGasOracleConfig({
       local: localChain,
       localProtocolType: context.multiProvider.getProtocol(localChain),

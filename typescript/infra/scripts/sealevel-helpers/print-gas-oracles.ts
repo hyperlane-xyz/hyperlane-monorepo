@@ -18,6 +18,7 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 // This script exists to print the gas oracle configs for a given environment
 // so they can easily be copied into the Sealevel tooling. :'(
+
 interface GasOracleConfigWithOverhead {
   oracleConfig: ProtocolAgnositicGasOracleConfig;
   overhead?: number;
