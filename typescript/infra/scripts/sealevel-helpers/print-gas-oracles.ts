@@ -28,29 +28,7 @@ async function main() {
 
   const environmentConfig = getEnvironmentConfig(environment);
 
-  // Because there is a limit to how many chains we want to figure in an SVM IGP,
-  // we limit the chains to only those that are connected via warp routes.
-  // Returns a record of origin chain -> set of chains that are connected via warp routes.
-  const allConnectedChains = Object.values(WarpRouteIds).reduce(
-    (agg, warpRouteId) => {
-      const warpRouteAddresses = getWarpAddresses(warpRouteId);
-      const warpRouteChains = Object.keys(warpRouteAddresses);
-      // Make sure each chain is connected to every other chain
-      warpRouteChains.forEach((chainA) => {
-        warpRouteChains.forEach((chainB) => {
-          if (chainA === chainB) {
-            return;
-          }
-          if (agg[chainA] === undefined) {
-            agg[chainA] = new Set();
-          }
-          agg[chainA].add(chainB as ChainName);
-        });
-      });
-      return agg;
-    },
-    {} as ChainMap<Set<ChainName>>,
-  );
+  const allConnectedChains = getChainConnections();
 
   // Construct a nested map of origin -> destination -> { oracleConfig, overhead }
   let gasOracles = objMap(environmentConfig.igp, (origin, igpConfig) => {
@@ -98,6 +76,38 @@ async function main() {
     console.log(`Writing config to ${outFile}`);
     writeJsonAtPath(outFile, gasOracles);
   }
+}
+
+// Because there is a limit to how many chains we want to figure in an SVM IGP,
+// we limit the chains to only those that are connected via warp routes.
+// Returns a record of origin chain -> set of chains that are connected via warp routes.
+function getChainConnections(): ChainMap<Set<ChainName>> {
+  // A list of connected chains
+  const connectedChains = [
+    // Hardcoded connections
+    ['sonicsvmtestnet', 'solanatestnet'],
+    // All known warp routes
+    ...Object.values(WarpRouteIds).map((warpRouteId) => {
+      const warpRouteAddresses = getWarpAddresses(warpRouteId);
+      return Object.keys(warpRouteAddresses);
+    }),
+  ];
+
+  return connectedChains.reduce((agg, chains) => {
+    // Make sure each chain is connected to every other chain
+    chains.forEach((chainA) => {
+      chains.forEach((chainB) => {
+        if (chainA === chainB) {
+          return;
+        }
+        if (agg[chainA] === undefined) {
+          agg[chainA] = new Set();
+        }
+        agg[chainA].add(chainB as ChainName);
+      });
+    });
+    return agg;
+  }, {} as ChainMap<Set<ChainName>>);
 }
 
 main().catch((err) => {
