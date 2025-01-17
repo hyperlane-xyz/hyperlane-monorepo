@@ -1,7 +1,7 @@
 {
   "sealeveltest1": {
     "sealeveltest2": {
-      "gasOracle": {
+      "oracleConfig": {
         "tokenExchangeRate": "1000000000000000000",
         "gasPrice": "1",
         "tokenDecimals": 9
@@ -11,7 +11,7 @@
   },
   "sealeveltest2": {
     "sealeveltest1": {
-      "gasOracle": {
+      "oracleConfig": {
         "tokenExchangeRate": "1000000000000000000",
         "gasPrice": "1",
         "tokenDecimals": 9

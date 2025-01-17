@@ -234,6 +234,7 @@ pub fn start_solana_test_validator(
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("built-so-dir", SBF_OUT_PATH);
 
+    // Deploy sealeveltest1 core
     sealevel_client_deploy_core
         .clone()
         .arg("local-domain", SOLANA_LOCAL_CHAIN_ID)
@@ -241,8 +242,34 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
+    // Deploy sealeveltest2 core
     sealevel_client_deploy_core
         .arg("local-domain", SOLANA_REMOTE_CHAIN_ID)
+        .arg("chain", "sealeveltest2")
+        .run()
+        .join();
+
+    const SEALEVETEST1_IGP_PROGRAM_ID: &str = "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U";
+    const SEALEVETEST2_IGP_PROGRAM_ID: &str = "FArd4tEikwz2fk3MB7S9kC82NGhkgT6f9aXi3C5cw1E5";
+
+    let sealevel_client_deploy_core = sealevel_client
+        .clone()
+        .cmd("igp")
+        .cmd("configure")
+        .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
+        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE);
+
+    // Configure sealeveltest1 IGP
+    sealevel_client_deploy_core
+        .clone()
+        .arg("program-id", SEALEVETEST1_IGP_PROGRAM_ID)
+        .arg("chain", "sealeveltest1")
+        .run()
+        .join();
+
+    // Configure sealeveltest2 IGP
+    sealevel_client_deploy_core
+        .arg("program-id", SEALEVETEST2_IGP_PROGRAM_ID)
         .arg("chain", "sealeveltest2")
         .run()
         .join();
@@ -326,6 +353,7 @@ pub fn start_solana_test_validator(
         .cmd("configure")
         .arg("program-id", IGP_PROGRAM_ID)
         .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
+        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
         .arg("chain", "sealeveltest1")
         .arg("account-salt", ALTERNATIVE_SALT)
         .run()
