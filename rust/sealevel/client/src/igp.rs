@@ -24,8 +24,8 @@ use hyperlane_core::{KnownHyperlaneDomain, H256};
 
 use hyperlane_sealevel_igp::{
     accounts::{
-        GasOracle, GasPaymentAccount, Igp, IgpAccount, InterchainGasPaymasterType, OverheadIgp,
-        OverheadIgpAccount, ProgramDataAccount as IgpProgramDataAccount, RemoteGasData,
+        GasOracle, GasPaymentAccount, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount,
+        ProgramDataAccount as IgpProgramDataAccount, RemoteGasData,
     },
     igp_program_data_pda_seeds,
     instruction::{GasOracleConfig, GasOverheadConfig},
@@ -33,6 +33,7 @@ use hyperlane_sealevel_igp::{
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+/// Compatible with the format of our TS-generated configs.
 struct GasOracleConfigWithOverhead {
     oracle_config: RemoteGasData,
     overhead: Option<u64>,
@@ -116,16 +117,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 })
                 .unwrap_or_else(|| get_context_salt(init.context.as_ref()));
 
-            let chain_configs =
-                read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
-
-            let igp_account = init_and_configure_igp_account(
-                &mut ctx,
-                init.program_id,
-                chain_configs.get(&init.chain).unwrap().domain_id(),
-                salt,
-                init.gas_oracle_config_file,
-            );
+            let igp_account = init_igp_account(&mut ctx, init.program_id, salt);
 
             let artifacts = IgpAccountsArtifacts {
                 salt,
@@ -162,17 +154,8 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 })
                 .unwrap_or_else(|| get_context_salt(init.context.as_ref()));
 
-            let chain_configs =
-                read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
-
-            let overhead_igp_account = init_and_configure_overhead_igp_account(
-                &mut ctx,
-                init.program_id,
-                init.inner_igp_account,
-                chain_configs.get(&init.chain).unwrap().domain_id(),
-                salt,
-                init.overhead_config_file,
-            );
+            let overhead_igp_account =
+                init_overhead_igp_account(&mut ctx, init.program_id, init.inner_igp_account, salt);
 
             let artifacts = IgpAccountsArtifacts {
                 salt,
@@ -451,7 +434,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             configure_igp_and_overhead_igp(
                 &mut ctx,
                 args.program_id,
-                args.local_chain,
+                args.chain,
                 &args.gas_oracle_config_file,
                 &args.chain_config_file,
                 args.account_salt,
@@ -502,25 +485,7 @@ fn deploy_igp_program(
     program_id
 }
 
-fn init_and_configure_igp_account(
-    ctx: &mut Context,
-    program_id: Pubkey,
-    local_domain: u32,
-    salt: H256,
-    gas_oracle_config_file: Option<PathBuf>,
-) -> Pubkey {
-    let gas_oracle_configs = gas_oracle_config_file
-        .as_deref()
-        .map(|p| {
-            let file = File::open(p).expect("Failed to open oracle config file");
-            serde_json::from_reader::<_, Vec<GasOracleConfig>>(file)
-                .expect("Failed to parse oracle config file")
-        })
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|c| c.domain != local_domain)
-        .collect::<Vec<_>>();
-
+fn init_igp_account(ctx: &mut Context, program_id: Pubkey, salt: H256) -> Pubkey {
     // Initialize IGP with the given salt
     let (igp_account_pda, _igp_account_bump) =
         Pubkey::find_program_address(hyperlane_sealevel_igp::igp_pda_seeds!(salt), &program_id);
@@ -554,54 +519,15 @@ fn init_and_configure_igp_account(
         );
     }
 
-    if !gas_oracle_configs.is_empty() {
-        // TODO: idempotency
-
-        let domains = gas_oracle_configs
-            .iter()
-            .map(|c| c.domain)
-            .collect::<Vec<_>>();
-        let instruction = hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
-            program_id,
-            igp_account_pda,
-            ctx.payer_pubkey,
-            gas_oracle_configs,
-        )
-        .unwrap();
-
-        ctx.new_txn().add(instruction).send_with_payer();
-
-        println!("Set gas oracle for remote domains {domains:?}",);
-    } else {
-        println!("Skipping settings gas oracle config");
-    }
-
     igp_account_pda
 }
 
-fn init_and_configure_overhead_igp_account(
+fn init_overhead_igp_account(
     ctx: &mut Context,
     program_id: Pubkey,
     inner_igp_account: Pubkey,
-    local_domain: u32,
     salt: H256,
-    overhead_config_file: Option<PathBuf>,
 ) -> Pubkey {
-    let overhead_configs = overhead_config_file
-        .as_deref()
-        .map(|p| {
-            let file = File::open(p).expect("Failed to open overhead config file");
-            serde_json::from_reader::<_, Vec<GasOverheadConfig>>(file)
-                .expect("Failed to parse overhead config file")
-        })
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|c| c.destination_domain != local_domain)
-        .map(|c| (c.destination_domain, c))
-        .collect::<HashMap<_, _>>() // dedup
-        .into_values()
-        .collect::<Vec<_>>();
-
     let (overhead_igp_account, _) = Pubkey::find_program_address(
         hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
         &program_id,
@@ -636,32 +562,11 @@ fn init_and_configure_overhead_igp_account(
         );
     }
 
-    if !overhead_configs.is_empty() {
-        // TODO: idempotency
-
-        let domains = overhead_configs
-            .iter()
-            .map(|c| c.destination_domain)
-            .collect::<Vec<_>>();
-
-        let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
-            program_id,
-            overhead_igp_account,
-            ctx.payer_pubkey,
-            overhead_configs,
-        )
-        .unwrap();
-
-        ctx.new_txn().add(instruction).send_with_payer();
-
-        println!("Set gas overheads for remote domains {domains:?}",)
-    } else {
-        println!("Skipping setting gas overheads");
-    }
-
     overhead_igp_account
 }
 
+/// Idempotently applies gas oracles to the IGP account and overheads to the Overhead IGP
+/// account relating to the IGP account salt.
 fn configure_igp_and_overhead_igp(
     ctx: &mut Context,
     program_id: Pubkey,
@@ -718,7 +623,13 @@ fn configure_igp_and_overhead_igp(
             gas_oracle: Some(GasOracle::RemoteGasData(config.oracle_config.clone())),
         };
 
-        if !igp_gas_oracle_matches(&igp_account, &remote, remote_domain, &gas_oracle_config) {
+        // Gas oracle on the IGP account
+        if !map_configuration_matches(
+            &igp_account.gas_oracles,
+            &remote,
+            remote_domain,
+            gas_oracle_config.gas_oracle.as_ref(),
+        ) {
             println!(
                 "Setting gas oracle for remote domain {:?} ({:?}) with config {:?}",
                 remote, remote_domain, gas_oracle_config
@@ -741,17 +652,17 @@ fn configure_igp_and_overhead_igp(
             );
         }
 
-        let overhead_config = GasOverheadConfig {
-            destination_domain: remote_domain,
-            gas_overhead: config.overhead,
-        };
-
-        if !overhead_igp_config_matches(
-            &overhead_igp_account,
+        // Overhead on the Overhead IGP account
+        if !map_configuration_matches(
+            &overhead_igp_account.gas_overheads,
             &remote,
             remote_domain,
-            &overhead_config,
+            config.overhead.as_ref(),
         ) {
+            let overhead_config = GasOverheadConfig {
+                destination_domain: remote_domain,
+                gas_overhead: config.overhead,
+            };
             println!(
                 "Setting gas overhead for remote domain {:?} ({:?}) with config {:?}",
                 remote, remote_domain, overhead_config
@@ -775,50 +686,27 @@ fn configure_igp_and_overhead_igp(
     }
 }
 
-fn igp_gas_oracle_matches(
-    igp_account: &Igp,
+fn map_configuration_matches<T>(
+    existing_map: &HashMap<u32, T>,
     remote: &String,
     remote_domain: u32,
-    gas_oracle_config: &GasOracleConfig,
-) -> bool {
-    if let Some(existing_config) = igp_account.gas_oracles.get(&remote_domain) {
-        if existing_config == gas_oracle_config.gas_oracle.as_ref().unwrap() {
-            println!(
-                "Gas oracle for remote domain {:?} ({:?}) already correctly set",
-                remote, remote_domain
-            );
-            return true;
-        } else {
-            println!(
-                "Gas oracle for remote domain {:?} ({:?}) already set, but different. Current value: {:?}",
-                remote, remote_domain, existing_config
-            );
-            return false;
-        }
+    new_config: Option<&T>,
+) -> bool
+where
+    T: PartialEq + std::fmt::Debug,
+{
+    let existing_config = existing_map.get(&remote_domain);
+    if existing_config == new_config {
+        println!(
+            "Configuration for remote domain {:?} ({:?}) matches expected config: {:?}",
+            remote, remote_domain, new_config
+        );
+        true
+    } else {
+        println!(
+            "Configuration for remote domain {:?} ({:?}) does not match expected config. Current value: {:?}, expected value: {:?}",
+            remote, remote_domain, existing_config, new_config
+        );
+        false
     }
-    false
-}
-
-fn overhead_igp_config_matches(
-    overhead_igp_account: &OverheadIgp,
-    remote: &String,
-    remote_domain: u32,
-    gas_overhead_config: &GasOverheadConfig,
-) -> bool {
-    if let Some(existing_config) = overhead_igp_account.gas_overheads.get(&remote_domain) {
-        if existing_config == &gas_overhead_config.gas_overhead.unwrap() {
-            println!(
-                "Gas overhead for remote domain {:?} ({:?}) already correctly set",
-                remote, remote_domain
-            );
-            return true;
-        } else {
-            println!(
-                "Gas overhead for remote domain {:?} ({:?}) already set, but different. Current value: {:?}",
-                remote, remote_domain, existing_config
-            );
-            return false;
-        }
-    }
-    false
 }

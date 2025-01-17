@@ -426,11 +426,7 @@ struct InitIgpAccountArgs {
     #[arg(long)]
     chain: String,
     #[arg(long)]
-    chain_config_file: PathBuf,
-    #[arg(long)]
     context: Option<String>,
-    #[arg(long)]
-    gas_oracle_config_file: Option<PathBuf>,
     #[arg(long)]
     account_salt: Option<String>, // optional salt for deterministic account creation
 }
@@ -444,13 +440,9 @@ struct InitOverheadIgpAccountArgs {
     #[arg(long)]
     chain: String,
     #[arg(long)]
-    chain_config_file: PathBuf,
-    #[arg(long)]
     inner_igp_account: Pubkey,
     #[arg(long)]
     context: Option<String>,
-    #[arg(long)]
-    overhead_config_file: Option<PathBuf>,
     #[arg(long)]
     account_salt: Option<String>, // optional salt for deterministic account creation
 }
@@ -561,7 +553,7 @@ struct ConfigureIgpArgs {
     #[arg(long)]
     program_id: Pubkey,
     #[arg(long)]
-    local_chain: String,
+    chain: String,
     #[arg(long)]
     gas_oracle_config_file: PathBuf,
     #[arg(long)]

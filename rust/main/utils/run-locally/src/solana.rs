@@ -75,7 +75,6 @@ pub const SOLANA_CHECKPOINT_LOCATION: &str =
 
 const SOLANA_GAS_ORACLE_CONFIG_FILE: &str =
     "../sealevel/environments/local-e2e/gas-oracle-configs.json";
-const SOLANA_OVERHEAD_CONFIG_FILE: &str = "../sealevel/environments/local-e2e/overheads.json";
 
 // Install the CLI tools and return the path to the bin dir.
 #[apply(as_task)]
@@ -233,23 +232,17 @@ pub fn start_solana_test_validator(
         .cmd("deploy")
         .arg("environment", SOLANA_ENV_NAME)
         .arg("environments-dir", SOLANA_ENVS_DIR)
-        .arg("built-so-dir", SBF_OUT_PATH)
-        .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE);
+        .arg("built-so-dir", SBF_OUT_PATH);
 
     sealevel_client_deploy_core
         .clone()
         .arg("local-domain", SOLANA_LOCAL_CHAIN_ID)
-        .arg(
-            "remote-domains",
-            [SOLANA_REMOTE_CHAIN_ID, "9913371", "9913372", "9913373"].join(","),
-        )
         .arg("chain", "sealeveltest1")
         .run()
         .join();
 
     sealevel_client_deploy_core
         .arg("local-domain", SOLANA_REMOTE_CHAIN_ID)
-        .arg("remote-domains", SOLANA_LOCAL_CHAIN_ID)
         .arg("chain", "sealeveltest2")
         .run()
         .join();
@@ -294,40 +287,47 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
+    // Deterministic due to checked-in keys for e2e
+    const IGP_PROGRAM_ID: &str = "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U";
+    // So we can test paying for gas with a different IGP account
+    const ALTERNATIVE_SALT: &str =
+        "0x0000000000000000000000000000000000000000000000000000000000000001";
+    const ALTERNATIVE_IGP_ACCOUNT: &str = "8EniU8dQaGQ3HWWtT77V7hrksheygvEu6TtzJ3pX1nKM";
+
     sealevel_client
         .clone()
         .cmd("igp")
         .cmd("init-igp-account")
-        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("program-id", IGP_PROGRAM_ID)
         .arg("environment", SOLANA_ENV_NAME)
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("chain", "sealeveltest1")
-        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
-        .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
-        .arg(
-            "account-salt",
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-        )
+        // .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
+        // .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
+        .arg("account-salt", ALTERNATIVE_SALT)
+        .run()
+        .join();
+
+    sealevel_client
+        .clone()
+        .cmd("igp")
+        .cmd("init-overhead-igp-account")
+        .arg("program-id", IGP_PROGRAM_ID)
+        .arg("environment", SOLANA_ENV_NAME)
+        .arg("environments-dir", SOLANA_ENVS_DIR)
+        .arg("chain", "sealeveltest1")
+        .arg("inner-igp-account", ALTERNATIVE_IGP_ACCOUNT)
+        .arg("account-salt", ALTERNATIVE_SALT)
         .run()
         .join();
 
     sealevel_client
         .cmd("igp")
-        .cmd("init-overhead-igp-account")
-        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
-        .arg("environment", SOLANA_ENV_NAME)
-        .arg("environments-dir", SOLANA_ENVS_DIR)
+        .cmd("configure")
+        .arg("program-id", IGP_PROGRAM_ID)
+        .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
         .arg("chain", "sealeveltest1")
-        .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
-        .arg("overhead-config-file", SOLANA_OVERHEAD_CONFIG_FILE)
-        .arg(
-            "inner-igp-account",
-            "8EniU8dQaGQ3HWWtT77V7hrksheygvEu6TtzJ3pX1nKM",
-        )
-        .arg(
-            "account-salt",
-            "0x0000000000000000000000000000000000000000000000000000000000000001",
-        )
+        .arg("account-salt", ALTERNATIVE_SALT)
         .run()
         .join();
 
