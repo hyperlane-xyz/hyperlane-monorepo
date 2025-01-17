@@ -94,6 +94,9 @@
   "soneiumtestnet": {
     "validators": ["0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"]
   },
+  "sonicblaze": {
+    "validators": ["0xe5b98110d0688691ea280edea9a4faa1e3617ba1"]
+  },
   "sonicsvmtestnet": {
     "validators": ["0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"]
   },
@@ -108,8 +111,5 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
-  },
-  "sonicblaze": {
-    "validators": ["0xe5b98110d0688691ea280edea9a4faa1e3617ba1"]
   }
 }

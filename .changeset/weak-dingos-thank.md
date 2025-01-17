@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Deploy to flametestnet.
+Deploy to flametestnet, sonicblaze. Remove support for sonictestnet.
