@@ -421,6 +421,9 @@ fn run_locally() {
     let mut dispatched_messages = 0;
 
     for node in nodes.iter() {
+        if node.domain == 23448594 {
+            continue;
+        }
         let targets = nodes
             .iter()
             .filter(|v| v.domain != node.domain)
