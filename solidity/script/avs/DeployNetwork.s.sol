@@ -26,6 +26,8 @@ contract DeployNetwork is Script {
     address proxyAdmin = vm.envAddress("PROXY_ADMIN");
     address safe = vm.envAddress("SAFE");
 
+    uint256 constant MIN_DELAY = 3 days;
+
     function run() external {
         address deployer = vm.addr(deployerPrivateKey);
 
@@ -74,7 +76,7 @@ contract DeployNetwork is Script {
 
         targets[1] = address(timelock);
         values[1] = 0;
-        payloads[1] = abi.encodeCall(timelock.updateDelay, (1 days));
+        payloads[1] = abi.encodeCall(timelock.updateDelay, (MIN_DELAY));
 
         targets[2] = address(timelock);
         values[2] = 0;
