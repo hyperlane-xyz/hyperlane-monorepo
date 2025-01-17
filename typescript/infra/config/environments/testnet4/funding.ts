@@ -56,6 +56,7 @@ export const keyFunderConfig: KeyFunderConfig<
     // no funding for SVM chains
     solanatestnet: '0',
     soneiumtestnet: '0.1',
+    sonicblaze: '0.1',
     // no funding for SVM chains
     sonicsvmtestnet: '0',
     suavetoliman: '0.1',

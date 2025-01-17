@@ -108,5 +108,8 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
+  },
+  "sonicblaze": {
+    "validators": ["0xe5b98110d0688691ea280edea9a4faa1e3617ba1"]
   }
 }

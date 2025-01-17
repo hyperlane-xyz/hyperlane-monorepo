@@ -1730,6 +1730,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  sonicblaze: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xe5b98110d0688691ea280edea9a4faa1e3617ba1',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   sonicsvmtestnet: {
     threshold: 1,
     validators: [

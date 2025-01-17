@@ -28,6 +28,7 @@ export const testnet4SupportedChainNames = [
   'sepolia',
   'solanatestnet',
   'soneiumtestnet',
+  'sonicblaze',
   'sonicsvmtestnet',
   'suavetoliman',
   'superpositiontestnet',

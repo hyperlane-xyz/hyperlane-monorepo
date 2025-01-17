@@ -418,5 +418,17 @@ export const validatorChainConfig = (
         'flametestnet',
       ),
     },
+    sonicblaze: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonicblaze'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe5b98110d0688691ea280edea9a4faa1e3617ba1'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'sonicblaze',
+      ),
+    },
   };
 };
