@@ -107,10 +107,6 @@
     "amount": "0.0001",
     "decimals": 1
   },
-  "sonictestnet": {
-    "amount": "1.025001",
-    "decimals": 9
-  },
   "suavetoliman": {
     "amount": "10.0",
     "decimals": 9
