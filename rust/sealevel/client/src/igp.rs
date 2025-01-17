@@ -9,11 +9,7 @@ use crate::{
     Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
 };
 
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::Path, str::FromStr};
 
 use solana_sdk::{
     pubkey::Pubkey,
