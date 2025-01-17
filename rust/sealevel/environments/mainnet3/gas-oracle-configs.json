@@ -1,5 +1,13 @@
 {
   "solanamainnet": {
+    "artela": {
+      "oracleConfig": {
+        "tokenExchangeRate": "83333333333333333",
+        "gasPrice": "614759390835",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "base": {
       "oracleConfig": {
         "tokenExchangeRate": "263105000000000000000",
