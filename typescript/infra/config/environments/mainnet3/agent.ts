@@ -374,8 +374,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     morph: true,
     nero: true,
-    // Jan 14th - temporarily disabled while Neutron chain is down and RPCs give issues, causing scraper startup problems
-    neutron: false,
+    neutron: true,
     oortmainnet: true,
     optimism: true,
     orderly: true,
