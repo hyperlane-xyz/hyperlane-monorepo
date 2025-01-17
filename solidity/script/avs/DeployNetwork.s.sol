@@ -7,7 +7,7 @@ import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
 import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUpgradeableProxy.sol";
 import {TimelockControllerUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 
-contract TimelockControllerInitializer is TimelockControllerUpgradeable {
+contract Network is TimelockControllerUpgradeable {
     function initialize(
         uint256 minDelay,
         address[] memory proposers,
@@ -21,17 +21,17 @@ contract TimelockControllerInitializer is TimelockControllerUpgradeable {
 contract DeployNetwork is Script {
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 
-    address networkRegistry = 0xC773b1011461e7314CF05f97d95aa8e92C1Fd8aA;
+    address networkRegistry = vm.envAddress("NETWORK_REGISTRY");
 
-    address proxyAdmin = 0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659;
-    address safe = 0x3965AC3D295641E452E0ea896a086A9cD7C6C5b6;
+    address proxyAdmin = vm.envAddress("PROXY_ADMIN");
+    address safe = vm.envAddress("SAFE");
 
     function run() external {
         address deployer = vm.addr(deployerPrivateKey);
 
         vm.startBroadcast(deployerPrivateKey);
 
-        TimelockControllerInitializer timelockImplementation = new TimelockControllerInitializer();
+        Network timelockImplementation = new Network();
 
         address[] memory proposers = new address[](2);
         proposers[0] = deployer;
@@ -54,9 +54,7 @@ contract DeployNetwork is Script {
                 initializeCall
             );
 
-        TimelockControllerInitializer timelock = TimelockControllerInitializer(
-            payable(timelockProxy)
-        );
+        Network timelock = Network(payable(timelockProxy));
 
         timelock.hasRole(timelock.TIMELOCK_ADMIN_ROLE(), safe);
 
