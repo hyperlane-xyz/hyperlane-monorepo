@@ -8,6 +8,7 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
+import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
@@ -25,7 +26,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
 
     const arbitrum: HypTokenRouterConfig = {
       ...routerConfig.arbitrum,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       // TODO: remove once we transfer ownership of the proxy admin
       ownerOverrides: abacusWorksEnvOwnerConfig.arbitrum.ownerOverrides,
       // END TODO
@@ -35,21 +36,21 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
 
     const base: HypTokenRouterConfig = {
       ...routerConfig.base,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
     const blast: HypTokenRouterConfig = {
       ...routerConfig.blast,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
     const bsc: HypTokenRouterConfig = {
       ...routerConfig.bsc,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.collateral,
       token: tokens.bsc.WETH,
       interchainSecurityModule: ISM_CONFIG,
@@ -57,14 +58,14 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
 
     const ethereum: HypTokenRouterConfig = {
       ...routerConfig.ethereum,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
     const gnosis: HypTokenRouterConfig = {
       ...routerConfig.gnosis,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.collateral,
       token: tokens.gnosis.WETH,
       interchainSecurityModule: ISM_CONFIG,
@@ -72,7 +73,7 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
 
     const mantle: HypTokenRouterConfig = {
       ...routerConfig.mantle,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.collateral,
       token: tokens.mantle.WETH,
       interchainSecurityModule: ISM_CONFIG,
@@ -80,21 +81,21 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
 
     const mode: HypTokenRouterConfig = {
       ...routerConfig.mode,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
     const optimism: HypTokenRouterConfig = {
       ...routerConfig.optimism,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
     const polygon: HypTokenRouterConfig = {
       ...routerConfig.polygon,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.collateral,
       token: tokens.polygon.WETH,
       interchainSecurityModule: ISM_CONFIG,
@@ -102,28 +103,28 @@ export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrol
 
     const scroll: HypTokenRouterConfig = {
       ...routerConfig.scroll,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
     const zeronetwork: HypTokenRouterConfig = {
       ...routerConfig.zeronetwork,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
     const zoramainnet: HypTokenRouterConfig = {
       ...routerConfig.zoramainnet,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.native,
       interchainSecurityModule: ISM_CONFIG,
     };
 
     const lisk: HypTokenRouterConfig = {
       ...routerConfig.lisk,
-      owner: DECENT_OWNER,
+      ...getOwnerConfigForAddress(DECENT_OWNER),
       type: TokenType.synthetic,
       interchainSecurityModule: ISM_CONFIG,
     };
