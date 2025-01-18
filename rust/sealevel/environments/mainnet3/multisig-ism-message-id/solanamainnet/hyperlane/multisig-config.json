@@ -56,6 +56,15 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
+  "artela": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x8fcc1ebd4c0b463618db13f83e4565af3e166b00",
+      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
   "arthera": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,

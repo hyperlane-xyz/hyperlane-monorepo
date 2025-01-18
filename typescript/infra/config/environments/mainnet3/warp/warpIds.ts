@@ -6,6 +6,7 @@ export enum WarpRouteIds {
   ArbitrumNeutronEclip = 'ECLIP/arbitrum-neutron',
   ArbitrumNeutronTIA = 'TIA/arbitrum-neutron',
   ArbitrumTreasureMAGIC = 'MAGIC/arbitrum-treasure',
+  ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
