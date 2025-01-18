@@ -87,19 +87,7 @@ impl BaseAgent for Scraper {
         let server_task = server.run().instrument(info_span!("Relayer server"));
         tasks.push(server_task);
 
-        for (domain, scraper) in self.scrapers.iter() {
-            match self.scrape(*domain).await {
-                Ok(scraper_task) => {
-                    tasks.push(scraper_task);
-                }
-                Err(err) => {
-                    tracing::error!(?err, ?scraper.domain, "Failed to scrape domain");
-                    self.chain_metrics
-                        .set_critical_error(scraper.domain.name(), true);
-                    continue;
-                }
-            }
-
+        for scraper in self.scrapers.values() {
             let chain_conf = match self.settings.chain_setup(&scraper.domain) {
                 Ok(s) => s,
                 Err(err) => {
@@ -129,6 +117,18 @@ impl BaseAgent for Scraper {
                     continue;
                 }
             }
+
+            match self.scrape(scraper).await {
+                Ok(scraper_task) => {
+                    tasks.push(scraper_task);
+                }
+                Err(err) => {
+                    tracing::error!(?err, ?scraper.domain, "Failed to scrape domain");
+                    self.chain_metrics
+                        .set_critical_error(scraper.domain.name(), true);
+                    continue;
+                }
+            }
         }
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(error = ?err, "Scraper task panicked");
@@ -139,11 +139,7 @@ impl BaseAgent for Scraper {
 impl Scraper {
     /// Sync contract data and other blockchain with the current chain state.
     /// This will spawn long-running contract sync tasks
-    async fn scrape(&self, domain_id: u32) -> eyre::Result<Instrumented<JoinHandle<()>>> {
-        let scraper = self.scrapers.get(&domain_id).ok_or_else(|| {
-            tracing::error!(domain_id, "Failed to get scraper for domain id");
-            eyre::eyre!("Failed to get scraper for domain id")
-        })?;
+    async fn scrape(&self, scraper: &ChainScraper) -> eyre::Result<Instrumented<JoinHandle<()>>> {
         let store = scraper.store.clone();
         let index_settings = scraper.index_settings.clone();
         let domain = scraper.domain.clone();
