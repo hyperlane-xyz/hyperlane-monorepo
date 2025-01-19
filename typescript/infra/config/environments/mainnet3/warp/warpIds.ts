@@ -9,6 +9,7 @@ export enum WarpRouteIds {
   ArtelaBaseSolanaART = 'ART/artela-base-solanamainnet',
   BscEthereumLumiaPrismPNDR = 'PNDR/bsc-ethereum-lumiaprism',
   BaseSolanamainnetTONY = 'TONY/base-solanamainnet',
+  BaseSolanamainnetTRUMP = 'TRUMP/base-solanamainnet',
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseEthereumSolanaUSDC = 'USDC/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
