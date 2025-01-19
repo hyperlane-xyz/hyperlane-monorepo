@@ -725,6 +725,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  flametestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x0272625243bf2377f87538031fed54e21853cc2d',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   flare: {
     threshold: 2,
     validators: [
@@ -1720,21 +1730,21 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
-  sonicsvmtestnet: {
+  sonicblaze: {
     threshold: 1,
     validators: [
       {
-        address: '0x83d4ef35f170ec822a0eaadb22a0c40003d8de23',
+        address: '0xe5b98110d0688691ea280edea9a4faa1e3617ba1',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
   },
 
-  sonictestnet: {
+  sonicsvmtestnet: {
     threshold: 1,
     validators: [
       {
-        address: '0x62e6591d00daec3fb658c3d19403828b4e9ddbb3',
+        address: '0x83d4ef35f170ec822a0eaadb22a0c40003d8de23',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
