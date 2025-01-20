@@ -511,36 +511,34 @@ impl PendingMessage {
         app_context: Option<String>,
     ) -> Self {
         // Attempt to fetch status about message from database
-        let mut pm = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
+        let message_status = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
             Ok(Some(status)) => {
                 tracing::debug!(?status, "Message status retrieved from db");
-                Self::new(message, ctx, status, app_context)
+                status
             }
             _ => {
                 tracing::debug!("Message status not found in db");
-                Self::new(
-                    message,
-                    ctx,
-                    PendingOperationStatus::FirstPrepareAttempt,
-                    app_context,
-                )
+                PendingOperationStatus::FirstPrepareAttempt
             }
         };
 
-        match pm
-            .ctx
+        let num_retries = match ctx
             .origin_db
-            .retrieve_pending_message_retry_count_by_message_id(&pm.message.id())
+            .retrieve_pending_message_retry_count_by_message_id(&message.id())
         {
-            Ok(Some(num_retries)) => {
-                let next_attempt_after = PendingMessage::calculate_msg_backoff(num_retries)
-                    .map(|dur| Instant::now() + dur);
-                pm.num_retries = num_retries;
-                pm.next_attempt_after = next_attempt_after;
-            }
+            Ok(Some(num_retries)) => num_retries,
             r => {
-                trace!(message_id = ?pm.message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.")
+                trace!(message_id = ?message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.");
+                0
             }
+        };
+
+        let mut pm = Self::new(message, ctx, message_status, app_context);
+        if num_retries > 0 {
+            let next_attempt_after =
+                PendingMessage::calculate_msg_backoff(num_retries).map(|dur| Instant::now() + dur);
+            pm.num_retries = num_retries;
+            pm.next_attempt_after = next_attempt_after;
         }
         pm
     }
