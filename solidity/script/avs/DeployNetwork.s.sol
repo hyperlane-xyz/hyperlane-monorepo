@@ -5,18 +5,8 @@ import "forge-std/Script.sol";
 
 import {ProxyAdmin} from "../../contracts/upgrade/ProxyAdmin.sol";
 import {TransparentUpgradeableProxy} from "../../contracts/upgrade/TransparentUpgradeableProxy.sol";
-import {TimelockControllerUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
 
-contract Network is TimelockControllerUpgradeable {
-    function initialize(
-        uint256 minDelay,
-        address[] memory proposers,
-        address[] memory executors,
-        address admin
-    ) public initializer {
-        __TimelockController_init(minDelay, proposers, executors, admin);
-    }
-}
+import {Network} from "./Network.sol";
 
 contract DeployNetwork is Script {
     uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
