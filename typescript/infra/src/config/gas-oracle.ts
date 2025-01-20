@@ -18,7 +18,7 @@ import {
   ProtocolType,
   assert,
   convertDecimals,
-  convertDecimalsIntegerString,
+  convertDecimalsToIntegerString,
   fromWei,
   toWei,
 } from '@hyperlane-xyz/utils';
@@ -257,8 +257,6 @@ export function getAllStorageGasOracleConfigs(
   getOverhead: (local: ChainName, remote: ChainName) => number,
   applyMinUsdCost: boolean = true,
 ): AllStorageGasOracleConfigs {
-  // return chainNames.filter(isEthereumProtocolChain).
-
   return chainNames
     .filter((chain) => {
       // For now, only support Ethereum and Sealevel chains.

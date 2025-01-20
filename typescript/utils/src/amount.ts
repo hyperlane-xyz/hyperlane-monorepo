@@ -111,7 +111,7 @@ export function eqAmountApproximate(
  * @param value The value to convert.
  * @returns `value` represented with `toDecimals` decimals in string type.
  */
-export function convertDecimalsIntegerString(
+export function convertDecimalsToIntegerString(
   fromDecimals: number,
   toDecimals: number,
   value: BigNumber.Value,

@@ -6,13 +6,13 @@ import { getWarpConfig } from '../../config/warp.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
 import {
   getArgs,
-  withOutFile,
+  withOutputFile,
   withWarpRouteIdRequired,
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
-  const { warpRouteId, environment, outFile } = await withOutFile(
+  const { warpRouteId, environment, outFile } = await withOutputFile(
     withWarpRouteIdRequired(getArgs()),
   ).argv;
 

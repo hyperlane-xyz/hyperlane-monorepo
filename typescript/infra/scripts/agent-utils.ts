@@ -177,7 +177,7 @@ export function withChainsRequired<T>(
   return withChains(args, chainOptions).demandOption('chains');
 }
 
-export function withOutFile<T>(args: Argv<T>) {
+export function withOutputFile<T>(args: Argv<T>) {
   return args
     .describe('outFile', 'output file')
     .string('outFile')
