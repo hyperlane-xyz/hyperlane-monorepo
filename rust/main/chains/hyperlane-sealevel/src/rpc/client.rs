@@ -418,7 +418,7 @@ impl SealevelRpcClient {
         let priority_fee_numerator: u64 = std::env::var("SVM_PRIORITY_FEE_NUMERATOR")
             .ok()
             .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or_else(|| PRIORITY_FEE_MULTIPLIER_NUMERATOR);
+            .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
 
         // Bump the priority fee to be conservative
         let priority_fee =
