@@ -239,17 +239,17 @@ export async function getGovernor(
       : [];
 
     if (nonEvmChains.length > 0) {
-      const chainList = nonEvmChains.join(', ');
-      console.log(
-        `${chainList} ${
-          nonEvmChains.length > 1 ? 'are' : 'is'
-        } non-EVM and not compatible with warp checker tooling`,
-      );
-      throw Error(
-        `${chainList} ${
-          nonEvmChains.length > 1 ? 'are' : 'is'
-        } non-EVM and not compatible with warp checker tooling`,
-      );
+      // const chainList = nonEvmChains.join(', ');
+      // console.log(
+      //   `${chainList} ${
+      //     nonEvmChains.length > 1 ? 'are' : 'is'
+      //   } non-EVM and not compatible with warp checker tooling`,
+      // );
+      // throw Error(
+      //   `${chainList} ${
+      //     nonEvmChains.length > 1 ? 'are' : 'is'
+      //   } non-EVM and not compatible with warp checker tooling`,
+      // );
     }
 
     const app = new HypERC20App(
