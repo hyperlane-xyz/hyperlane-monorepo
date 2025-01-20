@@ -95,6 +95,7 @@ contract DomainRoutingIsm is
         uint32[] calldata _domains,
         IInterchainSecurityModule[] calldata __modules
     ) external onlyOwner {
+        require(_domains.length == __modules.length, "length mismatch");
         for (uint256 i = 0; i < _domains.length; ++i) {
             _add(_domains[i], address(__modules[i]));
         }
