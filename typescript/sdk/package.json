@@ -48,7 +48,8 @@
     "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
     "typescript": "5.3.3",
-    "yaml": "2.4.5"
+    "yaml": "2.4.5",
+    "zksync-ethers": "^5.10.0"
   },
   "type": "module",
   "exports": {
