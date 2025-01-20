@@ -7221,6 +7221,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@grpc/grpc-js@npm:^1.11.1":
+  version: 1.12.5
+  resolution: "@grpc/grpc-js@npm:1.12.5"
+  dependencies:
+    "@grpc/proto-loader": "npm:^0.7.13"
+    "@js-sdsl/ordered-map": "npm:^4.4.2"
+  checksum: 10/4f8ead236dcab4d94e15e62d65ad2d93732d37f5cc52ffafe67ae00f69eae4a4c97d6d34a1b9eac9f30206468f2d15302ea6649afcba1d38929afa9d1e7c12d5
+  languageName: node
+  linkType: hard
+
 "@grpc/grpc-js@npm:~1.10.3":
   version: 1.10.8
   resolution: "@grpc/grpc-js@npm:1.10.8"
@@ -21133,15 +21143,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"docker-modem@npm:^5.0.3":
-  version: 5.0.3
-  resolution: "docker-modem@npm:5.0.3"
+"docker-modem@npm:^5.0.6":
+  version: 5.0.6
+  resolution: "docker-modem@npm:5.0.6"
   dependencies:
     debug: "npm:^4.1.1"
     readable-stream: "npm:^3.5.0"
     split-ca: "npm:^1.0.1"
     ssh2: "npm:^1.15.0"
-  checksum: 10/fc4cc09f3aab0e17d32eb5a01974bed845a803e23352937aceab2e35c35bdcd283d1655c154b737063b037f164f57addbd447628d620f564a2da82e036543a5f
+  checksum: 10/4977797814c29205f0762215f2e3e26600986bb65139018ff6840ff4c596e5d19f3002be1abcc5e73e3828870bb73bab28275a6458ad027ed56ab61fca014b6d
   languageName: node
   linkType: hard
 
@@ -21157,13 +21167,17 @@ __metadata:
   linkType: hard
 
 "dockerode@npm:^4.0.2":
-  version: 4.0.2
-  resolution: "dockerode@npm:4.0.2"
+  version: 4.0.4
+  resolution: "dockerode@npm:4.0.4"
   dependencies:
     "@balena/dockerignore": "npm:^1.0.2"
-    docker-modem: "npm:^5.0.3"
+    "@grpc/grpc-js": "npm:^1.11.1"
+    "@grpc/proto-loader": "npm:^0.7.13"
+    docker-modem: "npm:^5.0.6"
+    protobufjs: "npm:^7.3.2"
     tar-fs: "npm:~2.0.1"
-  checksum: 10/859279721553cc07d00f8e7ac55abb3bba3a8a42685c742f3651c46a996755c720005fedc8b6bb7ac0ca5dc9123536164099c93741d691c7779669ecde3bbc3d
+    uuid: "npm:^10.0.0"
+  checksum: 10/db2304e6125d0c4246833eaa6a389497c98564ba2ed18fa465eace1b6eb6c2a41f1711fc1e57cd2fc0f7ca6be80eeca43b0c35cd6b86205e34faf9acb0f72bcc
   languageName: node
   linkType: hard
 
@@ -23855,7 +23869,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fs-extra@npm:^11.1.0, fs-extra@npm:^11.2.0":
+"fs-extra@npm:^11.1.0":
   version: 11.2.0
   resolution: "fs-extra@npm:11.2.0"
   dependencies:
@@ -23863,6 +23877,17 @@ __metadata:
     jsonfile: "npm:^6.0.1"
     universalify: "npm:^2.0.0"
   checksum: 10/0579bf6726a4cd054d4aa308f10b483f52478bb16284f32cf60b4ce0542063d551fca1a08a2af365e35db21a3fa5a06cf2a6ed614004b4368982bc754cb816b3
+  languageName: node
+  linkType: hard
+
+"fs-extra@npm:^11.2.0":
+  version: 11.3.0
+  resolution: "fs-extra@npm:11.3.0"
+  dependencies:
+    graceful-fs: "npm:^4.2.0"
+    jsonfile: "npm:^6.0.1"
+    universalify: "npm:^2.0.0"
+  checksum: 10/c9fe7b23dded1efe7bbae528d685c3206477e20cc60e9aaceb3f024f9b9ff2ee1f62413c161cb88546cc564009ab516dec99e9781ba782d869bb37e4fe04a97f
   languageName: node
   linkType: hard
 
@@ -31328,6 +31353,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"protobufjs@npm:^7.3.2":
+  version: 7.4.0
+  resolution: "protobufjs@npm:7.4.0"
+  dependencies:
+    "@protobufjs/aspromise": "npm:^1.1.2"
+    "@protobufjs/base64": "npm:^1.1.2"
+    "@protobufjs/codegen": "npm:^2.0.4"
+    "@protobufjs/eventemitter": "npm:^1.1.0"
+    "@protobufjs/fetch": "npm:^1.1.0"
+    "@protobufjs/float": "npm:^1.0.2"
+    "@protobufjs/inquire": "npm:^1.1.0"
+    "@protobufjs/path": "npm:^1.1.2"
+    "@protobufjs/pool": "npm:^1.1.0"
+    "@protobufjs/utf8": "npm:^1.1.0"
+    "@types/node": "npm:>=13.7.0"
+    long: "npm:^5.0.0"
+  checksum: 10/408423506610f70858d7593632f4a6aa4f05796c90fd632be9b9252457c795acc71aa6d3b54bb7f48a890141728fee4ca3906723ccea6c202ad71f21b3879b8b
+  languageName: node
+  linkType: hard
+
 "proxy-addr@npm:~2.0.7":
   version: 2.0.7
   resolution: "proxy-addr@npm:2.0.7"
@@ -35093,14 +35138,14 @@ __metadata:
   linkType: hard
 
 "tar-fs@npm:~1.16.3":
-  version: 1.16.3
-  resolution: "tar-fs@npm:1.16.3"
+  version: 1.16.4
+  resolution: "tar-fs@npm:1.16.4"
   dependencies:
     chownr: "npm:^1.0.1"
     mkdirp: "npm:^0.5.1"
     pump: "npm:^1.0.0"
     tar-stream: "npm:^1.1.2"
-  checksum: 10/d467267093920afad14040d7d72454aa3ea4895958311e98a0f76e553a83da82d118928cab2b83af35c16e69f0456fa3830ec3e755b084510ede7c2b6248af45
+  checksum: 10/2392fb92ebcdbf1b70961192a0f32955dbfc5cd844d4980e7e0dc7b8cb269d6e23831ae8ceb8137322367dcc42ae946f2349d0fd79b89b3c30b0a7d3ff5fc15e
   languageName: node
   linkType: hard
 
@@ -36699,6 +36744,15 @@ __metadata:
   version: 2.0.1
   resolution: "uuid@npm:2.0.1"
   checksum: 10/a5772e9231dd1e4fb111915f8ffe59f499bae7c20dfde09ac457a7a62b12abd6112d082496bdd209277cba1ac4e7a2bc83b8748ae0ca8fc74401b1df31f126e0
+  languageName: node
+  linkType: hard
+
+"uuid@npm:^10.0.0":
+  version: 10.0.0
+  resolution: "uuid@npm:10.0.0"
+  bin:
+    uuid: dist/bin/uuid
+  checksum: 10/35aa60614811a201ff90f8ca5e9ecb7076a75c3821e17f0f5ff72d44e36c2d35fcbc2ceee9c4ac7317f4cc41895da30e74f3885e30313bee48fda6338f250538
   languageName: node
   linkType: hard
 

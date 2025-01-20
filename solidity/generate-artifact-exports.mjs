@@ -33,7 +33,3 @@ zksyncArtifacts.forEach((file) => {
 
   writeFileSync(outputFile, fileContent);
 });
-
-console.log(
-  `Generated ${zksyncArtifacts.length} individual JSON Artifacts in ${srcOutputDir}`,
-);
