@@ -163,7 +163,7 @@ pub fn termination_invariants_met(
     assert_eq!(
         merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count,
         total_messages_expected
-            + SOL_MESSAGES_WITH_NON_MATCHING_IGP
+            + sol_messages_with_non_matching_igp
             + (config.kathy_messages as u32 / 4) * 2
     );
 
