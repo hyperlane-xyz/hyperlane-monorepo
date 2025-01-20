@@ -54,6 +54,9 @@ contract DomainRoutingIsmTest is Test {
     }
 
     function testSet(uint32 domain) public {
+        vm.expectRevert("ISM must be a contract");
+        ism.set(domain, IInterchainSecurityModule(address(0x0)));
+
         TestIsm _ism = deployTestIsm(bytes32(0));
         ism.set(domain, _ism);
         assertEq(address(ism.module(domain)), address(_ism));
@@ -69,14 +72,17 @@ contract DomainRoutingIsmTest is Test {
             assertEq(address(ism.module(domains[i])), address(modules[i]));
         }
 
-        IInterchainSecurityModule[] memory badModules = deployTestIsms(
+        IInterchainSecurityModule[] memory shortModules = deployTestIsms(
             count - 1
         );
         vm.expectRevert("length mismatch");
-        ism.setBatch(domains, badModules);
+        ism.setBatch(domains, shortModules);
     }
 
     function testAdd(uint32 domain) public {
+        vm.expectRevert("ISM must be a contract");
+        ism.add(domain, IInterchainSecurityModule(address(0x0)));
+
         TestIsm _ism = deployTestIsm(bytes32(0));
         ism.add(domain, _ism);
         assertEq(address(ism.module(domain)), address(_ism));
@@ -97,11 +103,11 @@ contract DomainRoutingIsmTest is Test {
         vm.expectRevert("Domain already exists");
         ism.addBatch(domains, modules);
 
-        IInterchainSecurityModule[] memory badModules = deployTestIsms(
+        IInterchainSecurityModule[] memory shortModules = deployTestIsms(
             count - 1
         );
         vm.expectRevert("length mismatch");
-        ism.setBatch(domains, badModules);
+        ism.setBatch(domains, shortModules);
     }
 
     function testRemove(uint32 domain) public {
