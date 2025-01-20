@@ -70,7 +70,7 @@ contract DomainRoutingIsm is
         _set(_domain, address(_module));
     }
 
-    function setBatch(
+    function set(
         uint32[] calldata _domains,
         IInterchainSecurityModule[] calldata __modules
     ) external onlyOwner {
@@ -91,7 +91,7 @@ contract DomainRoutingIsm is
         _add(_domain, address(_module));
     }
 
-    function addBatch(
+    function add(
         uint32[] calldata _domains,
         IInterchainSecurityModule[] calldata __modules
     ) external onlyOwner {
