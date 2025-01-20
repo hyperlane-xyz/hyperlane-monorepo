@@ -253,7 +253,7 @@ function adjustForPrecisionLoss(
   // the gas price that will be set on-chain. If this is the case, we scale up the
   // gas price and scale down the exchange rate by the same factor.
   if (newGasPrice.lt(10) && newGasPrice.mod(1) !== new BigNumberJs(0)) {
-    // Scale up the gas price by 1e4 (arbirtary choice)
+    // Scale up the gas price by 1e4 (arbitrary choice)
     const gasPriceScalingFactor = 1e4;
 
     // Check that there's no significant underflow when applying
