@@ -98,13 +98,13 @@ export async function runWarpRouteRead({
     .filter(([_, address]) => !isAddressEvm(address))
     .map(([chain]) => chain);
   if (nonEvmChains.length > 0) {
-    const chainList = nonEvmChains.join(', ');
-    logRed(
-      `${chainList} ${
-        nonEvmChains.length > 1 ? 'are' : 'is'
-      } non-EVM and not compatible with the cli`,
-    );
-    process.exit(1);
+    // const chainList = nonEvmChains.join(', ');
+    // logRed(
+    //   `${chainList} ${
+    //     nonEvmChains.length > 1 ? 'are' : 'is'
+    //   } non-EVM and not compatible with the cli`,
+    // );
+    // process.exit(1);
   }
 
   const config = await promiseObjAll(
