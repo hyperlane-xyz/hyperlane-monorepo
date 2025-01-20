@@ -17,7 +17,7 @@ use hyperlane_base::{
 use hyperlane_core::{HyperlaneDomain, HyperlaneMessage, QueueOperation};
 use prometheus::IntGauge;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, instrument, trace};
 
 use super::{blacklist::AddressBlacklist, metadata::AppContextClassifier, pending_message::*};
 use crate::{processor::ProcessorExt, settings::matching_list::MatchingList};
@@ -91,11 +91,9 @@ impl ForwardBackwardIterator {
                 // Always prioritize advancing the the high nonce iterator, as
                 // we have a preference for higher nonces
                 (MessageStatus::Processed, _) => {
-                    info!("MessageStatus::Processed, _");
                     self.high_nonce_iter.iterate();
                 }
                 (MessageStatus::Processable(high_nonce_message), _) => {
-                    info!("MessageStatus::Processable(high_nonce_message), _)");
                     self.high_nonce_iter.iterate();
                     return Ok(Some(high_nonce_message));
                 }
@@ -106,7 +104,6 @@ impl ForwardBackwardIterator {
                     self.low_nonce_iter.iterate();
                 }
                 (_, MessageStatus::Processable(low_nonce_message)) => {
-                    info!("(_, MessageStatus::Processable(low_nonce_message))");
                     self.low_nonce_iter.iterate();
                     return Ok(Some(low_nonce_message));
                 }
@@ -259,35 +256,29 @@ impl ProcessorExt for MessageProcessor {
         // self.tx_msg and then continue the scan at the next highest
         // nonce.
         // Scan until we find next nonce without delivery confirmation.
-        info!("MessageProcessor tick() start!");
         if let Some(msg) = self.try_get_unprocessed_message().await? {
-            info!(
-                "Msg in if let Some(msg) = self.try_get_unprocessed_message():{:?}",
-                msg
-            );
-            info!(
+            debug!(
                 ?msg,
                 cursor = ?self.nonce_iterator,
                 "Processor working on message"
             );
             let destination = msg.destination;
-            info!("Destination:{:?}", destination);
             // Skip if not whitelisted.
             if !self.message_whitelist.msg_matches(&msg, true) {
-                info!(?msg, whitelist=?self.message_whitelist, "Message not whitelisted, skipping");
+                debug!(?msg, whitelist=?self.message_whitelist, "Message not whitelisted, skipping");
                 return Ok(());
             }
 
             // Skip if the message is blacklisted
             if self.message_blacklist.msg_matches(&msg, false) {
-                info!(?msg, blacklist=?self.message_blacklist, "Message blacklisted, skipping");
+                debug!(?msg, blacklist=?self.message_blacklist, "Message blacklisted, skipping");
                 return Ok(());
             }
 
             // Skip if the message involves a blacklisted address
             if let Some(blacklisted_address) = self.address_blacklist.find_blacklisted_address(&msg)
             {
-                info!(
+                debug!(
                     ?msg,
                     blacklisted_address = hex::encode(blacklisted_address),
                     "Message involves blacklisted address, skipping"
@@ -297,11 +288,11 @@ impl ProcessorExt for MessageProcessor {
 
             // Skip if the message is intended for a destination we do not service
             if !self.send_channels.contains_key(&destination) {
-                info!(?msg, "Message destined for unknown domain, skipping");
+                debug!(?msg, "Message destined for unknown domain, skipping");
                 return Ok(());
             }
 
-            info!(%msg, "Sending message to submitter");
+            debug!(%msg, "Sending message to submitter");
 
             let app_context_classifier =
                 AppContextClassifier::new(self.metric_app_contexts.clone());
@@ -351,16 +342,11 @@ impl MessageProcessor {
     }
 
     async fn try_get_unprocessed_message(&mut self) -> Result<Option<HyperlaneMessage>> {
-        info!(
-            "try_get_unprocessed_message call. MessageProcessor whilelist:{:?}, blacklist:{:?}",
-            self.message_whitelist, self.message_blacklist
-        );
         trace!(nonce_iterator=?self.nonce_iterator, "Trying to get the next processor message");
         let next_message = self
             .nonce_iterator
             .try_get_next_message(&self.metrics)
             .await?;
-        info!("Next message:{:?}", next_message);
         if next_message.is_none() {
             trace!(nonce_iterator=?self.nonce_iterator, "No message found in DB for nonce");
         }

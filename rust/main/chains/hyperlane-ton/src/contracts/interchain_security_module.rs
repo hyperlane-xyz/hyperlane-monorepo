@@ -22,8 +22,9 @@ use hyperlane_core::{
 };
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
-    traits::ton_api_center::TonApiCenter, utils::conversion::ConversionUtils, TonConnectionConf,
+    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
+    signer::signer::TonSigner, traits::ton_api_center::TonApiCenter,
+    utils::conversion::ConversionUtils, TonConnectionConf,
 };
 
 pub struct TonInterchainSecurityModule {
@@ -93,8 +94,17 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
                 "Empty stack in response".to_string(),
             ))
         })?;
-
-        let module_type_value = u32::from_str_radix(&stack_item.value[2..], 16).map_err(|e| {
+        let boc = match &stack_item.value {
+            StackValue::String(boc) => boc,
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError(
+                        "Failed to get boc: unexpected data type in stack value".to_string(),
+                    ),
+                ));
+            }
+        };
+        let module_type_value = u32::from_str_radix(&boc[2..], 16).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse module type value: {:?}",
                 e
@@ -102,10 +112,7 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         })?;
 
         let module_type = ModuleType::from_u32(module_type_value).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Unknown module type value: {:?}",
-                module_type_value
-            )))
+            ChainCommunicationError::from(HyperlaneTonError::UnknownModuleType(module_type_value))
         })?;
 
         Ok(module_type)
@@ -117,15 +124,15 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
         let message_cell = ConversionUtils::build_hyperlane_message_cell(message).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to parse HyperlaneMessage to Ton Cell: {:?}",
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
+                "Failed to build HyperlaneMessage to Ton Cell: {:?}",
                 e
             )))
         })?;
 
         let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to parse metadata to Ton Cell: {:?}",
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
+                "Failed to build metadata cell: {:?}",
                 e
             )))
         })?;
@@ -167,8 +174,8 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         }
         .build()
         .map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to create transferMessage: {}",
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
+                "Failed to build transfer message: {}",
                 e
             )))
         })?;

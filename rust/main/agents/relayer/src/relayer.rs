@@ -472,9 +472,7 @@ impl Relayer {
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
-        info!("run_message_sync started!");
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
-        info!("Index settings:{:?}", index_settings);
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor_instantiation_result =
             Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())
@@ -581,7 +579,6 @@ impl Relayer {
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
-        info!("run_message_processor start");
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             origin,
@@ -645,10 +642,6 @@ impl Relayer {
         serial_submitter: SerialSubmitter,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
-        info!(
-            "run_destination_submitter call, destination:{:?}\nSerialSubmitter:{:?}",
-            destination, serial_submitter
-        );
         let span = info_span!("SerialSubmitter", destination=%destination);
         let destination = destination.clone();
         let name = format!("submitter::destination::{}", destination.name());

@@ -200,7 +200,6 @@ impl PendingOperation for PendingMessage {
 
     #[instrument(skip(self), fields(id=?self.id()), level = "debug")]
     async fn prepare(&mut self) -> PendingOperationResult {
-        info!("PendingMessage.prepare");
         if !self.is_ready() {
             trace!("Message is not ready to be submitted yet");
             return PendingOperationResult::NotReady;
@@ -247,8 +246,6 @@ impl PendingOperation for PendingMessage {
             return PendingOperationResult::Drop;
         }
 
-        info!("recipient is ready: {:x}", self.message.recipient);
-
         let ism_address = match self
             .ctx
             .destination_mailbox
@@ -260,8 +257,6 @@ impl PendingOperation for PendingMessage {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorFetchingIsmAddress);
             }
         };
-
-        info!("recipient ism: {:x}", ism_address);
 
         let message_metadata_builder = match MessageMetadataBuilder::new(
             ism_address,
@@ -404,7 +399,6 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                info!("process outcome:{:?}", outcome);
                 self.set_operation_outcome(outcome, state.gas_limit);
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }

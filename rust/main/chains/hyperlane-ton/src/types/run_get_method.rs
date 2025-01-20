@@ -12,9 +12,14 @@ pub struct RunGetMethodResponse {
 pub struct StackItem {
     #[serde(rename = "type")]
     pub r#type: String,
-    pub value: String,
+    pub value: StackValue,
 }
-
+#[derive(Debug, Serialize, Deserialize, new)]
+#[serde(untagged)]
+pub enum StackValue {
+    String(String),
+    List(Vec<StackValue>),
+}
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub code: i32,

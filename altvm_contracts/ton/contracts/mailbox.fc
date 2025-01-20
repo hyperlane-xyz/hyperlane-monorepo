@@ -118,6 +118,7 @@ builder hyperlane::message::build(
     if (op == op::dispatch) {
         int dest_domain = in_msg_body~load_uint(32);
         int recipient_addr = in_msg_body~load_uint(256);
+        int required_value = in_msg_body~load_uint(128);
         cell message = in_msg_body~load_ref();
         cell hook_metadata = in_msg_body~load_ref();
 
@@ -152,8 +153,28 @@ builder hyperlane::message::build(
             .store_slice(msg_sender)
             .store_ref(hook_metadata)
             .end_cell();
-        builder post_dispatch_msg = build_message(g::required_hook_addr, 0, true, null(), body);
-        send_raw_message(post_dispatch_msg.end_cell(), send_mode::carry_remaining_value);
+
+        builder post_dispatch_msg = build_message(
+            g::required_hook_addr,
+            msg_value - required_value,
+            true,
+            null(),
+            body
+        );
+
+        reserve_original_balance(msg_value, required_value);
+        send_raw_message(post_dispatch_msg.end_cell(), send_mode::pay_transfer_fees_separately);
+
+        msg_value = msg_value - required_value;
+
+        builder default_hook_msg = build_message(
+            g::default_hook_addr,
+            msg_value,
+            true,
+            null(),
+            body
+        );
+        send_raw_message(default_hook_msg.end_cell(), send_mode::carry_remaining_balance);
 
         return store_globals();
     }

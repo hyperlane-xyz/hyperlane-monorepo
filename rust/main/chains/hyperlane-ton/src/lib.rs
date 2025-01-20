@@ -7,6 +7,7 @@ mod trait_builder;
 mod traits;
 mod types;
 mod utils;
+pub mod wrappers;
 
 pub use self::{
     client::provider::*,

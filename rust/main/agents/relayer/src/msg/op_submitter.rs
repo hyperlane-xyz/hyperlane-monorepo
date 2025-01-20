@@ -259,13 +259,8 @@ async fn receive_task(
     mut rx: mpsc::UnboundedReceiver<QueueOperation>,
     prepare_queue: OpQueue,
 ) {
-    info!("receive_task start");
     // Pull any messages sent to this submitter
     while let Some(op) = rx.recv().await {
-        info!(
-            "Waiting for operations in receive_task for domain: {}",
-            domain
-        );
         trace!(?op, "Received new operation");
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
@@ -273,10 +268,6 @@ async fn receive_task(
         let op_status = op.status();
         prepare_queue.push(op, Some(op_status)).await;
     }
-    info!(
-        "Channel closed, stopping receive_task for domain: {}",
-        domain
-    );
 }
 
 #[instrument(skip_all, fields(%domain))]
@@ -288,7 +279,6 @@ async fn prepare_task(
     max_batch_size: u32,
     metrics: SerialSubmitterMetrics,
 ) {
-    info!("Prepare task start");
     // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
     let ops_to_prepare = max_batch_size as usize;
     loop {
@@ -320,7 +310,6 @@ async fn prepare_task(
         for (op, prepare_result) in batch.into_iter().zip(res.into_iter()) {
             match prepare_result {
                 PendingOperationResult::Success => {
-                    info!("PendingOperationResult::Success");
                     debug!(?op, "Operation prepared");
                     metrics.ops_prepared.inc();
                     // TODO: push multiple messages at once
@@ -370,18 +359,15 @@ async fn submit_task(
         let mut batch = submit_queue.pop_many(recv_limit).await;
         match batch.len().cmp(&1) {
             std::cmp::Ordering::Less => {
-                info!("std::cmp::Ordering::Less");
                 // The queue is empty, so give some time before checking again to prevent burning CPU
                 sleep(Duration::from_millis(100)).await;
                 continue;
             }
             std::cmp::Ordering::Equal => {
-                info!("std::cmp::Ordering::Equal");
                 let op = batch.pop().unwrap();
                 submit_single_operation(op, &mut prepare_queue, &mut confirm_queue, &metrics).await;
             }
             std::cmp::Ordering::Greater => {
-                info!("std::cmp::Ordering::Greater");
                 OperationBatch::new(batch, domain.clone())
                     .submit(&mut prepare_queue, &mut confirm_queue, &metrics)
                     .await;
@@ -431,7 +417,6 @@ async fn confirm_op(
     confirm_queue: &mut OpQueue,
     metrics: &SerialSubmitterMetrics,
 ) {
-    info!("submit_single_operation start");
     let destination = op.destination_domain().clone();
     debug!(?op, "Operation submitted");
     op.set_next_attempt_after(CONFIRM_DELAY);

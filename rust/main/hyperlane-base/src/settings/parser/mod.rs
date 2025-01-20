@@ -289,11 +289,8 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
 
 /// Expects AgentSigner.
 fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
-    use tracing::info;
-
     let mut err = ConfigParsingError::default();
 
-    info!("Signer valueParser:{:?}", signer.val);
     let signer_type = signer
         .chain(&mut err)
         .get_opt_key("type")
@@ -367,8 +364,6 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .get_key("wallet_version")
                 .parse_string()
                 .unwrap_or_else(|| "V3R2");
-
-            info!("Wallet version:{:?}", wallet_version);
 
             err.into_result(SignerConf::TonMnemonic {
                 mnemonic_phrase: mnemonic_vec,

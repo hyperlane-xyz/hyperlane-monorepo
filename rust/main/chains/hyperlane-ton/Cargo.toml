@@ -25,6 +25,7 @@ num-traits.workspace = true
 reqwest = {workspace = true, features = ["json"]}
 tokio = {workspace = true, features = ["full"]}
 tonlib-core.workspace = true
+tracing-subscriber = {workspace = true, features = ["fmt"]}
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async", "agent"] }
 

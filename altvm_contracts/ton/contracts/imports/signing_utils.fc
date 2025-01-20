@@ -1,4 +1,8 @@
-(int, int, int, int) ecrecover (int hash, int v, int r, int s) asm "ECRECOVER";
+(int, int, int, int) ecrecover (int hash, int v, int r, int s) asm """
+ECRECOVER
+NULLSWAPIFNOT2
+NULLSWAPIFNOT
+""";
 int keccak256(slice) asm " 1 PUSHINT HASHEXT_KECCAK256";
 int keccak256_builder(builder) asm " 1 PUSHINT HASHEXT_KECCAK256";
 int digest_keccak(tuple t) asm " DUP TLEN EXPLODEVAR HASHEXT_KECCAK256";

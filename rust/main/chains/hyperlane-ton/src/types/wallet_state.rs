@@ -23,3 +23,14 @@ pub struct WalletStatesResponse {
     pub wallets: Vec<WalletState>,
     pub address_book: std::collections::HashMap<String, AddressBookEntry>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WalletInformation {
+    pub balance: String,
+    pub wallet_type: String,
+    pub seqno: usize,
+    pub wallet_id: usize,
+    pub last_transaction_lt: String,
+    pub last_transaction_hash: String,
+    pub status: String,
+}

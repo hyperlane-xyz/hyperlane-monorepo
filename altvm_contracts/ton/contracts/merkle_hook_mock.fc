@@ -39,12 +39,15 @@ global int g::index;
         int dest_domain = in_msg_body~load_uint(32);
         slice refund_addr = in_msg_body~load_msg_addr();
         cell hook_metadata = in_msg_body~load_ref();
+        ~dump(3);
 
         builder data = begin_cell().store_uint(message_id, 256).store_uint(g::index, 32);
+        ~dump(4);
         send_event(
             event::inserted_into_tree,
             data
         );
+        ~dump(5);
 
         g::index += 1;
         return store_globals();

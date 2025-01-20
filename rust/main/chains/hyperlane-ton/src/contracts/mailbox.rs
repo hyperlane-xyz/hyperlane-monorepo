@@ -1,4 +1,5 @@
 use std::{
+    cmp::max,
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
     time::SystemTime,
@@ -15,7 +16,7 @@ use tonlib_core::{
     message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
     TonAddress,
 };
-use tracing::{error, info};
+use tracing::{error, info, instrument, warn};
 
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain, HyperlaneContract,
@@ -62,7 +63,7 @@ impl HyperlaneChain for TonMailbox {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        self.provider.provider()
+        Box::new(self.provider.clone())
     }
 }
 
@@ -98,14 +99,14 @@ impl Mailbox for TonMailbox {
             })?;
 
         ConversionUtils::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::FailedToParseStackItem(format!(
                 "Failed to parse stack item to u32: {:?}",
                 e
             )))
         })
     }
 
-    //
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         let response = self
             .provider
@@ -116,6 +117,7 @@ impl Mailbox for TonMailbox {
             )
             .await
             .map_err(|e| {
+                info!("delivered error:{:?}", e);
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
                     "Error calling run_get_method: {:?}",
                     e
@@ -129,6 +131,9 @@ impl Mailbox for TonMailbox {
         })?;
 
         if stack_item.r#type != "cell" {
+            if stack_item.r#type == "list" {
+                return Ok(false);
+            }
             return Err(ChainCommunicationError::from(
                 HyperlaneTonError::ParsingError(format!(
                     "Unexpected stack item type: {:?}",
@@ -136,17 +141,19 @@ impl Mailbox for TonMailbox {
                 )),
             ));
         };
-        let root_cell =
-            ConversionUtils::parse_root_cell_from_boc(&stack_item.value).map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse root cell: {:?}",
-                    e
-                )))
-            })?;
+
+        let boc = ConversionUtils::extract_boc_from_stack_item(stack_item)?;
+
+        let root_cell = ConversionUtils::parse_root_cell_from_boc(&boc).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse root cell: {:?}",
+                e
+            )))
+        })?;
 
         let parsed_dict = root_cell
             .parser()
-            .load_dict(256, key_reader_uint, val_reader_cell)
+            .load_dict_data(256, key_reader_uint, val_reader_cell)
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                     "Failed to load dictionary from root cell: {:?}",
@@ -154,11 +161,15 @@ impl Mailbox for TonMailbox {
                 )))
             })?;
 
-        Ok(parsed_dict
+        let del = parsed_dict
             .iter()
-            .any(|(key, _)| BigUint::from_bytes_be(id.as_bytes()) == *key))
+            .any(|(key, _)| BigUint::from_bytes_be(id.as_bytes()) == *key);
+
+        info!("delivered {:?} for Id:{:?}", del, id);
+        Ok(del)
     }
 
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
         let response = self
             .provider
@@ -188,8 +199,9 @@ impl Mailbox for TonMailbox {
                 ),
             ));
         }
+        let boc = ConversionUtils::extract_boc_from_stack_item(stack)?;
 
-        let ism_address = ConversionUtils::parse_address_from_boc(&stack.value)
+        let ism_address = ConversionUtils::parse_address_from_boc(boc)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
@@ -201,6 +213,7 @@ impl Mailbox for TonMailbox {
         Ok(ConversionUtils::ton_address_to_h256(&ism_address))
     }
 
+    #[instrument(level = "debug", err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let recipient_address = ConversionUtils::h256_to_ton_address(&recipient, self.workchain);
 
@@ -241,8 +254,9 @@ impl Mailbox for TonMailbox {
                 )),
             ));
         }
+        let boc = ConversionUtils::extract_boc_from_stack_item(stack)?;
 
-        let recipient_ism = ConversionUtils::parse_address_from_boc(&stack.value)
+        let recipient_ism = ConversionUtils::parse_address_from_boc(boc)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
@@ -260,19 +274,23 @@ impl Mailbox for TonMailbox {
         metadata: &[u8],
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
+        info!("HyperlaneMessage in process:{:?}", message);
+        info!("metadata in process:{:?}", metadata);
         let message_cell = ConversionUtils::build_hyperlane_message_cell(message).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to parse HyperlaneMessage to Ton Cell: {:?}",
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
+                "Failed to build HyperlaneMessage to Ton Cell: {:?}",
                 e
             )))
         })?;
+        info!("message_cell ready");
 
         let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to parse metadata to Ton Cell: {:?}",
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
+                "Failed to build metadata to Ton Cell: {:?}",
                 e
             )))
         })?;
+        info!("metadata ready");
 
         let query_id = 1; // it is not currently used in the contract
         let block_number = 1;
@@ -285,11 +303,12 @@ impl Mailbox for TonMailbox {
             block_number,
         )
         .map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to build message: {:?}",
                 e
             )))
         })?;
+        info!("build_message ready!");
 
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
             ihr_disabled: false,
@@ -297,7 +316,7 @@ impl Mailbox for TonMailbox {
             bounced: false,
             src: self.signer.address.clone(),
             dest: self.mailbox_address.clone(),
-            value: BigUint::from(100000000u32),
+            value: BigUint::from(30000000u32),
             ihr_fee: Default::default(),
             fwd_fee: Default::default(),
             created_lt: 0,
@@ -310,7 +329,7 @@ impl Mailbox for TonMailbox {
         }
         .build()
         .map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::TonMessageError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to create transfer message in process: {:?}",
                 e
             )))
@@ -328,7 +347,7 @@ impl Mailbox for TonMailbox {
 
         let seqno = self
             .provider
-            .get_wallet_states(self.signer.address.to_hex())
+            .get_wallet_information(self.signer.address.to_hex().as_str(), true)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
@@ -336,26 +355,19 @@ impl Mailbox for TonMailbox {
                     e
                 )))
             })?
-            .wallets
-            .get(0)
-            .ok_or_else(|| {
-                ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                    "No wallet found".to_string(),
-                ))
-            })?
-            .seqno as u32;
+            .seqno;
 
         let message = self
             .signer
             .wallet
             .create_external_message(
                 now + 60,
-                seqno,
+                seqno as u32,
                 vec![ArcCell::new(transfer_message.clone())],
                 false,
             )
             .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                     "Failed to create external message: {:?}",
                     e
                 )))
@@ -413,8 +425,12 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let start_block = *range.start();
-        let end_block = *range.end();
+        let start_block = max(*range.start(), 1);
+        let end_block = max(*range.end(), 1);
+        info!(
+            "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
+            start_block, end_block
+        );
 
         let timestamps = self
             .mailbox
@@ -471,7 +487,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                             address: ConversionUtils::ton_address_to_h256(
                                 &self.mailbox.mailbox_address,
                             ),
-                            block_number: 0,
+                            block_number: 0, // currently ton isn't supported this metrics in events
                             block_hash: Default::default(),
                             transaction_id: Default::default(),
                             transaction_index: 0,
@@ -481,7 +497,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                     })
             })
             .collect();
-
+        info!("events in mailbox:{:?}", events);
         Ok(events)
     }
 
@@ -514,13 +530,90 @@ impl SequenceAwareIndexer<HyperlaneMessage> for TonMailboxIndexer {
 impl Indexer<H256> for TonMailboxIndexer {
     async fn fetch_logs_in_range(
         &self,
-        _range: RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
+        let start_block = max(*range.start(), 1);
+        let end_block = max(*range.end(), 1);
+
         info!(
-            "fetch_logs_in_range in TonMailboxIndexer with range:{:?}",
-            _range
+            "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
+            start_block, end_block
         );
-        todo!()
+
+        let timestamps = self
+            .mailbox
+            .provider
+            .fetch_blocks_timestamps(vec![start_block, end_block])
+            .await?;
+
+        let start_utime = *timestamps.get(0).ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Failed to get start_utime".to_string(),
+            ))
+        })?;
+        let end_utime = *timestamps.get(1).ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Failed to get end_utime".to_string(),
+            ))
+        })?;
+
+        let messages = self
+            .mailbox
+            .provider
+            .get_messages(
+                None,
+                None,
+                Some(self.mailbox.mailbox_address.to_string()),
+                Some("null".to_string()),
+                None,
+                Some(start_utime),
+                Some(end_utime),
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some("desc".to_string()),
+            )
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to fetch messages in range: {:?} for Indexer<H256>",
+                    e
+                )))
+            })?;
+        let events = messages
+            .messages
+            .into_iter()
+            .filter_map(|message| {
+                let hash = &message.hash;
+
+                let decoded = match general_purpose::STANDARD.decode(hash) {
+                    Ok(decoded) => decoded,
+                    Err(err) => {
+                        warn!("error decode:{:?}", err);
+                        return None;
+                    }
+                };
+
+                if decoded.len() != 32 {
+                    return None;
+                }
+
+                let log_meta = LogMeta {
+                    address: ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address),
+                    block_number: 0,
+                    block_hash: Default::default(),
+                    transaction_id: Default::default(),
+                    transaction_index: 0,
+                    log_index: Default::default(),
+                };
+
+                Some((Indexed::new(H256::from_slice(&decoded)), log_meta))
+            })
+            .collect();
+
+        Ok(events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -533,7 +626,7 @@ impl SequenceAwareIndexer<H256> for TonMailboxIndexer {
         // TODO: implement when ton scraper support is implemented
         info!("Message delivery indexing not implemented");
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
-        Ok((Some(1), tip))
+        Ok((None, tip))
     }
 }
 
@@ -547,14 +640,14 @@ pub(crate) fn build_message(
     let mut writer = CellBuilder::new();
 
     writer.store_u32(32, opcode).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
             "Failed to store process opcode: {}",
             e
         )))
     })?;
 
     writer.store_u64(64, query_id).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
             "Failed to store query_id: {}",
             e
         )))
@@ -563,35 +656,35 @@ pub(crate) fn build_message(
     writer
         .store_u32(32, TonMailbox::PROCESS_INIT)
         .map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to store process init: {}",
                 e
             )))
         })?;
 
     writer.store_u64(48, block_number).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
             "Failed to store block_number: {}",
             e
         )))
     })?;
 
     writer.store_reference(&message_cell).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
             "Failed to store message reference: {}",
             e
         )))
     })?;
 
     writer.store_reference(&metadata_cell).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
             "Failed to store metadata reference: {}",
             e
         )))
     })?;
 
     writer.build().map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
             "Cell build failed: {}",
             e
         )))
@@ -599,7 +692,6 @@ pub(crate) fn build_message(
 }
 
 pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
-    info!("Boc:{:?}", boc);
     let cell = ConversionUtils::parse_root_cell_from_boc(boc).map_err(|e| {
         error!("Failed to parse root cell from BOC: {:?}", e);
         TonCellError::BagOfCellsDeserializationError(
@@ -609,10 +701,9 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
 
     let mut parser = cell.parser();
 
-    let id = parser.load_uint(256).map_err(|e| {
+    let _id = parser.load_uint(256).map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!("Failed to parse ID: {:?}", e))
     })?;
-    info!("Parsed message ID: {:x}", id);
 
     let p = parser.next_reference().map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!(
@@ -620,7 +711,6 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
             e
         ))
     })?;
-    info!("Next reference found: {:?}", p);
 
     let reference = p.parser().next_reference().map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!(
@@ -643,10 +733,8 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
     })?;
 
     let sender = H256::from_slice(&address_bytes);
-    info!("Parsed sender address: {:x}", sender);
 
     let destination = parser_ref.load_u32(32)?;
-    info!("Parsed destination domain: {}", destination);
 
     parser_ref.load_slice(&mut address_bytes).map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!(
@@ -656,7 +744,6 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
     })?;
 
     let recipient = H256::from_slice(&address_bytes);
-    info!("Parsed H256 recipient: {:x}", recipient);
 
     let body = parser_ref.next_reference().map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!(
