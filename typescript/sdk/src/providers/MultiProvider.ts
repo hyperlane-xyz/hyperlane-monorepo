@@ -8,7 +8,13 @@ import {
   providers,
 } from 'ethers';
 import { Logger } from 'pino';
+import {
+  ContractFactory as ZKSyncContractFactory,
+  Provider as ZKSyncProvider,
+  Wallet as ZKSyncWallet,
+} from 'zksync-ethers';
 
+import { ZKSyncArtifact } from '@hyperlane-xyz/core';
 import {
   Address,
   addBufferToGasLimit,
@@ -18,13 +24,18 @@ import {
 
 import { testChainMetadata, testChains } from '../consts/testChains.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
-import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
+import {
+  ChainMetadata,
+  ChainTechnicalStack,
+} from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
+import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
 
 import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
+  defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
 type Provider = providers.Provider;
@@ -89,17 +100,25 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   tryGetProvider(chainNameOrId: ChainNameOrId): Provider | null {
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
-    const { name, chainId, rpcUrls } = metadata;
+    const { name, chainId, rpcUrls, technicalStack } = metadata;
 
     if (this.providers[name]) return this.providers[name];
 
     if (testChains.includes(name)) {
-      this.providers[name] = new providers.JsonRpcProvider(
-        'http://127.0.0.1:8545',
-        31337,
-      );
+      if (technicalStack === ChainTechnicalStack.ZkSync) {
+        this.providers[name] = new ZKSyncProvider('http://127.0.0.1:8011', 260);
+      } else {
+        this.providers[name] = new providers.JsonRpcProvider(
+          'http://127.0.0.1:8545',
+          31337,
+        );
+      }
     } else if (rpcUrls.length) {
-      this.providers[name] = this.providerBuilder(rpcUrls, chainId);
+      if (technicalStack === ChainTechnicalStack.ZkSync) {
+        this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
+      } else {
+        this.providers[name] = this.providerBuilder(rpcUrls, chainId);
+      }
     } else {
       return null;
     }
@@ -155,7 +174,9 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     if (signer.provider) return signer;
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
-    return provider ? signer.connect(provider) : signer;
+    if (!provider) return signer;
+
+    return signer.connect(provider);
   }
 
   /**
@@ -308,34 +329,53 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Wait for deploy tx to be confirmed
    * @throws if chain's metadata or signer has not been set or tx fails
    */
-  async handleDeploy<F extends ContractFactory>(
+  async handleDeploy<F extends ZKSyncContractFactory | ContractFactory>(
     chainNameOrId: ChainNameOrId,
     factory: F,
     params: Parameters<F['deploy']>,
+    artifact?: ZKSyncArtifact,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
-    // setup contract factory
+    const metadata = this.getChainMetadata(chainNameOrId);
+
+    const { technicalStack } = metadata;
+
+    let contract;
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
-    const contractFactory = await factory.connect(signer);
 
-    // estimate gas
-    const deployTx = contractFactory.getDeployTransaction(...params);
-    const gasEstimated = await signer.estimateGas(deployTx);
+    if (technicalStack === ChainTechnicalStack.ZkSync) {
+      if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
-    // deploy with buffer on gas limit
-    const contract = await contractFactory.deploy(...params, {
-      gasLimit: addBufferToGasLimit(gasEstimated),
-      ...overrides,
-    });
+      // Handle deployment for ZkSync protocol
+      const deployer = new ZKSyncDeployer(signer as ZKSyncWallet);
 
-    this.logger.trace(
-      `Deploying contract ${contract.address} on ${chainNameOrId}:`,
-      { transaction: deployTx },
-    );
+      const estimatedGas = await deployer.estimateDeployGas(artifact, params);
 
-    // wait for deploy tx to be confirmed
-    await this.handleTx(chainNameOrId, contract.deployTransaction);
+      contract = await deployer.deploy(artifact, params, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...overrides,
+      });
 
+      this.logger.trace(
+        `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
+      );
+    } else {
+      const contractFactory = factory.connect(signer);
+      const deployTx = contractFactory.getDeployTransaction(...params);
+      const estimatedGas = await signer.estimateGas(deployTx);
+      contract = await contractFactory.deploy(...params, {
+        gasLimit: addBufferToGasLimit(estimatedGas), // 10% buffer
+        ...overrides,
+      });
+
+      // wait for deploy tx to be confirmed
+      await this.handleTx(chainNameOrId, contract.deployTransaction);
+
+      this.logger.trace(
+        `Contract deployed at ${contract.address} on ${chainNameOrId}:`,
+        { transaction: deployTx },
+      );
+    }
     // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;
   }
@@ -413,6 +453,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
+
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
@@ -422,7 +463,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
    * Creates a MultiProvider using the given signer for all test networks
    */
   static createTestMultiProvider(
-    params: { signer?: Signer; provider?: Provider } = {},
+    params: {
+      signer?: Signer;
+      provider?: Provider;
+    } = {},
     chains: ChainName[] = testChains,
   ): MultiProvider {
     const { signer, provider } = params;
