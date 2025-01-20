@@ -189,7 +189,7 @@ impl Deref for MessageMetadataBuilder {
 
 #[async_trait]
 impl MetadataBuilder for MessageMetadataBuilder {
-    #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()))]
+    #[instrument(err, skip(self, message), fields(destination_domain=self.destination_domain().name()))]
     async fn build(
         &self,
         ism_address: H256,
@@ -228,7 +228,7 @@ impl MessageMetadataBuilder {
         }
     }
 
-    #[instrument(err, skip(self), fields(destination_domain=self.destination_domain().name()), ret)]
+    #[instrument(err, skip(self, message), fields(destination_domain=self.destination_domain().name()), ret)]
     pub async fn build_ism_and_metadata(
         &self,
         ism_address: H256,

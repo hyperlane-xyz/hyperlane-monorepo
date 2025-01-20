@@ -7,5 +7,14 @@
             "gasPrice": "2",
             "tokenDecimals": 9
         }
+    },
+    {
+        "domain": 50075007,
+        "gasOracle": {
+            "type": "remoteGasData",
+            "tokenExchangeRate": "25036363636360000000",
+            "gasPrice": "2",
+            "tokenDecimals": 9
+        }
     }
 ]

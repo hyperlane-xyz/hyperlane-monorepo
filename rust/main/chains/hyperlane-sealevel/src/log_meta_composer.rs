@@ -220,6 +220,11 @@ fn filter_by_validity(
     tx: UiTransaction,
     meta: UiTransactionStatusMeta,
 ) -> Option<(H512, Vec<String>, Vec<UiCompiledInstruction>)> {
+    // If the transaction has an error, we skip it
+    if meta.err.is_some() {
+        return None;
+    }
+
     let Some(transaction_hash) = tx
         .signatures
         .first()
@@ -238,9 +243,29 @@ fn filter_by_validity(
         return None;
     };
 
+    // Orders the account keys in line with the behavior of compiled instructions.
+    let account_keys = match &meta.loaded_addresses {
+        OptionSerializer::Some(addresses) => {
+            // If there are loaded addresses, we have a versioned transaction
+            // that may include dynamically loaded addresses (e.g. from a lookup table).
+            // The order of these is [static, dynamic writeable, dynamic readonly] and
+            // follows the iter ordering of https://docs.rs/solana-sdk/latest/solana_sdk/message/struct.AccountKeys.html.
+            [
+                message.account_keys,
+                addresses.writable.clone(),
+                addresses.readonly.clone(),
+            ]
+            .concat()
+        }
+        OptionSerializer::None | OptionSerializer::Skip => {
+            // There are only static addresses in the transaction.
+            message.account_keys
+        }
+    };
+
     let instructions = instructions(message.instructions, meta);
 
-    Some((transaction_hash, message.account_keys, instructions))
+    Some((transaction_hash, account_keys, instructions))
 }
 
 fn filter_by_encoding(

@@ -25,7 +25,7 @@ export async function runKurtosisAgentDeploy({
   if (!originChain) {
     originChain = await runSingleChainSelectionStep(
       context.chainMetadata,
-      'Select the origin chain',
+      'Select the origin chain:',
     );
   }
   if (!relayChains) {
