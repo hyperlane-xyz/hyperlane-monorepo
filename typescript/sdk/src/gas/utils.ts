@@ -1,9 +1,13 @@
 import { Provider } from '@ethersproject/providers';
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import { assert } from 'console';
 import { BigNumber, ethers } from 'ethers';
 
-import { ProtocolType, convertDecimals, objMap } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  assert,
+  convertDecimals,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { getProtocolExchangeRateDecimals } from '../consts/igp.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
@@ -199,7 +203,7 @@ export function getLocalStorageGasOracleConfig({
     }
 
     // Make the exchange rate an integer by scaling it up by the appropriate factor for the protocol.
-    let exchangeRate = getProtocolExchangeRate(
+    const exchangeRate = getProtocolExchangeRate(
       localProtocolType,
       exchangeRateFloat,
     );
@@ -207,7 +211,7 @@ export function getLocalStorageGasOracleConfig({
     // First parse the gas price as a number, so we have floating point precision.
     // Recall it's possible to have gas prices that are not integers, even
     // after converting to the "wei" version of the token.
-    let gasPrice = new BigNumberJs(
+    const gasPrice = new BigNumberJs(
       gasOracleParams[remote].gasPrice.amount,
     ).times(new BigNumberJs(10).pow(gasOracleParams[remote].gasPrice.decimals));
     if (gasPrice.isNaN()) {
