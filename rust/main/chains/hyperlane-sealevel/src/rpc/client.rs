@@ -421,9 +421,14 @@ impl SealevelRpcClient {
             }
         }
 
+        let priority_fee_numerator: u64 = std::env::var("SVM_PRIORITY_FEE_NUMERATOR")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
+
         // Bump the priority fee to be conservative
-        let priority_fee = (priority_fee * PRIORITY_FEE_MULTIPLIER_NUMERATOR)
-            / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
+        let priority_fee =
+            (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
 
         Ok(SealevelTxCostEstimate {
             compute_units: simulation_compute_units,
