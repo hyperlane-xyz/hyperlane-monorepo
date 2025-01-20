@@ -27,6 +27,28 @@ contract DomainRoutingIsmTest is Test {
         return new TestIsm(abi.encode(requiredMetadata));
     }
 
+    function deployTestIsms(
+        uint256 count
+    ) internal returns (IInterchainSecurityModule[] memory isms) {
+        isms = new IInterchainSecurityModule[](count);
+        for (uint32 i = 0; i < count; ++i) {
+            isms[i] = IInterchainSecurityModule(deployTestIsm(bytes32(0)));
+        }
+    }
+
+    function uniqueDomains(
+        uint32 domain,
+        uint256 count
+    ) internal pure returns (uint32[] memory) {
+        uint32[] memory domains = new uint32[](count);
+        for (uint32 i = 0; i < count; ++i) {
+            unchecked {
+                domains[i] = domain + i;
+            }
+        }
+        return domains;
+    }
+
     function getMetadata(uint32 domain) internal view returns (bytes memory) {
         return TestIsm(address(ism.module(domain))).requiredMetadata();
     }
@@ -37,6 +59,17 @@ contract DomainRoutingIsmTest is Test {
         assertEq(address(ism.module(domain)), address(_ism));
     }
 
+    function testSetBatch(uint32 domain, uint8 count) public {
+        vm.assume(count > 0);
+        uint32[] memory domains = uniqueDomains(domain, count);
+
+        IInterchainSecurityModule[] memory modules = deployTestIsms(count);
+        ism.setBatch(domains, modules);
+        for (uint256 i = 0; i < count; ++i) {
+            assertEq(address(ism.module(domains[i])), address(modules[i]));
+        }
+    }
+
     function testAdd(uint32 domain) public {
         TestIsm _ism = deployTestIsm(bytes32(0));
         ism.add(domain, _ism);
@@ -44,6 +77,19 @@ contract DomainRoutingIsmTest is Test {
 
         vm.expectRevert("Domain already exists");
         ism.add(domain, _ism);
+    }
+
+    function testAddBatch(uint32 domain, uint8 count) public {
+        vm.assume(count > 0);
+        uint32[] memory domains = uniqueDomains(domain, count);
+
+        IInterchainSecurityModule[] memory modules = deployTestIsms(count);
+        ism.addBatch(domains, modules);
+        for (uint256 i = 0; i < count; ++i) {
+            assertEq(address(ism.module(domains[i])), address(modules[i]));
+        }
+        vm.expectRevert("Domain already exists");
+        ism.addBatch(domains, modules);
     }
 
     function testRemove(uint32 domain) public {
