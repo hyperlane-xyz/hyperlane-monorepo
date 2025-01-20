@@ -26,6 +26,8 @@ export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
 export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+export const ZKSYNC_KEY =
+  '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e';
 export const E2E_TEST_BURN_ADDRESS =
   '0x0000000000000000000000000000000000000001';
 
@@ -162,11 +164,15 @@ export async function updateWarpOwnerConfig(
   owner: Address,
   warpCorePath: string,
   warpDeployPath: string,
+  key?: string,
+  registryPath?: string,
 ): Promise<string> {
   const warpDeployConfig = await readWarpConfig(
     chain,
     warpCorePath,
     warpDeployPath,
+    key,
+    registryPath,
   );
   warpDeployConfig[chain].owner = owner;
   await writeYamlOrJson(warpDeployPath, warpDeployConfig);
@@ -182,9 +188,24 @@ export async function updateOwner(
   chain: string,
   warpConfigPath: string,
   warpCoreConfigPath: string,
+  key?: string,
+  registryPath?: string,
 ) {
-  await updateWarpOwnerConfig(chain, owner, warpCoreConfigPath, warpConfigPath);
-  return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
+  await updateWarpOwnerConfig(
+    chain,
+    owner,
+    warpCoreConfigPath,
+    warpConfigPath,
+    key,
+    registryPath,
+  );
+  return hyperlaneWarpApply(
+    warpConfigPath,
+    warpCoreConfigPath,
+    undefined,
+    key,
+    registryPath,
+  );
 }
 
 /**
@@ -197,6 +218,8 @@ export async function extendWarpConfig(params: {
   warpCorePath: string;
   warpDeployPath: string;
   strategyUrl?: string;
+  key?: string;
+  registryPath?: string;
 }): Promise<string> {
   const {
     chain,
@@ -205,15 +228,25 @@ export async function extendWarpConfig(params: {
     warpCorePath,
     warpDeployPath,
     strategyUrl,
+    key,
+    registryPath,
   } = params;
   const warpDeployConfig = await readWarpConfig(
     chain,
     warpCorePath,
     warpDeployPath,
+    key,
+    registryPath,
   );
   warpDeployConfig[chainToExtend] = extendedConfig;
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
-  await hyperlaneWarpApply(warpDeployPath, warpCorePath, strategyUrl);
+  await hyperlaneWarpApply(
+    warpDeployPath,
+    warpCorePath,
+    strategyUrl,
+    key,
+    registryPath,
+  );
 
   return warpDeployPath;
 }
@@ -225,17 +258,28 @@ export async function deployOrUseExistingCore(
   chain: string,
   coreInputPath: string,
   key: string,
+  registryPath?: string,
 ) {
   const { registry } = await getContext({
-    registryUri: REGISTRY_PATH,
+    registryUri: registryPath ?? REGISTRY_PATH,
     registryOverrideUri: '',
     key,
   });
   const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
 
   if (!addresses) {
-    await hyperlaneCoreDeploy(chain, coreInputPath);
-    return deployOrUseExistingCore(chain, coreInputPath, key);
+    await hyperlaneCoreDeploy(
+      chain,
+      coreInputPath,
+      key,
+      registryPath ?? REGISTRY_PATH,
+    );
+    return deployOrUseExistingCore(
+      chain,
+      coreInputPath,
+      key,
+      registryPath ?? REGISTRY_PATH,
+    );
   }
 
   return addresses;
@@ -244,9 +288,10 @@ export async function deployOrUseExistingCore(
 export async function getDomainId(
   chainName: string,
   key: string,
+  registryPath?: string,
 ): Promise<string> {
   const { registry } = await getContext({
-    registryUri: REGISTRY_PATH,
+    registryUri: registryPath ?? REGISTRY_PATH,
     registryOverrideUri: '',
     key,
   });
