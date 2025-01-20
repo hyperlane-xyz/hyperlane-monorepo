@@ -74,7 +74,6 @@ export class EvmIsmModule extends HyperlaneModule<
     this.ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       { [params.chain]: params.addresses },
       multiProvider,
-      contractVerifier,
     );
 
     this.mailbox = params.addresses.mailbox;

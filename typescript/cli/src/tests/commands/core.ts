@@ -46,14 +46,12 @@ export function hyperlaneCoreDeployRaw(
 export async function hyperlaneCoreDeploy(
   chain: string,
   coreInputPath: string,
-  privateKey?: string,
-  registryPath?: string,
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane core deploy \
-        --registry ${registryPath ?? REGISTRY_PATH} \
+        --registry ${REGISTRY_PATH} \
         --config ${coreInputPath} \
         --chain ${chain} \
-        --key ${privateKey ?? ANVIL_KEY} \
+        --key ${ANVIL_KEY} \
         --verbosity debug \
         --yes`;
 }

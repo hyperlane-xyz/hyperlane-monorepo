@@ -5,16 +5,14 @@ import { MultiProvider } from '../../providers/MultiProvider.js';
 import { ChainMap } from '../../types.js';
 import { MultiGeneric } from '../../utils/MultiGeneric.js';
 
-import { BaseContractVerifier } from './BaseContractVerifier.js';
 import { ContractVerifier } from './ContractVerifier.js';
-import { ZKSyncContractVerifier } from './ZKSyncContractVerifier.js';
 import { BuildArtifact, CompilerOptions, VerificationInput } from './types.js';
 
 export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInput> {
   protected logger = rootLogger.child({
     module: 'PostDeploymentContractVerifier',
   });
-  protected contractVerifier: BaseContractVerifier;
+  protected readonly contractVerifier: ContractVerifier;
 
   constructor(
     verificationInputs: ChainMap<VerificationInput>,
@@ -37,14 +35,6 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
       targets.map(async (chain) => {
         // can check explorer family here to avoid doing these checks for each input in verifier
         const { family } = this.multiProvider.getExplorerApi(chain);
-
-        if (family === ExplorerFamily.ZkSync) {
-          this.logger.debug('Using ZkSync verifier');
-          this.contractVerifier = new ZKSyncContractVerifier(
-            this.multiProvider,
-          );
-        }
-
         if (family === ExplorerFamily.Other) {
           this.logger.warn(
             `Skipping verification for ${chain} due to unsupported explorer family.`,
