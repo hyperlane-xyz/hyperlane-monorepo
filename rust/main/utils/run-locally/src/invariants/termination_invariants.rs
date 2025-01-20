@@ -158,8 +158,8 @@ pub fn termination_invariants_met(
     // check for each origin that the highest tree index seen by the syncer == # of messages sent + # of double insertions
     // LHS: sum(merkle_tree_max_sequence) + len(merkle_tree_max_sequence) (each is index so we add 1 to each)
     // RHS: total_messages_expected + non_matching_igp_messages + (config.kathy_messages as u32 / 4) * 2 (double insertions)
-    let non_zero_sequence_count =
-        merkle_tree_max_sequence.iter().filter(|&&x| x > 0).count() as u32;
+    let non_zero_sequence_count = 
+        merkle_tree_max_sequence.iter().filter(|&x| *x > 0).count() as u32;
     assert_eq!(
         merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count,
         total_messages_expected
