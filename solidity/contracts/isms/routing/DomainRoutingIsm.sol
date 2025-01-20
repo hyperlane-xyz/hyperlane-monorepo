@@ -75,6 +75,21 @@ contract DomainRoutingIsm is
     }
 
     /**
+     * @notice Adds the specified origin domain
+     * @dev Reverts if the domain already exists
+     * @dev Behavior similar to set but useful for distinguishing by selector
+     * @param _domain The origin domain
+     * @param _module The ISM to use to verify messages
+     */
+    function add(
+        uint32 _domain,
+        IInterchainSecurityModule _module
+    ) external onlyOwner {
+        require(!_modules.contains(_domain), "Domain already exists");
+        _set(_domain, address(_module));
+    }
+
+    /**
      * @notice Removes the specified origin domain
      * @param _domain The origin domain
      */
