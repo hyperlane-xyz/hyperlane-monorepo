@@ -516,12 +516,15 @@ impl PendingMessage {
                 tracing::debug!(?status, "Message status retrieved from db");
                 Self::new(message, ctx, status, app_context)
             }
-            _ => Self::new(
-                message,
-                ctx,
-                PendingOperationStatus::FirstPrepareAttempt,
-                app_context,
-            ),
+            _ => {
+                tracing::debug!("Message status not found in db");
+                Self::new(
+                    message,
+                    ctx,
+                    PendingOperationStatus::FirstPrepareAttempt,
+                    app_context,
+                )
+            }
         };
 
         match pm
