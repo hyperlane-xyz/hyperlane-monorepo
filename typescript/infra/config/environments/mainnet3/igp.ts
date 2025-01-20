@@ -1,6 +1,7 @@
 import {
   ChainMap,
   ChainName,
+  ChainTechnicalStack,
   HookType,
   IgpConfig,
   getTokenExchangeRateFromValues,
@@ -14,6 +15,7 @@ import {
   getOverhead,
 } from '../../../src/config/gas-oracle.js';
 import { mustGetChainNativeToken } from '../../../src/utils/utils.js';
+import { getChain } from '../../registry.js';
 
 import { ethereumChainNames } from './chains.js';
 import gasPrices from './gasPrices.json';
@@ -25,8 +27,14 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 
 export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
   let overhead = getOverhead(local, remote, ethereumChainNames);
-  if (remote === 'moonbeam') {
+  // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
+  if (remote === 'moonbeam' || remote === 'torus') {
     overhead *= 4;
+  }
+  // ZkSync gas usage is different from the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
+    overhead *= 2;
   }
   return overhead;
 }

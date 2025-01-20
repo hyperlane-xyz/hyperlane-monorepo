@@ -18,14 +18,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: 3 * 10 ** 9, // 3 gwei
     },
   },
-  polygon: {
-    transactionOverrides: {
-      // A very high max fee per gas is used as Polygon is susceptible
-      // to large swings in gas prices.
-      maxFeePerGas: 800 * 10 ** 9, // 800 gwei
-      maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
-    },
-  },
   polygonzkevm: {
     transactionOverrides: {
       gasPrice: 1 * 10 ** 9, // 1 gwei
@@ -89,6 +81,14 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //   transactionOverrides: {
   //     maxFeePerGas: 100 * 10 ** 9, // 100 gwei
   //     maxPriorityFeePerGas: 10 * 10 ** 9, // 10 gwei
+  //   },
+  // },
+  // polygon: {
+  //   transactionOverrides: {
+  //     // A very high max fee per gas is used as Polygon is susceptible
+  //     // to large swings in gas prices.
+  //     maxFeePerGas: 800 * 10 ** 9, // 800 gwei
+  //     maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
   //   },
   // },
 };

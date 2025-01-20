@@ -34,4 +34,5 @@ ENV REGISTRY_URI="/hyperlane-registry"
 ARG REGISTRY_COMMIT="main"
 RUN git clone https://github.com/hyperlane-xyz/hyperlane-registry.git "$REGISTRY_URI" \
     && cd "$REGISTRY_URI" \
+    && git fetch origin "$REGISTRY_COMMIT" \
     && git checkout "$REGISTRY_COMMIT"

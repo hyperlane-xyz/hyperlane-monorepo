@@ -1,5 +1,47 @@
 # @hyperlane-xyz/helloworld
 
+## 8.2.0
+
+### Patch Changes
+
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/core@5.9.2
+
+## 8.1.0
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/core@5.9.1
+
+## 8.0.0
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- Updated dependencies [472b34670]
+- Updated dependencies [fd20bb1e9]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [71aefa03e]
+- Updated dependencies [9f6b8c514]
+- Updated dependencies [82cebabe4]
+- Updated dependencies [95cc9571e]
+- Updated dependencies [0eb8d52a4]
+- Updated dependencies [c690ca82f]
+- Updated dependencies [5942e9cff]
+- Updated dependencies [de1190656]
+- Updated dependencies [e9911bb9d]
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/core@5.9.0
+
 ## 7.3.0
 
 ### Patch Changes

@@ -13,4 +13,13 @@ export const owners: ChainMap<OwnableConfig> = {
     ]),
   ),
   // [chainMetadata.solanadevnet.name]: SEALEVEL_DEPLOYER_ADDRESS,
+  eclipsetestnet: {
+    owner: 'n/a - SVM not supported here',
+  },
+  solanatestnet: {
+    owner: 'n/a - SVM not supported here',
+  },
+  sonicsvmtestnet: {
+    owner: 'n/a - SVM not supported here',
+  },
 };

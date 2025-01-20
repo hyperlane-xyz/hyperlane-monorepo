@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::{
     artifacts::{read_json, try_read_json, write_json, SingularProgramIdArtifact},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    cmd_utils::{create_new_directory, deploy_program},
     read_core_program_ids,
     router::ChainMetadata,
     Context, GasOverheadSubCmd, GetSetCmd, IgpCmd, IgpSubCmd,
@@ -75,7 +75,7 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
                 .expect("Invalid chain name");
 
             let program_id =
-                deploy_igp_program(&mut ctx, &deploy.built_so_dir, true, &key_dir, local_domain);
+                deploy_igp_program(&mut ctx, &deploy.built_so_dir, &key_dir, local_domain);
 
             write_json::<SingularProgramIdArtifact>(
                 &chain_dir.join("program-ids.json"),
@@ -90,11 +90,24 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             let context_dir =
                 create_new_directory(&chain_dir, get_context_dir_name(init.context.as_ref()));
 
-            let artifacts_path = context_dir.join("igp-accounts.json");
+            let artifacts_path = if init.account_salt.is_some() {
+                context_dir.join(format!(
+                    "igp-accounts-{}.json",
+                    init.account_salt.clone().unwrap()
+                ))
+            } else {
+                context_dir.join("igp-accounts.json")
+            };
 
             let existing_artifacts = try_read_json::<IgpAccountsArtifacts>(&artifacts_path).ok();
 
-            let salt = get_context_salt(init.context.as_ref());
+            let salt = init
+                .account_salt
+                .map(|s| {
+                    let salt_str = s.trim_start_matches("0x");
+                    H256::from_str(salt_str).expect("Invalid salt format")
+                })
+                .unwrap_or_else(|| get_context_salt(init.context.as_ref()));
 
             let chain_configs =
                 read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
@@ -123,11 +136,24 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             let context_dir =
                 create_new_directory(&chain_dir, get_context_dir_name(init.context.as_ref()));
 
-            let artifacts_path = context_dir.join("igp-accounts.json");
+            let artifacts_path = if init.account_salt.is_some() {
+                context_dir.join(format!(
+                    "igp-accounts-{}.json",
+                    init.account_salt.clone().unwrap()
+                ))
+            } else {
+                context_dir.join("igp-accounts.json")
+            };
 
             let existing_artifacts = try_read_json::<IgpAccountsArtifacts>(&artifacts_path).ok();
 
-            let salt = get_context_salt(init.context.as_ref());
+            let salt = init
+                .account_salt
+                .map(|s| {
+                    let salt_str = s.trim_start_matches("0x");
+                    H256::from_str(salt_str).expect("Invalid salt format")
+                })
+                .unwrap_or_else(|| get_context_salt(init.context.as_ref()));
 
             let chain_configs =
                 read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
@@ -190,7 +216,15 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
         }
         IgpSubCmd::PayForGas(payment_details) => {
             let unique_gas_payment_keypair = Keypair::new();
-            let salt = H256::zero();
+
+            let salt = payment_details
+                .account_salt
+                .map(|s| {
+                    let salt_str = s.trim_start_matches("0x");
+                    H256::from_str(salt_str).expect("Invalid salt format")
+                })
+                .unwrap_or_else(H256::zero);
+
             let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
                 hyperlane_sealevel_igp::igp_pda_seeds!(salt),
                 &payment_details.program_id,
@@ -413,27 +447,21 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
 fn deploy_igp_program(
     ctx: &mut Context,
     built_so_dir: &Path,
-    use_existing_keys: bool,
     key_dir: &Path,
     local_domain: u32,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_igp-keypair.json",
-        use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_igp",
         built_so_dir
             .join("hyperlane_sealevel_igp.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
         local_domain,
-    );
+    )
+    .unwrap();
 
     println!("Deployed IGP at program ID {}", program_id);
 

@@ -68,29 +68,7 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     const expectedConfig = this.configMap[chain];
     const hypToken = this.app.router(this.app.getContracts(chain));
 
-    // Check all actual decimals are consistent
-    const actualChainDecimals = await this.getEvmActualDecimals();
-    this.checkDecimalConsistency(
-      chain,
-      hypToken,
-      actualChainDecimals,
-      'actual',
-      true,
-    );
-
-    // Check all config decimals are consistent as well
-    const configDecimals = objMap(
-      this.configMap,
-      (_chain, config) => config.decimals,
-    );
-    this.checkDecimalConsistency(
-      chain,
-      hypToken,
-      configDecimals,
-      'config',
-      false,
-    );
-
+    // Check if configured token type matches actual token type
     if (isNativeTokenConfig(expectedConfig)) {
       try {
         await this.multiProvider.estimateGas(chain, {
@@ -126,6 +104,29 @@ export class HypERC20Checker extends ProxiedRouterChecker<
         this.addViolation(violation);
       }
     }
+
+    // Check all actual decimals are consistent, this should be done after checking the token type to avoid 'decimal()' calls to non collateral token that would fail
+    const actualChainDecimals = await this.getEvmActualDecimals();
+    this.checkDecimalConsistency(
+      chain,
+      hypToken,
+      actualChainDecimals,
+      'actual',
+      true,
+    );
+
+    // Check all config decimals are consistent as well
+    const configDecimals = objMap(
+      this.configMap,
+      (_chain, config) => config.decimals,
+    );
+    this.checkDecimalConsistency(
+      chain,
+      hypToken,
+      configDecimals,
+      'config',
+      false,
+    );
   }
 
   private cachedAllActualDecimals: Record<ChainName, number> | undefined =
