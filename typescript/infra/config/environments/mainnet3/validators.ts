@@ -1492,5 +1492,16 @@ export const validatorChainConfig = (
         'xpla',
       ),
     },
+
+    trumpchain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('trumpchain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e'],
+        },
+        'trumpchain',
+      ),
+    },
   };
 };

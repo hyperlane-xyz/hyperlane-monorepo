@@ -411,6 +411,10 @@
     "amount": "1601.935300783",
     "decimals": 9
   },
+  "trumpchain": {
+    "amount": "0.1",
+    "decimals": 9
+  },
   "unichain": {
     "amount": "0.001000252",
     "decimals": 9

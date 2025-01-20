@@ -127,6 +127,7 @@ export const keyFunderConfig: KeyFunderConfig<
     telos: '100',
     torus: '5',
     treasure: '900',
+    trumpchain: '0.25',
     unichain: '0.05',
     // temporarily low until we're able to fund more
     vana: '0.001',
