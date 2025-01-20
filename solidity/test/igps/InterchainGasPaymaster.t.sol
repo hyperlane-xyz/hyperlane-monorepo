@@ -94,14 +94,10 @@ contract InterchainGasPaymasterTest is Test {
         );
     }
 
-    function testdestinationGasLimit_whenOverheadNotSet(
-        uint32 _otherDomains
-    ) public {
-        vm.assume(_otherDomains != testDestinationDomain);
-        assertEq(
-            igp.destinationGasLimit(_otherDomains, testGasLimit),
-            testGasLimit
-        );
+    function testdestinationGasLimit_whenOverheadNotSet() public {
+        uint32 otherDomain = 22222;
+        vm.expectRevert("Configured IGP doesn't support domain 22222");
+        igp.destinationGasLimit(otherDomain, testGasLimit);
     }
 
     // ============ setBeneficiary ============
@@ -185,15 +181,15 @@ contract InterchainGasPaymasterTest is Test {
 
         igp.setDestinationGasConfigs(params);
 
-        (IGasOracle actualOracle1, uint96 actualGasOverhead1) = igp
+        InterchainGasPaymaster.DomainGasConfig memory actual1 = igp
             .destinationGasConfigs(_domain1);
-        assertEq(address(actualOracle1), address(oracle1));
-        assertEq(actualGasOverhead1, _gasOverhead1);
+        assertEq(address(actual1.gasOracle), address(oracle1));
+        assertEq(actual1.gasOverhead, _gasOverhead1);
 
-        (IGasOracle actualOracle2, uint96 actualGasOverhead2) = igp
+        InterchainGasPaymaster.DomainGasConfig memory actual2 = igp
             .destinationGasConfigs(_domain2);
-        assertEq(address(actualOracle2), address(oracle2));
-        assertEq(actualGasOverhead2, _gasOverhead2);
+        assertEq(address(actual2.gasOracle), address(oracle2));
+        assertEq(actual2.gasOverhead, _gasOverhead2);
     }
 
     function testSetDestinationGasConfigs_reverts_notOwner(

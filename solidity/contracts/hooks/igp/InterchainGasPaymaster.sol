@@ -21,6 +21,7 @@ import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {Indexed} from "../../libs/Indexed.sol";
+import {EnumerableMapExtended} from "../../libs/EnumerableMapExtended.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -45,6 +46,8 @@ contract InterchainGasPaymaster is
     using Address for address payable;
     using Message for bytes;
     using StandardHookMetadata for bytes;
+    using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
+
     // ============ Constants ============
 
     /// @notice The scale of gas oracle token exchange rates.
@@ -55,7 +58,7 @@ contract InterchainGasPaymaster is
     // ============ Public Storage ============
 
     /// @notice Destination domain => gas oracle and overhead gas amount.
-    mapping(uint32 => DomainGasConfig) public destinationGasConfigs;
+    EnumerableMapExtended.UintToBytes32Map internal _destinationGasConfigs;
 
     /// @notice The benficiary that can receive native tokens paid into this contract.
     address public beneficiary;
@@ -147,6 +150,28 @@ contract InterchainGasPaymaster is
 
     // ============ Public Functions ============
 
+    function destinationGasConfigs(
+        uint32 _remoteDomain
+    ) public view returns (DomainGasConfig memory) {
+        (bool exists, bytes32 value) = _destinationGasConfigs.tryGet(
+            _remoteDomain
+        );
+        if (!exists) {
+            revert(
+                string.concat(
+                    "Configured IGP doesn't support domain ",
+                    Strings.toString(_remoteDomain)
+                )
+            );
+        }
+
+        return
+            DomainGasConfig(
+                IGasOracle(address(uint160(uint256(value >> 96)))),
+                uint96(uint256(value))
+            );
+    }
+
     /**
      * @notice Deposits msg.value as a payment for the relaying of a message
      * to its destination chain.
@@ -225,18 +250,10 @@ contract InterchainGasPaymaster is
         override
         returns (uint128 tokenExchangeRate, uint128 gasPrice)
     {
-        IGasOracle _gasOracle = destinationGasConfigs[_destinationDomain]
-            .gasOracle;
-
-        if (address(_gasOracle) == address(0)) {
-            revert(
-                string.concat(
-                    "Configured IGP doesn't support domain ",
-                    Strings.toString(_destinationDomain)
-                )
-            );
-        }
-        return _gasOracle.getExchangeRateAndGasPrice(_destinationDomain);
+        return
+            destinationGasConfigs(_destinationDomain)
+                .gasOracle
+                .getExchangeRateAndGasPrice(_destinationDomain);
     }
 
     /**
@@ -253,7 +270,7 @@ contract InterchainGasPaymaster is
         uint256 _gasLimit
     ) public view returns (uint256) {
         return
-            uint256(destinationGasConfigs[_destinationDomain].gasOverhead) +
+            uint256(destinationGasConfigs(_destinationDomain).gasOverhead) +
             _gasLimit;
     }
 
@@ -310,10 +327,11 @@ contract InterchainGasPaymaster is
         IGasOracle _gasOracle,
         uint96 _gasOverhead
     ) internal {
-        destinationGasConfigs[_remoteDomain] = DomainGasConfig(
-            _gasOracle,
-            _gasOverhead
+        _destinationGasConfigs.set(
+            _remoteDomain,
+            bytes32(abi.encodePacked(_gasOracle, _gasOverhead))
         );
+
         emit DestinationGasConfigSet(
             _remoteDomain,
             address(_gasOracle),
