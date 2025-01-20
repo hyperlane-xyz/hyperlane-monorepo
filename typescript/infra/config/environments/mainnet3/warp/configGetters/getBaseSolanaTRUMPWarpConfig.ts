@@ -16,7 +16,6 @@ export const getTRUMPWarpConfig = async (
     solanamainnet: {
       ...routerConfig.solanamainnet,
       type: TokenType.collateral,
-      isNft: false,
       name: 'OFFICIAL TRUMP',
       symbol: 'TRUMP',
       decimals: 6,
@@ -29,7 +28,6 @@ export const getTRUMPWarpConfig = async (
     base: {
       ...routerConfig.base,
       type: TokenType.synthetic,
-      isNft: false,
       name: 'OFFICIAL TRUMP',
       symbol: 'TRUMP',
       decimals: 18,
@@ -40,7 +38,71 @@ export const getTRUMPWarpConfig = async (
         address: '0xBaE44c2D667C73e2144d938d6cC87901A6fd1c00',
       },
     },
+    arbitrum: {
+      ...routerConfig.arbitrum,
+      type: TokenType.synthetic,
+      name: 'OFFICIAL TRUMP',
+      symbol: 'TRUMP',
+      decimals: 18,
+      totalSupply: 0,
+      owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+      proxyAdmin: {
+        owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+        address: '0x2350389Ea8649Da5dD4Fdd09c414dD8463C2695c',
+      },
+    },
+    avalanche: {
+      ...routerConfig.avalanche,
+      type: TokenType.synthetic,
+      name: 'OFFICIAL TRUMP',
+      symbol: 'TRUMP',
+      decimals: 18,
+      totalSupply: 0,
+      owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+      proxyAdmin: {
+        owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+        address: '0x86a2E32BB42584127a24079a4f9113EeFE80db90',
+      },
+    },
+    flowmainnet: {
+      ...routerConfig.flowmainnet,
+      type: TokenType.synthetic,
+      name: 'OFFICIAL TRUMP',
+      symbol: 'TRUMP',
+      decimals: 18,
+      totalSupply: 0,
+      owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+      proxyAdmin: {
+        owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+        address: '0xB504EA900302C7Faf24Cc4F155006d6c0357Dc35',
+      },
+    },
+    form: {
+      ...routerConfig.form,
+      type: TokenType.synthetic,
+      name: 'OFFICIAL TRUMP',
+      symbol: 'TRUMP',
+      decimals: 18,
+      totalSupply: 0,
+      owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+      proxyAdmin: {
+        owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+        address: '0x5b3EeADcc0E2d4284eA6816e2E503c24d30a9E54',
+      },
+    },
+    worldchain: {
+      ...routerConfig.worldchain,
+      type: TokenType.synthetic,
+      name: 'OFFICIAL TRUMP',
+      symbol: 'TRUMP',
+      decimals: 18,
+      totalSupply: 0,
+      owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+      proxyAdmin: {
+        owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+        address: '0x97e4682dBC4Bfd432F1563a7fa9aC218Bc48c861',
+      },
+    },
   };
-
   return tokenConfig;
 };
