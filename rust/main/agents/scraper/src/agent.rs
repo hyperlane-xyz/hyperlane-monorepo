@@ -98,7 +98,7 @@ impl BaseAgent for Scraper {
                 }
             };
 
-            match MetricsUpdater::new(
+            let metrics_updater = match MetricsUpdater::new(
                 chain_conf,
                 self.core_metrics.clone(),
                 self.agent_metrics.clone(),
@@ -107,16 +107,14 @@ impl BaseAgent for Scraper {
             )
             .await
             {
-                Ok(metrics_updater) => {
-                    tasks.push(metrics_updater.spawn());
-                }
+                Ok(metrics_updater) => metrics_updater,
                 Err(err) => {
                     tracing::error!(?err, ?scraper.domain, "Failed to build metrics updater");
                     self.chain_metrics
                         .set_critical_error(scraper.domain.name(), true);
                     continue;
                 }
-            }
+            };
 
             match self.scrape(scraper).await {
                 Ok(scraper_task) => {
@@ -129,6 +127,7 @@ impl BaseAgent for Scraper {
                     continue;
                 }
             }
+            tasks.push(metrics_updater.spawn());
         }
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(error = ?err, "Scraper task panicked");
