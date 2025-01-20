@@ -1,9 +1,17 @@
 {
   "solanamainnet": {
-    "artela": {
+    "arbitrum": {
       "oracleConfig": {
-        "tokenExchangeRate": "83333333333333333",
-        "gasPrice": "614759390835",
+        "tokenExchangeRate": "263105000000000000000",
+        "gasPrice": "486782274",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "avalanche": {
+      "oracleConfig": {
+        "tokenExchangeRate": "2866666666666666666",
+        "gasPrice": "25000000001",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -12,6 +20,38 @@
       "oracleConfig": {
         "tokenExchangeRate": "263105000000000000000",
         "gasPrice": "486782274",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "flowmainnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "57039416666666666",
+        "gasPrice": "898149950159",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "form": {
+      "oracleConfig": {
+        "tokenExchangeRate": "263105000000000000000",
+        "gasPrice": "194712945",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "worldchain": {
+      "oracleConfig": {
+        "tokenExchangeRate": "263105000000000000000",
+        "gasPrice": "194712945",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "artela": {
+      "oracleConfig": {
+        "tokenExchangeRate": "83333333333333333",
+        "gasPrice": "614759390835",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -53,7 +93,7 @@
     "solanamainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "85517188954979",
-        "gasPrice": "598290",
+        "gasPrice": "170940",
         "tokenDecimals": 9
       },
       "overhead": 600000
@@ -71,7 +111,7 @@
     "solanamainnet": {
       "oracleConfig": {
         "tokenExchangeRate": "85517188954979",
-        "gasPrice": "85470",
+        "gasPrice": "170940",
         "tokenDecimals": 9
       },
       "overhead": 600000

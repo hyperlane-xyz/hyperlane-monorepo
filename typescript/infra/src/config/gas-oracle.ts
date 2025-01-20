@@ -190,8 +190,8 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     taiko: 0.5,
     // Nexus adjustment
     neutron: 0.5,
-    // For Solana, min cost is 1.50 USD
-    solanamainnet: 1.5,
+    // For Solana, special min cost
+    solanamainnet: 3,
   };
   const override = remoteMinCostOverrides[remote];
   if (override !== undefined) {

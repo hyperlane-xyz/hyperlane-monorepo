@@ -97,7 +97,19 @@ function getChainConnections(
 
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
-    connectedChains = Object.values(WarpRouteIds).map(getWarpChains);
+    connectedChains = [
+      // For TRUMP, temporary here until it's merged into the monorepo
+      [
+        'arbitrum',
+        'avalanche',
+        'base',
+        'flowmainnet',
+        'form',
+        'solanamainnet',
+        'worldchain',
+      ],
+      ...Object.values(WarpRouteIds).map(getWarpChains),
+    ];
   } else if (environment === 'testnet4') {
     connectedChains = [
       // As testnet warp routes are not tracked well, hardcode the connected chains.
