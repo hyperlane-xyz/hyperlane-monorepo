@@ -37,6 +37,15 @@ contract DomainRoutingIsmTest is Test {
         assertEq(address(ism.module(domain)), address(_ism));
     }
 
+    function testAdd(uint32 domain) public {
+        TestIsm _ism = deployTestIsm(bytes32(0));
+        ism.add(domain, _ism);
+        assertEq(address(ism.module(domain)), address(_ism));
+
+        vm.expectRevert("Domain already exists");
+        ism.add(domain, _ism);
+    }
+
     function testRemove(uint32 domain) public {
         vm.expectRevert();
         ism.remove(domain);
