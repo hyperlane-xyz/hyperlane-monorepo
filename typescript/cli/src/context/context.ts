@@ -257,6 +257,10 @@ export async function requestAndSaveApiKeys(
       apiKeys[chain] = chainMetadata[chain]!.blockExplorers![0]!.apiKey!;
       continue;
     }
+    // if its blockscout, dont prompt for api key
+    if (chainMetadata[chain]?.blockExplorers?.[0]?.family === 'blockscout') {
+      continue;
+    }
     const wantApiKey = await confirm({
       default: false,
       message: `Do you want to use an API key to verify on this (${chain}) chain's block explorer`,

@@ -65,6 +65,17 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
   ): Promise<HypTokenRouterConfig> {
+    if (this.chain === 'solanamainnet') {
+      return {
+        type: TokenType.synthetic,
+        name: 'OFFICIAL TRUMP',
+        symbol: 'TRUMP',
+        decimals: 6,
+        totalSupply: '0',
+        owner: '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba',
+        mailbox: '6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN',
+      };
+    }
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);

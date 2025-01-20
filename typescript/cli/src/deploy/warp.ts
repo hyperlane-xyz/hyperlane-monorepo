@@ -57,6 +57,7 @@ import {
   Address,
   ProtocolType,
   assert,
+  hexOrBase58ToHex,
   objFilter,
   objKeys,
   objMap,
@@ -615,11 +616,23 @@ async function updateExistingWarpRoute(
     coreBuildArtifact,
     ExplorerLicenseType.MIT,
   );
-  const transactions: AnnotatedEV5Transaction[] = [];
 
+  // whether the warp deploy config specifies remote routers
+  const specifiesRemoteRouters = Object.values(warpDeployConfig).some(
+    (_) => !!_.remoteRouters,
+  );
+
+  const transactions: AnnotatedEV5Transaction[] = [];
   await promiseObjAll(
     objMap(warpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
+        if (
+          multiProvider.getChainMetadata(chain).protocol !==
+          ProtocolType.Ethereum
+        ) {
+          logGray(`Skipping non-Ethereum chain ${chain}`);
+          return;
+        }
         logGray(`Update existing warp route for chain ${chain}`);
         const deployedConfig = warpCoreConfigByChain[chain];
         if (!deployedConfig)
@@ -638,10 +651,33 @@ async function updateExistingWarpRoute(
           staticMessageIdWeightedMultisigIsmFactory,
         } = registryAddresses[chain];
 
+        // @ts-ignore
+        const remoteRouters: Record<string, { address: string }> =
+          Object.fromEntries(
+            Object.entries(warpCoreConfigByChain)
+              .filter(([otherchain]) => otherchain != chain)
+              .map(([otherChain, otherChainConfig]) => [
+                multiProvider.getDomainId(otherChain)!.toString(),
+                {
+                  address: warpDeployConfig[otherChain]?.foreignDeployment
+                    ? hexOrBase58ToHex(
+                        warpDeployConfig[otherChain]!.foreignDeployment!,
+                      )
+                    : otherChainConfig.addressOrDenom!,
+                },
+              ]),
+          );
+
+        const destinationGas = objMap(remoteRouters, () => '64000');
+
+        const addedConfig = {
+          ...config,
+          ...(!specifiesRemoteRouters ? { remoteRouters, destinationGas } : {}),
+        };
         const evmERC20WarpModule = new EvmERC20WarpModule(
           multiProvider,
           {
-            config,
+            config: addedConfig,
             chain,
             addresses: {
               deployedTokenRoute,
@@ -656,7 +692,7 @@ async function updateExistingWarpRoute(
           },
           contractVerifier,
         );
-        transactions.push(...(await evmERC20WarpModule.update(config)));
+        transactions.push(...(await evmERC20WarpModule.update(addedConfig)));
       });
     }),
   );
