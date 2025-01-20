@@ -67,6 +67,16 @@ export const MUTABLE_ISM_TYPE = [
   IsmType.PAUSABLE,
 ];
 
+// ISM types that require static deployment
+export const STATIC_ISM_TYPE = [
+  IsmType.AGGREGATION,
+  IsmType.MERKLE_ROOT_MULTISIG,
+  IsmType.MESSAGE_ID_MULTISIG,
+  IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG,
+  IsmType.WEIGHTED_MESSAGE_ID_MULTISIG,
+  IsmType.ICA_ROUTING,
+];
+
 // mapping between the two enums
 export function ismTypeToModuleType(ismType: IsmType): ModuleType {
   switch (ismType) {
