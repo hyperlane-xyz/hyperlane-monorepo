@@ -1,2 +1,2 @@
-export * from './zksync/index.js';
 export * from './typechain/index.js';
+export * from './zksync/index.js';
