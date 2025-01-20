@@ -14,9 +14,12 @@ pub enum HyperlaneCosmosError {
     /// base64 error
     #[error("{0}")]
     Base64(#[from] base64::DecodeError),
-    /// bech32 error
+    /// bech32 decode error
     #[error("{0}")]
-    Bech32(#[from] bech32::Error),
+    Bech32Decode(#[from] bech32::DecodeError),
+    /// bech32 encode error
+    #[error("{0}")]
+    Bech32Encode(#[from] bech32::EncodeError),
     /// gRPC error
     #[error("{0}")]
     GrpcError(#[from] tonic::Status),
