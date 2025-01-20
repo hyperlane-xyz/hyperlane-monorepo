@@ -148,6 +148,10 @@ contract InterchainGasPaymaster is
         _setBeneficiary(_beneficiary);
     }
 
+    function domains() external view returns (uint256[] memory) {
+        return _destinationGasConfigs.keys();
+    }
+
     // ============ Public Functions ============
 
     function destinationGasConfigs(

@@ -562,6 +562,12 @@ contract InterchainGasPaymasterTest is Test {
         assertEq(address(igp).balance, 0);
     }
 
+    function testDomains() public {
+        uint256[] memory domains = igp.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], testDestinationDomain);
+    }
+
     // ============ Helper functions ============
 
     function setTestDestinationGasConfig(
