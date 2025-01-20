@@ -204,9 +204,8 @@ fn deploy_validator_announce(
     program_id
 }
 
-// Deploys the IGP program and initializes the zero salt IGP and overhead IGP accounts.
-// Configuration of gas oracles is expected to be done separately.
-#[allow(clippy::too_many_arguments)]
+/// Deploys the IGP program and initializes the zero salt IGP and overhead IGP accounts.
+/// Configuration of gas oracles is expected to be done separately.
 fn deploy_igp(ctx: &mut Context, core: &CoreDeploy, key_dir: &Path) -> (Pubkey, Pubkey, Pubkey) {
     let program_id = deploy_program(
         ctx.payer_keypair_path(),

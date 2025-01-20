@@ -69,6 +69,9 @@ const SBF_OUT_PATH: &str = "target/dist";
 const SOLANA_LOCAL_CHAIN_ID: &str = "13375";
 const SOLANA_REMOTE_CHAIN_ID: &str = "13376";
 
+const SEALEVELTEST1_IGP_PROGRAM_ID: &str = "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U";
+const SEALEVELTEST2_IGP_PROGRAM_ID: &str = "FArd4tEikwz2fk3MB7S9kC82NGhkgT6f9aXi3C5cw1E5";
+
 // TODO: use a temp dir instead!
 pub const SOLANA_CHECKPOINT_LOCATION: &str =
     "/tmp/test_sealevel_checkpoints_0x70997970c51812dc3a010c7d01b50e0d17dc79c8";
@@ -249,10 +252,7 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
-    const SEALEVETEST1_IGP_PROGRAM_ID: &str = "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U";
-    const SEALEVETEST2_IGP_PROGRAM_ID: &str = "FArd4tEikwz2fk3MB7S9kC82NGhkgT6f9aXi3C5cw1E5";
-
-    let sealevel_client_deploy_core = sealevel_client
+    let igp_configure_command = sealevel_client
         .clone()
         .cmd("igp")
         .cmd("configure")
@@ -260,16 +260,16 @@ pub fn start_solana_test_validator(
         .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE);
 
     // Configure sealeveltest1 IGP
-    sealevel_client_deploy_core
+    igp_configure_command
         .clone()
-        .arg("program-id", SEALEVETEST1_IGP_PROGRAM_ID)
+        .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("chain", "sealeveltest1")
         .run()
         .join();
 
     // Configure sealeveltest2 IGP
-    sealevel_client_deploy_core
-        .arg("program-id", SEALEVETEST2_IGP_PROGRAM_ID)
+    igp_configure_command
+        .arg("program-id", SEALEVELTEST2_IGP_PROGRAM_ID)
         .arg("chain", "sealeveltest2")
         .run()
         .join();
@@ -314,8 +314,6 @@ pub fn start_solana_test_validator(
         .run()
         .join();
 
-    // Deterministic due to checked-in keys for e2e
-    const IGP_PROGRAM_ID: &str = "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U";
     // So we can test paying for gas with a different IGP account
     const ALTERNATIVE_SALT: &str =
         "0x0000000000000000000000000000000000000000000000000000000000000001";
@@ -325,12 +323,10 @@ pub fn start_solana_test_validator(
         .clone()
         .cmd("igp")
         .cmd("init-igp-account")
-        .arg("program-id", IGP_PROGRAM_ID)
+        .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("environment", SOLANA_ENV_NAME)
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("chain", "sealeveltest1")
-        // .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
-        // .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
         .arg("account-salt", ALTERNATIVE_SALT)
         .run()
         .join();
@@ -339,7 +335,7 @@ pub fn start_solana_test_validator(
         .clone()
         .cmd("igp")
         .cmd("init-overhead-igp-account")
-        .arg("program-id", IGP_PROGRAM_ID)
+        .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("environment", SOLANA_ENV_NAME)
         .arg("environments-dir", SOLANA_ENVS_DIR)
         .arg("chain", "sealeveltest1")
@@ -351,7 +347,7 @@ pub fn start_solana_test_validator(
     sealevel_client
         .cmd("igp")
         .cmd("configure")
-        .arg("program-id", IGP_PROGRAM_ID)
+        .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("gas-oracle-config-file", SOLANA_GAS_ORACLE_CONFIG_FILE)
         .arg("chain-config-file", SOLANA_CHAIN_CONFIG_FILE)
         .arg("chain", "sealeveltest1")
@@ -400,7 +396,7 @@ pub fn initiate_solana_hyperlane_transfer(
     sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("igp")
         .cmd("pay-for-gas")
-        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("message-id", message_id.clone())
         .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
         .arg("gas", "100000")
@@ -447,7 +443,7 @@ pub fn initiate_solana_non_matching_igp_paying_transfer(
     sealevel_client(&solana_cli_tools_path, &solana_config_path)
         .cmd("igp")
         .cmd("pay-for-gas")
-        .arg("program-id", "GwHaw8ewMyzZn9vvrZEnTEAAYpLdkGYs195XWcLDCN4U")
+        .arg("program-id", SEALEVELTEST1_IGP_PROGRAM_ID)
         .arg("message-id", non_matching_igp_message_id.clone())
         .arg("destination-domain", SOLANA_REMOTE_CHAIN_ID)
         .arg("gas", "100000")
