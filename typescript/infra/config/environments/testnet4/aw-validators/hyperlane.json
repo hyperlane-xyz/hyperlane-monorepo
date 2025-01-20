@@ -43,6 +43,9 @@
   "ecotestnet": {
     "validators": ["0xb3191420d463c2af8bd9b4a395e100ec5c05915a"]
   },
+  "flametestnet": {
+    "validators": ["0x0272625243bf2377f87538031fed54e21853cc2d"]
+  },
   "formtestnet": {
     "validators": ["0x72ad7fddf16d17ff902d788441151982fa31a7bc"]
   },
@@ -55,6 +58,9 @@
   },
   "holesky": {
     "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
+  },
+  "hyperliquidevmtestnet": {
+    "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
   },
   "inksepolia": {
     "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
@@ -82,11 +88,17 @@
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
   },
+  "solanatestnet": {
+    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  },
   "soneiumtestnet": {
     "validators": ["0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"]
   },
-  "sonictestnet": {
-    "validators": ["0x62e6591d00daec3fb658c3d19403828b4e9ddbb3"]
+  "sonicblaze": {
+    "validators": ["0xe5b98110d0688691ea280edea9a4faa1e3617ba1"]
+  },
+  "sonicsvmtestnet": {
+    "validators": ["0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"]
   },
   "suavetoliman": {
     "validators": ["0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"]

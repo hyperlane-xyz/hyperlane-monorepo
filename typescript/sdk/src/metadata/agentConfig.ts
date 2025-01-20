@@ -310,8 +310,8 @@ export const AgentConfigSchema = z.object({
     .optional(),
 });
 
-const CommaSeperatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
-const CommaSeperatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
+const CommaSeparatedChainList = z.string().regex(/^[a-z0-9]+(,[a-z0-9]+)*$/);
+const CommaSeparatedDomainList = z.string().regex(/^\d+(,\d+)*$/);
 
 export enum GasPaymentEnforcementPolicyType {
   None = 'none',
@@ -355,7 +355,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
     .min(1)
     .optional()
     .describe('The path to the relayer database.'),
-  relayChains: CommaSeperatedChainList.describe(
+  relayChains: CommaSeparatedChainList.describe(
     'Comma separated list of chains to relay messages between.',
   ),
   gasPaymentEnforcement: z
@@ -383,7 +383,7 @@ export const RelayerAgentConfigSchema = AgentConfigSchema.extend({
   transactionGasLimit: ZUWei.optional().describe(
     'This is optional. If not specified, any amount of gas will be valid, otherwise this is the max allowed gas in wei to relay a transaction.',
   ),
-  skipTransactionGasLimitFor: CommaSeperatedDomainList.optional().describe(
+  skipTransactionGasLimitFor: CommaSeparatedDomainList.optional().describe(
     'Comma separated List of chain names to skip applying the transaction gas limit to.',
   ),
   allowLocalCheckpointSyncers: z
@@ -404,7 +404,7 @@ export type RelayerConfig = z.infer<typeof RelayerAgentConfigSchema>;
 
 export const ScraperAgentConfigSchema = AgentConfigSchema.extend({
   db: z.string().min(1).describe('Database connection string'),
-  chainsToScrape: CommaSeperatedChainList.describe(
+  chainsToScrape: CommaSeparatedChainList.describe(
     'Comma separated list of chain names to scrape',
   ),
 });

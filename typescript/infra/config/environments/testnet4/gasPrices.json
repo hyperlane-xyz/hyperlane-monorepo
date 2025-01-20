@@ -103,13 +103,13 @@
     "amount": "0.001000252",
     "decimals": 9
   },
+  "sonicblaze": {
+    "amount": "1.1",
+    "decimals": 9
+  },
   "sonicsvmtestnet": {
     "amount": "0.0001",
     "decimals": 1
-  },
-  "sonictestnet": {
-    "amount": "1.025001",
-    "decimals": 9
   },
   "suavetoliman": {
     "amount": "10.0",

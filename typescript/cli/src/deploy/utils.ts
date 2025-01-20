@@ -56,7 +56,7 @@ export async function runPreflightChecksForChains({
       throw new Error('Only Ethereum chains are supported for now');
     const signer = multiProvider.getSigner(chain);
     assertSigner(signer);
-    logGreen(`✅ ${chain} signer is valid`);
+    logGreen(`✅ ${metadata.displayName ?? chain} signer is valid`);
   }
   logGreen('✅ Chains are valid');
 

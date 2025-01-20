@@ -1,5 +1,34 @@
 # @hyperlane-xyz/infra
 
+## 8.2.0
+
+### Minor Changes
+
+- 28becff74: Add Artela/Base USDC and WETH warp route config
+
+### Patch Changes
+
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/helloworld@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- 2d4963c62: Add USDC between Ink and Ethereum
+- fc80df5b4: Add rstETH/ethereum-zircuit warp config
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/helloworld@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
 ## 8.0.0
 
 ### Minor Changes

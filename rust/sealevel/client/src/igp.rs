@@ -90,11 +90,24 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             let context_dir =
                 create_new_directory(&chain_dir, get_context_dir_name(init.context.as_ref()));
 
-            let artifacts_path = context_dir.join("igp-accounts.json");
+            let artifacts_path = if init.account_salt.is_some() {
+                context_dir.join(format!(
+                    "igp-accounts-{}.json",
+                    init.account_salt.clone().unwrap()
+                ))
+            } else {
+                context_dir.join("igp-accounts.json")
+            };
 
             let existing_artifacts = try_read_json::<IgpAccountsArtifacts>(&artifacts_path).ok();
 
-            let salt = get_context_salt(init.context.as_ref());
+            let salt = init
+                .account_salt
+                .map(|s| {
+                    let salt_str = s.trim_start_matches("0x");
+                    H256::from_str(salt_str).expect("Invalid salt format")
+                })
+                .unwrap_or_else(|| get_context_salt(init.context.as_ref()));
 
             let chain_configs =
                 read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
@@ -123,11 +136,24 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
             let context_dir =
                 create_new_directory(&chain_dir, get_context_dir_name(init.context.as_ref()));
 
-            let artifacts_path = context_dir.join("igp-accounts.json");
+            let artifacts_path = if init.account_salt.is_some() {
+                context_dir.join(format!(
+                    "igp-accounts-{}.json",
+                    init.account_salt.clone().unwrap()
+                ))
+            } else {
+                context_dir.join("igp-accounts.json")
+            };
 
             let existing_artifacts = try_read_json::<IgpAccountsArtifacts>(&artifacts_path).ok();
 
-            let salt = get_context_salt(init.context.as_ref());
+            let salt = init
+                .account_salt
+                .map(|s| {
+                    let salt_str = s.trim_start_matches("0x");
+                    H256::from_str(salt_str).expect("Invalid salt format")
+                })
+                .unwrap_or_else(|| get_context_salt(init.context.as_ref()));
 
             let chain_configs =
                 read_json::<HashMap<String, ChainMetadata>>(&init.chain_config_file);
@@ -190,7 +216,15 @@ pub(crate) fn process_igp_cmd(mut ctx: Context, cmd: IgpCmd) {
         }
         IgpSubCmd::PayForGas(payment_details) => {
             let unique_gas_payment_keypair = Keypair::new();
-            let salt = H256::zero();
+
+            let salt = payment_details
+                .account_salt
+                .map(|s| {
+                    let salt_str = s.trim_start_matches("0x");
+                    H256::from_str(salt_str).expect("Invalid salt format")
+                })
+                .unwrap_or_else(H256::zero);
+
             let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
                 hyperlane_sealevel_igp::igp_pda_seeds!(salt),
                 &payment_details.program_id,

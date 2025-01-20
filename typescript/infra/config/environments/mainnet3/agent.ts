@@ -165,6 +165,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -287,6 +288,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -397,7 +399,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     solanamainnet: true,
     soneium: true,
     sonic: true,
-    soon: false,
+    soon: true,
     stride: true,
     // subtensor: true,
     superseed: true,
@@ -408,6 +410,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
     vana: true,
     // Has RPC non-compliance that breaks scraping.
@@ -652,7 +655,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '53fafa6-20250110-125541',
+      tag: '95deca3-20250120-103609',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -662,7 +665,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '53fafa6-20250110-125541',
+      tag: '95deca3-20250120-103609',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -672,7 +675,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '53fafa6-20250110-125541',
+      tag: '95deca3-20250120-103609',
     },
     resources: scraperResources,
   },
@@ -687,7 +690,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'df9c1ed-20250109-151923',
+      tag: 'abb5a8b-20250113-122226',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -700,7 +703,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'a64af8b-20241024-120818',
+      tag: '11a4e95-20250116-145528',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),

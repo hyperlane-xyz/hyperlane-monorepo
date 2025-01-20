@@ -7,7 +7,7 @@ use crate::utils::get_matching_lines;
 use maplit::hashmap;
 use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 
-use crate::invariants::SOL_MESSAGES_EXPECTED;
+use crate::invariants::common::{SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP};
 use crate::logging::log;
 use crate::solana::solana_termination_invariants_met;
 use crate::{
@@ -30,7 +30,15 @@ pub fn termination_invariants_met(
     } else {
         0
     };
+    let sol_messages_with_non_matching_igp = if config.sealevel_enabled {
+        SOL_MESSAGES_WITH_NON_MATCHING_IGP
+    } else {
+        0
+    };
+
+    // this is total messages expected to be delivered
     let total_messages_expected = eth_messages_expected + sol_messages_expected;
+    let total_messages_dispatched = total_messages_expected + sol_messages_with_non_matching_igp;
 
     let lengths = fetch_metric(
         RELAYER_METRICS_PORT,
@@ -38,8 +46,13 @@ pub fn termination_invariants_met(
         &hashmap! {},
     )?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
-    if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
-        log!("Relayer queues not empty. Lengths: {:?}", lengths);
+    if lengths.iter().sum::<u32>()
+        != ZERO_MERKLE_INSERTION_KATHY_MESSAGES + sol_messages_with_non_matching_igp
+    {
+        log!(
+            "Relayer queues contain more messages than the zero-merkle-insertion ones. Lengths: {:?}",
+            lengths
+        );
         return Ok(false);
     };
 
@@ -128,11 +141,11 @@ pub fn termination_invariants_met(
 
     // TestSendReceiver randomly breaks gas payments up into
     // two. So we expect at least as many gas payments as messages.
-    if gas_payment_events_count < total_messages_expected {
+    if gas_payment_events_count < total_messages_dispatched {
         log!(
             "Relayer has {} gas payment events, expected at least {}",
             gas_payment_events_count,
-            total_messages_expected
+            total_messages_dispatched
         );
         return Ok(false);
     }
@@ -153,12 +166,13 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    if dispatched_messages_scraped != total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+    if dispatched_messages_scraped
+        != total_messages_dispatched + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
     {
         log!(
             "Scraper has scraped {} dispatched messages, expected {}",
             dispatched_messages_scraped,
-            total_messages_expected + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+            total_messages_dispatched + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
         );
         return Ok(false);
     }
@@ -190,7 +204,7 @@ pub fn termination_invariants_met(
         log!(
             "Scraper has scraped {} delivered messages, expected {}",
             delivered_messages_scraped,
-            total_messages_expected
+            total_messages_expected + sol_messages_with_non_matching_igp
         );
         return Ok(false);
     }

@@ -1,5 +1,29 @@
 # @hyperlane-xyz/sdk
 
+## 8.2.0
+
+### Minor Changes
+
+- 69a684869: Don't try to build signers for non-EVM chains in MultiProtocolSignerManager
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.2.0
+- @hyperlane-xyz/core@5.9.2
+
+## 8.1.0
+
+### Minor Changes
+
+- 9ab961a79: Deploy to new chains: artela, guru, hemi, nero, xpla.
+
+### Patch Changes
+
+- 79c61c891: Fix the return type of multisig and aggregation ISMs for zksync-stack chains.
+- 9518dbc84: Enroll new validators for artela, guru, hemi, nero, soneium, torus, xpla.
+  - @hyperlane-xyz/utils@8.1.0
+  - @hyperlane-xyz/core@5.9.1
+
 ## 8.0.0
 
 ### Major Changes

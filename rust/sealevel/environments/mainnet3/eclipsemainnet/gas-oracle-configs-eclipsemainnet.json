@@ -13,7 +13,7 @@
     "gasOracle": {
       "type": "remoteGasData",
       "tokenExchangeRate": "887000000000000000",
-      "gasPrice": "15",
+      "gasPrice": "20",
       "tokenDecimals": 9
     }
   },
