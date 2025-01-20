@@ -1970,6 +1970,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  trumpchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   unichain: {
     threshold: 2,
     validators: [
