@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     artifacts::{read_json, try_read_json, write_json, SingularProgramIdArtifact},
@@ -612,6 +612,65 @@ fn configure_igp_and_overhead_igp(
         igp_account_pubkey, overhead_igp_account_pubkey
     );
 
+    let all_config_domain_ids = gas_oracle_config
+        .iter()
+        .map(|(remote, _)| chain_configs.get(remote).unwrap().domain_id())
+        .collect::<HashSet<_>>();
+
+    // Remove any gas oracles not in the config
+    for (remote_domain, _) in igp_account.gas_oracles.iter() {
+        if !all_config_domain_ids.contains(remote_domain) {
+            let gas_oracle_config = GasOracleConfig {
+                domain: *remote_domain,
+                gas_oracle: None,
+            };
+            println!(
+                "Removing oracle for remote domain {:?} that is not in the config",
+                remote_domain
+            );
+            // For simplicity and to always be well within max tx sizes, just send one config at a time
+            let instruction =
+                hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
+                    program_id,
+                    igp_account_pubkey,
+                    ctx.payer_pubkey,
+                    vec![gas_oracle_config],
+                )
+                .unwrap();
+
+            ctx.new_txn().add(instruction).send_with_payer();
+
+            println!("Removed gas oracle for remote domain {:?}", remote_domain);
+        }
+    }
+
+    // Remove any gas overheads not in the config
+    for (remote_domain, _) in overhead_igp_account.gas_overheads.iter() {
+        if !all_config_domain_ids.contains(remote_domain) {
+            let overhead_config = GasOverheadConfig {
+                destination_domain: *remote_domain,
+                gas_overhead: None,
+            };
+            println!(
+                "Removing overhead for remote domain {:?} that is not in the config",
+                remote_domain
+            );
+            // For simplicity and to always be well within max tx sizes, just send one config at a time
+            let instruction = hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
+                program_id,
+                overhead_igp_account_pubkey,
+                ctx.payer_pubkey,
+                vec![overhead_config],
+            )
+            .unwrap();
+
+            ctx.new_txn().add(instruction).send_with_payer();
+
+            println!("Removed gas overhead for remote domain {:?}", remote_domain);
+        }
+    }
+
+    // Make sure the gas oracles and overheads are set correctly
     for (remote, config) in gas_oracle_config.iter() {
         let remote_domain = chain_configs.get(remote).unwrap().domain_id();
         let gas_oracle_config = GasOracleConfig {
