@@ -195,7 +195,7 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    let insight = '';
+    let insight;
     if (
       decoded.functionFragment.name ===
       timelockControllerInterface.functions[
@@ -224,10 +224,15 @@ export class GovernTransactionReader {
       insight = `Cancel scheduled transaction ${id}`;
     }
 
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
     return {
       chain,
-      to: `Timelock Controller (${chain} ${timelocks[chain]})`,
-      insight,
+      to: `Timelock Controller (${chain} ${tx.to})`,
+      ...(insight ? { insight } : { args }),
     };
   }
 
@@ -258,7 +263,7 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    let insight = '';
+    let insight;
     if (
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['setHook(address)'].name
@@ -327,12 +332,9 @@ export class GovernTransactionReader {
       insight = `Unenroll remote routers for ${insights.join(', ')}`;
     }
 
-    if (
-      decoded.functionFragment.name ===
-      tokenRouterInterface.functions['transferOwnership(address)'].name
-    ) {
-      const [newOwner] = decoded.args;
-      insight = `Transfer ownership to ${newOwner}`;
+    let ownableTx = {};
+    if (!insight) {
+      ownableTx = await this.readOwnableTransaction(chain, tx);
     }
 
     assert(tx.to, 'Warp Module transaction must have a to address');
@@ -340,6 +342,7 @@ export class GovernTransactionReader {
     const token = this.warpRouteIndex[chain][tokenAddress];
 
     return {
+      ...ownableTx,
       chain,
       to: `${token.symbol} (${token.name}, ${token.standard}, ${tokenAddress})`,
       insight,
@@ -481,26 +484,11 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-
-    let insight;
-    if (
-      decoded.functionFragment.name ===
-      proxyAdminInterface.functions['transferOwnership(address)'].name
-    ) {
-      const [newOwner] = decoded.args;
-      insight = `Transfer ownership to ${newOwner}`;
-    }
-
+    const ownableTx = await this.readOwnableTransaction(chain, tx);
     return {
-      chain,
+      ...ownableTx,
       to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
-      insight,
       signature: decoded.signature,
-      args,
     };
   }
 
@@ -714,7 +702,7 @@ export class GovernTransactionReader {
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
     if (!tx.data) {
-      throw new Error('⚠️ No data in proxyAdmin transaction');
+      throw new Error('⚠️ No data in Ownable transaction');
     }
 
     const ownableInterface = Ownable__factory.createInterface();
@@ -729,7 +717,9 @@ export class GovernTransactionReader {
       ownableInterface.functions['renounceOwnership()'].name
     ) {
       insight = `Renounce ownership`;
-    } else if (
+    }
+
+    if (
       decoded.functionFragment.name ===
       ownableInterface.functions['transferOwnership(address)'].name
     ) {
@@ -737,9 +727,16 @@ export class GovernTransactionReader {
       insight = `Transfer ownership to ${newOwner}`;
     }
 
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
     return {
       chain,
-      insight,
+      to: `Ownable (${chain} ${tx.to})`,
+      ...(insight ? { insight } : { args }),
+      signature: decoded.signature,
     };
   }
 
