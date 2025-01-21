@@ -1,5 +1,5 @@
 ---
-'@hyperlane-xyz/sdk': patch
+'@hyperlane-xyz/sdk': minor
 ---
 
 ZKSync Provider types with builders
