@@ -82,7 +82,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.BaseSolanamainnetTONY]: getBaseSolanamainnetTONYWarpConfig,
-  [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormSolanamainnetWorldchainTRUMP]:
+  [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
     getTRUMPWarpConfig,
   [WarpRouteIds.SolanamainnetTrumpchainTRUMP]: getTrumpchainTRUMPWarpConfig,
   [WarpRouteIds.BscEthereumLumiaPrismPNDR]:
