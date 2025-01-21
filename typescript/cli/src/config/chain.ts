@@ -15,7 +15,7 @@ import {
   ExplorerFamily,
   ZChainName,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, assert } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, isAddressStarknet } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -294,11 +294,14 @@ async function addGasConfig(metadata: ChainMetadata): Promise<void> {
 }
 
 async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
-  const wantNativeConfig = await confirm({
-    default: false,
-    message:
-      'Do you want to set native token properties for this chain config (defaults to ETH)',
-  });
+  const isStarknet = metadata.protocol === ProtocolType.Starknet;
+  const wantNativeConfig =
+    isStarknet ||
+    (await confirm({
+      default: false,
+      message:
+        'Do you want to set native token properties for this chain config (defaults to ETH)',
+    }));
 
   let symbol, name, decimals, denom;
   if (wantNativeConfig) {
@@ -312,10 +315,10 @@ async function addNativeTokenConfig(metadata: ChainMetadata): Promise<void> {
       message: "Enter the native token's decimals:",
     });
 
-    // Only ask for denom if protocol is Starknet
-    if (metadata.protocol === ProtocolType.Starknet) {
+    if (isStarknet) {
       denom = await input({
         message: "Enter the native token's address:",
+        validate: (value) => isAddressStarknet(value),
       });
     }
   }
