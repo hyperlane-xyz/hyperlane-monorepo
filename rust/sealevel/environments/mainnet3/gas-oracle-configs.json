@@ -1,5 +1,37 @@
 {
   "solanamainnet": {
+    "trumpchain": {
+      "oracleConfig": {
+        "tokenExchangeRate": "4545000000000000000",
+        "gasPrice": "11271716004",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "optimism": {
+      "oracleConfig": {
+        "tokenExchangeRate": "263105000000000000000",
+        "gasPrice": "486782274",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "artela": {
+      "oracleConfig": {
+        "tokenExchangeRate": "83333333333333333",
+        "gasPrice": "614759390835",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "base": {
+      "oracleConfig": {
+        "tokenExchangeRate": "263105000000000000000",
+        "gasPrice": "486782274",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
     "arbitrum": {
       "oracleConfig": {
         "tokenExchangeRate": "263105000000000000000",
@@ -12,14 +44,6 @@
       "oracleConfig": {
         "tokenExchangeRate": "2866666666666666666",
         "gasPrice": "25000000001",
-        "tokenDecimals": 18
-      },
-      "overhead": 166887
-    },
-    "base": {
-      "oracleConfig": {
-        "tokenExchangeRate": "263105000000000000000",
-        "gasPrice": "486782274",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -44,14 +68,6 @@
       "oracleConfig": {
         "tokenExchangeRate": "263105000000000000000",
         "gasPrice": "194712945",
-        "tokenDecimals": 18
-      },
-      "overhead": 166887
-    },
-    "artela": {
-      "oracleConfig": {
-        "tokenExchangeRate": "83333333333333333",
-        "gasPrice": "614759390835",
         "tokenDecimals": 18
       },
       "overhead": 166887

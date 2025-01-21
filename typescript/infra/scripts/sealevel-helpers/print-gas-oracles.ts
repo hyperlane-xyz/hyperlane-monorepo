@@ -97,7 +97,16 @@ function getChainConnections(
 
   if (environment === 'mainnet3') {
     // All the mainnet3 warp route chains
-    connectedChains = Object.values(WarpRouteIds).map(getWarpChains);
+    connectedChains = [
+      // Some branch juggling for the new TRUMP route temporarily
+      // requires these chains to be hardcoded:
+      // TRUMP/solanamainnet-trumpchain
+      ['solanamainnet', 'trumpchain'],
+      // For the massive TRUMP warp route, which is undergoing an extension atm
+      ['solanamainnet', 'optimism'],
+      // All warp routes
+      ...Object.values(WarpRouteIds).map(getWarpChains),
+    ];
   } else if (environment === 'testnet4') {
     connectedChains = [
       // As testnet warp routes are not tracked well, hardcode the connected chains.
