@@ -10,6 +10,7 @@ async function main() {
   const { environment } = await withOutputFile(getArgs()).argv;
   const { multiProvider } = await getHyperlaneCore(environment);
   const envConfig = getEnvironmentConfig(environment);
+  const registry = getRegistry();
 
   const warpIdsToCheck = Object.keys(warpConfigGetterMap);
   for (const warpRouteId of warpIdsToCheck) {
@@ -21,7 +22,6 @@ async function main() {
       warpRouteId,
     );
 
-    const registry = getRegistry();
     const configFileName = `${warpRouteId}.yaml`;
     registry.addWarpRouteConfig(warpConfig, configFileName);
     console.log(
