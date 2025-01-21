@@ -7881,16 +7881,19 @@ dependencies = [
  "console-subscriber",
  "derive_more 0.99.18",
  "ethers",
+ "ethers-prometheus",
  "eyre",
  "futures",
  "hyperlane-base",
  "hyperlane-core",
+ "hyperlane-ethereum",
  "hyperlane-test",
  "itertools 0.12.1",
  "migration",
  "num-bigint 0.4.6",
  "num-traits",
  "prometheus",
+ "reqwest",
  "sea-orm",
  "serde",
  "serde_json",
@@ -7900,6 +7903,7 @@ dependencies = [
  "tokio-test",
  "tracing",
  "tracing-futures",
+ "tracing-test",
 ]
 
 [[package]]
