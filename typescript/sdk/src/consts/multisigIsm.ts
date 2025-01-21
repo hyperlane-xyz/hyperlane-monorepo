@@ -1971,11 +1971,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   trumpchain: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      {
+        address: '0xcF8151b8aEFfF4e22F6B48fe2Ffe2d60F00C890C',
+        alias: 'Caldera',
       },
     ],
   },
