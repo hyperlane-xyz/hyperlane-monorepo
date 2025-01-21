@@ -37,7 +37,10 @@ export const getTrumpchainTRUMPWarpConfig = async (
       decimals: 18,
       totalSupply,
       owner: DEPLOYER,
-      proxyAdmin: { owner: DEPLOYER },
+      proxyAdmin: {
+        owner: DEPLOYER,
+        address: '0xC5f2c60073DCAA9D157C45d5B017D639dF9C5CeB',
+      },
     },
   };
   return tokenConfig;
