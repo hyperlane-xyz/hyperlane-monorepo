@@ -96,7 +96,7 @@
     "decimals": 9
   },
   "solanatestnet": {
-    "amount": "0.0001",
+    "amount": "0.01",
     "decimals": 1
   },
   "soneiumtestnet": {
@@ -108,7 +108,7 @@
     "decimals": 9
   },
   "sonicsvmtestnet": {
-    "amount": "0.0001",
+    "amount": "0.01",
     "decimals": 1
   },
   "suavetoliman": {

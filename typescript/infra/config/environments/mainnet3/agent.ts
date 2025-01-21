@@ -639,6 +639,9 @@ const blacklistedMessageIds = [
   // test tx when route was first deployed, no merkle tree insertion
   // USDC/ethereum-inevm
   '0x998746dc822dc15332b8683fb8a29aec22ed3e2f2fb8245c40f56303c5cb6032',
+
+  // malformed recipient in a warp transfer to `treasure`
+  '0xf20e3dc5172d824b146b91bb33d66532915fab605e44d2d76af7b5898a6390fe',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -655,7 +658,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7546c01-20250120-171540',
+      tag: '62702d3-20250121-002648',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -665,7 +668,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '95deca3-20250120-103609',
+      tag: '0372ff9-20250121-104245',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
