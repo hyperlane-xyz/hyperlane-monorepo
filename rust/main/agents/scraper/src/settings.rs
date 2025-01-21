@@ -26,7 +26,7 @@ pub struct ScraperSettings {
     #[as_mut]
     #[deref]
     #[deref_mut]
-    base: Settings,
+    pub base: Settings,
 
     pub db: String,
     pub chains_to_scrape: Vec<HyperlaneDomain>,
