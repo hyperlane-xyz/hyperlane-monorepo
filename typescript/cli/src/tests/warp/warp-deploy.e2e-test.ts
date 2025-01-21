@@ -208,43 +208,14 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Assertions
       expect(finalOutput.exitCode).to.equal(0);
-      const updatedWarpDeployConfig_2 = await readWarpConfig(
-        CHAIN_NAME_2,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-
-      expect(updatedWarpDeployConfig_2[CHAIN_NAME_2].type).to.equal(
-        TokenType.collateral,
-      );
-      expect(updatedWarpDeployConfig_2[CHAIN_NAME_2].decimals).to.equal(
-        expectedTokenDecimals,
-      );
-      expect(updatedWarpDeployConfig_2[CHAIN_NAME_2].symbol).to.equal(
-        expectedTokenSymbol,
-      );
-      expect(updatedWarpDeployConfig_2[CHAIN_NAME_2].mailbox).to.equal(
-        chain2Addresses.mailbox,
-      );
-
-      const updatedWarpDeployConfig_3 = await readWarpConfig(
-        CHAIN_NAME_3,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-
-      expect(updatedWarpDeployConfig_3[CHAIN_NAME_3].type).to.equal(
-        TokenType.synthetic,
-      );
-      expect(updatedWarpDeployConfig_3[CHAIN_NAME_3].decimals).to.equal(
-        expectedTokenDecimals,
-      );
-      expect(updatedWarpDeployConfig_3[CHAIN_NAME_3].symbol).to.equal(
-        expectedTokenSymbol,
-      );
-      expect(updatedWarpDeployConfig_3[CHAIN_NAME_3].mailbox).to.equal(
-        chain3Addresses.mailbox,
-      );
+      for (const chainName of [CHAIN_NAME_2, CHAIN_NAME_3]) {
+        await assertWarpRouteConfig(
+          warpConfig,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          chainName,
+          { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+        );
+      }
     });
   });
 
@@ -472,6 +443,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     }
 
     it('Should deploy and bridge different types of warp routes:', async function () {
+      // Timeout increased only for this test because it runs multiple times with different deployment configs
       this.timeout(warpConfigTestCases.length * DEFAULT_E2E_TEST_TIMEOUT);
 
       for (const warpConfig of warpConfigTestCases) {
