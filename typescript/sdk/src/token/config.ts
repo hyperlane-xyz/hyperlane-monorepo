@@ -12,7 +12,6 @@ export enum TokenType {
   fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
-  nativeScaled = 'nativeScaled',
 }
 
 export const CollateralExtensions = [
