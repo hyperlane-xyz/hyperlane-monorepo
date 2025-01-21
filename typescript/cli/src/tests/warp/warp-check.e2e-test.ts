@@ -38,6 +38,7 @@ describe('hyperlane warp check e2e tests', async function () {
   let chain2Addresses: ChainAddresses = {};
   let chain3Addresses: ChainAddresses = {};
   let token: ERC20Test;
+  let tokenSymbol: string;
   let ownerAddress: Address;
 
   before(async function () {
@@ -47,48 +48,57 @@ describe('hyperlane warp check e2e tests', async function () {
     ]);
 
     token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    tokenSymbol = await token.symbol();
     ownerAddress = new Wallet(ANVIL_KEY).address;
   });
 
+  async function deployAndExportWarpRoute(
+    collateralTokenSymbol: string,
+    collateralTokenAddress: Address,
+  ): Promise<WarpRouteDeployConfig> {
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+      collateralTokenSymbol,
+      [CHAIN_NAME_2, CHAIN_NAME_3],
+    );
+    const warpConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: collateralTokenAddress,
+        mailbox: chain2Addresses.mailbox,
+        owner: ownerAddress,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        owner: ownerAddress,
+      },
+    };
+
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+    const chain2WarpConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      WARP_DEPLOY_OUTPUT_PATH,
+    );
+    const chain3WarpConfig = await readWarpConfig(
+      CHAIN_NAME_3,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      WARP_DEPLOY_OUTPUT_PATH,
+    );
+    const warpReadResult = {
+      [CHAIN_NAME_2]: chain2WarpConfig[CHAIN_NAME_2],
+      [CHAIN_NAME_3]: chain3WarpConfig[CHAIN_NAME_3],
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpReadResult);
+
+    return warpReadResult;
+  }
+
   describe('HYP_KEY=... hyperlane warp check --config ...', () => {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
-      const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        tokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
-      const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: token.address,
-          mailbox: chain2Addresses.mailbox,
-          owner: ownerAddress,
-        },
-        [CHAIN_NAME_3]: {
-          type: TokenType.synthetic,
-          mailbox: chain3Addresses.mailbox,
-          owner: ownerAddress,
-        },
-      };
-
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-      const chain2WarpConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const chain3WarpConfig = await readWarpConfig(
-        CHAIN_NAME_3,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const warpReadResult = {
-        [CHAIN_NAME_2]: chain2WarpConfig[CHAIN_NAME_2],
-        [CHAIN_NAME_3]: chain3WarpConfig[CHAIN_NAME_3],
-      };
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpReadResult);
+      await deployAndExportWarpRoute(tokenSymbol, token.address);
 
       const finalOutput = await hyperlaneWarpCheckRaw({
         hypKey: ANVIL_KEY,
@@ -106,43 +116,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
   describe('hyperlane warp check --key ... --config ...', () => {
     it(`should exit early if no symbol, chain or warp file have been provided`, async function () {
-      const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        tokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
-      const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: token.address,
-          mailbox: chain2Addresses.mailbox,
-          owner: ownerAddress,
-        },
-        [CHAIN_NAME_3]: {
-          type: TokenType.synthetic,
-          mailbox: chain3Addresses.mailbox,
-          owner: ownerAddress,
-        },
-      };
-
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-      const chain2WarpConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const chain3WarpConfig = await readWarpConfig(
-        CHAIN_NAME_3,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const warpReadResult = {
-        [CHAIN_NAME_2]: chain2WarpConfig[CHAIN_NAME_2],
-        [CHAIN_NAME_3]: chain3WarpConfig[CHAIN_NAME_3],
-      };
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpReadResult);
+      await deployAndExportWarpRoute(tokenSymbol, token.address);
 
       const finalOutput = await hyperlaneWarpCheckRaw({
         privateKey: ANVIL_KEY,
@@ -160,43 +134,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
   describe('hyperlane warp check --symbol ... --config ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
-      const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        tokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
-      const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: token.address,
-          mailbox: chain2Addresses.mailbox,
-          owner: ownerAddress,
-        },
-        [CHAIN_NAME_3]: {
-          type: TokenType.synthetic,
-          mailbox: chain3Addresses.mailbox,
-          owner: ownerAddress,
-        },
-      };
-
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-      const chain2WarpConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const chain3WarpConfig = await readWarpConfig(
-        CHAIN_NAME_3,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const warpReadResult = {
-        [CHAIN_NAME_2]: chain2WarpConfig[CHAIN_NAME_2],
-        [CHAIN_NAME_3]: chain3WarpConfig[CHAIN_NAME_3],
-      };
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpReadResult);
+      await deployAndExportWarpRoute(tokenSymbol, token.address);
 
       const steps: TestPromptAction[] = [
         {
@@ -227,43 +165,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
   describe('hyperlane warp check --symbol ... --config ... --key ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
-      const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
-        tokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-      );
-      const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: token.address,
-          mailbox: chain2Addresses.mailbox,
-          owner: ownerAddress,
-        },
-        [CHAIN_NAME_3]: {
-          type: TokenType.synthetic,
-          mailbox: chain3Addresses.mailbox,
-          owner: ownerAddress,
-        },
-      };
-
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-      const chain2WarpConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const chain3WarpConfig = await readWarpConfig(
-        CHAIN_NAME_3,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const warpReadResult = {
-        [CHAIN_NAME_2]: chain2WarpConfig[CHAIN_NAME_2],
-        [CHAIN_NAME_3]: chain3WarpConfig[CHAIN_NAME_3],
-      };
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpReadResult);
+      await deployAndExportWarpRoute(tokenSymbol, token.address);
 
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,
@@ -275,51 +177,18 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences between the local config and the on chain config`, async function () {
-      const tokenSymbol = await token.symbol();
-      const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath(
+      const warpDeployConfig = await deployAndExportWarpRoute(
         tokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3],
+        token.address,
       );
 
       const wrongOwner = randomAddress();
+      warpDeployConfig[CHAIN_NAME_3].owner = wrongOwner;
 
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${ownerAddress.toLowerCase()}"\n`;
-      const warpConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: token.address,
-          mailbox: chain2Addresses.mailbox,
-          owner: ownerAddress,
-        },
-        [CHAIN_NAME_3]: {
-          type: TokenType.synthetic,
-          mailbox: chain3Addresses.mailbox,
-          owner: ownerAddress,
-        },
-      };
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
-
-      const chain2WarpConfig = await readWarpConfig(
-        CHAIN_NAME_2,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-      const chain3WarpConfig = await readWarpConfig(
-        CHAIN_NAME_3,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        WARP_DEPLOY_OUTPUT_PATH,
-      );
-
-      chain3WarpConfig[CHAIN_NAME_3].owner = wrongOwner;
-
-      const warpReadResult = {
-        [CHAIN_NAME_2]: chain2WarpConfig[CHAIN_NAME_2],
-        [CHAIN_NAME_3]: chain3WarpConfig[CHAIN_NAME_3],
-      };
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpReadResult);
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
 
       const output = await hyperlaneWarpCheck(
         WARP_DEPLOY_OUTPUT_PATH,
