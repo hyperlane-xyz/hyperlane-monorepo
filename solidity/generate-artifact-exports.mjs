@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { promises as fsPromises } from 'fs';
 import { basename, dirname, join } from 'path';
 import { glob } from 'typechain';
 import { fileURLToPath } from 'url';
@@ -18,18 +18,24 @@ const __dirname = dirname(__filename);
 
 const srcOutputDir = join(__dirname, 'core-utils/zksync/artifacts');
 
-if (!existsSync(srcOutputDir)) {
-  mkdirSync(srcOutputDir, { recursive: true });
-}
+// Ensure output directory exists
+await fsPromises.mkdir(srcOutputDir, { recursive: true });
 
 /**
- * @dev Reads each artifact file and writes it to srcOutputDir
+ * @dev Reads each artifact file and writes it to srcOutputDir concurrently
  */
-zksyncArtifacts.forEach((file) => {
-  const fileContent = readFileSync(file, 'utf-8');
-  let fileName = `${basename(file, '.json')}`;
+await Promise.all(
+  zksyncArtifacts.map(async (file) => {
+    try {
+      const fileContent = await fsPromises.readFile(file, {
+        encoding: 'utf-8',
+      });
+      const fileName = `${basename(file, '.json')}`;
+      const outputFile = join(srcOutputDir, `${fileName}.json`);
 
-  const outputFile = join(srcOutputDir, `${fileName}.json`);
-
-  writeFileSync(outputFile, fileContent);
-});
+      await fsPromises.writeFile(outputFile, fileContent);
+    } catch (error) {
+      console.error(`Error processing file ${file}:`, error);
+    }
+  }),
+);
