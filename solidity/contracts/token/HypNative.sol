@@ -18,7 +18,10 @@ contract HypNative is TokenRouter {
      */
     event Donation(address indexed sender, uint256 amount);
 
-    constructor(address _mailbox) TokenRouter(_mailbox) {}
+    constructor(
+        uint256 _scale,
+        address _mailbox
+    ) TokenRouter(_scale, _mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router

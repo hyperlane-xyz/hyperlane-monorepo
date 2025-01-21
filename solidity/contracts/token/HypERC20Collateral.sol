@@ -21,7 +21,11 @@ contract HypERC20Collateral is TokenRouter {
      * @notice Constructor
      * @param erc20 Address of the token to keep as collateral
      */
-    constructor(address erc20, address _mailbox) TokenRouter(_mailbox) {
+    constructor(
+        address erc20,
+        uint256 _scale,
+        address _mailbox
+    ) TokenRouter(_scale, _mailbox) {
         wrappedToken = IERC20(erc20);
     }
 

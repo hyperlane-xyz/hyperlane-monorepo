@@ -6,6 +6,8 @@ import {TokenMessage} from "./libs/TokenMessage.sol";
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+uint256 constant ERC721_SCALING_FACTOR = 1;
+
 /**
  * @title Hyperlane ERC721 Token Collateral that wraps an existing ERC721 with remote transfer functionality.
  * @author Abacus Works
@@ -17,7 +19,10 @@ contract HypERC721Collateral is TokenRouter {
      * @notice Constructor
      * @param erc721 Address of the token to keep as collateral
      */
-    constructor(address erc721, address _mailbox) TokenRouter(_mailbox) {
+    constructor(
+        address erc721,
+        address _mailbox
+    ) TokenRouter(ERC721_SCALING_FACTOR, _mailbox) {
         wrappedToken = IERC721(erc721);
     }
 

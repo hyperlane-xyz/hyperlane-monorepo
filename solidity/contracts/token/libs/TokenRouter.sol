@@ -16,6 +16,8 @@ abstract contract TokenRouter is GasRouter {
     using TypeCasts for address;
     using TokenMessage for bytes;
 
+    uint256 public immutable scale;
+
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
      * @param destination The identifier of the destination chain.
@@ -40,7 +42,9 @@ abstract contract TokenRouter is GasRouter {
         uint256 amount
     );
 
-    constructor(address _mailbox) GasRouter(_mailbox) {}
+    constructor(uint256 _scale, address _mailbox) GasRouter(_mailbox) {
+        scale = _scale;
+    }
 
     /**
      * @notice Transfers `_amountOrId` token to `_recipient` on `_destination` domain.
@@ -143,7 +147,7 @@ abstract contract TokenRouter is GasRouter {
     function _outboundAmount(
         uint256 _localAmount
     ) internal view virtual returns (uint256 _messageAmount) {
-        _messageAmount = _localAmount;
+        _messageAmount = _localAmount / scale;
     }
 
     /**
@@ -154,7 +158,7 @@ abstract contract TokenRouter is GasRouter {
     function _inboundAmount(
         uint256 _messageAmount
     ) internal view virtual returns (uint256 _localAmount) {
-        _localAmount = _messageAmount;
+        _localAmount = _messageAmount * scale;
     }
 
     /**
