@@ -102,10 +102,31 @@ export class WarpCore {
         const { chainName, addressOrDenom } = parseTokenConnectionId(
           connection.token,
         );
-        const token2 = tokens.find(
-          (t) =>
-            t.chainName === chainName && t.addressOrDenom === addressOrDenom,
-        );
+        const token2 = tokens.find((t) => {
+          if (t.chainName !== chainName) {
+            return false;
+          }
+
+          if (
+            token1.standard === TokenStandard.EvmIntent ||
+            token1.standard === TokenStandard.EvmIntentNative
+          ) {
+            if (
+              t.standard === TokenStandard.EvmIntent ||
+              t.standard === TokenStandard.EvmIntentNative
+            ) {
+              if (t.standard === TokenStandard.EvmIntent) {
+                return t.collateralAddressOrDenom === addressOrDenom;
+              }
+              if (t.standard === TokenStandard.EvmIntentNative) {
+                return true;
+              }
+            }
+            return false;
+          } else {
+            return t.addressOrDenom === addressOrDenom;
+          }
+        });
         assert(
           token2,
           `Connected token not found: ${chainName} ${addressOrDenom}`,
@@ -317,12 +338,14 @@ export class WarpCore {
     sender,
     recipient,
     interchainFee,
+    fillDeadline,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
     interchainFee?: TokenAmount;
+    fillDeadline?: number;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
 
@@ -330,7 +353,11 @@ export class WarpCore {
     const destinationName = this.multiProvider.getChainName(destination);
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
-    const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
+    const hypAdapter = token.getHypAdapter(
+      this.multiProvider,
+      destinationName,
+      fillDeadline,
+    );
 
     if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
       this.logger.info(`Approval required for transfer of ${token.symbol}`);

@@ -68,6 +68,7 @@ export interface IToken extends TokenArgs {
   getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     destination?: ChainName,
+    fillDeadline?: number,
   ): IHypTokenAdapter<unknown>;
 
   getBalance(

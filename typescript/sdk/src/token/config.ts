@@ -14,6 +14,8 @@ export enum TokenType {
   native = 'native',
   // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
+  intent = 'intent',
+  intentNative = 'intentNative',
 }
 
 export const gasOverhead = (tokenType: TokenType): number => {

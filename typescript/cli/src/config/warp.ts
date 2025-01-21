@@ -55,6 +55,8 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.fastCollateral]: '',
   [TokenType.collateralUri]: '',
   [TokenType.nativeScaled]: '',
+  [TokenType.intent]: '',
+  [TokenType.intentNative]: '',
 };
 
 const TYPE_CHOICES = Object.values(TokenType).map((type) => ({

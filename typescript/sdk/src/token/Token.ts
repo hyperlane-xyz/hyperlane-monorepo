@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
+import { zeroAddress } from 'viem';
 
 import {
   Address,
@@ -45,6 +46,10 @@ import {
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmIntentMultiChainAdapter,
+  EvmIntentNativeMultiChainAdapter,
+  EvmIntentNativeTokenAdapter,
+  EvmIntentTokenAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter.js';
@@ -154,6 +159,22 @@ export class Token implements IToken {
         sourceChannel: 'channel-0',
         type: TokenConnectionType.Ibc,
       });
+    } else if (standard === TokenStandard.EvmIntent) {
+      assert(
+        this.collateralAddressOrDenom,
+        'collateralAddressOrDenom required for EvmIntent tokens',
+      );
+      return new EvmIntentTokenAdapter(chainName, multiProvider, {
+        token: this.collateralAddressOrDenom,
+        router: addressOrDenom,
+        outputToken: zeroAddress,
+      });
+    } else if (standard === TokenStandard.EvmIntentNative) {
+      return new EvmIntentNativeTokenAdapter(chainName, multiProvider, {
+        token: this.collateralAddressOrDenom ?? zeroAddress,
+        router: addressOrDenom,
+        outputToken: zeroAddress,
+      });
     } else {
       throw new Error(`No adapter found for token standard: ${standard}`);
     }
@@ -168,6 +189,7 @@ export class Token implements IToken {
   getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     destination?: ChainName,
+    fillDeadline: number = Math.floor(Date.now() / 1000) + 60 * 60 * 24,
   ): IHypTokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
       this;
@@ -278,6 +300,44 @@ export class Token implements IToken {
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
+    } else if (standard === TokenStandard.EvmIntent) {
+      assert(
+        this.collateralAddressOrDenom,
+        'collateralAddressOrDenom required for EvmIntent tokens',
+      );
+      const outputToken =
+        destination &&
+        this.getConnectionForChain(destination)?.token.collateralAddressOrDenom;
+      assert(
+        outputToken,
+        `Couldn't find token on destination chain ${destination}`,
+      );
+      return new EvmIntentMultiChainAdapter(
+        chainName,
+        fillDeadline,
+        multiProvider,
+        {
+          router: addressOrDenom,
+          token: this.collateralAddressOrDenom,
+          outputToken,
+        },
+      );
+    } else if (standard === TokenStandard.EvmIntentNative) {
+      const outputToken =
+        (destination &&
+          this.getConnectionForChain(destination)?.token
+            .collateralAddressOrDenom) ||
+        zeroAddress; // when native, it can be undefined or null, thus default to zero address
+      return new EvmIntentNativeMultiChainAdapter(
+        chainName,
+        fillDeadline,
+        multiProvider,
+        {
+          router: addressOrDenom,
+          token: this.collateralAddressOrDenom ?? zeroAddress,
+          outputToken,
+        },
+      );
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }
@@ -438,6 +498,10 @@ export class Token implements IToken {
       token.standard === TokenStandard.CosmosNative &&
       this.addressOrDenom.toLowerCase() === token.addressOrDenom.toLowerCase()
     ) {
+      return true;
+    }
+
+    if (this.standard === TokenStandard.EvmIntentNative) {
       return true;
     }
 
