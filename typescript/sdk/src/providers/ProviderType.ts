@@ -19,7 +19,7 @@ import {
   Contract as StarknetContract,
   RpcProvider as StarknetProvider,
   ReceiptTx as StarknetReceiptTx,
-  V3TransactionDetails as StarknetTransaction,
+  CallDetails as StarknetTransaction,
 } from 'starknet';
 import type {
   GetContractReturnType,
