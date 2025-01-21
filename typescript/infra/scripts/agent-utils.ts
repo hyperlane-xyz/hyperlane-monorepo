@@ -286,15 +286,6 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .alias('r', 'rpcUrls');
 }
 
-export function withTxHashes<T>(args: Argv<T>) {
-  return args
-    .describe('txHashes', 'transaction hash')
-    .string('txHashes')
-    .array('txHashes')
-    .demandOption('txHashes')
-    .alias('t', 'txHashes');
-}
-
 // Interactively gets a single warp route ID
 export async function getWarpRouteIdInteractive() {
   const choices = Object.values(WarpRouteIds).map((id) => ({
