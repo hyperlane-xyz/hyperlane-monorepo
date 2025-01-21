@@ -513,7 +513,11 @@ impl PendingMessage {
         // Attempt to fetch status about message from database
         let message_status = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
             Ok(Some(status)) => {
-                tracing::debug!(?status, "Message status retrieved from db");
+                tracing::debug!(
+                    ?status,
+                    id = format!("{:x}", message.id()),
+                    "Message status retrieved from db"
+                );
                 status
             }
             _ => {

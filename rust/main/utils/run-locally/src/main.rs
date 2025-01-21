@@ -16,7 +16,7 @@
 //! - `SEALEVEL_ENABLED`: true/false, enables sealevel testing. Defaults to true.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::{self, File},
     path::Path,
     process::{Child, ExitCode},
@@ -34,7 +34,7 @@ pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
 use tempfile::{tempdir, TempDir};
-use utils::get_matching_lines;
+use utils::get_matched_lines;
 
 use crate::{
     config::Config,
@@ -434,6 +434,7 @@ fn main() -> ExitCode {
 
     let mut failure_occurred = false;
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
+
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
@@ -473,11 +474,30 @@ fn main() -> ExitCode {
                 }
             }
         }
-
         sleep(Duration::from_secs(5));
     }
-    run_restart_check(&config, &mut state, rocks_db_dir);
+    restart_relayer(&config, &mut state, &rocks_db_dir);
 
+    // give relayer a chance to fully restart.
+    sleep(Duration::from_secs(20));
+
+    let loop_start = Instant::now();
+
+    SHUTDOWN.store(false, Ordering::Relaxed);
+    while !SHUTDOWN.load(Ordering::Relaxed) {
+        if config.ci_mode {
+            if message_retrieval_invariants_met().unwrap_or(false) {
+                // end condition reached successfully
+                break;
+            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
+                // we ran out of time
+                log!("CI timeout reached before messages where retrieved from db");
+                failure_occurred = true;
+                break;
+            }
+        }
+        sleep(Duration::from_secs(5));
+    }
     report_test_result(failure_occurred)
 }
 
@@ -556,33 +576,47 @@ fn create_relayer(config: &Config, rocks_db_dir: &TempDir) -> Program {
     }
 }
 
-fn run_restart_check(config: &Config, state: &mut State, rocks_db_dir: TempDir) -> ExitCode {
+fn restart_relayer(config: &Config, state: &mut State, rocks_db_dir: &TempDir) {
     let (child, _) = state.agents.get_mut("RLY").expect("No relayer agent found");
 
     child.kill().expect("Failed to kill relayer");
 
-    let relayer_env = create_relayer(config, &rocks_db_dir);
+    let relayer_env = create_relayer(config, rocks_db_dir);
 
     log!("Restarting relayer...");
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
+}
 
-    log!("Wait for relayer to read db...");
-    sleep(Duration::from_secs(30));
-
+fn message_retrieval_invariants_met() -> eyre::Result<bool> {
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
 
-    const RETRIEVED_MESSGE_LOG: &str = "Message status retrieved from db";
-    let invariant_logs = &[RETRIEVED_MESSGE_LOG];
-
     log!("Checking message statuses were retrieved from logs...");
-    let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
-    assert_eq!(
-        log_counts.get(RETRIEVED_MESSGE_LOG),
-        Some(&ZERO_MERKLE_INSERTION_KATHY_MESSAGES)
-    );
 
-    ExitCode::SUCCESS
+    const RETRIEVED_MESSGE_LOG: &str = "Message status retrieved from db";
+    let matched_logs = get_matched_lines(&relayer_logfile, RETRIEVED_MESSGE_LOG);
+
+    let no_metadata_message_ids: HashSet<_> = matched_logs
+        .iter()
+        .filter(|s| s.contains("CouldNotFetchMetadata"))
+        .filter_map(|s| {
+            // string parse for id and remove duplicates by collecting
+            // into a hashset
+            s.rsplit_once("id\u{1b}[0m\u{1b}[2m=\u{1b}[0m\"")
+                .and_then(|(_, s2)| s2.split_once("\""))
+                .map(|(id, _)| id)
+        })
+        .collect();
+
+    let no_metadata_message_count = no_metadata_message_ids.len();
+    if no_metadata_message_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES as usize {
+        return Ok(false);
+    }
+    assert_eq!(
+        no_metadata_message_count,
+        ZERO_MERKLE_INSERTION_KATHY_MESSAGES as usize
+    );
+    Ok(true)
 }
 
 fn report_test_result(failure_occurred: bool) -> ExitCode {
