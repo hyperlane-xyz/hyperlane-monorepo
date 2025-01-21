@@ -173,6 +173,8 @@ fn main() -> ExitCode {
     assert_eq!(validator_origin_chains.len(), validator_keys.len());
 
     let rocks_db_dir = tempdir().unwrap();
+    println!("rocks_db_dir location: {:?}", rocks_db_dir.path().display());
+
     let relayer_db = concat_path(&rocks_db_dir, "relayer");
     let validator_dbs = (0..validator_count)
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
