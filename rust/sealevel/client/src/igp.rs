@@ -681,7 +681,7 @@ fn configure_igp_and_overhead_igp(
         // Gas oracle on the IGP account
         if !map_configuration_matches(
             &igp_account.gas_oracles,
-            &remote,
+            remote,
             remote_domain,
             gas_oracle_config.gas_oracle.as_ref(),
         ) {
@@ -710,7 +710,7 @@ fn configure_igp_and_overhead_igp(
         // Overhead on the Overhead IGP account
         if !map_configuration_matches(
             &overhead_igp_account.gas_overheads,
-            &remote,
+            remote,
             remote_domain,
             config.overhead.as_ref(),
         ) {
