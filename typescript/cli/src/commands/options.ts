@@ -32,6 +32,13 @@ export const registryUriCommandOption: Options = {
   default: DEFAULT_GITHUB_REGISTRY,
 };
 
+export const githubAuthTokenOption: Options = {
+  type: 'string',
+  description: 'Github auth token for accessing registry repository',
+  demandOption: false,
+  alias: 'authToken',
+};
+
 export const overrideRegistryUriCommandOption: Options = {
   type: 'string',
   description: 'Path to a local registry to override the default registry',
