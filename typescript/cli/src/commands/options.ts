@@ -35,7 +35,6 @@ export const registryUriCommandOption: Options = {
 export const githubAuthTokenOption: Options = {
   type: 'string',
   description: 'Github auth token for accessing registry repository',
-  alias: 'authToken',
   default: ENV.GH_AUTH_TOKEN,
   defaultDescription: 'process.env.GH_AUTH_TOKEN',
 };
