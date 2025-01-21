@@ -45,6 +45,8 @@ import {
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmIntentNativeTokenAdapter,
+  EvmIntentTokenAdapter,
   EvmNativeTokenAdapter,
   EvmTokenAdapter,
 } from './adapters/EvmTokenAdapter.js';
@@ -161,6 +163,18 @@ export class Token implements IToken {
         sourceChannel: 'channel-0',
         type: TokenConnectionType.Ibc,
       });
+    } else if (this.intentRouterAddressOrDenom) {
+      if (standard === TokenStandard.EvmIntent) {
+        return new EvmIntentTokenAdapter(chainName, multiProvider, {
+          router: this.intentRouterAddressOrDenom,
+          token: addressOrDenom,
+        });
+      } else {
+        return new EvmIntentNativeTokenAdapter(chainName, multiProvider, {
+          router: this.intentRouterAddressOrDenom,
+          token: addressOrDenom,
+        });
+      }
     } else {
       throw new Error(`No adapter found for token standard: ${standard}`);
     }
