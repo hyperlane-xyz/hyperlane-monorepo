@@ -45,6 +45,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
     strategyPath: argv.strategy,
+    authToken: argv.authToken,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
@@ -106,8 +107,14 @@ export async function getContext({
   skipConfirmation,
   disableProxy = false,
   strategyPath,
+  authToken,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry(
+    registryUri,
+    registryOverrideUri,
+    !disableProxy,
+    authToken,
+  );
 
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
@@ -143,10 +150,16 @@ export async function getDryRunContext(
     fromAddress,
     skipConfirmation,
     disableProxy = false,
+    authToken,
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
+  const registry = getRegistry(
+    registryUri,
+    registryOverrideUri,
+    !disableProxy,
+    authToken,
+  );
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {
@@ -192,6 +205,7 @@ function getRegistry(
   primaryRegistryUri: string,
   overrideRegistryUri: string,
   enableProxy: boolean,
+  authToken?: string,
 ): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
   const registries = [primaryRegistryUri, overrideRegistryUri]
@@ -203,6 +217,7 @@ function getRegistry(
         return new GithubRegistry({
           uri,
           logger: childLogger,
+          authToken,
           proxyUrl:
             enableProxy && isCanonicalRepoUrl(uri)
               ? PROXY_DEPLOYED_URL
