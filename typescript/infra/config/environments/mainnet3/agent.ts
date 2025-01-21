@@ -639,6 +639,9 @@ const blacklistedMessageIds = [
   // test tx when route was first deployed, no merkle tree insertion
   // USDC/ethereum-inevm
   '0x998746dc822dc15332b8683fb8a29aec22ed3e2f2fb8245c40f56303c5cb6032',
+
+  // malformed recipient in a warp transfer to `treasure`
+  '0xf20e3dc5172d824b146b91bb33d66532915fab605e44d2d76af7b5898a6390fe',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
