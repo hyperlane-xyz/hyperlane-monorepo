@@ -48,5 +48,12 @@
     "foreignDeployment": "0x0fC7b3518C03BfA5e01995285b1eF3c4B55c8922",
     "name": "OFFICIAL TRUMP",
     "symbol": "TRUMP"
+  },
+  "optimism": {
+    "type": "synthetic",
+    "decimals": 18,
+    "foreignDeployment": "0xe36c02471e708a9f16da58168da744b059a1c6fe",
+    "name": "OFFICIAL TRUMP",
+    "symbol": "TRUMP"
   }
 }
