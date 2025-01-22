@@ -7563,7 +7563,7 @@ __metadata:
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
     "@safe-global/protocol-kit": "npm:1.3.0"
-    "@safe-global/safe-deployments": "npm:1.37.8"
+    "@safe-global/safe-deployments": "npm:1.37.23"
     "@solana/spl-token": "npm:^0.4.9"
     "@solana/web3.js": "npm:^1.95.4"
     "@types/mocha": "npm:^10.0.1"
@@ -12754,12 +12754,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@safe-global/safe-deployments@npm:1.37.8":
-  version: 1.37.8
-  resolution: "@safe-global/safe-deployments@npm:1.37.8"
+"@safe-global/safe-deployments@npm:1.37.23":
+  version: 1.37.23
+  resolution: "@safe-global/safe-deployments@npm:1.37.23"
   dependencies:
     semver: "npm:^7.6.2"
-  checksum: 10/bc8fce2c4d557e547a6cceebb611f9584d998dfb459cd50cf338409de986bed247ebca9425b0984a6e1a6accab42c7c4d1c68811e09cc981756183ba50a5e5a9
+  checksum: 10/90fca085c94fdeed7d2112699dfe58e1b1178358ccaf98049fd1fdd52be78de261753d2abc7351d6a9f977e400706d960ca6ad3f66413847a7b268999be0eff0
   languageName: node
   linkType: hard
 
