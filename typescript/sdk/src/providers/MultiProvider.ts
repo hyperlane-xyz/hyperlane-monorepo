@@ -175,7 +175,6 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     // Auto-connect the signer for convenience
     const provider = this.tryGetProvider(chainName);
     if (!provider) return signer;
-
     return signer.connect(provider);
   }
 
@@ -335,14 +334,14 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     params: Parameters<F['deploy']>,
     artifact?: ZKSyncArtifact,
   ): Promise<Awaited<ReturnType<F['deploy']>>> {
-    const metadata = this.getChainMetadata(chainNameOrId);
-
-    const { technicalStack } = metadata;
-
-    let contract;
+    // setup contract factory
     const overrides = this.getTransactionOverrides(chainNameOrId);
     const signer = this.getSigner(chainNameOrId);
 
+    const metadata = this.getChainMetadata(chainNameOrId);
+    const { technicalStack } = metadata;
+
+    let contract;
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       if (!artifact) throw new Error(`No ZkSync contract artifact provided!`);
 
@@ -453,7 +452,6 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     }
     const txReq = await this.prepareTx(chainNameOrId, tx);
     const signer = this.getSigner(chainNameOrId);
-
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
     return this.handleTx(chainNameOrId, response);
