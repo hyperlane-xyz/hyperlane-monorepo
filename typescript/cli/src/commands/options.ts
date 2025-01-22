@@ -8,6 +8,8 @@ import { ENV } from '../utils/env.js';
 
 /* Global options */
 
+export const DEFAULT_LOCAL_REGISTRY = `${os.homedir()}/.hyperlane`;
+
 export const demandOption = (option: Options): Options => ({
   ...option,
   demandOption: true,
@@ -26,16 +28,10 @@ export const logLevelCommandOption: Options = {
 };
 
 export const registryUriCommandOption: Options = {
-  type: 'string',
+  type: 'array',
   description: 'Registry URI, such as a Github repo URL or a local file path',
   alias: 'r',
-  default: DEFAULT_GITHUB_REGISTRY,
-};
-
-export const overrideRegistryUriCommandOption: Options = {
-  type: 'string',
-  description: 'Path to a local registry to override the default registry',
-  default: `${os.homedir()}/.hyperlane`,
+  default: [DEFAULT_GITHUB_REGISTRY, DEFAULT_LOCAL_REGISTRY],
 };
 
 export const skipConfirmationOption: Options = {
