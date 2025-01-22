@@ -59,11 +59,9 @@ async function main() {
 
   // The Sealevel warp adapters require the Mailbox address, so we
   // get mailboxes for all chains and merge them with the chain metadata.
-  const mailboxes = objMap(chainAddresses, (_, { mailbox }) => {
-    return {
-      mailbox,
-    };
-  });
+  const mailboxes = objMap(chainAddresses, (_, { mailbox }) => ({
+    mailbox,
+  }));
   const multiProtocolProvider = new MultiProtocolProvider(
     objMerge(chainMetadata, mailboxes),
   );
