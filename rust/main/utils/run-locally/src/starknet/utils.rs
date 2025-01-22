@@ -137,6 +137,8 @@ pub(crate) fn deploy_all(
     println!("Deploying pausable ism");
     let ism_pausable = cli.deploy(declarations.hpl_ism_pausable, vec![deployer.clone()]);
 
+    println!("MAHOMES Multisig used for aggregation {:?}", ism_multisig);
+
     // deploy ism - aggregation
     println!("Deploying aggregation ism");
     let ism_aggregate = cli.deploy(

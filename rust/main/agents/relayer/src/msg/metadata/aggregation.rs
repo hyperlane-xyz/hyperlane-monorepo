@@ -99,6 +99,8 @@ impl AggregationIsmMetadataBuilder {
                 .map(|module| module.ism.dry_run_verify(message, &(module.meta.metadata))),
         )
         .await;
+
+        println!("HIGGINS gas_cost_results {:?}", gas_cost_results);
         // Filter out the ISMs with a gas cost estimate
         let metas_and_gas: Vec<_> = sub_modules
             .into_iter()

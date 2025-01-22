@@ -197,7 +197,8 @@ pub fn to_mailbox_bytes(bytes: &[u8]) -> MailboxBytes {
     }
 }
 
-fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
+#[allow(warnings)]
+pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
     // Calculate the required padding
     let padding = (16 - (bytes.len() % 16)) % 16;
     let total_len = bytes.len() + padding;

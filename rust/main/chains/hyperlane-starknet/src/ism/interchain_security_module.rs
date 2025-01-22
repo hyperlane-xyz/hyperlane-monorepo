@@ -7,7 +7,8 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use cainome::cairo_serde::U256 as StarknetU256;
 use hyperlane_core::{
-    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
 };
 
 use starknet::accounts::SingleOwnerAccount;
@@ -16,11 +17,6 @@ use starknet::providers::AnyProvider;
 use starknet::signers::LocalWallet;
 use tracing::instrument;
 
-const ORIGIN_MAILBOX_OFFSET: usize = 0;
-const MERKLE_ROOT_OFFSET: usize = 32;
-const MERKLE_INDEX_OFFSET: usize = 64;
-const SIGNATURES_OFFSET: usize = 68;
-
 use crate::contracts::interchain_security_module::{
     Bytes as StarknetBytes, InterchainSecurityModule as StarknetInterchainSecurityModuleInternal,
     Message as StarknetMessage,
@@ -28,9 +24,9 @@ use crate::contracts::interchain_security_module::{
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{
-    build_single_owner_account, to_hpl_module_type, ConnectionConf, Signer, StarknetMultisigIsm, StarknetProvider
+    build_single_owner_account, to_hpl_module_type, to_packed_bytes, ConnectionConf, Signer,
+    StarknetProvider,
 };
-use hyperlane_core::MultisigIsm;
 
 impl<A> std::fmt::Display for StarknetInterchainSecurityModuleInternal<A>
 where
@@ -145,67 +141,37 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
     ) -> ChainResult<Option<U256>> {
         let message_starknet = &message.into();
 
-        let _tx = self.contract.verify(
+        let tx = self.contract.verify(
             &StarknetBytes {
                 size: metadata.len() as u32,
-                data: metadata.iter().map(|b| *b as u128).collect(),
+                data: to_packed_bytes(metadata),
             },
             message_starknet,
         );
 
-        let origin_mailbox = H256::from_slice(&metadata[ORIGIN_MAILBOX_OFFSET..MERKLE_ROOT_OFFSET]);
-        let merkle_root = H256::from_slice(&metadata[MERKLE_ROOT_OFFSET..MERKLE_INDEX_OFFSET]);
-        // This cannot panic since SIGNATURES_OFFSET - MERKLE_INDEX_OFFSET is 4.
-        let merkle_index_bytes: [u8; 4] = metadata[MERKLE_INDEX_OFFSET..SIGNATURES_OFFSET]
-            .try_into()
-            .map_err(|_| HyperlaneStarknetError::Other("Invalid metadata".into()))?;
-        let merkle_index = u32::from_be_bytes(merkle_index_bytes);
-
-        println!("JAMARR deserialized {:?}, {:?}, {:?}", origin_mailbox, merkle_root, merkle_index);
+        println!("JAMARR metadata {:?}", metadata);
         println!("JAMARR message {:?}", message);
+        println!("JAMARR tx {:?}", tx);
 
         println!(
-            "StarknetISM dry_run_verify address {:?} with metadata size {:?}",
+            "StarknetISM dry_run_verify address {:?} with self.address {:?}",
             self.contract.address,
-            metadata.len()
+            self.address()
         );
 
-        let multisig_ism = StarknetMultisigIsm::new(
-            &self.conn,
-            &ContractLocator::new(&self.domain().clone(), self.address()),
-            self.signer.clone(),
-        )?;
+        let response = tx
+            .call()
+            .await
+            .map_err(Into::<HyperlaneStarknetError>::into)?;
 
-        let (validators, threshold) = multisig_ism.validators_and_threshold(message).await?;
-        println!("JAMARR Validators: {:?}, Threshold: {}", validators, threshold);
-
-        let signature = if metadata.len() > 68 {
-            &metadata[68..]
-        } else {
-            &[]
-        };
-        println!(
-            "JAMARR Signature length: {}, Signature: {:?}",
-            signature.len(),
-            signature
-        );
-
-
-        // println!("StarknetISM dry_run_verify response {:?}", response);
-
-        // let response = tx
-        //     .call()
-        //     .await
-        //     .map_err(Into::<HyperlaneStarknetError>::into)?;
-
-        // println!("StarknetISM dry_run_verify response {:?}", response);
+        println!("StarknetISM dry_run_verify response {:?}", response);
 
         // We can't simulate the `verify` call in Starknet because
         // it's not marked as an entrypoint. So we just use the query interface
         // and hardcode a gas value - this can be inefficient if one ISM is
         // vastly cheaper than another one.
         let dummy_gas_value = U256::one();
-        Ok(Some(dummy_gas_value))
+        Ok(response.then_some(dummy_gas_value))
     }
 }
 

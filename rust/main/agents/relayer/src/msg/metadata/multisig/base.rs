@@ -16,11 +16,6 @@ use crate::msg::metadata::base::MessageMetadataBuilder;
 
 use crate::msg::metadata::MetadataBuilder;
 
-const ORIGIN_MAILBOX_OFFSET: usize = 0;
-const MERKLE_ROOT_OFFSET: usize = 32;
-const MERKLE_INDEX_OFFSET: usize = 64;
-const SIGNATURES_OFFSET: usize = 68;
-
 #[derive(new, AsRef, Deref)]
 pub struct MultisigMetadata {
     #[deref]
@@ -115,9 +110,10 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .await
             .context(CTX)?;
 
-        println!("SAQUON validators and threshold {:?}, {:?}", validators, threshold);
-
-        
+        println!(
+            "SAQUON validators and threshold {:?}, {:?}",
+            validators, threshold
+        );
 
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");
@@ -136,18 +132,13 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .context(CTX)?
         {
             let formatted_metadata = self.format_metadata(metadata)?;
-
-            let origin_mailbox = H256::from_slice(&formatted_metadata[ORIGIN_MAILBOX_OFFSET..MERKLE_ROOT_OFFSET]);
-            let merkle_root = H256::from_slice(&formatted_metadata[MERKLE_ROOT_OFFSET..MERKLE_INDEX_OFFSET]);
-            // This cannot panic since SIGNATURES_OFFSET - MERKLE_INDEX_OFFSET is 4.
-            let merkle_index_bytes: [u8; 4] = formatted_metadata[MERKLE_INDEX_OFFSET..SIGNATURES_OFFSET]
-                .try_into().unwrap();
-            let merkle_index = u32::from_be_bytes(merkle_index_bytes);
-
-            println!("BURROW deserialized {:?}, {:?}, {:?}", origin_mailbox, merkle_root, merkle_index);
             println!("BURROW message {:?}", message);
 
-            println!("SAQUON formatted_metadata: {:?} and length {:?}", formatted_metadata, formatted_metadata.len());
+            println!(
+                "SAQUON formatted_metadata: {:?} and length {:?}",
+                formatted_metadata,
+                formatted_metadata.len()
+            );
             // debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
             Ok(Some(formatted_metadata))
         } else {

@@ -68,6 +68,7 @@ impl StarknetCLI {
             .arg("keystore", self.keystore_path.clone())
             .arg("keystore-password", self.keystore_password.clone())
             .arg("account", self.account_path.clone())
+            .arg("salt", "1".to_string())
             .arg("rpc", self.rpc_addr.clone())
             .run_with_output()
             .join();
