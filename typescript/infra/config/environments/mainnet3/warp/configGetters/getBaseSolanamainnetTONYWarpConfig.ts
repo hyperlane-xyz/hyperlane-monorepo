@@ -15,9 +15,9 @@ import { DEPLOYER } from '../../owners.js';
 import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 
 // Cod3x SAFE
-const baseOwner = DEPLOYER; // '0xfEfcb2fb19b9A70B30646Fdc1A0860Eb12F7ff8b';
+const baseOwner = '0xfEfcb2fb19b9A70B30646Fdc1A0860Eb12F7ff8b';
 // Cod3x Squads vault
-const solanamainnetOwner = DEPLOYER; // '7dRAVvdmV3dy4JieuRAirBQ9oSpYaHgmYwupoK5YZcFR';
+const solanamainnetOwner = '7dRAVvdmV3dy4JieuRAirBQ9oSpYaHgmYwupoK5YZcFR';
 
 export async function getBaseSolanamainnetTONYWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
