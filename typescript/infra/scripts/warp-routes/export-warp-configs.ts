@@ -1,10 +1,7 @@
-import { getArgs, withOutputFile } from '../../../../../scripts/agent-utils.js';
-import {
-  getEnvironmentConfig,
-  getHyperlaneCore,
-} from '../../../../../scripts/core-utils.js';
-import { getRegistry } from '../../../../registry.js';
-import { getWarpConfig, warpConfigGetterMap } from '../../../../warp.js';
+import { getRegistry } from '../../config/registry.js';
+import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
+import { getArgs, withOutputFile } from '../agent-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
   const { environment } = await withOutputFile(getArgs()).argv;
