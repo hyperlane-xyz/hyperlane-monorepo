@@ -942,6 +942,15 @@
       "0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb"
     ]
   },
+  "trumpchain": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e",
+      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+      "0xcF8151b8aEFfF4e22F6B48fe2Ffe2d60F00C890C"
+    ]
+  },
   "unichain": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
