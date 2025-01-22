@@ -1,3 +1,4 @@
+import { clsx } from 'clsx';
 import React, { AnchorHTMLAttributes } from 'react';
 import { PlacesType, Tooltip as ReactTooltip } from 'react-tooltip';
 
@@ -15,10 +16,10 @@ type Props = AnchorHTMLAttributes<HTMLAnchorElement> & {
 export function Tooltip({
   id,
   content,
-  size = 16,
   className,
   placement = 'top-start',
-  tooltipClassName = 'max-w-[calc(100%-10px)] sm:max-w-[526px]',
+  size = 16,
+  tooltipClassName,
   ...rest
 }: Props) {
   return (
@@ -28,7 +29,10 @@ export function Tooltip({
         data-tooltip-place={placement}
         data-tooltip-id={id}
         data-tooltip-html={content}
-        data-tooltip-class-name={tooltipClassName}
+        data-tooltip-class-name={clsx(
+          'htw-max-w-[calc(100%-10px)] sm:htw-max-w-[526px]',
+          tooltipClassName,
+        )}
         {...rest}
       >
         <Circle size={size} className="htw-bg-gray-200 htw-border-gray-300">
