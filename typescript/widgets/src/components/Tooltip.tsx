@@ -9,6 +9,7 @@ type Props = AnchorHTMLAttributes<HTMLAnchorElement> & {
   content: string;
   size?: number;
   placement?: PlacesType;
+  tooltipClassName?: string;
 };
 
 export function Tooltip({
@@ -17,6 +18,7 @@ export function Tooltip({
   size = 16,
   className,
   placement = 'top-start',
+  tooltipClassName = 'max-w-[calc(100%-10px)] sm:max-w-[526px]',
   ...rest
 }: Props) {
   return (
@@ -26,6 +28,7 @@ export function Tooltip({
         data-tooltip-place={placement}
         data-tooltip-id={id}
         data-tooltip-html={content}
+        data-tooltip-class-name={tooltipClassName}
         {...rest}
       >
         <Circle size={size} className="htw-bg-gray-200 htw-border-gray-300">
