@@ -2177,7 +2177,7 @@
       ],
       "blocks": {
         "confirmations": 1,
-        "estimateBlockTime": 2,
+        "estimateBlockTime": 30,
         "reorgPeriod": 1
       },
       "chainId": 23448591,
@@ -2187,7 +2187,7 @@
       },
       "displayName": "Starknet Sepolia",
       "domainId": 23448591,
-      "domainRoutingIsm": "",
+      "domainRoutingIsm": "0x007233b5919be5dbe0ecf856e2a4fda438fd2e949676f0121b4d1549baf67e86",
       "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000",
       "fallbackRoutingHook": "0x0000000000000000000000000000000000000000",
       "index": {
@@ -2196,8 +2196,8 @@
       "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
       "interchainSecurityModule": "0x0000000000000000000000000000000000000000",
       "isTestnet": true,
-      "mailbox": "",
-      "merkleTreeHook": "",
+      "mailbox": "0x072067e14e3bce76fc8b8a35f4ff84b3871c6040eae5beea8a865a6c18968278",
+      "merkleTreeHook": "0x054fa7517f0850db6aab20f0107ecf24a5ef0758e6e2b1d61f57ed4ba65b02fc",
       "name": "starknetsepolia",
       "nativeToken": {
         "decimals": 18,
@@ -2205,9 +2205,9 @@
         "symbol": "ETH"
       },
       "pausableHook": "0x0000000000000000000000000000000000000000",
-      "pausableIsm": "",
+      "pausableIsm": "0x04f91783f34b8770102ccf9f9e6f18927570415c76b496595070bd0022e05533",
       "protocol": "starknet",
-      "protocolFee": "",
+      "protocolFee": "0x0725889dd0806ac00849ec0d912c978ab7c665e06807e7e526b2e1a1dbd73c19",
       "proxyAdmin": "0x0000000000000000000000000000000000000000",
       "rpcUrls": [
         {
@@ -2218,13 +2218,13 @@
         }
       ],
       "staticAggregationHookFactory": "0x0000000000000000000000000000000000000000",
-      "staticAggregationIsm": "",
+      "staticAggregationIsm": "0x017e739de9bb83e570cc3e8359b323f8e60c31b3c53170f990bbbf6f5bcf9e78",
       "staticAggregationIsmFactory": "0x0000000000000000000000000000000000000000",
       "staticMerkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
       "staticMessageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
       "storageGasOracle": "0x0000000000000000000000000000000000000000",
-      "testRecipient": "",
-      "validatorAnnounce": "",
+      "testRecipient": "0x0000000000000000000000000000000000000000",
+      "validatorAnnounce": "0x0417141bbe878af861a0911a929131ed8f1a9c9df187a8459cf72366808e0ad0",
       "staticMerkleRootWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
       "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
       "gasCurrencyCoinGeckoId": "ethereum",
