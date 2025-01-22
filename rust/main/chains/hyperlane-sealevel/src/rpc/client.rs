@@ -10,6 +10,7 @@ use solana_client::{
     },
     rpc_response::{Response, RpcSimulateTransactionResult},
 };
+use solana_program::clock::Slot;
 use solana_sdk::{
     account::Account,
     commitment_config::CommitmentConfig,
@@ -189,14 +190,19 @@ impl SealevelRpcClient {
 
     pub async fn get_slot(&self) -> ChainResult<u32> {
         let slot = self
-            .0
-            .get_slot_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
+            .get_slot_raw()
+            .await?
             .try_into()
             // FIXME solana block height is u64...
             .expect("sealevel block slot exceeds u32::MAX");
         Ok(slot)
+    }
+
+    pub async fn get_slot_raw(&self) -> ChainResult<Slot> {
+        self.0
+            .get_slot_with_commitment(CommitmentConfig::finalized())
+            .await
+            .map_err(ChainCommunicationError::from_other)
     }
 
     pub async fn get_transaction(
@@ -415,9 +421,14 @@ impl SealevelRpcClient {
             }
         }
 
+        let priority_fee_numerator: u64 = std::env::var("SVM_PRIORITY_FEE_NUMERATOR")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
+
         // Bump the priority fee to be conservative
-        let priority_fee = (priority_fee * PRIORITY_FEE_MULTIPLIER_NUMERATOR)
-            / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
+        let priority_fee =
+            (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
 
         Ok(SealevelTxCostEstimate {
             compute_units: simulation_compute_units,

@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cli
 
+## 8.2.0
+
+### Minor Changes
+
+- 9eb19cac7: Add explorer link to warp send and send message commands
+- aad2c2d1e: Fixing the chain resolver checks and handling for argv.chain
+
+### Patch Changes
+
+- 1536ea570: Print displayName instead of chain name in signer validity logs.
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
 ## 8.1.0
 
 ### Minor Changes

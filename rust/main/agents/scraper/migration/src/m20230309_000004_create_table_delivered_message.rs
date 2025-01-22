@@ -65,6 +65,29 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .table(DeliveredMessage::Table)
+                    .name("delivered_message_domain_destination_mailbox_idx")
+                    .col(DeliveredMessage::Domain)
+                    .col(DeliveredMessage::DestinationMailbox)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(DeliveredMessage::Table)
+                    .name("delivered_message_domain_destination_mailbox_sequence_idx")
+                    .col(DeliveredMessage::Domain)
+                    .col(DeliveredMessage::DestinationMailbox)
+                    .col(DeliveredMessage::Sequence)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(DeliveredMessage::Table)
                     .name("delivered_message_tx_idx")
                     .col(DeliveredMessage::DestinationTxId)
                     .to_owned(),

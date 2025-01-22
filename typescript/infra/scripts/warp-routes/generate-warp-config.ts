@@ -4,15 +4,17 @@ import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
 
 import { getWarpConfig } from '../../config/warp.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
-import { getArgs, withWarpRouteIdRequired } from '../agent-utils.js';
+import {
+  getArgs,
+  withOutputFile,
+  withWarpRouteIdRequired,
+} from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
-  const { warpRouteId, environment, outFile } = await withWarpRouteIdRequired(
-    getArgs(),
-  )
-    .string('outFile')
-    .describe('outFile', 'The file to write the config to').argv;
+  const { warpRouteId, environment, outFile } = await withOutputFile(
+    withWarpRouteIdRequired(getArgs()),
+  ).argv;
 
   const { multiProvider } = await getHyperlaneCore(environment);
   const envConfig = getEnvironmentConfig(environment);
