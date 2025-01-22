@@ -29,7 +29,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '5cb265d-20250122-122741',
+        tag: '49992bf-20250122-142014',
       },
       warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,

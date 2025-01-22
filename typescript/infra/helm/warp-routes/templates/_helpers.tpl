@@ -72,7 +72,7 @@ The warp-routes container
     value: json
   - name: REGISTRY_COMMIT
     value: {{ .Values.hyperlane.registryCommit }}
-  command:
+  args:
   - ./node_modules/.bin/tsx
   - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
   - -v

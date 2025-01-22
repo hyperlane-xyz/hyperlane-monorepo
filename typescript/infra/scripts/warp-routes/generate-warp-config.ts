@@ -1,6 +1,7 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { WarpRouteDeployConfigSchema } from '@hyperlane-xyz/sdk';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { getWarpConfig } from '../../config/warp.js';
 import { writeYamlAtPath } from '../../src/utils/utils.js';
@@ -23,17 +24,17 @@ async function main() {
   const parsed = WarpRouteDeployConfigSchema.safeParse(warpConfig);
 
   if (!parsed.success) {
-    console.dir(parsed.error.format(), { depth: null });
+    rootLogger.error(parsed.error.format());
     return;
   }
 
-  console.log('Warp config:');
-  console.log(yamlStringify(parsed.data, null, 2));
+  rootLogger.info('Warp config:');
+  rootLogger.info(yamlStringify(parsed.data, null, 2));
 
   if (outFile) {
-    console.log(`Writing config to ${outFile}`);
+    rootLogger.info(`Writing config to ${outFile}`);
     writeYamlAtPath(outFile, parsed.data);
   }
 }
 
-main().catch((err) => console.error('Error:', err));
+main().catch((err) => rootLogger.error('Error:', err));
