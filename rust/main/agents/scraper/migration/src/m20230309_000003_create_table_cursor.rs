@@ -36,7 +36,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
         manager
             .create_index(
                 Index::create()
@@ -47,7 +46,17 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
+        manager
+            .create_index(
+                Index::create()
+                    .table(Cursor::Table)
+                    .name("cursor_domain_height_idx")
+                    .col(Cursor::Domain)
+                    .col(Cursor::Height)
+                    .index_type(IndexType::BTree)
+                    .to_owned(),
+            )
+            .await?;
         Ok(())
     }
 
