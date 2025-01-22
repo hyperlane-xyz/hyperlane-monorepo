@@ -212,7 +212,6 @@ pub enum KnownHyperlaneDomain {
     Sepolia = 11155111,
     StarknetSepolia = 23448591,
     SuperpositionTestnet = 98985,
-    PragmaDevnet = 6363709,
     Treasuretopaz = 978658,
 }
 
@@ -339,7 +338,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, Abstracttestnet, Treasuretopaz, PragmaDevnet
+                PlumeTestnet, ScrollSepolia, Sepolia, StarknetSepolia, SuperpositionTestnet, Abstracttestnet, Treasuretopaz
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
@@ -369,7 +368,7 @@ impl KnownHyperlaneDomain {
 
             ],
             HyperlaneDomainProtocol::Fuel: [FuelTest1],
-            HyperlaneDomainProtocol::Starknet: [StarknetSepolia, StarknetMainnet, StarknetTest23448593, StarknetTest23448594, PragmaDevnet],
+            HyperlaneDomainProtocol::Starknet: [StarknetSepolia, StarknetMainnet, StarknetTest23448593, StarknetTest23448594],
             HyperlaneDomainProtocol::Sealevel: [EclipseMainnet, SolanaMainnet, SealevelTest1, SealevelTest2],
             HyperlaneDomainProtocol::Cosmos: [
                 Injective, Neutron, Osmosis,
@@ -384,7 +383,7 @@ impl KnownHyperlaneDomain {
         use KnownHyperlaneDomain::*;
 
         many_to_one!(match self {
-            HyperlaneDomainTechnicalStack::Starknet: [StarknetSepolia, StarknetMainnet, StarknetTest23448593, StarknetTest23448594, PragmaDevnet],
+            HyperlaneDomainTechnicalStack::Starknet: [StarknetSepolia, StarknetMainnet, StarknetTest23448593, StarknetTest23448594],
             HyperlaneDomainTechnicalStack::ArbitrumNitro: [
                 Arbitrum, Cheesechain, DegenChain, InEvm, ProofOfPlay, ReAl, Sanko, Xai,
 

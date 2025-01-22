@@ -2164,6 +2164,73 @@
       "index": {
         "from": 86008
       }
+    },
+    "starknetsepolia": {
+      "aggregationHook": "0x0000000000000000000000000000000000000000",
+      "blockExplorers": [
+        {
+          "apiUrl": "https://api-sepolia.basescan.org/api",
+          "family": "other",
+          "name": "Voyager",
+          "url": "https://sepolia.voyager.online"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 2,
+        "reorgPeriod": 1
+      },
+      "chainId": 23448591,
+      "deployer": {
+        "name": "Pragma Labs",
+        "url": "https://www.pragma.build"
+      },
+      "displayName": "Starknet Sepolia",
+      "domainId": 23448591,
+      "domainRoutingIsm": "",
+      "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000",
+      "fallbackRoutingHook": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 469452
+      },
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "interchainSecurityModule": "0x0000000000000000000000000000000000000000",
+      "isTestnet": true,
+      "mailbox": "",
+      "merkleTreeHook": "",
+      "name": "starknetsepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "pausableHook": "0x0000000000000000000000000000000000000000",
+      "pausableIsm": "",
+      "protocol": "starknet",
+      "protocolFee": "",
+      "proxyAdmin": "0x0000000000000000000000000000000000000000",
+      "rpcUrls": [
+        {
+          "http": "https://starknet-sepolia.public.blastapi.io"
+        },
+        {
+          "http": "https://free-rpc.nethermind.io/sepolia-juno"
+        }
+      ],
+      "staticAggregationHookFactory": "0x0000000000000000000000000000000000000000",
+      "staticAggregationIsm": "",
+      "staticAggregationIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMerkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMessageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "storageGasOracle": "0x0000000000000000000000000000000000000000",
+      "testRecipient": "",
+      "validatorAnnounce": "",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "gasCurrencyCoinGeckoId": "ethereum",
+      "interchainAccountIsm": "0x0000000000000000000000000000000000000000",
+      "interchainAccountRouter": "0x0000000000000000000000000000000000000000",
+      "timelockController": "0x0000000000000000000000000000000000000000"
     }
   },
   "defaultRpcConsensusType": "fallback"
