@@ -52,8 +52,7 @@ export function isAddressCosmos(address: Address) {
 
 export function isAddressStarknet(address: Address) {
   try {
-    const parsed = validateAndParseStarknetAddress(address);
-    return !!parsed;
+    return !!validateAndParseStarknetAddress(address);
   } catch {
     return false;
   }
@@ -94,8 +93,7 @@ function routeAddressUtil<T>(
 export function isValidAddressEvm(address: Address) {
   // Need to catch because ethers' isAddress throws in some cases (bad checksum)
   try {
-    const isValid = address && ethersUtils.isAddress(address);
-    return !!isValid;
+    return !!(address && ethersUtils.isAddress(address));
   } catch {
     return false;
   }
