@@ -22,10 +22,10 @@ async function main() {
       warpRouteId,
     );
 
-    const configFileName = `${warpRouteId}.yaml`;
+    const configFileName = `${warpRouteId}-deploy-config.yaml`;
     registry.addWarpRouteConfig(warpConfig, configFileName);
     console.log(
-      `Warp config successfully created at ${registry.getUri()}/${registry.getWarpRoutesConfigPath()}/${configFileName}`,
+      `Warp config successfully created at ${registry.getUri()}/${registry.getWarpRoutesPath()}/${configFileName}`,
     );
   }
 }
