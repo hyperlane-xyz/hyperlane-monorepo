@@ -276,6 +276,7 @@ export async function deployToken(
   privateKey: string,
   chain: string,
   decimals = 18,
+  symbol = 'TOKEN',
 ): Promise<ERC20Test> {
   const { multiProvider } = await getContext({
     registryUri: REGISTRY_PATH,
@@ -288,7 +289,12 @@ export async function deployToken(
 
   const token = await new ERC20Test__factory(
     multiProvider.getSigner(chain),
-  ).deploy('token', 'token', '100000000000000000000', decimals);
+  ).deploy(
+    'token',
+    symbol.toLocaleUpperCase(),
+    '100000000000000000000',
+    decimals,
+  );
   await token.deployed();
 
   return token;
