@@ -68,7 +68,7 @@ export const MUTABLE_ISM_TYPE = [
 ];
 
 // ISM types that require static deployment
-export const STATIC_ISM_TYPE = [
+export const STATIC_ISM_TYPES = [
   IsmType.AGGREGATION,
   IsmType.MERKLE_ROOT_MULTISIG,
   IsmType.MESSAGE_ID_MULTISIG,
