@@ -68,6 +68,7 @@ impl MigrationTrait for Migration {
                     .name("delivered_message_domain_destination_mailbox_idx")
                     .col(DeliveredMessage::Domain)
                     .col(DeliveredMessage::DestinationMailbox)
+                    .index_type(IndexType::BTree)
                     .to_owned(),
             )
             .await?;
@@ -79,6 +80,7 @@ impl MigrationTrait for Migration {
                     .col(DeliveredMessage::Domain)
                     .col(DeliveredMessage::DestinationMailbox)
                     .col(DeliveredMessage::Sequence)
+                    .index_type(IndexType::BTree)
                     .to_owned(),
             )
             .await?;
