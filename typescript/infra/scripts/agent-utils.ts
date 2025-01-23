@@ -177,6 +177,13 @@ export function withChainsRequired<T>(
   return withChains(args, chainOptions).demandOption('chains');
 }
 
+export function withOutputFile<T>(args: Argv<T>) {
+  return args
+    .describe('outFile', 'output file')
+    .string('outFile')
+    .alias('o', 'outFile');
+}
+
 export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
@@ -277,15 +284,6 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .string('rpcUrls')
     .demandOption('rpcUrls')
     .alias('r', 'rpcUrls');
-}
-
-export function withTxHashes<T>(args: Argv<T>) {
-  return args
-    .describe('txHashes', 'transaction hash')
-    .string('txHashes')
-    .array('txHashes')
-    .demandOption('txHashes')
-    .alias('t', 'txHashes');
 }
 
 // Interactively gets a single warp route ID

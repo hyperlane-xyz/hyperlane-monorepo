@@ -104,7 +104,9 @@ export function getWarpCoreConfig(warpRouteId: string): WarpCoreConfig {
   return warpRouteConfig;
 }
 
-export function getWarpAddresses(warpRouteId: string) {
+export function getWarpAddresses(
+  warpRouteId: string,
+): ChainMap<ChainAddresses> {
   const warpCoreConfig = getWarpCoreConfig(warpRouteId);
   return warpConfigToWarpAddresses(warpCoreConfig);
 }

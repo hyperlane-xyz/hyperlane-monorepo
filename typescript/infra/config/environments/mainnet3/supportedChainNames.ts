@@ -107,6 +107,7 @@ export const mainnet3SupportedChainNames = [
   'telos',
   'torus',
   'treasure',
+  'trumpchain',
   'unichain',
   'vana',
   'viction',

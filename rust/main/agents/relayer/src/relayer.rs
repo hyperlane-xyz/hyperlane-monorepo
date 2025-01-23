@@ -553,7 +553,6 @@ impl Relayer {
         let destination_ctxs: HashMap<_, _> = self
             .destination_chains
             .keys()
-            .filter(|&destination| destination != origin)
             .map(|destination| {
                 (
                     destination.id(),

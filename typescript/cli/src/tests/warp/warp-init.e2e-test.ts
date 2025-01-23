@@ -10,8 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../utils/files.js';
-
+import { readYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -28,8 +27,8 @@ import {
   deployOrUseExistingCore,
   deployToken,
   handlePrompts,
-} from './commands/helpers.js';
-import { hyperlaneWarpInit } from './commands/warp.js';
+} from '../commands/helpers.js';
+import { hyperlaneWarpInit } from '../commands/warp.js';
 
 describe('hyperlane warp init e2e tests', async function () {
   this.timeout(2 * DEFAULT_E2E_TEST_TIMEOUT);

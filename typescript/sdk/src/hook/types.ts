@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { StorageGasOracleConfigSchema } from '../gas/oracle/types.js';
+import { ProtocolAgnositicGasOracleConfigSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
   ChainMap,
@@ -130,7 +130,7 @@ export const IgpSchema = OwnableSchema.extend({
   beneficiary: z.string(),
   oracleKey: z.string(),
   overhead: z.record(z.number()),
-  oracleConfig: z.record(StorageGasOracleConfigSchema),
+  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigSchema),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =
