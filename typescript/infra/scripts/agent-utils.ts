@@ -54,6 +54,9 @@ import {
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
+import { BalanceThresholdConfig } from './funding/utils/constants.js';
+import { AlertType } from './funding/utils/grafana.js';
+
 const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
 
 export enum Modules {
@@ -88,6 +91,12 @@ export function getArgs() {
     .coerce('environment', assertEnvironment)
     .demandOption('environment')
     .alias('e', 'environment');
+}
+
+export function withBalanceThresholdConfig<T>(args: Argv<T>) {
+  return args
+    .describe('balanceThresholdConfig', 'balance threshold config')
+    .choices('balanceThresholdConfig', Object.values(BalanceThresholdConfig));
 }
 
 export function withFork<T>(args: Argv<T>) {
@@ -155,6 +164,13 @@ export function withChain<T>(args: Argv<T>) {
     .alias('c', 'chain');
 }
 
+export function withWrite<T>(args: Argv<T>) {
+  return args
+    .describe('write', 'Write output to file')
+    .boolean('write')
+    .default('write', false);
+}
+
 export function withChains<T>(args: Argv<T>, chainOptions?: ChainName[]) {
   return (
     args
@@ -198,6 +214,13 @@ export function withProtocol<T>(args: Argv<T>) {
     .default('protocol', ProtocolType.Ethereum)
     .choices('protocol', Object.values(ProtocolType))
     .demandOption('protocol');
+}
+
+export function withAlertType<T>(args: Argv<T>) {
+  return args
+    .describe('alertType', 'alert type')
+    .choices('alertType', Object.values(AlertType))
+    .demandOption('alertType');
 }
 
 export function withAgentRole<T>(args: Argv<T>) {
