@@ -165,6 +165,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -287,6 +288,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
     vana: true,
     viction: true,
@@ -408,6 +410,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
     vana: true,
     // Has RPC non-compliance that breaks scraping.
@@ -636,6 +639,9 @@ const blacklistedMessageIds = [
   // test tx when route was first deployed, no merkle tree insertion
   // USDC/ethereum-inevm
   '0x998746dc822dc15332b8683fb8a29aec22ed3e2f2fb8245c40f56303c5cb6032',
+
+  // malformed recipient in a warp transfer to `treasure`
+  '0xf20e3dc5172d824b146b91bb33d66532915fab605e44d2d76af7b5898a6390fe',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -652,7 +658,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'abb5a8b-20250113-122226',
+      tag: '09e1d5b-20250121-214732',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -662,7 +668,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '53fafa6-20250110-125541',
+      tag: '0372ff9-20250121-104245',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -672,7 +678,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd365e55-20250114-011047',
+      tag: '359ce5d-20250121-133827',
     },
     resources: scraperResources,
   },
@@ -687,7 +693,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'abb5a8b-20250113-122226',
+      tag: '09e1d5b-20250121-214732',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -700,7 +706,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'a64af8b-20241024-120818',
+      tag: '11a4e95-20250116-145528',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -721,7 +727,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '234704d-20241226-192528',
+      tag: '09e1d5b-20250121-214732',
     },
     blacklist,
     gasPaymentEnforcement,
