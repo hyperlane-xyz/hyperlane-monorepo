@@ -197,7 +197,8 @@ pub fn to_mailbox_bytes(bytes: &[u8]) -> MailboxBytes {
     }
 }
 
-fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
+/// Convert a byte slice to a starknet bytes by padding the bytes to 16 bytes chunks
+pub fn to_packed_bytes(bytes: &[u8]) -> Vec<u128> {
     // Calculate the required padding
     let padding = (16 - (bytes.len() % 16)) % 16;
     let total_len = bytes.len() + padding;
