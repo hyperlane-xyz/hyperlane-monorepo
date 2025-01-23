@@ -640,8 +640,9 @@ const blacklistedMessageIds = [
   // USDC/ethereum-inevm
   '0x998746dc822dc15332b8683fb8a29aec22ed3e2f2fb8245c40f56303c5cb6032',
 
-  // malformed recipient in a warp transfer to `treasure`
+  // malformed recipient in warp transfers
   '0xf20e3dc5172d824b146b91bb33d66532915fab605e44d2d76af7b5898a6390fe',
+  '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
