@@ -225,7 +225,7 @@ export function stringifyObject(
     return json;
   }
   return yamlStringify(JSON.parse(json), null, {
-    indent: space,
+    indent: space ?? 2,
     sortMapEntries: true,
   });
 }
