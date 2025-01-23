@@ -309,6 +309,8 @@ fn run_locally() {
         })
         .collect::<Vec<_>>();
 
+    let domains = nodes.iter().map(|v| v.3).collect::<Vec<_>>();
+
     let deployer = "0xb3ff441a68610b30fd5e2abbf3a1548eb6ba6f3559f2862bf2dc757e5828ca"; // 1st katana account
     let _linker = "validator";
     let validator = &ValidatorConfig {
@@ -335,8 +337,19 @@ fn run_locally() {
             let declarations =
                 utils::declare_all(starknet_cli.clone(), sierra_classes.clone()).join();
 
-            let deployments =
-                utils::deploy_all(starknet_cli, deployer.to_string(), declarations, domain);
+            let remotes = domains
+                .iter()
+                .filter(|v| *v != &domain)
+                .cloned()
+                .collect::<Vec<_>>();
+
+            let deployments = utils::deploy_all(
+                starknet_cli,
+                deployer.to_string(),
+                declarations,
+                domain,
+                remotes,
+            );
 
             (launch_resp, deployments, chain_id, metrics_port, domain)
         })

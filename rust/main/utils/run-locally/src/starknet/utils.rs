@@ -119,18 +119,8 @@ pub(crate) fn deploy_all(
     deployer: String,
     declarations: DeclaredClasses,
     domain: u32,
+    remotes: Vec<u32>,
 ) -> Deployments {
-    // deploy ism - routing ism with empty routes
-    println!("Deploying routing ism");
-    let ism_routing = cli.deploy(declarations.hpl_ism_routing, vec![deployer.clone()]);
-
-    println!("Initializing routing ism");
-    cli.invoke(
-        ism_routing.clone(),
-        "initialize",
-        vec!["0".to_string(), "0".to_string()],
-    );
-
     // deploy ism - multisig ism with no enrolled validators
     println!("Deploying message id multisig ism");
     let ism_multisig = cli.deploy(
@@ -156,7 +146,30 @@ pub(crate) fn deploy_all(
             "2".to_string(),
             ism_multisig.clone(),
             ism_pausable,
-            THRESHOLD.to_string(),
+            "2".to_string(),
+        ],
+    );
+
+    // deploy ism - routing ism
+    println!("Deploying routing ism");
+    let default_ism = cli.deploy(declarations.hpl_ism_routing, vec![deployer.clone()]);
+
+    println!(
+        "Initializing routing ism with for origin domains: {:?}",
+        remotes
+    );
+    cli.invoke(
+        default_ism.clone(),
+        "initialize",
+        vec![
+            remotes.len().to_string(),
+            remotes
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(" "),
+            remotes.len().to_string(),
+            vec![ism_multisig.clone(); remotes.len()].join(" "),
         ],
     );
     // deploy mock hook
@@ -170,7 +183,7 @@ pub(crate) fn deploy_all(
         vec![
             domain.to_string(),
             deployer.clone(),
-            ism_aggregate.clone(),
+            default_ism.clone(),
             mock_hook.clone(),
             mock_hook.clone(),
         ],
@@ -191,7 +204,7 @@ pub(crate) fn deploy_all(
     println!("Deploying mock receiver");
     let mock_receiver = cli.deploy(
         declarations.hpl_test_mock_msg_receiver,
-        vec![ism_multisig.clone()],
+        vec![default_ism.clone()],
     );
 
     let mock_ism = cli.deploy(declarations.hpl_test_mock_ism, vec![]);
@@ -219,7 +232,7 @@ pub(crate) fn deploy_all(
 
     Deployments {
         mailbox,
-        ism_routing,
+        ism_routing: default_ism,
         ism_multisig,
         ism_aggregate,
         hook_merkle,
