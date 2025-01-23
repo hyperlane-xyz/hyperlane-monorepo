@@ -1,20 +1,22 @@
-[
-  {
-    "domain": 13375,
-    "gasOracle": {
-      "type": "remoteGasData",
-      "tokenExchangeRate": "10000000000000000000",
-      "gasPrice": "0",
-      "tokenDecimals": 18
+{
+  "sealeveltest1": {
+    "sealeveltest2": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1000000000000000000",
+        "gasPrice": "1",
+        "tokenDecimals": 9
+      },
+      "overhead": 100000
     }
   },
-  {
-    "domain": 13376,
-    "gasOracle": {
-      "type": "remoteGasData",
-      "tokenExchangeRate": "10000000000000000000",
-      "gasPrice": "0",
-      "tokenDecimals": 18
+  "sealeveltest2": {
+    "sealeveltest1": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1000000000000000000",
+        "gasPrice": "1",
+        "tokenDecimals": 9
+      },
+      "overhead": 100000
     }
   }
-]
+}

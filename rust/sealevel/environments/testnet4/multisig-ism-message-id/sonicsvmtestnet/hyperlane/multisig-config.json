@@ -177,13 +177,6 @@
       "0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"
     ]
   },
-  "sonictestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": [
-      "0x62e6591d00daec3fb658c3d19403828b4e9ddbb3"
-    ]
-  },
   "suavetoliman": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,

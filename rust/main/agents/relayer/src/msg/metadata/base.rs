@@ -367,6 +367,7 @@ impl BaseMetadataBuilder {
 
     pub async fn build_checkpoint_syncer(
         &self,
+        message: &HyperlaneMessage,
         validators: &[H256],
         app_context: Option<String>,
     ) -> Result<MultisigCheckpointSyncer> {
@@ -375,9 +376,18 @@ impl BaseMetadataBuilder {
             .get_announced_storage_locations(validators)
             .await?;
 
+        debug!(
+            hyp_message=?message,
+            ?validators,
+            validators_len = ?validators.len(),
+            ?storage_locations,
+            storage_locations_len = ?storage_locations.len(),
+            "List of validators and their storage locations for message");
+
         // Only use the most recently announced location for now.
         let mut checkpoint_syncers: HashMap<H160, Arc<dyn CheckpointSyncer>> = HashMap::new();
         for (&validator, validator_storage_locations) in validators.iter().zip(storage_locations) {
+            debug!(hyp_message=?message, ?validator, ?validator_storage_locations, "Validator and its storage locations for message");
             for storage_location in validator_storage_locations.iter().rev() {
                 let Ok(config) = CheckpointSyncerConf::from_str(storage_location) else {
                     debug!(

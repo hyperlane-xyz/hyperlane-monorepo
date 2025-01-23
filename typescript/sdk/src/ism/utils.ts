@@ -35,7 +35,7 @@ import {
   ModuleType,
   RoutingIsmConfig,
   RoutingIsmDelta,
-  STATIC_ISM_TYPE,
+  STATIC_ISM_TYPES,
   ismTypeToModuleType,
 } from './types.js';
 
@@ -566,7 +566,7 @@ export function isIsmCompatible({
   ismType: IsmType;
 }): boolean {
   // Skip compatibility check for non-static ISMs as they're always supported
-  if (!STATIC_ISM_TYPE.includes(ismType)) return true;
+  if (!STATIC_ISM_TYPES.includes(ismType)) return true;
 
   return isStaticDeploymentSupported(chainTechnicalStack);
 }

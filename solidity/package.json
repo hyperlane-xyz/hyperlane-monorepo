@@ -1,11 +1,11 @@
 {
   "name": "@hyperlane-xyz/core",
   "description": "Core solidity contracts for Hyperlane",
-  "version": "5.9.1",
+  "version": "5.9.2",
   "dependencies": {
     "@arbitrum/nitro-contracts": "^1.2.1",
     "@eth-optimism/contracts": "^0.6.0",
-    "@hyperlane-xyz/utils": "8.1.0",
+    "@hyperlane-xyz/utils": "8.2.0",
     "@layerzerolabs/lz-evm-oapp-v2": "2.0.2",
     "@openzeppelin/contracts": "^4.9.3",
     "@openzeppelin/contracts-upgradeable": "^4.9.3",
@@ -67,7 +67,9 @@
   ],
   "license": "Apache-2.0",
   "scripts": {
-    "build": "yarn version:update && yarn hardhat-esm compile && yarn hardhat-zk compile && ts-node generate-artifact-exports.mjs && tsc && ./exportBuildArtifact.sh && yarn copy-artifacts",
+    "build": "yarn version:update && yarn hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
+    "build:zk": "yarn hardhat-zk compile && ts-node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh && yarn copy-artifacts",
+    "prepublishOnly": "yarn build && yarn build:zk",
     "lint": "solhint contracts/**/*.sol",
     "clean": "yarn hardhat-esm clean && yarn hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./types ./coverage ./out ./forge-cache ./fixtures",
     "coverage": "yarn fixtures && ./coverage.sh",

@@ -20,10 +20,15 @@ import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } f
 import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumZircuitAmphrETHWarpConfig.js';
 import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
+import { getArtelaBaseSolanaARTWarpConfig } from './environments/mainnet3/warp/configGetters/getArtelaBaseSolanaARTWarpConfig.js';
 import { getArtelaBaseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getArtelaBaseUSDCWarpConfig.js';
 import { getArtelaBaseWETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArtelaBaseWETHWarpConfig.js';
 import { getBaseFormAIXBTWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormAIXBTWarpConfig.js';
 import { getBaseFormGAMEWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseFormGAMEWarpConfig.js';
+import {
+  getTRUMPWarpConfig,
+  getTrumpchainTRUMPWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getBaseSolanaTRUMPWarpConfig.js';
 import { getBaseSolanamainnetTONYWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseSolanamainnetTONYWarpConfig.js';
 import { getBaseZeroNetworkCBBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBaseZeroNetworkCBBTCWarpConfig.js';
 import { getBobaBsquaredSwellUBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getBobaBsquaredSwellUBTCWarpConfig.js';
@@ -77,6 +82,9 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.BaseSolanamainnetTONY]: getBaseSolanamainnetTONYWarpConfig,
+  [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
+    getTRUMPWarpConfig,
+  [WarpRouteIds.SolanamainnetTrumpchainTRUMP]: getTrumpchainTRUMPWarpConfig,
   [WarpRouteIds.BscEthereumLumiaPrismPNDR]:
     getBscEthereumLumiaPrismPNDRWarpConfig,
   [WarpRouteIds.EthereumFlowCbBTC]: getEthereumFlowCbBTCWarpConfig,
@@ -101,6 +109,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet]:
     getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig,
+  [WarpRouteIds.ArtelaBaseSolanaART]: getArtelaBaseSolanaARTWarpConfig,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
   [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
