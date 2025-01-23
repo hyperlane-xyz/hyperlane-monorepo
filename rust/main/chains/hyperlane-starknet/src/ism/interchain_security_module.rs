@@ -145,19 +145,10 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
             message,
         );
 
-        println!(
-            "StarknetISM dry_run_verify address {:?} with metadata {:?} with size {:?}",
-            self.contract.address,
-            metadata.iter().map(|b| *b as u128).collect::<Vec<_>>(),
-            metadata.len()
-        );
-
         let response = tx
             .call()
             .await
             .map_err(Into::<HyperlaneStarknetError>::into)?;
-
-        println!("StarknetISM dry_run_verify response {:?}", response);
 
         // We can't simulate the `verify` call in Starknet because
         // it's not marked as an entrypoint. So we just use the query interface

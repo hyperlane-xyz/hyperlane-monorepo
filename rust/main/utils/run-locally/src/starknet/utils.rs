@@ -172,7 +172,6 @@ pub(crate) fn deploy_all(
             vec![ism_multisig.clone(); remotes.len()].join(" "),
         ],
     );
-
     // deploy mock hook
     println!("Deploying mock hook");
     let mock_hook = cli.deploy(declarations.hpl_test_mock_hook, vec![]);
