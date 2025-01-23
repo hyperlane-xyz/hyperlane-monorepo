@@ -126,7 +126,7 @@ impl OpQueue {
         retry_requests: &[MessageRetryRequest],
     ) -> Vec<MessageRetryQueueResponse> {
         let mut retry_responses: Vec<_> = (0..retry_requests.len())
-            .map(|_| MessageRetryQueueResponse::new(0, 0))
+            .map(|_| MessageRetryQueueResponse::default())
             .collect();
         let mut reprioritized_queue: BinaryHeap<_> = queue
             .drain()

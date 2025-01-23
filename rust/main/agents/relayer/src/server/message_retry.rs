@@ -19,7 +19,7 @@ pub struct MessageRetryRequest {
     pub transmitter: mpsc::Sender<MessageRetryQueueResponse>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, new)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, new)]
 pub struct MessageRetryQueueResponse {
     /// how many pending operations were evaluated
     pub evaluated: usize,
