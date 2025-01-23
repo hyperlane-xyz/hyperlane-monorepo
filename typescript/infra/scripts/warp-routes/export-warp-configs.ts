@@ -3,6 +3,7 @@ import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
 import { getArgs, withOutputFile } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+// Writes the warp configs into the Registry
 async function main() {
   const { environment } = await withOutputFile(getArgs()).argv;
   const { multiProvider } = await getHyperlaneCore(environment);
@@ -19,10 +20,12 @@ async function main() {
       warpRouteId,
     );
 
-    const configFileName = `${warpRouteId}-deploy-config.yaml`;
+    const configFileName = `${warpRouteId}-deploy.yaml`;
     registry.addWarpRouteConfig(warpConfig, configFileName);
+
+    // TODO: Use registry.getWarpRoutesPath() to dynamically generate path by removing "protected"
     console.log(
-      `Warp config successfully created at ${registry.getUri()}/${registry.getWarpRoutesPath()}/${configFileName}`,
+      `Warp config successfully created at ${registry.getUri()}/deployments/warp_routes/${configFileName}`,
     );
   }
 }
