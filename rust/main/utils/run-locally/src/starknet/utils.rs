@@ -169,7 +169,7 @@ pub(crate) fn deploy_all(
                 .collect::<Vec<_>>()
                 .join(" "),
             remotes.len().to_string(),
-            vec![default_ism.clone(); remotes.len()].join(" "),
+            vec![ism_multisig.clone(); remotes.len()].join(" "),
         ],
     );
 
@@ -184,7 +184,7 @@ pub(crate) fn deploy_all(
         vec![
             domain.to_string(),
             deployer.clone(),
-            ism_aggregate.clone(),
+            default_ism.clone(),
             mock_hook.clone(),
             mock_hook.clone(),
         ],
