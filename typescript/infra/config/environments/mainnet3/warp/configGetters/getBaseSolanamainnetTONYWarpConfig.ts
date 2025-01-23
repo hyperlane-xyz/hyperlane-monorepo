@@ -34,7 +34,7 @@ export async function getBaseSolanamainnetTONYWarpConfig(
     mailbox: routerConfig.solanamainnet.mailbox,
     owner: solanamainnetOwner,
     type: TokenType.synthetic,
-    foreignDeployment: '4AQVPTCAeLswnjksQdutxUDuxEJxUBwoWmVimGuPtGSt',
+    foreignDeployment: 'Fa4zQJCH7id5KL1eFJt2mHyFpUNfCCSkHgtMrLvrRJBN',
     gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
