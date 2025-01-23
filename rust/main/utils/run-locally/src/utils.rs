@@ -123,7 +123,6 @@ pub fn get_matching_lines(file: &File, search_strings: &[&str]) -> HashMap<Strin
     let reader = io::BufReader::new(file);
     let mut matches = HashMap::new();
     let mut lines = reader.lines();
-
     while let Some(Ok(line)) = lines.next() {
         search_strings.iter().for_each(|search_string| {
             if line.contains(search_string) {
