@@ -1,5 +1,16 @@
 # @hyperlane-xyz/sdk
 
+## 8.2.0
+
+### Minor Changes
+
+- 69a684869: Don't try to build signers for non-EVM chains in MultiProtocolSignerManager
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.2.0
+- @hyperlane-xyz/core@5.9.2
+
 ## 8.1.0
 
 ### Minor Changes

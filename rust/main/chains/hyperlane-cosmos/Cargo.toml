@@ -23,6 +23,7 @@ hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-cosmwasm-interface.workspace = true
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
+ibc-proto = { workspace = true }
 injective-protobuf = { workspace = true }
 injective-std = { workspace = true }
 itertools = { workspace = true }
