@@ -1,10 +1,13 @@
 import { z } from 'zod';
 
-import { OwnableConfig } from '../deploy/types.js';
-import { StorageGasOracleConfigSchema } from '../gas/oracle/types.js';
+import { ProtocolAgnositicGasOracleConfigSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
-import { OwnableSchema, PausableSchema } from '../schemas.js';
-import { ChainMap } from '../types.js';
+import {
+  ChainMap,
+  OwnableConfig,
+  OwnableSchema,
+  PausableSchema,
+} from '../types.js';
 
 // As found in IPostDispatchHook.sol
 export enum OnchainHookType {
@@ -112,7 +115,7 @@ export const IgpSchema = OwnableSchema.extend({
   beneficiary: z.string(),
   oracleKey: z.string(),
   overhead: z.record(z.number()),
-  oracleConfig: z.record(StorageGasOracleConfigSchema),
+  oracleConfig: z.record(ProtocolAgnositicGasOracleConfigSchema),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =

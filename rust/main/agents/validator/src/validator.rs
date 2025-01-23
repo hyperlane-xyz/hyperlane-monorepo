@@ -229,11 +229,11 @@ impl Validator {
                     self.origin_chain
                 )
             });
+        let origin = self.origin_chain.name().to_string();
         tokio::spawn(async move {
-            contract_sync
-                .clone()
-                .sync("merkle_tree_hook", cursor.into())
-                .await;
+            let label = "merkle_tree_hook";
+            contract_sync.clone().sync(label, cursor.into()).await;
+            info!(chain = origin, label, "contract sync task exit");
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }

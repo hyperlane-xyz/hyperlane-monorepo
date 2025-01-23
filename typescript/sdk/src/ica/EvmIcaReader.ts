@@ -9,8 +9,10 @@ import { Address, Domain, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import { proxyAdmin } from '../deploy/proxy.js';
 
-import { DerivedIcaRouterConfigSchema } from './schemas.js';
-import { DerivedIcaRouterConfig } from './types.js';
+import {
+  DerivedIcaRouterConfig,
+  DerivedIcaRouterConfigSchema,
+} from './types.js';
 
 export class EvmIcaRouterReader {
   constructor(private readonly provider: providers.Provider) {}

@@ -1,10 +1,10 @@
+import { ethers } from 'ethers';
+
 import {
   ChainMap,
+  HypTokenRouterConfig,
   OwnableConfig,
-  TokenRouterConfig,
   TokenType,
-  buildAggregationIsmConfigs,
-  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
 
 import {
@@ -15,15 +15,8 @@ import {
 export const getEthereumVictionUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
-): Promise<ChainMap<TokenRouterConfig>> => {
-  // commit that the config was copied from https://github.com/hyperlane-xyz/hyperlane-monorepo/pull/3067/commits/7ed5b460034ea5e140c6ff86bcd6baf6ebb824c4#diff-fab5dd1a27c76e4310699c57ccf92ab6274ef0acf17e079b17270cedf4057775R109
-  const ismConfig = buildAggregationIsmConfigs(
-    'ethereum',
-    ['viction'],
-    defaultMultisigConfigs,
-  ).viction;
-
-  const viction: TokenRouterConfig = {
+): Promise<ChainMap<HypTokenRouterConfig>> => {
+  const viction: HypTokenRouterConfig = {
     ...routerConfig.viction,
     ...abacusWorksEnvOwnerConfig.viction,
     type: TokenType.synthetic,
@@ -32,15 +25,16 @@ export const getEthereumVictionUSDCWarpConfig = async (
     decimals: 6,
     totalSupply: 0,
     gas: 75_000,
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
-  const ethereum: TokenRouterConfig = {
+  const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
     ...abacusWorksEnvOwnerConfig.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.USDC,
     gas: 65_000,
-    interchainSecurityModule: ismConfig,
+    interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   return {

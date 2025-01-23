@@ -10,12 +10,6 @@ import {
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
-  MailboxClientConfig,
-  TokenConfig,
-  TokenRouterConfig,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
-import {
   Address,
   bytes32ToAddress,
   eqAddress,
@@ -24,20 +18,25 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
-import { DeployedOwnableConfig } from '../deploy/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import {
   DestinationGas,
+  MailboxClientConfig,
   RemoteRouters,
   RemoteRoutersSchema,
 } from '../router/types.js';
-import { ChainNameOrId } from '../types.js';
+import { ChainNameOrId, DeployedOwnableConfig } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import { proxyAdmin } from './../deploy/proxy.js';
-import { TokenMetadata } from './types.js';
+import { TokenType } from './config.js';
+import {
+  HypTokenConfig,
+  HypTokenRouterConfig,
+  TokenMetadata,
+} from './types.js';
 
 export class EvmERC20WarpRouteReader extends HyperlaneReader {
   protected readonly logger = rootLogger.child({
@@ -65,7 +64,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
    */
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
-  ): Promise<TokenRouterConfig> {
+  ): Promise<HypTokenRouterConfig> {
     // Derive the config type
     const type = await this.deriveTokenType(warpRouteAddress);
     const baseMetadata = await this.fetchMailboxClientConfig(warpRouteAddress);
@@ -81,7 +80,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
       proxyAdmin,
       destinationGas,
       type,
-    } as TokenRouterConfig;
+    } as HypTokenRouterConfig;
   }
 
   /**
@@ -196,7 +195,7 @@ export class EvmERC20WarpRouteReader extends HyperlaneReader {
   async fetchTokenConfig(
     type: TokenType,
     tokenAddress: Address,
-  ): Promise<TokenConfig> {
+  ): Promise<HypTokenConfig> {
     if (
       type === TokenType.collateral ||
       type === TokenType.collateralVault ||

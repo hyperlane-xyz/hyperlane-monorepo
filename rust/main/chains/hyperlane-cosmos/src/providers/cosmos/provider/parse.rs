@@ -1,6 +1,6 @@
-use cosmrs::proto::ibc::core::channel::v1::MsgRecvPacket;
 use cosmrs::proto::prost::Message;
 use cosmrs::Any;
+use ibc_proto::ibc::core::channel::v1::MsgRecvPacket;
 use serde::{Deserialize, Serialize};
 
 use crate::HyperlaneCosmosError;
@@ -40,10 +40,9 @@ impl TryFrom<Any> for PacketData {
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::proto::ibc::core::channel::v1::MsgRecvPacket;
-    use cosmrs::proto::ibc::core::channel::v1::Packet;
     use cosmrs::proto::prost::Message;
     use cosmrs::Any;
+    use ibc_proto::ibc::core::channel::v1::{MsgRecvPacket, Packet};
 
     use crate::providers::cosmos::provider::parse::PacketData;
     use crate::HyperlaneCosmosError;
@@ -153,7 +152,7 @@ mod tests {
 
     fn encode_proto(msg: &MsgRecvPacket) -> Any {
         let mut buf = Vec::with_capacity(msg.encoded_len());
-        MsgRecvPacket::encode(&msg, &mut buf).unwrap();
+        MsgRecvPacket::encode(msg, &mut buf).unwrap();
 
         Any {
             type_url: "".to_string(),

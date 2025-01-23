@@ -89,12 +89,18 @@ async function pollAndUpdateWarpRouteMetrics(
     chainMetadata,
     apiKey: await getCoinGeckoApiKey(),
   });
+  const collateralTokenSymbol = getWarpRouteCollateralTokenSymbol(warpCore);
 
   while (true) {
     await tryFn(async () => {
       await Promise.all(
         warpCore.tokens.map((token) =>
-          updateTokenMetrics(warpCore, token, tokenPriceGetter),
+          updateTokenMetrics(
+            warpCore,
+            token,
+            tokenPriceGetter,
+            collateralTokenSymbol,
+          ),
         ),
       );
     }, 'Updating warp route metrics');
@@ -107,6 +113,7 @@ async function updateTokenMetrics(
   warpCore: WarpCore,
   token: Token,
   tokenPriceGetter: CoinGeckoTokenPriceGetter,
+  collateralTokenSymbol: string,
 ) {
   const promises = [
     tryFn(async () => {
@@ -118,7 +125,12 @@ async function updateTokenMetrics(
       if (!balanceInfo) {
         return;
       }
-      updateTokenBalanceMetrics(warpCore, token, balanceInfo);
+      updateTokenBalanceMetrics(
+        warpCore,
+        token,
+        balanceInfo,
+        collateralTokenSymbol,
+      );
     }, 'Getting bridged balance and value'),
   ];
 
@@ -160,7 +172,7 @@ async function getTokenBridgedBalance(
 
   const adapter = token.getHypAdapter(warpCore.multiProvider);
   const bridgedSupply = await adapter.getBridgedSupply();
-  if (!bridgedSupply) {
+  if (bridgedSupply === undefined) {
     logger.warn('Bridged supply not found for token', token);
     return undefined;
   }
@@ -273,7 +285,7 @@ async function tryGetTokenPrice(
   // We only get a price if the token defines a CoinGecko ID.
   // This way we can ignore values of certain types of collateralized warp routes,
   // e.g. Native warp routes on rollups that have been pre-funded.
-  let coinGeckoId = token.coinGeckoId;
+  const coinGeckoId = token.coinGeckoId;
 
   if (!coinGeckoId) {
     logger.warn('CoinGecko ID missing for token', token.symbol);
@@ -308,6 +320,41 @@ async function getCoinGeckoApiKey(): Promise<string | undefined> {
   }
 
   return apiKey;
+}
+
+function getWarpRouteCollateralTokenSymbol(warpCore: WarpCore): string {
+  // We need to have a deterministic way to determine the symbol of the warp route
+  // as its used to identify the warp route in metrics. This method should support routes where:
+  // - All tokens have the same symbol, token standards can be all collateral, all synthetic or a mix
+  // - All tokens have different symbol, but there is a collateral token to break the tie, where there are multiple collateral tokens, alphabetically first is chosen
+  // - All tokens have different symbol, but there is no collateral token to break the tie, pick the alphabetically first symbol
+
+  // Get all unique symbols from the tokens array
+  const uniqueSymbols = new Set(warpCore.tokens.map((token) => token.symbol));
+
+  // If all tokens have the same symbol, return that symbol
+  if (uniqueSymbols.size === 1) {
+    return warpCore.tokens[0].symbol;
+  }
+
+  // Find all collateralized tokens
+  const collateralTokens = warpCore.tokens.filter(
+    (token) =>
+      token.isCollateralized() ||
+      token.standard === TokenStandard.EvmHypXERC20Lockbox,
+  );
+
+  if (collateralTokens.length === 0) {
+    // If there are no collateralized tokens, return the alphabetically first symbol
+    return [...uniqueSymbols].sort()[0];
+  }
+
+  // if there is a single unique collateral symbol return it or
+  // ifthere are multiple, return the alphabetically first symbol
+  const collateralSymbols = collateralTokens.map((token) => token.symbol);
+  const uniqueCollateralSymbols = [...new Set(collateralSymbols)];
+
+  return uniqueCollateralSymbols.sort()[0];
 }
 
 main().catch((err) => {

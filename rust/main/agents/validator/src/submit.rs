@@ -559,7 +559,7 @@ mod test {
         let unix_timestamp = chrono::Utc::now().timestamp() as u64;
         let expected_reorg_period = 12;
 
-        let pre_reorg_merke_insertions = vec![
+        let pre_reorg_merke_insertions = [
             MerkleTreeInsertion::new(0, H256::random()),
             MerkleTreeInsertion::new(1, H256::random()),
             MerkleTreeInsertion::new(2, H256::random()),
@@ -570,9 +570,9 @@ mod test {
         }
 
         // the last leaf is different post-reorg
-        let post_reorg_merkle_insertions = vec![
-            pre_reorg_merke_insertions[0].clone(),
-            pre_reorg_merke_insertions[1].clone(),
+        let post_reorg_merkle_insertions = [
+            pre_reorg_merke_insertions[0],
+            pre_reorg_merke_insertions[1],
             MerkleTreeInsertion::new(2, H256::random()),
         ];
         let mut mock_onchain_merkle_tree = IncrementalMerkle::default();
@@ -589,9 +589,7 @@ mod test {
         // the db returns the pre-reorg merkle tree insertions
         let mut db = MockDb::new();
         db.expect_retrieve_merkle_tree_insertion_by_leaf_index()
-            .returning(move |sequence| {
-                Ok(Some(pre_reorg_merke_insertions[*sequence as usize].clone()))
-            });
+            .returning(move |sequence| Ok(Some(pre_reorg_merke_insertions[*sequence as usize])));
 
         // boilerplate mocks
         let mut mock_merkle_tree_hook = MockMerkleTreeHook::new();

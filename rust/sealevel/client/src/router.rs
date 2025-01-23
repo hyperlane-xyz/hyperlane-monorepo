@@ -8,7 +8,7 @@ use std::{
 
 use solana_client::rpc_client::RpcClient;
 use solana_program::instruction::Instruction;
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer};
+use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey};
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -17,7 +17,7 @@ use hyperlane_sealevel_igp::accounts::{Igp, InterchainGasPaymasterType, Overhead
 use crate::{
     adjust_gas_price_if_needed,
     artifacts::{write_json, HexAndBase58ProgramIdArtifact},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program_idempotent},
+    cmd_utils::{create_new_directory, deploy_program},
     read_core_program_ids, warp_route, Context, CoreProgramIds,
 };
 
@@ -183,17 +183,12 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
                 })
             })
             .unwrap_or_else(|| {
-                let (keypair, keypair_path) = create_and_write_keypair(
-                    key_dir,
-                    format!("{}-{}.json", program_name, chain_config.name).as_str(),
-                    true,
-                );
-                let program_id = keypair.pubkey();
+                let chain_program_name = format!("{}-{}", program_name, chain_config.name);
 
-                deploy_program_idempotent(
+                let program_id = deploy_program(
                     ctx.payer_keypair_path(),
-                    &keypair,
-                    keypair_path.to_str().unwrap(),
+                    key_dir,
+                    &chain_program_name,
                     built_so_dir
                         .join(format!("{}.so", program_name))
                         .to_str()
@@ -604,6 +599,8 @@ fn enroll_all_remote_routers<
             .collect::<Vec<RemoteRouterConfig>>();
 
         if !router_configs.is_empty() {
+            adjust_gas_price_if_needed(chain_name.as_str(), ctx);
+
             ctx.new_txn()
                 .add_with_description(
                     deployer.enroll_remote_routers_instruction(

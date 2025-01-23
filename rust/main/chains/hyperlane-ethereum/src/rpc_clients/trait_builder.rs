@@ -304,8 +304,8 @@ where
     // (These are the default values from ethers doc comments)
     const COEFFICIENT: f64 = 1.125;
     const EVERY_SECS: u64 = 90u64;
-    // 550 gwei is the limit we also use for polygon, so we reuse for consistency
-    const MAX_GAS_PRICE: u128 = 550 * 10u128.pow(9);
+    // a 3k gwei limit is chosen to account for `treasure` chain, where the highest gas price observed is 1.2k gwei
+    const MAX_GAS_PRICE: u128 = 3_000 * 10u128.pow(9);
     let escalator = GeometricGasPrice::new(COEFFICIENT, EVERY_SECS, MAX_GAS_PRICE.into());
     // Check the status of sent txs every eth block or so. The alternative is to subscribe to new blocks and check then,
     // which adds unnecessary load on the provider.

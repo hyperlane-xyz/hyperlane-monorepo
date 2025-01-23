@@ -35,7 +35,6 @@ import {
   fromAddressCommandOption,
   inputFileCommandOption,
   outputFileCommandOption,
-  skipConfirmationOption,
 } from './options.js';
 
 /**
@@ -117,7 +116,6 @@ export const deploy: CommandModuleWithWriteContext<{
     ),
     'dry-run': dryRunCommandOption,
     'from-address': fromAddressCommandOption,
-    'skip-confirmation': skipConfirmationOption,
   },
   handler: async ({ context, chain, config: configFilePath, dryRun }) => {
     logCommandHeader(`Hyperlane Core deployment${dryRun ? ' dry-run' : ''}`);
@@ -227,7 +225,7 @@ export const check: CommandModuleWithContext<{
     },
     config: inputFileCommandOption({
       defaultPath: DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH,
-      description: 'The path to a a Core Config JSON or YAML file.',
+      description: 'The path to a Core Config JSON or YAML file.',
       demandOption: false,
     }),
   },

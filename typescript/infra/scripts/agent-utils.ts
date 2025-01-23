@@ -177,6 +177,13 @@ export function withChainsRequired<T>(
   return withChains(args, chainOptions).demandOption('chains');
 }
 
+export function withOutputFile<T>(args: Argv<T>) {
+  return args
+    .describe('outFile', 'output file')
+    .string('outFile')
+    .alias('o', 'outFile');
+}
+
 export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
@@ -261,6 +268,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .default('concurrentDeploy', false);
 }
 
+export function withConcurrency<T>(args: Argv<T>) {
+  return args
+    .describe('concurrency', 'Number of concurrent deploys')
+    .number('concurrency')
+    .default('concurrency', 1);
+}
+
 export function withRpcUrls<T>(args: Argv<T>) {
   return args
     .describe(
@@ -270,15 +284,6 @@ export function withRpcUrls<T>(args: Argv<T>) {
     .string('rpcUrls')
     .demandOption('rpcUrls')
     .alias('r', 'rpcUrls');
-}
-
-export function withTxHashes<T>(args: Argv<T>) {
-  return args
-    .describe('txHashes', 'transaction hash')
-    .string('txHashes')
-    .array('txHashes')
-    .demandOption('txHashes')
-    .alias('t', 'txHashes');
 }
 
 // Interactively gets a single warp route ID
@@ -295,9 +300,11 @@ export async function getWarpRouteIdInteractive() {
 
 // Interactively gets multiple warp route IDs
 export async function getWarpRouteIdsInteractive() {
-  const choices = Object.values(WarpRouteIds).map((id) => ({
-    value: id,
-  }));
+  const choices = Object.values(WarpRouteIds)
+    .sort()
+    .map((id) => ({
+      value: id,
+    }));
 
   let selection: WarpRouteIds[] = [];
 
@@ -374,7 +381,7 @@ export async function getAgentConfigsBasedOnArgs(argv?: {
   }
 
   // Sanity check that the validator agent config is valid.
-  ensureValidatorConfigConsistency(agentConfig);
+  ensureValidatorConfigConsistency(agentConfig, context);
 
   return {
     agentConfig,
@@ -402,12 +409,21 @@ export function getAgentConfig(
 }
 
 // Ensures that the validator context chain names are in sync with the validator config.
-export function ensureValidatorConfigConsistency(agentConfig: RootAgentConfig) {
+export function ensureValidatorConfigConsistency(
+  agentConfig: RootAgentConfig,
+  context: Contexts,
+) {
   const validatorContextChainNames = new Set(
     agentConfig.contextChainNames.validator,
   );
   const validatorConfigChains = new Set(
-    Object.keys(agentConfig.validators?.chains || {}),
+    Object.entries(agentConfig.validators?.chains || {})
+      .filter(([_, chainConfig]) =>
+        chainConfig.validators.some((validator) =>
+          validator.name.startsWith(`${context}-`),
+        ),
+      )
+      .map(([chain]) => chain),
   );
   const symDiff = symmetricDifference(
     validatorContextChainNames,

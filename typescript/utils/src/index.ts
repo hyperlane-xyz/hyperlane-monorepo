@@ -26,6 +26,7 @@ export {
   isValidAddressCosmos,
   isValidAddressEvm,
   isValidAddressSealevel,
+  isPrivateKeyEvm,
   isValidTransactionHash,
   isValidTransactionHashCosmos,
   isValidTransactionHashEvm,
@@ -42,6 +43,7 @@ export {
 export {
   addBufferToGasLimit,
   convertDecimals,
+  convertDecimalsToIntegerString,
   eqAmountApproximate,
   fromWei,
   fromWeiRounded,

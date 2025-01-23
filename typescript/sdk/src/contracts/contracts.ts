@@ -14,11 +14,10 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { OwnableConfig } from '../deploy/types.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
-import { ChainMap, Connection } from '../types.js';
+import { ChainMap, Connection, OwnableConfig } from '../types.js';
 
 import {
   HyperlaneAddresses,

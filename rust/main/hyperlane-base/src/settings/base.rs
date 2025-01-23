@@ -1,9 +1,9 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 
 use eyre::{eyre, Context, Result};
-use futures_util::future::try_join_all;
+use futures_util::future::join_all;
 use hyperlane_core::{
-    HyperlaneChain, HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneProvider,
+    HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneLogStore, HyperlaneProvider,
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
     Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
@@ -147,11 +147,11 @@ macro_rules! build_contract_fns {
             &self,
             domains: impl Iterator<Item = &HyperlaneDomain>,
             metrics: &CoreMetrics,
-        ) -> Result<HashMap<HyperlaneDomain, Arc<$ret>>> {
-            try_join_all(domains.map(|d| self.$singular(d, metrics)))
-                .await?
+        ) -> HashMap<HyperlaneDomain, eyre::Result<Arc<$ret>>> {
+            join_all(domains.map(|d| async { (d.clone(), self.$singular(d, metrics).await) }))
+                .await
                 .into_iter()
-                .map(|i| Ok((i.domain().clone(), Arc::from(i))))
+                .map(|(d, future)| (d, future.map(|f| Arc::from(f))))
                 .collect()
         }
     };

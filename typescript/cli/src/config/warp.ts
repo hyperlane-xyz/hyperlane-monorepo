@@ -82,7 +82,7 @@ async function fillDefaults(
       let owner = config.owner;
       if (!owner) {
         owner =
-          (await context.signer?.getAddress()) ??
+          context.signerAddress ??
           (await context.multiProvider.getSignerAddress(chain));
       }
       return {
@@ -122,13 +122,6 @@ export async function createWarpRouteDeployConfig({
 }) {
   logBlue('Creating a new warp route deployment config...');
 
-  const owner = await detectAndConfirmOrPrompt(
-    async () => context.signer?.getAddress(),
-    'Enter the desired',
-    'owner address',
-    'signer',
-  );
-
   const warpChains = await runMultiChainSelectionStep({
     chainMetadata: context.chainMetadata,
     message: 'Select chains to connect',
@@ -142,6 +135,12 @@ export async function createWarpRouteDeployConfig({
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
+    const owner = await detectAndConfirmOrPrompt(
+      async () => context.signerAddress,
+      'Enter the desired',
+      'owner address',
+      'signer',
+    );
 
     // default to the mailbox from the registry and if not found ask to the user to submit one
     const chainAddresses = await context.registry.getChainAddresses(chain);

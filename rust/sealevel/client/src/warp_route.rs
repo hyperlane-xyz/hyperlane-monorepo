@@ -670,7 +670,7 @@ pub fn install_spl_token_cli() {
             "--branch",
             "dan/create-token-for-mint",
             "--rev",
-            "c1278a3f1",
+            "ae4c8ac46",
         ])
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())

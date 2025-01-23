@@ -97,6 +97,9 @@
       "0xe83d36fd00d9ef86243d9f7147b29e98d11df0ee"
     ]
   },
+  "injective": {
+    "validators": ["0xca024623ee6fe281639aee91c4390b0c4e053918"]
+  },
   "kroma": {
     "validators": ["0x9b3142f04dd67585c9287f1aee42ff9754a955d3"]
   },
@@ -136,6 +139,13 @@
       "0x75e3cd4e909089ae6c9f3a42b1468b33eec84161",
       "0xc28418d0858a82a46a11e07db75f8bf4eed43881",
       "0xcaa9c6e6efa35e4a8b47565f3ce98845fa638bf3"
+    ]
+  },
+  "neutron": {
+    "validators": [
+      "0x307a8fe091b8273c7ce3d277b161b4a2167279b1",
+      "0xb825c1bd020cb068f477b320f591b32e26814b5b",
+      "0x0a5b31090d4c3c207b9ea6708f938e328f895fce"
     ]
   },
   "oortmainnet": {
@@ -190,6 +200,9 @@
   "solanamainnet": {
     "validators": ["0x7bd1536cb7505cf2ea1dc6744127d91fbe87a2ad"]
   },
+  "stride": {
+    "validators": ["0x1edadb2330c77769a7e9b48d990289ccdcafa430"]
+  },
   "tangle": {
     "validators": ["0xd778d113975b2fe45eda424bf93c28f32a90b076"]
   },
@@ -211,12 +224,5 @@
   },
   "zetachain": {
     "validators": ["0xa13d146b47242671466e4041f5fe68d22a2ffe09"]
-  },
-  "neutron": {
-    "validators": [
-      "0x307a8fe091b8273c7ce3d277b161b4a2167279b1",
-      "0xb825c1bd020cb068f477b320f591b32e26814b5b",
-      "0x0a5b31090d4c3c207b9ea6708f938e328f895fce"
-    ]
   }
 }

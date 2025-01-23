@@ -1,6 +1,6 @@
 {
   "abstracttestnet": {
-    "amount": "0.060764843",
+    "amount": "0.025",
     "decimals": 9
   },
   "alephzeroevmtestnet": {
@@ -20,15 +20,15 @@
     "decimals": 9
   },
   "basesepolia": {
-    "amount": "0.00236715",
+    "amount": "0.101471716",
     "decimals": 9
   },
   "berabartio": {
-    "amount": "10.832064411",
+    "amount": "0.08051356",
     "decimals": 9
   },
   "bsctestnet": {
-    "amount": "100.0",
+    "amount": "1.0",
     "decimals": 9
   },
   "camptestnet": {
@@ -36,7 +36,7 @@
     "decimals": 9
   },
   "citreatestnet": {
-    "amount": "5.032361163",
+    "amount": "0.0100001",
     "decimals": 9
   },
   "connextsepolia": {
@@ -51,16 +51,24 @@
     "amount": "0.001",
     "decimals": 9
   },
+  "flametestnet": {
+    "amount": "19.0",
+    "decimals": 9
+  },
   "formtestnet": {
     "amount": "0.00100005",
     "decimals": 9
   },
   "fuji": {
-    "amount": "25.000000001",
+    "amount": "1.000000001",
     "decimals": 9
   },
   "holesky": {
-    "amount": "0.760231049",
+    "amount": "1.44587017",
+    "decimals": 9
+  },
+  "hyperliquidevmtestnet": {
+    "amount": "0.000000007",
     "decimals": 9
   },
   "inksepolia": {
@@ -68,39 +76,43 @@
     "decimals": 9
   },
   "odysseytestnet": {
-    "amount": "2.000000252",
+    "amount": "1.000000252",
     "decimals": 9
   },
   "optimismsepolia": {
-    "amount": "0.001000256",
+    "amount": "0.001000264",
     "decimals": 9
   },
   "polygonamoy": {
-    "amount": "56.722205902",
+    "amount": "44.041800014",
     "decimals": 9
   },
   "scrollsepolia": {
-    "amount": "2.398017347",
+    "amount": "0.040157264",
     "decimals": 9
   },
   "sepolia": {
-    "amount": "4.349910601",
+    "amount": "5.462019857",
     "decimals": 9
   },
   "solanatestnet": {
-    "amount": "0.001",
-    "decimals": 9
+    "amount": "0.01",
+    "decimals": 1
   },
   "soneiumtestnet": {
-    "amount": "0.001000259",
+    "amount": "0.001000252",
     "decimals": 9
   },
-  "sonictestnet": {
-    "amount": "1.025001",
+  "sonicblaze": {
+    "amount": "1.1",
     "decimals": 9
+  },
+  "sonicsvmtestnet": {
+    "amount": "0.01",
+    "decimals": 1
   },
   "suavetoliman": {
-    "amount": "2.0736",
+    "amount": "10.0",
     "decimals": 9
   },
   "superpositiontestnet": {
@@ -108,11 +120,11 @@
     "decimals": 9
   },
   "treasuretopaz": {
-    "amount": "0.060735501",
+    "amount": "0.495709489",
     "decimals": 9
   },
   "unichaintestnet": {
-    "amount": "0.001000264",
+    "amount": "0.001000258",
     "decimals": 9
   }
 }
