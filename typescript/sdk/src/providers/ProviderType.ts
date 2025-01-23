@@ -246,7 +246,8 @@ export type TypedTransaction =
   | ViemTransaction
   | SolanaWeb3Transaction
   | CosmJsTransaction
-  | CosmJsWasmTransaction;
+  | CosmJsWasmTransaction
+  | ZKSyncTransaction;
 
 /**
  * Transaction receipt/response with discriminated union of provider type
