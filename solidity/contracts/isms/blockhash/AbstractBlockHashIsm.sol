@@ -10,6 +10,7 @@ import {IAggregationIsm} from "../../interfaces/isms/IAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../../isms/libs/AggregationIsmMetadata.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
 import {IBlockHashOracle} from "./IBlockHashOracle.sol";
+import {Message} from "../../libs/Message.sol";
 
 /**
  * @title AggregationIsm
@@ -17,6 +18,7 @@ import {IBlockHashOracle} from "./IBlockHashOracle.sol";
  * interchain messages.
  */
 abstract contract AbstractBlockHashIsm is IAggregationIsm, PackageVersioned {
+    using Message for bytes;
     // ============ Constants ============
     // Use Blockhash oracle address
     IBlockHashOracle public blockHashOracle = IBlockHashOracle(address(0));
@@ -72,20 +74,32 @@ abstract contract AbstractBlockHashIsm is IAggregationIsm, PackageVersioned {
         }
 
         // Step 2: Decode the message to extract fields
-        (, , uint32 _originDomain, , , , ) = abi.decode(
-            _message,
-            (uint8, uint32, uint32, bytes32, uint32, bytes32, bytes)
-        );
-
+        uint32 originDomain = _message.origin();
         uint32 expectedOriginDomain = blockHashOracle.origin();
 
-        // Step 3: Verify the origin domain matches the expected origin domain and the threshold is zero
+        // Step 3: Extract block information from the message
+        (uint256 blockHash, uint256 blockHeight) = _extractBlockInfo(
+            _message.body()
+        );
+
+        uint256 expectedBlockHash = blockHashOracle.blockHash(blockHeight);
+        // Step 4: Verify the origin domain matches the expected origin domain and the threshold is zero
         require(
-            _threshold == 0 && expectedOriginDomain == _originDomain,
+            _threshold == 0 &&
+                expectedOriginDomain == originDomain &&
+                expectedBlockHash == blockHash,
             "validation_error"
         );
 
         // Step 4: Return true if all checks pass
         return true;
+    }
+
+    function _extractBlockInfo(
+        bytes calldata _messageBody
+    ) internal view returns (uint256 hash, uint256 height) {
+        require(_messageBody.length >= 64, "Invalid message body");
+
+        (hash, height) = abi.decode(_messageBody[:64], (uint256, uint256));
     }
 }
