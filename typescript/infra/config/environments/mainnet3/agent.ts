@@ -640,8 +640,9 @@ const blacklistedMessageIds = [
   // USDC/ethereum-inevm
   '0x998746dc822dc15332b8683fb8a29aec22ed3e2f2fb8245c40f56303c5cb6032',
 
-  // malformed recipient in a warp transfer to `treasure`
+  // malformed recipient in warp transfers
   '0xf20e3dc5172d824b146b91bb33d66532915fab605e44d2d76af7b5898a6390fe',
+  '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -658,7 +659,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '62702d3-20250121-002648',
+      tag: '09e1d5b-20250121-214732',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -678,7 +679,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '95deca3-20250120-103609',
+      tag: '359ce5d-20250121-133827',
     },
     resources: scraperResources,
   },
@@ -693,7 +694,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '7546c01-20250120-171540',
+      tag: '09e1d5b-20250121-214732',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -727,7 +728,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '234704d-20241226-192528',
+      tag: '09e1d5b-20250121-214732',
     },
     blacklist,
     gasPaymentEnforcement,

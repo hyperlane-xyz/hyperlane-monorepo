@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import path from 'path';
 
-import { difference } from '@hyperlane-xyz/utils';
+import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
@@ -20,6 +20,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     readonly warpRouteId: string,
     readonly runEnv: DeployEnvironment,
     readonly environmentChainNames: string[],
+    readonly registryCommit: string,
   ) {
     super();
   }
@@ -28,13 +29,14 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: 'fe71e9b-20250121-110722',
+        tag: '49992bf-20250122-142014',
       },
       warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,
       environment: this.runEnv,
       hyperlane: {
         chains: this.environmentChainNames,
+        registryCommit: this.registryCommit,
       },
     };
   }
@@ -90,7 +92,7 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       new Set(allExpectedHelmReleaseNames),
     );
     for (const helmRelease of unknownHelmReleases) {
-      console.log(
+      rootLogger.warn(
         `Unknown Warp Monitor Helm Release: ${helmRelease} (possibly a release from a stale Warp Route ID).`,
       );
       const uninstall = await confirm({
@@ -98,10 +100,10 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
           "Would you like to uninstall this Helm Release? Make extra sure it shouldn't exist!",
       });
       if (uninstall) {
-        console.log(`Uninstalling Helm Release: ${helmRelease}`);
+        rootLogger.info(`Uninstalling Helm Release: ${helmRelease}`);
         await removeHelmRelease(helmRelease, namespace);
       } else {
-        console.log(`Skipping uninstall of Helm Release: ${helmRelease}`);
+        rootLogger.info(`Skipping uninstall of Helm Release: ${helmRelease}`);
       }
     }
   }
