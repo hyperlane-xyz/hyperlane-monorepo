@@ -406,5 +406,17 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "abstract": {
+    "validators": ["0x2ef8ece5b51562e65970c7d36007baa43a1de685"]
+  },
+  "glue": {
+    "validators": ["0xbe2ded12f7b023916584836506677ea89a0b6924"]
+  },
+  "matchain": {
+    "validators": ["0x8a052f7934b0626105f34f980c875ec03aaf82e8"]
+  },
+  "unitzero": {
+    "validators": ["0x18818e3ad2012728465d394f2e3c0ea2357ae9c5"]
   }
 }
