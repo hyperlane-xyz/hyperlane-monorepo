@@ -37,7 +37,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
-    registryUri: argv.registry,
+    registryUris: argv.registry,
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
@@ -98,14 +98,14 @@ export async function signerMiddleware(argv: Record<string, any>) {
  * @returns context for the current command
  */
 export async function getContext({
-  registryUri,
+  registryUris,
   key,
   requiresKey,
   skipConfirmation,
   disableProxy = false,
   strategyPath,
 }: ContextSettings): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, !disableProxy);
+  const registry = getRegistry(registryUris, !disableProxy);
 
   //Just for backward compatibility
   let signerAddress: string | undefined = undefined;
@@ -135,7 +135,7 @@ export async function getContext({
  */
 export async function getDryRunContext(
   {
-    registryUri,
+    registryUris,
     key,
     fromAddress,
     skipConfirmation,
@@ -143,7 +143,7 @@ export async function getDryRunContext(
   }: ContextSettings,
   chain?: ChainName,
 ): Promise<CommandContext> {
-  const registry = getRegistry(registryUri, !disableProxy);
+  const registry = getRegistry(registryUris, !disableProxy);
   const chainMetadata = await registry.getMetadata();
 
   if (!chain) {

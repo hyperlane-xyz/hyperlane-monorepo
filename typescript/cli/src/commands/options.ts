@@ -27,9 +27,11 @@ export const logLevelCommandOption: Options = {
   choices: Object.values(LogLevel),
 };
 
-export const registryUriCommandOption: Options = {
+export const registryUrisCommandOption: Options = {
   type: 'array',
-  description: 'Registry URI, such as a Github repo URL or a local file path',
+  string: true,
+  description:
+    'List of Github or local path registries, later registry takes priority over previous',
   alias: 'r',
   default: [DEFAULT_GITHUB_REGISTRY, DEFAULT_LOCAL_REGISTRY],
 };

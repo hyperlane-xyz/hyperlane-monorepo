@@ -10,7 +10,7 @@ import type {
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
-  registryUri: string[];
+  registryUris: string[];
   key?: string;
   fromAddress?: string;
   requiresKey?: boolean;
