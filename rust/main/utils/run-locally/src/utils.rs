@@ -122,6 +122,7 @@ pub fn stop_child(child: &mut Child) {
 pub fn get_matching_lines(file: &File, search_strings: &[&str]) -> HashMap<String, u32> {
     let reader = io::BufReader::new(file);
     let mut matches = HashMap::new();
+
     let mut lines = reader.lines();
     while let Some(Ok(line)) = lines.next() {
         search_strings.iter().for_each(|search_string| {
@@ -137,7 +138,6 @@ pub fn get_matching_lines(file: &File, search_strings: &[&str]) -> HashMap<Strin
 pub fn get_matched_lines(file: &File, search_string: &str) -> Vec<String> {
     let reader = io::BufReader::new(file);
     let mut lines = reader.lines();
-
     let mut matched_lines = Vec::new();
     while let Some(Ok(line)) = lines.next() {
         if line.contains(search_string) {
