@@ -202,8 +202,16 @@ export class GovernTransactionReader {
         'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
       ].name
     ) {
-      const [target, value, data, eta, executor, delay] = decoded.args;
-      insight = `Schedule ${target} to be executed at ${eta} with ${value} ${data}. Executor: ${executor}, Delay: ${delay}`;
+      const [target, value, data, _predecessor, _salt, delay] = decoded.args;
+      const inner = await this.read(chain, {
+        to: target,
+        data,
+        value,
+      });
+
+      const eta = new Date(Date.now() + delay.toNumber() * 1000);
+
+      insight = `Schedule for ${eta}: ${JSON.stringify(inner)}`;
     }
 
     if (
