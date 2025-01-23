@@ -94,7 +94,7 @@ pub struct ChainMetrics {
     pub gas_price: Option<GaugeVec>,
 
     /// Boolean marker for critical errors on a chain, signalling loss of liveness.
-    critical_error: IntGaugeVec,
+    pub critical_error: IntGaugeVec,
 }
 
 impl ChainMetrics {

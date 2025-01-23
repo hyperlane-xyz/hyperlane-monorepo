@@ -56,6 +56,15 @@
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
     ]
   },
+  "artela": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x8fcc1ebd4c0b463618db13f83e4565af3e166b00",
+      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+      "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36"
+    ]
+  },
   "arthera": {
     "type": "messageIdMultisigIsm",
     "threshold": 2,
@@ -931,6 +940,15 @@
       "0xe92ff70bb463e2aa93426fd2ba51afc39567d426",
       "0x4f977a59fdc2d9e39f6d780a84d5b4add1495a36",
       "0x5aed2fd5cc5f9749c455646c86b0db6126cafcbb"
+    ]
+  },
+  "trumpchain": {
+    "type": "messageIdMultisigIsm",
+    "threshold": 2,
+    "validators": [
+      "0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e",
+      "0xcf0211fafbb91fd9d06d7e306b30032dc3a1934f",
+      "0xcF8151b8aEFfF4e22F6B48fe2Ffe2d60F00C890C"
     ]
   },
   "unichain": {

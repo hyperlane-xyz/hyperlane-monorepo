@@ -9,8 +9,10 @@ export {
 export { S3Config, S3Receipt, S3Wrapper } from './aws/s3.js';
 export { S3Validator } from './aws/validator.js';
 export {
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-  TOKEN_EXCHANGE_RATE_SCALE,
+  TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM,
+  TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM,
+  getProtocolExchangeRateDecimals,
+  getProtocolExchangeRateScale,
 } from './consts/igp.js';
 export { MAILBOX_VERSION } from './consts/mailbox.js';
 export {
@@ -129,6 +131,8 @@ export { HyperlaneIgpDeployer } from './gas/HyperlaneIgpDeployer.js';
 export {
   StorageGasOracleConfig,
   StorageGasOracleConfigSchema,
+  ProtocolAgnositicGasOracleConfig,
+  ProtocolAgnositicGasOracleConfigSchema,
 } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
@@ -422,7 +426,6 @@ export {
   getCosmosChainGasPrice,
   getGasPrice,
   getLocalStorageGasOracleConfig,
-  getTokenExchangeRateFromValues,
   NativeTokenPriceConfig,
 } from './gas/utils.js';
 export { GcpValidator } from './gcp/validator.js';

@@ -1,0 +1,1 @@
+export const buildArtifact: any = {};
