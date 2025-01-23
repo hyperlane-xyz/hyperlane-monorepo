@@ -8,11 +8,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import testCases from '../../vectors/message.json' assert { type: 'json' };
-import {
-  Mailbox__factory,
-  TestMessage,
-  TestMessage__factory,
-} from '../core-utils/typechain';
+import { Mailbox__factory, TestMessage, TestMessage__factory } from '../types';
 
 import { getSigner, getSigners } from './signer';
 
