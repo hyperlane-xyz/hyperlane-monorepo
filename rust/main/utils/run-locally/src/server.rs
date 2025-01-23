@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, time::Duration};
 
 use reqwest::Url;
 
@@ -33,10 +33,16 @@ async fn call_retry_request() -> io::Result<MessageRetryResponse> {
     let body = vec![serde_json::json!({
         "message_id": "*"
     })];
-    let retry_response = client.post(url).json(&body).send().await.map_err(|err| {
-        println!("Failed to send request: {err}");
-        io::Error::new(io::ErrorKind::InvalidData, err.to_string())
-    })?;
+    let retry_response = client
+        .post(url)
+        .json(&body)
+        .timeout(Duration::from_secs(5))
+        .send()
+        .await
+        .map_err(|err| {
+            println!("Failed to send request: {err}");
+            io::Error::new(io::ErrorKind::InvalidData, err.to_string())
+        })?;
 
     let response_text = retry_response.text().await.map_err(|err| {
         println!("Failed to parse response body: {err}");

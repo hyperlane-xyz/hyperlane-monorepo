@@ -25,10 +25,10 @@ use serde::{
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
 #[derive(Debug, Default, Clone)]
-pub struct MatchingList(Option<Vec<ListElement>>);
+pub struct MatchingList(pub Option<Vec<ListElement>>);
 
 #[derive(Debug, Clone, PartialEq)]
-enum Filter<T> {
+pub enum Filter<T> {
     Wildcard,
     Enumerated(Vec<T>),
 }
@@ -224,17 +224,17 @@ impl<'de> Deserialize<'de> for Filter<H256> {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type")]
-struct ListElement {
+pub struct ListElement {
     #[serde(default, rename = "messageid")]
-    message_id: Filter<H256>,
+    pub message_id: Filter<H256>,
     #[serde(default, rename = "origindomain")]
-    origin_domain: Filter<u32>,
+    pub origin_domain: Filter<u32>,
     #[serde(default, rename = "senderaddress")]
-    sender_address: Filter<H256>,
+    pub sender_address: Filter<H256>,
     #[serde(default, rename = "destinationdomain")]
-    destination_domain: Filter<u32>,
+    pub destination_domain: Filter<u32>,
     #[serde(default, rename = "recipientaddress")]
-    recipient_address: Filter<H256>,
+    pub recipient_address: Filter<H256>,
 }
 
 impl Display for ListElement {
