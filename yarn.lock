@@ -7320,7 +7320,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:6.18.0"
+    "@hyperlane-xyz/registry": "npm:7.1.0"
     "@hyperlane-xyz/sdk": "npm:8.2.0"
     "@hyperlane-xyz/utils": "npm:8.2.0"
     "@inquirer/core": "npm:9.0.10"
@@ -7475,7 +7475,7 @@ __metadata:
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:8.2.0"
-    "@hyperlane-xyz/registry": "npm:6.18.0"
+    "@hyperlane-xyz/registry": "npm:7.1.0"
     "@hyperlane-xyz/sdk": "npm:8.2.0"
     "@hyperlane-xyz/utils": "npm:8.2.0"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7544,6 +7544,16 @@ __metadata:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
   checksum: 10/0090afeffa60cf1891b1c7178d5f91d80db96a85595ba9a4ad7160cdc830737efc54022e11d416da4f4d9f7c032fde6f7aef678ae99e4a1f6142cdc06c50ccbc
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/registry@npm:7.1.0":
+  version: 7.1.0
+  resolution: "@hyperlane-xyz/registry@npm:7.1.0"
+  dependencies:
+    yaml: "npm:2.4.5"
+    zod: "npm:^3.21.2"
+  checksum: 10/94b594ecd5734bc564e1a9ad220f4e5c9f04a98cd768cd4472afbaffe91009ae0680b8c4ffb01c13dbe913030dd730b22d5a73d7bfc88d6405df1e9f842ef939
   languageName: node
   linkType: hard
 
@@ -7642,7 +7652,7 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/registry": "npm:6.18.0"
+    "@hyperlane-xyz/registry": "npm:7.1.0"
     "@hyperlane-xyz/sdk": "npm:8.2.0"
     "@hyperlane-xyz/utils": "npm:8.2.0"
     "@interchain-ui/react": "npm:^1.23.28"
