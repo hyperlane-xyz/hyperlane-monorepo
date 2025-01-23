@@ -140,7 +140,6 @@ export abstract class HyperlaneDeployer<
     configMap: ChainMap<Config>,
   ): Promise<HyperlaneContractsMap<Factories>> {
     const configChains = Object.keys(configMap);
-
     const ethereumConfigChains = configChains.filter(
       (chain) =>
         this.multiProvider.getChainMetadata(chain).protocol ===
@@ -280,7 +279,6 @@ export abstract class HyperlaneDeployer<
     setIsm: (contract: C, ism: Address) => Promise<PopulatedTransaction>,
   ): Promise<void> {
     const configuredIsm = await getIsm(contract);
-
     let matches = false;
     let targetIsm: Address;
     if (typeof config === 'string') {
@@ -309,12 +307,10 @@ export abstract class HyperlaneDeployer<
     if (!matches) {
       await this.runIfOwner(chain, contract, async () => {
         this.logger.debug(`Set ISM on ${chain} with address ${targetIsm}`);
-
         await this.multiProvider.sendTransaction(
           chain,
           setIsm(contract, targetIsm),
         );
-
         if (!eqAddress(targetIsm, await getIsm(contract))) {
           throw new Error(`Set ISM failed on ${chain}`);
         }
@@ -410,6 +406,7 @@ export abstract class HyperlaneDeployer<
         return cachedContract;
       }
     }
+
     this.logger.info(
       `Deploying ${contractName} on ${chain} with constructor args (${constructorArgs.join(
         ', ',
@@ -458,7 +455,6 @@ export abstract class HyperlaneDeployer<
         });
         this.logger.info(`Contract ${contractName} initialized`);
         const receipt = await this.multiProvider.handleTx(chain, initTx);
-
         this.logger.debug(
           `Successfully initialized ${contractName} (${contract.address}) on ${chain}: ${receipt.transactionHash}`,
         );
@@ -668,7 +664,6 @@ export abstract class HyperlaneDeployer<
     const TimelockZkArtifact = await getZKSyncArtifactByContractName(
       'TimelockController',
     );
-
     return this.multiProvider.handleDeploy(
       chain,
       new TimelockController__factory(),
