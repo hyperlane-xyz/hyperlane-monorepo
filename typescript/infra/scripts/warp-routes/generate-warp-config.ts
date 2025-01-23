@@ -25,8 +25,8 @@ async function main() {
 
   if (!parsed.success) {
     rootLogger.error('Error parsing warp config:');
-    rootLogger.dir(warpConfig, { depth: null });
-    rootLogger.dir(parsed.error.format(), { depth: null });
+    console.dir(warpConfig, { depth: null });
+    console.dir(parsed.error.format(), { depth: null });
     return;
   }
 
