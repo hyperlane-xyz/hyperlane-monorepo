@@ -7613,6 +7613,7 @@ __metadata:
     typescript: "npm:5.3.3"
     viem: "npm:^2.21.45"
     yaml: "npm:2.4.5"
+    zksync-ethers: "npm:^5.10.0"
     zod: "npm:^3.21.2"
   peerDependencies:
     "@ethersproject/abi": "*"
