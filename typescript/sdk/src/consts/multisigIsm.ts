@@ -34,6 +34,16 @@ const DEFAULT_BWARE_LABS_VALIDATOR: ValidatorConfig = {
 
 // TODO: consider migrating these to the registry too
 export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
+  abstract: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x2ef8ece5b51562e65970c7d36007baa43a1de685',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   abstracttestnet: {
     threshold: 1,
     validators: [
@@ -849,6 +859,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  glue: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xbe2ded12f7b023916584836506677ea89a0b6924',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   gnosis: {
     threshold: 3,
     validators: [
@@ -1150,6 +1170,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  matchain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x8a052f7934b0626105f34f980c875ec03aaf82e8',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -1971,11 +2001,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   trumpchain: {
-    threshold: 1,
+    threshold: 2,
     validators: [
       {
         address: '0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      {
+        address: '0xcF8151b8aEFfF4e22F6B48fe2Ffe2d60F00C890C',
+        alias: 'Caldera',
       },
     ],
   },
@@ -1997,6 +2032,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0x5e99961cf71918308c3b17ef21b5f515a4f86fe5',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  unitzero: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x18818e3ad2012728465d394f2e3c0ea2357ae9c5',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
