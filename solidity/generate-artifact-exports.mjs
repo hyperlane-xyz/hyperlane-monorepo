@@ -22,18 +22,37 @@ const srcOutputDir = join(__dirname, 'core-utils/zksync/artifacts');
 await fsPromises.mkdir(srcOutputDir, { recursive: true });
 
 /**
+ * @dev Processes a single artifact file
+ */
+async function processArtifactFile(file) {
+  const fileName = `${basename(file, '.json')}`;
+  const outputFile = join(srcOutputDir, `${fileName}.json`);
+
+  // Check if file already exists
+  const fileExists = await fsPromises
+    .access(outputFile)
+    .then(() => true)
+    .catch(() => false);
+
+  if (fileExists) {
+    // File already exists, skipping...
+    // NOTE: Hardhat compiler produces duplicate artifacts when
+    // shared interfaces/libraries are used across different contracts
+    // This is expected behavior and we only need one copy of each artifact
+    return;
+  }
+
+  const fileContent = await fsPromises.readFile(file, { encoding: 'utf-8' });
+  await fsPromises.writeFile(outputFile, fileContent);
+}
+
+/**
  * @dev Reads each artifact file and writes it to srcOutputDir concurrently
  */
 await Promise.all(
   zksyncArtifacts.map(async (file) => {
     try {
-      const fileContent = await fsPromises.readFile(file, {
-        encoding: 'utf-8',
-      });
-      const fileName = `${basename(file, '.json')}`;
-      const outputFile = join(srcOutputDir, `${fileName}.json`);
-
-      await fsPromises.writeFile(outputFile, fileContent);
+      await processArtifactFile(file);
     } catch (error) {
       console.error(`Error processing file ${file}:`, error);
     }

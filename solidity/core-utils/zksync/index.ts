@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'fs';
+import { promises as fsPromises } from 'fs';
 import path, { join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -30,25 +30,30 @@ const currentDirectory = path.dirname(currentFilePath);
  * @param directory The directory to read artifact files from.
  * @return An array of artifact file names that end with '.json'.
  */
-function getArtifactFiles(directory: string): string[] {
-  return readdirSync(directory).filter((file) => file.endsWith('.json'));
+async function getArtifactFiles(directory: string): Promise<string[]> {
+  return fsPromises
+    .readdir(directory)
+    .then((files) => files.filter((file) => file.endsWith('.json')));
 }
 
 /**
  * @dev Exports the list of artifact names without the .json extension.
  * @return An array of artifact names without the .json extension.
  */
-export const zksyncArtifactNames = getArtifactFiles(
-  join(currentDirectory, 'artifacts'),
-).map((file) => file.replace('.json', ''));
+export async function getZKSyncArtifactNames(): Promise<string[]> {
+  return getArtifactFiles(join(currentDirectory, 'artifacts')).then((files) =>
+    files.map((file) => file.replace('.json', '')),
+  );
+}
 
 /**
  * @dev Checks if a ZkSync artifact exists by its name.
  * @param name The name of the artifact to check.
  * @return True if the artifact exists, false otherwise.
  */
-export function artifactExists(name: string): boolean {
-  return zksyncArtifactNames.includes(name);
+export async function artifactExists(name: string): Promise<boolean> {
+  const artifactNames = await getZKSyncArtifactNames();
+  return artifactNames.includes(name);
 }
 
 /**
@@ -56,11 +61,13 @@ export function artifactExists(name: string): boolean {
  * @param name The name of the artifact to load.
  * @return The loaded ZKSyncArtifact or undefined if it cannot be loaded.
  */
-export function loadZKSyncArtifact(name: string): ZKSyncArtifact | undefined {
+export async function loadZKSyncArtifact(
+  name: string,
+): Promise<ZKSyncArtifact | undefined> {
   try {
     const artifactPath = join(currentDirectory, 'artifacts', `${name}.json`);
-    const artifactContent = readFileSync(artifactPath, 'utf-8');
-    return JSON.parse(artifactContent) as ZKSyncArtifact;
+    const artifactContent = await fsPromises.readFile(artifactPath, 'utf-8');
+    return JSON.parse(artifactContent);
   } catch (error) {
     console.error(`Error loading artifact: ${name}`, error);
     return undefined;
@@ -71,11 +78,11 @@ export function loadZKSyncArtifact(name: string): ZKSyncArtifact | undefined {
  * @dev Loads all ZkSync artifacts into a map.
  * @return A map of artifact names to their corresponding ZkSync artifacts.
  */
-export function loadAllZKSyncArtifacts(): ArtifactMap {
+export async function loadAllZKSyncArtifacts(): Promise<ArtifactMap> {
   const zkSyncArtifactMap: ArtifactMap = {};
-
+  const zksyncArtifactNames = await getZKSyncArtifactNames();
   for (const artifactName of zksyncArtifactNames) {
-    const artifact = loadZKSyncArtifact(artifactName);
+    const artifact = await loadZKSyncArtifact(artifactName);
     if (artifact) {
       zkSyncArtifactMap[artifactName] = artifact;
     }
@@ -89,8 +96,8 @@ export function loadAllZKSyncArtifacts(): ArtifactMap {
  * @param name The name of the artifact to retrieve.
  * @return The loaded ZkSyncArtifact or undefined if it cannot be loaded.
  */
-export function getZKSyncArtifactByName(
+export async function getZKSyncArtifactByName(
   name: string,
-): ZKSyncArtifact | undefined {
+): Promise<ZKSyncArtifact | undefined> {
   return loadZKSyncArtifact(name);
 }
