@@ -183,6 +183,9 @@ impl Program {
                 .unwrap(),
         );
         if let Some(wd) = &self.working_dir {
+            if !wd.exists() {
+                panic!("Working directory does not exist: {:?}", wd.as_path());
+            }
             cmd.current_dir(wd.as_path());
         }
         for (k, v) in self.env.iter() {

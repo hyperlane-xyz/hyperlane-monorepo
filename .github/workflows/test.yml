@@ -211,7 +211,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        e2e-type: [cosmwasm, non-cosmwasm]
+        e2e-type: [cosmwasm, evm, sealevel]
     steps:
       - uses: actions/setup-node@v4
         with:
@@ -238,7 +238,7 @@ jobs:
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
-            ${{ matrix.e2e-type == 'non-cosmwasm' && './rust/sealevel' || '' }}
+            ${{ matrix.e2e-type != 'cosmwasm' && './rust/sealevel' || '' }}
 
       - name: Free disk space
         run: |
@@ -268,7 +268,7 @@ jobs:
         uses: ./.github/actions/checkout-registry
 
       - name: agent tests (CosmWasm)
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos test-utils -- cosmos::test --nocapture
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
         if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust/main
         env:
@@ -284,16 +284,25 @@ jobs:
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: agent tests (EVM and Sealevel)
+      - name: agent tests (EVM)
         run: cargo run --release --bin run-locally --features test-utils
-        if: matrix.e2e-type == 'non-cosmwasm'
+        if: matrix.e2e-type == 'evm'
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
-          SEALEVEL_ENABLED: ${{ steps.check-rust-changes.outputs.rust_changes }}
+
+      - name: agent tests (Sealevel)
+        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
+        if: matrix.e2e-type == 'evm' && ${{ steps.check-rust-changes.outputs.rust_changes }}
+        working-directory: ./rust/main
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          E2E_KATHY_MESSAGES: '20'
+          RUST_BACKTRACE: 'full'
 
   env-test:
     runs-on: ubuntu-latest

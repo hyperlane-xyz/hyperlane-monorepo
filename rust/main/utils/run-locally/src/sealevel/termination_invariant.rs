@@ -1,15 +1,17 @@
-use std::fs::File;
+use std::{fs::File, path::Path};
 
-use crate::config::Config;
-use crate::metrics::agent_balance_sum;
-use crate::utils::get_matching_lines;
 use maplit::hashmap;
 use relayer::GAS_EXPENDITURE_LOG_MESSAGE;
 
-use crate::logging::log;
 use crate::{
-    fetch_metric, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
-    ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+    config::Config,
+    fetch_metric,
+    invariants::{SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
+    logging::log,
+    metrics::agent_balance_sum,
+    sealevel::solana::*,
+    utils::get_matching_lines,
+    AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
 
 /// Use the metrics to check if the relayer queues are empty and the expected
@@ -18,12 +20,15 @@ use crate::{
 pub fn termination_invariants_met(
     config: &Config,
     starting_relayer_balance: f64,
+    solana_cli_tools_path: &Path,
+    solana_config_path: &Path,
 ) -> eyre::Result<bool> {
-    let eth_messages_expected = (config.kathy_messages / 2) as u32 * 2;
+    let sol_messages_expected = SOL_MESSAGES_EXPECTED;
+    let sol_messages_with_non_matching_igp = SOL_MESSAGES_WITH_NON_MATCHING_IGP;
 
     // this is total messages expected to be delivered
-    let total_messages_expected = eth_messages_expected;
-    let total_messages_dispatched = total_messages_expected;
+    let total_messages_expected = sol_messages_expected;
+    let total_messages_dispatched = total_messages_expected + sol_messages_with_non_matching_igp;
 
     let lengths = fetch_metric(
         RELAYER_METRICS_PORT,
@@ -31,7 +36,7 @@ pub fn termination_invariants_met(
         &hashmap! {},
     )?;
     assert!(!lengths.is_empty(), "Could not find queue length metric");
-    if lengths.iter().sum::<u32>() != ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+    if lengths.iter().sum::<u32>() != sol_messages_with_non_matching_igp {
         log!(
             "Relayer queues contain more messages than the zero-merkle-insertion ones. Lengths: {:?}",
             lengths
@@ -145,8 +150,13 @@ pub fn termination_invariants_met(
         merkle_tree_max_sequence.iter().filter(|&x| *x > 0).count() as u32;
     assert_eq!(
         merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count,
-        total_messages_expected + (config.kathy_messages as u32 / 4) * 2
+        total_messages_expected + sol_messages_with_non_matching_igp
     );
+
+    if !solana_termination_invariants_met(solana_cli_tools_path, solana_config_path) {
+        log!("Solana termination invariants not met");
+        return Ok(false);
+    }
 
     let dispatched_messages_scraped = fetch_metric(
         SCRAPER_METRICS_PORT,
@@ -155,13 +165,11 @@ pub fn termination_invariants_met(
     )?
     .iter()
     .sum::<u32>();
-    if dispatched_messages_scraped
-        != total_messages_dispatched + ZERO_MERKLE_INSERTION_KATHY_MESSAGES
-    {
+    if dispatched_messages_scraped != total_messages_dispatched {
         log!(
             "Scraper has scraped {} dispatched messages, expected {}",
             dispatched_messages_scraped,
-            total_messages_dispatched + ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+            total_messages_dispatched,
         );
         return Ok(false);
     }
@@ -193,7 +201,7 @@ pub fn termination_invariants_met(
         log!(
             "Scraper has scraped {} delivered messages, expected {}",
             delivered_messages_scraped,
-            total_messages_expected
+            total_messages_expected + sol_messages_with_non_matching_igp
         );
         return Ok(false);
     }
