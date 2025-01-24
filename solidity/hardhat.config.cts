@@ -22,7 +22,7 @@ module.exports = {
     currency: 'USD',
   },
   typechain: {
-    outDir: './core-utils/typechain',
+    outDir: './types',
     target: 'ethers-v5',
     alwaysGenerateOverloads: true,
     node16Modules: true,
