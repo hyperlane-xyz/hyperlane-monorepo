@@ -30,6 +30,8 @@ export const hypERC20contracts = {
   [TokenType.collateralVault]: 'HypERC4626OwnerCollateral',
   [TokenType.collateralVaultRebase]: 'HypERC4626Collateral',
   [TokenType.native]: 'HypNative',
+  // uses same contract as native
+  [TokenType.nativeScaled]: 'HypNative',
 };
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -45,6 +47,7 @@ export const hypERC20factories = {
   [TokenType.XERC20]: new HypXERC20__factory(),
   [TokenType.XERC20Lockbox]: new HypXERC20Lockbox__factory(),
   [TokenType.native]: new HypNative__factory(),
+  [TokenType.nativeScaled]: new HypNative__factory(),
 };
 export type HypERC20Factories = typeof hypERC20factories;
 
