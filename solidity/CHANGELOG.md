@@ -1,5 +1,15 @@
 # @hyperlane-xyz/core
 
+## 5.11.0
+
+### Minor Changes
+
+- 47ae33c6a: Revert zksync changes.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.4.0
+
 ## 5.10.0
 
 ### Minor Changes
