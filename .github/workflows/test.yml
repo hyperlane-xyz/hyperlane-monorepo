@@ -238,7 +238,7 @@ jobs:
           save-if: ${{ !startsWith(github.ref, 'refs/heads/gh-readonly-queue') }}
           workspaces: |
             ./rust/main
-            ${{ matrix.e2e-type != 'cosmwasm' && './rust/sealevel' || '' }}
+            ${{ matrix.e2e-type == 'sealevel' && './rust/sealevel' || '' }}
 
       - name: Free disk space
         run: |
