@@ -277,6 +277,15 @@ jobs:
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: agent tests (Sealevel)
+        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
+        if: matrix.e2e-type == 'sealevel' && ${{ steps.check-rust-changes.outputs.rust_changes }} == 'true'
+        working-directory: ./rust/main
+        env:
+          E2E_CI_MODE: 'true'
+          E2E_CI_TIMEOUT_SEC: '600'
+          RUST_BACKTRACE: 'full'
+
       - name: agent tests (EVM)
         run: cargo run --release --bin run-locally --features test-utils
         if: matrix.e2e-type == 'evm'
@@ -292,15 +301,6 @@ jobs:
         if: matrix.e2e-type == 'cosmwasm'
         working-directory: ./rust/main
         env:
-          RUST_BACKTRACE: 'full'
-
-      - name: agent tests (Sealevel)
-        run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
-        if: matrix.e2e-type == 'sealevel' && ${{ steps.check-rust-changes.outputs.rust_changes }}
-        working-directory: ./rust/main
-        env:
-          E2E_CI_MODE: 'true'
-          E2E_CI_TIMEOUT_SEC: '600'
           RUST_BACKTRACE: 'full'
 
   env-test:
