@@ -187,9 +187,14 @@ describe('hyperlane warp deploy and bridge e2e tests', async function () {
     // Timeout increased only for this test because it runs multiple times with different deployment configs
     this.timeout(warpConfigTestCases.length * DEFAULT_E2E_TEST_TIMEOUT);
 
-    for (const warpConfig of warpConfigTestCases) {
+    for (let i = 0; i < warpConfigTestCases.length; i++) {
+      const warpConfig = warpConfigTestCases[i];
       console.log(
-        `Should deploy and be able to bridge in a ${warpConfig[CHAIN_NAME_2].type} -> ${warpConfig[CHAIN_NAME_3].type} warp route ...`,
+        `[${i + 1} of ${
+          warpConfigTestCases.length
+        }] Should deploy and be able to bridge in a ${
+          warpConfig[CHAIN_NAME_2].type
+        } -> ${warpConfig[CHAIN_NAME_3].type} warp route ...`,
       );
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
