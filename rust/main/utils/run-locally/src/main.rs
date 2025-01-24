@@ -601,7 +601,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     log!("Checking message statuses were retrieved from logs...");
     let matched_logs = get_matching_lines(
         &relayer_logfile,
-        &vec![vec![
+        &[vec![
             RETRIEVED_MESSAGE_LOG.to_string(),
             "CouldNotFetchMetadata".to_string(),
         ]],

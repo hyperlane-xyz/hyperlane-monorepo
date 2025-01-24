@@ -131,7 +131,7 @@ pub fn get_matching_lines(file: &File, search_strings: &[Vec<String>]) -> Vec<u3
                 if search_string_vec
                     .iter()
                     .map(|search_string| line.contains(search_string))
-                    .fold(true, |acc, x| acc && x)
+                    .all(|x| x)
                 {
                     matches[i] += 1;
                 }
