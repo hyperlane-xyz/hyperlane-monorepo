@@ -8,7 +8,12 @@ import assert from 'assert';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 
-import { TokenRouter__factory } from '@hyperlane-xyz/core';
+import {
+  Ownable__factory,
+  ProxyAdmin__factory,
+  TimelockController__factory,
+  TokenRouter__factory,
+} from '@hyperlane-xyz/core';
 import {
   AnnotatedEV5Transaction,
   ChainMap,
@@ -35,6 +40,7 @@ import {
   icaOwnerChain,
   icas,
   safes,
+  timelocks,
 } from '../../config/environments/mainnet3/owners.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { getSafeAndService } from '../utils/safe.js';
@@ -123,6 +129,16 @@ export class GovernTransactionReader {
       return this.readMailboxTransaction(chain, tx);
     }
 
+    // If it's to a Proxy Admin
+    if (this.isProxyAdminTransaction(chain, tx)) {
+      return this.readProxyAdminTransaction(chain, tx);
+    }
+
+    // If it's to a TimelockController
+    if (this.isTimelockControllerTransaction(chain, tx)) {
+      return this.readTimelockControllerTransaction(chain, tx);
+    }
+
     // If it's a Multisend
     if (await this.isMultisendTransaction(chain, tx)) {
       return this.readMultisendTransaction(chain, tx);
@@ -131,6 +147,11 @@ export class GovernTransactionReader {
     // If it's a Warp Module transaction
     if (this.isWarpModuleTransaction(chain, tx)) {
       return this.readWarpModuleTransaction(chain, tx);
+    }
+
+    // If it's an Ownable transaction
+    if (await this.isOwnableTransaction(chain, tx)) {
+      return this.readOwnableTransaction(chain, tx);
     }
 
     const insight = '⚠️ Unknown transaction type';
@@ -148,12 +169,80 @@ export class GovernTransactionReader {
     };
   }
 
+  private isTimelockControllerTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    return (
+      tx.to !== undefined &&
+      timelocks[chain] !== undefined &&
+      eqAddress(tx.to!, timelocks[chain]!)
+    );
+  }
+
+  private async readTimelockControllerTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('No data in TimelockController transaction');
+    }
+
+    const timelockControllerInterface =
+      TimelockController__factory.createInterface();
+    const decoded = timelockControllerInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    let insight;
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
+      ].name
+    ) {
+      const [target, value, data, eta, executor, delay] = decoded.args;
+      insight = `Schedule ${target} to be executed at ${eta} with ${value} ${data}. Executor: ${executor}, Delay: ${delay}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions[
+        'execute(address,uint256,bytes,bytes32,bytes32)'
+      ].name
+    ) {
+      const [target, value, data, executor] = decoded.args;
+      insight = `Execute ${target} with ${value} ${data}. Executor: ${executor}`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      timelockControllerInterface.functions['cancel(bytes32)'].name
+    ) {
+      const [id] = decoded.args;
+      insight = `Cancel scheduled transaction ${id}`;
+    }
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    return {
+      chain,
+      to: `Timelock Controller (${chain} ${tx.to})`,
+      ...(insight ? { insight } : { args }),
+    };
+  }
+
   private isWarpModuleTransaction(
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): boolean {
     return (
       tx.to !== undefined &&
+      this.warpRouteIndex[chain] !== undefined &&
       this.warpRouteIndex[chain][tx.to.toLowerCase()] !== undefined
     );
   }
@@ -174,13 +263,7 @@ export class GovernTransactionReader {
       value: tx.value,
     });
 
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-
-    let insight = '';
-
+    let insight;
     if (
       decoded.functionFragment.name ===
       tokenRouterInterface.functions['setHook(address)'].name
@@ -249,16 +332,22 @@ export class GovernTransactionReader {
       insight = `Unenroll remote routers for ${insights.join(', ')}`;
     }
 
+    let ownableTx = {};
+    if (!insight) {
+      ownableTx = await this.readOwnableTransaction(chain, tx);
+    }
+
     assert(tx.to, 'Warp Module transaction must have a to address');
-    const token = this.warpRouteIndex[chain][tx.to.toLowerCase()];
+    const tokenAddress = tx.to.toLowerCase();
+    const token = this.warpRouteIndex[chain][tokenAddress];
 
     return {
+      ...ownableTx,
       chain,
-      to: `${token.symbol} (${token.name}, ${token.standard})`,
+      to: `${token.symbol} (${token.name}, ${token.standard}, ${tokenAddress})`,
       insight,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
-      args,
     };
   }
 
@@ -378,6 +467,28 @@ export class GovernTransactionReader {
       to: `Mailbox (${chain} ${this.chainAddresses[chain].mailbox})`,
       signature: decoded.signature,
       args: prettyArgs,
+    };
+  }
+
+  private async readProxyAdminTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('⚠️ No data in proxyAdmin transaction');
+    }
+
+    const proxyAdminInterface = ProxyAdmin__factory.createInterface();
+    const decoded = proxyAdminInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    const ownableTx = await this.readOwnableTransaction(chain, tx);
+    return {
+      ...ownableTx,
+      to: `Proxy Admin (${chain} ${this.chainAddresses[chain].proxyAdmin})`,
+      signature: decoded.signature,
     };
   }
 
@@ -586,6 +697,49 @@ export class GovernTransactionReader {
     };
   }
 
+  private async readOwnableTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<GovernTransaction> {
+    if (!tx.data) {
+      throw new Error('⚠️ No data in Ownable transaction');
+    }
+
+    const ownableInterface = Ownable__factory.createInterface();
+    const decoded = ownableInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
+
+    let insight;
+    if (
+      decoded.functionFragment.name ===
+      ownableInterface.functions['renounceOwnership()'].name
+    ) {
+      insight = `Renounce ownership`;
+    }
+
+    if (
+      decoded.functionFragment.name ===
+      ownableInterface.functions['transferOwnership(address)'].name
+    ) {
+      const [newOwner] = decoded.args;
+      insight = `Transfer ownership to ${newOwner}`;
+    }
+
+    const args = formatFunctionFragmentArgs(
+      decoded.args,
+      decoded.functionFragment,
+    );
+
+    return {
+      chain,
+      to: `Ownable (${chain} ${tx.to})`,
+      ...(insight ? { insight } : { args }),
+      signature: decoded.signature,
+    };
+  }
+
   isIcaTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
     return (
       tx.to !== undefined &&
@@ -597,6 +751,16 @@ export class GovernTransactionReader {
     return (
       tx.to !== undefined &&
       eqAddress(tx.to, this.chainAddresses[chain].mailbox)
+    );
+  }
+
+  isProxyAdminTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): boolean {
+    return (
+      tx.to !== undefined &&
+      eqAddress(tx.to, this.chainAddresses[chain].proxyAdmin)
     );
   }
 
@@ -615,6 +779,23 @@ export class GovernTransactionReader {
     }
 
     return eqAddress(multiSendCallOnlyAddress, tx.to);
+  }
+
+  async isOwnableTransaction(
+    chain: ChainName,
+    tx: AnnotatedEV5Transaction,
+  ): Promise<boolean> {
+    if (!tx.to) return false;
+    try {
+      const account = Ownable__factory.connect(
+        tx.to,
+        this.multiProvider.getProvider(chain),
+      );
+      await account.owner();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private multiSendCallOnlyAddressCache: ChainMap<string> = {};

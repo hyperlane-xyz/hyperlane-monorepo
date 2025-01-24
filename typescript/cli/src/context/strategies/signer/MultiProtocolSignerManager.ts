@@ -6,7 +6,7 @@ import {
   ChainSubmissionStrategy,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../../../utils/env.js';
 
@@ -48,6 +48,12 @@ export class MultiProtocolSignerManager {
    */
   protected initializeStrategies(): void {
     for (const chain of this.chains) {
+      if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        this.logger.debug(
+          `Skipping signer strategy initialization for non-EVM chain ${chain}`,
+        );
+        continue;
+      }
       const strategy = MultiProtocolSignerFactory.getSignerStrategy(
         chain,
         this.submissionStrategy,
@@ -62,6 +68,12 @@ export class MultiProtocolSignerManager {
    */
   async getMultiProvider(): Promise<MultiProvider> {
     for (const chain of this.chains) {
+      if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        this.logger.debug(
+          `Skipping signer initialization for non-EVM chain ${chain}`,
+        );
+        continue;
+      }
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer);
     }
@@ -118,12 +130,12 @@ export class MultiProtocolSignerManager {
     let privateKey: string;
 
     if (this.options.key) {
-      this.logger.info(
+      this.logger.debug(
         `Using private key passed via CLI --key flag for chain ${chain}`,
       );
       privateKey = this.options.key;
     } else if (ENV.HYP_KEY) {
-      this.logger.info(`Using private key from .env for chain ${chain}`);
+      this.logger.debug(`Using private key from .env for chain ${chain}`);
       privateKey = ENV.HYP_KEY;
     } else {
       privateKey = await this.extractPrivateKey(chain, signerStrategy);
@@ -145,7 +157,7 @@ export class MultiProtocolSignerManager {
       `No private key found for chain ${chain}`,
     );
 
-    this.logger.info(
+    this.logger.debug(
       `Extracting private key from strategy config/user prompt for chain ${chain}`,
     );
     return strategyConfig.privateKey;

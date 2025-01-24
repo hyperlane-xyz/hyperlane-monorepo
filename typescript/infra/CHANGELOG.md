@@ -1,5 +1,75 @@
 # @hyperlane-xyz/infra
 
+## 8.3.0
+
+### Minor Changes
+
+- fed42c325: updated zero ETH warp route config getter
+- 31c89a3c1: Add support for Artela config
+
+### Patch Changes
+
+- Updated dependencies [7546c0181]
+- Updated dependencies [49856fbb9]
+  - @hyperlane-xyz/sdk@8.3.0
+  - @hyperlane-xyz/helloworld@8.3.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 28becff74: Add Artela/Base USDC and WETH warp route config
+
+### Patch Changes
+
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/helloworld@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
+## 8.1.0
+
+### Minor Changes
+
+- 2d4963c62: Add USDC between Ink and Ethereum
+- fc80df5b4: Add rstETH/ethereum-zircuit warp config
+
+### Patch Changes
+
+- Updated dependencies [79c61c891]
+- Updated dependencies [9518dbc84]
+- Updated dependencies [9ab961a79]
+  - @hyperlane-xyz/sdk@8.1.0
+  - @hyperlane-xyz/helloworld@8.1.0
+  - @hyperlane-xyz/utils@8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+- 0e83758f4: added ubtc route extension config + usdc from appchain to base
+
+### Patch Changes
+
+- Updated dependencies [472b34670]
+- Updated dependencies [79f8197f3]
+- Updated dependencies [fd20bb1e9]
+- Updated dependencies [26fbec8f6]
+- Updated dependencies [71aefa03e]
+- Updated dependencies [9f6b8c514]
+- Updated dependencies [82cebabe4]
+- Updated dependencies [95cc9571e]
+- Updated dependencies [c690ca82f]
+- Updated dependencies [5942e9cff]
+- Updated dependencies [de1190656]
+- Updated dependencies [e9911bb9d]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/helloworld@8.0.0
+  - @hyperlane-xyz/sdk@8.0.0
+  - @hyperlane-xyz/utils@8.0.0
+
 ## 7.3.0
 
 ### Minor Changes

@@ -41,7 +41,7 @@ export async function runPreflightChecksForChains({
   chainsToGasCheck?: ChainName[];
 }) {
   log('Running pre-flight checks for chains...');
-  const { multiProvider } = context;
+  const { multiProvider, skipConfirmation } = context;
 
   if (!chains?.length) throw new Error('Empty chain selection');
   for (const chain of chains) {
@@ -51,7 +51,7 @@ export async function runPreflightChecksForChains({
       throw new Error('Only Ethereum chains are supported for now');
     const signer = multiProvider.getSigner(chain);
     assertSigner(signer);
-    logGreen(`✅ ${chain} signer is valid`);
+    logGreen(`✅ ${metadata.displayName ?? chain} signer is valid`);
   }
   logGreen('✅ Chains are valid');
 
@@ -59,6 +59,7 @@ export async function runPreflightChecksForChains({
     multiProvider,
     chainsToGasCheck ?? chains,
     minGas,
+    skipConfirmation,
   );
 }
 

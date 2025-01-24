@@ -27,7 +27,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 /**
  * @title AbstractMessageIdAuthorizedIsm
- * @notice Uses external verification options to verify interchain messages which need a authorized caller
+ * @notice Uses external verification options to verify interchain messages which need an authorized caller
  */
 abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,
@@ -78,27 +78,12 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     ) external virtual returns (bool) {
         bool verified = isVerified(message);
         if (verified) {
-            releaseValueToRecipient(message);
+            _releaseValueToRecipient(message);
         }
         return verified;
     }
 
     // ============ Public Functions ============
-
-    /**
-     * @notice Release the value to the recipient if the message is verified.
-     * @param message Message to release value for.
-     */
-    function releaseValueToRecipient(bytes calldata message) public {
-        bytes32 messageId = message.id();
-        uint256 _msgValue = verifiedMessages[messageId].clearBit(
-            VERIFIED_MASK_INDEX
-        );
-        if (_msgValue > 0) {
-            verifiedMessages[messageId] -= _msgValue;
-            payable(message.recipientAddress()).sendValue(_msgValue);
-        }
-    }
 
     /**
      * @notice Check if a message is verified through preVerifyMessage first.
@@ -137,6 +122,21 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     }
 
     // ============ Internal Functions ============
+
+    /**
+     * @notice Release the value to the recipient if the message is verified.
+     * @param message Message to release value for.
+     */
+    function _releaseValueToRecipient(bytes calldata message) internal {
+        bytes32 messageId = message.id();
+        uint256 _msgValue = verifiedMessages[messageId].clearBit(
+            VERIFIED_MASK_INDEX
+        );
+        if (_msgValue > 0) {
+            verifiedMessages[messageId] -= _msgValue;
+            payable(message.recipientAddress()).sendValue(_msgValue);
+        }
+    }
 
     /**
      * @notice Check if sender is authorized to message `preVerifyMessage`.

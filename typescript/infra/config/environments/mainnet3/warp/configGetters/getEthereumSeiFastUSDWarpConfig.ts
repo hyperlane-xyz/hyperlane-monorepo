@@ -15,6 +15,7 @@ import {
 
 // Elixir
 const owner = '0x00000000F51340906F767C6999Fe512b1275955C';
+const elixirSafe = '0x738744237b7fd97af670d9ddf54390c24263cea8';
 const ownerConfig = getOwnerConfigForAddress(owner);
 
 export const getEthereumSeiFastUSDWarpConfig = async (
@@ -34,7 +35,10 @@ export const getEthereumSeiFastUSDWarpConfig = async (
 
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...ownerConfig,
+    owner: elixirSafe,
+    ownerOverrides: {
+      proxyAdmin: owner,
+    },
     type: TokenType.collateral,
     token: tokens.ethereum.deUSD,
     interchainSecurityModule: ethers.constants.AddressZero,

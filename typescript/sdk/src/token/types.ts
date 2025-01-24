@@ -118,9 +118,21 @@ export const WarpRouteDeployConfigSchema = z
     const collateralRebaseEntry = Object.entries(warpRouteDeployConfig).find(
       ([_, config]) => isCollateralRebaseTokenConfig(config),
     );
-    if (!collateralRebaseEntry) return warpRouteDeployConfig; // Pass through for other token types
 
-    if (isCollateralRebasePairedCorrectly(warpRouteDeployConfig)) {
+    const syntheticRebaseEntry = Object.entries(warpRouteDeployConfig).find(
+      ([_, config]) => isSyntheticRebaseTokenConfig(config),
+    );
+
+    // Require both collateral rebase and synthetic rebase to be present in the config
+    if (!collateralRebaseEntry && !syntheticRebaseEntry) {
+      //  Pass through for other token types
+      return warpRouteDeployConfig;
+    }
+
+    if (
+      collateralRebaseEntry &&
+      isCollateralRebasePairedCorrectly(warpRouteDeployConfig)
+    ) {
       const collateralChainName = collateralRebaseEntry[0];
       return objMap(warpRouteDeployConfig, (_, config) => {
         if (config.type === TokenType.syntheticRebase)

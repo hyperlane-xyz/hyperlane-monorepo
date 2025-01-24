@@ -248,11 +248,17 @@ impl Indexer<InterchainGasPayment> for SealevelInterchainGasPaymasterIndexer {
         for nonce in range {
             if let Ok(sealevel_payment) = self.get_payment_with_sequence(nonce.into()).await {
                 let igp_account_filter = self.igp.igp_account;
-                if igp_account_filter == sealevel_payment.igp_account_pubkey {
-                    payments.push((sealevel_payment.payment, sealevel_payment.log_meta));
-                } else {
-                    tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, skipping");
+                let mut payment = *sealevel_payment.payment.inner();
+                // If fees is paid to a different IGP account, we zero out the payment to make sure the db entries are contiguous, but at the same time, gasEnforcer will reject the message (if not set to none policy)
+                if igp_account_filter != sealevel_payment.igp_account_pubkey {
+                    tracing::debug!(sealevel_payment=?sealevel_payment, igp_account_filter=?igp_account_filter, "Found interchain gas payment for a different IGP account, neutralizing payment");
+
+                    payment.payment = U256::from(0);
                 }
+                payments.push((
+                    Indexed::new(payment).with_sequence(nonce),
+                    sealevel_payment.log_meta,
+                ));
             }
         }
         Ok(payments)
