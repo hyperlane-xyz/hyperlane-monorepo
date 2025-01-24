@@ -213,7 +213,7 @@ fn run_locally() {
         let solana_bin_path = install_solana_cli_tools(
             SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
             SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
-            solana_path_tempdir.as_path().to_path_buf(),
+            solana_path_tempdir.path().to_path_buf(),
         )
         .join();
         state.data.push(Box::new(solana_path_tempdir));
@@ -264,7 +264,7 @@ fn run_locally() {
         let solana_bin_path = install_solana_cli_tools(
             SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
             SOLANA_NETWORK_CLI_VERSION.to_owned(),
-            solana_tools_dir.as_path().to_path_buf(),
+            solana_tools_dir.path().to_path_buf(),
         )
         .join();
         state.data.push(Box::new(solana_tools_dir));
