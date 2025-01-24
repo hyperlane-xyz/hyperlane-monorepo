@@ -224,7 +224,10 @@ export function stringifyObject(
   if (format === 'json') {
     return json;
   }
-  return yamlStringify(JSON.parse(json), null, space);
+  return yamlStringify(JSON.parse(json), null, {
+    indent: space ?? 2,
+    sortMapEntries: true,
+  });
 }
 
 interface ObjectDiffOutput {
