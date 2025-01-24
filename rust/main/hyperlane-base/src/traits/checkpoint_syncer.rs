@@ -16,7 +16,8 @@ pub trait CheckpointSyncer: Debug + Send + Sync {
     /// Update the latest index of this syncer if necessary
     async fn update_latest_index(&self, index: u32) -> Result<()> {
         let curr = self.latest_index().await?.unwrap_or(0);
-        if index > curr {
+        // always write the 0th index
+        if index > curr || index == 0 {
             self.write_latest_index(index).await?;
         }
         Ok(())

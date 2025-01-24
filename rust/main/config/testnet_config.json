@@ -1513,7 +1513,7 @@
       "protocol": "ethereum",
       "rpcUrls": [
         {
-          "http": "http://127.0.0.1:8545"
+          "http": "http://0.0.0.0:8545"
         }
       ],
       "aggregationHook": "0x7F54A0734c5B443E5B04cc26B54bb8ecE0455785",
@@ -2163,6 +2163,267 @@
       "validatorAnnounce": "0xfE9a467831a28Ec3D54deCCf0A2A41fa77dDD1D7",
       "index": {
         "from": 86008
+      }
+    },
+    "cosmostestnative1": {
+      "bech32Prefix": "kyve",
+      "blockExplorers": [],
+      "blocks": {
+        "confirmations": 2,
+        "estimateBlockTime": 7,
+        "reorgPeriod": 5
+      },
+      "canonicalAsset": "tkyve",
+      "chainId": "kyve-local",
+      "contractAddressBytes": 20,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Cosmos Native 1",
+      "domainId": 75898671,
+      "gasCurrencyCoinGeckoId": "kyve-network",
+      "gasPrice": {
+        "amount": "0.02",
+        "denom": "tkyve"
+      },
+      "grpcUrls": [
+        {
+          "http": "http://127.0.0.1:9090"
+        }
+      ],
+      "interchainGasPaymaster": "0x5b97fe8b2b8b2ef118e6540ce2ee38b68ee9d1250d43ac53febef300300c345c",
+      "mailbox": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "merkleTreeHook": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "name": "cosmostestnative1",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "tkyve",
+        "name": "KYVE",
+        "symbol": "KYVE"
+      },
+      "index": {
+        "from": 2,
+        "chunk": 10
+      },
+      "protocol": "cosmosnative",
+      "apiUrls": [
+        {
+          "http": "http://127.0.0.1:1317"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:26657"
+        }
+      ],
+      "slip44": 118,
+      "validatorAnnounce": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "technicalStack": "other",
+      "signer": {
+        "key": "0x33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51",
+        "prefix": "kyve",
+        "type": "cosmosKey"
+      },
+      "isTestnet": true
+    },
+    "cosmostestnative2": {
+      "bech32Prefix": "kyve",
+      "blockExplorers": [],
+      "blocks": {
+        "confirmations": 2,
+        "estimateBlockTime": 7,
+        "reorgPeriod": 5
+      },
+      "canonicalAsset": "tkyve",
+      "chainId": "kyve-local",
+      "contractAddressBytes": 20,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "Cosmos Native 2",
+      "domainId": 75898670,
+      "gasCurrencyCoinGeckoId": "kyve-network",
+      "gasPrice": {
+        "amount": "0.02",
+        "denom": "tkyve"
+      },
+      "grpcUrls": [
+        {
+          "http": "http://127.0.0.1:9090"
+        }
+      ],
+      "interchainGasPaymaster": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "mailbox": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "merkleTreeHook": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "name": "cosmostestnative2",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "tkyve",
+        "name": "KYVE",
+        "symbol": "KYVE"
+      },
+      "protocol": "cosmosnative",
+      "apiUrls": [
+        {
+          "http": "http://127.0.0.1:1317"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:26657"
+        }
+      ],
+      "index": {
+        "from": 2,
+        "chunk": 10
+      },
+      "slip44": 118,
+      "validatorAnnounce": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "technicalStack": "other",
+      "signer": {
+        "key": "0x33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51",
+        "prefix": "kyve",
+        "type": "cosmosKey"
+      },
+      "isTestnet": true
+    },
+    "kyvealpha": {
+      "bech32Prefix": "kyve",
+      "blockExplorers": [],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 5,
+        "reorgPeriod": 1
+      },
+      "canonicalAsset": "ukyve",
+      "chainId": "kyve-alpha",
+      "contractAddressBytes": 20,
+      "deployer": {
+        "name": "Abacus Works",
+        "url": "https://www.hyperlane.xyz"
+      },
+      "displayName": "KYVEAlpha",
+      "domainId": 75898669,
+      "gasCurrencyCoinGeckoId": "kyve-network",
+      "gasPrice": {
+        "amount": "0.02",
+        "denom": "ukyve"
+      },
+      "grpcUrls": [
+        {
+          "http": "https://grpc.alpha.kyve.network"
+        }
+      ],
+      "interchainGasPaymaster": "0x5b97fe8b2b8b2ef118e6540ce2ee38b68ee9d1250d43ac53febef300300c345c",
+      "mailbox": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "merkleTreeHook": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "name": "kyvealpha",
+      "nativeToken": {
+        "decimals": 6,
+        "denom": "ukyve",
+        "name": "KYVE",
+        "symbol": "KYVE"
+      },
+      "protocol": "cosmosnative",
+      "apiUrls": [
+        {
+          "http": "http://3.75.39.208:1318"
+        }
+      ],
+      "rpcUrls": [
+        {
+          "http": "http://3.75.39.208:26670"
+        }
+      ],
+      "index": {
+        "from": 9525962
+      },
+      "slip44": 118,
+      "validatorAnnounce": "0xe81bf6f262305f49f318d68f33b04866f092ffdb2ecf9c98469b4a8b829f65e4",
+      "technicalStack": "other",
+      "signer": {
+        "key": "0x33913dd43a5d5764f7a23da212a8664fc4f5eedc68db35f3eb4a5c4f046b5b51",
+        "prefix": "kyve",
+        "type": "cosmosKey"
+      },
+      "isTestnet": true
+    },
+    "moonbasealpha": {
+      "blockExplorers": [
+        {
+          "apiUrl": "https://api-moonbase.moonscan.io/api",
+          "family": "etherscan",
+          "name": "MoonScan",
+          "url": "https://moonbase.moonscan.io"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 12,
+        "reorgPeriod": 1
+      },
+      "chainId": 1287,
+      "displayName": "Moonbase Alpha",
+      "displayNameShort": "Moonbase",
+      "domainId": 1287,
+      "isTestnet": true,
+      "index": {
+        "from": 10463874,
+        "chunk": 999
+      },
+      "name": "moonbasealpha",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "DEV",
+        "symbol": "DEV"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "https://rpc.api.moonbase.moonbeam.network"
+        }
+      ],
+      "merkleTreeHook": "0xF43AF3c413ba00f3BD933aa3061FA8db86e5b057",
+      "validatorAnnounce": "0xDbe1f8D6DD161d1309247665E50a742949d419c1",
+      "interchainGasPaymaster": "0x046fBeDf08f313FF1134069F45c0991dd730b25a",
+      "mailbox": "0x046fBeDf08f313FF1134069F45c0991dd730b25a"
+    },
+    "local1": {
+      "chainId": 31337,
+      "displayName": "Local1",
+      "domainId": 31337,
+      "isTestnet": true,
+      "name": "local1",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "http://localhost:8545"
+        }
+      ],
+      "staticMerkleRootMultisigIsmFactory": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "staticMessageIdMultisigIsmFactory": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "staticAggregationIsmFactory": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      "staticAggregationHookFactory": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "domainRoutingIsmFactory": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "proxyAdmin": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+      "mailbox": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+      "interchainAccountRouter": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed",
+      "interchainAccountIsm": "0x9A676e781A523b5d0C0e43731313A708CB607508",
+      "validatorAnnounce": "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
+      "testRecipient": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d",
+      "merkleTreeHook": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 0
       }
     }
   },
