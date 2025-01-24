@@ -78,6 +78,11 @@ async function main() {
             return false;
           }
 
+          // temporarily skip abstract, as the RPC is done temporarily
+          if (validatorChain === 'abstract') {
+            return false;
+          }
+
           // If a chain arg was specified, filter to only that chain
           if (!!chain && chain !== validatorChain) {
             return false;
