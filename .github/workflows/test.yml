@@ -267,13 +267,6 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: agent tests (CosmWasm)
-        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
-        if: matrix.e2e-type == 'cosmwasm'
-        working-directory: ./rust/main
-        env:
-          RUST_BACKTRACE: 'full'
-
       - name: Check for Rust file changes
         id: check-rust-changes
         run: |
@@ -294,14 +287,20 @@ jobs:
           E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
 
+      - name: agent tests (CosmWasm)
+        run: cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+        if: matrix.e2e-type == 'cosmwasm'
+        working-directory: ./rust/main
+        env:
+          RUST_BACKTRACE: 'full'
+
       - name: agent tests (Sealevel)
         run: cargo test --release --package run-locally --bin run-locally --features sealevel -- sealevel::test --nocapture
-        if: matrix.e2e-type == 'evm' && ${{ steps.check-rust-changes.outputs.rust_changes }}
+        if: matrix.e2e-type == 'sealevel' && ${{ steps.check-rust-changes.outputs.rust_changes }}
         working-directory: ./rust/main
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '600'
-          E2E_KATHY_MESSAGES: '20'
           RUST_BACKTRACE: 'full'
 
   env-test:
