@@ -238,6 +238,17 @@ pub mod test {
                 ..self
             }
         }
+
+        pub fn with_origin_domain(self, domain: HyperlaneDomain) -> Self {
+            let domain_id = match domain {
+                HyperlaneDomain::Known(d) => d as u32,
+                HyperlaneDomain::Unknown { domain_id, .. } => domain_id,
+            };
+            Self {
+                origin_domain_id: domain_id,
+                ..self
+            }
+        }
     }
 
     impl TryBatchAs<HyperlaneMessage> for MockPendingOperation {}
@@ -363,25 +374,21 @@ pub mod test {
         )
     }
 
-    #[tokio::test]
-    async fn test_multiple_op_queues_message_id() {
+    fn initialize_queue(broadcaster: &sync::broadcast::Sender<MessageRetryRequest>) -> OpQueue {
         let (metrics, queue_metrics_label) = dummy_metrics_and_label();
-        let broadcaster = sync::broadcast::Sender::new(100);
-        let mut op_queue_1 = OpQueue::new(
+        let op_queue = OpQueue::new(
             metrics.clone(),
             queue_metrics_label.clone(),
             Arc::new(Mutex::new(broadcaster.subscribe())),
         );
-        let mut op_queue_2 = OpQueue::new(
-            metrics,
-            queue_metrics_label,
-            Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
+        op_queue
+    }
 
-        // Add some operations to the queue with increasing `next_attempt_after` values
-        let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
-        let messages_to_send = 5;
-        let mut ops: VecDeque<_> = (1..=messages_to_send)
+    fn generate_test_messages(
+        destination_domain: HyperlaneDomain,
+        messages_to_send: u64,
+    ) -> VecDeque<Box<dyn PendingOperation>> {
+        let ops: VecDeque<_> = (1..=messages_to_send)
             .map(|seconds_to_next_attempt| {
                 Box::new(MockPendingOperation::new(
                     seconds_to_next_attempt,
@@ -389,6 +396,20 @@ pub mod test {
                 )) as QueueOperation
             })
             .collect();
+        ops
+    }
+
+    #[tokio::test]
+    async fn test_multiple_op_queues_message_id() {
+        let broadcaster = sync::broadcast::Sender::new(100);
+
+        let mut op_queue_1 = initialize_queue(&broadcaster);
+        let mut op_queue_2 = initialize_queue(&broadcaster);
+
+        // Add some operations to the queue with increasing `next_attempt_after` values
+        let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
+        let messages_to_send = 5;
+        let mut ops = generate_test_messages(destination_domain, messages_to_send);
         let op_ids: Vec<_> = ops.iter().map(|op| op.id()).collect();
 
         // push to queue 1
@@ -454,13 +475,8 @@ pub mod test {
 
     #[tokio::test]
     async fn test_destination_domain() {
-        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
-        let mut op_queue = OpQueue::new(
-            metrics.clone(),
-            queue_metrics_label.clone(),
-            Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
+        let mut op_queue = initialize_queue(&broadcaster);
 
         // Add some operations to the queue with increasing `next_attempt_after` values
         let destination_domain_1: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
@@ -493,13 +509,6 @@ pub mod test {
             })
             .unwrap();
 
-        op_queue.process_retry_requests().await;
-
-        let retry_response = receiver.recv().await.unwrap();
-
-        assert_eq!(retry_response.evaluated, 5);
-        assert_eq!(retry_response.matched, 3);
-
         // Pop elements from queue
         let mut popped = vec![];
         while let Some(op) = op_queue.pop().await {
@@ -514,31 +523,23 @@ pub mod test {
         // Non-retried messages should be at the end
         assert_eq!(popped[3], op_ids[0]);
         assert_eq!(popped[4], op_ids[1]);
+
+        let retry_response = receiver.recv().await.expect("No retry response received");
+
+        assert_eq!(retry_response.evaluated, 5);
+        assert_eq!(retry_response.matched, 3);
     }
 
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_process_retry_requests_by_id() {
-        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
-        let mut op_queue_1 = OpQueue::new(
-            metrics.clone(),
-            queue_metrics_label.clone(),
-            Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
+        let mut op_queue_1 = initialize_queue(&broadcaster);
 
         // Add some operations to the queue with increasing `next_attempt_after` values
         let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
         let messages_to_send = 5;
-        let ops: VecDeque<_> = (1..=messages_to_send)
-            .map(|seconds_to_next_attempt| {
-                Box::new(MockPendingOperation::new(
-                    seconds_to_next_attempt,
-                    destination_domain.clone(),
-                )) as QueueOperation
-            })
-            .collect();
-
+        let ops = generate_test_messages(destination_domain, messages_to_send);
         let op_ids: Vec<_> = ops.iter().map(|op| op.id()).collect();
 
         // push to queue 1
@@ -570,13 +571,8 @@ pub mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_process_retry_requests_empty_queue() {
-        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
-        let mut op_queue_1 = OpQueue::new(
-            metrics.clone(),
-            queue_metrics_label.clone(),
-            Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
+        let mut op_queue_1 = initialize_queue(&broadcaster);
 
         let (transmitter, mut receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
 
@@ -601,25 +597,13 @@ pub mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_process_retry_requests_all_wildcards() {
-        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
-        let mut op_queue_1 = OpQueue::new(
-            metrics.clone(),
-            queue_metrics_label.clone(),
-            Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
+        let mut op_queue_1 = initialize_queue(&broadcaster);
 
         // Add some operations to the queue with increasing `next_attempt_after` values
         let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
         let messages_to_send = 5;
-        let mut ops: VecDeque<_> = (1..=messages_to_send)
-            .map(|seconds_to_next_attempt| {
-                Box::new(MockPendingOperation::new(
-                    seconds_to_next_attempt,
-                    destination_domain.clone(),
-                )) as QueueOperation
-            })
-            .collect();
+        let ops = generate_test_messages(destination_domain, messages_to_send);
 
         // push to queue 1
         for op in ops {
@@ -633,13 +617,13 @@ pub mod test {
         broadcaster
             .send(MessageRetryRequest {
                 uuid: "0e92ace7-ba5d-4a1f-8501-51b6d9d500cf".to_string(),
-                pattern: MatchingList(Some(vec![ListElement {
-                    message_id: Filter::Wildcard,
-                    origin_domain: Filter::Wildcard,
-                    sender_address: Filter::Wildcard,
-                    destination_domain: Filter::Wildcard,
-                    recipient_address: Filter::Wildcard,
-                }])),
+                pattern: MatchingList(Some(vec![ListElement::new(
+                    Filter::Wildcard,
+                    Filter::Wildcard,
+                    Filter::Wildcard,
+                    Filter::Wildcard,
+                    Filter::Wildcard,
+                )])),
                 transmitter: transmitter.clone(),
             })
             .unwrap();
@@ -655,31 +639,13 @@ pub mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_process_retry_requests_multiple_fields() {
-        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
-        let mut op_queue_1 = OpQueue::new(
-            metrics.clone(),
-            queue_metrics_label.clone(),
-            Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
+        let mut op_queue_1 = initialize_queue(&broadcaster);
 
         // Add some operations to the queue with increasing `next_attempt_after` values
         let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
         let messages_to_send = 5;
-        let mut ops: VecDeque<_> = (1..=messages_to_send)
-            .map(|seconds_to_next_attempt| {
-                Box::new(MockPendingOperation::new(
-                    seconds_to_next_attempt,
-                    destination_domain.clone(),
-                )) as QueueOperation
-            })
-            .collect();
-
-        let op = MockPendingOperation::new(10, KnownHyperlaneDomain::Arbitrum.into());
-        ops.push_back(Box::new(op) as QueueOperation);
-        let mut op = MockPendingOperation::new(10, KnownHyperlaneDomain::Optimism.into());
-        op.origin_domain_id = KnownHyperlaneDomain::Optimism as u32;
-        ops.push_back(Box::new(op) as QueueOperation);
+        let ops = generate_test_messages(destination_domain, messages_to_send);
 
         // push to queue 1
         for op in ops {
@@ -688,20 +654,32 @@ pub mod test {
                 .await;
         }
 
+        let test_messages = [
+            MockPendingOperation::new(10, KnownHyperlaneDomain::Arbitrum.into()),
+            MockPendingOperation::new(10, KnownHyperlaneDomain::Optimism.into())
+                .with_origin_domain(HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism)),
+        ];
+        for op in test_messages {
+            op_queue_1
+                .push(
+                    Box::new(op) as QueueOperation,
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
+        }
+
         let (transmitter, mut receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
 
         broadcaster
             .send(MessageRetryRequest {
                 uuid: "0e92ace7-ba5d-4a1f-8501-51b6d9d500cf".to_string(),
-                pattern: MatchingList(Some(vec![ListElement {
-                    message_id: Filter::Wildcard,
-                    origin_domain: Filter::Enumerated(vec![KnownHyperlaneDomain::Optimism as u32]),
-                    sender_address: Filter::Wildcard,
-                    destination_domain: Filter::Enumerated(vec![
-                        KnownHyperlaneDomain::Optimism as u32,
-                    ]),
-                    recipient_address: Filter::Wildcard,
-                }])),
+                pattern: MatchingList(Some(vec![ListElement::new(
+                    Filter::Wildcard,
+                    Filter::Enumerated(vec![KnownHyperlaneDomain::Optimism as u32]),
+                    Filter::Wildcard,
+                    Filter::Enumerated(vec![KnownHyperlaneDomain::Optimism as u32]),
+                    Filter::Wildcard,
+                )])),
                 transmitter: transmitter.clone(),
             })
             .unwrap();
@@ -717,31 +695,13 @@ pub mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_process_retry_requests_multiple_list_elements() {
-        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
-        let mut op_queue_1 = OpQueue::new(
-            metrics.clone(),
-            queue_metrics_label.clone(),
-            Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
+        let mut op_queue_1 = initialize_queue(&broadcaster);
 
         // Add some operations to the queue with increasing `next_attempt_after` values
         let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
         let messages_to_send = 5;
-        let mut ops: VecDeque<_> = (1..=messages_to_send)
-            .map(|seconds_to_next_attempt| {
-                Box::new(MockPendingOperation::new(
-                    seconds_to_next_attempt,
-                    destination_domain.clone(),
-                )) as QueueOperation
-            })
-            .collect();
-
-        let op = MockPendingOperation::new(10, KnownHyperlaneDomain::Arbitrum.into());
-        ops.push_back(Box::new(op) as QueueOperation);
-        let mut op = MockPendingOperation::new(10, KnownHyperlaneDomain::Optimism.into());
-        op.origin_domain_id = KnownHyperlaneDomain::Optimism as u32;
-        ops.push_back(Box::new(op) as QueueOperation);
+        let ops = generate_test_messages(destination_domain, messages_to_send);
 
         // push to queue 1
         for op in ops {
@@ -749,30 +709,41 @@ pub mod test {
                 .push(op, Some(PendingOperationStatus::FirstPrepareAttempt))
                 .await;
         }
+
+        let test_messages = [
+            MockPendingOperation::new(10, KnownHyperlaneDomain::Arbitrum.into()),
+            MockPendingOperation::new(10, KnownHyperlaneDomain::Optimism.into())
+                .with_origin_domain(HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism)),
+        ];
+        for op in test_messages {
+            op_queue_1
+                .push(
+                    Box::new(op) as QueueOperation,
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
+        }
+
         let (transmitter, mut receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
 
         broadcaster
             .send(MessageRetryRequest {
                 uuid: "0e92ace7-ba5d-4a1f-8501-51b6d9d500cf".to_string(),
                 pattern: MatchingList(Some(vec![
-                    ListElement {
-                        message_id: Filter::Wildcard,
-                        origin_domain: Filter::Enumerated(vec![
-                            KnownHyperlaneDomain::Optimism as u32,
-                        ]),
-                        sender_address: Filter::Wildcard,
-                        destination_domain: Filter::Wildcard,
-                        recipient_address: Filter::Wildcard,
-                    },
-                    ListElement {
-                        message_id: Filter::Wildcard,
-                        origin_domain: Filter::Wildcard,
-                        sender_address: Filter::Wildcard,
-                        destination_domain: Filter::Enumerated(vec![
-                            KnownHyperlaneDomain::Arbitrum as u32,
-                        ]),
-                        recipient_address: Filter::Wildcard,
-                    },
+                    ListElement::new(
+                        Filter::Wildcard,
+                        Filter::Enumerated(vec![KnownHyperlaneDomain::Optimism as u32]),
+                        Filter::Wildcard,
+                        Filter::Wildcard,
+                        Filter::Wildcard,
+                    ),
+                    ListElement::new(
+                        Filter::Wildcard,
+                        Filter::Wildcard,
+                        Filter::Wildcard,
+                        Filter::Enumerated(vec![KnownHyperlaneDomain::Arbitrum as u32]),
+                        Filter::Wildcard,
+                    ),
                 ])),
                 transmitter: transmitter.clone(),
             })
@@ -789,31 +760,13 @@ pub mod test {
     #[tracing_test::traced_test]
     #[tokio::test]
     async fn test_process_retry_requests_multiple_retries() {
-        let (metrics, queue_metrics_label) = dummy_metrics_and_label();
         let broadcaster = sync::broadcast::Sender::new(100);
-        let mut op_queue_1 = OpQueue::new(
-            metrics.clone(),
-            queue_metrics_label.clone(),
-            Arc::new(Mutex::new(broadcaster.subscribe())),
-        );
+        let mut op_queue_1 = initialize_queue(&broadcaster);
 
         // Add some operations to the queue with increasing `next_attempt_after` values
         let destination_domain: HyperlaneDomain = KnownHyperlaneDomain::Injective.into();
         let messages_to_send = 5;
-        let mut ops: VecDeque<_> = (1..=messages_to_send)
-            .map(|seconds_to_next_attempt| {
-                Box::new(MockPendingOperation::new(
-                    seconds_to_next_attempt,
-                    destination_domain.clone(),
-                )) as QueueOperation
-            })
-            .collect();
-
-        let op = MockPendingOperation::new(10, KnownHyperlaneDomain::Arbitrum.into());
-        ops.push_back(Box::new(op) as QueueOperation);
-        let mut op = MockPendingOperation::new(10, KnownHyperlaneDomain::Optimism.into());
-        op.origin_domain_id = KnownHyperlaneDomain::Optimism as u32;
-        ops.push_back(Box::new(op) as QueueOperation);
+        let ops = generate_test_messages(destination_domain, messages_to_send);
 
         // push to queue 1
         for op in ops {
@@ -821,27 +774,40 @@ pub mod test {
                 .push(op, Some(PendingOperationStatus::FirstPrepareAttempt))
                 .await;
         }
+
+        let test_messages = [
+            MockPendingOperation::new(10, KnownHyperlaneDomain::Arbitrum.into()),
+            MockPendingOperation::new(10, KnownHyperlaneDomain::Optimism.into())
+                .with_origin_domain(HyperlaneDomain::Known(KnownHyperlaneDomain::Optimism)),
+        ];
+        for op in test_messages {
+            op_queue_1
+                .push(
+                    Box::new(op) as QueueOperation,
+                    Some(PendingOperationStatus::FirstPrepareAttempt),
+                )
+                .await;
+        }
+
         let (transmitter, mut receiver) = mpsc::channel(ENDPOINT_MESSAGES_QUEUE_SIZE);
 
         let retry_req = MessageRetryRequest {
             uuid: "0e92ace7-ba5d-4a1f-8501-51b6d9d500cf".to_string(),
             pattern: MatchingList(Some(vec![
-                ListElement {
-                    message_id: Filter::Wildcard,
-                    origin_domain: Filter::Enumerated(vec![KnownHyperlaneDomain::Optimism as u32]),
-                    sender_address: Filter::Wildcard,
-                    destination_domain: Filter::Wildcard,
-                    recipient_address: Filter::Wildcard,
-                },
-                ListElement {
-                    message_id: Filter::Wildcard,
-                    origin_domain: Filter::Wildcard,
-                    sender_address: Filter::Wildcard,
-                    destination_domain: Filter::Enumerated(vec![
-                        KnownHyperlaneDomain::Arbitrum as u32,
-                    ]),
-                    recipient_address: Filter::Wildcard,
-                },
+                ListElement::new(
+                    Filter::Wildcard,
+                    Filter::Enumerated(vec![KnownHyperlaneDomain::Optimism as u32]),
+                    Filter::Wildcard,
+                    Filter::Wildcard,
+                    Filter::Wildcard,
+                ),
+                ListElement::new(
+                    Filter::Wildcard,
+                    Filter::Wildcard,
+                    Filter::Wildcard,
+                    Filter::Enumerated(vec![KnownHyperlaneDomain::Arbitrum as u32]),
+                    Filter::Wildcard,
+                ),
             ])),
             transmitter: transmitter.clone(),
         };

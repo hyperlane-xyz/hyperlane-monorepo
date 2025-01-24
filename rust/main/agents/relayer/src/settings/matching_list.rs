@@ -8,6 +8,7 @@ use std::{
     marker::PhantomData,
 };
 
+use derive_new::new;
 use hyperlane_core::{
     config::StrOrInt, utils::hex_or_base58_to_h256, HyperlaneMessage, QueueOperation, H256,
 };
@@ -222,19 +223,19 @@ impl<'de> Deserialize<'de> for Filter<H256> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, new)]
 #[serde(tag = "type")]
 pub struct ListElement {
     #[serde(default, rename = "messageid")]
-    pub message_id: Filter<H256>,
+    message_id: Filter<H256>,
     #[serde(default, rename = "origindomain")]
-    pub origin_domain: Filter<u32>,
+    origin_domain: Filter<u32>,
     #[serde(default, rename = "senderaddress")]
-    pub sender_address: Filter<H256>,
+    sender_address: Filter<H256>,
     #[serde(default, rename = "destinationdomain")]
-    pub destination_domain: Filter<u32>,
+    destination_domain: Filter<u32>,
     #[serde(default, rename = "recipientaddress")]
-    pub recipient_address: Filter<H256>,
+    recipient_address: Filter<H256>,
 }
 
 impl Display for ListElement {
