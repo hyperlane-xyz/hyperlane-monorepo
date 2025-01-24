@@ -169,7 +169,7 @@ export function writeJsonAtPath(filepath: string, obj: any) {
 }
 
 export function writeYamlAtPath(filepath: string, obj: any) {
-  const content = stringifyObject(obj, 'yaml');
+  const content = stringifyObject(obj, 'yaml', 2);
   writeToFile(filepath, content);
 }
 
