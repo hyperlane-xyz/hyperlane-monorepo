@@ -38,7 +38,6 @@ else
   exit 1
 fi
 
-
 # ZKSYNC
 
 if [ "$ZKSYNC" = "true" ]; then
