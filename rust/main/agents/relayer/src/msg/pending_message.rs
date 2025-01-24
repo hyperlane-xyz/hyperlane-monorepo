@@ -36,6 +36,8 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     Duration::from_secs(60 * 10)
 };
 
+pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
+
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
 pub struct MessageContext {
@@ -513,14 +515,17 @@ impl PendingMessage {
         // Attempt to fetch status about message from database
         let message_status = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
             Ok(Some(status)) => {
+                #[cfg(feature = "test-utils")]
                 tracing::debug!(
                     ?status,
                     id = format!("{:x}", message.id()),
-                    "Message status retrieved from db"
+                    "{}",
+                    RETRIEVED_MESSAGE_LOG,
                 );
                 status
             }
             _ => {
+                #[cfg(feature = "test-utils")]
                 tracing::debug!("Message status not found in db");
                 PendingOperationStatus::FirstPrepareAttempt
             }

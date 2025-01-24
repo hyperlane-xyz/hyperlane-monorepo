@@ -91,11 +91,11 @@ pub fn termination_invariants_met(
 
     let relayer_logfile = File::open(log_file_path)?;
     let invariant_logs = &[
-        STORING_NEW_MESSAGE_LOG_MESSAGE,
-        LOOKING_FOR_EVENTS_LOG_MESSAGE,
-        GAS_EXPENDITURE_LOG_MESSAGE,
-        HYPER_INCOMING_BODY_LOG_MESSAGE,
-        TX_ID_INDEXING_LOG_MESSAGE,
+        vec![STORING_NEW_MESSAGE_LOG_MESSAGE.to_string()],
+        vec![LOOKING_FOR_EVENTS_LOG_MESSAGE.to_string()],
+        vec![GAS_EXPENDITURE_LOG_MESSAGE.to_string()],
+        vec![HYPER_INCOMING_BODY_LOG_MESSAGE.to_string()],
+        vec![TX_ID_INDEXING_LOG_MESSAGE.to_string()],
     ];
     let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
     // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
@@ -105,23 +105,23 @@ pub fn termination_invariants_met(
     // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
-    let gas_expenditure_log_count = log_counts.get(GAS_EXPENDITURE_LOG_MESSAGE).unwrap();
+    let gas_expenditure_log_count = log_counts[2];
     assert!(
-        gas_expenditure_log_count >= &total_messages_expected,
+        gas_expenditure_log_count >= total_messages_expected,
         "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
         gas_expenditure_log_count,
         total_messages_expected
     );
     // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
     assert!(
-        log_counts.get(STORING_NEW_MESSAGE_LOG_MESSAGE).unwrap() > &0,
+        gas_expenditure_log_count > 0,
         "Didn't find any logs about storing messages in db"
     );
     assert!(
-        log_counts.get(LOOKING_FOR_EVENTS_LOG_MESSAGE).unwrap() > &0,
+        log_counts[1] > 0,
         "Didn't find any logs about looking for events in index range"
     );
-    let total_tx_id_log_count = log_counts.get(TX_ID_INDEXING_LOG_MESSAGE).unwrap();
+    let total_tx_id_log_count = log_counts[4];
     assert!(
         // there are 3 txid-indexed events:
         // - relayer: merkle insertion and gas payment
@@ -129,13 +129,13 @@ pub fn termination_invariants_met(
         // some logs are emitted for multiple events, so requiring there to be at least
         // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
         // are expected to be logged for each message.
-        *total_tx_id_log_count as u64 >= config.kathy_messages,
+        total_tx_id_log_count as u64 >= config.kathy_messages,
         "Didn't find as many tx id logs as expected. Found {} and expected {}",
         total_tx_id_log_count,
         config.kathy_messages
     );
     assert!(
-        log_counts.get(HYPER_INCOMING_BODY_LOG_MESSAGE).is_none(),
+        log_counts[3] == 0,
         "Verbose logs not expected at the log level set in e2e"
     );
 

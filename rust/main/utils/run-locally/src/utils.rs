@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
@@ -119,30 +118,24 @@ pub fn stop_child(child: &mut Child) {
     };
 }
 
-pub fn get_matching_lines(file: &File, search_strings: &[&str]) -> HashMap<String, u32> {
+pub fn get_matching_lines(file: &File, search_strings: &[Vec<String>]) -> Vec<u32> {
     let reader = io::BufReader::new(file);
-    let mut matches = HashMap::new();
+    let mut matches = vec![0; search_strings.len()];
 
     let mut lines = reader.lines();
     while let Some(Ok(line)) = lines.next() {
-        search_strings.iter().for_each(|search_string| {
-            if line.contains(search_string) {
-                let count = matches.entry(search_string.to_string()).or_insert(0);
-                *count += 1;
-            }
-        });
+        search_strings
+            .iter()
+            .enumerate()
+            .for_each(|(i, search_string_vec)| {
+                if search_string_vec
+                    .iter()
+                    .map(|search_string| line.contains(search_string))
+                    .fold(true, |acc, x| acc && x)
+                {
+                    matches[i] += 1;
+                }
+            });
     }
     matches
-}
-
-pub fn get_matched_lines(file: &File, search_string: &str) -> Vec<String> {
-    let reader = io::BufReader::new(file);
-    let mut lines = reader.lines();
-    let mut matched_lines = Vec::new();
-    while let Some(Ok(line)) = lines.next() {
-        if line.contains(search_string) {
-            matched_lines.push(line);
-        }
-    }
-    matched_lines
 }

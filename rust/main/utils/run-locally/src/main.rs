@@ -16,7 +16,7 @@
 //! - `SEALEVEL_ENABLED`: true/false, enables sealevel testing. Defaults to true.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs::{self, File},
     path::Path,
     process::{Child, ExitCode},
@@ -33,8 +33,9 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
+use relayer::msg::pending_message::RETRIEVED_MESSAGE_LOG;
 use tempfile::{tempdir, TempDir};
-use utils::get_matched_lines;
+use utils::get_matching_lines;
 
 use crate::{
     config::Config,
@@ -435,7 +436,7 @@ fn main() -> ExitCode {
     let mut failure_occurred = false;
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
 
-    while !SHUTDOWN.load(Ordering::Relaxed) {
+    'main_loop: while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
             if termination_invariants_met(
@@ -469,13 +470,15 @@ fn main() -> ExitCode {
                         status.code().unwrap()
                     );
                     failure_occurred = true;
-                    SHUTDOWN.store(true, Ordering::Relaxed);
-                    break;
+                    break 'main_loop;
                 }
             }
         }
         sleep(Duration::from_secs(5));
     }
+
+    // Here we want to restart the relayer and validate
+    // its restart behaviour.
     restart_relayer(&config, &mut state, &rocks_db_dir);
 
     // give relayer a chance to fully restart.
@@ -486,12 +489,12 @@ fn main() -> ExitCode {
     SHUTDOWN.store(false, Ordering::Relaxed);
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
-            if message_retrieval_invariants_met().unwrap_or(false) {
+            if relayer_restart_invariants_met().unwrap_or(false) {
                 // end condition reached successfully
                 break;
             } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
                 // we ran out of time
-                log!("CI timeout reached before messages where retrieved from db");
+                log!("CI timeout reached before relayer restart invariants were met");
                 failure_occurred = true;
                 break;
             }
@@ -576,45 +579,51 @@ fn create_relayer(config: &Config, rocks_db_dir: &TempDir) -> Program {
     }
 }
 
+/// Kills relayer in State and respawns the relayer again
 fn restart_relayer(config: &Config, state: &mut State, rocks_db_dir: &TempDir) {
+    log!("Stopping relayer...");
     let (child, _) = state.agents.get_mut("RLY").expect("No relayer agent found");
-
-    child.kill().expect("Failed to kill relayer");
-
-    let relayer_env = create_relayer(config, rocks_db_dir);
+    child.kill().expect("Failed to stop relayer");
 
     log!("Restarting relayer...");
+    let relayer_env = create_relayer(config, rocks_db_dir);
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
+    log!("Restarted relayer...");
 }
 
-fn message_retrieval_invariants_met() -> eyre::Result<bool> {
+/// Check relayer restart behaviour is correct.
+/// So far, we only check if undelivered messages' statuses
+/// are correctly retrieved from the database
+fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
 
     log!("Checking message statuses were retrieved from logs...");
+    let matched_logs = get_matching_lines(
+        &relayer_logfile,
+        &vec![vec![
+            RETRIEVED_MESSAGE_LOG.to_string(),
+            "CouldNotFetchMetadata".to_string(),
+        ]],
+    );
 
-    const RETRIEVED_MESSGE_LOG: &str = "Message status retrieved from db";
-    let matched_logs = get_matched_lines(&relayer_logfile, RETRIEVED_MESSGE_LOG);
-
-    let no_metadata_message_ids: HashSet<_> = matched_logs
-        .iter()
-        .filter(|s| s.contains("CouldNotFetchMetadata"))
-        .filter_map(|s| {
-            // string parse for id and remove duplicates by collecting
-            // into a hashset
-            s.rsplit_once("id\u{1b}[0m\u{1b}[2m=\u{1b}[0m\"")
-                .and_then(|(_, s2)| s2.split_once("\""))
-                .map(|(id, _)| id)
-        })
-        .collect();
-
-    let no_metadata_message_count = no_metadata_message_ids.len();
-    if no_metadata_message_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES as usize {
+    let no_metadata_message_count = matched_logs[0];
+    // These messages are never inserted into the merkle tree.
+    // So these messages will never be deliverable and will always
+    // be in a CouldNotFetchMetadata state.
+    // When the relayer restarts, these messages' statuses should be
+    // retrieved from the database with CouldNotFetchMetadata status.
+    if no_metadata_message_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+        log!(
+            "No metadata message count is {}, expected {}",
+            no_metadata_message_count,
+            ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+        );
         return Ok(false);
     }
     assert_eq!(
         no_metadata_message_count,
-        ZERO_MERKLE_INSERTION_KATHY_MESSAGES as usize
+        ZERO_MERKLE_INSERTION_KATHY_MESSAGES
     );
     Ok(true)
 }
