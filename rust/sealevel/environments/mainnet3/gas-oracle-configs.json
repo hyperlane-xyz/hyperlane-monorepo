@@ -1,17 +1,9 @@
 {
   "solanamainnet": {
-    "trumpchain": {
-      "oracleConfig": {
-        "tokenExchangeRate": "4545000000000000000",
-        "gasPrice": "11271716004",
-        "tokenDecimals": 18
-      },
-      "overhead": 166887
-    },
-    "optimism": {
+    "rivalz": {
       "oracleConfig": {
         "tokenExchangeRate": "263105000000000000000",
-        "gasPrice": "486782274",
+        "gasPrice": "194712945",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -68,6 +60,22 @@
       "oracleConfig": {
         "tokenExchangeRate": "263105000000000000000",
         "gasPrice": "194712945",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "optimism": {
+      "oracleConfig": {
+        "tokenExchangeRate": "263105000000000000000",
+        "gasPrice": "486782274",
+        "tokenDecimals": 18
+      },
+      "overhead": 166887
+    },
+    "trumpchain": {
+      "oracleConfig": {
+        "tokenExchangeRate": "4545000000000000000",
+        "gasPrice": "11271716004",
         "tokenDecimals": 18
       },
       "overhead": 166887
