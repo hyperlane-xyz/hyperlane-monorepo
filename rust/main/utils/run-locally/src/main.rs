@@ -395,7 +395,7 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(10));
 
     if !post_startup_invariants(&checkpoints_dirs) {
-        log!("Error: Post startup invariants are not met");
+        log!("Failure: Post startup invariants are not met");
         return report_test_result(true);
     } else {
         log!("Success: Post startup invariants are met");

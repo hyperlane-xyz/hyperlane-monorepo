@@ -334,7 +334,7 @@ fn run_locally() {
     sleep(Duration::from_secs(10));
 
     if !post_startup_invariants(&checkpoints_dirs) {
-        panic!("Error: Post startup invariants are not met");
+        panic!("Failure: Post startup invariants are not met");
     } else {
         log!("Success: Post startup invariants are met");
     }
