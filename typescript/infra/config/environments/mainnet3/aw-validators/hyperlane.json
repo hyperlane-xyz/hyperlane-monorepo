@@ -21,6 +21,9 @@
   "arbitrumnova": {
     "validators": ["0xd2a5e9123308d187383c87053811a2c21bd8af1f"]
   },
+  "artela": {
+    "validators": ["0x8fcc1ebd4c0b463618db13f83e4565af3e166b00"]
+  },
   "arthera": {
     "validators": ["0x13710ac11c36c169f62fba95767ae59a1e57098d"]
   },
@@ -159,8 +162,14 @@
   "gravity": {
     "validators": ["0x23d549bf757a02a6f6068e9363196ecd958c974e"]
   },
+  "guru": {
+    "validators": ["0x0d756d9051f12c4de6aee2ee972193a2adfe00ef"]
+  },
   "harmony": {
     "validators": ["0xd677803a67651974b1c264171b5d7ca8838db8d5"]
+  },
+  "hemi": {
+    "validators": ["0x312dc72c17d01f3fd0abd31dd9b569bc473266dd"]
   },
   "immutablezkevmmainnet": {
     "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
@@ -236,6 +245,9 @@
   },
   "morph": {
     "validators": ["0x4884535f393151ec419add872100d352f71af380"]
+  },
+  "nero": {
+    "validators": ["0xb86f872df37f11f33acbe75b6ed208b872b57183"]
   },
   "neutron": {
     "validators": [
@@ -353,6 +365,9 @@
   "treasure": {
     "validators": ["0x6ad994819185553e8baa01533f0cd2c7cadfe6cc"]
   },
+  "trumpchain": {
+    "validators": ["0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e"]
+  },
   "unichain": {
     "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
   },
@@ -370,6 +385,9 @@
   },
   "xlayer": {
     "validators": ["0xa2ae7c594703e988f23d97220717c513db638ea3"]
+  },
+  "xpla": {
+    "validators": ["0xc11cba01d67f2b9f0288c4c8e8b23c0eca03f26e"]
   },
   "zeronetwork": {
     "validators": ["0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87"]

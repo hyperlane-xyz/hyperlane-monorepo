@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '706f69b-20250107-230147',
+    tag: '95deca3-20250120-103554',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -26,12 +26,14 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   // desired balance config, must be set for each chain
   desiredBalancePerChain: {
+    // acala: '5',
     ancient8: '0.5',
     alephzeroevmmainnet: '100',
     apechain: '50',
     appchain: '0.05',
     arbitrum: '0.5',
     arbitrumnova: '0.05',
+    artela: '2',
     arthera: '0.1',
     astar: '100',
     astarzkevm: '0.05',
@@ -70,7 +72,9 @@ export const keyFunderConfig: KeyFunderConfig<
     fusemainnet: '20',
     gnosis: '5',
     gravity: '500',
+    guru: '100',
     harmony: '500',
+    hemi: '0.05',
     immutablezkevmmainnet: '25',
     inevm: '3',
     ink: '0.05',
@@ -91,6 +95,7 @@ export const keyFunderConfig: KeyFunderConfig<
     molten: '3',
     moonbeam: '100',
     morph: '0.1',
+    nero: '5',
     oortmainnet: '2000',
     optimism: '0.5',
     orderly: '0.05',
@@ -113,6 +118,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sonic: '0.5',
     // ignore non-evm chains
     stride: '0',
+    // subtensor: '0.05',
     superseed: '0.05',
     superpositionmainnet: '0.05',
     swell: '0.05',
@@ -121,6 +127,7 @@ export const keyFunderConfig: KeyFunderConfig<
     telos: '100',
     torus: '5',
     treasure: '900',
+    trumpchain: '0.25',
     unichain: '0.05',
     // temporarily low until we're able to fund more
     vana: '0.001',
@@ -128,6 +135,7 @@ export const keyFunderConfig: KeyFunderConfig<
     worldchain: '0.2',
     xai: '20',
     xlayer: '0.5',
+    xpla: '100',
     zeronetwork: '0.05',
     zetachain: '20',
     zircuit: '0.02',

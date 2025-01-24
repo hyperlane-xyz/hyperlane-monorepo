@@ -228,7 +228,7 @@ fn main() -> ExitCode {
             "GASPAYMENTENFORCEMENT",
             r#"[{
                 "type": "minimum",
-                "payment": "1",
+                "payment": "1"
             }]"#,
         )
         .arg(
@@ -466,6 +466,11 @@ fn main() -> ExitCode {
             initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
                 .join();
         }
+        initiate_solana_non_matching_igp_paying_transfer(
+            solana_path.clone(),
+            solana_config_path.clone(),
+        )
+        .join();
     }
 
     log!("Setup complete! Agents running in background...");

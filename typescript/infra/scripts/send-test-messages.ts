@@ -1,9 +1,16 @@
 import { Provider } from '@ethersproject/providers';
-import { Wallet } from 'ethers';
+import { BigNumber, Wallet } from 'ethers';
 import fs from 'fs';
 import yargs from 'yargs';
 
-import { Mailbox, TestSendReceiver__factory } from '@hyperlane-xyz/core';
+import {
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
+  Mailbox,
+  StorageGasOracle,
+  StorageGasOracle__factory,
+  TestSendReceiver__factory,
+} from '@hyperlane-xyz/core';
 import {
   ChainName,
   HookType,
@@ -11,7 +18,7 @@ import {
   MultiProvider,
   TestChainName,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, sleep } from '@hyperlane-xyz/utils';
+import { addressToBytes32, formatMessage, sleep } from '@hyperlane-xyz/utils';
 
 const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -45,6 +52,44 @@ async function setMailboxHook(
     }
   }
   console.log(`set the ${mailboxHookType} hook on ${local} to ${hook}`);
+}
+
+async function setIgpConfig(
+  remoteId: number,
+  signer: Wallet,
+  provider: Provider,
+  mailbox: Mailbox,
+  addresses: any,
+  local: ChainName,
+) {
+  const storageGasOracleF = new StorageGasOracle__factory(
+    signer.connect(provider),
+  );
+  const storageGasOracle = await storageGasOracleF.deploy();
+  await storageGasOracle.deployTransaction.wait();
+
+  const oracleConfigs: Array<StorageGasOracle.RemoteGasDataConfigStruct> = [];
+  oracleConfigs.push({
+    remoteDomain: remoteId,
+    tokenExchangeRate: '10000000000',
+    gasPrice: '1000000000',
+  });
+  await storageGasOracle.setRemoteGasDataConfigs(oracleConfigs);
+
+  const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
+  gasParamsToSet.push({
+    remoteDomain: remoteId,
+    config: {
+      gasOracle: storageGasOracle.address,
+      gasOverhead: 1000000,
+    },
+  });
+
+  const igpHook = InterchainGasPaymaster__factory.connect(
+    addresses[local].interchainGasPaymaster,
+    signer.connect(provider),
+  );
+  await igpHook.setDestinationGasConfigs(gasParamsToSet);
 }
 
 const chainSummary = async (core: HyperlaneCore, chain: ChainName) => {
@@ -157,15 +202,33 @@ async function main() {
       MailboxHookType.REQUIRED,
       requiredHook,
     );
+
+    if (
+      defaultHook === HookType.AGGREGATION ||
+      defaultHook === HookType.INTERCHAIN_GAS_PAYMASTER
+    ) {
+      console.log('Setting IGP config for message ...');
+      await setIgpConfig(remoteId, signer, provider, mailbox, addresses, local);
+    }
+
+    const message = formatMessage(
+      1,
+      0,
+      multiProvider.getDomainId(local),
+      recipient.address,
+      multiProvider.getDomainId(remote),
+      recipient.address,
+      '0x1234',
+    );
     const quote = await mailbox['quoteDispatch(uint32,bytes32,bytes)'](
       remoteId,
       addressToBytes32(recipient.address),
-      '0x1234',
+      message,
     );
-    await recipient['dispatchToSelf(address,uint32,bytes)'](
-      mailbox.address,
+    await mailbox['dispatch(uint32,bytes32,bytes)'](
       remoteId,
-      '0x1234',
+      addressToBytes32(recipient.address),
+      message,
       {
         value: quote,
       },
@@ -173,7 +236,9 @@ async function main() {
     console.log(
       `send to ${recipient.address} on ${remote} via mailbox ${
         mailbox.address
-      } on ${local} with nonce ${(await mailbox.nonce()) - 1}`,
+      } on ${local} with nonce ${
+        (await mailbox.nonce()) - 1
+      } and quote ${quote.toString()}`,
     );
     console.log(await chainSummary(core, local));
     console.log(await chainSummary(core, remote));

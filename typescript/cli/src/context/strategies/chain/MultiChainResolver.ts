@@ -68,7 +68,7 @@ export class MultiChainResolver implements ChainResolver {
     argv.config ||= DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH;
     argv.context.chains = await this.getWarpRouteConfigChains(
       argv.config.trim(),
-      argv.skipConfirmation,
+      argv.context.skipConfirmation,
     );
     return argv.context.chains;
   }
@@ -138,16 +138,20 @@ export class MultiChainResolver implements ChainResolver {
       chains.push(argv.destination);
     }
 
-    if (!argv.chains) {
-      return Array.from(
-        new Set([...chains, ...this.getEvmChains(multiProvider)]),
-      );
+    if (argv.chain) {
+      chains.push(argv.chain);
+    }
+
+    if (!argv.chains && chains.length === 0) {
+      return Array.from(this.getEvmChains(multiProvider));
     }
 
     return Array.from(
       new Set([
         ...chains,
-        ...argv.chains.split(',').map((item: string) => item.trim()),
+        ...(argv.chains
+          ? argv.chains.split(',').map((item: string) => item.trim())
+          : []),
       ]),
     );
   }

@@ -111,25 +111,31 @@ export function eqAmountApproximate(
  * @param value The value to convert.
  * @returns `value` represented with `toDecimals` decimals in string type.
  */
-export function convertDecimals(
+export function convertDecimalsToIntegerString(
   fromDecimals: number,
   toDecimals: number,
   value: BigNumber.Value,
 ): string {
+  const converted = convertDecimals(fromDecimals, toDecimals, value);
+  return converted.integerValue(BigNumber.ROUND_FLOOR).toString(10);
+}
+
+export function convertDecimals(
+  fromDecimals: number,
+  toDecimals: number,
+  value: BigNumber.Value,
+): BigNumber {
   const amount = BigNumber(value);
 
-  if (fromDecimals === toDecimals) return amount.toString(10);
+  if (fromDecimals === toDecimals) return amount;
   else if (fromDecimals > toDecimals) {
     const difference = fromDecimals - toDecimals;
-    return amount
-      .div(BigNumber(10).pow(difference))
-      .integerValue(BigNumber.ROUND_FLOOR)
-      .toString(10);
+    return amount.div(BigNumber(10).pow(difference));
   }
   // fromDecimals < toDecimals
   else {
     const difference = toDecimals - fromDecimals;
-    return amount.times(BigNumber(10).pow(difference)).toString(10);
+    return amount.times(BigNumber(10).pow(difference));
   }
 }
 
