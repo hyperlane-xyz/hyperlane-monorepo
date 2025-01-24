@@ -1,9 +1,8 @@
 import { concurrentMap } from '@hyperlane-xyz/utils';
 
-import { InfraS3Validator } from '../src/agents/aws/validator.js';
-
-import { getArgs, getValidatorsByChain } from './agent-utils.js';
-import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
+import { InfraS3Validator } from '../../src/agents/aws/validator.js';
+import { getArgs, getValidatorsByChain } from '../agent-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
   const { environment } = await getArgs().argv;
