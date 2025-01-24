@@ -2,7 +2,7 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./core-utils"
+    "rootDir": "./types"
   },
-  "exclude": ["./test", "hardhat.config.cts", "./dist", "zk-hardhat.config.cts"]
+  "exclude": ["./test", "hardhat.config.cts", "./dist"]
 }
