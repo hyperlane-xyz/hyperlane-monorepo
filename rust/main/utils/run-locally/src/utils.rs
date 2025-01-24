@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
@@ -123,22 +124,20 @@ pub fn get_matching_lines<'a>(
     search_strings: Vec<Vec<&'a str>>,
 ) -> HashMap<Vec<&'a str>, u32> {
     let reader = io::BufReader::new(file);
-    let mut matches = vec![0; search_strings.len()];
+    let mut matches = HashMap::new();
 
     let mut lines = reader.lines();
     while let Some(Ok(line)) = lines.next() {
-        search_strings
-            .iter()
-            .enumerate()
-            .for_each(|(i, search_string_vec)| {
-                if search_string_vec
-                    .iter()
-                    .map(|search_string| line.contains(search_string))
-                    .all(|x| x)
-                {
-                    matches[i] += 1;
-                }
-            });
+        search_strings.iter().for_each(|search_string_vec| {
+            if search_string_vec
+                .iter()
+                .map(|search_string| line.contains(search_string))
+                .all(|x| x)
+            {
+                let count = matches.entry(search_string_vec.clone()).or_insert(0);
+                *count += 1;
+            }
+        });
     }
     matches
 }

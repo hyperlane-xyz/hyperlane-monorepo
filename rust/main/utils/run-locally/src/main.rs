@@ -436,7 +436,7 @@ fn main() -> ExitCode {
     let mut failure_occurred = false;
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
 
-    'main_loop: while !SHUTDOWN.load(Ordering::Relaxed) {
+    while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             // for CI we have to look for the end condition.
             if termination_invariants_met(
@@ -459,22 +459,11 @@ fn main() -> ExitCode {
                 break;
             }
         }
-
-        // verify long-running tasks are still running
-        for (name, (child, _)) in state.agents.iter_mut() {
-            if let Some(status) = child.try_wait().unwrap() {
-                if !status.success() {
-                    log!(
-                        "Child process {} exited unexpectedly, with code {}. Shutting down",
-                        name,
-                        status.code().unwrap()
-                    );
-                    failure_occurred = true;
-                    break 'main_loop;
-                }
-            }
-        }
         sleep(Duration::from_secs(5));
+    }
+
+    if failure_occurred {
+        return report_test_result(failure_occurred);
     }
 
     // Here we want to restart the relayer and validate
@@ -486,7 +475,6 @@ fn main() -> ExitCode {
 
     let loop_start = Instant::now();
 
-    SHUTDOWN.store(false, Ordering::Relaxed);
     while !SHUTDOWN.load(Ordering::Relaxed) {
         if config.ci_mode {
             if relayer_restart_invariants_met().unwrap_or(false) {
@@ -501,6 +489,22 @@ fn main() -> ExitCode {
         }
         sleep(Duration::from_secs(5));
     }
+
+    // verify long-running tasks are still running
+    for (name, (child, _)) in state.agents.iter_mut() {
+        if let Some(status) = child.try_wait().unwrap() {
+            if !status.success() {
+                log!(
+                    "Child process {} exited unexpectedly, with code {}. Shutting down",
+                    name,
+                    status.code().unwrap()
+                );
+                failure_occurred = true;
+                break;
+            }
+        }
+    }
+
     report_test_result(failure_occurred)
 }
 
@@ -598,16 +602,15 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
     let relayer_logfile = File::open(log_file_path).unwrap();
 
-    log!("Checking message statuses were retrieved from logs...");
-    let matched_logs = get_matching_lines(
-        &relayer_logfile,
-        &[vec![
-            RETRIEVED_MESSAGE_LOG.to_string(),
-            "CouldNotFetchMetadata".to_string(),
-        ]],
-    );
+    let line_filters = vec![RETRIEVED_MESSAGE_LOG, "CouldNotFetchMetadata"];
 
-    let no_metadata_message_count = matched_logs[0];
+    log!("Checking message statuses were retrieved from logs...");
+    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
+
+    let no_metadata_message_count = matched_logs
+        .get(&line_filters)
+        .expect("Failed to get matched message count")
+        .clone();
     // These messages are never inserted into the merkle tree.
     // So these messages will never be deliverable and will always
     // be in a CouldNotFetchMetadata state.
