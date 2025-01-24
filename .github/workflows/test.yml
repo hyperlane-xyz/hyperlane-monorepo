@@ -138,6 +138,7 @@ jobs:
           - warp-apply
           - warp-check
           - warp-deploy
+          - warp-deploy-bridge
           - warp-init
           - warp-read
           - warp-send
