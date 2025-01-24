@@ -12,7 +12,14 @@ Removes `HypNativeScaled` in favor of `HypNative` with `scale` parameter.
 
 If you want to keep the same behavior as before, you can set `scale` to `1` in all your routes.
 
+### `TokenRouter` Usage
 ```diff
-- TokenRouter(address(mailbox))
-+ TokenRouter(scale, address(mailbox))
+- TokenRouter(mailbox)
++ TokenRouter(scale, mailbox)
+```
+
+### `HypNativeScaled` Usage
+```diff
+- HypNativeScaled(scale, mailbox)
++ HypNative(scale, mailbox)
 ```
