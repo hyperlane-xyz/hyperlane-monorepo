@@ -433,34 +433,20 @@ fn main() -> ExitCode {
         log!("Success: Post startup invariants are met");
     }
 
-    let mut failure_occurred = false;
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
 
-    while !SHUTDOWN.load(Ordering::Relaxed) {
-        if config.ci_mode {
-            // for CI we have to look for the end condition.
-            if termination_invariants_met(
-                &config,
-                starting_relayer_balance,
-                solana_paths
-                    .clone()
-                    .map(|(_, solana_path)| solana_path)
-                    .as_deref(),
-                solana_config_path.as_deref(),
-            )
-            .unwrap_or(false)
-            {
-                // end condition reached successfully
-                break;
-            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
-                // we ran out of time
-                log!("CI timeout reached before queues emptied");
-                failure_occurred = true;
-                break;
-            }
-        }
-        sleep(Duration::from_secs(5));
-    }
+    // wait for CI invariants to pass
+    let mut failure_occurred = wait_for_condition(&config, loop_start, || {
+        termination_invariants_met(
+            &config,
+            starting_relayer_balance,
+            solana_paths
+                .clone()
+                .map(|(_, solana_path)| solana_path)
+                .as_deref(),
+            solana_config_path.as_deref(),
+        )
+    });
 
     if failure_occurred {
         return report_test_result(failure_occurred);
@@ -474,21 +460,8 @@ fn main() -> ExitCode {
     sleep(Duration::from_secs(20));
 
     let loop_start = Instant::now();
-
-    while !SHUTDOWN.load(Ordering::Relaxed) {
-        if config.ci_mode {
-            if relayer_restart_invariants_met().unwrap_or(false) {
-                // end condition reached successfully
-                break;
-            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
-                // we ran out of time
-                log!("CI timeout reached before relayer restart invariants were met");
-                failure_occurred = true;
-                break;
-            }
-        }
-        sleep(Duration::from_secs(5));
-    }
+    // wait for Relayer restart invariants to pass
+    failure_occurred = wait_for_condition(&config, loop_start, || relayer_restart_invariants_met());
 
     // verify long-running tasks are still running
     for (name, (child, _)) in state.agents.iter_mut() {
@@ -629,6 +602,35 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
         ZERO_MERKLE_INSERTION_KATHY_MESSAGES
     );
     Ok(true)
+}
+
+fn wait_for_condition<F>(config: &Config, start_time: Instant, condition_fn: F) -> bool
+where
+    F: Fn() -> eyre::Result<bool>,
+{
+    let loop_check_interval = Duration::from_secs(5);
+    while !SHUTDOWN.load(Ordering::Relaxed) {
+        sleep(loop_check_interval);
+        if !config.ci_mode {
+            continue;
+        }
+
+        if condition_fn().unwrap_or(false) {
+            // end condition reached successfully
+            return true;
+        }
+
+        if check_ci_timed_out(&config, start_time) {
+            // we ran out of time
+            log!("CI timeout reached before invariants were met");
+            return false;
+        }
+    }
+    true
+}
+
+fn check_ci_timed_out(config: &Config, start_time: Instant) -> bool {
+    (Instant::now() - start_time).as_secs() > config.ci_mode_timeout
 }
 
 fn report_test_result(failure_occurred: bool) -> ExitCode {
