@@ -58,7 +58,7 @@ abstract class TokenDeployer<
   }
 
   async constructorArgs(_: ChainName, config: TokenRouterConfig): Promise<any> {
-    // TODO: derive from decimal ratios?
+    // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
     const scale = config.scale ?? 1;
 
     if (isCollateralConfig(config)) {

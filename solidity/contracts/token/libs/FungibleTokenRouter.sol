@@ -11,22 +11,22 @@ abstract contract FungibleTokenRouter is TokenRouter {
     }
 
     /**
-     * @dev Scales local amount to message amount (down by scale factor).
+     * @dev Scales local amount to message amount (up by scale factor).
      * @inheritdoc TokenRouter
      */
     function _outboundAmount(
         uint256 _localAmount
     ) internal view virtual override returns (uint256 _messageAmount) {
-        _messageAmount = _localAmount / scale;
+        _messageAmount = _localAmount * scale;
     }
 
     /**
-     * @dev Scales message amount to local amount (up by scale factor).
+     * @dev Scales message amount to local amount (down by scale factor).
      * @inheritdoc TokenRouter
      */
     function _inboundAmount(
         uint256 _messageAmount
     ) internal view virtual override returns (uint256 _localAmount) {
-        _localAmount = _messageAmount * scale;
+        _localAmount = _messageAmount / scale;
     }
 }
