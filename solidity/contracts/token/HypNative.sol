@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -10,7 +11,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Abacus Works
  * @dev Supply on each chain is not constant but the aggregate supply across all chains is.
  */
-contract HypNative is TokenRouter {
+contract HypNative is FungibleTokenRouter {
     /**
      * @dev Emitted when native tokens are donated to the contract.
      * @param sender The address of the sender.
@@ -21,7 +22,7 @@ contract HypNative is TokenRouter {
     constructor(
         uint256 _scale,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) {}
+    ) FungibleTokenRouter(_scale, _mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router

@@ -7,16 +7,12 @@ import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC7
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import {ERC721EnumerableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
 
-uint256 constant ERC721_SCALING_FACTOR = 1;
-
 /**
  * @title Hyperlane ERC721 Token Router that extends ERC721 with remote transfer functionality.
  * @author Abacus Works
  */
 contract HypERC721 is ERC721EnumerableUpgradeable, TokenRouter {
-    constructor(
-        address _mailbox
-    ) TokenRouter(ERC721_SCALING_FACTOR, _mailbox) {}
+    constructor(address _mailbox) TokenRouter(_mailbox) {}
 
     /**
      * @notice Initializes the Hyperlane router, ERC721 metadata, and mints initial supply to deployer.
