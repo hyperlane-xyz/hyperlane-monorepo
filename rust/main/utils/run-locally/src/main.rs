@@ -105,6 +105,7 @@ struct State {
 
 impl State {
     fn push_agent(&mut self, handles: AgentHandles) {
+        log!("Pushing {} agent handles", handles.0);
         self.agents.insert(handles.0, (handles.1, handles.5));
         self.watchers.push(handles.2);
         self.watchers.push(handles.3);
@@ -120,9 +121,12 @@ impl Drop for State {
             log!("Stopping child {}", name);
             stop_child(&mut agent);
         }
-        log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
-        for w in self.watchers.drain(..) {
+
+        log!("Joining watchers...");
+        let watchers_count = self.watchers.len();
+        for (i, w) in self.watchers.drain(..).enumerate() {
+            log!("Joining {}/{}", i + 1, watchers_count);
             w.join_box();
         }
 
@@ -132,6 +136,13 @@ impl Drop for State {
         for data in self.data.drain(..) {
             drop(data)
         }
+        /*
+        #[cfg(feature = "sealevel")]
+        {
+            use sealevel::solana::SOLANA_CHECKPOINT_LOCATION;
+            fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+        }
+         */
         fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
 
         log!("Done...");

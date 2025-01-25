@@ -2,20 +2,16 @@ pub mod solana;
 pub mod termination_invariant;
 
 use std::{
-    collections::HashMap,
-    fs::{self, File},
+    fs,
     path::Path,
-    process::Child,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
+    sync::atomic::Ordering,
     thread::sleep,
     time::{Duration, Instant},
 };
 
 use tempfile::tempdir;
 
+use crate::SHUTDOWN;
 use crate::{
     config::Config,
     invariants::{post_startup_invariants, SOL_MESSAGES_EXPECTED},
@@ -25,9 +21,9 @@ use crate::{
     sealevel::{solana::*, termination_invariant::*},
     utils::{
         concat_path, get_sealevel_path, get_ts_infra_path, get_workspace_path, make_static,
-        stop_child, AgentHandles, ArbitraryData, TaskHandle,
+        TaskHandle,
     },
-    AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
+    State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
 
 /// These private keys are from hardhat/anvil's testing accounts.
@@ -44,55 +40,6 @@ const SEALEVEL_VALIDATOR_KEYS: &[&str] = &[
 ];
 
 type DynPath = Box<dyn AsRef<Path>>;
-
-static RUN_LOG_WATCHERS: AtomicBool = AtomicBool::new(true);
-static SHUTDOWN: AtomicBool = AtomicBool::new(false);
-
-/// Struct to hold stuff we want to cleanup whenever we exit. Just using for
-/// cleanup purposes at this time.
-#[derive(Default)]
-struct State {
-    #[allow(clippy::type_complexity)]
-    agents: HashMap<String, (Child, Option<Arc<Mutex<File>>>)>,
-    watchers: Vec<Box<dyn TaskHandle<Output = ()>>>,
-    data: Vec<Box<dyn ArbitraryData>>,
-}
-
-impl State {
-    fn push_agent(&mut self, handles: AgentHandles) {
-        self.agents.insert(handles.0, (handles.1, handles.5));
-        self.watchers.push(handles.2);
-        self.watchers.push(handles.3);
-        self.data.push(handles.4);
-    }
-}
-
-impl Drop for State {
-    fn drop(&mut self) {
-        SHUTDOWN.store(true, Ordering::Relaxed);
-        log!("Signaling children to stop...");
-        for (name, (mut agent, _)) in self.agents.drain() {
-            log!("Stopping child {}", name);
-            stop_child(&mut agent);
-        }
-        log!("Joining watchers...");
-        RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
-        for w in self.watchers.drain(..) {
-            w.join_box();
-        }
-
-        log!("Dropping data...");
-        // drop any held data
-        self.data.reverse();
-        for data in self.data.drain(..) {
-            drop(data)
-        }
-        fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
-        fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
-
-        log!("Done...");
-    }
-}
 
 #[allow(dead_code)]
 fn run_locally() {
@@ -179,6 +126,11 @@ fn run_locally() {
         })
         .collect::<Vec<_>>();
 
+    log!("Relayer DB in {}", relayer_db.display());
+    (0..validator_count).for_each(|i| {
+        log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
+    });
+
     let scraper_env = common_agent_env
         .bin(concat_path(&workspace_path, "target/debug/scraper"))
         .working_dir(&workspace_path)
@@ -199,16 +151,13 @@ fn run_locally() {
             .collect::<Vec<_>>()
             .join(", ")
     );
-    log!("Relayer DB in {}", relayer_db.display());
-    (0..validator_count).for_each(|i| {
-        log!("Validator {} DB in {}", i + 1, validator_dbs[i].display());
-    });
 
     //
     // Ready to run...
     //
 
     let (solana_programs_path, hyperlane_solana_programs_path) = {
+        // let solana_bin_path = std::path::PathBuf::from("/tmp/kamiyaa/solana/bin");
         let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
         let solana_bin_path = install_solana_cli_tools(
             SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
@@ -260,6 +209,9 @@ fn run_locally() {
     let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
     let (solana_cli_tools_path, solana_config_path) = {
         // use the agave 2.x validator version to ensure mainnet compatibility
+
+        //        let solana_bin_path = std::path::PathBuf::from("/tmp/kamiyaa/solana-cli/bin");
+
         let solana_tools_dir = tempdir().expect("Failed to create solana tools dir");
         let solana_bin_path = install_solana_cli_tools(
             SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
@@ -280,9 +232,6 @@ fn run_locally() {
         (solana_bin_path, solana_config_path)
     };
 
-    // spawn 1st validator before any messages have been sent to test empty mailbox
-    state.push_agent(validator_envs.first().unwrap().clone().spawn("VL1", None));
-
     sleep(Duration::from_secs(5));
 
     log!("Init postgres db...");
@@ -292,6 +241,15 @@ fn run_locally() {
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
 
+    // spawn the rest of the validators
+    for (i, validator_env) in validator_envs.into_iter().enumerate() {
+        let validator = validator_env.spawn(
+            make_static(format!("VL{}", 1 + i)),
+            Some(AGENT_LOGGING_DIR.as_ref()),
+        );
+        state.push_agent(validator);
+    }
+
     // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
     for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
         initiate_solana_hyperlane_transfer(
@@ -299,15 +257,6 @@ fn run_locally() {
             solana_config_path.clone(),
         )
         .join();
-    }
-
-    // spawn the rest of the validators
-    for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
-        let validator = validator_env.spawn(
-            make_static(format!("VL{}", 1 + i)),
-            Some(AGENT_LOGGING_DIR.as_ref()),
-        );
-        state.push_agent(validator);
     }
 
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
