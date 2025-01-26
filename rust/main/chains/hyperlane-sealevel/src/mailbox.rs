@@ -493,7 +493,7 @@ impl Mailbox for SealevelMailbox {
         // Wait for the transaction to be confirmed.
         self.tx_submitter
             .rpc_client()
-            .unwrap_or(self.rpc())
+            .unwrap_or_else(|| self.rpc())
             .wait_for_transaction_confirmation(&tx)
             .await?;
 
