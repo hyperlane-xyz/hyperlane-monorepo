@@ -491,7 +491,11 @@ impl Mailbox for SealevelMailbox {
         let send_instant = std::time::Instant::now();
 
         // Wait for the transaction to be confirmed.
-        self.rpc().wait_for_transaction_confirmation(&tx).await?;
+        self.tx_submitter
+            .rpc_client()
+            .unwrap_or(self.rpc())
+            .wait_for_transaction_confirmation(&tx)
+            .await?;
 
         // We expect time_to_confirm to fluctuate depending on the commitment level when submitting the
         // tx, but still use it as a proxy for tx latency to help debug.
