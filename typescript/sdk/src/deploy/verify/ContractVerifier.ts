@@ -103,7 +103,7 @@ export class ContractVerifier {
     }
 
     if (input.address === ethers.constants.AddressZero) return;
-    if (Array.isArray(input.constructorArguments)) {
+    if (Array.isArray(input.constructorArguements)) {
       verificationLogger.debug(
         'Constructor arguments in legacy format, skipping',
       );
@@ -366,7 +366,7 @@ export class ContractVerifier {
       contractname: `${sourceName}:${input.name}`,
       contractaddress: input.address,
       /* TYPO IS ENFORCED BY API */
-      constructorArguements: strip0x(input.constructorArguments ?? ''),
+      constructorArguements: strip0x(input.constructorArguements ?? ''),
       ...this.compilerOptions,
     };
   }
