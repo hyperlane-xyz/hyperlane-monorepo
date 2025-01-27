@@ -22,6 +22,7 @@ import {
   assert,
   eqAddress,
   isNullish,
+  mean,
   median,
   padBytesToLength,
 } from '@hyperlane-xyz/utils';
@@ -74,14 +75,14 @@ const TRANSFER_REMOTE_COMPUTE_LIMIT = 1_000_000;
  * The factor by which to multiply the median prioritization fee
  * instruction added to transfer transactions.
  */
-const PRIORITY_FEE_PADDING_FACTOR = 2;
+const PRIORITY_FEE_PADDING_FACTOR = 1.2;
 
 /**
  * The minimum priority fee to use if the median fee is
  * unavailable or too low, set in micro-lamports.
  * 100,000 * 1e-6 * 1,000,000 (compute unit limit) / 1e9 == 0.0001 SOL
  */
-const MINIMUM_PRIORITY_FEE = 100_000;
+const MINIMUM_PRIORITY_FEE = 10;
 
 // Interacts with native currencies
 export class SealevelNativeTokenAdapter
@@ -582,7 +583,15 @@ export abstract class SealevelHypTokenAdapter
     );
 
     this.logger.debug(`Median priority fee: ${medianFee}`);
-    return medianFee;
+
+    const meanFee = Math.max(
+      Math.floor(mean(nonZeroFees) * PRIORITY_FEE_PADDING_FACTOR),
+      MINIMUM_PRIORITY_FEE,
+    );
+
+    this.logger.debug(`Mean priority fee: ${meanFee}`);
+
+    return meanFee;
   }
 
   protected getIgpAdapter(
