@@ -1504,16 +1504,16 @@ export const validatorChainConfig = (
       ),
     },
 
-    abstract: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('abstract'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x2ef8ece5b51562e65970c7d36007baa43a1de685'],
-        },
-        'abstract',
-      ),
-    },
+    // abstract: {
+    //   interval: 5,
+    //   reorgPeriod: getReorgPeriod('abstract'),
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: ['0x2ef8ece5b51562e65970c7d36007baa43a1de685'],
+    //     },
+    //     'abstract',
+    //   ),
+    // },
     glue: {
       interval: 5,
       reorgPeriod: getReorgPeriod('glue'),
@@ -1542,6 +1542,17 @@ export const validatorChainConfig = (
           [Contexts.Hyperlane]: ['0x18818e3ad2012728465d394f2e3c0ea2357ae9c5'],
         },
         'unitzero',
+      ),
+    },
+
+    sonicsvm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonicsvm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf21f46905d8d09f76bc8c503f856e5466bc5ffea'],
+        },
+        'sonicsvm',
       ),
     },
   };

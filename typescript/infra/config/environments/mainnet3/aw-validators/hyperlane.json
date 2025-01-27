@@ -415,5 +415,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "sonicsvm": {
+    "validators": ["0xf21f46905d8d09f76bc8c503f856e5466bc5ffea"]
   }
 }
