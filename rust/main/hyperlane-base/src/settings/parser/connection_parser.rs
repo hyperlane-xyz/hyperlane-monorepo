@@ -352,6 +352,51 @@ fn parse_transaction_submitter_config(
     }
 }
 
+fn build_ton_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<ChainConnectionConf> {
+    let url = rpcs
+        .get(0)
+        .cloned()
+        .ok_or_else(|| {
+            err.push(
+                chain.cwp.clone().join("url"),
+                eyre!("Missing URL for TonConnectionConf"),
+            );
+        })
+        .ok()?;
+
+    let api_key = chain
+        .chain(err)
+        .get_key("api_key")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            err.push(
+                chain.cwp.clone().join("api_key"),
+                eyre!("Missing API key for TonConnectionConf"),
+            );
+            None
+        })?;
+
+    let max_attempts = chain
+        .chain(err)
+        .get_opt_key("maxAttempts")
+        .parse_u16()
+        .end()
+        .unwrap_or(3);
+
+    Some(ChainConnectionConf::Ton(
+        hyperlane_ton::TonConnectionConf::new(
+            url,
+            api_key.to_string(),
+            max_attempts.try_into().unwrap(),
+        ),
+    ))
+}
+
 pub fn build_connection_conf(
     domain_protocol: HyperlaneDomainProtocol,
     rpcs: &[Url],
@@ -379,5 +424,6 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Ton => build_ton_connection_conf(rpcs, chain, err),
     }
 }

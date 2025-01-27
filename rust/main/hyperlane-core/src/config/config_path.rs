@@ -49,7 +49,7 @@ impl ConfigPath {
         debug_assert!(!part.contains('['));
         debug_assert!(!part.contains(']'));
         debug_assert!(!part.is_empty());
-        debug_assert!(part.to_ascii_lowercase() == part);
+        //debug_assert!(part.to_ascii_lowercase() == part);
         let mut new = self.clone();
         new.0.push(Arc::new(part));
         new

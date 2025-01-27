@@ -11,6 +11,7 @@ version.workspace = true
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
+hyperlane-ton = { path = "../../chains/hyperlane-ton" }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true
@@ -37,6 +38,13 @@ regex.workspace = true
 relayer = { path = "../../agents/relayer" }
 hyperlane-cosmwasm-interface.workspace = true
 cosmwasm-schema.workspace = true
+secp256k1="0.30"
+url = "2.5.2"
+log.workspace = true
+tonlib-core.workspace = true
+reqwest = { workspace = true, version = "0.11", features = ["json"] }
+env_logger = "0.9.3"
+
 
 [build-dependencies]
 anyhow = { workspace = true }
@@ -44,3 +52,4 @@ vergen = { version = "8.3.2", features = ["build", "git", "gitcl"] }
 
 [features]
 cosmos = []
+ton = []

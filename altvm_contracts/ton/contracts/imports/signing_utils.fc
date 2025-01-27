@@ -1,0 +1,83 @@
+(int, int, int, int) ecrecover (int hash, int v, int r, int s) asm """
+ECRECOVER
+NULLSWAPIFNOT2
+NULLSWAPIFNOT
+""";
+int keccak256(slice) asm " 1 PUSHINT HASHEXT_KECCAK256";
+int keccak256_builder(builder) asm " 1 PUSHINT HASHEXT_KECCAK256";
+int digest_keccak(tuple t) asm " DUP TLEN EXPLODEVAR HASHEXT_KECCAK256";
+
+const int MESSAGE_HEADER_SIZE = 8 + 32 + 32 + 256 + 32 + 256;
+
+const slice prefix = "19"s;
+const slice postfix = "0a3332"s;
+
+int normalize_ecdsa_recovery_id(int v) inline {
+    ;; "compressed recovery_id for pub key"
+    if v >= 31 {
+        return v - 31;
+    }
+
+    ;; "uncompressed recovery_id for pub key"
+    if v >= 27 {
+        return v - 27;
+    }
+
+    return v;
+}
+
+;; Returns 0 on failure, public key and -1 on success. 65-byte public key is returned as uint8 h, uint256 x1, x2.
+(int, int, int, int) get_ecdsa_pub_key(int hash, slice signature) inline {
+    int v = signature~load_uint(8);
+    int r = signature~load_uint(256);
+    int s = signature~load_uint(256);
+
+    v = normalize_ecdsa_recovery_id(v);
+
+    return ecrecover(hash, v, r, s);
+}
+
+int calc_address(int x1, int x2) inline {
+    int pub_hash = keccak256_builder(
+        begin_cell()
+            .store_uint(x1, 256)
+            .store_uint(x2, 256)
+    );
+    slice as = begin_cell().store_uint(pub_hash, 256).end_cell().begin_parse();
+    ;; last 20 bytes of pubkey hash is address
+    as~skip_bits(256 - 160);
+    return as~load_uint(160);
+
+}
+
+int to_eth_signed_message_hash(int hash) inline {
+    return keccak256_builder(
+        begin_cell()
+            .store_slice(prefix)
+            .store_slice("Ethereum Signed Message:")
+            .store_slice(postfix)
+            .store_uint(hash, 256)
+        );
+}
+
+;; message is hyperlane formatted
+tuple split_message(slice message) inline {
+    tuple t = empty_tuple();
+    slice header = message~load_bits(MESSAGE_HEADER_SIZE);
+    t~tpush(header);
+
+    slice bs = message;
+    while (~ bs.slice_refs_empty?()) {
+        bs = bs~load_ref().begin_parse();
+        slice bits = bs~load_bits(slice_bits(bs));
+        t~tpush(bits);
+    }
+
+    return t;
+}
+
+
+int message_id(slice msg) inline {
+    tuple t = split_message(msg);
+    return digest_keccak(t);
+}

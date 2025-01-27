@@ -86,7 +86,6 @@ impl ForwardBackwardIterator {
         loop {
             let high_nonce_message_status = self.high_nonce_iter.try_get_next_nonce(metrics)?;
             let low_nonce_message_status = self.low_nonce_iter.try_get_next_nonce(metrics)?;
-
             match (high_nonce_message_status, low_nonce_message_status) {
                 // Always prioritize advancing the the high nonce iterator, as
                 // we have a preference for higher nonces
@@ -258,7 +257,6 @@ impl ProcessorExt for MessageProcessor {
                 "Processor working on message"
             );
             let destination = msg.destination;
-
             // Skip if not whitelisted.
             if !self.message_whitelist.msg_matches(&msg, true) {
                 debug!(?msg, whitelist=?self.message_whitelist, "Message not whitelisted, skipping");

@@ -1,0 +1,210 @@
+#include "imports/stdlib.fc";
+#include "imports/op_codes.fc";
+#include "imports/errors.fc";
+#include "imports/send_mode.fc";
+#include "imports/ton_msg.fc";
+#include "imports/events.fc";
+
+global slice g::owner;
+global slice g::beneficiary;
+global int g::hook_type;
+global cell g::dest_gas_config;
+global cell g::hook_metadata;
+
+const int TOKEN_EXCHANGE_RATE_SCALE = 10000000000;
+const int MINIMAL_BALANCE = 500000000;
+
+() store_globals() impure inline_ref {
+    cell data = begin_cell()
+        .store_slice(g::owner)
+        .store_slice(g::beneficiary)
+        .store_uint(g::hook_type, 8)
+        .store_ref(g::hook_metadata)
+        .store_dict(g::dest_gas_config)
+        .end_cell();
+    set_data(data);
+}
+
+() load_globals() impure inline_ref {
+    slice ds = get_data().begin_parse();
+    g::owner = ds~load_msg_addr();
+    g::beneficiary = ds~load_msg_addr();
+    g::hook_type = ds~load_uint(8);
+    g::hook_metadata = ds~load_ref();
+    g::dest_gas_config = ds~load_dict();
+}
+
+(int, int) read_exchange_rate_and_gas_price(int dest_domain) impure inline {
+    (cell gas_config_cell, int found?) = g::dest_gas_config.udict_get_ref?(32, dest_domain);
+    if (found?) {
+        slice gas_config = gas_config_cell.begin_parse();
+        gas_config~skip_bits(256 + 256);
+        return (gas_config~load_uint(128), gas_config~load_uint(128));
+    }
+    return (0, 0);
+}
+
+int metadata::unpack::gas_limit(cell c) inline {
+    slice ms = c.begin_parse();
+    ms~skip_bits(16 + 256);
+    return ms~load_uint(256);
+}
+
+int quote_gas_payment(
+    int dest_domain,
+    int gas_limit
+) impure inline {
+    (
+        int token_exchange_rate,
+        int gas_price
+    ) = read_exchange_rate_and_gas_price(dest_domain);
+
+    int dest_gas_cost = gas_limit * gas_price;
+
+    return (dest_gas_cost * token_exchange_rate) / TOKEN_EXCHANGE_RATE_SCALE;
+} 
+
+int get_gas_limit(cell hook_metadata) inline {
+    cell meta = null?(hook_metadata) ? g::hook_metadata : hook_metadata;
+    return meta.metadata::unpack::gas_limit();
+}
+
+() pay_for_gas(
+    int message_id,
+    int value,
+    int dest_domain,
+    int gas_limit,
+    slice refund_addr
+) impure inline {
+    int required_payment = quote_gas_payment(dest_domain, gas_limit);
+    throw_unless(
+        error::insufficient_gas_payment,
+        value >= required_payment
+    );
+
+    int overpayment = value - required_payment;
+
+    if (overpayment > 0) {
+        builder msg = build_message(refund_addr, overpayment, false, null(), null());
+        send_raw_message(msg.store_uint(0, 1).end_cell(), send_mode::ignore_errors);
+    }
+
+    builder gas_data = begin_cell()
+        .store_uint(message_id, 256)
+        .store_ref(begin_cell()
+            .store_uint(dest_domain, 32)
+            .store_uint(gas_limit, 256)
+            .store_uint(required_payment, 256)
+            .end_cell()
+        );
+    
+    send_event(event::gas_payment, gas_data);
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    slice msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    load_globals();
+
+    if (op == op::post_dispatch) {
+        int message_id = in_msg_body~load_uint(256);
+        int dest_domain = in_msg_body~load_uint(32);
+        slice refund_addr = in_msg_body~load_msg_addr();
+        cell hook_metadata = in_msg_body~load_ref();
+
+        int gas_limit = get_gas_limit(hook_metadata);
+        pay_for_gas(
+            message_id,
+            msg_value,
+            dest_domain,
+            gas_limit,
+            refund_addr
+        );
+        return ();
+    }
+
+    if (op == op::set_beneficiary) {
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, g::owner));
+        g::beneficiary = in_msg_body~load_msg_addr();
+        return store_globals();
+    }
+
+    if (op == op::claim) {
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, g::owner));
+        raw_reserve(storagefee() + MINIMAL_BALANCE, 2);
+        send_change(g::beneficiary, op, query_id, send_mode::carry_remaining_balance);
+        return store_globals();
+    }
+
+    if(op == op::set_dest_gas_config) {
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, g::owner));
+        int dest_domain = in_msg_body~load_uint(32);
+        cell gas_config = in_msg_body~load_ref();
+
+        g::dest_gas_config~udict_set_ref(32, dest_domain, gas_config);
+        
+        return store_globals();
+    }
+
+    if (op == op::transfer_ownership) {
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, g::owner));
+
+        g::owner = in_msg_body~load_msg_addr();
+        return store_globals();
+    }
+
+    throw(error::unknown_op);
+}
+
+int get_quote_dispatch(
+    int dest_domain,
+    cell hook_metadata
+) method_id {
+    load_globals();
+    int gas_limit = get_gas_limit(hook_metadata);
+    return quote_gas_payment(dest_domain, gas_limit);
+} 
+
+(int, int) get_exchange_rate_and_gas_price(int dest_domain) method_id {
+    load_globals();
+    return read_exchange_rate_and_gas_price(dest_domain);
+}
+
+cell get_dest_gas_config() method_id {
+    load_globals();
+    return g::dest_gas_config;
+}
+
+slice get_beneficiary() method_id {
+    load_globals();
+    return g::beneficiary;
+}
+
+int get_hook_type() method_id {
+    load_globals();
+    return g::hook_type;
+}
+
+slice get_owner() method_id {
+    load_globals();
+    return g::owner;
+}

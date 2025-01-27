@@ -1,0 +1,68 @@
+#include "imports/stdlib.fc";
+#include "imports/ton_msg.fc";
+#include "imports/op_codes.fc";
+#include "imports/events.fc";
+#include "imports/errors.fc";
+
+global int g::index;
+
+() store_globals() impure inline_ref {
+    cell data = begin_cell()
+        .store_uint(g::index, 32)
+        .end_cell();
+    set_data(data);
+}
+
+() load_globals() impure inline_ref {
+    slice ds = get_data().begin_parse();
+    g::index = ds~load_uint(32);
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    slice msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    load_globals();
+
+    if(op == op::post_dispatch) {
+        int message_id = in_msg_body~load_uint(256);
+        int dest_domain = in_msg_body~load_uint(32);
+        slice refund_addr = in_msg_body~load_msg_addr();
+        cell hook_metadata = in_msg_body~load_ref();
+        ~dump(3);
+
+        builder data = begin_cell().store_uint(message_id, 256).store_uint(g::index, 32);
+        ~dump(4);
+        send_event(
+            event::inserted_into_tree,
+            data
+        );
+        ~dump(5);
+
+        g::index += 1;
+        return store_globals();
+    }
+
+    throw(error::unknown_op);
+}
+
+
+int get_count() method_id { 
+    load_globals();
+    return g::index + 1;
+}
+
+(int, int) get_latest_checkpoint() method_id {
+    load_globals();
+    return (0, g::index);
+}

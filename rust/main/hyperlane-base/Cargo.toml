@@ -52,7 +52,11 @@ hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-fuel = { path = "../chains/hyperlane-fuel" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
 hyperlane-cosmos = { path = "../chains/hyperlane-cosmos" }
+hyperlane-ton = {path = "../chains/hyperlane-ton"}
 hyperlane-test = { path = "../hyperlane-test" }
+
+reqwest.workspace = true
+tonlib-core.workspace = true
 
 # dependency version is determined by etheres
 rusoto_core = "*"

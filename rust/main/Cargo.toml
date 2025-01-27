@@ -7,6 +7,7 @@ members = [
   "chains/hyperlane-ethereum",
   "chains/hyperlane-fuel",
   "chains/hyperlane-sealevel",
+  "chains/hyperlane-ton",
   "ethers-prometheus",
   "hyperlane-base",
   "hyperlane-core",
@@ -159,6 +160,7 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
+tonlib-core = "0.22.2"
 
 ## TODO: remove this
 cosmwasm-schema = "2.2.0"

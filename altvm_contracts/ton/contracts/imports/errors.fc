@@ -1,0 +1,15 @@
+const int error::unknown_op = 0xffff;
+const int error::wrong_mailbox_version = 100;
+const int error::wrong_dest_domain = 101;
+const int error::message_delivered = 102;
+const int error::unauthorized_sender = 103;
+const int error::message_verification_failed = 104;
+const int error::unknown_sub_op = 105;
+const int error::insufficient_gas_payment = 106;
+const int error::wrong_signature = 107;
+const int error::wrong_validator = 110;
+const int error::pubkey_recovery = 111;
+const int error::replay = 112;
+const int error::domain_validators_not_found = 113;
+const int error::msg_value_too_low = 114;
+const int error::merkle_tree_full = 115;

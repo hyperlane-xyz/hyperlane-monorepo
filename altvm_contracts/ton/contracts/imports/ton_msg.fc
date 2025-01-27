@@ -1,0 +1,128 @@
+#pragma version 0.4.4;
+
+#include "send_mode.fc";
+#include "errors.fc";
+#include "reserve_mode.fc";
+
+int storagefee() impure asm "STORAGEFEES";
+int gasconsumed() impure asm "GASCONSUMED";
+int gasfee(int gas_used, int is_mc) impure asm "GETGASFEE";
+;; Answer bit, set in response opcodes to indicate an answer for request.
+const int ANSWER_BIT = 0x80000000;
+
+const int MSG_FEES = 1000000;
+const int FWD_FEES = 2700000;
+
+() reserve_original_balance(int value, int required_value) impure inline {
+  int gas_fee = gasfee(
+    gasconsumed(),
+    false ;; NOT a masterchain
+  );
+  int min_msg_value = gas_fee + required_value + storagefee() + FWD_FEES + MSG_FEES;
+  throw_if(error::msg_value_too_low, value < min_msg_value);
+  raw_reserve(storagefee(), reserve_mode::balance_plus_this_amount);
+}
+
+;; Builds TON message header.
+builder msg_header(
+  slice dest, ;; destination address
+  int value, ;; amount of nanoton to send with message
+  int bounce? ;; bounce flag
+) inline {
+  int header_flags = bounce? ? 0x18 : 0x10;
+  return begin_cell()
+    .store_uint(header_flags, 6)
+    .store_slice(dest)
+    .store_coins(value)
+    .store_uint(0, 1 + 4 + 4 + 64 + 32);
+}
+
+;; Builds TON internal message.
+builder build_message(
+  slice dest, ;; destination address
+  int value, ;; amount of nanoton to send with message
+  int bounce?, ;; bounce flag in message header
+  cell state_init, ;; initial state for deploy messages
+  cell body ;; message body
+) inline {
+  builder msg_b = msg_header(dest, value, bounce?);
+  ifnot (null?(state_init)) {
+    msg_b = msg_b.store_uint(2 + 1, 2).store_ref(state_init);
+  } else {
+    msg_b = msg_b.store_uint(0, 1);
+  }
+  if (null?(body)) {
+    return msg_b;
+  }
+  msg_b = msg_b.store_uint(1, 1).store_ref(body);
+  return msg_b;
+}
+
+;; Sends change with defined opcode to destination address.
+() send_change(
+  slice dest, ;; destination address
+  int op, ;; operation code
+  int query_id, ;; ID of the current processing deposit
+  int mode ;; send mode
+) impure inline {
+  var msg_b = build_message(dest, 0, false, null(), null());
+  cell msg = msg_b.store_uint(0, 1)
+    .store_uint(op | ANSWER_BIT, 32)
+    .store_uint(query_id, 64)
+    .end_cell();
+  send_raw_message(msg, mode | send_mode::ignore_errors);
+}
+
+;; Sends TON external outbound message.
+() send_event(
+  int event_id, ;; ID of logged event
+  builder data ;; logged data
+) impure inline_ref {
+  cell log = begin_cell()
+    .store_uint(12, 4) ;; ext_out_msg_info$11 src:MsgAddressInt ()
+    .store_uint(1, 2)
+    .store_uint(256, 9)
+    .store_uint(event_id, 256)
+    .store_uint(0, 64 + 32 + 2) ;; created_lt, created_at, init:Maybe, body:Either
+    .store_builder(data)
+  .end_cell();
+  send_raw_message(log, 0);
+}
+
+;; Builds state init of a TON contract.
+(cell) build_stateinit(
+  cell code, ;; contract code
+  cell data ;; contract initial data
+) inline {
+  return begin_cell()
+    .store_uint(6, 1 + 1 + 1 + 1 + 1)
+    .store_ref(code)
+    .store_ref(data)
+    .end_cell();
+}
+
+;; Builds TON contract address slice from raw address.
+slice build_addr(int wc, int addr256) inline {
+  return begin_cell()
+    .store_uint(2, 2) ;; addr_std$10
+    .store_uint(0, 1) ;; anycast:(Maybe Anycast)
+    .store_uint(wc, 8) ;; workchain_id:int8
+    .store_uint(addr256, 256) ;; address:bits256
+    .end_cell()
+    .begin_parse();
+}
+
+;; Deploys a TON contract.
+() deploy_contract(
+  cell code, ;; contract code
+  cell data, ;; contract initial data
+  int value, ;; amount of nanotons to send with deploy message
+  int bounce?, ;; bounce flag in message header
+  cell body, ;; deploy message body
+  int mode ;; send mode
+) impure inline_ref {
+  cell state_init = build_stateinit(code, data);
+  slice dest_address = build_addr(0, cell_hash(state_init));
+  builder msg_b = build_message(dest_address, value, bounce?, state_init, body);
+  send_raw_message(msg_b.end_cell(), mode);
+}

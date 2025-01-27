@@ -1,0 +1,16 @@
+const int send_mode::ordinary = 0;
+;; carry all the remaining balance of the current smart contract
+;; (instead of the value originally indicated in the message)
+const int send_mode::carry_remaining_balance = 128;
+;; carry all the remaining value of the inbound message
+;; in addition to the value initially indicated in the new message
+;; (if bit 0 is not set, the gas fees are deducted from this amount)
+const int send_mode::carry_remaining_value = 64;
+;; + 1 means that the sender wants to pay transfer fees separately
+const int send_mode::pay_transfer_fees_separately = 1;
+;; + 2 means that any errors arising while processing
+;; this message during the action phase should be ignored
+const int send_mode::ignore_errors = 2;
+;; Finally, mode' = mode + 32 means that the current account must be destroyed
+;; if its resulting balance is zero.
+;; This flag is usually employed together with +128.

@@ -14,6 +14,7 @@ use eyre::{eyre, Context};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
+use tonlib_core::wallet::WalletVersion;
 use url::Url;
 
 use h_cosmos::RawCosmosAmount;
@@ -346,12 +347,39 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 account_address_type,
             })
         }};
+        (TonMnemonic) => {{
+            let mnemonic_phrase = signer
+                .chain(&mut err)
+                .get_key("mnemonic_phrase")
+                .parse_string()
+                .unwrap_or_default();
+
+            let mnemonic_vec: Vec<String> = mnemonic_phrase
+                .split_whitespace()
+                .map(String::from)
+                .collect();
+
+            let wallet_version = signer
+                .chain(&mut err)
+                .get_key("wallet_version")
+                .parse_string()
+                .unwrap_or_else(|| "V3R2");
+
+            err.into_result(SignerConf::TonMnemonic {
+                mnemonic_phrase: mnemonic_vec,
+                wallet_version: hyperlane_ton::signer::signer::wallet_version_from_str(
+                    wallet_version,
+                )
+                .unwrap_or(WalletVersion::V4R2),
+            })
+        }};
     }
 
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
         Some("cosmosKey") => parse_signer!(cosmosKey),
+        Some("TonMnemonic") => parse_signer!(TonMnemonic),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
         }

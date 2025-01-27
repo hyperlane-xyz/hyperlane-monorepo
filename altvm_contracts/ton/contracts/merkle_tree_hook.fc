@@ -1,0 +1,137 @@
+#include "imports/stdlib.fc";
+#include "imports/ton_msg.fc";
+#include "imports/op_codes.fc";
+#include "imports/events.fc";
+#include "imports/errors.fc";
+#include "imports/signing_utils.fc";
+#include "imports/zeroes.fc";
+
+const int TREE_DEPTH = 32;
+const int MAX_LEAVES = 4294967295;
+
+global int g::count;
+global cell g::tree;
+
+
+() store_globals() impure inline_ref {
+    cell data = begin_cell()
+        .store_uint(g::count, 256)
+        .store_dict(g::tree)
+        .end_cell();
+    set_data(data);
+}
+
+() load_globals() impure inline_ref {
+    slice ds = get_data().begin_parse();
+    g::count = ds~load_uint(256);
+    g::tree = ds~load_dict();
+}
+
+
+() insert_into_tree(int node) impure inline {
+    throw_unless(
+        error::merkle_tree_full,
+        g::count < MAX_LEAVES
+    );
+    g::count += 1;
+    int size = g::count;
+    int i = 0;
+    repeat(TREE_DEPTH) {
+        if ((size & 1) == 1) {
+            g::tree~udict_set_builder(KEY_LEN, i, begin_cell().store_uint(node, 256));
+            return ();
+        }
+        (slice s, _) = g::tree.udict_get?(KEY_LEN, i);
+        node = keccak256_builder(
+            begin_cell()
+                .store_slice(s)
+                .store_uint(node, 256)
+        );
+        size /= 2;
+        i += 1;
+    }
+    return ();
+}
+
+int root_w_ctx(cell zeroes) impure inline {
+    int index = g::count;
+    int i = 0;
+    int current = 0;
+    repeat(TREE_DEPTH) {
+        int iht_bit = (index >> i) & 1;
+        (slice next, _) = g::tree.udict_get?(KEY_LEN, i);
+        if (iht_bit == 1) {
+            current = keccak256_builder(
+                begin_cell().store_slice(next).store_uint(current, 256)
+            );
+        } else {
+            (slice zero, _) = zeroes.udict_get?(KEY_LEN, i);
+            current = keccak256_builder(
+                begin_cell().store_uint(current, 256).store_slice(zero)
+            );
+        }
+        i += 1;
+    }
+    return current;
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    slice msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+
+    load_globals();
+
+    if(op == op::post_dispatch) {
+        int message_id = in_msg_body~load_uint(256);
+
+        insert_into_tree(message_id);
+
+        builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
+        send_event(
+            event::inserted_into_tree,
+            data
+        );
+
+        return store_globals();
+    }
+
+    throw(error::unknown_op);
+}
+
+;;
+;; GET-METHODS
+;; 
+
+int root() inline {
+    return root_w_ctx(zero_hashes());
+}
+
+(cell, int) get_tree() method_id {
+    load_globals();
+    return (g::tree, g::count);
+}
+
+int get_count() method_id { 
+    load_globals();
+    return g::count;
+}
+
+int get_root() method_id {
+    load_globals();
+    return root();
+}
+
+(int, int) get_latest_checkpoint() method_id {
+    load_globals();
+    return (root(), g::count - 1);
+}

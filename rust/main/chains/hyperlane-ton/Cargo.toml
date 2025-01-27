@@ -1,0 +1,32 @@
+[package]
+name = "hyperlane-ton"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+log.workspace = true
+derive-new.workspace = true
+hex.workspace = true
+url.workspace = true
+pretty_env_logger.workspace = true
+base64.workspace = true
+tracing.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true
+reqwest = {workspace = true, features = ["json"]}
+tokio = {workspace = true, features = ["full"]}
+tonlib-core.workspace = true
+tracing-subscriber = {workspace = true, features = ["fmt"]}
+
+hyperlane-core = { path = "../../hyperlane-core", features = ["async", "agent"] }
+
+
