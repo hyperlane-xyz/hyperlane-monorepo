@@ -1,11 +1,17 @@
 import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
+import {
+  LogFormat,
+  LogLevel,
+  configureRootLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { getRegistryWithOverrides } from '../../config/registry.js';
 
 const registry = getRegistryWithOverrides();
 
 function printSeparator() {
-  console.log(
+  rootLogger.info(
     '\n----------------------------------------------------------------------------\n',
   );
 }
@@ -44,9 +50,9 @@ async function printValidatorsPerOperator() {
       operatorMap[operator].chains.join(', ');
   }
 
-  console.log('VALIDATORS PER OPERATOR:');
+  rootLogger.info('VALIDATORS PER OPERATOR:');
   for (const [operator, data] of Object.entries(operatorMap)) {
-    console.log(`${operator} (${data.count}):\n- ${data.displayChains}\n`);
+    rootLogger.info(`${operator} (${data.count}):\n- ${data.displayChains}\n`);
   }
 }
 
@@ -67,7 +73,7 @@ async function printAbacusVsThirdParty() {
 
     // Skip non-production chains
     if (threshold === 1) {
-      console.log(`Skipping ${chain} with threshold ${threshold}`);
+      rootLogger.info(`Skipping ${chain} with threshold ${threshold}`);
       continue;
     }
 
@@ -82,14 +88,14 @@ async function printAbacusVsThirdParty() {
     }
   }
 
-  console.log('VALIDATOR DISTRIBUTION:');
-  console.log(
+  rootLogger.info('VALIDATOR DISTRIBUTION:');
+  rootLogger.info(
     `Abacus Works: ${abacusCount} validators across ${abacusChains.size} chains`,
   );
-  console.log(
+  rootLogger.info(
     `Third Party: ${thirdPartyCount} validators across ${thirdPartyChains.size} chains`,
   );
-  console.log(`Total: ${abacusCount + thirdPartyCount} validators`);
+  rootLogger.info(`Total: ${abacusCount + thirdPartyCount} validators`);
 }
 
 async function printChainDistribution() {
@@ -116,7 +122,7 @@ async function printChainDistribution() {
 
     // Skip non-production chains
     if (threshold === 1) {
-      console.log(`Skipping ${chain} with threshold ${threshold}`);
+      rootLogger.info(`Skipping ${chain} with threshold ${threshold}`);
       continue;
     }
 
@@ -146,7 +152,8 @@ async function printChainDistribution() {
     .filter((data) => data.total < 3)
     .map((data) => data.chain);
 
-  console.log('CHAIN-LEVEL DISTRIBUTION:');
+  rootLogger.info('CHAIN-LEVEL DISTRIBUTION:');
+  // eslint-disable-next-line no-console
   console.table(
     Object.values(chainDistribution).map(
       ({
@@ -168,15 +175,16 @@ async function printChainDistribution() {
   );
 
   if (lowValidatorChains.length > 0) {
-    console.log(
+    rootLogger.info(
       `\n${lowValidatorChains.length} chains not yet in production (< 3 validators):`,
     );
-    console.log(lowValidatorChains.join(', '));
-    console.log(''); // Empty line for spacing
+    rootLogger.info(lowValidatorChains.join(', '));
+    rootLogger.info(''); // Empty line for spacing
   }
 }
 
 async function main() {
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   printSeparator();
   await printValidatorsPerOperator();
   printSeparator();
@@ -186,4 +194,4 @@ async function main() {
   printSeparator();
 }
 
-main().catch(console.error);
+main().catch(rootLogger.error);
