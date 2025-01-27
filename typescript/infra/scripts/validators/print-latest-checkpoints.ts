@@ -9,6 +9,7 @@ import {
   LogFormat,
   LogLevel,
   configureRootLogger,
+  eqAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -18,7 +19,14 @@ import { getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, chains } = await withChainsRequired(getArgs()).argv;
+  const {
+    environment,
+    chains,
+    all = false,
+  } = await withChainsRequired(getArgs())
+    .describe('all', 'all validators, including non-default ISM')
+    .boolean('all')
+    .alias('a', 'all').argv;
 
   if (chains.length === 0) {
     rootLogger.error('Must provide at least one chain');
@@ -38,6 +46,7 @@ async function main() {
       Address,
       {
         alias: string;
+        default: string;
         latest: number;
         bucket: string;
       }
@@ -57,16 +66,34 @@ async function main() {
         chain === 'lumia'
           ? lumiaValidatorAnnounce
           : core.getContracts(chain).validatorAnnounce;
-      const expectedValidators = defaultMultisigConfigs[chain].validators || [];
+
+      const announcedValidators =
+        await validatorAnnounce.getAnnouncedValidators();
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations(
-          expectedValidators.map((v) => v.address),
+          announcedValidators,
         );
 
+      const defaultIsmValidators =
+        defaultMultisigConfigs[chain].validators || [];
+
+      const findDefaultValidatorAlias = (address: Address): string => {
+        const validator = defaultIsmValidators.find((v) =>
+          eqAddress(v.address, address),
+        );
+        return validator?.alias || '';
+      };
+
       // For each validator on this chain
-      for (let i = 0; i < expectedValidators.length; i++) {
-        const { address: validator, alias } = expectedValidators[i];
+      for (let i = 0; i < announcedValidators.length; i++) {
+        const validator = announcedValidators[i];
         const location = storageLocations[i][0];
+
+        // Skip validators not in default ISM unless --all flag is set
+        const isDefaultIsmValidator = findDefaultValidatorAlias(validator);
+        if (!isDefaultIsmValidator && !all) {
+          continue;
+        }
 
         // Get metadata from each storage location
         try {
@@ -81,15 +108,28 @@ async function main() {
           if (!validators[chain]) {
             validators[chain] = {};
           }
+          const alias = findDefaultValidatorAlias(validator);
           validators[chain][validator] = {
             alias,
+            default: alias ? '✅' : '',
             latest: latestCheckpoint,
             bucket,
           };
         } catch (error) {
-          rootLogger.warn(
+          // Only log errors for default ISM validators. This is because
+          // non-default ISM validators may be configured with bogus
+          // signature locations, which will cause errors when trying to
+          // get metadata.
+          const logLevel = isDefaultIsmValidator ? 'error' : 'debug';
+          rootLogger[logLevel](
             `Error getting metadata for ${validator} on chain ${chain}: ${error}`,
           );
+          validators[chain][validator] = {
+            alias: '',
+            default: '',
+            latest: -1,
+            bucket: location,
+          };
         }
       }
     }),
@@ -99,8 +139,17 @@ async function main() {
   Object.entries(validators).forEach(([chain, chainValidators]) => {
     const { displayName } = multiProvider.getChainMetadata(chain);
     rootLogger.info(`\n${displayName ?? chain} Validators:`);
+    // Sort validators by default (✅ first), then by latest checkpoint index
+    const sortedValidators = Object.fromEntries(
+      Object.entries(chainValidators).sort(([, a], [, b]) => {
+        if (a.default !== b.default) {
+          return b.default.localeCompare(a.default); // ✅ comes before empty string
+        }
+        return b.latest - a.latest;
+      }),
+    );
     // eslint-disable-next-line no-console
-    console.table(chainValidators, ['alias', 'latest', 'bucket']);
+    console.table(sortedValidators, ['alias', 'default', 'latest', 'bucket']);
   });
 
   process.exit(0);
