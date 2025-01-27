@@ -24,6 +24,10 @@ pub trait TransactionSubmitter: Send + Sync {
         transaction: &Transaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature>;
+
+    fn rpc_client(&self) -> Option<&SealevelRpcClient> {
+        None
+    }
 }
 
 /// A transaction submitter that uses the vanilla RPC to submit transactions.
@@ -59,6 +63,10 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
         self.rpc_client
             .send_transaction(transaction, skip_preflight)
             .await
+    }
+
+    fn rpc_client(&self) -> Option<&SealevelRpcClient> {
+        Some(&self.rpc_client)
     }
 }
 
