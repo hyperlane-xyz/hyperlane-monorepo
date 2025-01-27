@@ -7,8 +7,9 @@ import {HypERC20Collateral} from "../HypERC20Collateral.sol";
 contract HypXERC20 is HypERC20Collateral {
     constructor(
         address _xerc20,
+        uint256 _scale,
         address _mailbox
-    ) HypERC20Collateral(_xerc20, _mailbox) {
+    ) HypERC20Collateral(_xerc20, _scale, _mailbox) {
         _disableInitializers();
     }
 

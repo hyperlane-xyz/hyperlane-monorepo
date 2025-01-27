@@ -3,12 +3,16 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 
+import {Message} from "../../contracts/libs/Message.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {StaticAggregationHook} from "../../contracts/hooks/aggregation/StaticAggregationHook.sol";
 import {StaticAggregationHookFactory} from "../../contracts/hooks/aggregation/StaticAggregationHookFactory.sol";
 import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {IPostDispatchHook} from "../../contracts/interfaces/hooks/IPostDispatchHook.sol";
 
 contract AggregationHookTest is Test {
+    using TypeCasts for address;
+
     StaticAggregationHookFactory internal factory;
     StaticAggregationHook internal hook;
 
@@ -74,6 +78,55 @@ contract AggregationHookTest is Test {
         hook.postDispatch{value: _msgValue}("", message);
     }
 
+    function test_postDispatch_refundsExcess(
+        uint8 _hooks,
+        bytes calldata body
+    ) public {
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
+        address[] memory hooksDeployed = deployHooks(_hooks, fee);
+        uint256 requiredValue = hooksDeployed.length * fee;
+        uint256 overpaidValue = requiredValue + 1000;
+
+        vm.prank(address(this));
+
+        uint256 initialBalance = address(this).balance;
+
+        bytes memory message = Message.formatMessage(
+            1,
+            0,
+            1,
+            address(this).addressToBytes32(),
+            2,
+            address(this).addressToBytes32(),
+            body
+        );
+        hook.postDispatch{value: overpaidValue}("", message);
+
+        assertEq(address(hook).balance, 0);
+        assertEq(address(this).balance, initialBalance - requiredValue);
+    }
+
+    function testPostDispatch_preventsUsingContractFunds(
+        uint8 _hooks,
+        bytes calldata body
+    ) public {
+        uint256 fee = PER_HOOK_GAS_AMOUNT;
+        deployHooks(_hooks, fee);
+        vm.assume(_hooks > 0);
+
+        vm.prank(address(this));
+
+        uint256 additionalFunds = 1 ether;
+        vm.deal(address(hook), additionalFunds);
+
+        bytes memory message = abi.encodePacked("hello world");
+
+        vm.expectRevert("StaticAggregationHook: insufficient value");
+        hook.postDispatch{value: 0}("", message);
+
+        assertEq(address(hook).balance, additionalFunds);
+    }
+
     function testQuoteDispatch(uint8 _hooks) public {
         uint256 fee = PER_HOOK_GAS_AMOUNT;
         address[] memory hooksDeployed = deployHooks(_hooks, fee);
@@ -96,4 +149,6 @@ contract AggregationHookTest is Test {
         deployHooks(1, 0);
         assertEq(hook.hookType(), uint8(IPostDispatchHook.Types.AGGREGATION));
     }
+
+    receive() external payable {}
 }
