@@ -54,7 +54,7 @@ import {
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
 
-import { BalanceThresholdConfig } from './funding/utils/constants.js';
+import { BalanceThresholdType } from './funding/utils/constants.js';
 import { AlertType } from './funding/utils/grafana.js';
 
 const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
@@ -96,7 +96,7 @@ export function getArgs() {
 export function withBalanceThresholdConfig<T>(args: Argv<T>) {
   return args
     .describe('balanceThresholdConfig', 'balance threshold config')
-    .choices('balanceThresholdConfig', Object.values(BalanceThresholdConfig));
+    .choices('balanceThresholdConfig', Object.values(BalanceThresholdType));
 }
 
 export function withFork<T>(args: Argv<T>) {

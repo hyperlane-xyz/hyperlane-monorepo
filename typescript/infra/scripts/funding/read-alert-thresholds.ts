@@ -1,23 +1,17 @@
 import yargs from 'yargs';
 
-import {
-  LogFormat,
-  LogLevel,
-  configureRootLogger,
-  rootLogger,
-} from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { writeJsonAtPath } from '../../src/utils/utils.js';
 import { withAlertType, withWrite } from '../agent-utils.js';
 
 import {
   THRESHOLD_CONFIG_PATH,
-  alertThresholdFileMapping,
+  alertConfigMapping,
   getAlertThresholds,
 } from './utils/grafana.js';
 
 async function main() {
-  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { alertType, write } = await withWrite(
     withAlertType(yargs(process.argv.slice(2))),
   ).argv;
@@ -36,7 +30,7 @@ async function main() {
     rootLogger.info('Writing alert thresholds to file..');
     try {
       writeJsonAtPath(
-        `${THRESHOLD_CONFIG_PATH}/${alertThresholdFileMapping[alertType]}`,
+        `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alertType].configFileName}`,
         alertThresholds,
       );
       rootLogger.info('Alert thresholds written to file.');
