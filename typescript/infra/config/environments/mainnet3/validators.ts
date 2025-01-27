@@ -1504,16 +1504,16 @@ export const validatorChainConfig = (
       ),
     },
 
-    // abstract: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod('abstract'),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: ['0x2ef8ece5b51562e65970c7d36007baa43a1de685'],
-    //     },
-    //     'abstract',
-    //   ),
-    // },
+    abstract: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('abstract'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x2ef8ece5b51562e65970c7d36007baa43a1de685'],
+        },
+        'abstract',
+      ),
+    },
     glue: {
       interval: 5,
       reorgPeriod: getReorgPeriod('glue'),

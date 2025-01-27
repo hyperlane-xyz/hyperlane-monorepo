@@ -1,4 +1,7 @@
 {
+  "abstract": {
+    "validators": ["0x2ef8ece5b51562e65970c7d36007baa43a1de685"]
+  },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
