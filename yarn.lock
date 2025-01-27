@@ -7379,6 +7379,7 @@ __metadata:
     "@typechain/hardhat": "npm:^9.1.0"
     "@types/node": "npm:^18.14.5"
     chai: "npm:^4.5.0"
+    eslint: "npm:^9.15.0"
     ethereum-waffle: "npm:^4.0.10"
     ethers: "npm:^5.7.2"
     fx-portal: "npm:^1.0.3"
