@@ -72,15 +72,13 @@ export async function hyperlaneWarpApply(
   warpDeployPath: string,
   warpCorePath: string,
   strategyUrl = '',
-  key?: string,
-  registryPath?: string,
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
-        --registry ${registryPath ?? REGISTRY_PATH} \
+        --registry ${REGISTRY_PATH} \
         --overrides " " \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
-        --key ${key ?? ANVIL_KEY} \
+        --key ${ANVIL_KEY} \
         --verbosity debug \
         --strategy ${strategyUrl} \
         --yes`;
@@ -186,17 +184,9 @@ export async function readWarpConfig(
   chain: string,
   warpCorePath: string,
   warpDeployPath: string,
-  key?: string,
-  registryPath?: string,
 ): Promise<WarpRouteDeployConfig> {
   const warpAddress = getDeployedWarpAddress(chain, warpCorePath);
-  await hyperlaneWarpRead(
-    chain,
-    warpAddress!,
-    warpDeployPath,
-    key,
-    registryPath,
-  );
+  await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
   return readYamlOrJson(warpDeployPath);
 }
 
