@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {TokenRouter} from "./libs/TokenRouter.sol";
+import {FungibleTokenRouter} from "./libs/FungibleTokenRouter.sol";
 import {TokenMessage} from "./libs/TokenMessage.sol";
 import {MailboxClient} from "../client/MailboxClient.sol";
 
@@ -12,7 +13,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @title Hyperlane ERC20 Token Collateral that wraps an existing ERC20 with remote transfer functionality.
  * @author Abacus Works
  */
-contract HypERC20Collateral is TokenRouter {
+contract HypERC20Collateral is FungibleTokenRouter {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable wrappedToken;
@@ -21,7 +22,11 @@ contract HypERC20Collateral is TokenRouter {
      * @notice Constructor
      * @param erc20 Address of the token to keep as collateral
      */
-    constructor(address erc20, address _mailbox) TokenRouter(_mailbox) {
+    constructor(
+        address erc20,
+        uint256 _scale,
+        address _mailbox
+    ) FungibleTokenRouter(_scale, _mailbox) {
         wrappedToken = IERC20(erc20);
     }
 

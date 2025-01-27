@@ -25,6 +25,7 @@ contract RateLimitedHookTest is Test {
     uint256 constant MAX_CAPACITY = 1 ether;
     uint256 constant ONE_PERCENT = 0.01 ether;
     uint8 internal constant DECIMALS = 18;
+    uint256 internal constant SCALE = 1;
     address constant BOB = address(0x2);
 
     TestMailbox localMailbox;
@@ -53,6 +54,7 @@ contract RateLimitedHookTest is Test {
 
         warpRouteLocal = new HypERC20Collateral(
             address(token),
+            SCALE,
             address(localMailbox)
         );
 
@@ -68,7 +70,7 @@ contract RateLimitedHookTest is Test {
             address(this)
         );
 
-        warpRouteRemote = new HypERC20(DECIMALS, address(remoteMailbox));
+        warpRouteRemote = new HypERC20(DECIMALS, SCALE, address(remoteMailbox));
 
         warpRouteLocal.enrollRemoteRouter(
             DESTINATION,

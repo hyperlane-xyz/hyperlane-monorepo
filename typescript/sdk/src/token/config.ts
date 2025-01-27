@@ -12,6 +12,7 @@ export enum TokenType {
   fastCollateral = 'fastCollateral',
   collateralUri = 'collateralUri',
   native = 'native',
+  // backwards compatible alias to native
   nativeScaled = 'nativeScaled',
 }
 

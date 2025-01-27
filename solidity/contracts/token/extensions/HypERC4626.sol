@@ -41,9 +41,10 @@ contract HypERC4626 is HypERC20 {
 
     constructor(
         uint8 _decimals,
+        uint256 _scale,
         address _mailbox,
         uint32 _collateralDomain
-    ) HypERC20(_decimals, _mailbox) {
+    ) HypERC20(_decimals, _scale, _mailbox) {
         collateralDomain = _collateralDomain;
         exchangeRate = 1e10;
         _disableInitializers();
