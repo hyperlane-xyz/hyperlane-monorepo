@@ -69,10 +69,10 @@ log () {
     echo "#### $@"
 }
 
-main () {
-    # Get the current version of the solana cli
-    SOLANA_CLI_VERSION_AT_START=$(get_current_solana_cli_version)
+# Get the current version of the solana cli
+SOLANA_CLI_VERSION_AT_START=$(get_current_solana_cli_version)
 
+main () {
     # If the current version is not the latest version, update the solana cli
     if [ $SOLANA_CLI_VERSION_AT_START != $SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS ] ; then
         log "Temporarily changing Solana CLI version from $SOLANA_CLI_VERSION_AT_START to $SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS..."
@@ -82,11 +82,17 @@ main () {
     # Build the programs
     build_programs
 
-    # Reset the solana cli to the version it was at the start
-    if [ $SOLANA_CLI_VERSION_AT_START != $SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS ] ; then
+    cleanup
+}
+
+cleanup () {
+    # Only reset if we changed the version in the first place
+    if [ "$SOLANA_CLI_VERSION_AT_START" != "$SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS" ] && \
+       [ ! -z "$SOLANA_CLI_VERSION_AT_START" ]; then
         log "Resetting Solana CLI version back to $SOLANA_CLI_VERSION_AT_START..."
         set_solana_cli_version $SOLANA_CLI_VERSION_AT_START
     fi
 }
 
+trap cleanup EXIT
 main
