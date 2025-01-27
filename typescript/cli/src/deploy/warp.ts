@@ -138,18 +138,18 @@ export async function runWarpRouteDeploy({
 
   await runDeployPlanStep(deploymentParams);
 
-  // Some of the below functions throw if passed non-EVM chains
-  const ethereumChains = chains.filter(
-    (chain) => chainMetadata[chain].protocol === ProtocolType.Ethereum,
-  );
+  // TODO: There should be no preflight checks for non-evm chains - only run `deployer.deploy` to enrol the router
+  // instead of crashing
 
-  await runPreflightChecksForChains({
-    context,
-    chains: ethereumChains,
-    minGas: MINIMUM_WARP_DEPLOY_GAS,
-  });
+  // await runPreflightChecksForChains({
+  //   context,
+  //   chains,
+  //   minGas: MINIMUM_WARP_DEPLOY_GAS,
+  // });
 
-  const initialBalances = await prepareDeploy(context, null, ethereumChains);
+  // const userAddress = await signer.getAddress();
+
+  // const initialBalances = await prepareDeploy(context, userAddress, chains);
 
   const deployedContracts = await executeDeploy(deploymentParams, apiKeys);
 
@@ -160,7 +160,8 @@ export async function runWarpRouteDeploy({
 
   await writeDeploymentArtifacts(warpCoreConfig, context, addWarpRouteOptions);
 
-  await completeDeploy(context, 'warp', initialBalances, null, ethereumChains!);
+  // TODO: commented out because it checks balances on non-evm chains
+  // await completeDeploy(context, 'warp', initialBalances, userAddress, chains);
 }
 
 async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
