@@ -112,8 +112,8 @@ impl HyperlaneProvider for StarknetProvider {
             .map_err(Into::<HyperlaneStarknetError>::into)?;
 
         match receipt {
-            MaybePendingTransactionReceipt::Receipt(tx_receipt) => match tx_receipt {
-                TransactionReceipt::Invoke(invoke_receipt) => Ok(TxnInfo {
+            MaybePendingTransactionReceipt::Receipt(TransactionReceipt::Invoke(invoke_receipt)) => {
+                Ok(TxnInfo {
                     hash: H512::from_slice(tx.transaction_hash().to_bytes_be().as_slice()),
                     gas_limit: U256::zero(),
                     max_priority_fee_per_gas: None,
@@ -134,9 +134,8 @@ impl HyperlaneProvider for StarknetProvider {
                         ),
                         effective_gas_price: None,
                     }),
-                }),
-                _ => Err(HyperlaneStarknetError::InvalidBlock.into()),
-            },
+                })
+            }
             _ => Err(HyperlaneStarknetError::InvalidBlock.into()),
         }
     }

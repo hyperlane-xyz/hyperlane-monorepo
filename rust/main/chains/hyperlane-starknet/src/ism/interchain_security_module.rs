@@ -85,7 +85,7 @@ impl StarknetInterchainSecurityModule {
 
 impl HyperlaneChain for StarknetInterchainSecurityModule {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.provider.domain()
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {

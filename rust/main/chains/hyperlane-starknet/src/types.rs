@@ -25,7 +25,7 @@ impl TryFrom<(FieldElement, FieldElement)> for HyH256 {
     type Error = ValueOutOfRangeError;
     fn try_from(val: (FieldElement, FieldElement)) -> Result<HyH256, Self::Error> {
         let value: StarknetU256 = val.try_into()?;
-        Ok(HyH256(H256::from_slice(&value.to_bytes_be().as_slice())))
+        Ok(HyH256(H256::from_slice(value.to_bytes_be().as_slice())))
     }
 }
 

@@ -148,7 +148,7 @@ pub fn generate_bindings(
         abigen
             .generate()
             .expect("Fail to generate bindings")
-            .write_to_file(&output_file.to_str().expect("valid utf8 path"))
+            .write_to_file(output_file.to_str().expect("valid utf8 path"))
             .expect("Fail to write bindings to file");
     }
 

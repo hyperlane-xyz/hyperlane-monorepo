@@ -81,7 +81,7 @@ impl StarknetAggregationIsm {
 
 impl HyperlaneChain for StarknetAggregationIsm {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.provider.domain()
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {

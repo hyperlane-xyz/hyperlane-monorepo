@@ -16,8 +16,8 @@ pub use trait_builder::*;
 pub use utils::*;
 pub use validator_announce::*;
 
-/// Generated contract bindings.
-mod contracts;
+#[allow(clippy::all)]
+pub mod contracts;
 
 mod error;
 mod indexer;
