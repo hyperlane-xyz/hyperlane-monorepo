@@ -182,15 +182,11 @@ export async function updateWarpOwnerConfig(
   owner: Address,
   warpCorePath: string,
   warpDeployPath: string,
-  key?: string,
-  registryPath?: string,
 ): Promise<string> {
   const warpDeployConfig = await readWarpConfig(
     chain,
     warpCorePath,
     warpDeployPath,
-    key,
-    registryPath,
   );
   warpDeployConfig[chain].owner = owner;
   await writeYamlOrJson(warpDeployPath, warpDeployConfig);
@@ -206,24 +202,9 @@ export async function updateOwner(
   chain: string,
   warpConfigPath: string,
   warpCoreConfigPath: string,
-  key?: string,
-  registryPath?: string,
 ) {
-  await updateWarpOwnerConfig(
-    chain,
-    owner,
-    warpCoreConfigPath,
-    warpConfigPath,
-    key,
-    registryPath,
-  );
-  return hyperlaneWarpApply(
-    warpConfigPath,
-    warpCoreConfigPath,
-    undefined,
-    key,
-    registryPath,
-  );
+  await updateWarpOwnerConfig(chain, owner, warpCoreConfigPath, warpConfigPath);
+  return hyperlaneWarpApply(warpConfigPath, warpCoreConfigPath);
 }
 
 /**
@@ -236,8 +217,6 @@ export async function extendWarpConfig(params: {
   warpCorePath: string;
   warpDeployPath: string;
   strategyUrl?: string;
-  key?: string;
-  registryPath?: string;
 }): Promise<string> {
   const {
     chain,
@@ -246,25 +225,15 @@ export async function extendWarpConfig(params: {
     warpCorePath,
     warpDeployPath,
     strategyUrl,
-    key,
-    registryPath,
   } = params;
   const warpDeployConfig = await readWarpConfig(
     chain,
     warpCorePath,
     warpDeployPath,
-    key,
-    registryPath,
   );
   warpDeployConfig[chainToExtend] = extendedConfig;
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
-  await hyperlaneWarpApply(
-    warpDeployPath,
-    warpCorePath,
-    strategyUrl,
-    key,
-    registryPath,
-  );
+  await hyperlaneWarpApply(warpDeployPath, warpCorePath, strategyUrl);
 
   return warpDeployPath;
 }
