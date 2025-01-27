@@ -1,5 +1,5 @@
 use fuels::{client::FuelClient, prelude::Provider};
-use hyperlane_core::{ChainCommunicationError, ChainResult};
+use hyperlane_core::{config::OperationBatchConfig, ChainCommunicationError, ChainResult};
 use url::Url;
 
 /// Fuel connection configuration
@@ -7,6 +7,8 @@ use url::Url;
 pub struct ConnectionConf {
     /// Fully qualified string to connect to
     pub url: Url,
+    /// Config for batching messages
+    pub operation_batch: OperationBatchConfig,
 }
 
 /// An error type when parsing a connection configuration.
