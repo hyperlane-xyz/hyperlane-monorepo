@@ -15,9 +15,6 @@ import { ANVIL_KEY, REGISTRY_PATH, getDeployedWarpAddress } from './helpers.js';
 
 $.verbose = true;
 
-/**
- * Deploys the Warp route to the specified chain using the provided config.
- */
 export function hyperlaneWarpInit(warpCorePath: string): ProcessPromise {
   // --overrides is " " to allow local testing to work
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp init \
@@ -72,13 +69,15 @@ export async function hyperlaneWarpApply(
   warpDeployPath: string,
   warpCorePath: string,
   strategyUrl = '',
+  key?: string,
+  registryPath?: string,
 ) {
   return $`yarn workspace @hyperlane-xyz/cli run hyperlane warp apply \
-        --registry ${REGISTRY_PATH} \
+        --registry ${registryPath ?? REGISTRY_PATH} \
         --overrides " " \
         --config ${warpDeployPath} \
         --warp ${warpCorePath} \
-        --key ${ANVIL_KEY} \
+        --key ${key ?? ANVIL_KEY} \
         --verbosity debug \
         --strategy ${strategyUrl} \
         --yes`;

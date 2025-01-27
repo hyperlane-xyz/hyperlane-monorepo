@@ -33,6 +33,8 @@ export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
 export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+export const ZKSYNC_KEY =
+  '0x3d3cbc973389cb26f657686445bcc75662b415b656078503592ac8c1abb8810e';
 export const E2E_TEST_BURN_ADDRESS =
   '0x0000000000000000000000000000000000000001';
 
@@ -243,17 +245,28 @@ export async function deployOrUseExistingCore(
   chain: string,
   coreInputPath: string,
   key: string,
+  registryPath?: string,
 ) {
   const { registry } = await getContext({
-    registryUri: REGISTRY_PATH,
+    registryUri: registryPath ?? REGISTRY_PATH,
     registryOverrideUri: '',
     key,
   });
   const addresses = (await registry.getChainAddresses(chain)) as ChainAddresses;
 
   if (!addresses) {
-    await hyperlaneCoreDeploy(chain, coreInputPath);
-    return deployOrUseExistingCore(chain, coreInputPath, key);
+    await hyperlaneCoreDeploy(
+      chain,
+      coreInputPath,
+      key,
+      registryPath ?? REGISTRY_PATH,
+    );
+    return deployOrUseExistingCore(
+      chain,
+      coreInputPath,
+      key,
+      registryPath ?? REGISTRY_PATH,
+    );
   }
 
   return addresses;
@@ -262,9 +275,10 @@ export async function deployOrUseExistingCore(
 export async function getDomainId(
   chainName: string,
   key: string,
+  registryPath?: string,
 ): Promise<string> {
   const { registry } = await getContext({
-    registryUri: REGISTRY_PATH,
+    registryUri: registryPath ?? REGISTRY_PATH,
     registryOverrideUri: '',
     key,
   });

@@ -29,8 +29,8 @@ export const chainsToSkip: ChainName[] = [
   'abstract',
 
   // testnets
-  'abstracttestnet',
-  'treasuretopaz',
+  // 'abstracttestnet',
+  // 'treasuretopaz',
 
   // Oct 16 batch
   'lumia',
