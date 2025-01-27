@@ -57,7 +57,6 @@ hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 axum = { workspace = true, features = ["macros"] }
 once_cell.workspace = true
 mockall.workspace = true
-tracing-test.workspace = true
 tokio-test.workspace = true
 tracing-test.workspace = true
 hyperlane-test = { path = "../../hyperlane-test" }
