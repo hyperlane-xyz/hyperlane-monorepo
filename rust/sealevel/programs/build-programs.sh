@@ -17,11 +17,10 @@ TOKEN_PROGRAM_PATHS=("hyperlane-sealevel-token" "hyperlane-sealevel-token-collat
 
 build_program () {
     PROGRAM_PATH=$1
-    PREV_DIR=$(pwd)
     log "Building $PROGRAM_PATH"
-    cd $PROGRAM_PATH
+    pushd $PROGRAM_PATH
     cargo build-sbf
-    cd $PREV_DIR
+    popd
 }
 
 build_programs () {
