@@ -209,18 +209,6 @@ export const validatorChainConfig = (
         'polygonamoy',
       ),
     },
-    // hyperliquidevmtestnet: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: ['0xea673a92a23ca319b9d85cc16b248645cd5158da'],
-    //       [Contexts.ReleaseCandidate]: [],
-    //       [Contexts.Neutron]: [],
-    //     },
-    //     'hyperliquidevmtestnet',
-    //   ),
-    // },
     berabartio: {
       interval: 5,
       reorgPeriod: getReorgPeriod('berabartio'),
@@ -318,18 +306,6 @@ export const validatorChainConfig = (
         'solanatestnet',
       ),
     },
-    sonictestnet: {
-      interval: 5,
-      reorgPeriod: getReorgPeriod('sonictestnet'),
-      validators: validatorsConfig(
-        {
-          [Contexts.Hyperlane]: ['0x62e6591d00daec3fb658c3d19403828b4e9ddbb3'],
-          [Contexts.ReleaseCandidate]: [],
-          [Contexts.Neutron]: [],
-        },
-        'sonictestnet',
-      ),
-    },
     sonicsvmtestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('sonicsvmtestnet'),
@@ -415,6 +391,43 @@ export const validatorChainConfig = (
           [Contexts.Neutron]: [],
         },
         'treasuretopaz',
+      ),
+    },
+
+    hyperliquidevmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('hyperliquidevmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xea673a92a23ca319b9d85cc16b248645cd5158da'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'hyperliquidevmtestnet',
+      ),
+    },
+    flametestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('flametestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0272625243bf2377f87538031fed54e21853cc2d'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'flametestnet',
+      ),
+    },
+    sonicblaze: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonicblaze'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe5b98110d0688691ea280edea9a4faa1e3617ba1'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'sonicblaze',
       ),
     },
   };

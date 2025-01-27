@@ -35,7 +35,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { TOKEN_EXCHANGE_RATE_SCALE } from '../consts/igp.js';
+import { TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM } from '../consts/igp.js';
 import { HyperlaneAddresses } from '../contracts/types.js';
 import {
   HyperlaneModule,
@@ -491,7 +491,7 @@ export class EvmHookModule extends HyperlaneModule<
         const exampleRemoteGasCost = BigNumber.from(target.tokenExchangeRate)
           .mul(target.gasPrice)
           .mul(exampleRemoteGas)
-          .div(TOKEN_EXCHANGE_RATE_SCALE);
+          .div(TOKEN_EXCHANGE_RATE_SCALE_ETHEREUM);
         this.logger.info(
           `${
             this.chain
@@ -630,6 +630,8 @@ export class EvmHookModule extends HyperlaneModule<
         this.multiProvider.getSignerOrProvider(this.args.chain),
       );
     }
+
+    this.logger.debug(`Deploying hook of type ${config.type}`);
 
     switch (config.type) {
       case HookType.MERKLE_TREE:
