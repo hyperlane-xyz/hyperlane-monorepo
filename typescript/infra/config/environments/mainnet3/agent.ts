@@ -59,7 +59,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 > = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
-    abstract: false,
+    abstract: true,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
@@ -185,7 +185,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zoramainnet: true,
   },
   [Role.Relayer]: {
-    abstract: false,
+    abstract: true,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
@@ -312,7 +312,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zoramainnet: true,
   },
   [Role.Scraper]: {
-    abstract: false,
+    abstract: true,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
