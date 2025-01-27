@@ -1,0 +1,12 @@
+{
+  "solanamainnet": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+  },
+  "sonicsvm": {
+    "type": "native",
+    "decimals": 9,
+    "interchainGasPaymaster": "7VResHbw6jRVUa8qfD6e1cbzGmErcLGwgx4o7mLhZief"
+  }
+}
