@@ -11,7 +11,7 @@ import type {
 
 export interface ContextSettings {
   registryUri: string;
-  registryOverrideUri: string;
+  registryOverrideUris: string[];
   key?: string;
   fromAddress?: string;
   requiresKey?: boolean;

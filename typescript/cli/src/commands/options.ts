@@ -33,9 +33,11 @@ export const registryUriCommandOption: Options = {
 };
 
 export const overrideRegistryUriCommandOption: Options = {
-  type: 'string',
-  description: 'Path to a local registry to override the default registry',
-  default: `${os.homedir()}/.hyperlane`,
+  type: 'array',
+  string: true,
+  description:
+    'List of Github or local path registries to override the default registry, later registry takes priority over previous',
+  default: [`${os.homedir()}/.hyperlane`],
 };
 
 export const skipConfirmationOption: Options = {
