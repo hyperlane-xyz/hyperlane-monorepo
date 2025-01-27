@@ -9,7 +9,7 @@ export const getZKSyncArtifactByContractName = async (
   name: string,
 ): Promise<ZKSyncArtifact | undefined> => {
   // Load all ZkSync artifacts
-  const allArtifacts = await loadAllZKSyncArtifacts();
+  const allArtifacts = loadAllZKSyncArtifacts();
 
   // Find the artifact that matches the contract name or qualified name
   const artifact = Object.values(allArtifacts).find(
