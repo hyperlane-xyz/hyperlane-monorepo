@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@layerzerolabs/solidity-examples": "^1.1.0",
+    "@matterlabs/hardhat-zksync-solc": "^1.2.4",
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "@typechain/ethers-v5": "^11.1.2",
@@ -35,7 +36,8 @@
     "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
     "typechain": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch",
-    "typescript": "5.3.3"
+    "typescript": "5.3.3",
+    "zksync-ethers": "^5.10.0"
   },
   "directories": {
     "test": "test"
@@ -43,9 +45,10 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.js",
-    "./mailbox": "./dist/contracts/Mailbox.js",
+    "./mailbox": "./dist/typechain/contracts/Mailbox.js",
     "./buildArtifact.js": "./dist/buildArtifact.js",
     "./buildArtifact.json": "./dist/buildArtifact.json",
+    "./buildArtifact-zksync.js": "./dist/zksync/buildArtifact.js",
     "./contracts": "./contracts"
   },
   "types": "./dist/index.d.ts",
@@ -65,12 +68,15 @@
   "license": "Apache-2.0",
   "scripts": {
     "build": "yarn version:update && yarn hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
+    "build:zk": "yarn hardhat-zk compile && tsc && ts-node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
+    "prepublishOnly": "yarn build && yarn build:zk",
     "lint": "solhint contracts/**/*.sol",
-    "clean": "yarn hardhat-esm clean && rm -rf ./dist ./cache ./types ./coverage ./out ./forge-cache ./fixtures",
+    "clean": "yarn hardhat-esm clean && yarn hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./types ./coverage ./out ./forge-cache ./fixtures",
     "coverage": "yarn fixtures && ./coverage.sh",
     "docs": "forge doc",
     "fixtures": "mkdir -p ./fixtures/aggregation ./fixtures/multisig",
     "hardhat-esm": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config hardhat.config.cts",
+    "hardhat-zk": "NODE_OPTIONS='--experimental-loader ts-node/esm/transpile-only --no-warnings=ExperimentalWarning' hardhat --config zk-hardhat.config.cts",
     "prettier": "prettier --write ./contracts ./test",
     "test": "yarn version:exhaustive && yarn hardhat-esm test && yarn test:forge",
     "test:hardhat": "yarn hardhat-esm test",
