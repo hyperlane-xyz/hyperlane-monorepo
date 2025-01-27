@@ -1,10 +1,9 @@
 import { CoreConfig } from '@hyperlane-xyz/sdk';
 import { objFilter, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { InfraS3Validator } from '../src/agents/aws/validator.js';
-
-import { getArgs, getValidatorsByChain, withChains } from './agent-utils.js';
-import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
+import { InfraS3Validator } from '../../src/agents/aws/validator.js';
+import { getArgs, getValidatorsByChain, withChains } from '../agent-utils.js';
+import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 async function main() {
   const { environment, chains } = await withChains(getArgs()).argv;

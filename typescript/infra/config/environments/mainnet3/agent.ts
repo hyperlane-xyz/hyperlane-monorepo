@@ -59,7 +59,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 > = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
-    abstract: true,
+    abstract: false,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
@@ -185,7 +185,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zoramainnet: true,
   },
   [Role.Relayer]: {
-    abstract: true,
+    abstract: false,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
@@ -312,7 +312,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zoramainnet: true,
   },
   [Role.Scraper]: {
-    abstract: true,
+    abstract: false,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
@@ -587,7 +587,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '20G',
+    memory: '28G',
   },
 };
 
@@ -671,7 +671,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '09e1d5b-20250121-214732',
+      tag: 'a54c98e-20250126-113529',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -681,7 +681,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '0372ff9-20250121-104245',
+      tag: 'f6b682c-20250124-144126',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -691,7 +691,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '359ce5d-20250121-133827',
+      tag: '7eec2ac-20250123-193619',
     },
     resources: scraperResources,
   },
@@ -706,7 +706,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '09e1d5b-20250121-214732',
+      tag: 'f6b682c-20250124-144126',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

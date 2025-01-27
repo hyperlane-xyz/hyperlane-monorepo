@@ -9,7 +9,6 @@ import {
   EvmHypXERC20LockboxAdapter,
   IHypXERC20Adapter,
   MultiProtocolProvider,
-  RouterConfig,
   SealevelHypTokenAdapter,
   Token,
   TokenStandard,
@@ -18,10 +17,7 @@ import {
 import { ProtocolType, objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
 
 import { getWarpCoreConfig } from '../../../config/registry.js';
-import {
-  DeployEnvironment,
-  getRouterConfigsForAllVms,
-} from '../../../src/config/environment.js';
+import { DeployEnvironment } from '../../../src/config/environment.js';
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 import { startMetricsServer } from '../../../src/utils/metrics.js';
 import {
@@ -59,16 +55,12 @@ async function main() {
   const envConfig = getEnvironmentConfig(environment);
   const registry = await envConfig.getRegistry();
   const chainMetadata = await registry.getMetadata();
+  const chainAddresses = await registry.getAddresses();
 
   // The Sealevel warp adapters require the Mailbox address, so we
-  // get router configs (that include the Mailbox address) for all chains
-  // and merge them with the chain metadata.
-  const routerConfig = await getRouterConfigsForAllVms(
-    envConfig,
-    await envConfig.getMultiProvider(),
-  );
-  const mailboxes = objMap(routerConfig, (_chain, config: RouterConfig) => ({
-    mailbox: config.mailbox,
+  // get mailboxes for all chains and merge them with the chain metadata.
+  const mailboxes = objMap(chainAddresses, (_, { mailbox }) => ({
+    mailbox,
   }));
   const multiProtocolProvider = new MultiProtocolProvider(
     objMerge(chainMetadata, mailboxes),

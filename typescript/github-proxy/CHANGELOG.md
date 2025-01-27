@@ -1,5 +1,9 @@
 # @hyperlane-xyz/github-proxy
 
+## 8.4.0
+
+## 8.3.0
+
 ## 8.2.0
 
 ## 8.1.0

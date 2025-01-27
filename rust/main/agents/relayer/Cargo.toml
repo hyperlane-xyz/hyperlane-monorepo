@@ -44,6 +44,7 @@ tokio-metrics.workspace = true
 tracing-futures.workspace = true
 tracing.workspace = true
 typetag.workspace = true
+uuid.workspace = true
 
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "agent",
@@ -53,6 +54,7 @@ hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 
 [dev-dependencies]
+axum = { workspace = true, features = ["macros"] }
 once_cell.workspace = true
 mockall.workspace = true
 tokio-test.workspace = true
