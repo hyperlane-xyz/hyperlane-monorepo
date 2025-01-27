@@ -112,10 +112,9 @@ pub fn termination_invariants_met(
     // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
-    let gas_expenditure_log_count = log_counts
+    let gas_expenditure_log_count = *log_counts
         .get(&gas_expenditure_line_filter)
-        .expect("Failed to get gas expenditure log count")
-        .clone();
+        .expect("Failed to get gas expenditure log count");
     assert!(
         gas_expenditure_log_count >= total_messages_expected,
         "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
@@ -124,26 +123,23 @@ pub fn termination_invariants_met(
     );
     // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
 
-    let storing_new_msg_log_count = log_counts
+    let storing_new_msg_log_count = *log_counts
         .get(&storing_new_msg_line_filter)
-        .expect("Failed to get storing new msg log count")
-        .clone();
+        .expect("Failed to get storing new msg log count");
     assert!(
         storing_new_msg_log_count > 0,
         "Didn't find any logs about storing messages in db"
     );
-    let looking_for_events_log_count = log_counts
+    let looking_for_events_log_count = *log_counts
         .get(&looking_for_events_line_filter)
-        .expect("Failed to get looking for events log count")
-        .clone();
+        .expect("Failed to get looking for events log count");
     assert!(
         looking_for_events_log_count > 0,
         "Didn't find any logs about looking for events in index range"
     );
-    let total_tx_id_log_count = log_counts
+    let total_tx_id_log_count = *log_counts
         .get(&tx_id_indexing_line_filter)
-        .expect("Failed to get tx id indexing log count")
-        .clone();
+        .expect("Failed to get tx id indexing log count");
     assert!(
         // there are 3 txid-indexed events:
         // - relayer: merkle insertion and gas payment

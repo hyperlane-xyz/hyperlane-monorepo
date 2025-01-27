@@ -462,7 +462,7 @@ fn main() -> ExitCode {
 
     let loop_start = Instant::now();
     // wait for Relayer restart invariants to pass
-    failure_occurred = wait_for_condition(&config, loop_start, || relayer_restart_invariants_met());
+    failure_occurred = wait_for_condition(&config, loop_start, relayer_restart_invariants_met);
 
     // verify long-running tasks are still running
     for (name, (child, _)) in state.agents.iter_mut() {
@@ -584,10 +584,9 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     log!("Checking message statuses were retrieved from logs...");
     let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
 
-    let no_metadata_message_count = matched_logs
+    let no_metadata_message_count = *matched_logs
         .get(&line_filters)
-        .expect("Failed to get matched message count")
-        .clone();
+        .expect("Failed to get matched message count");
     // These messages are never inserted into the merkle tree.
     // So these messages will never be deliverable and will always
     // be in a CouldNotFetchMetadata state.
@@ -621,10 +620,10 @@ where
 
         if condition_fn().unwrap_or(false) {
             // end condition reached successfully
-            return true;
+            break;
         }
 
-        if check_ci_timed_out(&config, start_time) {
+        if check_ci_timed_out(config, start_time) {
             // we ran out of time
             log!("CI timeout reached before invariants were met");
             return false;
