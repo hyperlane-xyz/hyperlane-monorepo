@@ -45,6 +45,8 @@ import {
   EvmHypSyntheticAdapter,
   EvmHypXERC20Adapter,
   EvmHypXERC20LockboxAdapter,
+  EvmIntentMultiChainAdapter,
+  EvmIntentNativeMultiChainAdapter,
   EvmIntentNativeTokenAdapter,
   EvmIntentTokenAdapter,
   EvmNativeTokenAdapter,
@@ -163,18 +165,26 @@ export class Token implements IToken {
         sourceChannel: 'channel-0',
         type: TokenConnectionType.Ibc,
       });
-    } else if (this.intentRouterAddressOrDenom) {
-      if (standard === TokenStandard.EvmIntent) {
-        return new EvmIntentTokenAdapter(chainName, multiProvider, {
-          router: this.intentRouterAddressOrDenom,
-          token: addressOrDenom,
-        });
-      } else {
-        return new EvmIntentNativeTokenAdapter(chainName, multiProvider, {
-          router: this.intentRouterAddressOrDenom,
-          token: addressOrDenom,
-        });
-      }
+    } else if (standard === TokenStandard.EvmIntent) {
+      assert(
+        this.intentRouterAddressOrDenom,
+        'Intent router required for EvmIntent tokens',
+      );
+
+      return new EvmIntentTokenAdapter(chainName, multiProvider, {
+        router: this.intentRouterAddressOrDenom,
+        token: addressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmIntentNative) {
+      assert(
+        this.intentRouterAddressOrDenom,
+        'Intent router required for EvmIntentNative tokens',
+      );
+
+      return new EvmIntentNativeTokenAdapter(chainName, multiProvider, {
+        router: this.intentRouterAddressOrDenom,
+        token: addressOrDenom,
+      });
     } else {
       throw new Error(`No adapter found for token standard: ${standard}`);
     }
@@ -306,6 +316,24 @@ export class Token implements IToken {
       const connection = this.getConnectionForChain(destination);
       assert(connection, `No connection found for chain ${destination}`);
       return this.getIbcAdapter(multiProvider, connection);
+    } else if (standard === TokenStandard.EvmIntent) {
+      assert(
+        this.intentRouterAddressOrDenom,
+        'Intent router required for EvmIntent tokens',
+      );
+      return new EvmIntentMultiChainAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+        router: this.intentRouterAddressOrDenom,
+      });
+    } else if (standard === TokenStandard.EvmIntentNative) {
+      assert(
+        this.intentRouterAddressOrDenom,
+        'Intent router required for EvmIntentNative tokens',
+      );
+      return new EvmIntentNativeMultiChainAdapter(chainName, multiProvider, {
+        token: addressOrDenom,
+        router: this.intentRouterAddressOrDenom,
+      });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }
@@ -465,6 +493,13 @@ export class Token implements IToken {
       this.standard === TokenStandard.CosmosIbc &&
       token.standard === TokenStandard.CosmosNative &&
       this.addressOrDenom.toLowerCase() === token.addressOrDenom.toLowerCase()
+    ) {
+      return true;
+    }
+
+    if (
+      this.standard === TokenStandard.EvmIntent ||
+      this.standard === TokenStandard.EvmIntentNative
     ) {
       return true;
     }

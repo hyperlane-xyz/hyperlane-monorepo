@@ -633,3 +633,35 @@ export class EvmIntentNativeTokenAdapter extends EvmNativeTokenAdapter {
     );
   }
 }
+
+export class EvmIntentMultiChainAdapter
+  extends EvmIntentTokenAdapter
+  implements IHypTokenAdapter<PopulatedTransaction>
+{
+  getDomains(): Promise<Domain[]> {
+    throw new Error('Method not implemented.');
+  }
+  getRouterAddress(domain: Domain): Promise<Buffer> {
+    throw new Error('Method not implemented.');
+  }
+  getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    throw new Error('Method not implemented.');
+  }
+  getBridgedSupply(): Promise<bigint | undefined> {
+    throw new Error('Method not implemented.');
+  }
+  async quoteTransferRemoteGas(
+    destination: Domain,
+    sender?: Address,
+  ): Promise<InterchainGasQuote> {
+    // Todo: Find the proper way to get the gas
+    return { amount: 0n };
+  }
+  populateTransferRemoteTx(
+    p: TransferRemoteParams,
+  ): Promise<PopulatedTransaction> {
+    throw new Error('Method not implemented.');
+  }
+}
+
+export class EvmIntentNativeMultiChainAdapter extends EvmIntentMultiChainAdapter {}
