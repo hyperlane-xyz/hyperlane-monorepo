@@ -30,7 +30,9 @@ use crate::cosmos::link::link_networks;
 use crate::logging::log;
 use crate::metrics::agent_balance_sum;
 use crate::program::Program;
-use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
+use crate::utils::{
+    as_task, concat_path, get_workspace_path, stop_child, AgentHandles, TaskHandle,
+};
 use crate::{fetch_metric, AGENT_BIN_PATH};
 use cli::{OsmosisCLI, OsmosisEndpoint};
 
@@ -345,10 +347,12 @@ fn run_locally() {
     const TIMEOUT_SECS: u64 = 60 * 10;
     let debug = false;
 
+    let workspace_path = get_workspace_path();
+
     log!("Building rust...");
     Program::new("cargo")
         .cmd("build")
-        .working_dir("../../")
+        .working_dir(&workspace_path)
         .arg("features", "test-utils")
         .arg("bin", "relayer")
         .arg("bin", "validator")
@@ -529,7 +533,8 @@ fn run_locally() {
     // give things a chance to fully start.
     sleep(Duration::from_secs(10));
 
-    let starting_relayer_balance: f64 = agent_balance_sum(hpl_rly_metrics_port).unwrap();
+    let starting_relayer_balance: f64 =
+        agent_balance_sum(hpl_rly_metrics_port).expect("Failed to get relayer agent balance");
 
     // dispatch the second batch of messages (after agents start)
     dispatched_messages += dispatch(&osmosisd, linker, &nodes);
@@ -664,7 +669,8 @@ fn termination_invariants_met(
         return Ok(false);
     }
 
-    let ending_relayer_balance: f64 = agent_balance_sum(relayer_metrics_port).unwrap();
+    let ending_relayer_balance: f64 =
+        agent_balance_sum(relayer_metrics_port).expect("Failed to get relayer agent balance");
 
     // Make sure the balance was correctly updated in the metrics.
     // Ideally, make sure that the difference is >= gas_per_tx * gas_cost, set here:
