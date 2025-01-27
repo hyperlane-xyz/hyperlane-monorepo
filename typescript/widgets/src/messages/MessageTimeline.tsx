@@ -5,7 +5,7 @@ import { AirplaneIcon } from '../icons/Airplane.js';
 import { EnvelopeIcon } from '../icons/Envelope.js';
 import { LockIcon } from '../icons/Lock.js';
 import { ShieldIcon } from '../icons/Shield.js';
-import { WideChevron } from '../icons/WideChevron.js';
+import { WideChevronIcon } from '../icons/WideChevron.js';
 
 import { MessageStatus, MessageStage as Stage, StageTimings } from './types.js';
 
@@ -157,7 +157,12 @@ function StageIcon({ Icon, size }: { Icon: any; size?: number }) {
 function ChevronWhite() {
   return (
     <div className="htw-absolute htw--left-3 htw-top-0 htw-h-6">
-      <WideChevron direction="e" height="100%" width="auto" color="#ffffff" />
+      <WideChevronIcon
+        direction="e"
+        height="100%"
+        width="auto"
+        color="#ffffff"
+      />
     </div>
   );
 }
@@ -165,7 +170,7 @@ function ChevronWhite() {
 function ChevronBlue() {
   return (
     <div className="htw-absolute htw--right-3 htw-top-0 htw-h-6">
-      <WideChevron direction="e" height="100%" width="auto" />
+      <WideChevronIcon direction="e" height="100%" width="auto" />
     </div>
   );
 }

@@ -9,18 +9,18 @@ use async_trait::async_trait;
 use ethers::prelude::Middleware;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, Indexed, Indexer,
-    InterchainGasPaymaster, InterchainGasPayment, LogMeta, SequenceAwareIndexer, H160, H256, H512,
+    ChainResult, ContractLocator, HyperlaneAbi, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    SequenceAwareIndexer, H160, H256, H512,
 };
 use tracing::instrument;
 
-use super::utils::fetch_raw_logs_and_meta;
+use super::utils::{fetch_raw_logs_and_meta, get_finalized_block_number};
 use crate::interfaces::i_interchain_gas_paymaster::{
     GasPaymentFilter, IInterchainGasPaymaster as EthereumInterchainGasPaymasterInternal,
     IINTERCHAINGASPAYMASTER_ABI,
 };
-use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider};
+use crate::{BuildableWithProvider, ConnectionConf, EthereumProvider, EthereumReorgPeriod};
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
@@ -33,7 +33,7 @@ where
 
 pub struct InterchainGasPaymasterIndexerBuilder {
     pub mailbox_address: H160,
-    pub reorg_period: u32,
+    pub reorg_period: EthereumReorgPeriod,
 }
 
 #[async_trait]
@@ -63,7 +63,7 @@ where
 {
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
     provider: Arc<M>,
-    reorg_period: u32,
+    reorg_period: EthereumReorgPeriod,
 }
 
 impl<M> EthereumInterchainGasPaymasterIndexer<M>
@@ -71,7 +71,11 @@ where
     M: Middleware + 'static,
 {
     /// Create new EthereumInterchainGasPaymasterIndexer
-    pub fn new(provider: Arc<M>, locator: &ContractLocator, reorg_period: u32) -> Self {
+    pub fn new(
+        provider: Arc<M>,
+        locator: &ContractLocator,
+        reorg_period: EthereumReorgPeriod,
+    ) -> Self {
         Self {
             contract: Arc::new(EthereumInterchainGasPaymasterInternal::new(
                 locator.address,
@@ -122,13 +126,7 @@ where
     #[instrument(level = "debug", err, ret, skip(self))]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(self
-            .provider
-            .get_block_number()
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .as_u32()
-            .saturating_sub(self.reorg_period))
+        get_finalized_block_number(&self.provider, &self.reorg_period).await
     }
 
     async fn fetch_logs_by_tx_hash(

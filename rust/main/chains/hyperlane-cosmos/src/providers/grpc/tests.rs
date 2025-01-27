@@ -3,10 +3,10 @@ use std::str::FromStr;
 use url::Url;
 
 use hyperlane_core::config::OperationBatchConfig;
-use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain};
+use hyperlane_core::{ContractLocator, HyperlaneDomain, KnownHyperlaneDomain, NativeToken};
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
-use crate::{ConnectionConf, CosmosAddress, CosmosAmount, NativeToken, RawCosmosAmount};
+use crate::{ConnectionConf, CosmosAddress, CosmosAmount, RawCosmosAmount};
 
 #[ignore]
 #[tokio::test]
@@ -54,7 +54,7 @@ fn provider(address: &str) -> WasmGrpcProvider {
         domain.clone(),
         ConnectionConf::new(
             vec![Url::parse("http://grpc-kralum.neutron-1.neutron.org:80").unwrap()],
-            "https://rpc-kralum.neutron-1.neutron.org".to_owned(),
+            vec![Url::parse("https://rpc-kralum.neutron-1.neutron.org").unwrap()],
             "neutron-1".to_owned(),
             "neutron".to_owned(),
             "untrn".to_owned(),

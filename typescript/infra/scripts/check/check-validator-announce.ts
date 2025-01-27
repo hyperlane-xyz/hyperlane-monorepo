@@ -23,9 +23,10 @@ async function main() {
   const config = getEnvironmentConfig(environment);
   const { core } = await getHyperlaneCore(environment);
 
+  // Ensure we skip lumia, as we don't have the addresses in registry.
   const targetNetworks = (
     chains && chains.length > 0 ? chains : config.supportedChainNames
-  ).filter(isEthereumProtocolChain);
+  ).filter((chain) => isEthereumProtocolChain(chain) && chain !== 'lumia');
 
   const chainsWithUnannouncedValidators: ChainMap<string[]> = {};
 
@@ -35,7 +36,9 @@ async function main() {
       const announcedValidators =
         await validatorAnnounce.getAnnouncedValidators();
 
-      const validators = defaultMultisigConfigs[chain].validators || [];
+      const defaultValidatorConfigs =
+        defaultMultisigConfigs[chain].validators || [];
+      const validators = defaultValidatorConfigs.map((v) => v.address);
       const unannouncedValidators = validators.filter(
         (validator) =>
           !announcedValidators.some((x) => eqAddress(x, validator)),

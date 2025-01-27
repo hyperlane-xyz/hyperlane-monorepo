@@ -114,10 +114,9 @@ hyperlane:
       requests:
         cpu: 1000m
         memory: 1024Mi
-    config:
+    envConfig:
       relayChains: ''
-      multisigCheckpointSyncer:
-        checkpointSyncers:
+    configMapConfig: {}
     # -- Specify whether a default signer key is used for all chains in Values.hyperlane.relayerChains list.
     # It affects chains whose signer type is hexKey.
     usingDefaultSignerKey: true

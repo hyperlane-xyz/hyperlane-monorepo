@@ -5,7 +5,6 @@ import {
   AllStorageGasOracleConfigs,
   getAllStorageGasOracleConfigs,
   getOverhead,
-  getTokenExchangeRateFromValues,
 } from '../../../src/config/gas-oracle.js';
 
 import { ethereumChainNames } from './chains.js';
@@ -19,9 +18,10 @@ const tokenPrices: ChainMap<string> = rawTokenPrices;
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
   getAllStorageGasOracleConfigs(
     supportedChainNames,
+    tokenPrices,
     gasPrices,
-    (local, remote) =>
-      getTokenExchangeRateFromValues(local, remote, tokenPrices),
+    (local, remote) => getOverhead(local, remote, ethereumChainNames),
+    false,
   );
 
 export const igp: ChainMap<IgpConfig> = objMap(

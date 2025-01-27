@@ -64,6 +64,10 @@ export class CwNativeTokenAdapter
     throw new Error('Metadata not available to native tokens');
   }
 
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
   async isApproveRequired(): Promise<boolean> {
     return false;
   }
@@ -89,6 +93,11 @@ export class CwNativeTokenAdapter
         },
       ],
     };
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
   }
 }
 
@@ -141,6 +150,10 @@ export class CwTokenAdapter
     };
   }
 
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
   async isApproveRequired(): Promise<boolean> {
     return false;
   }
@@ -171,6 +184,11 @@ export class CwTokenAdapter
         amount: weiAmountOrId.toString(),
       },
     });
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    // Not implemented.
+    return undefined;
   }
 }
 
@@ -274,6 +292,10 @@ export class CwHypSyntheticAdapter
       }));
   }
 
+  getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getTotalSupply();
+  }
+
   async quoteTransferRemoteGas(
     _destination: Domain,
   ): Promise<InterchainGasQuote> {
@@ -364,6 +386,10 @@ export class CwHypNativeAdapter
 
   async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
     return this.cw20adapter.getAllRouters();
+  }
+
+  getBridgedSupply(): Promise<bigint> {
+    return this.getBalance(this.addresses.warpRouter);
   }
 
   quoteTransferRemoteGas(destination: Domain): Promise<InterchainGasQuote> {

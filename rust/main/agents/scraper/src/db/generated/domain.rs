@@ -65,7 +65,7 @@ impl ColumnTrait for Column {
             Self::TimeUpdated => ColumnType::DateTime.def(),
             Self::Name => ColumnType::Text.def(),
             Self::NativeToken => ColumnType::Text.def(),
-            Self::ChainId => ColumnType::BigInteger.def().null().unique(),
+            Self::ChainId => ColumnType::BigInteger.def().null(),
             Self::IsTestNet => ColumnType::Boolean.def(),
             Self::IsDeprecated => ColumnType::Boolean.def(),
         }

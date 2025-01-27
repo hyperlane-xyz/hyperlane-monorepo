@@ -13,7 +13,7 @@ import {
   ExecuteMsg as MultisigExecute,
   QueryMsg as MultisigQuery,
 } from '../../cw-types/IsmMultisig.types.js';
-import { MultisigConfig } from '../../ism/types.js';
+import { MultisigConfig, MultisigIsmConfig } from '../../ism/types.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainMap, ChainName } from '../../types.js';
 
@@ -39,7 +39,7 @@ export class CosmWasmMultisigAdapter extends BaseCosmWasmAdapter {
     return response;
   }
 
-  async getConfig(chain: ChainName): Promise<MultisigConfig> {
+  async getConfig(chain: ChainName): Promise<Omit<MultisigIsmConfig, 'type'>> {
     return this.queryMultisig<EnrolledValidatorsResponse>({
       multisig_ism: {
         enrolled_validators: {
@@ -67,7 +67,7 @@ export class CosmWasmMultisigAdapter extends BaseCosmWasmAdapter {
       ([origin, config]) => {
         const domain = this.multiProvider.getDomainId(origin);
         const configuredSet = new Set(configuredMap[origin].validators);
-        const configSet = new Set(config.validators);
+        const configSet = new Set(config.validators.map((v) => v.address));
         const unenrollList = Array.from(
           difference(configuredSet, configSet).values(),
         );

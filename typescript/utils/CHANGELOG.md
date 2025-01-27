@@ -1,5 +1,81 @@
 # @hyperlane-xyz/utils
 
+## 8.4.0
+
+## 8.3.0
+
+## 8.2.0
+
+## 8.1.0
+
+## 8.0.0
+
+### Minor Changes
+
+- 79f8197f3: Added `isPrivateKeyEvm` function for validating EVM private keys
+
+### Patch Changes
+
+- 8834a8c92: Require concurrency > 0 for concurrentMap
+
+## 7.3.0
+
+## 7.2.0
+
+### Minor Changes
+
+- fa6d5f5c6: Add toUpperCamelCase and deepFind functions
+
+## 7.1.0
+
+### Minor Changes
+
+- 0e285a443: Add an isRelativeUrl function
+
+## 7.0.0
+
+### Major Changes
+
+- f48cf8766: Upgrade Viem to 2.2 and Solana Web3 to 1.9
+  Rename `chainMetadataToWagmiChain` to `chainMetadataToViemChain`
+
+### Patch Changes
+
+- e6f9d5c4f: Added a mustGet helper
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+## 5.7.0
+
+### Patch Changes
+
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 04108155d: fix median utils func + add test
+- 39a9b2038: Filter undefined/null values in invertKeysAndValues function
+
+## 5.6.2
+
+### Patch Changes
+
+- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
+- a36fc5fb2: fix: isObject utils fn should return only boolean value
+
+## 5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+
+### Patch Changes
+
+- f1712deb7: Fix objMerge implementation
+
 ## 5.5.0
 
 ### Minor Changes

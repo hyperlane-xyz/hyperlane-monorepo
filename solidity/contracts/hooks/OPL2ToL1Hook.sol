@@ -14,10 +14,13 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
+import {Message} from "../libs/Message.sol";
 import {AbstractPostDispatchHook, AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {InterchainGasPaymaster} from "./igp/InterchainGasPaymaster.sol";
 
 // ============ External Imports ============
 import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenger.sol";
@@ -30,13 +33,16 @@ import {ICrossDomainMessenger} from "../interfaces/optimism/ICrossDomainMessenge
  */
 contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ Constants ============
 
     // precompile contract on L2 for sending messages to L1
     ICrossDomainMessenger public immutable l2Messenger;
-    // Immutable quote amount
-    uint32 public immutable GAS_QUOTE;
+    // child hook to call first
+    IPostDispatchHook public immutable childHook;
+    // Minimum gas limit that the message can be executed with - OP specific
+    uint32 public constant MIN_GAS_LIMIT = 300_000;
 
     // ============ Constructor ============
 
@@ -45,10 +51,10 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
         uint32 _destinationDomain,
         bytes32 _ism,
         address _l2Messenger,
-        uint32 _gasQuote
+        address _childHook
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
-        GAS_QUOTE = _gasQuote;
         l2Messenger = ICrossDomainMessenger(_l2Messenger);
+        childHook = AbstractPostDispatchHook(_childHook);
     }
 
     /// @inheritdoc IPostDispatchHook
@@ -58,10 +64,11 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
 
     /// @inheritdoc AbstractPostDispatchHook
     function _quoteDispatch(
-        bytes calldata,
-        bytes calldata
+        bytes calldata metadata,
+        bytes calldata message
     ) internal view override returns (uint256) {
-        return GAS_QUOTE;
+        return
+            metadata.msgValue(0) + childHook.quoteDispatch(metadata, message);
     }
 
     // ============ Internal functions ============
@@ -69,16 +76,20 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes memory payload
+        bytes calldata message
     ) internal override {
-        require(
-            msg.value >= metadata.msgValue(0) + GAS_QUOTE,
-            "OPL2ToL1Hook: insufficient msg.value"
+        bytes memory payload = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (message.id(), metadata.msgValue(0))
         );
+
+        childHook.postDispatch{
+            value: childHook.quoteDispatch(metadata, message)
+        }(metadata, message);
         l2Messenger.sendMessage{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload,
-            GAS_QUOTE
+            MIN_GAS_LIMIT
         );
     }
 }

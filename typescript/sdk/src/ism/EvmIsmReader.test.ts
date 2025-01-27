@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
 import sinon from 'sinon';
 
 import {
@@ -20,6 +19,7 @@ import { WithAddress } from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { randomAddress } from '../test/testUtils.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
 import {
@@ -35,8 +35,6 @@ describe('EvmIsmReader', () => {
   let multiProvider: MultiProvider;
   let sandbox: sinon.SinonSandbox;
 
-  const generateRandomAddress = () => ethers.Wallet.createRandom().address;
-
   beforeEach(() => {
     sandbox = sinon.createSandbox();
     multiProvider = MultiProvider.createTestMultiProvider();
@@ -48,8 +46,8 @@ describe('EvmIsmReader', () => {
   });
 
   it('should derive multisig config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockValidators = [generateRandomAddress(), generateRandomAddress()];
+    const mockAddress = randomAddress();
+    const mockValidators = [randomAddress(), randomAddress()];
     const mockThreshold = 2;
 
     // Mocking the connect method + returned what we need from contract object
@@ -83,8 +81,8 @@ describe('EvmIsmReader', () => {
   });
 
   it('should derive pausable config correctly', async () => {
-    const mockAddress = generateRandomAddress();
-    const mockOwner = generateRandomAddress();
+    const mockAddress = randomAddress();
+    const mockOwner = randomAddress();
     const mockPaused = true;
 
     // Mocking the connect method + returned what we need from contract object
@@ -120,7 +118,7 @@ describe('EvmIsmReader', () => {
   });
 
   it('should derive test ISM config correctly', async () => {
-    const mockAddress = generateRandomAddress();
+    const mockAddress = randomAddress();
 
     // Mocking the connect method + returned what we need from contract object
     const mockContract = {

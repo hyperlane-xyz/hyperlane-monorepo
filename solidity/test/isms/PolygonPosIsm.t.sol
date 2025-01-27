@@ -78,7 +78,7 @@ contract PolygonPosIsmTest is Test {
         bytes data
     );
 
-    event ReceivedMessage(bytes32 indexed messageId);
+    event ReceivedMessage(bytes32 indexed messageId, uint256 msgValue);
 
     function setUp() public {
         // block numbers to fork from, chain data is cached to ../../forge-cache/
@@ -155,8 +155,8 @@ contract PolygonPosIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (messageId, 0)
         );
 
         l1Mailbox.updateLatestDispatchedId(messageId);
@@ -228,22 +228,22 @@ contract PolygonPosIsmTest is Test {
         polygonPosHook.postDispatch(testMetadata, encodedMessage);
     }
 
-    /* ============ ISM.verifyMessageId ============ */
+    /* ============ ISM.preVerifyMessage ============ */
 
-    function testFork_verifyMessageId() public {
+    function testFork_preVerifyMessage() public {
         deployAll();
 
         vm.selectFork(polygonPosFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (messageId, 0)
         );
 
         vm.startPrank(POLYGON_CROSSCHAIN_SYSTEM_ADDR);
 
         vm.expectEmit(true, false, false, false, address(polygonPosISM));
-        emit ReceivedMessage(messageId);
+        emit ReceivedMessage(messageId, 0);
         // FIX: expect other events
 
         fxChild.onStateReceive(
@@ -259,14 +259,14 @@ contract PolygonPosIsmTest is Test {
         vm.stopPrank();
     }
 
-    function testFork_verifyMessageId_RevertWhen_NotAuthorized() public {
+    function testFork_preVerifyMessage_RevertWhen_NotAuthorized() public {
         deployAll();
 
         vm.selectFork(polygonPosFork);
 
         // needs to be called by the fxchild on Polygon
         vm.expectRevert(NotCrossChainCall.selector);
-        polygonPosISM.verifyMessageId(messageId);
+        polygonPosISM.preVerifyMessage(messageId, 0);
 
         vm.startPrank(MAINNET_FX_CHILD);
 
@@ -274,7 +274,7 @@ contract PolygonPosIsmTest is Test {
         vm.expectRevert(
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
-        polygonPosISM.verifyMessageId(messageId);
+        polygonPosISM.preVerifyMessage(messageId, 0);
     }
 
     /* ============ ISM.verify ============ */
@@ -349,8 +349,8 @@ contract PolygonPosIsmTest is Test {
         vm.selectFork(polygonPosFork);
 
         bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (_messageId)
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (_messageId, 0)
         );
 
         vm.prank(POLYGON_CROSSCHAIN_SYSTEM_ADDR);

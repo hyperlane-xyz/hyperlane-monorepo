@@ -7,15 +7,19 @@ use std::{
 
 use async_trait::async_trait;
 use eyre::Result;
+use itertools::Itertools;
+use maplit::hashmap;
+use tracing::{debug, instrument, warn};
+
 use hyperlane_core::{
-    indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction,
+    indexed_to_sequence_indexed_array, ContractSyncCursor, CursorAction, HyperlaneDomain,
     HyperlaneSequenceAwareIndexerStoreReader, IndexMode, Indexed, LogMeta, SequenceAwareIndexer,
     SequenceIndexed,
 };
-use itertools::Itertools;
-use tracing::{debug, instrument, warn};
 
-use super::{LastIndexedSnapshot, TargetSnapshot};
+use crate::cursors::Indexable;
+
+use super::{CursorMetrics, LastIndexedSnapshot, MetricsData, TargetSnapshot};
 
 /// A sequence-aware cursor that syncs forwards in perpetuity.
 pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
@@ -27,8 +31,8 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     /// This is used to check if there are new logs to index and to
     /// establish targets to index towards.
     latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-    /// A DB used to check which logs have already been indexed.
-    db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+    /// A store used to check which logs have already been indexed.
+    store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
     /// A snapshot of the last indexed log, or if no indexing has occurred yet,
     /// the initial log to start indexing forward from.
     last_indexed_snapshot: LastIndexedSnapshot,
@@ -39,6 +43,10 @@ pub(crate) struct ForwardSequenceAwareSyncCursor<T> {
     target_snapshot: Option<TargetSnapshot>,
     /// The mode of indexing.
     index_mode: IndexMode,
+    /// The domain the cursor is indexing.
+    domain: HyperlaneDomain,
+    /// Cursor metrics.
+    metrics: Arc<CursorMetrics>,
 }
 
 impl<T> Debug for ForwardSequenceAwareSyncCursor<T> {
@@ -49,23 +57,25 @@ impl<T> Debug for ForwardSequenceAwareSyncCursor<T> {
             .field("current_indexing_snapshot", &self.current_indexing_snapshot)
             .field("target_snapshot", &self.target_snapshot)
             .field("index_mode", &self.index_mode)
+            .field("domain", &self.domain)
             .finish()
     }
 }
 
-impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
+impl<T: Debug + Clone + Sync + Send + Indexable + 'static> ForwardSequenceAwareSyncCursor<T> {
     #[instrument(
-        skip(db, latest_sequence_querier),
+        skip(store, latest_sequence_querier, metrics_data),
         fields(chunk_size, next_sequence, start_block, index_mode),
         ret
     )]
     pub fn new(
         chunk_size: u32,
         latest_sequence_querier: Arc<dyn SequenceAwareIndexer<T>>,
-        db: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
+        store: Arc<dyn HyperlaneSequenceAwareIndexerStoreReader<T>>,
         next_sequence: u32,
         start_block: u32,
         index_mode: IndexMode,
+        metrics_data: MetricsData,
     ) -> Self {
         // If the next sequence is 0, we're starting from the beginning and haven't
         // indexed anything yet.
@@ -73,11 +83,12 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
             sequence: (next_sequence > 0).then(|| next_sequence.saturating_sub(1)),
             at_block: start_block,
         };
+        let MetricsData { domain, metrics } = metrics_data;
 
         Self {
             chunk_size,
             latest_sequence_querier,
-            db,
+            store,
             last_indexed_snapshot,
             current_indexing_snapshot: TargetSnapshot {
                 sequence: next_sequence,
@@ -85,7 +96,14 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
             },
             target_snapshot: None,
             index_mode,
+            domain,
+            metrics,
         }
+    }
+
+    /// Get the last indexed sequence or 0 if no logs have been indexed yet.
+    pub fn last_sequence(&self) -> u32 {
+        self.last_indexed_snapshot.sequence.unwrap_or(0)
     }
 
     /// Gets the next range of logs to index.
@@ -104,6 +122,10 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
         else {
             return Ok(None);
         };
+
+        // for updating metrics even if there's no indexable events available
+        let max_sequence = onchain_sequence_count.saturating_sub(1) as i64;
+        self.update_metrics(max_sequence).await;
 
         let current_sequence = self.current_indexing_snapshot.sequence;
         let range = match current_sequence.cmp(&onchain_sequence_count) {
@@ -221,10 +243,10 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     /// log for the sequence number hasn't been indexed.
     async fn get_sequence_log_block_number(&self, sequence: u32) -> Result<Option<u32>> {
         // Ensure there's a full entry for the sequence.
-        if self.db.retrieve_by_sequence(sequence).await?.is_some() {
+        if self.store.retrieve_by_sequence(sequence).await?.is_some() {
             // And get the block number.
             if let Some(block_number) = self
-                .db
+                .store
                 .retrieve_log_block_number_by_sequence(sequence)
                 .await?
             {
@@ -401,10 +423,37 @@ impl<T: Debug> ForwardSequenceAwareSyncCursor<T> {
     fn rewind(&mut self) {
         self.current_indexing_snapshot = self.last_indexed_snapshot.next_target();
     }
+
+    // Updates the cursor metrics.
+    async fn update_metrics(&self, max_sequence: i64) {
+        let mut labels = hashmap! {
+            "event_type" => T::name(),
+            "chain" => self.domain.name(),
+            "cursor_type" => "forward_sequenced",
+        };
+
+        let latest_block = self.latest_queried_block();
+        self.metrics
+            .cursor_current_block
+            .with(&labels)
+            .set(latest_block as i64);
+
+        let sequence = self.last_sequence();
+        self.metrics
+            .cursor_current_sequence
+            .with(&labels)
+            .set(sequence as i64);
+
+        labels.remove("cursor_type");
+        self.metrics
+            .cursor_max_sequence
+            .with(&labels)
+            .set(max_sequence);
+    }
 }
 
 #[async_trait]
-impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
+impl<T: Send + Sync + Clone + Debug + Indexable + 'static> ContractSyncCursor<T>
     for ForwardSequenceAwareSyncCursor<T>
 {
     async fn next_action(&mut self) -> Result<(CursorAction, Duration)> {
@@ -469,7 +518,11 @@ impl<T: Send + Sync + Clone + Debug + 'static> ContractSyncCursor<T>
 #[cfg(test)]
 pub(crate) mod test {
     use derive_new::new;
-    use hyperlane_core::{ChainResult, HyperlaneLogStore, Indexed, Indexer, Sequenced};
+    use hyperlane_core::{
+        ChainResult, HyperlaneDomainProtocol, HyperlaneLogStore, Indexed, Indexer, Sequenced,
+    };
+
+    use crate::cursors::CursorType;
 
     use super::*;
 
@@ -482,7 +535,7 @@ pub(crate) mod test {
     #[async_trait]
     impl<T> SequenceAwareIndexer<T> for MockLatestSequenceQuerier
     where
-        T: Sequenced + Debug,
+        T: Sequenced + Debug + Clone + Send + Sync + Indexable + 'static,
     {
         async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
             Ok((self.latest_sequence_count, self.tip))
@@ -492,7 +545,7 @@ pub(crate) mod test {
     #[async_trait]
     impl<T> Indexer<T> for MockLatestSequenceQuerier
     where
-        T: Sequenced + Debug,
+        T: Sequenced + Debug + Clone + Send + Sync + Indexable + 'static,
     {
         async fn fetch_logs_in_range(
             &self,
@@ -512,15 +565,17 @@ pub(crate) mod test {
     }
 
     #[async_trait]
-    impl<T: Sequenced + Debug> HyperlaneLogStore<T> for MockHyperlaneSequenceAwareIndexerStore<T> {
+    impl<T: Sequenced + Debug + Clone + Send + Sync + Indexable + 'static> HyperlaneLogStore<T>
+        for MockHyperlaneSequenceAwareIndexerStore<T>
+    {
         async fn store_logs(&self, logs: &[(Indexed<T>, LogMeta)]) -> eyre::Result<u32> {
             Ok(logs.len() as u32)
         }
     }
 
     #[async_trait]
-    impl<T: Sequenced + Debug + Clone> HyperlaneSequenceAwareIndexerStoreReader<T>
-        for MockHyperlaneSequenceAwareIndexerStore<T>
+    impl<T: Sequenced + Debug + Clone + Send + Sync + Indexable + 'static>
+        HyperlaneSequenceAwareIndexerStoreReader<T> for MockHyperlaneSequenceAwareIndexerStore<T>
     {
         async fn retrieve_by_sequence(&self, sequence: u32) -> eyre::Result<Option<T>> {
             Ok(self
@@ -547,6 +602,9 @@ pub(crate) mod test {
         pub sequence: u32,
     }
 
+    unsafe impl Sync for MockSequencedData {}
+    unsafe impl Send for MockSequencedData {}
+
     impl From<MockSequencedData> for Indexed<MockSequencedData> {
         fn from(val: MockSequencedData) -> Self {
             let sequence = val.sequence;
@@ -554,9 +612,45 @@ pub(crate) mod test {
         }
     }
 
+    impl Indexable for MockSequencedData {
+        fn indexing_cursor(_domain: HyperlaneDomainProtocol) -> CursorType {
+            CursorType::SequenceAware
+        }
+
+        fn name() -> &'static str {
+            "mock_indexable"
+        }
+    }
+
     impl Sequenced for MockSequencedData {
         fn sequence(&self) -> Option<u32> {
             Some(self.sequence)
+        }
+    }
+
+    pub fn mock_cursor_metrics() -> CursorMetrics {
+        CursorMetrics {
+            cursor_current_block: prometheus::IntGaugeVec::new(
+                prometheus::Opts::new("cursor_current_block", "Current block of the cursor")
+                    .namespace("mock")
+                    .subsystem("cursor"),
+                &["event_type", "chain", "cursor_type"],
+            )
+            .unwrap(),
+            cursor_current_sequence: prometheus::IntGaugeVec::new(
+                prometheus::Opts::new("cursor_current_sequence", "Current sequence of the cursor")
+                    .namespace("mock")
+                    .subsystem("cursor"),
+                &["event_type", "chain", "cursor_type"],
+            )
+            .unwrap(),
+            cursor_max_sequence: prometheus::IntGaugeVec::new(
+                prometheus::Opts::new("cursor_max_sequence", "Max sequence of the cursor")
+                    .namespace("mock")
+                    .subsystem("cursor"),
+                &["event_type", "chain"],
+            )
+            .unwrap(),
         }
     }
 
@@ -603,6 +697,10 @@ pub(crate) mod test {
             ],
         });
 
+        let metrics_data = MetricsData {
+            domain: HyperlaneDomain::new_test_domain("test"),
+            metrics: Arc::new(mock_cursor_metrics()),
+        };
         let mut cursor = ForwardSequenceAwareSyncCursor::new(
             chunk_size,
             latest_sequence_querier,
@@ -611,6 +709,7 @@ pub(crate) mod test {
             3,
             70,
             mode,
+            metrics_data,
         );
 
         // Skip any already indexed logs and sanity check we start at the correct spot.

@@ -29,13 +29,17 @@ tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }
 tracing-futures.workspace = true
 tracing.workspace = true
 
-hex = { path = "../../utils/hex" }
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["agent"] }
 migration = { path = "migration" }
 
 [dev-dependencies]
+reqwest.workspace = true
+sea-orm = { workspace = true, features = ["mock"]}
 tokio-test = "0.4"
+tracing-test.workspace = true
+ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
+hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 hyperlane-test = { path = "../../hyperlane-test" }
 
 [features]

@@ -126,10 +126,9 @@ impl BuildableWithSignerConf for Keypair {
         if let SignerConf::HexKey { key } = conf {
             let secret = SecretKey::from_bytes(key.as_bytes())
                 .context("Invalid sealevel ed25519 secret key")?;
-            Ok(
-                Keypair::from_bytes(&ed25519_dalek::Keypair::from(secret).to_bytes())
-                    .context("Unable to create Keypair")?,
-            )
+            let public = ed25519_dalek::PublicKey::from(&secret);
+            let dalek = ed25519_dalek::Keypair { secret, public };
+            Ok(Keypair::from_bytes(&dalek.to_bytes()).context("Unable to create Keypair")?)
         } else {
             bail!(format!("{conf:?} key is not supported by sealevel"));
         }

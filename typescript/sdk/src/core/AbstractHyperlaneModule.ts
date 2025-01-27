@@ -32,7 +32,7 @@ export abstract class HyperlaneModule<
   public abstract read(): Promise<TConfig>;
   public abstract update(
     config: TConfig,
-  ): Promise<Annotated<ProtocolTypedTransaction<TProtocol>['transaction'][]>>;
+  ): Promise<Annotated<ProtocolTypedTransaction<TProtocol>['transaction']>[]>;
 
   // /*
   //   Types and static methods can be challenging. Ensure each implementation includes a static create function.

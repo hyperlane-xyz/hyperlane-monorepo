@@ -8,8 +8,7 @@ use hyperlane_core::config::*;
 use tracing::info;
 
 use crate::{
-    create_chain_metrics,
-    metrics::{create_agent_metrics, AgentMetrics, CoreMetrics},
+    metrics::{AgentMetrics, CoreMetrics},
     settings::Settings,
     ChainMetrics,
 };
@@ -81,6 +80,9 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
     // the variable defaults to "VERGEN_IDEMPOTENT_OUTPUT".
     let git_sha = env!("VERGEN_GIT_SHA").to_owned();
 
+    // Logging is not initialised at this point, so, using `println!`
+    println!("Agent {} starting up with version {git_sha}", A::AGENT_NAME);
+
     let agent_metadata = AgentMetadata::new(git_sha);
 
     let settings = A::Settings::load()?;
@@ -88,8 +90,8 @@ pub async fn agent_main<A: BaseAgent>() -> Result<()> {
 
     let metrics = settings.as_ref().metrics(A::AGENT_NAME)?;
     let tokio_server = core_settings.tracing.start_tracing(&metrics)?;
-    let agent_metrics = create_agent_metrics(&metrics)?;
-    let chain_metrics = create_chain_metrics(&metrics)?;
+    let agent_metrics = AgentMetrics::new(&metrics)?;
+    let chain_metrics = ChainMetrics::new(&metrics)?;
     let agent = A::from_settings(
         agent_metadata,
         settings,

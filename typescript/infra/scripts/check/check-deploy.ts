@@ -53,6 +53,8 @@ async function main() {
       console.info(`${module} checker found no violations`);
     }
   }
+
+  process.exit(0);
 }
 
 main()

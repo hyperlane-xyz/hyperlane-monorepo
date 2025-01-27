@@ -111,6 +111,7 @@ async function main() {
   }, {} as Record<string, any>);
 
   console.table(formattedBalances);
+  process.exit(0);
 }
 
 main()

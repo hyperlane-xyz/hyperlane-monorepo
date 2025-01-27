@@ -27,6 +27,7 @@ pub struct Model {
     pub recipient: Option<Vec<u8>>,
     pub gas_used: BigDecimal,
     pub cumulative_gas_used: BigDecimal,
+    pub raw_input_data: Option<Vec<u8>>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -45,6 +46,7 @@ pub enum Column {
     Recipient,
     GasUsed,
     CumulativeGasUsed,
+    RawInputData,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -85,6 +87,7 @@ impl ColumnTrait for Column {
             Self::Recipient => ColumnType::Binary(BlobSize::Blob(None)).def().null(),
             Self::GasUsed => ColumnType::Decimal(Some((78u32, 0u32))).def(),
             Self::CumulativeGasUsed => ColumnType::Decimal(Some((78u32, 0u32))).def(),
+            Self::RawInputData => ColumnType::Binary(BlobSize::Blob(None)).def().null(),
         }
     }
 }

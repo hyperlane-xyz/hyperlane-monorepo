@@ -19,6 +19,7 @@ import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {Message} from "../libs/Message.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 
 // ============ External Imports ============
 import {FxBaseRootTunnel} from "fx-portal/contracts/tunnel/FxBaseRootTunnel.sol";
@@ -31,6 +32,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  */
 contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ Constructor ============
 
@@ -56,22 +58,27 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
 
     // ============ Internal functions ============
     function _quoteDispatch(
-        bytes calldata,
+        bytes calldata metadata,
         bytes calldata
     ) internal pure override returns (uint256) {
-        return 0;
+        return metadata.msgValue(0);
     }
 
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes memory payload
+        bytes calldata message
     ) internal override {
         require(
             metadata.msgValue(0) == 0,
             "PolygonPosHook: does not support msgValue"
         );
         require(msg.value == 0, "PolygonPosHook: does not support msgValue");
+
+        bytes memory payload = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (message.id(), metadata.msgValue(0))
+        );
         _sendMessageToChild(payload);
     }
 

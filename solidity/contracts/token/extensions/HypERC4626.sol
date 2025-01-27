@@ -22,10 +22,13 @@ import {TokenRouter} from "../libs/TokenRouter.sol";
 
 // ============ External Imports ============
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 /**
  * @title Hyperlane ERC20 Rebasing Token
  * @author Abacus Works
+ * @notice This contract implements a rebasing token that reflects yields from the origin chain
  */
 contract HypERC4626 is HypERC20 {
     using Math for uint256;
@@ -49,6 +52,67 @@ contract HypERC4626 is HypERC20 {
         exchangeRate = 1e10;
         _disableInitializers();
     }
+
+    // ============ Public Functions ============
+
+    /// Override transfer to handle underlying amounts while using shares internally
+    /// @inheritdoc ERC20Upgradeable
+    /// @dev the Transfer event emitted from ERC20Upgradeable will be in terms of shares not assets, so it may be misleading
+    function transfer(
+        address to,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        _transfer(_msgSender(), to, assetsToShares(amount));
+        return true;
+    }
+
+    /// Override transferFrom to handle underlying amounts while using shares internally
+    /// @inheritdoc ERC20Upgradeable
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) public virtual override returns (bool) {
+        address spender = _msgSender();
+        uint256 shares = assetsToShares(amount);
+        _spendAllowance(sender, spender, amount);
+        _transfer(sender, recipient, shares);
+        return true;
+    }
+
+    /// Override totalSupply to return the total assets instead of shares. This reflects the actual circulating supply in terms of assets, accounting for rebasing
+    /// @inheritdoc ERC20Upgradeable
+    function totalSupply() public view virtual override returns (uint256) {
+        return sharesToAssets(totalShares());
+    }
+
+    /// This returns the balance of the account in terms of assets, accounting for rebasing
+    /// @inheritdoc ERC20Upgradeable
+    function balanceOf(
+        address account
+    ) public view virtual override returns (uint256) {
+        return sharesToAssets(shareBalanceOf(account));
+    }
+
+    /// This function provides the total supply in terms of shares
+    function totalShares() public view returns (uint256) {
+        return super.totalSupply();
+    }
+
+    ///  This returns the balance of the account in terms of shares
+    function shareBalanceOf(address account) public view returns (uint256) {
+        return super.balanceOf(account);
+    }
+
+    function assetsToShares(uint256 _amount) public view returns (uint256) {
+        return _amount.mulDiv(PRECISION, exchangeRate);
+    }
+
+    function sharesToAssets(uint256 _shares) public view returns (uint256) {
+        return _shares.mulDiv(exchangeRate, PRECISION);
+    }
+
+    // ============ Internal Functions ============
 
     /// Override to send shares instead of assets from synthetic
     /// @inheritdoc TokenRouter
@@ -79,6 +143,8 @@ contract HypERC4626 is HypERC20 {
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }
 
+    /// override _handle to update exchange rate
+    /// @inheritdoc TokenRouter
     function _handle(
         uint32 _origin,
         bytes32 _sender,
@@ -97,34 +163,5 @@ contract HypERC4626 is HypERC20 {
             }
         }
         super._handle(_origin, _sender, _message);
-    }
-
-    // Override to send shares locally instead of assets
-    function transfer(
-        address to,
-        uint256 amount
-    ) public virtual override returns (bool) {
-        address owner = _msgSender();
-        _transfer(owner, to, assetsToShares(amount));
-        return true;
-    }
-
-    function shareBalanceOf(address account) public view returns (uint256) {
-        return super.balanceOf(account);
-    }
-
-    function balanceOf(
-        address account
-    ) public view virtual override returns (uint256) {
-        uint256 _balance = super.balanceOf(account);
-        return sharesToAssets(_balance);
-    }
-
-    function assetsToShares(uint256 _amount) public view returns (uint256) {
-        return _amount.mulDiv(PRECISION, exchangeRate);
-    }
-
-    function sharesToAssets(uint256 _shares) public view returns (uint256) {
-        return _shares.mulDiv(exchangeRate, PRECISION);
     }
 }

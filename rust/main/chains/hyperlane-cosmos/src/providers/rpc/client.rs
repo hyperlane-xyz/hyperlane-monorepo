@@ -1,10 +1,13 @@
 use cosmrs::proto::tendermint::blocksync::BlockResponse;
+use hyperlane_core::rpc_clients::BlockNumberGetter;
 use tendermint::Hash;
 use tendermint_rpc::client::CompatMode;
 use tendermint_rpc::endpoint::{block, block_by_hash, block_results, tx};
-use tendermint_rpc::{Client, HttpClient};
+use tendermint_rpc::{Client, HttpClient, HttpClientUrl, Url as TendermintUrl};
 
-use hyperlane_core::ChainResult;
+use hyperlane_core::{ChainCommunicationError, ChainResult};
+use tonic::async_trait;
+use url::Url;
 
 use crate::{ConnectionConf, HyperlaneCosmosError};
 
@@ -16,16 +19,17 @@ pub struct CosmosRpcClient {
 
 impl CosmosRpcClient {
     /// Create new `CosmosRpcClient`
-    pub fn new(conf: &ConnectionConf) -> ChainResult<Self> {
-        let client = HttpClient::builder(
-            conf.get_rpc_url()
-                .parse()
-                .map_err(Into::<HyperlaneCosmosError>::into)?,
-        )
-        // Consider supporting different compatibility modes.
-        .compat_mode(CompatMode::latest())
-        .build()
-        .map_err(Into::<HyperlaneCosmosError>::into)?;
+    pub fn new(url: &Url) -> ChainResult<Self> {
+        let tendermint_url = tendermint_rpc::Url::try_from(url.to_owned())
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+        let url = tendermint_rpc::HttpClientUrl::try_from(tendermint_url)
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
+
+        let client = HttpClient::builder(url)
+            // Consider supporting different compatibility modes.
+            .compat_mode(CompatMode::latest())
+            .build()
+            .map_err(Into::<HyperlaneCosmosError>::into)?;
 
         Ok(Self { client })
     }
@@ -73,5 +77,14 @@ impl CosmosRpcClient {
             .tx(hash, false)
             .await
             .map_err(Into::<HyperlaneCosmosError>::into)?)
+    }
+}
+
+#[async_trait]
+impl BlockNumberGetter for CosmosRpcClient {
+    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
+        self.get_latest_block()
+            .await
+            .map(|block| block.block.header.height.value())
     }
 }

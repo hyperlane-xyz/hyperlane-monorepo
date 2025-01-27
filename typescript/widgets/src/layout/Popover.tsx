@@ -3,7 +3,7 @@ import {
   PopoverPanel,
   Popover as _Popover,
 } from '@headlessui/react';
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, { ComponentProps, ReactNode } from 'react';
 
 export type PopoverProps = {

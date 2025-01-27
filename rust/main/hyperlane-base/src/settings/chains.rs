@@ -10,13 +10,13 @@ use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
     InterchainGasPaymaster, InterchainGasPayment, InterchainSecurityModule, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, RoutingIsm, SequenceAwareIndexer,
-    ValidatorAnnounce, H256,
+    MerkleTreeHook, MerkleTreeInsertion, MultisigIsm, ReorgPeriod, RoutingIsm,
+    SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
 use hyperlane_cosmos as h_cosmos;
 use hyperlane_ethereum::{
     self as h_eth, BuildableWithProvider, EthereumInterchainGasPaymasterAbi, EthereumMailboxAbi,
-    EthereumValidatorAnnounceAbi,
+    EthereumReorgPeriod, EthereumValidatorAnnounceAbi,
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
@@ -33,7 +33,11 @@ use super::ChainSigner;
 #[async_trait]
 pub trait TryFromWithMetrics<T>: Sized {
     /// Try to convert the chain configuration into the type
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self>;
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self>;
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
@@ -45,7 +49,7 @@ pub struct ChainConf {
     /// Signer configuration for this chain
     pub signer: Option<SignerConf>,
     /// The reorg period of the chain, i.e. the number of blocks until finality
-    pub reorg_period: u32,
+    pub reorg_period: ReorgPeriod,
     /// Addresses of contracts on the chain
     pub addresses: CoreContractAddresses,
     /// The chain connection details
@@ -72,22 +76,38 @@ pub type MerkleTreeHookIndexer = Arc<dyn SequenceAwareIndexer<MerkleTreeInsertio
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for MessageIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_message_indexer(metrics).await.map(Into::into)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_message_indexer(metrics, advanced_log_meta)
+            .await
+            .map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for DeliveryIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_delivery_indexer(metrics).await.map(Into::into)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_delivery_indexer(metrics, advanced_log_meta)
+            .await
+            .map(Into::into)
     }
 }
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for IgpIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_interchain_gas_payment_indexer(metrics)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_interchain_gas_payment_indexer(metrics, advanced_log_meta)
             .await
             .map(Into::into)
     }
@@ -95,8 +115,12 @@ impl TryFromWithMetrics<ChainConf> for IgpIndexer {
 
 #[async_trait]
 impl TryFromWithMetrics<ChainConf> for MerkleTreeHookIndexer {
-    async fn try_from_with_metrics(conf: &ChainConf, metrics: &CoreMetrics) -> Result<Self> {
-        conf.build_merkle_tree_hook_indexer(metrics)
+    async fn try_from_with_metrics(
+        conf: &ChainConf,
+        metrics: &CoreMetrics,
+        advanced_log_meta: bool,
+    ) -> Result<Self> {
+        conf.build_merkle_tree_hook_indexer(metrics, advanced_log_meta)
             .await
             .map(Into::into)
     }
@@ -266,34 +290,40 @@ impl ChainConf {
     pub async fn build_message_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<HyperlaneMessage>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::SequenceIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::SequenceIndexerBuilder { reorg_period },
                 )
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    conf,
+                    locator,
+                    advanced_log_meta,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMailboxDispatchIndexer::new(
                     conf.clone(),
                     locator,
                     signer,
-                    self.reorg_period,
+                    reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
@@ -305,34 +335,40 @@ impl ChainConf {
     pub async fn build_delivery_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<H256>>> {
         let ctx = "Building delivery indexer";
         let locator = self.locator(self.addresses.mailbox);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::DeliveryIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::DeliveryIndexerBuilder { reorg_period },
                 )
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    conf,
+                    locator,
+                    advanced_log_meta,
+                )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMailboxDeliveryIndexer::new(
                     conf.clone(),
                     locator,
                     signer,
-                    self.reorg_period,
+                    reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
@@ -383,19 +419,22 @@ impl ChainConf {
     pub async fn build_interchain_gas_payment_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<InterchainGasPayment>>> {
         let ctx = "Building IGP indexer";
         let locator = self.locator(self.addresses.interchain_gas_paymaster);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
                     h_eth::InterchainGasPaymasterIndexerBuilder {
                         mailbox_address: self.addresses.mailbox.into(),
-                        reorg_period: self.reorg_period,
+                        reorg_period,
                     },
                 )
                 .await
@@ -403,15 +442,21 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let indexer = Box::new(
-                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(conf, locator).await?,
+                    h_sealevel::SealevelInterchainGasPaymasterIndexer::new(
+                        conf,
+                        locator,
+                        advanced_log_meta,
+                    )
+                    .await?,
                 );
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
             ChainConnectionConf::Cosmos(conf) => {
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosInterchainGasPaymasterIndexer::new(
                     conf.clone(),
                     locator,
-                    self.reorg_period,
+                    reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
@@ -423,26 +468,30 @@ impl ChainConf {
     pub async fn build_merkle_tree_hook_indexer(
         &self,
         metrics: &CoreMetrics,
+        advanced_log_meta: bool,
     ) -> Result<Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>> {
         let ctx = "Building merkle tree hook indexer";
         let locator = self.locator(self.addresses.merkle_tree_hook);
 
         match &self.connection {
             ChainConnectionConf::Ethereum(conf) => {
+                let reorg_period =
+                    EthereumReorgPeriod::try_from(&self.reorg_period).context(ctx)?;
                 self.build_ethereum(
                     conf,
                     &locator,
                     metrics,
-                    h_eth::MerkleTreeHookIndexerBuilder {
-                        reorg_period: self.reorg_period,
-                    },
+                    h_eth::MerkleTreeHookIndexerBuilder { reorg_period },
                 )
                 .await
             }
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
-                let mailbox_indexer =
-                    Box::new(h_sealevel::SealevelMailboxIndexer::new(conf, locator)?);
+                let mailbox_indexer = Box::new(h_sealevel::SealevelMailboxIndexer::new(
+                    conf,
+                    locator,
+                    advanced_log_meta,
+                )?);
                 let indexer = Box::new(h_sealevel::SealevelMerkleTreeHookIndexer::new(
                     *mailbox_indexer,
                 ));
@@ -450,12 +499,13 @@ impl ChainConf {
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
+                let reorg_period = self.reorg_period.as_blocks().context(ctx)?;
                 let indexer = Box::new(h_cosmos::CosmosMerkleTreeHookIndexer::new(
                     conf.clone(),
                     locator,
                     // TODO: remove signer requirement entirely
                     signer,
-                    self.reorg_period,
+                    reorg_period,
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }

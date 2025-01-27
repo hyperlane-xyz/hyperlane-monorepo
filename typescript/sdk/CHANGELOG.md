@@ -1,5 +1,254 @@
 # @hyperlane-xyz/sdk
 
+## 8.4.0
+
+### Minor Changes
+
+- f6b682cdb: Deploy to abstract, glue, matchain, unitzero.
+
+### Patch Changes
+
+- Updated dependencies [47ae33c6a]
+  - @hyperlane-xyz/core@5.11.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 7546c0181: Deploy to trumpchain.
+- 49856fbb9: Deploy to flametestnet, sonicblaze. Remove support for sonictestnet.
+
+### Patch Changes
+
+- Updated dependencies [db8c09011]
+- Updated dependencies [11cf66c5e]
+  - @hyperlane-xyz/core@5.10.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 69a684869: Don't try to build signers for non-EVM chains in MultiProtocolSignerManager
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.2.0
+- @hyperlane-xyz/core@5.9.2
+
+## 8.1.0
+
+### Minor Changes
+
+- 9ab961a79: Deploy to new chains: artela, guru, hemi, nero, xpla.
+
+### Patch Changes
+
+- 79c61c891: Fix the return type of multisig and aggregation ISMs for zksync-stack chains.
+- 9518dbc84: Enroll new validators for artela, guru, hemi, nero, soneium, torus, xpla.
+  - @hyperlane-xyz/utils@8.1.0
+  - @hyperlane-xyz/core@5.9.1
+
+## 8.0.0
+
+### Major Changes
+
+- 26fbec8f6: Rename TokenConfig related types and utilities for clarity. E.g. `CollateralConfig` to `CollateralTokenConfig`.
+  Export more config types and zod schemas
+
+### Minor Changes
+
+- fd20bb1e9: Add FeeHook and Swell to pz and ez eth config generator. Bump up Registry 6.6.0
+- 9f6b8c514: Allow self-relaying of all messages if there are multiple in a given dispatch transaction.
+- 82cebabe4: Call google storage API directly and remove @google-cloud/storage dependency from the SDK.
+- 95cc9571e: Deploy to new chains: arthera, aurora, conflux, conwai, corn, evmos, form, ink, rivalz, soneium, sonic, telos.
+- c690ca82f: Deploy to torus.
+- e9911bb9d: Added new Sealevel tx submission and priority fee oracle params to agent config types
+
+### Patch Changes
+
+- 472b34670: Bump registry version to v6.3.0.
+- 71aefa03e: export BaseMetadataBuilder
+- 5942e9cff: Update default validator sets for alephzeroevmmainnet, appchain, lisk, lumiaprism, swell, treasure, vana, zklink.
+- de1190656: Export TOKEN_STANDARD_TO_PROVIDER_TYPE, XERC20_STANDARDS, and MINT_LIMITED_STANDARDS maps
+- Updated dependencies [79f8197f3]
+- Updated dependencies [0eb8d52a4]
+- Updated dependencies [8834a8c92]
+  - @hyperlane-xyz/utils@8.0.0
+  - @hyperlane-xyz/core@5.9.0
+
+## 7.3.0
+
+### Minor Changes
+
+- 2054f4f5b: Require Sealevel native transfers to cover the rent of the recipient
+- a96448fa6: Add logic into SDK to enable warp route unenrollment
+- 170a0fc73: Add `createHookUpdateTxs()` to `WarpModule.update()` such that it 1) deploys a hook for a warp route _without_ an existing hook, or 2) update an existing hook.
+- 9a09afcc7: Deploy to appchain, treasure, zklink.
+- 24784af95: Introduce GcpValidator for retrieving announcements, checkpoints and metadata for a Validator posting to a GCP bucket. Uses GcpStorageWrapper for bucket operations.
+- 3e8dd70ac: Update validators for boba, duckchain, unichain, vana, bsquared, superseed. Update oort's own validator. Update blockpi's viction validator. Adad luganodes/dsrv to flame validator set.
+- aa1ea9a48: updates the warp deployment config schema to be closer to the ica routing schema
+- f0b98fdef: Updated the derivation logic to enable ICA ISM metadata building from on chain data to enable self relaying of ICA messages
+- ff9e8a72b: Added a getter to derive ATA payer accounts on Sealevel warp routes
+- 97c1f80b7: Implement Sealevel IGP quoting
+- 323f0f158: Add ICAs management in core apply command
+- 61157097b: Deploy to swell & lumiaprism. Parallelise router enrollment in HyperlaneRouterDeployer.
+
+### Patch Changes
+
+- 665a7b8d8: Added decimal consistency checks to the Token checker
+  - @hyperlane-xyz/utils@7.3.0
+  - @hyperlane-xyz/core@5.8.3
+
+## 7.2.0
+
+### Minor Changes
+
+- 81ab4332f: Remove ismFactoryAddresses from warpConfig
+- 4b3537470: Changed the type of defaultMultisigConfigs, to track validator aliases in addition to their addresses.
+- fa6d5f5c6: Add decodeIsmMetadata function
+
+### Patch Changes
+
+- Updated dependencies [fa6d5f5c6]
+  - @hyperlane-xyz/utils@7.2.0
+  - @hyperlane-xyz/core@5.8.2
+
+## 7.1.0
+
+### Minor Changes
+
+- 6f2d50fbd: Updated Fraxtal set to include Superlane validators, updated Flow set
+- 1159e0f4b: Enroll new validators for alephzeroevmmainnet, chilizmainnet, flowmainnet, immutablezkevmmainnet, metal, polynomialfi, rarichain, rootstockmainnet, superpositionmainnet, flame, prom, inevm.
+- ff2b4e2fb: Added helpers to Token and token adapters to get bridged supply of tokens"
+- 0e285a443: Add a validateZodResult util function
+- 5db46bd31: Implements persistent relayer for use in CLI
+- 0cd65c571: Add chainMetadataToCosmosChain function
+
+### Patch Changes
+
+- Updated dependencies [0e285a443]
+  - @hyperlane-xyz/utils@7.1.0
+  - @hyperlane-xyz/core@5.8.1
+
+## 7.0.0
+
+### Major Changes
+
+- f48cf8766: Upgrade Viem to 2.2 and Solana Web3 to 1.9
+  Rename `chainMetadataToWagmiChain` to `chainMetadataToViemChain`
+- 5f41b1134: Remove getCoingeckoTokenPrices (use CoinGeckoTokenPriceGetter instead)
+
+### Minor Changes
+
+- bbb970a44: Redeploy to alephzeroevmmainnet, chilizmainnet, flowmainnet, immutablezkevmmainnet, metal, polynomialfi, rarichain, rootstockmainnet, superpositionmainnet. Deploy to flame, prom.
+- fa424826c: Add support for updating the mailbox proxy admin owner
+- 40d59a2f4: Deploy to abstracttestnet and treasuretopaz
+- 0264f709e: Deploy to alephzeroevmtestnet, update deployment for arcadiatestnet2.
+- 836060240: Add storage based multisig ISM types
+- f24835438: Added coinGeckoId as an optional property of the TokenConfigSchema
+
+### Patch Changes
+
+- ba0122279: feat: use message context in hook reader IGP derivation
+- Updated dependencies [f48cf8766]
+- Updated dependencies [836060240]
+- Updated dependencies [e6f9d5c4f]
+  - @hyperlane-xyz/utils@7.0.0
+  - @hyperlane-xyz/core@5.8.0
+
+## 6.0.0
+
+### Major Changes
+
+- e3b97c455: Detangle assumption that chainId == domainId for EVM chains. Domain IDs and Chain Names are still unique, but chainId is no longer guaranteed to be a unique identifier. Domain ID is no longer an optional field and is now required for all chain metadata.
+
+### Minor Changes
+
+- 7b3b07900: Support using apiKey for CoinGeckoTokenPriceGetter
+- 30d92c319: Add `collateralChainName` to Warp Reader. Partial refactor of fetchTokenConfig().
+
+### Patch Changes
+
+- Updated dependencies [e3b97c455]
+  - @hyperlane-xyz/utils@6.0.0
+  - @hyperlane-xyz/core@5.7.1
+
+## 5.7.0
+
+### Minor Changes
+
+- 469f2f340: Checking for sufficient fees in `AbstractMessageIdAuthHook` and refund surplus
+- d9505ab58: Deploy to apechain, arbitrumnova, b3, fantom, gravity, harmony, kaia, morph, orderly, snaxchain, zeronetwork, zksync. Update default metadata in `HyperlaneCore` to `0x00001` to ensure empty metadata does not break on zksync.
+- 7e9e248be: Add feat to allow updates to destination gas using warp apply
+- 4c0605dca: Add optional proxy admin reuse in warp route deployments and admin proxy ownership transfer in warp apply
+- db9196837: Update default validator sets. Throw in `InterchainAccount.getOrDeployAccount` if the origin router is the zero address.
+- db5875cc2: Add `hyperlane warp verify` to allow post-deployment verification.
+- 956ff752a: Introduce utils that can be reused by the CLI and Infra for fetching token prices from Coingecko and gas prices from EVM/Cosmos chains.
+
+### Patch Changes
+
+- 5dabdf388: Optimize HyperlaneRelayer routing config derivation
+- e104cf6aa: Dedupe internals of hook and ISM module deploy code
+- 56328e6e1: Fix ICA ISM self relay
+- Updated dependencies [469f2f340]
+- Updated dependencies [e104cf6aa]
+- Updated dependencies [04108155d]
+- Updated dependencies [f26453ee5]
+- Updated dependencies [0640f837c]
+- Updated dependencies [a82b4b4cb]
+- Updated dependencies [39a9b2038]
+  - @hyperlane-xyz/core@5.7.0
+  - @hyperlane-xyz/utils@5.7.0
+
+## 5.6.2
+
+### Patch Changes
+
+- 5fd4267e7: Supported non-32 byte non-EVM recipients when sending warps from Sealevel
+- Updated dependencies [5fd4267e7]
+- Updated dependencies [a36fc5fb2]
+- Updated dependencies [a42616ff3]
+  - @hyperlane-xyz/utils@5.6.2
+  - @hyperlane-xyz/core@5.6.1
+
+## 5.6.1
+
+### Patch Changes
+
+- Updated dependencies [8cc0d9a4a]
+- Updated dependencies [c55257cf5]
+- Updated dependencies [8cc0d9a4a]
+  - @hyperlane-xyz/core@5.6.0
+  - @hyperlane-xyz/utils@5.6.1
+
+## 5.6.0
+
+### Minor Changes
+
+- 46044a2e9: Deploy to odysseytestnet
+- 02a5b92ba: Enroll new validators. Add tx overrides when deploying ICA accounts. Core checker now surfaces owner violations for defaultHook and requiredHook. App checker temporarily ignores bytecode mismatch violations.
+- 29341950e: Adds new `core check` command to compare local configuration and on chain deployments. Adds memoization to the EvmHookReader to avoid repeating configuration derivation
+- 8001bbbd6: Add override to some transactions to fix warp apply
+- 32d0a67c2: Adds the warp check command to compare warp routes config files with on chain warp route deployments
+- b1ff48bd1: Add rebasing yield route support into CLI/SDK
+- d41aa6928: Add `EthJsonRpcBlockParameterTag` enum for validating reorgPeriod
+- c3e9268f1: Add support for an arbitrary string in `reorgPeriod`, which is used as a block tag to get the finalized block.
+- 7d7bcc1a3: Add deployments for mainnets: flow, metall2, polynomial
+
+### Patch Changes
+
+- 7f3e0669d: Fix filtering non-evm addresses in appFromAddressesMapHelper
+- 2317eca3c: Set transaction overrides and add 10% gas limit buffer when sending message through HyperlaneCore.
+- Updated dependencies [f1712deb7]
+- Updated dependencies [29341950e]
+- Updated dependencies [c9085afd9]
+- Updated dependencies [ec6b874b1]
+- Updated dependencies [72c23c0d6]
+  - @hyperlane-xyz/utils@5.6.0
+  - @hyperlane-xyz/core@5.5.0
+
 ## 5.5.0
 
 ### Minor Changes

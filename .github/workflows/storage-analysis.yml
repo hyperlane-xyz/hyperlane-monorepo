@@ -29,9 +29,9 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-cache-
+            ${{ runner.os }}-yarn-4.5.1-cache-
 
       - name: yarn-install
         run: yarn install

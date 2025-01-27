@@ -15,9 +15,12 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {Message} from "../../libs/Message.sol";
+import {StandardHookMetadata} from "../libs/StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {IMessageDispatcher} from "../../interfaces/hooks/IMessageDispatcher.sol";
 import {AbstractMessageIdAuthHook} from "../libs/AbstractMessageIdAuthHook.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -28,6 +31,9 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * any of the 5164 adapters.
  */
 contract ERC5164Hook is AbstractMessageIdAuthHook {
+    using StandardHookMetadata for bytes;
+    using Message for bytes;
+
     IMessageDispatcher public immutable dispatcher;
 
     constructor(
@@ -53,11 +59,15 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
     }
 
     function _sendMessageId(
-        bytes calldata,
-        /* metadata */
-        bytes memory payload
+        bytes calldata metadata,
+        bytes calldata message
     ) internal override {
         require(msg.value == 0, "ERC5164Hook: no value allowed");
+
+        bytes memory payload = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (message.id(), metadata.msgValue(0))
+        );
         dispatcher.dispatchMessage(
             destinationDomain,
             TypeCasts.bytes32ToAddress(ism),

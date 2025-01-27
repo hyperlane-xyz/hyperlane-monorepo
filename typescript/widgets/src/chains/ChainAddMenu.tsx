@@ -1,4 +1,4 @@
-import clsx from 'clsx';
+import { clsx } from 'clsx';
 import React, { useState } from 'react';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
@@ -21,6 +21,7 @@ import { CopyButton } from '../components/CopyButton.js';
 import { LinkButton } from '../components/LinkButton.js';
 import { ChevronIcon } from '../icons/Chevron.js';
 import { PlusIcon } from '../icons/Plus.js';
+import { widgetLogger } from '../logger.js';
 
 export interface ChainAddMenuProps {
   chainMetadata: ChainMap<ChainMetadata>;
@@ -143,7 +144,7 @@ function tryParseMetadataInput(
   const result = ChainMetadataSchema.safeParse(parsed.data);
 
   if (!result.success) {
-    console.error('Error validating chain config', result.error);
+    widgetLogger.error('Error validating chain config', result.error);
     const firstIssue = result.error.issues[0];
     return failure(`${firstIssue.path} => ${firstIssue.message}`);
   }
@@ -155,14 +156,7 @@ function tryParseMetadataInput(
     return failure('name is already in use by another chain');
   }
 
-  if (multiProvider.tryGetChainMetadata(newMetadata.chainId)) {
-    return failure('chainId is already in use by another chain');
-  }
-
-  if (
-    newMetadata.domainId &&
-    multiProvider.tryGetChainMetadata(newMetadata.domainId)
-  ) {
+  if (multiProvider.tryGetChainMetadata(newMetadata.domainId)) {
     return failure('domainId is already in use by another chain');
   }
 

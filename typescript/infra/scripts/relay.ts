@@ -10,11 +10,10 @@ const CACHE_PATH = process.env.RELAYER_CACHE ?? './relayer-cache.json';
 async function main() {
   const { environment } = await getArgs().argv;
   const { core } = await getHyperlaneCore(environment);
-  const relayer = new HyperlaneRelayer({ core });
 
-  // target subset of chains
-  // const chains = ['ethereum', 'polygon', 'bsc']
-  const chains = undefined;
+  // target subset of chains and senders/recipients
+  const whitelist = undefined;
+  const relayer = new HyperlaneRelayer({ core, whitelist });
 
   try {
     const contents = await readFile(CACHE_PATH, 'utf-8');
@@ -26,10 +25,10 @@ async function main() {
     console.error(`Failed to load cache from ${CACHE_PATH}`);
   }
 
-  relayer.start(chains);
+  relayer.start();
 
   process.once('SIGINT', async () => {
-    relayer.stop(chains);
+    relayer.stop();
 
     const cache = JSON.stringify(relayer.cache);
     await writeFile(CACHE_PATH, cache, 'utf-8');

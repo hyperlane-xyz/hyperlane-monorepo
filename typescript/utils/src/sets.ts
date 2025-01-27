@@ -22,3 +22,13 @@ export function symmetricDifference<T>(a: Set<T>, b: Set<T>) {
 export function setEquality<T>(a: Set<T>, b: Set<T>) {
   return symmetricDifference(a, b).size === 0;
 }
+
+export function intersection<T>(a: Set<T>, b: Set<T>) {
+  const _intersection = new Set<T>();
+  a.forEach((elem) => {
+    if (b.has(elem)) {
+      _intersection.add(elem);
+    }
+  });
+  return _intersection;
+}

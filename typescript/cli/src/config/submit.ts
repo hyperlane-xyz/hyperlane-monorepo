@@ -4,8 +4,7 @@ import {
   AnnotatedEV5Transaction,
   SubmissionStrategy,
 } from '@hyperlane-xyz/sdk';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { assert, errorToString } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, errorToString } from '@hyperlane-xyz/utils';
 
 import { WriteCommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';
@@ -27,17 +26,15 @@ export async function runSubmit({
   receiptsFilepath: string;
   submissionStrategy: SubmissionStrategy;
 }) {
-  const { chainMetadata, multiProvider } = context;
+  const { multiProvider } = context;
 
   assert(
     submissionStrategy,
     'Submission strategy required to submit transactions.\nPlease create a submission strategy. See examples in cli/examples/submit/strategy/*.',
   );
   const transactions = getTransactions(transactionsFilepath);
-  const chain = getChainFromTxs(multiProvider, transactions);
 
-  const protocol = chainMetadata[chain].protocol;
-  const submitterBuilder = await getSubmitterBuilder<typeof protocol>({
+  const submitterBuilder = await getSubmitterBuilder<ProtocolType>({
     submissionStrategy,
     multiProvider,
   });
@@ -58,28 +55,6 @@ export async function runSubmit({
     );
     throw new Error('Failed to submit transactions.');
   }
-}
-
-/**
- * Retrieves the chain name from transactions[0].
- *
- * @param multiProvider - The MultiProvider instance to use for chain name lookup.
- * @param transactions - The list of populated transactions.
- * @returns The name of the chain that the transactions are submitted on.
- * @throws If the transactions are not all on the same chain or chain is not found
- */
-function getChainFromTxs(
-  multiProvider: MultiProvider,
-  transactions: AnnotatedEV5Transaction[],
-) {
-  const firstTransaction = transactions[0];
-  assert(firstTransaction.chainId, 'Invalid transaction: chainId is required');
-  const sameChainIds = transactions.every(
-    (t: AnnotatedEV5Transaction) => t.chainId === firstTransaction.chainId,
-  );
-  assert(sameChainIds, 'Transactions must be submitted on the same chains');
-
-  return multiProvider.getChainName(firstTransaction.chainId);
 }
 
 function getTransactions(

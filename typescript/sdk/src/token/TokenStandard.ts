@@ -108,10 +108,12 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.CwHypNative,
 ];
 
-export const MINT_LIMITED_STANDARDS = [
+export const XERC20_STANDARDS = [
   TokenStandard.EvmHypXERC20,
   TokenStandard.EvmHypXERC20Lockbox,
 ];
+
+export const MINT_LIMITED_STANDARDS = [...XERC20_STANDARDS];
 
 export const TOKEN_HYP_STANDARDS = [
   TokenStandard.EvmHypNative,

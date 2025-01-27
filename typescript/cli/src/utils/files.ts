@@ -4,9 +4,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
+  DocumentOptions,
   LineCounter,
+  ParseOptions,
+  SchemaOptions,
+  ToJSOptions,
   parse,
-  parse as yamlParse,
   stringify as yamlStringify,
 } from 'yaml';
 
@@ -14,8 +17,14 @@ import { objMerge } from '@hyperlane-xyz/utils';
 
 import { log } from '../logger.js';
 
+const yamlParse = (
+  content: string,
+  options?: ParseOptions & DocumentOptions & SchemaOptions & ToJSOptions,
+) =>
+  // See stackoverflow.com/questions/63075256/why-does-the-npm-yaml-library-have-a-max-alias-number
+  parse(content, { maxAliasCount: -1, ...options });
+
 export const MAX_READ_LINE_OUTPUT = 250;
-export const MAX_ALIAS_YAML = 100_000; // Used for yaml maxAliasCount. Ref: https://eemeli.org/yaml/#tojs-options
 
 export type FileFormat = 'yaml' | 'json';
 
@@ -43,7 +52,7 @@ export function isFile(filepath: string) {
   if (!filepath) return false;
   try {
     return fs.existsSync(filepath) && fs.lstatSync(filepath).isFile();
-  } catch (error) {
+  } catch {
     log(`Error checking for file: ${filepath}`);
     return false;
   }
@@ -71,7 +80,7 @@ export function readJson<T>(filepath: string): T {
 export function tryReadJson<T>(filepath: string): T | null {
   try {
     return readJson(filepath) as T;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -93,15 +102,13 @@ export function mergeJson<T extends Record<string, any>>(
 }
 
 export function readYaml<T>(filepath: string): T {
-  return yamlParse(readFileAtPath(filepath), {
-    maxAliasCount: MAX_ALIAS_YAML,
-  }) as T;
+  return yamlParse(readFileAtPath(filepath)) as T;
 }
 
 export function tryReadYamlAtPath<T>(filepath: string): T | null {
   try {
     return readYaml(filepath);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -253,7 +260,7 @@ export function logYamlIfUnderMaxLines(
 ): void {
   const asYamlString = yamlStringify(obj, null, margin);
   const lineCounter = new LineCounter();
-  parse(asYamlString, { lineCounter, maxAliasCount: MAX_ALIAS_YAML });
+  yamlParse(asYamlString, { lineCounter });
 
   log(lineCounter.lineStarts.length < maxLines ? asYamlString : '');
 }

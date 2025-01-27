@@ -130,7 +130,7 @@ describe('EvmCoreModule', async () => {
 
       // Check that it's actually a mailbox by calling one of it's methods
       expect(await mailboxContract.localDomain()).to.equal(
-        multiProvider.getChainId(CHAIN),
+        multiProvider.getDomainId(CHAIN),
       );
     });
 

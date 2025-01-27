@@ -37,6 +37,12 @@ use crate::server::MessageRetryRequest;
 use super::op_queue::OpQueue;
 use super::op_queue::OperationPriorityQueue;
 
+/// This is needed for logic where we need to allocate
+/// based on how many queues exist in each OpSubmitter.
+/// This value needs to be manually updated if we ever
+/// update the number of queues an OpSubmitter has.
+pub const SUBMITTER_QUEUE_COUNT: usize = 3;
+
 /// SerialSubmitter accepts operations over a channel. It is responsible for
 /// executing the right strategy to deliver those messages to the destination
 /// chain. It is designed to be used in a scenario allowing only one
@@ -105,7 +111,7 @@ impl SerialSubmitter {
     pub fn new(
         domain: HyperlaneDomain,
         rx: mpsc::UnboundedReceiver<QueueOperation>,
-        retry_op_transmitter: Sender<MessageRetryRequest>,
+        retry_op_transmitter: &Sender<MessageRetryRequest>,
         metrics: SerialSubmitterMetrics,
         max_batch_size: u32,
         task_monitor: TaskMonitor,
@@ -543,7 +549,7 @@ impl OperationBatch {
         };
 
         if !excluded_ops.is_empty() {
-            warn!(excluded_ops=?excluded_ops, "Either the batch tx would revert, or the operations would revert in the batch. Falling back to serial submission.");
+            warn!(excluded_ops=?excluded_ops, "Either operations reverted in the batch or the txid wasn't included. Falling back to serial submission.");
             OperationBatch::new(excluded_ops, self.domain)
                 .submit_serially(prepare_queue, confirm_queue, metrics)
                 .await;

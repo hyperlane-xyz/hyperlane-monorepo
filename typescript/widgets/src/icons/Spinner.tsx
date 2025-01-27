@@ -30,4 +30,4 @@ function _Spinner({ color, className, ...rest }: DefaultIconProps) {
   );
 }
 
-export const Spinner = memo(_Spinner);
+export const SpinnerIcon = memo(_Spinner);

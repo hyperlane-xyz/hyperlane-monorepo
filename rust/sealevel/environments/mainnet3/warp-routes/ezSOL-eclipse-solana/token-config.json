@@ -1,0 +1,17 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 9,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "token": "ezSoL6fY1PVdJcJsUpe5CM3xkfmy3zoVCABybm5WtiC",
+    "splTokenProgram": "token"
+  },
+  "eclipsemainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Renzo Restaked SOL",
+    "symbol": "ezSOL",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/ae7df1bc00af19f8ba692c14e4df3acdbf30497d/deployments/warp_routes/EZSOL/metadata.json",
+    "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"
+  }
+}

@@ -6,6 +6,7 @@ use cosmrs::crypto::PublicKey;
 use cosmrs::proto::traits::Message;
 use cosmrs::tx::{MessageExt, SequenceNumber, SignerInfo, SignerPublicKey};
 use cosmrs::{proto, AccountId, Any, Coin, Tx};
+use hyperlane_core::rpc_clients::FallbackProvider;
 use itertools::{any, cloned, Itertools};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -17,22 +18,21 @@ use tracing::{error, warn};
 
 use crypto::decompress_public_key;
 use hyperlane_core::{
-    AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
-    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxnInfo, TxnReceiptInfo,
-    H256, U256,
+    bytes_to_h512, h512_to_bytes, utils::to_atto, AccountAddressType, BlockInfo,
+    ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
+    HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError, TxnInfo, TxnReceiptInfo, H256,
+    H512, U256,
 };
 
 use crate::grpc::{WasmGrpcProvider, WasmProvider};
 use crate::providers::cosmos::provider::parse::PacketData;
 use crate::providers::rpc::CosmosRpcClient;
+use crate::rpc_clients::CosmosFallbackProvider;
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
 };
 
 mod parse;
-
-/// Exponent value for atto units (10^-18).
-const ATTO_EXPONENT: u32 = 18;
 
 /// Injective public key type URL for protobuf Any
 const INJECTIVE_PUBLIC_KEY_TYPE_URL: &str = "/injective.crypto.v1beta1.ethsecp256k1.PubKey";
@@ -43,7 +43,7 @@ pub struct CosmosProvider {
     domain: HyperlaneDomain,
     connection_conf: ConnectionConf,
     grpc_provider: WasmGrpcProvider,
-    rpc_client: CosmosRpcClient,
+    rpc_client: CosmosFallbackProvider<CosmosRpcClient>,
 }
 
 impl CosmosProvider {
@@ -62,13 +62,21 @@ impl CosmosProvider {
             locator,
             signer,
         )?;
-        let rpc_client = CosmosRpcClient::new(&conf)?;
+
+        let providers = conf
+            .get_rpc_urls()
+            .iter()
+            .map(CosmosRpcClient::new)
+            .collect::<Result<Vec<_>, _>>()?;
+        let provider = CosmosFallbackProvider::new(
+            FallbackProvider::builder().add_providers(providers).build(),
+        );
 
         Ok(Self {
             domain,
             connection_conf: conf,
             grpc_provider,
-            rpc_client,
+            rpc_client: provider,
         })
     }
 
@@ -148,8 +156,8 @@ impl CosmosProvider {
                             value: pk.value,
                         };
 
-                        let proto = proto::cosmos::crypto::secp256k1::PubKey::from_any(&any)
-                            .map_err(Into::<HyperlaneCosmosError>::into)?;
+                        let proto: proto::cosmos::crypto::secp256k1::PubKey =
+                            any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
 
                         let decompressed = decompress_public_key(&proto.key)
                             .map_err(|e| HyperlaneCosmosError::PublicKeyError(e.to_string()))?;
@@ -204,10 +212,10 @@ impl CosmosProvider {
     /// Extract contract address from transaction.
     fn contract(tx: &Tx, tx_hash: &H256) -> ChainResult<H256> {
         // We merge two error messages together so that both of them are reported
-        match Self::contract_address_from_msg_execute_contract(tx, tx_hash) {
+        match Self::contract_address_from_msg_execute_contract(tx) {
             Ok(contract) => Ok(contract),
             Err(msg_execute_contract_error) => {
-                match Self::contract_address_from_msg_recv_packet(tx, tx_hash) {
+                match Self::contract_address_from_msg_recv_packet(tx) {
                     Ok(contract) => Ok(contract),
                     Err(msg_recv_packet_error) => {
                         let errors = vec![msg_execute_contract_error, msg_recv_packet_error];
@@ -221,10 +229,7 @@ impl CosmosProvider {
     }
 
     /// Assumes that there is only one `MsgExecuteContract` message in the transaction
-    fn contract_address_from_msg_execute_contract(
-        tx: &Tx,
-        tx_hash: &H256,
-    ) -> Result<H256, HyperlaneCosmosError> {
+    fn contract_address_from_msg_execute_contract(tx: &Tx) -> Result<H256, HyperlaneCosmosError> {
         use cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContract as ProtoMsgExecuteContract;
 
         let contract_execution_messages = tx
@@ -245,18 +250,15 @@ impl CosmosProvider {
             let msg = "could not find contract execution message";
             HyperlaneCosmosError::ParsingFailed(msg.to_owned())
         })?;
-        let proto =
-            ProtoMsgExecuteContract::from_any(any).map_err(Into::<HyperlaneCosmosError>::into)?;
+        let proto: proto::cosmwasm::wasm::v1::MsgExecuteContract =
+            any.to_msg().map_err(Into::<HyperlaneCosmosError>::into)?;
         let msg = MsgExecuteContract::try_from(proto)?;
         let contract = H256::try_from(CosmosAccountId::new(&msg.contract))?;
 
         Ok(contract)
     }
 
-    fn contract_address_from_msg_recv_packet(
-        tx: &Tx,
-        tx_hash: &H256,
-    ) -> Result<H256, HyperlaneCosmosError> {
+    fn contract_address_from_msg_recv_packet(tx: &Tx) -> Result<H256, HyperlaneCosmosError> {
         let packet_data = tx
             .body
             .messages
@@ -316,26 +318,25 @@ impl CosmosProvider {
     /// `OSMO` and it will keep fees expressed in `inj` as is.
     ///
     /// If fees are expressed in an unsupported denomination, they will be ignored.
-    fn convert_fee(&self, coin: &Coin) -> U256 {
+    fn convert_fee(&self, coin: &Coin) -> ChainResult<U256> {
         let native_token = self.connection_conf.get_native_token();
 
         if coin.denom.as_ref() != native_token.denom {
-            return U256::zero();
+            return Ok(U256::zero());
         }
-
-        let exponent = ATTO_EXPONENT - native_token.decimals;
-        let coefficient = U256::from(10u128.pow(exponent));
 
         let amount_in_native_denom = U256::from(coin.amount);
 
-        amount_in_native_denom * coefficient
+        to_atto(amount_in_native_denom, native_token.decimals).ok_or(
+            ChainCommunicationError::CustomError("Overflow in calculating fees".to_owned()),
+        )
     }
 
-    fn calculate_gas_price(&self, hash: &H256, tx: &Tx) -> U256 {
+    fn calculate_gas_price(&self, hash: &H256, tx: &Tx) -> ChainResult<U256> {
         // TODO support multiple denominations for amount
         let supported = self.report_unsupported_denominations(tx, hash);
         if supported.is_err() {
-            return U256::max_value();
+            return Ok(U256::max_value());
         }
 
         let gas_limit = U256::from(tx.auth_info.fee.gas_limit);
@@ -345,13 +346,40 @@ impl CosmosProvider {
             .amount
             .iter()
             .map(|c| self.convert_fee(c))
-            .fold(U256::zero(), |acc, v| acc + v);
+            .fold_ok(U256::zero(), |acc, v| acc + v)?;
 
         if fee < gas_limit {
             warn!(tx_hash = ?hash, ?fee, ?gas_limit, "calculated fee is less than gas limit. it will result in zero gas price");
         }
 
-        fee / gas_limit
+        Ok(fee / gas_limit)
+    }
+
+    async fn block_info_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let response = self
+            .rpc_client
+            .call(|provider| Box::pin(async move { provider.get_block(height as u32).await }))
+            .await?;
+
+        let block = response.block;
+        let block_height = block.header.height.value();
+
+        if block_height != height {
+            Err(HyperlaneProviderError::IncorrectBlockByHeight(
+                height,
+                block_height,
+            ))?
+        }
+
+        let hash = H256::from_slice(response.block_id.hash.as_bytes());
+        let time: OffsetDateTime = block.header.time.into();
+
+        let block_info = BlockInfo {
+            hash: hash.to_owned(),
+            timestamp: time.unix_timestamp() as u64,
+            number: block_height,
+        };
+        Ok(block_info)
     }
 }
 
@@ -367,47 +395,27 @@ impl HyperlaneChain for CosmosProvider {
 
 #[async_trait]
 impl HyperlaneProvider for CosmosProvider {
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
-            .expect("block hash should be of correct size");
-
-        let response = self.rpc_client.get_block_by_hash(tendermint_hash).await?;
-
-        let received_hash = H256::from_slice(response.block_id.hash.as_bytes());
-
-        if &received_hash != hash {
-            return Err(ChainCommunicationError::from_other_str(
-                &format!("received incorrect block, expected hash: {hash:?}, received hash: {received_hash:?}")
-            ));
-        }
-
-        let block = response.block.ok_or_else(|| {
-            ChainCommunicationError::from_other_str(&format!(
-                "empty block info for block: {:?}",
-                hash
-            ))
-        })?;
-
-        let time: OffsetDateTime = block.header.time.into();
-
-        let block_info = BlockInfo {
-            hash: hash.to_owned(),
-            timestamp: time.unix_timestamp() as u64,
-            number: block.header.height.value(),
-        };
-
+    async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
+        let block_info = self.block_info_by_height(height).await?;
         Ok(block_info)
     }
 
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
+
         let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
             .expect("transaction hash should be of correct size");
 
-        let response = self.rpc_client.get_tx_by_hash(tendermint_hash).await?;
+        let response = self
+            .rpc_client
+            .call(|provider| {
+                Box::pin(async move { provider.get_tx_by_hash(tendermint_hash).await })
+            })
+            .await?;
 
         let received_hash = H256::from_slice(response.hash.as_bytes());
 
-        if &received_hash != hash {
+        if received_hash != hash {
             return Err(ChainCommunicationError::from_other_str(&format!(
                 "received incorrect transaction, expected hash: {:?}, received hash: {:?}",
                 hash, received_hash,
@@ -416,12 +424,12 @@ impl HyperlaneProvider for CosmosProvider {
 
         let tx = Tx::from_bytes(&response.tx)?;
 
-        let contract = Self::contract(&tx, hash)?;
+        let contract = Self::contract(&tx, &hash)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
-        let gas_price = self.calculate_gas_price(hash, &tx);
+        let gas_price = self.calculate_gas_price(&hash, &tx)?;
 
         let tx_info = TxnInfo {
-            hash: hash.to_owned(),
+            hash: hash.into(),
             gas_limit: U256::from(response.tx_result.gas_wanted),
             max_priority_fee_per_gas: None,
             max_fee_per_gas: None,
@@ -434,6 +442,7 @@ impl HyperlaneProvider for CosmosProvider {
                 cumulative_gas_used: U256::from(response.tx_result.gas_used),
                 effective_gas_price: Some(gas_price),
             }),
+            raw_input_data: None,
         };
 
         Ok(tx_info)
@@ -454,6 +463,12 @@ impl HyperlaneProvider for CosmosProvider {
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
-        Ok(None)
+        let height = self.grpc_provider.latest_block_height().await?;
+        let latest_block = self.block_info_by_height(height).await?;
+        let chain_info = ChainInfo {
+            latest_block,
+            min_gas_price: None,
+        };
+        Ok(Some(chain_info))
     }
 }

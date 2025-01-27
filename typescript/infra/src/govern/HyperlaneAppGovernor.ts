@@ -166,16 +166,22 @@ export abstract class HyperlaneAppGovernor<
 
       // If calls are being submitted via a safe, we need to check for any safe owner changes first
       if (submissionType === SubmissionType.SAFE) {
-        const { safeSdk } = await getSafeAndService(
-          chain,
-          this.checker.multiProvider,
-          (multiSend as SafeMultiSend).safeAddress,
-        );
-        const updateOwnerCalls = await updateSafeOwner(safeSdk);
-        callsForSubmissionType.push(...updateOwnerCalls, ...filteredCalls);
-      } else {
-        callsForSubmissionType.push(...filteredCalls);
+        try {
+          const { safeSdk } = await getSafeAndService(
+            chain,
+            this.checker.multiProvider,
+            (multiSend as SafeMultiSend).safeAddress,
+          );
+          const updateOwnerCalls = await updateSafeOwner(safeSdk);
+          callsForSubmissionType.push(...updateOwnerCalls);
+        } catch (error) {
+          // Catch but don't throw because we want to try submitting any remaining calls
+          console.error(`Error updating safe owner: ${error}`);
+        }
       }
+
+      // Add the filtered calls to the calls for submission type
+      callsForSubmissionType.push(...filteredCalls);
 
       if (callsForSubmissionType.length > 0) {
         this.printSeparator();
@@ -480,6 +486,20 @@ export abstract class HyperlaneAppGovernor<
         await this.checkSubmitterBalance(chain, submitterAddress, call.value);
       }
 
+      // Check if the submitter is the owner of the contract
+      try {
+        const ownable = Ownable__factory.connect(call.to, signer);
+        const owner = await ownable.owner();
+        const isOwner = eqAddress(owner, submitterAddress);
+
+        if (!isOwner) {
+          return false;
+        }
+      } catch {
+        // If the contract does not implement Ownable, just continue
+        // with the next check.
+      }
+
       // Check if the transaction has additional success criteria
       if (
         additionalTxSuccessCriteria &&
@@ -551,6 +571,7 @@ export abstract class HyperlaneAppGovernor<
     chain: ChainName,
     signerAddress: Address,
     safeAddress: string,
+    retries = 3,
   ): Promise<boolean> {
     if (!this.canPropose[chain].has(safeAddress)) {
       try {
@@ -562,25 +583,47 @@ export abstract class HyperlaneAppGovernor<
         );
         this.canPropose[chain].set(safeAddress, canPropose);
       } catch (error) {
+        const errorMessage = (error as Error).message.toLowerCase();
+
+        // Handle invalid MultiSend contract errors
         if (
-          error instanceof Error &&
-          (error.message.includes('Invalid MultiSend contract address') ||
-            error.message.includes(
-              'Invalid MultiSendCallOnly contract address',
-            ))
+          errorMessage.includes('invalid multisend contract address') ||
+          errorMessage.includes('invalid multisendcallonly contract address')
         ) {
-          console.warn(
-            chalk.yellow(`${error.message}: Setting submission type to MANUAL`),
-          );
-          return false;
-        } else {
-          console.error(
-            chalk.red(
-              `Failed to determine if signer can propose safe transactions on ${chain}. Setting submission type to MANUAL. Error: ${error}`,
-            ),
-          );
+          console.warn(chalk.yellow(`Invalid contract: ${errorMessage}.`));
           return false;
         }
+
+        // Handle service unavailable and rate limit errors
+        if (
+          errorMessage.includes('service unavailable') ||
+          errorMessage.includes('too many requests')
+        ) {
+          console.warn(
+            chalk.yellow(
+              `Safe service error for ${safeAddress} on ${chain}: ${errorMessage}. ${retries} retries left.`,
+            ),
+          );
+
+          if (retries > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            return this.checkSafeProposalEligibility(
+              chain,
+              signerAddress,
+              safeAddress,
+              retries - 1,
+            );
+          }
+          return false;
+        }
+
+        // Handle all other errors
+        console.error(
+          chalk.red(
+            `Failed to determine if signer can propose safe transactions on ${chain}. Error: ${error}`,
+          ),
+        );
+        return false;
       }
     }
     return this.canPropose[chain].get(safeAddress) || false;

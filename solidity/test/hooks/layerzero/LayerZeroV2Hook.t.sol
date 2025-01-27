@@ -147,15 +147,7 @@ contract LayerZeroV2HookTest is Test {
         vm.assume(balance < nativeFee - 1);
 
         vm.deal(address(this), balance);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Errors.InsufficientFee.selector,
-                100,
-                balance,
-                0,
-                0
-            )
-        );
+        vm.expectRevert(); // OutOfFunds
         mailbox.dispatch{value: balance}(
             HYPERLANE_DEST_DOMAIN,
             address(crossChainCounterApp).addressToBytes32(),

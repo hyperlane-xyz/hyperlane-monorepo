@@ -1,8 +1,0 @@
-anvil1:
-  threshold: 1 # Number: Signatures required to approve a message
-  validators: # Array: List of validator addresses
-    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
-anvil2:
-  threshold: 3
-  validators:
-    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'

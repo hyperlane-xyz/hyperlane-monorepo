@@ -1,10 +1,11 @@
+use std::fmt::{Debug, Formatter};
+
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use serde::{
     ser::{SerializeStruct, Serializer},
     Deserialize, Serialize,
 };
-use std::fmt::{Debug, Formatter};
 
 use crate::utils::bytes_to_hex;
 use crate::{Signature, H160, H256};

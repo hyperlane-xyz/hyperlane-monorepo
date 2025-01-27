@@ -1,4 +1,8 @@
-use hyperlane_core::{config::OperationBatchConfig, U256};
+use ethers::providers::Middleware;
+use ethers_core::types::{BlockId, BlockNumber};
+use hyperlane_core::{
+    config::OperationBatchConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
+};
 use url::Url;
 
 /// Ethereum RPC connection configuration
@@ -51,4 +55,52 @@ pub struct TransactionOverrides {
     pub max_fee_per_gas: Option<U256>,
     /// Max priority fee per gas to use for EIP-1559 transactions.
     pub max_priority_fee_per_gas: Option<U256>,
+}
+
+/// Ethereum reorg period
+#[derive(Copy, Clone, Debug)]
+pub enum EthereumReorgPeriod {
+    /// Number of blocks
+    Blocks(u32),
+    /// A block tag
+    Tag(BlockId),
+}
+
+impl TryFrom<&ReorgPeriod> for EthereumReorgPeriod {
+    type Error = ChainCommunicationError;
+
+    fn try_from(value: &ReorgPeriod) -> Result<Self, Self::Error> {
+        match value {
+            ReorgPeriod::None => Ok(EthereumReorgPeriod::Blocks(0)),
+            ReorgPeriod::Blocks(blocks) => Ok(EthereumReorgPeriod::Blocks(blocks.get())),
+            ReorgPeriod::Tag(tag) => {
+                let tag = match tag.as_str() {
+                    "latest" => BlockNumber::Latest,
+                    "finalized" => BlockNumber::Finalized,
+                    "safe" => BlockNumber::Safe,
+                    "earliest" => BlockNumber::Earliest,
+                    "pending" => BlockNumber::Pending,
+                    _ => return Err(ChainCommunicationError::InvalidReorgPeriod(value.clone())),
+                };
+                Ok(EthereumReorgPeriod::Tag(tag.into()))
+            }
+        }
+    }
+}
+
+impl EthereumReorgPeriod {
+    /// Converts the reorg period into a block id
+    pub async fn into_block_id<M: Middleware + 'static>(
+        &self,
+        provider: &M,
+    ) -> ChainResult<BlockId> {
+        let block_id = match self {
+            EthereumReorgPeriod::Blocks(_) => {
+                (crate::get_finalized_block_number(provider, self).await? as u64).into()
+            }
+            // no need to fetch the block number for the `tag`
+            EthereumReorgPeriod::Tag(tag) => *tag,
+        };
+        Ok(block_id)
+    }
 }

@@ -174,7 +174,6 @@ describe('ERC20WarpRouterReader', async () => {
         name: TOKEN_NAME,
         symbol: TOKEN_NAME,
         decimals: TOKEN_DECIMALS,
-        totalSupply: TOKEN_SUPPLY,
         ...baseConfig,
       },
     };
@@ -357,7 +356,7 @@ describe('ERC20WarpRouterReader', async () => {
     );
     expect(Object.keys(derivedConfig.remoteRouters!).length).to.equal(1);
     expect(
-      derivedConfig.remoteRouters![otherChainMetadata.domainId!],
+      derivedConfig.remoteRouters![otherChainMetadata.domainId!].address,
     ).to.be.equal(warpRoute[otherChain].collateral.address);
   });
 });

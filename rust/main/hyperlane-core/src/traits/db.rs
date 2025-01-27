@@ -42,8 +42,8 @@ pub trait HyperlaneSequenceAwareIndexerStore<T>:
 }
 
 /// Auto-impl for HyperlaneSequenceAwareIndexerStore
-impl<T, U> HyperlaneSequenceAwareIndexerStore<T> for U where
-    U: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + Send + Sync + Debug
+impl<T, S> HyperlaneSequenceAwareIndexerStore<T> for S where
+    S: HyperlaneLogStore<T> + HyperlaneSequenceAwareIndexerStoreReader<T> + Send + Sync + Debug
 {
 }
 

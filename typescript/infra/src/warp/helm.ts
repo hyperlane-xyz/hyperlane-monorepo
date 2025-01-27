@@ -1,39 +1,42 @@
+import { confirm } from '@inquirer/prompts';
 import path from 'path';
 
+import { difference, rootLogger } from '@hyperlane-xyz/utils';
+
+import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { HelmManager } from '../../src/utils/helm.js';
-import { getInfraPath } from '../../src/utils/utils.js';
+import { HelmManager, removeHelmRelease } from '../../src/utils/helm.js';
+import { execCmdAndParseJson, getInfraPath } from '../../src/utils/utils.js';
 
 export class WarpRouteMonitorHelmManager extends HelmManager {
+  static helmReleasePrefix: string = 'hyperlane-warp-route-';
+
   readonly helmChartPath: string = path.join(
     getInfraPath(),
     './helm/warp-routes',
   );
 
   constructor(
-    readonly configFilePath: string,
+    readonly warpRouteId: string,
     readonly runEnv: DeployEnvironment,
     readonly environmentChainNames: string[],
+    readonly registryCommit: string,
   ) {
     super();
   }
 
   async helmValues() {
-    const pathRelativeToMonorepoRoot = this.configFilePath.includes(
-      'typescript/infra',
-    )
-      ? this.configFilePath
-      : path.join('typescript/infra', this.configFilePath);
     return {
       image: {
         repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '6945b20-20241022-155935',
+        tag: '49992bf-20250122-142014',
       },
-      configFilePath: pathRelativeToMonorepoRoot,
+      warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,
       environment: this.runEnv,
       hyperlane: {
         chains: this.environmentChainNames,
+        registryCommit: this.registryCommit,
       },
     };
   }
@@ -42,9 +45,66 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return this.runEnv;
   }
 
-  get helmReleaseName(): string {
-    const match = this.configFilePath.match(/\/([^/]+)-deployments\.yaml$/);
-    const name = match ? match[1] : this.configFilePath;
-    return `hyperlane-warp-route-${name.toLowerCase()}`; // helm requires lower case release names
+  get helmReleaseName() {
+    return WarpRouteMonitorHelmManager.getHelmReleaseName(this.warpRouteId);
+  }
+
+  static getHelmReleaseName(warpRouteId: string): string {
+    let name = `${WarpRouteMonitorHelmManager.helmReleasePrefix}${warpRouteId
+      .toLowerCase()
+      .replaceAll('/', '-')}`;
+
+    // 52 because the max label length is 63, and there is an auto appended 11 char
+    // suffix, e.g. `controller-revision-hash=hyperlane-warp-route-tia-mantapacific-neutron-566dc75599`
+    const maxChars = 52;
+
+    // Max out length, and it can't end with a dash.
+    if (name.length > maxChars) {
+      name = name.slice(0, maxChars);
+      name = name.replace(/-+$/, '');
+    }
+    return name;
+  }
+
+  // Gets all Warp Monitor Helm Releases in the given namespace.
+  static async getWarpMonitorHelmReleases(
+    namespace: string,
+  ): Promise<string[]> {
+    const results = await execCmdAndParseJson(
+      `helm list --filter '${WarpRouteMonitorHelmManager.helmReleasePrefix}.+' -o json -n ${namespace}`,
+    );
+    return results.map((r: any) => r.name);
+  }
+
+  // This method is used to uninstall any stale Warp Monitors.
+  // This can happen if a Warp Route ID is changed or removed.
+  // Any warp monitor helm releases found that do not relate to known warp route ids
+  // will be prompted for uninstallation.
+  static async uninstallUnknownWarpMonitorReleases(namespace: string) {
+    const allExpectedHelmReleaseNames = Object.values(WarpRouteIds).map(
+      WarpRouteMonitorHelmManager.getHelmReleaseName,
+    );
+    const helmReleases =
+      await WarpRouteMonitorHelmManager.getWarpMonitorHelmReleases(namespace);
+
+    const unknownHelmReleases = difference(
+      new Set(helmReleases),
+      new Set(allExpectedHelmReleaseNames),
+    );
+    for (const helmRelease of unknownHelmReleases) {
+      rootLogger.warn(
+        `Unknown Warp Monitor Helm Release: ${helmRelease} (possibly a release from a stale Warp Route ID).`,
+      );
+      const uninstall = await confirm({
+        message:
+          "Would you like to uninstall this Helm Release? Make extra sure it shouldn't exist!",
+      });
+      if (uninstall) {
+        rootLogger.info(`Uninstalling Helm Release: ${helmRelease}`);
+        await removeHelmRelease(helmRelease, namespace);
+      } else {
+        rootLogger.info(`Skipping uninstall of Helm Release: ${helmRelease}`);
+      }
+    }
   }
 }

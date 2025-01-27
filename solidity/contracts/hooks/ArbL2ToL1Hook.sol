@@ -14,17 +14,16 @@ pragma solidity >=0.8.0;
 @@@@@@@@@       @@@@@@@@*/
 
 // ============ Internal Imports ============
+import {Message} from "../libs/Message.sol";
+import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "./libs/AbstractMessageIdAuthHook.sol";
 import {AbstractMessageIdAuthHook} from "./libs/AbstractMessageIdAuthHook.sol";
-import {Mailbox} from "../Mailbox.sol";
+import {AbstractMessageIdAuthorizedIsm} from "../isms/hook/AbstractMessageIdAuthorizedIsm.sol";
 import {StandardHookMetadata} from "./libs/StandardHookMetadata.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
-import {MailboxClient} from "../client/MailboxClient.sol";
 
 // ============ External Imports ============
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ArbSys} from "@arbitrum/nitro-contracts/src/precompiles/ArbSys.sol";
 
 /**
@@ -35,13 +34,14 @@ import {ArbSys} from "@arbitrum/nitro-contracts/src/precompiles/ArbSys.sol";
  */
 contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ Constants ============
 
     // precompile contract on L2 for sending messages to L1
     ArbSys public immutable arbSys;
-    // Immutable quote amount
-    uint256 public immutable GAS_QUOTE;
+    // child hook to call first
+    IPostDispatchHook public immutable childHook;
 
     // ============ Constructor ============
 
@@ -50,21 +50,24 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
         uint32 _destinationDomain,
         bytes32 _ism,
         address _arbSys,
-        uint256 _gasQuote
+        address _childHook
     ) AbstractMessageIdAuthHook(_mailbox, _destinationDomain, _ism) {
         arbSys = ArbSys(_arbSys);
-        GAS_QUOTE = _gasQuote;
+        childHook = AbstractPostDispatchHook(_childHook);
     }
 
+    /// @inheritdoc IPostDispatchHook
     function hookType() external pure override returns (uint8) {
         return uint8(IPostDispatchHook.Types.ARB_L2_TO_L1);
     }
 
+    /// @inheritdoc AbstractPostDispatchHook
     function _quoteDispatch(
-        bytes calldata,
-        bytes calldata
+        bytes calldata metadata,
+        bytes calldata message
     ) internal view override returns (uint256) {
-        return GAS_QUOTE;
+        return
+            metadata.msgValue(0) + childHook.quoteDispatch(metadata, message);
     }
 
     // ============ Internal functions ============
@@ -72,8 +75,16 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes memory payload
+        bytes calldata message
     ) internal override {
+        bytes memory payload = abi.encodeCall(
+            AbstractMessageIdAuthorizedIsm.preVerifyMessage,
+            (message.id(), metadata.msgValue(0))
+        );
+
+        childHook.postDispatch{
+            value: childHook.quoteDispatch(metadata, message)
+        }(metadata, message);
         arbSys.sendTxToL1{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload

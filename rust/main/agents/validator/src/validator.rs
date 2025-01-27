@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use crate::server as validator_server;
 use async_trait::async_trait;
@@ -19,8 +19,8 @@ use hyperlane_base::{
 
 use hyperlane_core::{
     Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
-    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, TxOutcome, ValidatorAnnounce,
-    H256, U256,
+    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{SingletonSigner, SingletonSignerHandle};
 
@@ -44,7 +44,7 @@ pub struct Validator {
     signer: SingletonSignerHandle,
     // temporary holder until `run` is called
     signer_instance: Option<Box<SingletonSigner>>,
-    reorg_period: u64,
+    reorg_period: ReorgPeriod,
     interval: Duration,
     checkpoint_syncer: Arc<dyn CheckpointSyncer>,
     core_metrics: Arc<CoreMetrics>,
@@ -109,6 +109,7 @@ impl BaseAgent for Validator {
                 &metrics,
                 &contract_sync_metrics,
                 msg_db.clone().into(),
+                false,
             )
             .await?;
 
@@ -184,12 +185,10 @@ impl BaseAgent for Validator {
         // announce the validator after spawning the signer task
         self.announce().await.expect("Failed to announce validator");
 
-        let reorg_period = NonZeroU64::new(self.reorg_period);
-
         // Ensure that the merkle tree hook has count > 0 before we begin indexing
         // messages or submitting checkpoints.
         loop {
-            match self.merkle_tree_hook.count(reorg_period).await {
+            match self.merkle_tree_hook.count(&self.reorg_period).await {
                 Ok(0) => {
                     info!("Waiting for first message in merkle tree hook");
                     sleep(self.interval).await;
@@ -229,11 +228,11 @@ impl Validator {
                     self.origin_chain
                 )
             });
+        let origin = self.origin_chain.name().to_string();
         tokio::spawn(async move {
-            contract_sync
-                .clone()
-                .sync("merkle_tree_hook", cursor.into())
-                .await;
+            let label = "merkle_tree_hook";
+            contract_sync.clone().sync(label, cursor.into()).await;
+            info!(chain = origin, label, "contract sync task exit");
         })
         .instrument(info_span!("MerkleTreeHookSyncer"))
     }
@@ -241,7 +240,7 @@ impl Validator {
     async fn run_checkpoint_submitters(&self) -> Vec<Instrumented<JoinHandle<()>>> {
         let submitter = ValidatorSubmitter::new(
             self.interval,
-            self.reorg_period,
+            self.reorg_period.clone(),
             self.merkle_tree_hook.clone(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
@@ -249,10 +248,9 @@ impl Validator {
             ValidatorSubmitterMetrics::new(&self.core.metrics, &self.origin_chain),
         );
 
-        let reorg_period = NonZeroU64::new(self.reorg_period);
         let tip_tree = self
             .merkle_tree_hook
-            .tree(reorg_period)
+            .tree(&self.reorg_period)
             .await
             .expect("failed to get merkle tree");
         // This function is only called after we have already checked that the

@@ -58,10 +58,8 @@ jobs:
           linker = "aarch64-linux-gnu-gcc"
           EOF
       - name: setup rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
           target: ${{ matrix.TARGET }}
       - name: setup target
         run: rustup target add ${{ matrix.TARGET }}

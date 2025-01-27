@@ -189,11 +189,13 @@ describe('WarpCore', () => {
     const balanceStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getBalance').resolves({ amount: MOCK_BALANCE } as any),
     );
+    const minimumTransferAmount = 10n;
     const quoteStubs = warpCore.tokens.map((t) =>
       sinon.stub(t, 'getHypAdapter').returns({
         quoteTransferRemoteGas: () => Promise.resolve(MOCK_INTERCHAIN_QUOTE),
         isApproveRequired: () => Promise.resolve(false),
         populateTransferRemoteTx: () => Promise.resolve({}),
+        getMinimumTransferAmount: () => Promise.resolve(minimumTransferAmount),
       } as any),
     );
 
@@ -228,6 +230,14 @@ describe('WarpCore', () => {
       sender: MOCK_ADDRESS,
     });
     expect(Object.keys(invalidAmount || {})[0]).to.equal('amount');
+
+    const insufficientAmount = await warpCore.validateTransfer({
+      originTokenAmount: evmHypNative.amount(minimumTransferAmount - 1n),
+      destination: test2.name,
+      recipient: MOCK_ADDRESS,
+      sender: MOCK_ADDRESS,
+    });
+    expect(Object.keys(insufficientAmount || {})[0]).to.equal('amount');
 
     const insufficientBalance = await warpCore.validateTransfer({
       originTokenAmount: evmHypNative.amount(BIG_TRANSFER_AMOUNT),

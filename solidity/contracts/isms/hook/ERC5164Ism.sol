@@ -44,7 +44,7 @@ contract ERC5164Ism is AbstractMessageIdAuthorizedIsm {
     }
 
     /**
-     * @notice Check if sender is authorized to message `verifyMessageId`.
+     * @notice Check if sender is authorized to message `preVerifyMessage`.
      */
     function _isAuthorized() internal view override returns (bool) {
         return msg.sender == executor;

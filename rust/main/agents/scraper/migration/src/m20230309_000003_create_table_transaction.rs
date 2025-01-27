@@ -52,6 +52,13 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new_with_type(Transaction::Recipient, Address).borrow_mut())
                     .col(ColumnDef::new_with_type(Transaction::GasUsed, Wei).not_null())
                     .col(ColumnDef::new_with_type(Transaction::CumulativeGasUsed, Wei).not_null())
+                    .col(
+                        ColumnDef::new_with_type(
+                            Transaction::RawInputData,
+                            ColumnType::Binary(BlobSize::Blob(None)),
+                        )
+                        .borrow_mut(),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .from_col(Transaction::BlockId)
@@ -128,4 +135,6 @@ pub enum Transaction {
     GasUsed,
     /// Cumulative gas used within the block after this was executed
     CumulativeGasUsed,
+    /// Raw input data from Ethereum transaction
+    RawInputData,
 }

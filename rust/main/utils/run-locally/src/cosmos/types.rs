@@ -1,7 +1,9 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use hyperlane_cosmos::{NativeToken, RawCosmosAmount};
 use hyperlane_cosmwasm_interface::types::bech32_decode;
+
+use hyperlane_core::NativeToken;
+use hyperlane_cosmos::RawCosmosAmount;
 
 use super::{cli::OsmosisCLI, CosmosNetwork};
 

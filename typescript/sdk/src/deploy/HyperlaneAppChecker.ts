@@ -48,11 +48,7 @@ export abstract class HyperlaneAppChecker<
 
   async check(chainsToCheck?: ChainName[]): Promise<void[]> {
     // Get all EVM chains from config
-    const evmChains = Object.keys(this.configMap).filter(
-      (chain) =>
-        this.multiProvider.getChainMetadata(chain).protocol ===
-        ProtocolType.Ethereum,
-    );
+    const evmChains = this.getEvmChains();
 
     // Mark any EVM chains that are not deployed
     const appChains = this.app.chains();
@@ -79,6 +75,14 @@ export abstract class HyperlaneAppChecker<
             ProtocolType.Ethereum,
         )
         .map((chain) => this.checkChain(chain)),
+    );
+  }
+
+  getEvmChains(): ChainName[] {
+    return Object.keys(this.configMap).filter(
+      (chain) =>
+        this.multiProvider.getChainMetadata(chain).protocol ===
+        ProtocolType.Ethereum,
     );
   }
 
@@ -133,7 +137,7 @@ export abstract class HyperlaneAppChecker<
             const actualProxyAdminOwner =
               await actualProxyAdminContract.owner();
             const expectedOwner = this.getOwner(
-              actualProxyAdminOwner,
+              owner,
               'proxyAdmin',
               ownableOverrides,
             );

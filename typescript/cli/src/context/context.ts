@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { ethers } from 'ethers';
+import { Signer, ethers } from 'ethers';
 
 import {
   DEFAULT_GITHUB_REGISTRY,
@@ -17,6 +17,7 @@ import {
 import { isHttpsUrl, isNullish, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
+import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { PROXY_DEPLOYED_URL } from '../consts.js';
 import { forkNetworkToMultiProvider, verifyAnvil } from '../deploy/dry-run.js';
 import { logBlue } from '../logger.js';
@@ -24,6 +25,8 @@ import { runSingleChainSelectionStep } from '../utils/chains.js';
 import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getImpersonatedSigner, getSigner } from '../utils/keys.js';
 
+import { ChainResolverFactory } from './strategies/chain/ChainResolverFactory.js';
+import { MultiProtocolSignerManager } from './strategies/signer/MultiProtocolSignerManager.js';
 import {
   CommandContext,
   ContextSettings,
@@ -41,6 +44,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     requiresKey,
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
+    strategyPath: argv.strategy,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
@@ -50,6 +54,44 @@ export async function contextMiddleware(argv: Record<string, any>) {
     ? await getDryRunContext(settings, argv.dryRun)
     : await getContext(settings);
   argv.context = context;
+}
+
+export async function signerMiddleware(argv: Record<string, any>) {
+  const { key, requiresKey, multiProvider, strategyPath } = argv.context;
+
+  if (!requiresKey) return argv;
+
+  const strategyConfig = strategyPath
+    ? await readChainSubmissionStrategyConfig(strategyPath)
+    : {};
+
+  /**
+   * Intercepts Hyperlane command to determine chains.
+   */
+  const chainStrategy = ChainResolverFactory.getStrategy(argv);
+
+  /**
+   * Resolves chains based on the chain strategy.
+   */
+  const chains = await chainStrategy.resolveChains(argv);
+
+  /**
+   * Extracts signer config
+   */
+  const multiProtocolSigner = new MultiProtocolSignerManager(
+    strategyConfig,
+    chains,
+    multiProvider,
+    { key },
+  );
+
+  /**
+   * @notice Attaches signers to MultiProvider and assigns it to argv.multiProvider
+   */
+  argv.multiProvider = await multiProtocolSigner.getMultiProvider();
+  argv.multiProtocolSigner = multiProtocolSigner;
+
+  return argv;
 }
 
 /**
@@ -63,22 +105,29 @@ export async function getContext({
   requiresKey,
   skipConfirmation,
   disableProxy = false,
+  strategyPath,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
-  let signer: ethers.Wallet | undefined = undefined;
-  if (key || requiresKey) {
+  //Just for backward compatibility
+  let signerAddress: string | undefined = undefined;
+  if (key) {
+    let signer: Signer;
     ({ key, signer } = await getSigner({ key, skipConfirmation }));
+    signerAddress = await signer.getAddress();
   }
-  const multiProvider = await getMultiProvider(registry, signer);
+
+  const multiProvider = await getMultiProvider(registry);
 
   return {
     registry,
+    requiresKey,
     chainMetadata: multiProvider.metadata,
     multiProvider,
     key,
-    signer,
     skipConfirmation: !!skipConfirmation,
+    signerAddress,
+    strategyPath,
   } as CommandContext;
 }
 
@@ -188,9 +237,18 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
   return multiProvider;
 }
 
-export async function getOrRequestApiKeys(
+/**
+ * Requests and saves Block Explorer API keys for the specified chains, prompting the user if necessary.
+ *
+ * @param chains - The list of chain names to request API keys for.
+ * @param chainMetadata - The chain metadata, used to determine if an API key is already configured.
+ * @param registry - The registry used to update the chain metadata with the new API key.
+ * @returns A mapping of chain names to their API keys.
+ */
+export async function requestAndSaveApiKeys(
   chains: ChainName[],
   chainMetadata: ChainMap<ChainMetadata>,
+  registry: IRegistry,
 ): Promise<ChainMap<string>> {
   const apiKeys: ChainMap<string> = {};
 
@@ -218,6 +276,11 @@ export async function getOrRequestApiKeys(
         `${chain} api key`,
         `${chain} metadata blockExplorers config`,
       );
+      chainMetadata[chain].blockExplorers![0].apiKey = apiKeys[chain];
+      await registry.updateChain({
+        chainName: chain,
+        metadata: chainMetadata[chain],
+      });
     }
   }
 

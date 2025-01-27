@@ -3,6 +3,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import {
   ChainMap,
+  DeployedOwnableConfig,
   IsmConfig,
   IsmType,
   MailboxClientConfig,
@@ -28,7 +29,10 @@ import {
   readYamlOrJson,
   writeYamlOrJson,
 } from '../utils/files.js';
-import { detectAndConfirmOrPrompt } from '../utils/input.js';
+import {
+  detectAndConfirmOrPrompt,
+  setProxyAdminConfig,
+} from '../utils/input.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
@@ -78,7 +82,7 @@ async function fillDefaults(
       let owner = config.owner;
       if (!owner) {
         owner =
-          (await context.signer?.getAddress()) ??
+          context.signerAddress ??
           (await context.multiProvider.getSignerAddress(chain));
       }
       return {
@@ -118,24 +122,25 @@ export async function createWarpRouteDeployConfig({
 }) {
   logBlue('Creating a new warp route deployment config...');
 
-  const owner = await detectAndConfirmOrPrompt(
-    async () => context.signer?.getAddress(),
-    'Enter the desired',
-    'owner address',
-    'signer',
-  );
-
   const warpChains = await runMultiChainSelectionStep({
     chainMetadata: context.chainMetadata,
     message: 'Select chains to connect',
     requireNumber: 1,
-    requiresConfirmation: true,
+    // If the user supplied the --yes flag we skip asking selection
+    // confirmation
+    requiresConfirmation: !context.skipConfirmation,
   });
 
   const result: WarpRouteDeployConfig = {};
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
+    const owner = await detectAndConfirmOrPrompt(
+      async () => context.signerAddress,
+      'Enter the desired',
+      'owner address',
+      'signer',
+    );
 
     // default to the mailbox from the registry and if not found ask to the user to submit one
     const chainAddresses = await context.registry.getChainAddresses(chain);
@@ -146,6 +151,12 @@ export async function createWarpRouteDeployConfig({
         validate: isAddress,
         message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
       }));
+
+    const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
+      context,
+      chain,
+      owner,
+    );
 
     /**
      * The logic from the cli is as follows:
@@ -190,6 +201,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -203,6 +215,7 @@ export async function createWarpRouteDeployConfig({
           type,
           owner,
           isNft,
+          proxyAdmin,
           collateralChainName: '', // This will be derived correctly by zod.parse() below
           interchainSecurityModule,
         };
@@ -216,6 +229,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -230,6 +244,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
           token: await input({
@@ -242,6 +257,7 @@ export async function createWarpRouteDeployConfig({
           mailbox,
           type,
           owner,
+          proxyAdmin,
           isNft,
           interchainSecurityModule,
         };

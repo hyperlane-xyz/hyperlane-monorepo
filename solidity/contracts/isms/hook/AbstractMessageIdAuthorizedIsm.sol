@@ -27,7 +27,7 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 
 /**
  * @title AbstractMessageIdAuthorizedIsm
- * @notice Uses external verification options to verify interchain messages which need a authorized caller
+ * @notice Uses external verification options to verify interchain messages which need an authorized caller
  */
 abstract contract AbstractMessageIdAuthorizedIsm is
     IInterchainSecurityModule,
@@ -53,7 +53,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     // ============ Events ============
 
     /// @notice Emitted when a message is received from the external bridge
-    event ReceivedMessage(bytes32 indexed messageId);
+    event ReceivedMessage(bytes32 indexed messageId, uint256 msgValue);
 
     // ============ Initializer ============
 
@@ -78,7 +78,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     ) external virtual returns (bool) {
         bool verified = isVerified(message);
         if (verified) {
-            releaseValueToRecipient(message);
+            _releaseValueToRecipient(message);
         }
         return verified;
     }
@@ -86,22 +86,7 @@ abstract contract AbstractMessageIdAuthorizedIsm is
     // ============ Public Functions ============
 
     /**
-     * @notice Release the value to the recipient if the message is verified.
-     * @param message Message to release value for.
-     */
-    function releaseValueToRecipient(bytes calldata message) public {
-        bytes32 messageId = message.id();
-        uint256 _msgValue = verifiedMessages[messageId].clearBit(
-            VERIFIED_MASK_INDEX
-        );
-        if (_msgValue > 0) {
-            verifiedMessages[messageId] -= _msgValue;
-            payable(message.recipientAddress()).sendValue(_msgValue);
-        }
-    }
-
-    /**
-     * @notice Check if a message is verified through verifyMessageId first.
+     * @notice Check if a message is verified through preVerifyMessage first.
      * @param message Message to check.
      */
     function isVerified(bytes calldata message) public view returns (bool) {
@@ -115,24 +100,46 @@ abstract contract AbstractMessageIdAuthorizedIsm is
      * @dev Only callable by the authorized hook.
      * @param messageId Hyperlane Id of the message.
      */
-    function verifyMessageId(bytes32 messageId) public payable virtual {
+    function preVerifyMessage(
+        bytes32 messageId,
+        uint256 msgValue
+    ) public payable virtual {
         require(
             _isAuthorized(),
             "AbstractMessageIdAuthorizedIsm: sender is not the hook"
         );
         require(
-            msg.value < 2 ** VERIFIED_MASK_INDEX,
-            "AbstractMessageIdAuthorizedIsm: msg.value must be less than 2^255"
+            msg.value < 2 ** VERIFIED_MASK_INDEX && msg.value == msgValue,
+            "AbstractMessageIdAuthorizedIsm: invalid msg.value"
+        );
+        require(
+            verifiedMessages[messageId] == 0,
+            "AbstractMessageIdAuthorizedIsm: message already verified"
         );
 
         verifiedMessages[messageId] = msg.value.setBit(VERIFIED_MASK_INDEX);
-        emit ReceivedMessage(messageId);
+        emit ReceivedMessage(messageId, msgValue);
     }
 
     // ============ Internal Functions ============
 
     /**
-     * @notice Check if sender is authorized to message `verifyMessageId`.
+     * @notice Release the value to the recipient if the message is verified.
+     * @param message Message to release value for.
+     */
+    function _releaseValueToRecipient(bytes calldata message) internal {
+        bytes32 messageId = message.id();
+        uint256 _msgValue = verifiedMessages[messageId].clearBit(
+            VERIFIED_MASK_INDEX
+        );
+        if (_msgValue > 0) {
+            verifiedMessages[messageId] -= _msgValue;
+            payable(message.recipientAddress()).sendValue(_msgValue);
+        }
+    }
+
+    /**
+     * @notice Check if sender is authorized to message `preVerifyMessage`.
      */
     function _isAuthorized() internal view virtual returns (bool);
 }

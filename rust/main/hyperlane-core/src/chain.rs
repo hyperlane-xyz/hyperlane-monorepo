@@ -3,16 +3,20 @@
 use std::{
     fmt::{Debug, Formatter},
     hash::{Hash, Hasher},
+    num::NonZeroU32,
 };
 
 use derive_new::new;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 #[cfg(feature = "strum")]
 use strum::{EnumIter, EnumString, IntoStaticStr};
 
-use crate::{utils::many_to_one, HyperlaneProtocolError, IndexMode, H160, H256};
+use crate::{
+    utils::many_to_one, ChainCommunicationError, HyperlaneProtocolError, IndexMode, H160, H256,
+};
 
 #[derive(Debug, Clone)]
 pub struct Address(pub bytes::Bytes);
@@ -36,6 +40,80 @@ impl<'a> std::fmt::Display for ContractLocator<'a> {
             self.domain.id(),
             self.address
         )
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub enum ReorgPeriod {
+    #[default]
+    None,
+    Blocks(NonZeroU32),
+    Tag(String),
+}
+
+impl ReorgPeriod {
+    pub fn from_blocks(blocks: u32) -> Self {
+        NonZeroU32::try_from(blocks)
+            .map(ReorgPeriod::Blocks)
+            .unwrap_or(ReorgPeriod::None)
+    }
+
+    pub fn as_blocks(&self) -> Result<u32, ChainCommunicationError> {
+        match self {
+            ReorgPeriod::None => Ok(0),
+            ReorgPeriod::Blocks(blocks) => Ok(blocks.get()),
+            ReorgPeriod::Tag(_) => Err(ChainCommunicationError::InvalidReorgPeriod(self.clone())),
+        }
+    }
+
+    pub fn is_none(&self) -> bool {
+        matches!(self, ReorgPeriod::None)
+    }
+}
+
+impl Serialize for ReorgPeriod {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            ReorgPeriod::None => serializer.serialize_u32(0),
+            ReorgPeriod::Blocks(blocks) => serializer.serialize_u32(blocks.get()),
+            ReorgPeriod::Tag(tag) => serializer.serialize_str(tag),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ReorgPeriod {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de;
+
+        struct ReorgPeriodVisitor;
+
+        impl<'de> de::Visitor<'de> for ReorgPeriodVisitor {
+            type Value = ReorgPeriod;
+
+            fn expecting(&self, f: &mut Formatter) -> std::fmt::Result {
+                f.write_str("reorgPeriod as a number or string")
+            }
+
+            fn visit_u64<E: de::Error>(self, v: u64) -> Result<Self::Value, E> {
+                let v = v.try_into().map_err(de::Error::custom)?;
+                Ok(ReorgPeriod::from_blocks(v))
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                match v.parse::<u32>() {
+                    Ok(v) => self.visit_u32(v),
+                    Err(_) => Ok(ReorgPeriod::Tag(v.to_string())),
+                }
+            }
+        }
+
+        deserializer.deserialize_any(ReorgPeriodVisitor)
     }
 }
 
@@ -93,11 +171,15 @@ pub enum KnownHyperlaneDomain {
     SolanaMainnet = 1399811149,
     Taiko = 167000,
     Tangle = 5845,
+    Treasure = 61166,
     Viction = 88,
     Worldchain = 480,
     Xai = 660279,
     Xlayer = 196,
     Zetachain = 7000,
+    Zeronetwork = 543210,
+    Zklink = 810180,
+    Zksync = 324,
     Zircuit = 48900,
     ZoraMainnet = 7777777,
 
@@ -114,6 +196,7 @@ pub enum KnownHyperlaneDomain {
 
     // -- Test chains --
     //
+    Abstracttestnet = 11124,
     Alfajores = 44787,
     #[cfg_attr(feature = "strum", strum(serialize = "bsctestnet"))]
     BinanceSmartChainTestnet = 97,
@@ -125,6 +208,7 @@ pub enum KnownHyperlaneDomain {
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SuperpositionTestnet = 98985,
+    Treasuretopaz = 978658,
 }
 
 #[derive(Clone, Serialize)]
@@ -221,6 +305,7 @@ pub enum HyperlaneDomainTechnicalStack {
     OpStack,
     PolygonCDK,
     PolkadotSubstrate,
+    ZkSync,
     #[default]
     Other,
 }
@@ -240,12 +325,12 @@ impl KnownHyperlaneDomain {
                 DegenChain, EclipseMainnet, Endurance, Ethereum, Fraxtal, FuseMainnet, Gnosis,
                 InEvm, Injective, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin,
                 Metis, Mint, Mode, Moonbeam, Neutron, Optimism, Osmosis, Polygon, ProofOfPlay,
-                ReAl, Redstone, Sanko, Sei, SolanaMainnet, Taiko, Tangle, Viction, Worldchain, Xai,
-                Xlayer, Zetachain, Zircuit, ZoraMainnet,
+                ReAl, Redstone, Sanko, Sei, SolanaMainnet, Taiko, Tangle, Treasure, Viction, Worldchain, Xai,
+                Xlayer, Zeronetwork, Zetachain, Zircuit, Zklink, Zksync, ZoraMainnet,
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet
+                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet, Abstracttestnet, Treasuretopaz
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
@@ -259,11 +344,12 @@ impl KnownHyperlaneDomain {
 
         many_to_one!(match self {
             HyperlaneDomainProtocol::Ethereum: [
-                Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber,
+                Abstracttestnet, Ancient8, Arbitrum, Avalanche, BinanceSmartChain, Blast, Bob, Celo, Cheesechain, Cyber,
                 DegenChain, Endurance, Ethereum, Fraxtal, Fuji, FuseMainnet, Gnosis,
                 InEvm, Kroma, Linea, Lisk, Lukso, MantaPacific, Mantle, Merlin, Metis, Mint,
                 Mode, Moonbeam, Optimism, Polygon, ProofOfPlay, ReAl, Redstone, Sanko, Sei, Tangle,
-                Taiko, Viction, Worldchain, Xai, Xlayer, Zetachain, Zircuit, ZoraMainnet,
+                Taiko, Treasure, Treasuretopaz, Viction, Worldchain, Xai, Xlayer, Zeronetwork, Zetachain, Zircuit, ZoraMainnet,
+                Zklink, Zksync,
 
                 // Local chains
                 Test1, Test2, Test3,
@@ -303,6 +389,9 @@ impl KnownHyperlaneDomain {
             ],
             HyperlaneDomainTechnicalStack::PolkadotSubstrate: [
                 Moonbeam, Tangle
+            ],
+            HyperlaneDomainTechnicalStack::ZkSync: [
+                Abstracttestnet, Treasure, Treasuretopaz, Zeronetwork, Zklink, Zksync,
             ],
             HyperlaneDomainTechnicalStack::Other: [
                 Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
@@ -492,6 +581,13 @@ impl HyperlaneDomain {
         matches!(self, Self::Known(KnownHyperlaneDomain::Injective))
     }
 
+    pub const fn is_zksync_stack(&self) -> bool {
+        matches!(
+            self.domain_technical_stack(),
+            HyperlaneDomainTechnicalStack::ZkSync
+        )
+    }
+
     pub const fn index_mode(&self) -> IndexMode {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
@@ -505,9 +601,9 @@ impl HyperlaneDomain {
 #[cfg(test)]
 #[cfg(feature = "strum")]
 mod tests {
-    use std::str::FromStr;
+    use std::{num::NonZeroU32, str::FromStr};
 
-    use crate::KnownHyperlaneDomain;
+    use crate::{KnownHyperlaneDomain, ReorgPeriod};
 
     #[test]
     fn domain_strings() {
@@ -559,5 +655,33 @@ mod tests {
             Ok(56)
         );
         assert!("foo".parse::<KnownHyperlaneDomain>().is_err());
+    }
+
+    #[test]
+    fn parse_reorg_period() {
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>(0.into()).unwrap(),
+            ReorgPeriod::None
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("0".into()).unwrap(),
+            ReorgPeriod::None
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>(12.into()).unwrap(),
+            ReorgPeriod::Blocks(NonZeroU32::new(12).unwrap())
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("12".into()).unwrap(),
+            ReorgPeriod::Blocks(NonZeroU32::new(12).unwrap())
+        );
+
+        assert_eq!(
+            serde_json::from_value::<ReorgPeriod>("finalized".into()).unwrap(),
+            ReorgPeriod::Tag("finalized".into())
+        );
     }
 }

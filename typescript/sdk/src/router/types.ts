@@ -11,14 +11,10 @@ import { Address, AddressBytes32 } from '@hyperlane-xyz/utils';
 import { HyperlaneFactories } from '../contracts/types.js';
 import { UpgradeConfig } from '../deploy/proxy.js';
 import { CheckerViolation } from '../deploy/types.js';
-import { ChainMap } from '../types.js';
-
-import {
-  GasRouterConfigSchema,
-  MailboxClientConfigSchema,
-  RemoteRoutersSchema,
-  RouterConfigSchema,
-} from './schemas.js';
+import { HookConfigSchema } from '../hook/types.js';
+import { IsmConfigSchema } from '../ism/types.js';
+import { ZHash } from '../metadata/customZodTypes.js';
+import { ChainMap, DeployedOwnableSchema, OwnableSchema } from '../types.js';
 
 export type RouterAddress = {
   router: Address;
@@ -66,3 +62,43 @@ export interface RouterViolation extends CheckerViolation {
 }
 
 export type RemoteRouters = z.infer<typeof RemoteRoutersSchema>;
+export type DestinationGas = z.infer<typeof DestinationGasSchema>;
+
+export const MailboxClientConfigSchema = OwnableSchema.extend({
+  mailbox: ZHash,
+  hook: HookConfigSchema.optional(),
+  interchainSecurityModule: IsmConfigSchema.optional(),
+});
+
+export const ForeignDeploymentConfigSchema = z.object({
+  foreignDeployment: z.string().optional(),
+});
+
+export const RemoteRouterDomain = z.string();
+export const RemoteRouterRouter = z.object({
+  address: z.string().startsWith('0x'),
+});
+export const RemoteRoutersSchema = z.record(
+  RemoteRouterDomain,
+  RemoteRouterRouter,
+);
+
+export const RouterConfigSchema = MailboxClientConfigSchema.merge(
+  ForeignDeploymentConfigSchema,
+).merge(
+  z.object({
+    remoteRouters: RemoteRoutersSchema.optional(),
+    proxyAdmin: DeployedOwnableSchema.optional(),
+  }),
+);
+
+const DestinationGasDomain = z.string();
+const DestinationGasAmount = z.string(); // This must be a string type to match Ether's type
+export const DestinationGasSchema = z.record(
+  DestinationGasDomain,
+  DestinationGasAmount,
+);
+export const GasRouterConfigSchema = RouterConfigSchema.extend({
+  gas: z.number().optional(),
+  destinationGas: DestinationGasSchema.optional(),
+});

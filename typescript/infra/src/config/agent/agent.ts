@@ -1,5 +1,7 @@
 import {
   AgentChainMetadata,
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelTransactionSubmitter,
   AgentSignerAwsKey,
   AgentSignerKeyType,
   ChainName,
@@ -36,6 +38,7 @@ export interface HelmRootAgentValues {
   image: HelmImageValues;
   hyperlane: HelmHyperlaneValues;
   nameOverride?: string;
+  tolerations?: KubernetesToleration[];
 }
 
 // See rust/main/helm/values.yaml for the full list of options and their defaults.
@@ -84,7 +87,20 @@ export interface AgentContextConfig extends AgentEnvConfig {
   rolesWithKeys: Role[];
   // Names of chains this context cares about (subset of environmentChainNames)
   contextChainNames: AgentChainNames;
+  sealevel?: SealevelAgentConfig;
 }
+
+export interface SealevelAgentConfig {
+  priorityFeeOracleConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelPriorityFeeOracle;
+  transactionSubmitterConfigGetter?: (
+    chain: ChainName,
+  ) => AgentSealevelTransactionSubmitter;
+}
+
+// An ugly way to mark a URL as a the secret Helius URL when Helm templating
+export const HELIUS_SECRET_URL_MARKER = 'helius';
 
 // incomplete common agent configuration for a role
 interface AgentRoleConfig {
@@ -130,6 +146,13 @@ export interface KubernetesResources {
 export interface KubernetesComputeResources {
   cpu: string;
   memory: string;
+}
+
+export interface KubernetesToleration {
+  key: string;
+  operator: string;
+  value: string;
+  effect: string;
 }
 
 export class RootAgentConfigHelper implements AgentContextConfig {

@@ -1,8 +1,10 @@
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const testnet4SupportedChainNames = [
+  'abstracttestnet',
+  'alephzeroevmtestnet',
   'alfajores',
   'arbitrumsepolia',
-  'arcadiatestnet',
+  'arcadiatestnet2',
   'basesepolia',
   'berabartio',
   'bsctestnet',
@@ -11,10 +13,12 @@ export const testnet4SupportedChainNames = [
   'connextsepolia',
   'ecotestnet',
   'eclipsetestnet',
+  'flametestnet',
   'formtestnet',
   'fuji',
   'holesky',
-  // 'hyperliquidevmtestnet',
+  'hyperliquidevmtestnet',
+  'inksepolia',
   'odysseytestnet',
   'optimismsepolia',
   // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -24,9 +28,11 @@ export const testnet4SupportedChainNames = [
   'sepolia',
   'solanatestnet',
   'soneiumtestnet',
-  'sonictestnet',
+  'sonicblaze',
+  'sonicsvmtestnet',
   'suavetoliman',
   'superpositiontestnet',
+  'treasuretopaz',
   'unichaintestnet',
 ] as const;
 

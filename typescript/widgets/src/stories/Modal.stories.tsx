@@ -4,7 +4,13 @@ import React, { useState } from 'react';
 
 import { Modal } from '../layout/Modal.js';
 
-function MyModal() {
+function MyModal({
+  title,
+  showCloseButton,
+}: {
+  title?: string;
+  showCloseButton?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const open = () => setIsOpen(true);
   const close = () => setIsOpen(false);
@@ -15,8 +21,9 @@ function MyModal() {
       <Modal
         isOpen={isOpen}
         close={close}
-        showCloseButton
-        panelClassname="htw-bg-gray-100"
+        showCloseButton={showCloseButton}
+        title={title}
+        panelClassname="htw-bg-gray-100 htw-p-4"
       >
         <div>Hello Modal</div>
       </Modal>
@@ -32,5 +39,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const BasicModal = {
-  args: {},
+  args: { title: '', showCloseButton: true },
 } satisfies Story;

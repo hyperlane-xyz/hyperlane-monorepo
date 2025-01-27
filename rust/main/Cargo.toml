@@ -46,7 +46,7 @@ color-eyre = "0.6"
 config = "0.13.3"
 console-subscriber = "0.2.0"
 convert_case = "0.6"
-cosmrs = { version = "0.14", default-features = false, features = [
+cosmrs = { version = "0.21.0", default-features = false, features = [
   "cosmwasm",
   "rpc",
   "tokio",
@@ -69,20 +69,22 @@ futures = "0.3"
 futures-util = "0.3"
 generic-array = { version = "0.14", features = ["serde", "more_lengths"] }
 # Required for WASM support https://docs.rs/getrandom/latest/getrandom/#webassembly-support
-bech32 = "0.9.1"
+bech32 = "0.11.0"
 elliptic-curve = "0.13.8"
 getrandom = { version = "0.2", features = ["js"] }
 hex = "0.4.3"
-http = "0.2.12"
+http = "1.2.0"
 hyper = "0.14"
 hyper-tls = "0.5.0"
 hyperlane-cosmwasm-interface = "=0.0.6-rc6"
+ibc-proto = "0.51.1"
 injective-protobuf = "0.2.2"
-injective-std = "=0.1.5"
+injective-std = "1.13.6"
 itertools = "*"
 jobserver = "=0.1.26"
 jsonrpc-core = "18.0"
 k256 = { version = "0.13.4", features = ["arithmetic", "std", "ecdsa"] }
+lazy_static = "1.5.0"
 log = "0.4"
 macro_rules_attribute = "0.2"
 maplit = "1.0"
@@ -125,38 +127,24 @@ sha2 = { version = "0.10.6", default-features = false }
 sha256 = "1.1.4"
 sha3 = "0.10"
 solana-account-decoder = "=1.14.13"
-solana-banks-client = "=1.14.13"
-solana-banks-interface = "=1.14.13"
-solana-banks-server = "=1.14.13"
-solana-clap-utils = "=1.14.13"
-solana-cli-config = "=1.14.13"
 solana-client = "=1.14.13"
 solana-program = "=1.14.13"
-solana-program-test = "=1.14.13"
 solana-sdk = "=1.14.13"
 solana-transaction-status = "=1.14.13"
-solana-zk-token-sdk = "=1.14.13"
-spl-associated-token-account = { version = "=1.1.2", features = [
-  "no-entrypoint",
-] }
-spl-noop = { version = "=0.1.3", features = ["no-entrypoint"] }
-spl-token = { version = "=3.5.0", features = ["no-entrypoint"] }
-spl-token-2022 = { version = "=0.5.0", features = ["no-entrypoint"] }
-spl-type-length-value = "=0.1.0"
 static_assertions = "1.1"
 strum = "0.26.2"
 strum_macros = "0.26.2"
 tempfile = "3.3"
-tendermint = "0.32.2"
-tendermint-rpc = { version = "0.32.0", features = ["http-client", "tokio"] }
+tendermint = "0.40.1"
+tendermint-rpc = { version = "0.40.1", features = ["http-client", "tokio"] }
 thiserror = "1.0"
 time = "0.3"
 tiny-keccak = "2.0.2"
-tokio = { version = "1.4", features = ["parking_lot", "tracing"] }
+tokio = { version = "1.42.0", features = ["parking_lot", "tracing"] }
 tokio-metrics = { version = "0.3.1", default-features = false }
 tokio-test = "0.4"
 toml_edit = "0.19.14"
-tonic = "0.9.2"
+tonic = "0.12.3"
 tracing = { version = "0.1" }
 tracing-error = "0.2"
 tracing-futures = "0.2"
@@ -166,13 +154,14 @@ typetag = "0.2"
 uint = "0.9.5"
 ureq = { version = "2.4", default-features = false }
 url = "2.3"
+uuid = { version = "1.12.0", features = ["v4"] }
 walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
 
 ## TODO: remove this
-cosmwasm-schema = "1.2.7"
+cosmwasm-schema = "2.2.0"
 
 [profile.release.package.access-control]
 overflow-checks = true
@@ -211,37 +200,32 @@ overflow-checks = true
 [workspace.dependencies.ethers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [workspace.dependencies.ethers-contract]
 features = ["legacy"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [workspace.dependencies.ethers-core]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [workspace.dependencies.ethers-providers]
 features = []
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [workspace.dependencies.ethers-signers]
 features = ["aws"]
 git = "https://github.com/hyperlane-xyz/ethers-rs"
-tag = "2024-04-25"
+tag = "2025-01-10"
 
 [patch.crates-io.curve25519-dalek]
 branch = "v3.2.2-relax-zeroize"
 git = "https://github.com/Eclipse-Laboratories-Inc/curve25519-dalek"
 version = "3.2.2"
-
-[patch.crates-io.ed25519-dalek]
-branch = "main"
-git = "https://github.com/Eclipse-Laboratories-Inc/ed25519-dalek"
-version = "1.0.1"
 
 [patch.crates-io.primitive-types]
 branch = "hyperlane"
@@ -255,42 +239,42 @@ version = "=0.5.2"
 
 [patch.crates-io.solana-account-decoder]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
+tag = "hyperlane-1.14.13-2024-11-20"
 version = "=1.14.13"
 
 [patch.crates-io.solana-clap-utils]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
+tag = "hyperlane-1.14.13-2024-11-20"
 version = "=1.14.13"
 
 [patch.crates-io.solana-cli-config]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
+tag = "hyperlane-1.14.13-2024-11-20"
 version = "=1.14.13"
 
 [patch.crates-io.solana-client]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
+tag = "hyperlane-1.14.13-2024-11-20"
 version = "=1.14.13"
 
 [patch.crates-io.solana-program]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
+tag = "hyperlane-1.14.13-2024-11-20"
 version = "=1.14.13"
 
 [patch.crates-io.solana-sdk]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
+tag = "hyperlane-1.14.13-2024-11-20"
 version = "=1.14.13"
 
 [patch.crates-io.solana-transaction-status]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
+tag = "hyperlane-1.14.13-2024-11-20"
 version = "=1.14.13"
 
 [patch.crates-io.solana-zk-token-sdk]
 git = "https://github.com/hyperlane-xyz/solana.git"
-tag = "hyperlane-1.14.13-2023-07-04"
+tag = "hyperlane-1.14.13-2024-11-20"
 version = "=1.14.13"
 
 [patch.crates-io.spl-associated-token-account]
@@ -317,13 +301,3 @@ version = "=0.5.0"
 version = "=0.1.0"
 git = "https://github.com/hyperlane-xyz/solana-program-library.git"
 branch = "hyperlane"
-
-[patch.crates-io.tendermint]
-branch = "trevor/0.32.2-fork"
-git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
-version = "=0.32.2"
-
-[patch.crates-io.tendermint-rpc]
-branch = "trevor/0.32.2-fork"
-git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
-version = "=0.32.2"

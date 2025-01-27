@@ -10,7 +10,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, error, instrument, trace, warn_span};
+use tracing::{error, instrument, trace, warn, warn_span};
 
 /// An HTTP Provider with a simple naive exponential backoff built-in
 #[derive(Debug, Clone)]
@@ -89,13 +89,16 @@ where
     {
         let params = serde_json::to_value(params).expect("valid");
 
-        let mut last_err;
+        let mut last_err = None;
         let mut i = 1;
         loop {
             let mut rate_limited = false;
             let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
-            trace!(params = %serde_json::to_string(&params).unwrap_or_default(), "Dispatching request with params");
-            debug!(attempt = i, "Dispatching request");
+            if let Some(ref last_err) = last_err {
+                // `last_err` is always expected to be `Some` if `i > 1`
+                warn!(attempt = i, ?last_err, "Dispatching request");
+            }
+            trace!(attempt = i, params = %serde_json::to_string(&params).unwrap_or_default(), "Dispatching request");
 
             let fut = match params {
                 Value::Null => self.inner.request(method, ()),
@@ -110,10 +113,10 @@ where
                     return Err(RetryingProviderError::JsonRpcClientError(e));
                 }
                 HandleMethod::Retry(e) => {
-                    last_err = e;
+                    last_err = Some(e);
                 }
                 HandleMethod::RateLimitedRetry(e) => {
-                    last_err = e;
+                    last_err = Some(e);
                     rate_limited = true;
                 }
             }
@@ -128,7 +131,7 @@ where
                 trace!(backoff_ms, rate_limited, "Retrying provider going to sleep");
                 sleep(Duration::from_millis(backoff_ms)).await;
             } else {
-                trace!(
+                warn!(
                     requests_made = self.max_requests,
                     "Retrying provider reached max requests"
                 );
@@ -150,7 +153,7 @@ where
     JsonRpcClientError(P::Error),
     /// Hit max requests
     #[error("Hit max requests")]
-    MaxRequests(P::Error),
+    MaxRequests(Option<P::Error>),
 }
 
 impl<P> From<RetryingProviderError<P>> for ProviderError

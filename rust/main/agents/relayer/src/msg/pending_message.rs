@@ -32,7 +32,7 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     // Wait 5 seconds after submitting the message before confirming in test mode
     Duration::from_secs(5)
 } else {
-    // Wait 1 min after submitting the message before confirming in normal/production mode
+    // Wait 10 min after submitting the message before confirming in normal/production mode
     Duration::from_secs(60 * 10)
 };
 
@@ -165,6 +165,14 @@ impl PendingOperation for PendingMessage {
 
     fn destination_domain(&self) -> &HyperlaneDomain {
         self.ctx.destination_mailbox.domain()
+    }
+
+    fn sender_address(&self) -> &H256 {
+        &self.message.sender
+    }
+
+    fn recipient_address(&self) -> &H256 {
+        &self.message.recipient
     }
 
     fn retrieve_status_from_db(&self) -> Option<PendingOperationStatus> {
@@ -330,7 +338,7 @@ impl PendingOperation for PendingMessage {
         PendingOperationResult::Success
     }
 
-    #[instrument]
+    #[instrument(skip(self), fields(id=?self.id(), domain=%self.destination_domain()))]
     async fn submit(&mut self) -> PendingOperationResult {
         if self.submitted {
             // this message has already been submitted, possibly not by us
@@ -460,7 +468,7 @@ impl PendingOperation for PendingMessage {
             actual_gas_for_message = ?gas_used_by_operation,
             message_gas_estimate = ?operation_estimate,
             submission_gas_estimate = ?submission_estimated_cost,
-            message = ?self.message,
+            hyp_message = ?self.message,
             "Gas used by message submission"
         );
     }

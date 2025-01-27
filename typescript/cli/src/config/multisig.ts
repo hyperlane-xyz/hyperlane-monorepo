@@ -1,7 +1,7 @@
 import { confirm, input } from '@inquirer/prompts';
 import { z } from 'zod';
 
-import { ChainMap, MultisigConfig, ZHash } from '@hyperlane-xyz/sdk';
+import { ChainMap, MultisigIsmConfig, ZHash } from '@hyperlane-xyz/sdk';
 import {
   Address,
   isValidAddress,
@@ -33,7 +33,7 @@ export function readMultisigConfig(filePath: string) {
     );
   }
   const parsedConfig = result.data;
-  const formattedConfig: ChainMap<MultisigConfig> = objMap(
+  const formattedConfig: ChainMap<Omit<MultisigIsmConfig, 'type'>> = objMap(
     parsedConfig,
     (_, config) => {
       if (config.threshold > config.validators.length)
@@ -50,7 +50,7 @@ export function readMultisigConfig(filePath: string) {
       return {
         threshold: config.threshold,
         validators: validators,
-      } as MultisigConfig;
+      };
     },
   );
   logGreen(`All multisig configs in ${filePath} are valid`);

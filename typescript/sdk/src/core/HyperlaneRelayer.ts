@@ -4,20 +4,24 @@ import { z } from 'zod';
 
 import {
   Address,
+  ParsedMessage,
   assert,
+  bytes32ToAddress,
+  messageId,
   objMap,
   objMerge,
-  pollAsync,
+  parseMessage,
   promiseObjAll,
+  sleep,
 } from '@hyperlane-xyz/utils';
 
 import { DerivedHookConfig, EvmHookReader } from '../hook/EvmHookReader.js';
-import { HookConfigSchema } from '../hook/schemas.js';
+import { HookConfigSchema } from '../hook/types.js';
 import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
-import { IsmConfigSchema } from '../ism/schemas.js';
+import { IsmConfigSchema } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
-import { ChainName } from '../types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import { HyperlaneCore } from './HyperlaneCore.js';
 import { DispatchedMessage } from './types.js';
@@ -31,12 +35,54 @@ const DerivedHookConfigWithAddressSchema =
 const DerivedIsmConfigWithAddressSchema =
   IsmConfigSchema.and(WithAddressSchema);
 
+const BacklogMessageSchema = z.object({
+  attempts: z.number(),
+  lastAttempt: z.number(),
+  message: z.string(),
+  dispatchTx: z.string(),
+});
+
+const MessageBacklogSchema = z.array(BacklogMessageSchema);
+
 export const RelayerCacheSchema = z.object({
   hook: z.record(z.record(DerivedHookConfigWithAddressSchema)),
   ism: z.record(z.record(DerivedIsmConfigWithAddressSchema)),
+  backlog: MessageBacklogSchema,
 });
 
 type RelayerCache = z.infer<typeof RelayerCacheSchema>;
+
+type MessageWhitelist = ChainMap<Set<Address>>;
+
+// message must have origin and destination chains in the whitelist
+// if whitelist has non-empty address set for chain, message must have sender and recipient in the set
+export function messageMatchesWhitelist(
+  whitelist: MessageWhitelist,
+  message: ParsedMessage,
+): boolean {
+  const originAddresses = whitelist[message.originChain ?? message.origin];
+  if (!originAddresses) {
+    return false;
+  }
+
+  const sender = bytes32ToAddress(message.sender);
+  if (originAddresses.size !== 0 && !originAddresses.has(sender)) {
+    return false;
+  }
+
+  const destinationAddresses =
+    whitelist[message.destinationChain ?? message.destination];
+  if (!destinationAddresses) {
+    return false;
+  }
+
+  const recipient = bytes32ToAddress(message.recipient);
+  if (destinationAddresses.size !== 0 && !destinationAddresses.has(recipient)) {
+    return false;
+  }
+
+  return true;
+}
 
 export class HyperlaneRelayer {
   protected multiProvider: MultiProvider;
@@ -44,6 +90,9 @@ export class HyperlaneRelayer {
   protected readonly core: HyperlaneCore;
   protected readonly retryTimeout: number;
 
+  protected readonly whitelist: ChainMap<Set<Address>> | undefined;
+
+  public backlog: RelayerCache['backlog'];
   public cache: RelayerCache | undefined;
 
   protected stopRelayingHandler: ((chains?: ChainName[]) => void) | undefined;
@@ -53,21 +102,32 @@ export class HyperlaneRelayer {
   constructor({
     core,
     caching = true,
-    retryTimeout = 5 * 1000,
+    retryTimeout = 1000,
+    whitelist = undefined,
   }: {
     core: HyperlaneCore;
     caching?: boolean;
     retryTimeout?: number;
+    whitelist?: ChainMap<Address[]>;
   }) {
     this.core = core;
     this.retryTimeout = retryTimeout;
     this.logger = core.logger.child({ module: 'Relayer' });
     this.metadataBuilder = new BaseMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
+    if (whitelist) {
+      this.whitelist = objMap(
+        whitelist,
+        (_chain, addresses) => new Set(addresses),
+      );
+    }
+
+    this.backlog = [];
     if (caching) {
       this.cache = {
         hook: {},
         ism: {},
+        backlog: [],
       };
     }
   }
@@ -75,12 +135,18 @@ export class HyperlaneRelayer {
   async getHookConfig(
     chain: ChainName,
     hook: Address,
+    messageContext?: DispatchedMessage,
   ): Promise<DerivedHookConfig> {
     let config: DerivedHookConfig | undefined;
     if (this.cache?.hook[chain]?.[hook]) {
       config = this.cache.hook[chain][hook] as DerivedHookConfig | undefined;
     } else {
-      const evmHookReader = new EvmHookReader(this.multiProvider, chain);
+      const evmHookReader = new EvmHookReader(
+        this.multiProvider,
+        chain,
+        undefined,
+        messageContext,
+      );
       config = await evmHookReader.deriveHookConfig(hook);
     }
 
@@ -98,12 +164,18 @@ export class HyperlaneRelayer {
   async getIsmConfig(
     chain: ChainName,
     ism: Address,
+    messageContext?: DispatchedMessage,
   ): Promise<DerivedIsmConfig> {
     let config: DerivedIsmConfig | undefined;
     if (this.cache?.ism[chain]?.[ism]) {
       config = this.cache.ism[chain][ism] as DerivedIsmConfig | undefined;
     } else {
-      const evmIsmReader = new EvmIsmReader(this.multiProvider, chain);
+      const evmIsmReader = new EvmIsmReader(
+        this.multiProvider,
+        chain,
+        undefined,
+        messageContext,
+      );
       config = await evmIsmReader.deriveIsmConfig(ism);
     }
 
@@ -124,7 +196,7 @@ export class HyperlaneRelayer {
   ): Promise<DerivedHookConfig> {
     const originChain = this.core.getOrigin(message);
     const hook = await this.core.getSenderHookAddress(message);
-    return this.getHookConfig(originChain, hook);
+    return this.getHookConfig(originChain, hook, message);
   }
 
   async getRecipientIsmConfig(
@@ -132,7 +204,39 @@ export class HyperlaneRelayer {
   ): Promise<DerivedIsmConfig> {
     const destinationChain = this.core.getDestination(message);
     const ism = await this.core.getRecipientIsmAddress(message);
-    return this.getIsmConfig(destinationChain, ism);
+    return this.getIsmConfig(destinationChain, ism, message);
+  }
+
+  async relayAll(
+    dispatchTx: providers.TransactionReceipt,
+    messages = HyperlaneCore.getDispatchedMessages(dispatchTx),
+  ): Promise<ChainMap<ethers.ContractReceipt[]>> {
+    const destinationMap: ChainMap<DispatchedMessage[]> = {};
+    messages.forEach((message) => {
+      destinationMap[message.parsed.destination] ??= [];
+      destinationMap[message.parsed.destination].push(message);
+    });
+
+    // parallelize relaying to different destinations
+    return promiseObjAll(
+      objMap(destinationMap, async (_destination, messages) => {
+        const receipts: ethers.ContractReceipt[] = [];
+        // serially relay messages to the same destination
+        for (const message of messages) {
+          try {
+            const receipt = await this.relayMessage(
+              dispatchTx,
+              undefined,
+              message,
+            );
+            receipts.push(receipt);
+          } catch (e) {
+            this.logger.error(`Failed to relay message ${message.id}, ${e}`);
+          }
+        }
+        return receipts;
+      }),
+    );
   }
 
   async relayMessage(
@@ -140,11 +244,24 @@ export class HyperlaneRelayer {
     messageIndex = 0,
     message = HyperlaneCore.getDispatchedMessages(dispatchTx)[messageIndex],
   ): Promise<ethers.ContractReceipt> {
+    if (this.whitelist) {
+      // add human readable names for use in whitelist checks
+      message.parsed = {
+        originChain: this.core.getOrigin(message),
+        destinationChain: this.core.getDestination(message),
+        ...message.parsed,
+      };
+      assert(
+        messageMatchesWhitelist(this.whitelist, message.parsed),
+        `Message ${message.id} does not match whitelist`,
+      );
+    }
+
     this.logger.info(`Preparing to relay message ${message.id}`);
 
     const isDelivered = await this.core.isDelivered(message);
     if (isDelivered) {
-      this.logger.debug(`Message ${message.id} already delivered`);
+      this.logger.info(`Message ${message.id} already delivered`);
       return this.core.getProcessedReceipt(message);
     }
 
@@ -158,18 +275,14 @@ export class HyperlaneRelayer {
     ]);
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
-    const blockTime = this.multiProvider.getChainMetadata(
-      message.parsed.destination,
-    ).blocks?.estimateBlockTime;
-    const waitTime = blockTime ? blockTime * 2 : this.retryTimeout;
+    const metadata = await this.metadataBuilder.build({
+      message,
+      ism,
+      hook,
+      dispatchTx,
+    });
 
-    const metadata = await pollAsync(
-      () => this.metadataBuilder.build({ message, ism, hook, dispatchTx }),
-      waitTime,
-      12, // 12 attempts
-    );
-
-    this.logger.info({ message, metadata }, `Relaying message ${message.id}`);
+    this.logger.info(`Relaying message ${message.id}`);
     return this.core.deliver(message, metadata);
   }
 
@@ -194,44 +307,92 @@ export class HyperlaneRelayer {
     );
   }
 
-  start(chains = this.core.chains()): void {
-    assert(!this.stopRelayingHandler, 'Relayer already started');
+  protected async flushBacklog(): Promise<void> {
+    while (this.stopRelayingHandler) {
+      const backlogMsg = this.backlog.shift();
 
-    const { removeHandler } = this.core.onDispatch(async (message, event) => {
-      const destination = message.parsed.destination;
-      const chain = this.multiProvider.tryGetChainName(destination);
-      if (!chain) {
-        this.logger.warn(`Unknown destination ${destination}`);
-        return;
+      if (!backlogMsg) {
+        this.logger.trace('Backlog empty, waiting 1s');
+        await sleep(1000);
+        continue;
       }
 
-      if (!chains.includes(chain)) {
-        this.logger.info(`Skipping message to chain ${chain}`);
-        return;
+      // linear backoff (attempts * retryTimeout)
+      if (
+        Date.now() <
+        backlogMsg.lastAttempt + backlogMsg.attempts * this.retryTimeout
+      ) {
+        this.backlog.push(backlogMsg);
+        continue;
       }
 
-      const dispatchReceipt = await event.getTransactionReceipt();
-      const processReceipt = await this.relayMessage(
-        dispatchReceipt,
-        undefined,
-        message,
-      );
+      const { message, dispatchTx, attempts } = backlogMsg;
+      const id = messageId(message);
+      const parsed = parseMessage(message);
+      const dispatchMsg = { id, message, parsed };
 
-      this.logger.info(
-        `Message ${message.id} was processed in ${
-          this.multiProvider.tryGetExplorerTxUrl(destination, {
-            hash: processReceipt.transactionHash,
-          }) ?? 'tx ' + processReceipt.transactionHash
-        }`,
-      );
-    }, chains);
+      try {
+        const dispatchReceipt = await this.multiProvider
+          .getProvider(parsed.origin)
+          .getTransactionReceipt(dispatchTx);
 
-    this.stopRelayingHandler = removeHandler;
+        // TODO: handle batching
+        await this.relayMessage(dispatchReceipt, undefined, dispatchMsg);
+      } catch {
+        this.logger.error(
+          `Failed to relay message ${id} (attempt #${attempts + 1})`,
+        );
+        this.backlog.push({
+          ...backlogMsg,
+          attempts: attempts + 1,
+          lastAttempt: Date.now(),
+        });
+      }
+    }
   }
 
-  stop(chains = this.core.chains()): void {
+  protected whitelistChains(): string[] | undefined {
+    return this.whitelist ? Object.keys(this.whitelist) : undefined;
+  }
+
+  start(): void {
+    assert(!this.stopRelayingHandler, 'Relayer already started');
+
+    this.backlog = this.cache?.backlog ?? [];
+
+    const { removeHandler } = this.core.onDispatch(async (message, event) => {
+      if (
+        this.whitelist &&
+        !messageMatchesWhitelist(this.whitelist, message.parsed)
+      ) {
+        this.logger.debug(
+          { message, whitelist: this.whitelist },
+          `Skipping message ${message.id} not matching whitelist`,
+        );
+        return;
+      }
+
+      this.backlog.push({
+        attempts: 0,
+        lastAttempt: Date.now(),
+        message: message.message,
+        dispatchTx: event.transactionHash,
+      });
+    }, this.whitelistChains());
+
+    this.stopRelayingHandler = removeHandler;
+
+    // start flushing backlog
+    void this.flushBacklog();
+  }
+
+  stop(): void {
     assert(this.stopRelayingHandler, 'Relayer not started');
-    this.stopRelayingHandler(chains);
+    this.stopRelayingHandler(this.whitelistChains());
     this.stopRelayingHandler = undefined;
+
+    if (this.cache) {
+      this.cache.backlog = this.backlog;
+    }
   }
 }

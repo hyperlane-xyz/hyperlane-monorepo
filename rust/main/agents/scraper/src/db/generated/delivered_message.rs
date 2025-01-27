@@ -19,6 +19,7 @@ pub struct Model {
     pub domain: i32,
     pub destination_mailbox: Vec<u8>,
     pub destination_tx_id: i64,
+    pub sequence: Option<i64>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
@@ -29,6 +30,7 @@ pub enum Column {
     Domain,
     DestinationMailbox,
     DestinationTxId,
+    Sequence,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
@@ -59,6 +61,7 @@ impl ColumnTrait for Column {
             Self::Domain => ColumnType::Integer.def(),
             Self::DestinationMailbox => ColumnType::Binary(BlobSize::Blob(None)).def(),
             Self::DestinationTxId => ColumnType::BigInteger.def(),
+            Self::Sequence => ColumnType::BigInteger.def().null(),
         }
     }
 }

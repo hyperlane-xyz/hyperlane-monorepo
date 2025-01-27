@@ -5,8 +5,8 @@ import { ethersBigNumberSerializer } from './logging.js';
 import { isNullish } from './typeof.js';
 import { assert } from './validation.js';
 
-export function isObject(item: any) {
-  return item && typeof item === 'object' && !Array.isArray(item);
+export function isObject(item: any): boolean {
+  return !!item && typeof item === 'object' && !Array.isArray(item);
 }
 
 export function deepEquals(v1: any, v2: any) {
@@ -190,9 +190,18 @@ export function objOmit<T extends Record<string, any> = any>(
   return ret as T;
 }
 
+export function objOmitKeys<T extends Record<string, any> = any>(
+  obj: Record<string, any>,
+  keys: string[],
+): Partial<T> {
+  return objFilter(obj, (k, _v): _v is any => !keys.includes(k)) as Partial<T>;
+}
+
 export function invertKeysAndValues(data: any) {
   return Object.fromEntries(
-    Object.entries(data).map(([key, value]) => [value, key]),
+    Object.entries(data)
+      .filter(([_, value]) => value !== undefined && value !== null) // Filter out undefined and null values
+      .map(([key, value]) => [value, key]),
   );
 }
 
@@ -215,7 +224,10 @@ export function stringifyObject(
   if (format === 'json') {
     return json;
   }
-  return yamlStringify(JSON.parse(json), null, space);
+  return yamlStringify(JSON.parse(json), null, {
+    indent: space ?? 2,
+    sortMapEntries: true,
+  });
 }
 
 interface ObjectDiffOutput {
@@ -316,4 +328,12 @@ export function diffObjMerge(
     mergedObject: { expected: expected ?? '', actual: actual ?? '' },
     isInvalid: true,
   };
+}
+
+export function mustGet<T>(obj: Record<string, T>, key: string): T {
+  const value = obj[key];
+  if (!value) {
+    throw new Error(`Missing key ${key} in object ${JSON.stringify(obj)}`);
+  }
+  return value;
 }

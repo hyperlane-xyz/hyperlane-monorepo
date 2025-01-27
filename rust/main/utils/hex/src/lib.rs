@@ -29,27 +29,6 @@ const FROM_HEX_CHARS: [u8; 256] = [
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ];
 
-/// Checks if a byte slice fits within 160 bits. Assumes a big-endian encoding;
-/// ignores leading zeros. Current implementation only supports up to a 32 byte
-/// array but this could easily be extended if needed.
-pub const fn is_h160<const S: usize>(data: &[u8; S]) -> bool {
-    assert!(S <= 32);
-    if S <= 20 {
-        true
-    } else {
-        let mut z = data[0];
-        unroll! {
-            for i in 0..11 {
-                if S >= i + 22 {
-                    z |= data[i + 1]
-                }
-            }
-        }
-
-        z == 0
-    }
-}
-
 /// This formats a 160bit byte slice as a lowercase hex string without any
 /// prefixing (will include leading zeros).
 pub fn format_h160_raw(data: &[u8; 20]) -> String {
@@ -149,23 +128,6 @@ impl Error for InvalidHexCharacter {}
 #[cfg(test)]
 mod test {
     use crate::FROM_HEX_CHARS;
-
-    #[test]
-    fn is_h160() {
-        let v: [u8; 32] = [
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfa, 0xd1,
-            0xc9, 0x44, 0x69, 0x70, 0x08, 0x33, 0x71, 0x7f, 0xa8, 0xa3, 0x01, 0x72, 0x78, 0xbc,
-            0x1c, 0xa8, 0x03, 0x1c,
-        ];
-        assert!(super::is_h160(&v));
-
-        let v: [u8; 32] = [
-            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfa, 0xd1,
-            0xc9, 0x44, 0x69, 0x70, 0x08, 0x33, 0x71, 0x7f, 0xa8, 0xa3, 0x01, 0x72, 0x78, 0xbc,
-            0x1c, 0xa8, 0x03, 0x1c,
-        ];
-        assert!(!super::is_h160(&v));
-    }
 
     #[test]
     fn format_h160() {

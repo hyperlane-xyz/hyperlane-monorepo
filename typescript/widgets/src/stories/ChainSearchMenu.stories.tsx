@@ -3,7 +3,10 @@ import { Meta, StoryObj } from '@storybook/react';
 import { chainMetadata } from '@hyperlane-xyz/registry';
 import { pick } from '@hyperlane-xyz/utils';
 
-import { ChainSearchMenu } from '../chains/ChainSearchMenu.js';
+import {
+  ChainSearchMenu,
+  ChainSortByOption,
+} from '../chains/ChainSearchMenu.js';
 
 const meta = {
   title: 'ChainSearchMenu',
@@ -33,6 +36,41 @@ export const WithCustomField = {
       },
     },
     showAddChainButton: true,
+  },
+} satisfies Story;
+
+export const WithCustomFieldAsNull = {
+  args: {
+    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
+    onChangeOverrideMetadata: () => {},
+    customListItemField: null,
+    showAddChainButton: true,
+  },
+} satisfies Story;
+
+export const WithDefaultSortField = {
+  args: {
+    chainMetadata: chainMetadata,
+    onChangeOverrideMetadata: () => {},
+    showAddChainButton: true,
+    defaultSortField: ChainSortByOption.Protocol,
+  },
+} satisfies Story;
+
+export const WithDefaultSortFieldAsCustom = {
+  args: {
+    chainMetadata: pick(chainMetadata, ['alfajores', 'arbitrum', 'ethereum']),
+    onChangeOverrideMetadata: () => {},
+    showAddChainButton: true,
+    customListItemField: {
+      header: 'Warp Routes',
+      data: {
+        alfajores: { display: '1 token', sortValue: 1 },
+        arbitrum: { display: '2 tokens', sortValue: 2 },
+        ethereum: { display: '1 token', sortValue: 1 },
+      },
+    },
+    defaultSortField: 'custom',
   },
 } satisfies Story;
 

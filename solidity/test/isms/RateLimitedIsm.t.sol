@@ -75,7 +75,7 @@ contract RateLimitedIsmTest is Test {
             TokenMessage.format(bytes32(""), _amount, bytes(""))
         );
 
-        vm.expectRevert("InvalidRecipient");
+        vm.expectRevert("TypeCasts: bytes32ToAddress overflow");
         rateLimitedIsm.verify(bytes(""), _message);
     }
 

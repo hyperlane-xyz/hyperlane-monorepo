@@ -74,12 +74,7 @@ impl Debug for HyperlaneMessage {
 
 impl Display for HyperlaneMessage {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "HyperlaneMessage {{ id: {:?}, nonce: {}, .. }}",
-            self.id(),
-            self.nonce
-        )
+        Debug::fmt(self, f)
     }
 }
 

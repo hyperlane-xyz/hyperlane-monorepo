@@ -5,6 +5,7 @@ import {
   Address,
   addressToBytes32,
   bytes32ToAddress,
+  isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
 import { appFromAddressesMapHelper } from '../../contracts/contracts.js';
@@ -102,6 +103,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     const originRouterAddress =
       routerOverride ??
       bytes32ToAddress(await destinationRouter.routers(originDomain));
+    if (isZeroishAddress(originRouterAddress)) {
+      throw new Error(
+        `Origin router address is zero for ${config.origin} on ${destinationChain}`,
+      );
+    }
+
     const destinationIsmAddress =
       ismOverride ??
       bytes32ToAddress(await destinationRouter.isms(originDomain));

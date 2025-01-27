@@ -1,4 +1,10 @@
 {
+  "abstracttestnet": {
+    "validators": ["0x7655bc4c9802bfcb3132b8822155b60a4fbbce3e"]
+  },
+  "alephzeroevmtestnet": {
+    "validators": ["0x556cd94bcb6e5773e8df75e7eb3f91909d266a26"]
+  },
   "alfajores": {
     "validators": [
       "0x2233a5ce12f814bd64c9cdd73410bb8693124d40",
@@ -9,8 +15,8 @@
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
-  "arcadiatestnet": {
-    "validators": ["0x7ce5973d3f22971546efb86f5a0417c1248e92f5"]
+  "arcadiatestnet2": {
+    "validators": ["0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"]
   },
   "basesepolia": {
     "validators": ["0x82e3b437a2944e3ff00258c93e72cd1ba5e0e921"]
@@ -37,6 +43,9 @@
   "ecotestnet": {
     "validators": ["0xb3191420d463c2af8bd9b4a395e100ec5c05915a"]
   },
+  "flametestnet": {
+    "validators": ["0x0272625243bf2377f87538031fed54e21853cc2d"]
+  },
   "formtestnet": {
     "validators": ["0x72ad7fddf16d17ff902d788441151982fa31a7bc"]
   },
@@ -49,6 +58,12 @@
   },
   "holesky": {
     "validators": ["0x7ab28ad88bb45867137ea823af88e2cb02359c03"]
+  },
+  "hyperliquidevmtestnet": {
+    "validators": ["0xea673a92a23ca319b9d85cc16b248645cd5158da"]
+  },
+  "inksepolia": {
+    "validators": ["0xe61c846aee275070207fcbf43674eb254f06097a"]
   },
   "odysseytestnet": {
     "validators": ["0xcc0a6e2d6aa8560b45b384ced7aa049870b66ea3"]
@@ -73,17 +88,26 @@
       "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
     ]
   },
+  "solanatestnet": {
+    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
+  },
   "soneiumtestnet": {
     "validators": ["0x2e2101020ccdbe76aeda1c27823b0150f43d0c63"]
   },
-  "sonictestnet": {
-    "validators": ["0x62e6591d00daec3fb658c3d19403828b4e9ddbb3"]
+  "sonicblaze": {
+    "validators": ["0xe5b98110d0688691ea280edea9a4faa1e3617ba1"]
+  },
+  "sonicsvmtestnet": {
+    "validators": ["0x83d4ef35f170ec822a0eaadb22a0c40003d8de23"]
   },
   "suavetoliman": {
     "validators": ["0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"]
   },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
+  },
+  "treasuretopaz": {
+    "validators": ["0x9750849beda0a7870462d4685f953fe39033a5ae"]
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]

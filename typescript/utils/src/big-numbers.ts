@@ -15,7 +15,7 @@ export function isBigNumberish(
   try {
     const val = BigNumber(value!);
     return !val.isNaN() && val.isFinite() && BigNumber.isBigNumber(val);
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -28,7 +28,7 @@ export function isBigNumberish(
 export function isZeroish(value: BigNumber.Value): boolean {
   try {
     return BigNumber(value).isZero();
-  } catch (error) {
+  } catch {
     return false;
   }
 }

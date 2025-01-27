@@ -15,8 +15,7 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
-import { TokenRouterConfig } from './schemas.js';
-import { WarpRouteDeployConfig } from './types.js';
+import { HypTokenRouterConfig, WarpRouteDeployConfig } from './types.js';
 
 const chain = TestChainName.test1;
 
@@ -40,7 +39,7 @@ describe('TokenDeployer', async () => {
     const routerConfigMap = coreApp.getRouterConfig(signer.address);
     config = objMap(
       routerConfigMap,
-      (chain, c): TokenRouterConfig => ({
+      (chain, c): HypTokenRouterConfig => ({
         type: TokenType.synthetic,
         name: chain,
         symbol: `u${chain}`,
@@ -91,7 +90,7 @@ describe('TokenDeployer', async () => {
         routerAddress = warpRoute[chain][type].address;
       });
 
-      it(`should derive TokenRouterConfig correctly`, async () => {
+      it(`should derive HypTokenRouterConfig correctly`, async () => {
         const derivedConfig = await reader.deriveWarpRouteConfig(routerAddress);
         expect(derivedConfig.type).to.equal(config[chain].type);
       });

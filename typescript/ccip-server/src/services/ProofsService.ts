@@ -4,8 +4,7 @@ import { TelepathyCcipReadIsmAbi } from '../abis/TelepathyCcipReadIsmAbi';
 
 import { HyperlaneService } from './HyperlaneService';
 import { LightClientService, SuccinctConfig } from './LightClientService';
-import { RPCService } from './RPCService';
-import { ProofResult } from './RPCService';
+import { ProofResult, RPCService } from './RPCService';
 import { ProofStatus } from './common/ProofStatusEnum';
 
 type RPCConfig = {
@@ -100,10 +99,7 @@ class ProofsService {
     );
     const slot = await this.lightClientService.calculateSlot(BigInt(timestamp));
     const syncCommitteePoseidon = ''; // TODO get from LC
-    return await this.lightClientService.requestProof(
-      syncCommitteePoseidon,
-      slot,
-    );
+    return this.lightClientService.requestProof(syncCommitteePoseidon, slot);
   }
 
   /**

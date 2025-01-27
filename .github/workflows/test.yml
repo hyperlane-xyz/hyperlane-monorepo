@@ -40,9 +40,9 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-yarn-cache-
+            ${{ runner.os }}-yarn-4.5.1-cache-
 
       - name: yarn-install
         run: |
@@ -53,6 +53,10 @@ jobs:
             git diff
             exit 1
           fi
+
+      # Check for mismatched dep versions across the monorepo
+      - name: syncpack
+        run: yarn syncpack list-mismatches
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -70,8 +74,14 @@ jobs:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
           fail-on-cache-miss: true
+
+      # Build required before linting or the intra-monorepo package cycle checking won't work
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: lint
         run: yarn lint
@@ -108,6 +118,62 @@ jobs:
 
       - name: Unit Tests
         run: yarn test:ci
+
+  cli-e2e-matrix:
+    runs-on: ubuntu-latest
+    needs: [yarn-install]
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply
+          - core-check
+          - core-deploy
+          - core-init
+          - core-read
+          # Other commands
+          - relay
+          # Warp Commands
+          - warp-apply
+          - warp-check
+          - warp-deploy
+          - warp-init
+          - warp-read
+          - warp-send
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: yarn-build
+        uses: ./.github/actions/yarn-build-with-cache
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI e2e tests (${{ matrix.test }})
+        run: yarn --cwd typescript/cli test:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
+  cli-e2e:
+    runs-on: ubuntu-latest
+    needs: cli-e2e-matrix
+    if: always()
+    steps:
+      - name: Check cli-e2e matrix status
+        if: ${{ needs.cli-e2e-matrix.result != 'success' }}
+        run: |
+          echo "CLI E2E tests failed"
+          exit 1
 
   agent-configs:
     runs-on: ubuntu-latest
@@ -163,10 +229,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: setup rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
+        uses: dtolnay/rust-toolchain@stable
 
       - name: rust cache
         uses: Swatinem/rust-cache@v2
@@ -218,7 +281,7 @@ jobs:
         run: |
           if [[ -n "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" ]]; then
             echo "rust_changes=true" >> $GITHUB_OUTPUT
-            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)" 
+            echo "$(git diff ${{ github.event.pull_request.head.sha || github.sha }} ${{ github.event.pull_request.base.sha }} -- ./rust)"
           else
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
@@ -239,6 +302,8 @@ jobs:
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+      MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+      TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
 
     timeout-minutes: 10
     needs: [yarn-install]
@@ -246,7 +311,7 @@ jobs:
       fail-fast: false
       matrix:
         environment: [mainnet3]
-        chain: [ethereum, arbitrum, optimism, inevm, viction]
+        chain: [ethereum, arbitrum, optimism, inevm]
         module: [core, igp]
         include:
           - environment: testnet4
@@ -269,8 +334,15 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
-        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
+      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment with retries
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 8
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
+          on_retry_command: |
+            echo "Test failed, waiting before retry..."
 
   coverage:
     runs-on: ubuntu-latest
