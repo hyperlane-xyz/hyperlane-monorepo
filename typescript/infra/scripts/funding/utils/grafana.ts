@@ -3,7 +3,16 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 
-import { BalanceThresholdConfig, configFileNameMapping } from './constants.js';
+import {
+  HIGH_URGENCY_RELAYER_FOOTER,
+  HIGH_URGENCY_RELAYER_HEADER,
+  LOW_URGENCY_KEY_FUNDER_FOOTER,
+  LOW_URGENCY_KEY_FUNDER_HEADER,
+} from './alert-query-templates.js';
+import {
+  BalanceThresholdType,
+  balanceThresholdConfigMapping,
+} from './constants.js';
 
 export const GRAFANA_URL = 'https://abacusworks.grafana.net';
 
@@ -17,108 +26,205 @@ export enum AlertType {
   HighUrgencyRelayerBalance = 'highUrgencyRelayerBalance',
 }
 
-export type AlertTypeValue = `${AlertType}`;
-
 export enum WalletName {
   KeyFunder = 'keyFunder',
   Relayer = 'relayer',
+  // ATAPayer = 'ataPayer',
 }
 
-export type WalletNameValue = `${WalletName}`;
-
-const alertWalletNameMapping: Record<AlertTypeValue, WalletName> = {
-  [AlertType.LowUrgencyKeyFunderBalance]: WalletName.KeyFunder,
-  [AlertType.LowUrgencyEngKeyFunderBalance]: WalletName.KeyFunder,
-  [AlertType.HighUrgencyRelayerBalance]: WalletName.Relayer,
+const walletNameQueryFormat: Record<WalletName, string> = {
+  [WalletName.KeyFunder]: 'key-funder',
+  [WalletName.Relayer]: 'relayer',
+  // [WalletName.ATAPayer]: '.*ata-payer
 };
 
-const alertIdMapping: Record<AlertTypeValue, string> = {
-  [AlertType.LowUrgencyKeyFunderBalance]: 'KiJNg6p4k',
-  [AlertType.LowUrgencyEngKeyFunderBalance]: 'temp',
-  [AlertType.HighUrgencyRelayerBalance]: 'be64gvjo8jvuod',
+interface AlertConfig {
+  walletName: WalletName;
+  grafanaAlertId: string;
+  configFileName: string;
+  queryTemplate: {
+    header: string;
+    footer: string;
+  };
+}
+
+export const alertConfigMapping: Record<AlertType, AlertConfig> = {
+  [AlertType.LowUrgencyKeyFunderBalance]: {
+    walletName: WalletName.KeyFunder,
+    grafanaAlertId: 'ae9z3blz6fj0gb',
+    configFileName:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.LowUrgencyKeyFunderBalance
+      ].configFileName,
+    queryTemplate: {
+      header: LOW_URGENCY_KEY_FUNDER_HEADER,
+      footer: LOW_URGENCY_KEY_FUNDER_FOOTER,
+    },
+  },
+  [AlertType.LowUrgencyEngKeyFunderBalance]: {
+    walletName: WalletName.KeyFunder,
+    grafanaAlertId: 'ceb9c63qs7fuoe',
+    configFileName:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.LowUrgencyEngKeyFunderBalance
+      ].configFileName,
+    queryTemplate: {
+      header: LOW_URGENCY_KEY_FUNDER_HEADER,
+      footer: LOW_URGENCY_KEY_FUNDER_FOOTER,
+    },
+  },
+  [AlertType.HighUrgencyRelayerBalance]: {
+    walletName: WalletName.Relayer,
+    grafanaAlertId: 'beb9c2jwhacqoe',
+    configFileName:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.HighUrgencyRelayerBalance
+      ].configFileName,
+    queryTemplate: {
+      header: HIGH_URGENCY_RELAYER_HEADER,
+      footer: HIGH_URGENCY_RELAYER_FOOTER,
+    },
+  },
 };
 
-export const alertThresholdFileMapping: Record<AlertTypeValue, string> = {
-  [AlertType.LowUrgencyKeyFunderBalance]:
-    configFileNameMapping[BalanceThresholdConfig.LowUrgencyKeyFunderBalance],
-  [AlertType.LowUrgencyEngKeyFunderBalance]:
-    configFileNameMapping[BalanceThresholdConfig.LowUrgencyEngKeyFunderBalance],
-  [AlertType.HighUrgencyRelayerBalance]:
-    configFileNameMapping[BalanceThresholdConfig.HighUrgencyRelayerBalance],
-};
+interface NotificationSettings {
+  receiver: string;
+  group_by: string[];
+}
 
-export interface AlertRule {
+interface AlertQueryModel {
+  editorMode?: string;
+  exemplar?: boolean;
+  expr: string;
+  instant?: boolean;
+  intervalMs: number;
+  legendFormat?: string;
+  maxDataPoints: number;
+  range?: boolean;
+  refId: string;
+  conditions?: Array<{
+    evaluator: {
+      params: number[];
+      type: string;
+    };
+    operator: {
+      type: string;
+    };
+    query: {
+      params: any[];
+    };
+    reducer: {
+      params: any[];
+      type: string;
+    };
+    type: string;
+  }>;
+  datasource?: {
+    name?: string;
+    type: string;
+    uid: string;
+  };
+  expression?: string;
+  type?: string;
+}
+
+interface AlertQuery {
+  refId: string;
+  queryType: string;
+  relativeTimeRange: {
+    from: number;
+    to: number;
+  };
+  datasourceUid: string;
+  model: AlertQueryModel;
+}
+
+// interface defined based on documentation at https://grafana.com/docs/grafana/latest/developers/http_api/alerting_provisioning/#span-idprovisioned-alert-rulespan-provisionedalertrule
+interface ProvisionedAlertRule {
+  id: number;
   uid: string;
+  orgID: number;
+  folderUID: string;
+  ruleGroup: string;
   title: string;
   condition: string;
-  data: Array<{
-    refId: string;
-    queryType: string;
-    relativeTimeRange: {
-      from: number;
-      to: number;
-    };
-    datasourceUid: string;
-    model: {
-      expr: string;
-    };
-  }>;
+  data: AlertQuery[];
+  noDataState: string;
+  execErrState: string;
+
+  updated: string;
+  for: string;
+
+  annotations?: Record<string, string>;
+  labels?: Record<string, string>;
+  isPaused?: boolean;
+  notification_settings?: NotificationSettings;
 }
 
-export async function getGrafanaAlert(
-  alertType: AlertTypeValue,
-  saToken: string,
-) {
-  const alertUid = alertIdMapping[alertType];
+export function formatDailyRelayerBurn(dailyRelayerBurn: number): number {
+  return Number(dailyRelayerBurn.toPrecision(3));
+}
 
-  try {
-    const response = await fetch(
-      `${GRAFANA_URL}/api/v1/provisioning/alert-rules/${alertUid}`,
-      {
-        headers: {
-          Authorization: `Bearer ${saToken}`,
-          'Content-Type': 'application/json',
-        },
+export async function fetchGrafanaAlert(alertType: AlertType, saToken: string) {
+  const response = await fetch(
+    `${GRAFANA_URL}/api/v1/provisioning/alert-rules/${alertConfigMapping[alertType].grafanaAlertId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${saToken}`,
+        'Content-Type': 'application/json',
       },
-    );
+    },
+  );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = (await response.json()) as AlertRule;
-
-    const queries = data.data.map((d) => d.model.expr);
-
-    return {
-      title: data.title,
-      queries,
-      rawData: data,
-    };
-  } catch (error) {
-    if (error instanceof Error) {
-      logger.error('Error fetching alert:', {
-        message: error.message,
-      });
-    } else {
-      logger.error('Unexpected error:', error);
-    }
-    throw error;
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
   }
+
+  const data = (await response.json()) as ProvisionedAlertRule;
+
+  const queries = data.data.map((d) => d.model.expr);
+
+  return {
+    title: data.title,
+    queries,
+    rawData: data,
+  };
 }
 
-export function parsePromQLQuery(
+export async function exportGrafanaAlert(
+  alertType: AlertType,
+  saToken: string,
+  format: string = 'json',
+) {
+  const response = await fetch(
+    `${GRAFANA_URL}/api/v1/provisioning/alert-rules/${alertConfigMapping[alertType].grafanaAlertId}/export?format=${format}`,
+    {
+      headers: {
+        Authorization: `Bearer ${saToken}`,
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response;
+}
+
+function parsePromQLQuery(
   query: string,
   walletName: WalletName,
-): ChainMap<number> {
-  const balances: ChainMap<number> = {};
+): ChainMap<string> {
+  const balances: ChainMap<string> = {};
   const alertRegex = getAlertRegex(walletName);
 
   // Get all matches
   const matches = Array.from(query.matchAll(alertRegex));
   for (const match of matches) {
     const [_, chain, balanceStr] = match;
-    const minBalance = parseFloat(balanceStr);
+    const minBalance = balanceStr;
 
     balances[chain] = minBalance;
   }
@@ -138,12 +244,12 @@ function getAlertRegex(walletName: WalletName): RegExp {
 }
 
 export async function getAlertThresholds(
-  alertType: AlertTypeValue,
-): Promise<ChainMap<number>> {
+  alertType: AlertType,
+): Promise<ChainMap<string>> {
   const saToken = await fetchServiceAccountToken();
-  const alert = await getGrafanaAlert(alertType, saToken);
+  const alert = await fetchGrafanaAlert(alertType, saToken);
   const alertQuery = alert.queries[0];
-  const walletName = alertWalletNameMapping[alertType];
+  const walletName = alertConfigMapping[alertType].walletName;
   return parsePromQLQuery(alertQuery, walletName);
 }
 
@@ -157,11 +263,88 @@ export async function fetchServiceAccountToken(): Promise<string> {
     )) as string;
   } catch (error) {
     logger.error(
-      'Error fetching grafa service account token from GCP secrets:',
+      'Error fetching grafana service account token from GCP secrets:',
       error,
     );
     throw error;
   }
 
   return saToken;
+}
+
+export async function updateGrafanaAlert(
+  alertUid: string,
+  existingAlert: ProvisionedAlertRule,
+  newQuery: string,
+  saToken: string,
+) {
+  // Create the updated rule based on the existing one
+  const updatedRule: ProvisionedAlertRule = {
+    ...existingAlert,
+    data: existingAlert.data.map((d) => ({
+      ...d,
+      model: {
+        ...d.model,
+        expr: newQuery,
+      },
+    })),
+  };
+
+  try {
+    const response = await fetch(
+      `${GRAFANA_URL}/api/v1/provisioning/alert-rules/${alertUid}`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${saToken}`,
+          'Content-Type': 'application/json',
+          'X-Disable-Provenance': 'true',
+        },
+        body: JSON.stringify(updatedRule),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        `Failed to update alert: ${response.status} ${JSON.stringify(
+          errorData,
+        )}`,
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating alert:', error);
+    throw error;
+  }
+}
+
+export function generateQuery(
+  alertType: AlertType,
+  thresholds: ChainMap<string>,
+): string {
+  const config = alertConfigMapping[alertType];
+  const walletQueryName = walletNameQueryFormat[config.walletName];
+
+  // TODO: abstract away special handling for relayer queries that need hyperlane_context
+  const needsHyperlaneContext = config.walletName === WalletName.Relayer;
+
+  const queryFragments = Object.entries(thresholds).map(
+    ([chain, minBalance]) => {
+      const labels = [`wallet_name="${walletQueryName}"`, `chain="${chain}"`];
+      if (needsHyperlaneContext) {
+        labels.push('hyperlane_context="hyperlane"');
+      }
+      return `last_over_time(hyperlane_wallet_balance{${labels.join(
+        ', ',
+      )}}[1d]) - ${minBalance} or`;
+    },
+  );
+
+  return `${config.queryTemplate.header}
+    ${queryFragments.join('\n    ')}
+
+${config.queryTemplate.footer}
+)`;
 }

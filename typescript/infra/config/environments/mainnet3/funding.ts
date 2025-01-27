@@ -2,11 +2,9 @@ import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
 
-import rawDesiredBalancePerChain from './balances/desiredBalances.json';
+import desiredBalancePerChain from './balances/desiredRelayerBalances.json';
 import { environment } from './chains.js';
 import { mainnet3SupportedChainNames } from './supportedChainNames.js';
-
-const desiredBalancePerChain = rawDesiredBalancePerChain;
 
 export const keyFunderConfig: KeyFunderConfig<
   typeof mainnet3SupportedChainNames

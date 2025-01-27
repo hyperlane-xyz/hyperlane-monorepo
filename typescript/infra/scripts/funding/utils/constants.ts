@@ -1,34 +1,43 @@
-export enum BalanceThresholdConfig {
+export enum BalanceThresholdType {
   RelayerBalance = 'relayerBalance',
   LowUrgencyKeyFunderBalance = 'lowUrgencyKeyFunderBalance',
   LowUrgencyEngKeyFunderBalance = 'lowUrgencyEngKeyFunderBalance',
   HighUrgencyRelayerBalance = 'highUrgencyRelayerBalance',
 }
 
-export const configFileNameMapping: Record<BalanceThresholdConfig, string> = {
-  [BalanceThresholdConfig.RelayerBalance]: 'desiredBalances.json',
-  [BalanceThresholdConfig.LowUrgencyKeyFunderBalance]:
-    'lowUrgencyKeyFunderBalance.json',
-  [BalanceThresholdConfig.LowUrgencyEngKeyFunderBalance]:
-    'lowUrgencyEngKeyFunderBalance.json',
-  [BalanceThresholdConfig.HighUrgencyRelayerBalance]:
-    'highUrgencyRelayerBalance.json',
-};
+interface BalanceThresholdConfig {
+  configFileName: string;
+  dailyRelayerBurnMultiplier: number;
+  choiceLabel: string;
+}
 
-export const RELAYER_BALANCE_TARGET_DAYS = 8;
-export const LOW_URGENCY_KEY_FUNDER_BALANCE_TARGET_DAYS = 12;
-export const LOW_URGENCY_ENG_KEY_FUNDER_BALANCE_TARGET_DAYS = 6;
-export const HIGH_URGENCY_RELAYER_BALANCE_TARGET_DAYS = 2;
-export const RELAYER_MIN_DOLLAR_BALANCE_TARGET = 25;
+const RELAYER_BALANCE_TARGET_DAYS = 8;
+const RELAYER_MIN_DOLLAR_BALANCE_TARGET = 25;
 export const RELAYER_MIN_DOLLAR_BALANCE_PER_DAY =
   RELAYER_MIN_DOLLAR_BALANCE_TARGET / RELAYER_BALANCE_TARGET_DAYS;
 
-export const dailyBurnMultiplier: Record<BalanceThresholdConfig, number> = {
-  [BalanceThresholdConfig.RelayerBalance]: RELAYER_BALANCE_TARGET_DAYS,
-  [BalanceThresholdConfig.LowUrgencyKeyFunderBalance]:
-    LOW_URGENCY_KEY_FUNDER_BALANCE_TARGET_DAYS,
-  [BalanceThresholdConfig.LowUrgencyEngKeyFunderBalance]:
-    LOW_URGENCY_ENG_KEY_FUNDER_BALANCE_TARGET_DAYS,
-  [BalanceThresholdConfig.HighUrgencyRelayerBalance]:
-    HIGH_URGENCY_RELAYER_BALANCE_TARGET_DAYS,
+export const balanceThresholdConfigMapping: Record<
+  BalanceThresholdType,
+  BalanceThresholdConfig
+> = {
+  [BalanceThresholdType.RelayerBalance]: {
+    configFileName: 'desiredRelayerBalances.json',
+    dailyRelayerBurnMultiplier: RELAYER_BALANCE_TARGET_DAYS,
+    choiceLabel: 'Desired Relayer Balance',
+  },
+  [BalanceThresholdType.LowUrgencyKeyFunderBalance]: {
+    configFileName: `${[BalanceThresholdType.LowUrgencyKeyFunderBalance]}.json`,
+    dailyRelayerBurnMultiplier: 12,
+    choiceLabel: 'Low Urgency Key Funder Balance Alert Threshold',
+  },
+  [BalanceThresholdType.LowUrgencyEngKeyFunderBalance]: {
+    configFileName: `${BalanceThresholdType.LowUrgencyEngKeyFunderBalance}.json`,
+    dailyRelayerBurnMultiplier: 6,
+    choiceLabel: 'Low Urgency Eng Key Funder Balance Alert Threshold',
+  },
+  [BalanceThresholdType.HighUrgencyRelayerBalance]: {
+    configFileName: `${BalanceThresholdType.HighUrgencyRelayerBalance}.json`,
+    dailyRelayerBurnMultiplier: 2,
+    choiceLabel: 'High Urgency Relayer Balance',
+  },
 };
