@@ -1,5 +1,40 @@
 # @hyperlane-xyz/cli
 
+## 8.4.0
+
+### Patch Changes
+
+- Updated dependencies [f6b682cdb]
+  - @hyperlane-xyz/sdk@8.4.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 228f7c3d1: Fix issue where warp deploy artifacts did not include correct symbols.
+
+### Patch Changes
+
+- Updated dependencies [7546c0181]
+- Updated dependencies [49856fbb9]
+  - @hyperlane-xyz/sdk@8.3.0
+  - @hyperlane-xyz/utils@8.3.0
+
+## 8.2.0
+
+### Minor Changes
+
+- 9eb19cac7: Add explorer link to warp send and send message commands
+- aad2c2d1e: Fixing the chain resolver checks and handling for argv.chain
+
+### Patch Changes
+
+- 1536ea570: Print displayName instead of chain name in signer validity logs.
+- Updated dependencies [69a684869]
+  - @hyperlane-xyz/sdk@8.2.0
+  - @hyperlane-xyz/utils@8.2.0
+
 ## 8.1.0
 
 ### Minor Changes

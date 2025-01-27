@@ -172,6 +172,23 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
+    let merkle_tree_max_sequence = fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_cursor_max_sequence",
+        &hashmap! {"event_type" => "merkle_tree_insertion"},
+    )?;
+    // check for each origin that the highest tree index seen by the syncer == # of messages sent + # of double insertions
+    // LHS: sum(merkle_tree_max_sequence) + len(merkle_tree_max_sequence) (each is index so we add 1 to each)
+    // RHS: total_messages_expected + non_matching_igp_messages + (config.kathy_messages as u32 / 4) * 2 (double insertions)
+    let non_zero_sequence_count =
+        merkle_tree_max_sequence.iter().filter(|&x| *x > 0).count() as u32;
+    assert_eq!(
+        merkle_tree_max_sequence.iter().sum::<u32>() + non_zero_sequence_count,
+        total_messages_expected
+            + sol_messages_with_non_matching_igp
+            + (config.kathy_messages as u32 / 4) * 2
+    );
+
     if let Some((solana_cli_tools_path, solana_config_path)) =
         solana_cli_tools_path.zip(solana_config_path)
     {

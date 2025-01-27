@@ -221,6 +221,7 @@ export const createIGPConfig = callWithConfigCreationLogs(
     // Calculate storage gas oracle config
     const oracleConfig = getLocalStorageGasOracleConfig({
       local: localChain,
+      localProtocolType: context.multiProvider.getProtocol(localChain),
       gasOracleParams: prices,
       exchangeRateMarginPct,
     });

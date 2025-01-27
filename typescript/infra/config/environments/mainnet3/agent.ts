@@ -59,6 +59,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
 > = {
   // Generally, we run all production validators in the Hyperlane context.
   [Role.Validator]: {
+    abstract: false,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
@@ -104,6 +105,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    glue: true,
     gnosis: true,
     gravity: true,
     guru: true,
@@ -122,6 +124,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    matchain: true,
     merlin: true,
     metal: true,
     metis: true,
@@ -165,7 +168,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
+    unitzero: true,
     vana: true,
     viction: true,
     worldchain: true,
@@ -180,6 +185,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zoramainnet: true,
   },
   [Role.Relayer]: {
+    abstract: false,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
@@ -225,6 +231,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    glue: true,
     gnosis: true,
     gravity: true,
     guru: true,
@@ -243,6 +250,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    matchain: true,
     merlin: true,
     metal: true,
     metis: true,
@@ -287,7 +295,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
+    unitzero: true,
     vana: true,
     viction: true,
     worldchain: true,
@@ -302,6 +312,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     zoramainnet: true,
   },
   [Role.Scraper]: {
+    abstract: false,
     // acala: true,
     ancient8: true,
     alephzeroevmmainnet: true,
@@ -347,6 +358,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     // fractal: false,
     fraxtal: true,
     fusemainnet: true,
+    glue: true,
     gnosis: true,
     gravity: true,
     guru: true,
@@ -365,6 +377,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     lumiaprism: true,
     mantapacific: true,
     mantle: true,
+    matchain: true,
     merlin: true,
     metal: true,
     metis: true,
@@ -374,8 +387,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     moonbeam: true,
     morph: true,
     nero: true,
-    // Jan 14th - temporarily disabled while Neutron chain is down and RPCs give issues, causing scraper startup problems
-    neutron: false,
+    neutron: true,
     oortmainnet: true,
     optimism: true,
     orderly: true,
@@ -409,7 +421,9 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     telos: true,
     torus: true,
     treasure: true,
+    trumpchain: true,
     unichain: true,
+    unitzero: true,
     vana: true,
     // Has RPC non-compliance that breaks scraping.
     viction: false,
@@ -573,7 +587,7 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 const relayerResources = {
   requests: {
     cpu: '14000m',
-    memory: '20G',
+    memory: '28G',
   },
 };
 
@@ -637,6 +651,10 @@ const blacklistedMessageIds = [
   // test tx when route was first deployed, no merkle tree insertion
   // USDC/ethereum-inevm
   '0x998746dc822dc15332b8683fb8a29aec22ed3e2f2fb8245c40f56303c5cb6032',
+
+  // malformed recipient in warp transfers
+  '0xf20e3dc5172d824b146b91bb33d66532915fab605e44d2d76af7b5898a6390fe',
+  '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -653,7 +671,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'abb5a8b-20250113-122226',
+      tag: 'a54c98e-20250126-113529',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -663,7 +681,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: '53fafa6-20250110-125541',
+      tag: 'f6b682c-20250124-144126',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -673,7 +691,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'd365e55-20250114-011047',
+      tag: '7eec2ac-20250123-193619',
     },
     resources: scraperResources,
   },
@@ -688,7 +706,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'abb5a8b-20250113-122226',
+      tag: 'f6b682c-20250124-144126',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -701,7 +719,7 @@ const releaseCandidate: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'a64af8b-20241024-120818',
+      tag: '11a4e95-20250116-145528',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -722,7 +740,7 @@ const neutron: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '234704d-20241226-192528',
+      tag: '09e1d5b-20250121-214732',
     },
     blacklist,
     gasPaymentEnforcement,

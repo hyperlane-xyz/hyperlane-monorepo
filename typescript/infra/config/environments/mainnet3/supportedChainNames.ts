@@ -1,6 +1,7 @@
 // These chains may be any protocol type.
 // Placing them here instead of adjacent chains file to avoid circular dep
 export const mainnet3SupportedChainNames = [
+  'abstract',
   // 'acala',
   'ancient8',
   'alephzeroevmmainnet',
@@ -46,6 +47,7 @@ export const mainnet3SupportedChainNames = [
   // 'fractal',
   'fraxtal',
   'fusemainnet',
+  'glue',
   'gnosis',
   'gravity',
   'guru',
@@ -64,6 +66,7 @@ export const mainnet3SupportedChainNames = [
   'lumiaprism',
   'mantapacific',
   'mantle',
+  'matchain',
   'merlin',
   'metal',
   'metis',
@@ -107,7 +110,9 @@ export const mainnet3SupportedChainNames = [
   'telos',
   'torus',
   'treasure',
+  'trumpchain',
   'unichain',
+  'unitzero',
   'vana',
   'viction',
   'worldchain',
