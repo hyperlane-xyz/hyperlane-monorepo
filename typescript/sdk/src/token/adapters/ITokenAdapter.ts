@@ -1,6 +1,16 @@
+import type { Address as ViemAddress } from 'viem';
+
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
 import { TokenMetadata } from '../types.js';
+
+export type IntentData = {
+  sender: ViemAddress;
+  outputToken: ViemAddress;
+  amountOut: Numberish;
+  destinationDomain: Domain;
+  fillDeadline: Numberish;
+};
 
 export interface TransferParams {
   weiAmountOrId: Numberish;
@@ -9,6 +19,8 @@ export interface TransferParams {
   fromAccountOwner?: Address;
   // Required for Solana
   fromTokenAccount?: Address;
+  // Required for Hyperlane7683
+  intentData?: IntentData;
 }
 
 export interface TransferRemoteParams extends TransferParams {

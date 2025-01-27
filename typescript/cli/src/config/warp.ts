@@ -36,7 +36,10 @@ import {
 
 import { createAdvancedIsmConfig } from './ism.js';
 
-const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
+const TYPE_DESCRIPTIONS: Record<
+  Exclude<TokenType, TokenType.intent | TokenType.intentNative>,
+  string
+> = {
   [TokenType.synthetic]: 'A new ERC20 with remote transfer functionality',
   [TokenType.syntheticRebase]: `A rebasing ERC20 with remote transfer functionality. Must be paired with ${TokenType.collateralVaultRebase}`,
   [TokenType.collateral]:
@@ -61,11 +64,18 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
   [TokenType.nativeScaled]: '',
 };
 
-const TYPE_CHOICES = Object.values(TokenType).map((type) => ({
-  name: type,
-  value: type,
-  description: TYPE_DESCRIPTIONS[type],
-}));
+const TYPE_CHOICES = Object.values(TokenType)
+  .filter(
+    (type) => type !== TokenType.intent && type !== TokenType.intentNative,
+  )
+  .map((type) => ({
+    name: type,
+    value: type,
+    description:
+      TYPE_DESCRIPTIONS[
+        type as Exclude<TokenType, TokenType.intent | TokenType.intentNative>
+      ],
+  }));
 
 async function fillDefaults(
   context: CommandContext,
@@ -181,10 +191,10 @@ export async function createWarpRouteDeployConfig({
       interchainSecurityModule = createFallbackRoutingConfig(owner);
     }
 
-    const type = await select({
+    const type = (await select({
       message: `Select ${chain}'s token type`,
       choices: typeChoices,
-    });
+    })) as Exclude<TokenType, TokenType.intent | TokenType.intentNative>;
 
     // TODO: restore NFT prompting
     const isNft =

@@ -42,6 +42,11 @@ export const TokenConfigSchema = z.object({
     .min(1)
     .optional()
     .describe('The address or denom of the token for IGP payments'),
+  intentRouterAddressOrDenom: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The address or denom of the Intent Router'),
   logoURI: z.string().optional().describe('The URI of the token logo'),
   connections: z
     .array(TokenConnectionConfigSchema)

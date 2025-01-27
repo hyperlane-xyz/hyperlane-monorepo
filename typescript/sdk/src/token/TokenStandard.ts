@@ -21,6 +21,8 @@ export enum TokenStandard {
   EvmHypSyntheticRebase = 'EvmHypSyntheticRebase',
   EvmHypXERC20 = 'EvmHypXERC20',
   EvmHypXERC20Lockbox = 'EvmHypXERC20Lockbox',
+  EvmIntent = 'EvmIntent',
+  EvmIntentNative = 'EvmIntentNative',
 
   // Sealevel (Solana)
   SealevelSpl = 'SealevelSpl',
@@ -60,6 +62,8 @@ export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
   EvmHypSyntheticRebase: ProtocolType.Ethereum,
   EvmHypXERC20: ProtocolType.Ethereum,
   EvmHypXERC20Lockbox: ProtocolType.Ethereum,
+  EvmIntent: ProtocolType.Ethereum,
+  EvmIntentNative: ProtocolType.Ethereum,
 
   // Sealevel (Solana)
   SealevelSpl: ProtocolType.Sealevel,
@@ -133,8 +137,14 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.CwHypSynthetic,
 ];
 
+export const TOKEN_INTENT_STANDARDS = [
+  TokenStandard.EvmIntent,
+  TokenStandard.EvmIntentNative,
+];
+
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
   ...TOKEN_HYP_STANDARDS,
+  ...TOKEN_INTENT_STANDARDS,
   TokenStandard.CosmosIbc,
 ];
 
@@ -164,6 +174,8 @@ export const TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
   [TokenType.syntheticUri]: TokenStandard.EvmHypSynthetic,
   [TokenType.fastSynthetic]: TokenStandard.EvmHypSynthetic,
   [TokenType.nativeScaled]: TokenStandard.EvmHypNative,
+  [TokenType.intent]: TokenStandard.EvmIntent,
+  [TokenType.intentNative]: TokenStandard.EvmIntentNative,
 };
 
 export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
