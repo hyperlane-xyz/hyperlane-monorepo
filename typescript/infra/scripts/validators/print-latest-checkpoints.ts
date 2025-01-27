@@ -16,19 +16,6 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChainsRequired } from '../agent-utils.js';
 import { getHyperlaneCore } from '../core-utils.js';
 
-function getHttpsUrl(storageLocation: string): string {
-  if (storageLocation.startsWith('s3://')) {
-    // Convert s3:///bucket-name/region to https://bucket-name.s3.region.amazonaws.com
-    const [, , bucket, region] = storageLocation.split('/');
-    return `https://${bucket}.s3.${region}.amazonaws.com`;
-  } else if (storageLocation.startsWith('gs://')) {
-    // Convert gs://bucket-name to https://storage.googleapis.com/bucket-name
-    const bucket = storageLocation.replace('gs://', '');
-    return `https://storage.googleapis.com/${bucket}`;
-  }
-  return storageLocation;
-}
-
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, chains } = await withChainsRequired(getArgs()).argv;
@@ -89,9 +76,7 @@ async function main() {
 
           const latestCheckpoint =
             await validatorInstance.getLatestCheckpointIndex();
-          const bucket = getHttpsUrl(
-            validatorInstance.getLatestCheckpointUrl(),
-          );
+          const bucket = validatorInstance.getLatestCheckpointUrl();
 
           if (!validators[chain]) {
             validators[chain] = {};
