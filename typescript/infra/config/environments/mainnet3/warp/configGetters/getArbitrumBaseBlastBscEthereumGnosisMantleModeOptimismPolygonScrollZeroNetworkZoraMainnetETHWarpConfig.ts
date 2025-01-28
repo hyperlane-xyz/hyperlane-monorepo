@@ -15,7 +15,7 @@ import {
 } from '../../../../../src/config/warp.js';
 
 // Decent team wallet
-const DECENT_OWNER = '0x5b234E48a3dD867f0DdA9DAd1DBd554eCE823cA0';
+const DECENT_OWNER = '0x00002a0c642a314eb6DD34c5Be2DA6504129969e';
 
 export const getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig =
   async (
