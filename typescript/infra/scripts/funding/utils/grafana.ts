@@ -356,3 +356,15 @@ export function generateQuery(
 ${config.queryTemplate.footer}
 )`;
 }
+
+export function orderThresholds(
+  newThresholds: ChainMap<string>,
+): ChainMap<string> {
+  const orderedThresholds: ChainMap<string> = {};
+  Object.keys(newThresholds)
+    .sort()
+    .forEach((key) => {
+      orderedThresholds[key] = newThresholds[key];
+    });
+  return orderedThresholds;
+}

@@ -15,9 +15,12 @@ import {
 import {
   THRESHOLD_CONFIG_PATH,
   formatDailyRelayerBurn,
+  orderThresholds,
 } from './utils/grafana.js';
 
 const dailyBurn: ChainMap<number> = rawDailyBurn;
+
+const exclusionList = ['osmosis'];
 
 async function main() {
   const { balanceThresholdConfig } = await withBalanceThresholdConfig(
@@ -51,11 +54,26 @@ async function main() {
     // Update the threshold for each chain, if it doesn't exist, create a new one
     for (const chain in dailyBurn) {
       if (!currentThresholds[chain]) {
+        // Skip chains in the exclusion list
+        if (exclusionList.includes(chain)) {
+          rootLogger.info(`Skipping ${chain} as it is in the exclusion list`);
+          continue;
+        }
+
         newThresholds[chain] = formatDailyRelayerBurn(
           dailyBurn[chain] *
             balanceThresholdConfigMapping[config].dailyRelayerBurnMultiplier,
         ).toString();
       } else {
+        // This will ensure that chains where the desired threshold is 0 will be unchanged
+        if (
+          config === BalanceThresholdType.RelayerBalance &&
+          parseFloat(currentThresholds[chain]) === 0
+        ) {
+          newThresholds[chain] = currentThresholds[chain];
+          continue;
+        }
+
         newThresholds[chain] = Math.max(
           formatDailyRelayerBurn(
             dailyBurn[chain] *
@@ -66,11 +84,14 @@ async function main() {
       }
     }
 
+    // order thresholds by chain
+    const orderedThresholds = orderThresholds(newThresholds);
+
     try {
       rootLogger.info(`Writing ${config} config to file..`);
       writeJsonAtPath(
         `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[config].configFileName}`,
-        newThresholds,
+        orderedThresholds,
       );
       rootLogger.info(`Successfully updated ${config} config`);
     } catch (e) {

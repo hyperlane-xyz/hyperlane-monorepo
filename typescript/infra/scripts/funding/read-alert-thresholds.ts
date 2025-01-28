@@ -9,6 +9,7 @@ import {
   THRESHOLD_CONFIG_PATH,
   alertConfigMapping,
   getAlertThresholds,
+  orderThresholds,
 } from './utils/grafana.js';
 
 async function main() {
@@ -17,8 +18,9 @@ async function main() {
   ).argv;
 
   const alertThresholds = await getAlertThresholds(alertType);
+  const orderedThresholds = orderThresholds(alertThresholds);
 
-  const alertThresholdArray = Object.entries(alertThresholds).map(
+  const alertThresholdArray = Object.entries(orderedThresholds).map(
     ([chain, threshold]) => ({
       chain,
       threshold,
@@ -31,7 +33,7 @@ async function main() {
     try {
       writeJsonAtPath(
         `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alertType].configFileName}`,
-        alertThresholds,
+        orderedThresholds,
       );
       rootLogger.info('Alert thresholds written to file.');
     } catch (e) {
