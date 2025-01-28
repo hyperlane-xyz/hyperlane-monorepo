@@ -7,6 +7,7 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
+import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 export const getEthereumVictionETHWarpConfig = async (
@@ -15,7 +16,7 @@ export const getEthereumVictionETHWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const viction: HypTokenRouterConfig = {
     ...routerConfig.viction,
-    ...abacusWorksEnvOwnerConfig.viction,
+    ...getOwnerConfigForAddress(abacusWorksEnvOwnerConfig.viction.owner),
     type: TokenType.synthetic,
     name: 'ETH',
     symbol: 'ETH',
@@ -27,7 +28,7 @@ export const getEthereumVictionETHWarpConfig = async (
 
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...abacusWorksEnvOwnerConfig.ethereum,
+    ...getOwnerConfigForAddress(abacusWorksEnvOwnerConfig.ethereum.owner),
     type: TokenType.native,
     gas: 65_000,
     interchainSecurityModule: ethers.constants.AddressZero,
