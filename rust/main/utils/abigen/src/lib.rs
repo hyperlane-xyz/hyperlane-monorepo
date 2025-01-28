@@ -79,7 +79,7 @@ pub fn generate_bindings(
         .as_ref()
         .file_name()
         .and_then(OsStr::to_str)
-        .expect("contract filename not is not valid unicode.")
+        .expect("contract filename is not valid unicode.")
         .split('.')
         .next()
         .expect("missing extension in path");
