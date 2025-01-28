@@ -3,7 +3,7 @@ import yargs from 'yargs';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { writeJsonAtPath } from '../../src/utils/utils.js';
-import { withAlertType, withWrite } from '../agent-utils.js';
+import { withAlertTypeRequired, withWrite } from '../agent-utils.js';
 
 import {
   THRESHOLD_CONFIG_PATH,
@@ -13,7 +13,7 @@ import {
 
 async function main() {
   const { alertType, write } = await withWrite(
-    withAlertType(yargs(process.argv.slice(2))),
+    withAlertTypeRequired(yargs(process.argv.slice(2))),
   ).argv;
 
   const alertThresholds = await getAlertThresholds(alertType);

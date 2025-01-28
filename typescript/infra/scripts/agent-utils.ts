@@ -219,8 +219,11 @@ export function withProtocol<T>(args: Argv<T>) {
 export function withAlertType<T>(args: Argv<T>) {
   return args
     .describe('alertType', 'alert type')
-    .choices('alertType', Object.values(AlertType))
-    .demandOption('alertType');
+    .choices('alertType', Object.values(AlertType));
+}
+
+export function withAlertTypeRequired<T>(args: Argv<T>) {
+  return withAlertType(args).demandOption('alertType');
 }
 
 export function withAgentRole<T>(args: Argv<T>) {

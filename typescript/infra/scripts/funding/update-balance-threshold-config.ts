@@ -26,20 +26,14 @@ async function main() {
 
   const configToUpdate: BalanceThresholdType[] = balanceThresholdConfig
     ? [balanceThresholdConfig]
-    : [];
-
-  if (configToUpdate.length === 0) {
-    const selectedConfig = await checkbox({
-      message: 'Select the balance threshold config to update',
-      choices: Object.values(BalanceThresholdType).map((config) => ({
-        name: balanceThresholdConfigMapping[config].choiceLabel,
-        value: config,
-        checked: true, // default to all checked
-      })),
-    });
-
-    configToUpdate.push(...selectedConfig);
-  }
+    : await checkbox({
+        message: 'Select the balance threshold config to update',
+        choices: Object.values(BalanceThresholdType).map((config) => ({
+          name: balanceThresholdConfigMapping[config].choiceLabel,
+          value: config,
+          checked: true, // default to all checked
+        })),
+      });
 
   for (const config of configToUpdate) {
     rootLogger.info(`Updating ${config} config`);

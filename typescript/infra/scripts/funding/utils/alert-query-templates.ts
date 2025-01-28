@@ -32,6 +32,8 @@ export const LOW_URGENCY_KEY_FUNDER_FOOTER = `    # Mainnets that don't use key-
     (last_over_time(hyperlane_wallet_balance{wallet_name="relayer", chain="stride"}[1d])) - 10
 `;
 
+// TODO: add footer for LOW_URGENCY_ENG_KEY_FUNDER
+
 export const HIGH_URGENCY_RELAYER_HEADER = `min by (chain, wallet_address, wallet_name) (
     # Mainnets`;
 

@@ -1,3 +1,5 @@
+import { checkbox } from '@inquirer/prompts';
+
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -42,6 +44,7 @@ interface AlertConfig {
   walletName: WalletName;
   grafanaAlertId: string;
   configFileName: string;
+  choiceLabel: string;
   queryTemplate: {
     header: string;
     footer: string;
@@ -56,6 +59,10 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       balanceThresholdConfigMapping[
         BalanceThresholdType.LowUrgencyKeyFunderBalance
       ].configFileName,
+    choiceLabel:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.LowUrgencyKeyFunderBalance
+      ].choiceLabel,
     queryTemplate: {
       header: LOW_URGENCY_KEY_FUNDER_HEADER,
       footer: LOW_URGENCY_KEY_FUNDER_FOOTER,
@@ -68,6 +75,10 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       balanceThresholdConfigMapping[
         BalanceThresholdType.LowUrgencyEngKeyFunderBalance
       ].configFileName,
+    choiceLabel:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.LowUrgencyEngKeyFunderBalance
+      ].choiceLabel,
     queryTemplate: {
       header: LOW_URGENCY_KEY_FUNDER_HEADER,
       footer: LOW_URGENCY_KEY_FUNDER_FOOTER,
@@ -80,6 +91,10 @@ export const alertConfigMapping: Record<AlertType, AlertConfig> = {
       balanceThresholdConfigMapping[
         BalanceThresholdType.HighUrgencyRelayerBalance
       ].configFileName,
+    choiceLabel:
+      balanceThresholdConfigMapping[
+        BalanceThresholdType.HighUrgencyRelayerBalance
+      ].choiceLabel,
     queryTemplate: {
       header: HIGH_URGENCY_RELAYER_HEADER,
       footer: HIGH_URGENCY_RELAYER_FOOTER,
@@ -290,34 +305,27 @@ export async function updateGrafanaAlert(
     })),
   };
 
-  try {
-    const response = await fetch(
-      `${GRAFANA_URL}/api/v1/provisioning/alert-rules/${alertUid}`,
-      {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${saToken}`,
-          'Content-Type': 'application/json',
-          'X-Disable-Provenance': 'true',
-        },
-        body: JSON.stringify(updatedRule),
+  const response = await fetch(
+    `${GRAFANA_URL}/api/v1/provisioning/alert-rules/${alertUid}`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${saToken}`,
+        'Content-Type': 'application/json',
+        'X-Disable-Provenance': 'true',
       },
+      body: JSON.stringify(updatedRule),
+    },
+  );
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(
+      `Failed to update alert: ${response.status} ${JSON.stringify(errorData)}`,
     );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(
-        `Failed to update alert: ${response.status} ${JSON.stringify(
-          errorData,
-        )}`,
-      );
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error updating alert:', error);
-    throw error;
   }
+
+  return response.json();
 }
 
 export function generateQuery(

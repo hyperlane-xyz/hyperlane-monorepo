@@ -28,12 +28,12 @@ export const balanceThresholdConfigMapping: Record<
   [BalanceThresholdType.LowUrgencyKeyFunderBalance]: {
     configFileName: `${[BalanceThresholdType.LowUrgencyKeyFunderBalance]}.json`,
     dailyRelayerBurnMultiplier: 12,
-    choiceLabel: 'Low Urgency Key Funder Balance Alert Threshold',
+    choiceLabel: 'Low Urgency Key Funder Balance',
   },
   [BalanceThresholdType.LowUrgencyEngKeyFunderBalance]: {
     configFileName: `${BalanceThresholdType.LowUrgencyEngKeyFunderBalance}.json`,
     dailyRelayerBurnMultiplier: 6,
-    choiceLabel: 'Low Urgency Eng Key Funder Balance Alert Threshold',
+    choiceLabel: 'Low Urgency Eng Key Funder Balance',
   },
   [BalanceThresholdType.HighUrgencyRelayerBalance]: {
     configFileName: `${BalanceThresholdType.HighUrgencyRelayerBalance}.json`,
