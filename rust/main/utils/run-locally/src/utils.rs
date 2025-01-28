@@ -119,6 +119,12 @@ pub fn stop_child(child: &mut Child) {
     };
 }
 
+/// Given a Vec<Vec<&str>>,
+/// for each Vec<&str>, count how many lines in the file
+/// matches all the &str in that Vec.
+/// Store this count in a hashmap where the key is the vector
+/// Vec<&str>
+/// and return this hashmap.
 pub fn get_matching_lines<'a>(
     file: &File,
     search_strings: Vec<Vec<&'a str>>,

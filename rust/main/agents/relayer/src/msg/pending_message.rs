@@ -21,7 +21,7 @@ use hyperlane_core::{
 };
 use prometheus::{IntCounter, IntGauge};
 use serde::Serialize;
-use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument};
+use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -515,18 +515,29 @@ impl PendingMessage {
         // Attempt to fetch status about message from database
         let message_status = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
             Ok(Some(status)) => {
-                #[cfg(feature = "test-utils")]
-                tracing::debug!(
+                // This event is used for E2E tests to ensure message statuses
+                // are being properly loaded from the db
+                tracing::event!(
+                    if cfg!(feature = "test-utils") {
+                        Level::DEBUG
+                    } else {
+                        Level::TRACE
+                    },
                     ?status,
-                    id = format!("{:x}", message.id()),
-                    "{}",
+                    id=?message.id(),
                     RETRIEVED_MESSAGE_LOG,
                 );
                 status
             }
             _ => {
-                #[cfg(feature = "test-utils")]
-                tracing::debug!("Message status not found in db");
+                tracing::event!(
+                    if cfg!(feature = "test-utils") {
+                        Level::DEBUG
+                    } else {
+                        Level::TRACE
+                    },
+                    "Message status not found in db"
+                );
                 PendingOperationStatus::FirstPrepareAttempt
             }
         };

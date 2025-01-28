@@ -437,17 +437,37 @@ fn main() -> ExitCode {
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
 
     // wait for CI invariants to pass
-    let mut test_passed = wait_for_condition(&config, loop_start, || {
-        termination_invariants_met(
-            &config,
-            starting_relayer_balance,
-            solana_paths
-                .clone()
-                .map(|(_, solana_path)| solana_path)
-                .as_deref(),
-            solana_config_path.as_deref(),
-        )
-    });
+    let mut test_passed = wait_for_condition(
+        &config,
+        loop_start,
+        || {
+            termination_invariants_met(
+                &config,
+                starting_relayer_balance,
+                solana_paths
+                    .clone()
+                    .map(|(_, solana_path)| solana_path)
+                    .as_deref(),
+                solana_config_path.as_deref(),
+            )
+        },
+        || {
+            // verify long-running tasks are still running
+            for (name, (child, _)) in state.agents.iter_mut() {
+                if let Some(status) = child.try_wait().unwrap() {
+                    if !status.success() {
+                        log!(
+                            "Child process {} exited unexpectedly, with code {}. Shutting down",
+                            name,
+                            status.code().unwrap()
+                        );
+                        return true;
+                    }
+                }
+            }
+            return false;
+        },
+    );
 
     if !test_passed {
         log!("Failure occurred during E2E");
@@ -463,22 +483,10 @@ fn main() -> ExitCode {
 
     let loop_start = Instant::now();
     // wait for Relayer restart invariants to pass
-    test_passed = wait_for_condition(&config, loop_start, relayer_restart_invariants_met);
+    test_passed = wait_for_condition(&config, loop_start, relayer_restart_invariants_met, || {
+        return false;
+    });
 
-    // verify long-running tasks are still running
-    for (name, (child, _)) in state.agents.iter_mut() {
-        if let Some(status) = child.try_wait().unwrap() {
-            if !status.success() {
-                log!(
-                    "Child process {} exited unexpectedly, with code {}. Shutting down",
-                    name,
-                    status.code().unwrap()
-                );
-                test_passed = false;
-                break;
-            }
-        }
-    }
     // test retry request
     let resp = server::run_retry_request().expect("Failed to process retry request");
     assert!(resp.matched > 0);
@@ -608,9 +616,15 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     Ok(true)
 }
 
-fn wait_for_condition<F>(config: &Config, start_time: Instant, condition_fn: F) -> bool
+fn wait_for_condition<F1, F2>(
+    config: &Config,
+    start_time: Instant,
+    condition_fn: F1,
+    mut shutdown_criteria_fn: F2,
+) -> bool
 where
-    F: Fn() -> eyre::Result<bool>,
+    F1: Fn() -> eyre::Result<bool>,
+    F2: FnMut() -> bool,
 {
     let loop_check_interval = Duration::from_secs(5);
     while !SHUTDOWN.load(Ordering::Relaxed) {
@@ -627,6 +641,10 @@ where
         if check_ci_timed_out(config, start_time) {
             // we ran out of time
             log!("CI timeout reached before invariants were met");
+            return false;
+        }
+
+        if shutdown_criteria_fn() {
             return false;
         }
     }
