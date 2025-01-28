@@ -1544,5 +1544,16 @@ export const validatorChainConfig = (
         'unitzero',
       ),
     },
+
+    sonicsvm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonicsvm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf21f46905d8d09f76bc8c503f856e5466bc5ffea'],
+        },
+        'sonicsvm',
+      ),
+    },
   };
 };
