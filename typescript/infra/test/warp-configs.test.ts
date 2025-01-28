@@ -24,7 +24,7 @@ describe('Warp Configs', async function () {
   const envConfig = getEnvironmentConfig(ENV);
 
   for (const warpRouteId of warpIdsToCheck) {
-    it(`Github Registry configs match ${warpRouteId} Getter`, async () => {
+    it(`should match Github Registry configs for ${warpRouteId}`, async () => {
       const warpConfig = await getWarpConfig(
         multiProvider,
         envConfig,
