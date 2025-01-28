@@ -1,5 +1,17 @@
 # @hyperlane-xyz/sdk
 
+## 8.4.0
+
+### Minor Changes
+
+- f6b682cdb: Deploy to abstract, glue, matchain, unitzero.
+
+### Patch Changes
+
+- Updated dependencies [47ae33c6a]
+  - @hyperlane-xyz/core@5.11.0
+  - @hyperlane-xyz/utils@8.4.0
+
 ## 8.3.0
 
 ### Minor Changes
