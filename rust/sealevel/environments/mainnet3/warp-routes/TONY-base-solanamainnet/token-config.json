@@ -1,0 +1,17 @@
+{
+  "base": {
+    "type": "collateral",
+    "decimals": 18,
+    "token": "0xb22a793a81ff5b6ad37f40d5fe1e0ac4184d52f3",
+    "foreignDeployment": "0xcc9EcE816641c8350Db06af375811107B1Aa0b9d"
+  },
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "remoteDecimals": 18,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "name": "Big Tony",
+    "symbol": "TONY",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/e95e1d64a0d36c3c69bb09ed4e29acc8350848b6/deployments/warp_routes/TONY/metadata.json"
+  }
+}

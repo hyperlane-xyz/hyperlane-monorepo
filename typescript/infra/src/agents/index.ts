@@ -1,4 +1,3 @@
-import fs from 'fs';
 import { join } from 'path';
 
 import {
@@ -48,11 +47,6 @@ const HELM_CHART_PATH = join(
   getInfraPath(),
   '/../../rust/main/helm/hyperlane-agent/',
 );
-
-if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
-  console.warn(
-    `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
-  );
 
 export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> {
   abstract readonly role: AgentRole;

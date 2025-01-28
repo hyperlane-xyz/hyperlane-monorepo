@@ -135,10 +135,12 @@ jobs:
           # Other commands
           - relay
           # Warp Commands
+          - warp-apply
+          - warp-check
+          - warp-deploy
           - warp-init
           - warp-read
-          - warp-apply
-          - warp-deploy
+          - warp-send
     steps:
       - uses: actions/checkout@v4
         with:
@@ -307,6 +309,8 @@ jobs:
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+      MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+      TESTNET4_SEPOLIA_RPC_URLS: ${{ secrets.TESTNET4_SEPOLIA_RPC_URLS }}
 
     timeout-minutes: 10
     needs: [yarn-install]
@@ -337,8 +341,15 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment
-        run: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
+      - name: Fork test ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }} deployment with retries
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 8
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: cd typescript/infra && ./fork.sh ${{ matrix.environment }} ${{ matrix.module }} ${{ matrix.chain }}
+          on_retry_command: |
+            echo "Test failed, waiting before retry..."
 
   coverage:
     runs-on: ubuntu-latest

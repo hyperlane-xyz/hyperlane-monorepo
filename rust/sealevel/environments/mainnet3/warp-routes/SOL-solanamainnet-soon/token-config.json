@@ -2,8 +2,7 @@
   "solanamainnet": {
     "type": "native",
     "decimals": 9,
-    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
-    "interchainSecurityModule": "HPNQHcc7wRcwsPG1aVBpPgpYuV7h2MJiVgKnAgTdDRBM"
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
   },
   "soon": {
     "type": "synthetic",

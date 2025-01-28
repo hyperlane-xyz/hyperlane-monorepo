@@ -6,7 +6,7 @@ import {
   ChainSubmissionStrategy,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../../../utils/env.js';
 
@@ -48,6 +48,12 @@ export class MultiProtocolSignerManager {
    */
   protected initializeStrategies(): void {
     for (const chain of this.chains) {
+      if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        this.logger.debug(
+          `Skipping signer strategy initialization for non-EVM chain ${chain}`,
+        );
+        continue;
+      }
       const strategy = MultiProtocolSignerFactory.getSignerStrategy(
         chain,
         this.submissionStrategy,
@@ -62,6 +68,12 @@ export class MultiProtocolSignerManager {
    */
   async getMultiProvider(): Promise<MultiProvider> {
     for (const chain of this.chains) {
+      if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+        this.logger.debug(
+          `Skipping signer initialization for non-EVM chain ${chain}`,
+        );
+        continue;
+      }
       const signer = await this.initSigner(chain);
       this.multiProvider.setSigner(chain, signer);
     }
