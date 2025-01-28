@@ -311,6 +311,10 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
     new Set(chainsToDeploy),
     new Set(Object.keys(xERC20)),
   );
+  const tokenPriceDiff = symmetricDifference(
+    new Set(chainsToDeploy),
+    new Set(Object.keys(tokenPrices)),
+  );
   if (validatorDiff.size > 0) {
     throw new Error(
       `chainsToDeploy !== validatorConfig, diff is ${Array.from(
@@ -324,6 +328,14 @@ export const getRenzoEZETHWarpConfig = async (): Promise<
     );
   }
   if (xERC20Diff.size > 0) {
+    throw new Error(
+      `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
+        ', ',
+      )}`,
+    );
+  }
+
+  if (tokenPriceDiff.size > 0) {
     throw new Error(
       `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
         ', ',
