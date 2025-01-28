@@ -7320,6 +7320,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
+    "@hyperlane-xyz/registry": "npm:7.3.0"
     "@hyperlane-xyz/sdk": "npm:8.5.0"
     "@hyperlane-xyz/utils": "npm:8.5.0"
     "@inquirer/core": "npm:9.0.10"
