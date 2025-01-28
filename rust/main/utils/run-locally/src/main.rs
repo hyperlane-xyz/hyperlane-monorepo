@@ -429,7 +429,7 @@ fn main() -> ExitCode {
 
     if !post_startup_invariants(&checkpoints_dirs) {
         log!("Failure: Post startup invariants are not met");
-        return report_test_result(true);
+        return report_test_result(false);
     } else {
         log!("Success: Post startup invariants are met");
     }
@@ -437,7 +437,7 @@ fn main() -> ExitCode {
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
 
     // wait for CI invariants to pass
-    let mut failure_occurred = wait_for_condition(&config, loop_start, || {
+    let mut test_passed = wait_for_condition(&config, loop_start, || {
         termination_invariants_met(
             &config,
             starting_relayer_balance,
@@ -449,8 +449,9 @@ fn main() -> ExitCode {
         )
     });
 
-    if failure_occurred {
-        return report_test_result(failure_occurred);
+    if !test_passed {
+        log!("Failure occurred during E2E");
+        return report_test_result(test_passed);
     }
 
     // Here we want to restart the relayer and validate
@@ -462,7 +463,7 @@ fn main() -> ExitCode {
 
     let loop_start = Instant::now();
     // wait for Relayer restart invariants to pass
-    failure_occurred = wait_for_condition(&config, loop_start, relayer_restart_invariants_met);
+    test_passed = wait_for_condition(&config, loop_start, relayer_restart_invariants_met);
 
     // verify long-running tasks are still running
     for (name, (child, _)) in state.agents.iter_mut() {
@@ -473,7 +474,7 @@ fn main() -> ExitCode {
                     name,
                     status.code().unwrap()
                 );
-                failure_occurred = true;
+                test_passed = false;
                 break;
             }
         }
@@ -482,7 +483,7 @@ fn main() -> ExitCode {
     let resp = server::run_retry_request().expect("Failed to process retry request");
     assert!(resp.matched > 0);
 
-    report_test_result(failure_occurred)
+    report_test_result(test_passed)
 }
 
 fn create_common_agent() -> Program {
@@ -636,12 +637,12 @@ fn check_ci_timed_out(config: &Config, start_time: Instant) -> bool {
     (Instant::now() - start_time).as_secs() > config.ci_mode_timeout
 }
 
-fn report_test_result(failure_occurred: bool) -> ExitCode {
-    if failure_occurred {
-        log!("E2E tests failed");
-        ExitCode::FAILURE
-    } else {
+fn report_test_result(passed: bool) -> ExitCode {
+    if passed {
         log!("E2E tests passed");
         ExitCode::SUCCESS
+    } else {
+        log!("E2E tests failed");
+        ExitCode::FAILURE
     }
 }
