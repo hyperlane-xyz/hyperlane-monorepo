@@ -6,7 +6,10 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import rawDailyBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
 import { readJSONAtPath, writeJsonAtPath } from '../../src/utils/utils.js';
-import { withBalanceThresholdConfig } from '../agent-utils.js';
+import {
+  withBalanceThresholdConfig,
+  withConfirmAllChoices,
+} from '../agent-utils.js';
 
 import {
   BalanceThresholdType,
@@ -15,7 +18,7 @@ import {
 import {
   THRESHOLD_CONFIG_PATH,
   formatDailyRelayerBurn,
-  orderThresholds,
+  sortThresholds,
 } from './utils/grafana.js';
 
 const dailyBurn: ChainMap<number> = rawDailyBurn;
@@ -23,11 +26,13 @@ const dailyBurn: ChainMap<number> = rawDailyBurn;
 const exclusionList = ['osmosis'];
 
 async function main() {
-  const { balanceThresholdConfig } = await withBalanceThresholdConfig(
-    yargs(process.argv.slice(2)),
+  const { balanceThresholdConfig, all } = await withConfirmAllChoices(
+    withBalanceThresholdConfig(yargs(process.argv.slice(2))),
   ).argv;
 
-  const configToUpdate: BalanceThresholdType[] = balanceThresholdConfig
+  const configToUpdate: BalanceThresholdType[] = all
+    ? Object.values(BalanceThresholdType)
+    : balanceThresholdConfig
     ? [balanceThresholdConfig]
     : await checkbox({
         message: 'Select the balance threshold config to update',
@@ -84,14 +89,13 @@ async function main() {
       }
     }
 
-    // order thresholds by chain
-    const orderedThresholds = orderThresholds(newThresholds);
+    const sortedThresholds = sortThresholds(newThresholds);
 
     try {
       rootLogger.info(`Writing ${config} config to file..`);
       writeJsonAtPath(
         `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[config].configFileName}`,
-        orderedThresholds,
+        sortedThresholds,
       );
       rootLogger.info(`Successfully updated ${config} config`);
     } catch (e) {

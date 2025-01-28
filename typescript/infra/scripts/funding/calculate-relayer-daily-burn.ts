@@ -47,14 +47,7 @@ async function main() {
     await sql.end();
   }
 
-  const burnArray = Object.entries(burnData).map(
-    ([chain, dailyRelayerBurn]) => ({
-      chain,
-      dailyRelayerBurn,
-    }),
-  );
-
-  console.table(burnArray);
+  console.table(burnData);
 
   try {
     rootLogger.info('Writing daily burn data to file..');

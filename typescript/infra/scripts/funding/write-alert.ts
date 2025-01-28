@@ -4,13 +4,12 @@ import yargs from 'yargs';
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import { AlertType, alertConfigMapping } from '../../config/grafanaAlerts.js';
 import { readJSONAtPath } from '../../src/utils/utils.js';
-import { withAlertType } from '../agent-utils.js';
+import { withAlertType, withConfirmAllChoices } from '../agent-utils.js';
 
 import {
-  AlertType,
   THRESHOLD_CONFIG_PATH,
-  alertConfigMapping,
   fetchGrafanaAlert,
   fetchServiceAccountToken,
   generateQuery,
@@ -18,11 +17,15 @@ import {
 } from './utils/grafana.js';
 
 async function main() {
-  const { alertType } = await withAlertType(yargs(process.argv.slice(2))).argv;
+  const { alertType, all } = await withConfirmAllChoices(
+    withAlertType(yargs(process.argv.slice(2))),
+  ).argv;
 
   const saToken = await fetchServiceAccountToken();
 
-  const alertsToUpdate: AlertType[] = alertType
+  const alertsToUpdate: AlertType[] = all
+    ? Object.values(AlertType)
+    : alertType
     ? [alertType]
     : await checkbox({
         message: 'Select the alert type to update',
