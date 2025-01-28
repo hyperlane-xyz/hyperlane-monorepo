@@ -11,7 +11,7 @@ use tempfile::{tempdir, NamedTempFile};
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, AgentHandles, ArbitraryData, TaskHandle};
-use crate::SOLANA_AGNET_BIN_PATH;
+use crate::SOLANA_AGENT_BIN_PATH;
 
 /// Solana CLI version for compiling programs
 pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
@@ -57,7 +57,7 @@ const SOLANA_HYPERLANE_PROGRAMS: &[&str] = &[
 const SOLANA_KEYPAIR: &str = "../main/config/test-sealevel-keys/test_deployer-keypair.json";
 const SOLANA_DEPLOYER_ACCOUNT: &str =
     "../main/config/test-sealevel-keys/test_deployer-account.json";
-const SOLANA_WARPROUTE_TOKEN_CONFIG_FILE: &str =
+const SOLANA_WARP_ROUTE_TOKEN_CONFIG_FILE: &str =
     "../sealevel/environments/local-e2e/warp-routes/testwarproute/token-config.json";
 const SOLANA_CHAIN_CONFIG_FILE: &str = "../sealevel/environments/local-e2e/chain-config.json";
 const SOLANA_ENVS_DIR: &str = "../sealevel/environments";
@@ -492,7 +492,7 @@ pub fn solana_termination_invariants_met(
 }
 fn sealevel_client(solana_cli_tools_path: &Path, solana_config_path: &Path) -> Program {
     Program::new(concat_path(
-        SOLANA_AGNET_BIN_PATH,
+        SOLANA_AGENT_BIN_PATH,
         "hyperlane-sealevel-client",
     ))
     .env("PATH", updated_path(solana_cli_tools_path))
