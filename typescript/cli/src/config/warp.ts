@@ -12,14 +12,10 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
+  WarpRouteDeployConfigSchemaWithoutMailbox,
+  WarpRouteDeployConfigWithoutMailbox,
 } from '@hyperlane-xyz/sdk';
-import {
-  Address,
-  assert,
-  isAddress,
-  objMap,
-  promiseObjAll,
-} from '@hyperlane-xyz/utils';
+import { Address, assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
 import { CommandContext } from '../context/types.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
@@ -108,7 +104,7 @@ export async function readWarpRouteDeployConfig(
 }
 
 export function isValidWarpRouteDeployConfig(config: any) {
-  return WarpRouteDeployConfigSchema.safeParse(config).success;
+  return WarpRouteDeployConfigSchemaWithoutMailbox.safeParse(config).success;
 }
 
 export async function createWarpRouteDeployConfig({
@@ -131,7 +127,7 @@ export async function createWarpRouteDeployConfig({
     requiresConfirmation: !context.skipConfirmation,
   });
 
-  const result: WarpRouteDeployConfig = {};
+  const result: WarpRouteDeployConfigWithoutMailbox = {};
   let typeChoices = TYPE_CHOICES;
   for (const chain of warpChains) {
     logBlue(`${chain}: Configuring warp route...`);
@@ -141,16 +137,6 @@ export async function createWarpRouteDeployConfig({
       'owner address',
       'signer',
     );
-
-    // default to the mailbox from the registry and if not found ask to the user to submit one
-    const chainAddresses = await context.registry.getChainAddresses(chain);
-
-    const mailbox =
-      chainAddresses?.mailbox ??
-      (await input({
-        validate: isAddress,
-        message: `Could not retrieve mailbox address from the registry for chain "${chain}". Please enter a valid mailbox address:`,
-      }));
 
     const proxyAdmin: DeployedOwnableConfig = await setProxyAdminConfig(
       context,
@@ -198,7 +184,6 @@ export async function createWarpRouteDeployConfig({
       case TokenType.collateralUri:
       case TokenType.fastCollateral:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -211,7 +196,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.syntheticRebase:
         result[chain] = {
-          mailbox,
           type,
           owner,
           isNft,
@@ -226,7 +210,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.collateralVaultRebase:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -241,7 +224,6 @@ export async function createWarpRouteDeployConfig({
         break;
       case TokenType.collateralVault:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -254,7 +236,6 @@ export async function createWarpRouteDeployConfig({
         break;
       default:
         result[chain] = {
-          mailbox,
           type,
           owner,
           proxyAdmin,
@@ -265,7 +246,8 @@ export async function createWarpRouteDeployConfig({
   }
 
   try {
-    const warpRouteDeployConfig = WarpRouteDeployConfigSchema.parse(result);
+    const warpRouteDeployConfig =
+      WarpRouteDeployConfigSchemaWithoutMailbox.parse(result);
     logBlue(`Warp Route config is valid, writing to file ${outPath}:\n`);
     log(indentYamlOrJson(yamlStringify(warpRouteDeployConfig, null, 2), 4));
     writeYamlOrJson(outPath, warpRouteDeployConfig, 'yaml');

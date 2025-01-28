@@ -587,6 +587,8 @@ export {
   WarpRouteDeployConfig,
   WarpRouteDeployConfigSchema,
   WarpRouteDeployConfigSchemaErrors,
+  WarpRouteDeployConfigWithoutMailbox,
+  WarpRouteDeployConfigSchemaWithoutMailbox,
 } from './token/types.js';
 export {
   ChainMap,
