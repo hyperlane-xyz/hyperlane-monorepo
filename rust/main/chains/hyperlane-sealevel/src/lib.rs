@@ -7,6 +7,7 @@
 pub use crate::multisig_ism::*;
 pub use interchain_gas::*;
 pub use interchain_security_module::*;
+pub use keypair::*;
 pub use mailbox::*;
 pub use merkle_tree_hook::*;
 pub use provider::*;
@@ -19,6 +20,7 @@ mod account;
 mod error;
 mod interchain_gas;
 mod interchain_security_module;
+mod keypair;
 mod log_meta_composer;
 mod mailbox;
 mod merkle_tree_hook;
