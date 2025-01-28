@@ -1,0 +1,179 @@
+import {
+  createPublicClient,
+  encodeFunctionData,
+  http,
+  parseAbiItem,
+} from 'viem';
+import { mainnet } from 'viem/chains';
+
+import { assert } from '@hyperlane-xyz/utils';
+
+const environment = 'mainnet3';
+
+const VAULTS = [
+  {
+    name: 'EtherFi LBTC',
+    vault: '0xd4E20ECA1f996Dab35883dC0AD5E3428AF888D45',
+  },
+  {
+    name: 'EtherFi wstETH',
+    vault: '0x450a90fdEa8B87a6448Ca1C87c88Ff65676aC45b',
+  },
+  {
+    name: 'Renzo pzETH',
+    vault: '0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9',
+  },
+  {
+    name: 'Swell swETH',
+    vault: '0x65b560d887c010c4993c8f8b36e595c171d69d63',
+  },
+  {
+    name: 'Swell WBTC',
+    vault: '0x9e405601B645d3484baeEcf17bBF7aD87680f6e8',
+  },
+  {
+    name: 'MEV Mellow wstETH',
+    vault: '0x446970400e1787814CA050A4b45AE9d21B3f7EA7',
+  },
+  {
+    name: 'MEV Symbiotic wstETH',
+    vault: '0x4e0554959A631B3D3938ffC158e0a7b2124aF9c5',
+  },
+  {
+    name: 'Gauntlet wstETH',
+    vault: '0xc10A7f0AC6E3944F4860eE97a937C51572e3a1Da',
+  },
+  {
+    name: 'Gauntlet cbETH',
+    vault: '0xB8Fd82169a574eB97251bF43e443310D33FF056C',
+  },
+  {
+    name: 'Gauntlet rETH',
+    vault: '0xaF07131C497E06361dc2F75de63dc1d3e113f7cb',
+  },
+  {
+    name: 'Gauntlet wBETH',
+    vault: '0x81bb35c4152B605574BAbD320f8EABE2871CE8C6',
+  },
+  {
+    name: 'Gauntlet swETH',
+    vault: '0x65B560d887c010c4993C8F8B36E595C171d69D63',
+  },
+  {
+    name: 'P2P wstETH',
+    vault: '0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E',
+  },
+  {
+    name: 'Re7 wstETH',
+    vault: '0x3D93b33f5E5fe74D54676720e70EA35210cdD46E',
+  },
+];
+
+const NETWORK = '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2';
+
+const SUBNETWORK = NETWORK.padEnd(64 + 2, '0') as `0x${string}`;
+
+const SET_LIMIT_ABI = parseAbiItem(
+  'function setNetworkLimit(bytes32 subnetwork, uint256 amount)',
+);
+
+const VAULT_DELEGATOR_ABI = parseAbiItem(
+  'function delegator() returns (address)',
+);
+
+const SCHEDULE_BATCH_ABI = parseAbiItem(
+  'function scheduleBatch(address[] calldata targets,uint256[] calldata values,bytes[] calldata payloads,bytes32 predecessor,bytes32 salt,uint256 delay)',
+);
+
+const EXECUTE_BATCH_ABI = parseAbiItem(
+  'function executeBatch(address[] calldata targets,uint256[] calldata values,bytes[] calldata payloads,bytes32 predecessor,bytes32 salt)',
+);
+
+const ZERO_BYTES32 = '0x'.padEnd(64 + 2, '0') as `0x${string}`;
+
+async function main() {
+  const client = createPublicClient({
+    chain: mainnet,
+    transport: http(),
+  });
+
+  const delegatorContracts = VAULTS.map(({ vault }) => ({
+    address: vault as `0x${string}`,
+    abi: [VAULT_DELEGATOR_ABI],
+    functionName: 'delegator',
+  }));
+
+  const results = await client.multicall({ contracts: delegatorContracts });
+
+  const delegators = results.map(({ status, result }) => {
+    assert(status === 'success', 'Multicall failed');
+    return result;
+  });
+
+  // const multisend = new SafeMultiSend(multiProvider, chain, safes[chain]);
+
+  const delegatorLimitCalls = VAULTS.map(({ name, vault }, index) => {
+    let asset: 'ETH' | 'BTC';
+    if (name.endsWith('ETH')) {
+      asset = 'ETH';
+    } else if (name.endsWith('BTC')) {
+      asset = 'BTC';
+    } else {
+      throw new Error(`Invalid vault name ${name}`);
+    }
+
+    // TODO: determine decimals
+    const limit = asset === 'ETH' ? BigInt(3000) : BigInt(100);
+
+    const delegator = delegators[index];
+
+    return {
+      to: delegator,
+      data: encodeFunctionData({
+        abi: [SET_LIMIT_ABI],
+        args: [SUBNETWORK, limit],
+      }),
+      description: `Set ${name} Hyperlane network delegation limit to ${limit} ${asset}`,
+    };
+  });
+
+  const targets = delegatorLimitCalls.map(({ to }) => to);
+  const payloads = delegatorLimitCalls.map(({ data }) => data);
+  const values = delegatorLimitCalls.map(() => BigInt(0));
+
+  const description = delegatorLimitCalls
+    .map(({ description }) => description)
+    .join('\n');
+
+  const scheduleTx = {
+    to: NETWORK,
+    data: encodeFunctionData({
+      abi: [SCHEDULE_BATCH_ABI],
+      args: [targets, values, payloads, ZERO_BYTES32, ZERO_BYTES32, BigInt(0)],
+    }),
+    description: `Schedule batch:\n ${description}`,
+  };
+
+  console.log(scheduleTx);
+
+  const executeTx = {
+    to: NETWORK,
+    data: encodeFunctionData({
+      abi: [EXECUTE_BATCH_ABI],
+      args: [targets, values, payloads, ZERO_BYTES32, ZERO_BYTES32],
+    }),
+    description: `Execute batch:\n ${description}`,
+  };
+
+  console.log(executeTx);
+
+  return;
+
+  // await multisend.sendTransactions([scheduleTx]);
+  // await multiProvider.sendTransaction(chain, executeTx);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
