@@ -53,6 +53,7 @@ mod metrics;
 mod program;
 mod server;
 mod solana;
+mod starknet;
 mod utils;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {

@@ -20,6 +20,7 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
+use hyperlane_starknet as h_starknet;
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -137,6 +138,8 @@ pub enum ChainConnectionConf {
     Sealevel(h_sealevel::ConnectionConf),
     /// Cosmos configuration.
     Cosmos(h_cosmos::ConnectionConf),
+    /// Starknet configuration.
+    Starknet(h_starknet::ConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -147,6 +150,7 @@ impl ChainConnectionConf {
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
             Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
+            Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
         }
     }
 
@@ -217,6 +221,10 @@ impl ChainConf {
                 )?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
+            ChainConnectionConf::Starknet(conf) => {
+                let provider = h_starknet::StarknetProvider::new(locator.domain.clone(), conf);
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
         }
         .context(ctx)
     }
@@ -250,6 +258,12 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                h_starknet::StarknetMailbox::new(conf, &locator, signer.unwrap())
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
         }
         .context(ctx)
     }
@@ -279,6 +293,13 @@ impl ChainConf {
                 let signer = self.cosmos_signer().await.context(ctx)?;
                 let hook =
                     h_cosmos::CosmosMerkleTreeHook::new(conf.clone(), locator.clone(), signer)?;
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let hook =
+                    h_starknet::StarknetMerkleTreeHook::new(conf, &locator, signer.unwrap())?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -327,6 +348,14 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
+            ChainConnectionConf::Starknet(conf) => {
+                let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
+                    conf.clone(),
+                    locator,
+                    &self.reorg_period,
+                )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
         }
         .context(ctx)
     }
@@ -372,6 +401,15 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Starknet(conf) => {
+                let indexer = Box::new(h_starknet::StarknetMailboxIndexer::new(
+                    conf.clone(),
+                    locator,
+                    &self.reorg_period,
+                )?);
+
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
+            }
         }
         .context(ctx)
     }
@@ -408,6 +446,12 @@ impl ChainConf {
                     conf.clone(),
                     locator.clone(),
                     signer,
+                )?);
+                Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let paymaster = Box::new(h_starknet::StarknetInterchainGasPaymaster::new(
+                    conf, &locator,
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
             }
@@ -460,6 +504,10 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
+            ChainConnectionConf::Starknet(_) => {
+                let indexer = Box::new(h_starknet::StarknetInterchainGasPaymasterIndexer {});
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
         }
         .context(ctx)
     }
@@ -509,6 +557,15 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Starknet(conf) => {
+                let indexer = Box::new(h_starknet::StarknetMerkleTreeHookIndexer::new(
+                    conf.clone(),
+                    locator,
+                    &self.reorg_period,
+                )?);
+
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
         }
         .context(ctx)
     }
@@ -536,6 +593,16 @@ impl ChainConf {
                     conf.clone(),
                     locator.clone(),
                     signer,
+                )?);
+
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let va = Box::new(h_starknet::StarknetValidatorAnnounce::new(
+                    conf,
+                    &locator.clone(),
+                    signer.unwrap(),
                 )?);
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
@@ -579,6 +646,15 @@ impl ChainConf {
                 )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let ism = Box::new(h_starknet::StarknetInterchainSecurityModule::new(
+                    conf,
+                    &locator,
+                    signer.unwrap(),
+                )?);
+                Ok(ism as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -610,6 +686,15 @@ impl ChainConf {
                     conf.clone(),
                     locator.clone(),
                     signer,
+                )?);
+                Ok(ism as Box<dyn MultisigIsm>)
+            }
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let ism = Box::new(h_starknet::StarknetMultisigIsm::new(
+                    conf,
+                    &locator,
+                    signer.unwrap(),
                 )?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
@@ -647,6 +732,9 @@ impl ChainConf {
                 )?);
                 Ok(ism as Box<dyn RoutingIsm>)
             }
+            ChainConnectionConf::Starknet(_) => {
+                Err(eyre!("Starknet does not support routing ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -682,6 +770,16 @@ impl ChainConf {
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
+            ChainConnectionConf::Starknet(conf) => {
+                let signer = self.starknet_signer().await.context(ctx)?;
+                let ism = Box::new(h_starknet::StarknetAggregationIsm::new(
+                    conf,
+                    &locator,
+                    signer.unwrap(),
+                )?);
+
+                Ok(ism as Box<dyn AggregationIsm>)
+            }
         }
         .context(ctx)
     }
@@ -710,6 +808,9 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(_) => {
                 Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Starknet(_) => {
+                Err(eyre!("Starknet does not support CCIP read ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -734,6 +835,9 @@ impl ChainConf {
                     Box::new(conf.build::<h_sealevel::Keypair>().await?)
                 }
                 ChainConnectionConf::Cosmos(_) => Box::new(conf.build::<h_cosmos::Signer>().await?),
+                ChainConnectionConf::Starknet(_) => {
+                    Box::new(conf.build::<h_starknet::Signer>().await?)
+                }
             };
             Ok(Some(chain_signer))
         } else {
@@ -756,6 +860,10 @@ impl ChainConf {
     }
 
     async fn cosmos_signer(&self) -> Result<Option<h_cosmos::Signer>> {
+        self.signer().await
+    }
+
+    async fn starknet_signer(&self) -> Result<Option<h_starknet::Signer>> {
         self.signer().await
     }
 

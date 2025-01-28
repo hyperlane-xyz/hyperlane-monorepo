@@ -2280,6 +2280,73 @@
       "index": {
         "from": 13357661
       }
+    },
+    "starknetsepolia": {
+      "aggregationHook": "0x0000000000000000000000000000000000000000",
+      "blockExplorers": [
+        {
+          "family": "other",
+          "name": "Voyager",
+          "url": "https:/sepolia.voyager.online"
+        }
+      ],
+      "blocks": {
+        "confirmations": 1,
+        "estimateBlockTime": 30,
+        "reorgPeriod": 0
+      },
+      "chainId": 393402133025997798000961,
+      "deployer": {
+        "name": "Pragma Labs",
+        "url": "https://www.pragma.build"
+      },
+      "displayName": "Starknet Sepolia",
+      "domainId": 23448591,
+      "domainRoutingIsm": "0x079956e5090451e3ba0aae43ac1fedd2ed378ad234f4c95b3a4bafe708357603",
+      "domainRoutingIsmFactory": "0x0000000000000000000000000000000000000000",
+      "fallbackDomainRoutingHook": "0x06b60a487e0cd8419fee8e1cd06091aeddb55e358aedf96ea77ef49296d3ddbe",
+      "index": {
+        "from": 480500
+      },
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "interchainSecurityModule": "0x0000000000000000000000000000000000000000",
+      "isTestnet": true,
+      "mailbox": "0x07df35d3796603c930747bfc8409173aefc2c4c2c9cae4c0ea4908ea9a3baef2",
+      "merkleTreeHook": "0x03577d5fcfa888ee618cfab4563029f2f22db76f8a03e7ed96afa9410e2d0af5",
+      "name": "starknetsepolia",
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "pausableHook": "0x0000000000000000000000000000000000000000",
+      "pausableIsm": "0x02337f6a5aac407fd2d5ed8e1acd5df2be12633e79c38aacfc8ded680e05dfe1",
+      "protocol": "starknet",
+      "protocolFee": "0x001e485245b14127de40c9c35281e919acae751e8136bcefcc8033468d6c966d",
+      "proxyAdmin": "0x0000000000000000000000000000000000000000",
+      "rpcUrls": [
+        {
+          "http": "https://starknet-sepolia.public.blastapi.io"
+        },
+        {
+          "http": "https://free-rpc.nethermind.io/sepolia-juno"
+        }
+      ],
+      "staticAggregationHookFactory": "0x0000000000000000000000000000000000000000",
+      "staticAggregationIsm": "0x075c85b618e5c0469596759578db275a526dce21a6c252b48437f65da799e3af",
+      "staticAggregationIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMerkleRootMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMessageIdMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "storageGasOracle": "0x0000000000000000000000000000000000000000",
+      "technicalStack": "starknet",
+      "testRecipient": "0x0000000000000000000000000000000000000000",
+      "validatorAnnounce": "0x07ae6742b4cd35ee92d6399c046ca2594e8374bb466d8e25aa7f88e2f68f8d9d",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
+      "gasCurrencyCoinGeckoId": "ethereum",
+      "interchainAccountIsm": "0x0000000000000000000000000000000000000000",
+      "interchainAccountRouter": "0x0000000000000000000000000000000000000000",
+      "timelockController": "0x0000000000000000000000000000000000000000"
     }
   },
   "defaultRpcConsensusType": "fallback"
