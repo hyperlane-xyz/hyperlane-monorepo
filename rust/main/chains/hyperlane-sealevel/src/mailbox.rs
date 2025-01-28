@@ -337,7 +337,7 @@ impl SealevelMailbox {
 
         // Craft the accounts for the transaction.
         let mut accounts: Vec<AccountMeta> = vec![
-            AccountMeta::new_readonly(payer.keypair().pubkey(), true),
+            AccountMeta::new_readonly(payer.pubkey(), true),
             AccountMeta::new_readonly(Pubkey::from_str(SYSTEM_PROGRAM).unwrap(), false),
             AccountMeta::new(self.inbox.0, false),
             AccountMeta::new_readonly(process_authority_key, false),

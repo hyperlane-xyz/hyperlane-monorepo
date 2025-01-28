@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use solana_sdk::{signature::Keypair, signer::Signer};
 
 /// Wrapper around solana_sdk's Keypair.
@@ -12,6 +14,15 @@ impl SealevelKeypair {
     }
     /// Return the underlying keypair
     pub fn keypair(&self) -> &Keypair {
+        &self.0
+    }
+}
+
+impl Deref for SealevelKeypair {
+    type Target = Keypair;
+
+    /// Return the underlying keypair
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }

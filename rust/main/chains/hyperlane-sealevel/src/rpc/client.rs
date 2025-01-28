@@ -311,7 +311,7 @@ impl SealevelRpcClient {
             .await?;
         let transaction = Transaction::new_unsigned(Message::new_with_blockhash(
             &[instruction],
-            Some(&payer.keypair().pubkey()),
+            Some(&payer.pubkey()),
             &recent_blockhash,
         ));
         let simulation = self.simulate_transaction(&transaction).await?;
@@ -496,7 +496,7 @@ impl SealevelRpcClient {
             tx_submitter.get_priority_fee_instruction(
                 compute_unit_price_micro_lamports,
                 compute_unit_limit.into(),
-                &payer.keypair().pubkey(),
+                &payer.pubkey(),
             ),
             instruction,
         ];
@@ -512,12 +512,12 @@ impl SealevelRpcClient {
 
             Transaction::new_signed_with_payer(
                 &instructions,
-                Some(&payer.keypair().pubkey()),
+                Some(&payer.pubkey()),
                 &[payer.keypair()],
                 recent_blockhash,
             )
         } else {
-            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.keypair().pubkey())))
+            Transaction::new_unsigned(Message::new(&instructions, Some(&payer.pubkey())))
         };
 
         Ok(tx)
