@@ -243,7 +243,7 @@ impl ChainConf {
                 h_sealevel::SealevelMailbox::new(
                     conf,
                     locator,
-                    keypair.map(|k| h_sealevel::SealevelKeypair::new(k)),
+                    keypair.map(h_sealevel::SealevelKeypair::new),
                 )
                 .map(|m| Box::new(m) as Box<dyn Mailbox>)
                 .map_err(Into::into)
@@ -574,7 +574,7 @@ impl ChainConf {
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
                     conf,
                     locator,
-                    keypair.map(|k| h_sealevel::SealevelKeypair::new(k)),
+                    keypair.map(h_sealevel::SealevelKeypair::new),
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -610,7 +610,7 @@ impl ChainConf {
                 let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
                     conf,
                     locator,
-                    keypair.map(|k| h_sealevel::SealevelKeypair::new(k)),
+                    keypair.map(h_sealevel::SealevelKeypair::new),
                 ));
                 Ok(ism as Box<dyn MultisigIsm>)
             }

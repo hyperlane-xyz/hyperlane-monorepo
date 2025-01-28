@@ -1,7 +1,7 @@
 use solana_sdk::{signature::Keypair, signer::Signer};
 
 /// Wrapper around solana_sdk's Keypair.
-/// This implments a custom Debug so the private keys are
+/// This implements a custom Debug so the private keys are
 /// not exposed.
 pub struct SealevelKeypair(pub Keypair);
 
@@ -18,7 +18,7 @@ impl SealevelKeypair {
 
 impl std::fmt::Debug for SealevelKeypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.pubkey().to_string())
+        write!(f, "{}", self.0.pubkey())
     }
 }
 
