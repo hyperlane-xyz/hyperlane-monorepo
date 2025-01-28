@@ -36,6 +36,8 @@ pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
     Duration::from_secs(60 * 10)
 };
 
+pub const RETRIEVED_MESSAGE_LOG: &str = "Message status retrieved from db";
+
 /// The message context contains the links needed to submit a message. Each
 /// instance is for a unique origin -> destination pairing.
 pub struct MessageContext {
@@ -510,27 +512,42 @@ impl PendingMessage {
         ctx: Arc<MessageContext>,
         app_context: Option<String>,
     ) -> Self {
-        let mut pm = Self::new(
-            message,
-            ctx,
-            // Since we don't persist the message status for now, assume it's the first attempt
-            PendingOperationStatus::FirstPrepareAttempt,
-            app_context,
-        );
-        match pm
-            .ctx
+        // Attempt to fetch status about message from database
+        let message_status = match ctx.origin_db.retrieve_status_by_message_id(&message.id()) {
+            Ok(Some(status)) => {
+                #[cfg(feature = "test-utils")]
+                tracing::debug!(
+                    ?status,
+                    id = format!("{:x}", message.id()),
+                    "{}",
+                    RETRIEVED_MESSAGE_LOG,
+                );
+                status
+            }
+            _ => {
+                #[cfg(feature = "test-utils")]
+                tracing::debug!("Message status not found in db");
+                PendingOperationStatus::FirstPrepareAttempt
+            }
+        };
+
+        let num_retries = match ctx
             .origin_db
-            .retrieve_pending_message_retry_count_by_message_id(&pm.message.id())
+            .retrieve_pending_message_retry_count_by_message_id(&message.id())
         {
-            Ok(Some(num_retries)) => {
-                let next_attempt_after = PendingMessage::calculate_msg_backoff(num_retries)
-                    .map(|dur| Instant::now() + dur);
-                pm.num_retries = num_retries;
-                pm.next_attempt_after = next_attempt_after;
-            }
+            Ok(Some(num_retries)) => num_retries,
             r => {
-                trace!(message_id = ?pm.message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.")
+                trace!(message_id = ?message.id(), result = ?r, "Failed to read retry count from HyperlaneDB for message.");
+                0
             }
+        };
+
+        let mut pm = Self::new(message, ctx, message_status, app_context);
+        if num_retries > 0 {
+            let next_attempt_after =
+                PendingMessage::calculate_msg_backoff(num_retries).map(|dur| Instant::now() + dur);
+            pm.num_retries = num_retries;
+            pm.next_attempt_after = next_attempt_after;
         }
         pm
     }

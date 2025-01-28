@@ -38,6 +38,12 @@ impl Display for MerkleTreeBuilder {
     }
 }
 
+impl Default for MerkleTreeBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// MerkleTreeBuilder errors
 #[derive(Debug, thiserror::Error)]
 pub enum MerkleTreeBuilderError {

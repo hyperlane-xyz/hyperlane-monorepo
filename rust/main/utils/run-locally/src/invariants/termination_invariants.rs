@@ -90,14 +90,21 @@ pub fn termination_invariants_met(
     const TX_ID_INDEXING_LOG_MESSAGE: &str = "Found log(s) for tx id";
 
     let relayer_logfile = File::open(log_file_path)?;
-    let invariant_logs = &[
-        STORING_NEW_MESSAGE_LOG_MESSAGE,
-        LOOKING_FOR_EVENTS_LOG_MESSAGE,
-        GAS_EXPENDITURE_LOG_MESSAGE,
-        HYPER_INCOMING_BODY_LOG_MESSAGE,
-        TX_ID_INDEXING_LOG_MESSAGE,
+
+    let storing_new_msg_line_filter = vec![STORING_NEW_MESSAGE_LOG_MESSAGE];
+    let looking_for_events_line_filter = vec![LOOKING_FOR_EVENTS_LOG_MESSAGE];
+    let gas_expenditure_line_filter = vec![GAS_EXPENDITURE_LOG_MESSAGE];
+    let hyper_incoming_body_line_filter = vec![HYPER_INCOMING_BODY_LOG_MESSAGE];
+    let tx_id_indexing_line_filter = vec![TX_ID_INDEXING_LOG_MESSAGE];
+    let invariant_logs = vec![
+        storing_new_msg_line_filter.clone(),
+        looking_for_events_line_filter.clone(),
+        gas_expenditure_line_filter.clone(),
+        hyper_incoming_body_line_filter.clone(),
+        tx_id_indexing_line_filter.clone(),
     ];
     let log_counts = get_matching_lines(&relayer_logfile, invariant_logs);
+
     // Zero insertion messages don't reach `submit` stage where gas is spent, so we only expect these logs for the other messages.
     // TODO: Sometimes we find more logs than expected. This may either mean that gas is deducted twice for the same message due to a bug,
     // or that submitting the message transaction fails for some messages. Figure out which is the case and convert this check to
@@ -105,23 +112,34 @@ pub fn termination_invariants_met(
     // EDIT: Having had a quick look, it seems like there are some legitimate reverts happening in the confirm step
     // (`Transaction attempting to process message either reverted or was reorged`)
     // in which case more gas expenditure logs than messages are expected.
-    let gas_expenditure_log_count = log_counts.get(GAS_EXPENDITURE_LOG_MESSAGE).unwrap();
+    let gas_expenditure_log_count = *log_counts
+        .get(&gas_expenditure_line_filter)
+        .expect("Failed to get gas expenditure log count");
     assert!(
-        gas_expenditure_log_count >= &total_messages_expected,
+        gas_expenditure_log_count >= total_messages_expected,
         "Didn't record gas payment for all delivered messages. Got {} gas payment logs, expected at least {}",
         gas_expenditure_log_count,
         total_messages_expected
     );
     // These tests check that we fixed https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/3915, where some logs would not show up
+
+    let storing_new_msg_log_count = *log_counts
+        .get(&storing_new_msg_line_filter)
+        .expect("Failed to get storing new msg log count");
     assert!(
-        log_counts.get(STORING_NEW_MESSAGE_LOG_MESSAGE).unwrap() > &0,
+        storing_new_msg_log_count > 0,
         "Didn't find any logs about storing messages in db"
     );
+    let looking_for_events_log_count = *log_counts
+        .get(&looking_for_events_line_filter)
+        .expect("Failed to get looking for events log count");
     assert!(
-        log_counts.get(LOOKING_FOR_EVENTS_LOG_MESSAGE).unwrap() > &0,
+        looking_for_events_log_count > 0,
         "Didn't find any logs about looking for events in index range"
     );
-    let total_tx_id_log_count = log_counts.get(TX_ID_INDEXING_LOG_MESSAGE).unwrap();
+    let total_tx_id_log_count = *log_counts
+        .get(&tx_id_indexing_line_filter)
+        .expect("Failed to get tx id indexing log count");
     assert!(
         // there are 3 txid-indexed events:
         // - relayer: merkle insertion and gas payment
@@ -129,13 +147,13 @@ pub fn termination_invariants_met(
         // some logs are emitted for multiple events, so requiring there to be at least
         // `config.kathy_messages` logs is a reasonable approximation, since all three of these events
         // are expected to be logged for each message.
-        *total_tx_id_log_count as u64 >= config.kathy_messages,
+        total_tx_id_log_count as u64 >= config.kathy_messages,
         "Didn't find as many tx id logs as expected. Found {} and expected {}",
         total_tx_id_log_count,
         config.kathy_messages
     );
     assert!(
-        log_counts.get(HYPER_INCOMING_BODY_LOG_MESSAGE).is_none(),
+        log_counts.get(&hyper_incoming_body_line_filter).is_none(),
         "Verbose logs not expected at the log level set in e2e"
     );
 
