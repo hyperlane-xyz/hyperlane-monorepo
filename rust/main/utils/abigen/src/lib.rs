@@ -158,7 +158,7 @@ fn rustfmt_path() -> &'static Path {
     } else {
         // assume it is in PATH
         unsafe {
-            PATH = Some(which::which("rustmft").unwrap_or_else(|_| "rustfmt".into()));
+            PATH = Some(which::which("rustfmt").unwrap_or_else(|_| "rustfmt".into()));
             PATH.as_ref().unwrap()
         }
     }
