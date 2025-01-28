@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::providers::Middleware;
+use ethers_core::abi::ethereum_types::H160;
 use tracing::{instrument, warn};
 
 use futures_util::future::try_join;
@@ -116,10 +117,13 @@ where
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        let tx = self.contract.verify(
-            metadata.to_owned().into(),
-            RawHyperlaneMessage::from(message).to_vec().into(),
-        );
+        let tx = self
+            .contract
+            .verify(
+                metadata.to_owned().into(),
+                RawHyperlaneMessage::from(message).to_vec().into(),
+            )
+            .from(H160::random()); // We generate a random from address to ensure compatibility with zksync
         let (verifies, gas_estimate) = try_join(tx.call(), tx.estimate_gas()).await?;
         if verifies {
             Ok(Some(gas_estimate.into()))
