@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { MultiProvider } from '@hyperlane-xyz/sdk';
-import { deepEquals, diffObjMerge } from '@hyperlane-xyz/utils';
+import { diffObjMerge } from '@hyperlane-xyz/utils';
 
 import { getGithubRegistry } from '../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
@@ -40,10 +40,13 @@ describe('Warp Configs', async function () {
       );
 
       if (isInvalid) {
-        console.log('isInvalid', JSON.stringify(mergedObject, null, 2));
+        console.log('Differences', JSON.stringify(mergedObject, null, 2));
       }
 
-      expect(isInvalid).to.be.false;
+      expect(
+        isInvalid,
+        `Registry config does not match Getter for ${warpRouteId}`,
+      ).to.be.false;
     });
   }
 });
