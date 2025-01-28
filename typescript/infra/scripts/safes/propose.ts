@@ -5,10 +5,14 @@ import {
   parseAbiItem,
 } from 'viem';
 import { mainnet } from 'viem/chains';
+import yargs from 'yargs';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-const environment = 'mainnet3';
+import { safes } from '../../config/environments/mainnet3/owners.js';
+import { SafeMultiSend } from '../../src/govern/multisend.js';
+import { withChain } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 const VAULTS = [
   {
@@ -21,7 +25,7 @@ const VAULTS = [
   },
   {
     name: 'Renzo pzETH',
-    vault: '0xf582E66bEFBDE57A1fFaC6D8Bf73017637803EF9',
+    vault: '0xa88e91cEF50b792f9449e2D4C699b6B3CcE1D19F',
   },
   {
     name: 'Swell swETH',
@@ -71,10 +75,10 @@ const VAULTS = [
 
 const NETWORK = '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2';
 
-const SUBNETWORK = NETWORK.padEnd(64 + 2, '0') as `0x${string}`;
+const SUBNETWORK_IDENTIFIER = BigInt(0);
 
 const SET_LIMIT_ABI = parseAbiItem(
-  'function setNetworkLimit(bytes32 subnetwork, uint256 amount)',
+  'function setMaxNetworkLimit(uint96 identifier, uint256 amount)',
 );
 
 const VAULT_DELEGATOR_ABI = parseAbiItem(
@@ -103,14 +107,23 @@ async function main() {
     functionName: 'delegator',
   }));
 
-  const results = await client.multicall({ contracts: delegatorContracts });
+  const delegatorResults = await client.multicall({
+    contracts: delegatorContracts,
+  });
 
-  const delegators = results.map(({ status, result }) => {
+  const delegators = delegatorResults.map(({ status, result }) => {
     assert(status === 'success', 'Multicall failed');
     return result;
   });
 
-  // const multisend = new SafeMultiSend(multiProvider, chain, safes[chain]);
+  const { chain } = await withChain(yargs(process.argv.slice(2))).demandOption(
+    'chain',
+  ).argv;
+
+  const envConfig = getEnvironmentConfig('mainnet3');
+  const multiProvider = await envConfig.getMultiProvider();
+
+  const multisend = new SafeMultiSend(multiProvider, chain, safes[chain]);
 
   const delegatorLimitCalls = VAULTS.map(({ name, vault }, index) => {
     let asset: 'ETH' | 'BTC';
@@ -122,8 +135,7 @@ async function main() {
       throw new Error(`Invalid vault name ${name}`);
     }
 
-    // TODO: determine decimals
-    const limit = asset === 'ETH' ? BigInt(3000) : BigInt(100);
+    const limit = asset === 'ETH' ? BigInt(3000e18) : BigInt(100e8);
 
     const delegator = delegators[index];
 
@@ -131,7 +143,7 @@ async function main() {
       to: delegator,
       data: encodeFunctionData({
         abi: [SET_LIMIT_ABI],
-        args: [SUBNETWORK, limit],
+        args: [SUBNETWORK_IDENTIFIER, limit],
       }),
       description: `Set ${name} Hyperlane network delegation limit to ${limit} ${asset}`,
     };
@@ -167,10 +179,9 @@ async function main() {
 
   console.log(executeTx);
 
+  await multisend.sendTransactions([scheduleTx]);
   return;
-
-  // await multisend.sendTransactions([scheduleTx]);
-  // await multiProvider.sendTransaction(chain, executeTx);
+  await multiProvider.sendTransaction(chain, executeTx);
 }
 
 main().catch((error) => {
