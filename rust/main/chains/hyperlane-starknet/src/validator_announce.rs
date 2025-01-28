@@ -114,7 +114,7 @@ impl StarknetValidatorAnnounce {
 
 impl HyperlaneChain for StarknetValidatorAnnounce {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.provider.domain()
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -196,7 +196,7 @@ impl ValidatorAnnounce for StarknetValidatorAnnounce {
 
         let max_cost_u256: HyU256 = max_cost.into();
 
-        Some(max_cost_u256.0.saturating_sub(balance).into())
+        Some(max_cost_u256.0.saturating_sub(balance))
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {

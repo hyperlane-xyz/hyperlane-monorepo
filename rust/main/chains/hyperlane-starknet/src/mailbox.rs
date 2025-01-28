@@ -127,7 +127,7 @@ impl StarknetMailbox {
 
 impl HyperlaneChain for StarknetMailbox {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.provider.domain()
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {

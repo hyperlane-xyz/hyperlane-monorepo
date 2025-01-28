@@ -47,82 +47,6 @@ impl<P: starknet::providers::Provider + Sync> AggregationIsmReader<P> {
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct Bytes {
-    pub size: u32,
-    pub data: Vec<u128>,
-}
-impl cainome::cairo_serde::CairoSerde for Bytes {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        let mut __size = 0;
-        __size += u32::cairo_serialized_size(&__rust.size);
-        __size += Vec::<u128>::cairo_serialized_size(&__rust.data);
-        __size
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(u32::cairo_serialize(&__rust.size));
-        __out.extend(Vec::<u128>::cairo_serialize(&__rust.data));
-        __out
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let mut __offset = __offset;
-        let size = u32::cairo_deserialize(__felts, __offset)?;
-        __offset += u32::cairo_serialized_size(&size);
-        let data = Vec::<u128>::cairo_deserialize(__felts, __offset)?;
-        __offset += Vec::<u128>::cairo_serialized_size(&data);
-        Ok(Bytes { size, data })
-    }
-}
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct OwnershipTransferred {
-    pub previous_owner: cainome::cairo_serde::ContractAddress,
-    pub new_owner: cainome::cairo_serde::ContractAddress,
-}
-impl cainome::cairo_serde::CairoSerde for OwnershipTransferred {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        let mut __size = 0;
-        __size +=
-            cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.previous_owner);
-        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.new_owner);
-        __size
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            &__rust.previous_owner,
-        ));
-        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
-            &__rust.new_owner,
-        ));
-        __out
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let mut __offset = __offset;
-        let previous_owner =
-            cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&previous_owner);
-        let new_owner =
-            cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&new_owner);
-        Ok(OwnershipTransferred {
-            previous_owner,
-            new_owner,
-        })
-    }
-}
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct OwnershipTransferStarted {
     pub previous_owner: cainome::cairo_serde::ContractAddress,
     pub new_owner: cainome::cairo_serde::ContractAddress,
@@ -166,22 +90,28 @@ impl cainome::cairo_serde::CairoSerde for OwnershipTransferStarted {
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub struct Upgraded {
-    pub class_hash: cainome::cairo_serde::ClassHash,
+pub struct OwnershipTransferred {
+    pub previous_owner: cainome::cairo_serde::ContractAddress,
+    pub new_owner: cainome::cairo_serde::ContractAddress,
 }
-impl cainome::cairo_serde::CairoSerde for Upgraded {
+impl cainome::cairo_serde::CairoSerde for OwnershipTransferred {
     type RustType = Self;
     const SERIALIZED_SIZE: std::option::Option<usize> = None;
     #[inline]
     fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
         let mut __size = 0;
-        __size += cainome::cairo_serde::ClassHash::cairo_serialized_size(&__rust.class_hash);
+        __size +=
+            cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.previous_owner);
+        __size += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&__rust.new_owner);
         __size
     }
     fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
         let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
-        __out.extend(cainome::cairo_serde::ClassHash::cairo_serialize(
-            &__rust.class_hash,
+        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            &__rust.previous_owner,
+        ));
+        __out.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(
+            &__rust.new_owner,
         ));
         __out
     }
@@ -190,9 +120,16 @@ impl cainome::cairo_serde::CairoSerde for Upgraded {
         __offset: usize,
     ) -> cainome::cairo_serde::Result<Self::RustType> {
         let mut __offset = __offset;
-        let class_hash = cainome::cairo_serde::ClassHash::cairo_deserialize(__felts, __offset)?;
-        __offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
-        Ok(Upgraded { class_hash })
+        let previous_owner =
+            cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&previous_owner);
+        let new_owner =
+            cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ContractAddress::cairo_serialized_size(&new_owner);
+        Ok(OwnershipTransferred {
+            previous_owner,
+            new_owner,
+        })
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
@@ -261,6 +198,196 @@ impl cainome::cairo_serde::CairoSerde for Message {
             recipient,
             body,
         })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub struct Bytes {
+    pub size: u32,
+    pub data: Vec<u128>,
+}
+impl cainome::cairo_serde::CairoSerde for Bytes {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += u32::cairo_serialized_size(&__rust.size);
+        __size += Vec::<u128>::cairo_serialized_size(&__rust.data);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
+        __out.extend(u32::cairo_serialize(&__rust.size));
+        __out.extend(Vec::<u128>::cairo_serialize(&__rust.data));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let size = u32::cairo_deserialize(__felts, __offset)?;
+        __offset += u32::cairo_serialized_size(&size);
+        let data = Vec::<u128>::cairo_deserialize(__felts, __offset)?;
+        __offset += Vec::<u128>::cairo_serialized_size(&data);
+        Ok(Bytes { size, data })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub struct Upgraded {
+    pub class_hash: cainome::cairo_serde::ClassHash,
+}
+impl cainome::cairo_serde::CairoSerde for Upgraded {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        let mut __size = 0;
+        __size += cainome::cairo_serde::ClassHash::cairo_serialized_size(&__rust.class_hash);
+        __size
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        let mut __out: Vec<starknet::core::types::FieldElement> = vec![];
+        __out.extend(cainome::cairo_serde::ClassHash::cairo_serialize(
+            &__rust.class_hash,
+        ));
+        __out
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let mut __offset = __offset;
+        let class_hash = cainome::cairo_serde::ClassHash::cairo_deserialize(__felts, __offset)?;
+        __offset += cainome::cairo_serde::ClassHash::cairo_serialized_size(&class_hash);
+        Ok(Upgraded { class_hash })
+    }
+}
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum ModuleType {
+    UNUSED(cainome::cairo_serde::ContractAddress),
+    ROUTING(cainome::cairo_serde::ContractAddress),
+    AGGREGATION(cainome::cairo_serde::ContractAddress),
+    LEGACY_MULTISIG(cainome::cairo_serde::ContractAddress),
+    MERKLE_ROOT_MULTISIG(cainome::cairo_serde::ContractAddress),
+    MESSAGE_ID_MULTISIG(cainome::cairo_serde::ContractAddress),
+    NULL,
+    CCIP_READ(cainome::cairo_serde::ContractAddress),
+}
+impl cainome::cairo_serde::CairoSerde for ModuleType {
+    type RustType = Self;
+    const SERIALIZED_SIZE: std::option::Option<usize> = std::option::Option::None;
+    #[inline]
+    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
+        match __rust {
+            ModuleType::UNUSED(val) => {
+                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
+            }
+            ModuleType::ROUTING(val) => {
+                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
+            }
+            ModuleType::AGGREGATION(val) => {
+                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
+            }
+            ModuleType::LEGACY_MULTISIG(val) => {
+                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
+            }
+            ModuleType::MERKLE_ROOT_MULTISIG(val) => {
+                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
+            }
+            ModuleType::MESSAGE_ID_MULTISIG(val) => {
+                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
+            }
+            ModuleType::NULL => 1,
+            ModuleType::CCIP_READ(val) => {
+                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
+            }
+            _ => 0,
+        }
+    }
+    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
+        match __rust {
+            ModuleType::UNUSED(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&0usize));
+                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
+                temp
+            }
+            ModuleType::ROUTING(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&1usize));
+                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
+                temp
+            }
+            ModuleType::AGGREGATION(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&2usize));
+                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
+                temp
+            }
+            ModuleType::LEGACY_MULTISIG(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&3usize));
+                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
+                temp
+            }
+            ModuleType::MERKLE_ROOT_MULTISIG(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&4usize));
+                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
+                temp
+            }
+            ModuleType::MESSAGE_ID_MULTISIG(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&5usize));
+                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
+                temp
+            }
+            ModuleType::NULL => usize::cairo_serialize(&6usize),
+            ModuleType::CCIP_READ(val) => {
+                let mut temp = vec![];
+                temp.extend(usize::cairo_serialize(&7usize));
+                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
+                temp
+            }
+            _ => vec![],
+        }
+    }
+    fn cairo_deserialize(
+        __felts: &[starknet::core::types::FieldElement],
+        __offset: usize,
+    ) -> cainome::cairo_serde::Result<Self::RustType> {
+        let __index: u128 = __felts[__offset].try_into().unwrap();
+        match __index as usize {
+            0usize => Ok(ModuleType::UNUSED(
+                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            1usize => Ok(ModuleType::ROUTING(
+                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            2usize => Ok(ModuleType::AGGREGATION(
+                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            3usize => Ok(ModuleType::LEGACY_MULTISIG(
+                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            4usize => Ok(ModuleType::MERKLE_ROOT_MULTISIG(
+                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            5usize => Ok(ModuleType::MESSAGE_ID_MULTISIG(
+                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            6usize => Ok(ModuleType::NULL),
+            7usize => Ok(ModuleType::CCIP_READ(
+                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
+            )),
+            _ => {
+                return Err(cainome::cairo_serde::Error::Deserialize(format!(
+                    "Index not handle for enum {}",
+                    "ModuleType"
+                )));
+            }
+        }
     }
 }
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
@@ -669,134 +796,21 @@ impl TryFrom<starknet::core::types::EmittedEvent> for Event {
         ))
     }
 }
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
-pub enum ModuleType {
-    UNUSED(cainome::cairo_serde::ContractAddress),
-    ROUTING(cainome::cairo_serde::ContractAddress),
-    AGGREGATION(cainome::cairo_serde::ContractAddress),
-    LEGACY_MULTISIG(cainome::cairo_serde::ContractAddress),
-    MERKLE_ROOT_MULTISIG(cainome::cairo_serde::ContractAddress),
-    MESSAGE_ID_MULTISIG(cainome::cairo_serde::ContractAddress),
-    NULL,
-    CCIP_READ(cainome::cairo_serde::ContractAddress),
-}
-impl cainome::cairo_serde::CairoSerde for ModuleType {
-    type RustType = Self;
-    const SERIALIZED_SIZE: std::option::Option<usize> = std::option::Option::None;
-    #[inline]
-    fn cairo_serialized_size(__rust: &Self::RustType) -> usize {
-        match __rust {
-            ModuleType::UNUSED(val) => {
-                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
-            }
-            ModuleType::ROUTING(val) => {
-                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
-            }
-            ModuleType::AGGREGATION(val) => {
-                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
-            }
-            ModuleType::LEGACY_MULTISIG(val) => {
-                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
-            }
-            ModuleType::MERKLE_ROOT_MULTISIG(val) => {
-                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
-            }
-            ModuleType::MESSAGE_ID_MULTISIG(val) => {
-                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
-            }
-            ModuleType::NULL => 1,
-            ModuleType::CCIP_READ(val) => {
-                cainome::cairo_serde::ContractAddress::cairo_serialized_size(val) + 1
-            }
-            _ => 0,
-        }
-    }
-    fn cairo_serialize(__rust: &Self::RustType) -> Vec<starknet::core::types::FieldElement> {
-        match __rust {
-            ModuleType::UNUSED(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&0usize));
-                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
-                temp
-            }
-            ModuleType::ROUTING(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&1usize));
-                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
-                temp
-            }
-            ModuleType::AGGREGATION(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&2usize));
-                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
-                temp
-            }
-            ModuleType::LEGACY_MULTISIG(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&3usize));
-                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
-                temp
-            }
-            ModuleType::MERKLE_ROOT_MULTISIG(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&4usize));
-                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
-                temp
-            }
-            ModuleType::MESSAGE_ID_MULTISIG(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&5usize));
-                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
-                temp
-            }
-            ModuleType::NULL => usize::cairo_serialize(&6usize),
-            ModuleType::CCIP_READ(val) => {
-                let mut temp = vec![];
-                temp.extend(usize::cairo_serialize(&7usize));
-                temp.extend(cainome::cairo_serde::ContractAddress::cairo_serialize(val));
-                temp
-            }
-            _ => vec![],
-        }
-    }
-    fn cairo_deserialize(
-        __felts: &[starknet::core::types::FieldElement],
-        __offset: usize,
-    ) -> cainome::cairo_serde::Result<Self::RustType> {
-        let __index: u128 = __felts[__offset].try_into().unwrap();
-        match __index as usize {
-            0usize => Ok(ModuleType::UNUSED(
-                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            1usize => Ok(ModuleType::ROUTING(
-                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            2usize => Ok(ModuleType::AGGREGATION(
-                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            3usize => Ok(ModuleType::LEGACY_MULTISIG(
-                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            4usize => Ok(ModuleType::MERKLE_ROOT_MULTISIG(
-                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            5usize => Ok(ModuleType::MESSAGE_ID_MULTISIG(
-                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            6usize => Ok(ModuleType::NULL),
-            7usize => Ok(ModuleType::CCIP_READ(
-                cainome::cairo_serde::ContractAddress::cairo_deserialize(__felts, __offset + 1)?,
-            )),
-            _ => {
-                return Err(cainome::cairo_serde::Error::Deserialize(format!(
-                    "Index not handle for enum {}",
-                    "ModuleType"
-                )));
-            }
-        }
-    }
-}
 impl<A: starknet::accounts::ConnectedAccount + Sync> AggregationIsm<A> {
+    #[allow(clippy::ptr_arg)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn owner(
+        &self,
+    ) -> cainome::cairo_serde::call::FCall<A::Provider, cainome::cairo_serde::ContractAddress> {
+        use cainome::cairo_serde::CairoSerde;
+        let mut __calldata = vec![];
+        let __call = starknet::core::types::FunctionCall {
+            contract_address: self.address,
+            entry_point_selector: starknet::macros::selector!("owner"),
+            calldata: __calldata,
+        };
+        cainome::cairo_serde::call::FCall::new(__call, self.provider())
+    }
     #[allow(clippy::ptr_arg)]
     #[allow(clippy::too_many_arguments)]
     pub fn module_type(&self) -> cainome::cairo_serde::call::FCall<A::Provider, ModuleType> {
@@ -875,20 +889,6 @@ impl<A: starknet::accounts::ConnectedAccount + Sync> AggregationIsm<A> {
     }
     #[allow(clippy::ptr_arg)]
     #[allow(clippy::too_many_arguments)]
-    pub fn owner(
-        &self,
-    ) -> cainome::cairo_serde::call::FCall<A::Provider, cainome::cairo_serde::ContractAddress> {
-        use cainome::cairo_serde::CairoSerde;
-        let mut __calldata = vec![];
-        let __call = starknet::core::types::FunctionCall {
-            contract_address: self.address,
-            entry_point_selector: starknet::macros::selector!("owner"),
-            calldata: __calldata,
-        };
-        cainome::cairo_serde::call::FCall::new(__call, self.provider())
-    }
-    #[allow(clippy::ptr_arg)]
-    #[allow(clippy::too_many_arguments)]
     pub fn transfer_ownership_getcall(
         &self,
         new_owner: &cainome::cairo_serde::ContractAddress,
@@ -945,6 +945,20 @@ impl<A: starknet::accounts::ConnectedAccount + Sync> AggregationIsm<A> {
     }
 }
 impl<P: starknet::providers::Provider + Sync> AggregationIsmReader<P> {
+    #[allow(clippy::ptr_arg)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn owner(
+        &self,
+    ) -> cainome::cairo_serde::call::FCall<P, cainome::cairo_serde::ContractAddress> {
+        use cainome::cairo_serde::CairoSerde;
+        let mut __calldata = vec![];
+        let __call = starknet::core::types::FunctionCall {
+            contract_address: self.address,
+            entry_point_selector: starknet::macros::selector!("owner"),
+            calldata: __calldata,
+        };
+        cainome::cairo_serde::call::FCall::new(__call, self.provider())
+    }
     #[allow(clippy::ptr_arg)]
     #[allow(clippy::too_many_arguments)]
     pub fn module_type(&self) -> cainome::cairo_serde::call::FCall<P, ModuleType> {
@@ -1014,20 +1028,6 @@ impl<P: starknet::providers::Provider + Sync> AggregationIsmReader<P> {
         let __call = starknet::core::types::FunctionCall {
             contract_address: self.address,
             entry_point_selector: starknet::macros::selector!("get_threshold"),
-            calldata: __calldata,
-        };
-        cainome::cairo_serde::call::FCall::new(__call, self.provider())
-    }
-    #[allow(clippy::ptr_arg)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn owner(
-        &self,
-    ) -> cainome::cairo_serde::call::FCall<P, cainome::cairo_serde::ContractAddress> {
-        use cainome::cairo_serde::CairoSerde;
-        let mut __calldata = vec![];
-        let __call = starknet::core::types::FunctionCall {
-            contract_address: self.address,
-            entry_point_selector: starknet::macros::selector!("owner"),
             calldata: __calldata,
         };
         cainome::cairo_serde::call::FCall::new(__call, self.provider())

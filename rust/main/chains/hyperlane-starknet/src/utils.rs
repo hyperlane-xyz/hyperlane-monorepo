@@ -250,8 +250,7 @@ pub(crate) async fn get_block_height_for_reorg_period(
                 .block_number()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?;
-            let block_height = tip - blocks.get() as u64;
-            block_height
+            tip - blocks.get() as u64
         }
         ReorgPeriod::None => provider
             .block_number()
