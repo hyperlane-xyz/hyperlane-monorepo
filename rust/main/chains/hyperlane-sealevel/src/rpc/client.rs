@@ -118,6 +118,20 @@ impl SealevelRpcClient {
         Ok(account)
     }
 
+    pub async fn get_account_option_with_commitment(
+        &self,
+        pubkey: &Pubkey,
+        commitment: CommitmentConfig,
+    ) -> ChainResult<Option<Account>> {
+        let account = self
+            .0
+            .get_account_with_commitment(pubkey, commitment)
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value;
+        Ok(account)
+    }
+
     pub async fn get_balance(&self, pubkey: &Pubkey) -> ChainResult<U256> {
         let balance = self
             .0

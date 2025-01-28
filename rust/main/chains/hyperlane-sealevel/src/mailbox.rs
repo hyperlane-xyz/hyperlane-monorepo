@@ -427,7 +427,10 @@ impl Mailbox for SealevelMailbox {
 
         let account = self
             .rpc()
-            .get_account_option_with_finalized_commitment(&processed_message_account_key)
+            .get_account_option_with_commitment(
+                &processed_message_account_key,
+                CommitmentConfig::processed(),
+            )
             .await?;
 
         Ok(account.is_some())
