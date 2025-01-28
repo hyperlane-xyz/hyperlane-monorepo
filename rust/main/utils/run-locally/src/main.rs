@@ -465,7 +465,7 @@ fn main() -> ExitCode {
                     }
                 }
             }
-            return false;
+            false
         },
     );
 
@@ -484,7 +484,7 @@ fn main() -> ExitCode {
     let loop_start = Instant::now();
     // wait for Relayer restart invariants to pass
     test_passed = wait_for_condition(&config, loop_start, relayer_restart_invariants_met, || {
-        return false;
+        false
     });
 
     // test retry request
