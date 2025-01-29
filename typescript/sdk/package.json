@@ -21,6 +21,7 @@
     "ethers": "^5.7.2",
     "pino": "^8.19.0",
     "viem": "^2.21.45",
+    "zksync-ethers": "^5.10.0",
     "zod": "^3.21.2"
   },
   "devDependencies": {
@@ -48,8 +49,7 @@
     "ts-node": "^10.8.0",
     "tsx": "^4.19.1",
     "typescript": "5.3.3",
-    "yaml": "2.4.5",
-    "zksync-ethers": "^5.10.0"
+    "yaml": "2.4.5"
   },
   "type": "module",
   "exports": {
