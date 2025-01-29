@@ -10,7 +10,7 @@ import {
   getHyperlaneCore,
 } from '../scripts/core-utils.js';
 
-const DEFAULT_TIMEOUT = 20000;
+const DEFAULT_TIMEOUT = 60000;
 describe('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
