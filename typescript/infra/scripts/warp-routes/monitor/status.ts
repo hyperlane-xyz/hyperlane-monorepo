@@ -12,6 +12,10 @@ import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds
 import { getArgs, withWarpRouteIdRequired } from '../../agent-utils.js';
 
 const orange = chalk.hex('#FFA500');
+const grafanaLink =
+  'https://abacusworks.grafana.net/d/ddz6ma94rnzswc/warp-routes?orgId=1&var-warp_route_id=';
+const logAmount = 5;
+const podPrefix = 'hyperlane-warp-route';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -26,12 +30,12 @@ async function main() {
       );
     }
 
-    const monitorWarpRouteId = getMonitorWarpRouteId(warpRouteId);
+    const podWarpRouteId = getPodWarpRouteId(warpRouteId);
 
     rootLogger.info(chalk.grey.italic(`Fetching pod status...`));
     const pod = runKubernetesWarpRouteCommand(
       'get pod',
-      monitorWarpRouteId,
+      podWarpRouteId,
       environment,
     );
     rootLogger.info(chalk.green(pod));
@@ -39,16 +43,14 @@ async function main() {
     rootLogger.info(chalk.gray.italic(`Fetching latest logs...`));
     const latestLogs = runKubernetesWarpRouteCommand(
       'logs',
-      monitorWarpRouteId,
+      podWarpRouteId,
       environment,
-      ['--tail=5'],
+      [`--tail=${logAmount}`],
     );
     rootLogger.info(latestLogs);
 
     rootLogger.info(
-      orange.bold(
-        `Grafana Dashboard Link: https://abacusworks.grafana.net/d/ddz6ma94rnzswc/warp-routes?orgId=1&var-warp_route_id=${warpRouteId}`,
-      ),
+      orange.bold(`Grafana Dashboard Link: ${grafanaLink}${warpRouteId}`),
     );
   } catch (error) {
     rootLogger.error(error);
@@ -56,10 +58,8 @@ async function main() {
   }
 }
 
-function getMonitorWarpRouteId(warpRouteId: string) {
-  return `hyperlane-warp-route-${warpRouteId
-    .replace('/', '-')
-    .toLowerCase()}-0`;
+function getPodWarpRouteId(warpRouteId: string) {
+  return `${podPrefix}-${warpRouteId.replace('/', '-').toLowerCase()}-0`;
 }
 
 function runKubernetesWarpRouteCommand(
