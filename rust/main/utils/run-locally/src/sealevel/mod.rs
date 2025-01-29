@@ -157,7 +157,6 @@ fn run_locally() {
     //
 
     let (solana_programs_path, hyperlane_solana_programs_path) = {
-        // let solana_bin_path = std::path::PathBuf::from("/tmp/kamiyaa/solana/bin");
         let solana_path_tempdir = tempdir().expect("Failed to create solana temp dir");
         let solana_bin_path = install_solana_cli_tools(
             SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
@@ -209,8 +208,6 @@ fn run_locally() {
     let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
     let (solana_cli_tools_path, solana_config_path) = {
         // use the agave 2.x validator version to ensure mainnet compatibility
-
-        //        let solana_bin_path = std::path::PathBuf::from("/tmp/kamiyaa/solana-cli/bin");
 
         let solana_tools_dir = tempdir().expect("Failed to create solana tools dir");
         let solana_bin_path = install_solana_cli_tools(
