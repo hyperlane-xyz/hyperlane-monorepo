@@ -27,7 +27,11 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
-import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
+import {
+  EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
+  EvmIntentMultiChainAdapter,
+  EvmIntentNativeMultiChainAdapter,
+} from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
@@ -185,12 +189,14 @@ export class WarpCore {
     sender,
     senderPubKey,
     interchainFee,
+    fillDeadline,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
+    fillDeadline?: number;
   }): Promise<TransactionFeeEstimate> {
     this.logger.debug(`Estimating local transfer gas to ${destination}`);
     const originMetadata = this.multiProvider.getChainMetadata(
@@ -221,6 +227,7 @@ export class WarpCore {
       sender,
       recipient,
       interchainFee,
+      fillDeadline,
     });
 
     // Typically the transfers require a single transaction
@@ -272,12 +279,14 @@ export class WarpCore {
     sender,
     senderPubKey,
     interchainFee,
+    fillDeadline,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
     interchainFee?: TokenAmount;
+    fillDeadline?: number;
   }): Promise<TokenAmount> {
     const originMetadata = this.multiProvider.getChainMetadata(
       originToken.chainName,
@@ -296,6 +305,7 @@ export class WarpCore {
       sender,
       senderPubKey,
       interchainFee,
+      fillDeadline,
     });
 
     // Get the local gas token. This assumes the chain's native token will pay for local gas
@@ -314,12 +324,14 @@ export class WarpCore {
     sender,
     recipient,
     interchainFee,
+    fillDeadline,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     sender: Address;
     recipient: Address;
     interchainFee?: TokenAmount;
+    fillDeadline?: number;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
 
@@ -329,11 +341,19 @@ export class WarpCore {
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
     const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
 
+    if (
+      fillDeadline &&
+      (hypAdapter instanceof EvmIntentMultiChainAdapter ||
+        hypAdapter instanceof EvmIntentNativeMultiChainAdapter)
+    ) {
+      hypAdapter.deadline = fillDeadline;
+    }
+
     if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
       this.logger.info(`Approval required for transfer of ${token.symbol}`);
       const approveTxReq = await hypAdapter.populateApproveTx({
         weiAmountOrId: amount.toString(),
-        recipient: token.addressOrDenom,
+        recipient: token.intentRouterAddressOrDenom ?? token.addressOrDenom,
       });
       this.logger.debug(`Approval tx for ${token.symbol} populated`);
 
@@ -383,11 +403,13 @@ export class WarpCore {
     destination,
     sender,
     senderPubKey,
+    fillDeadline,
   }: {
     originToken: IToken;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
+    fillDeadline?: number;
   }): Promise<WarpCoreFeeEstimate> {
     this.logger.debug('Fetching remote transfer fee estimates');
 
@@ -406,6 +428,7 @@ export class WarpCore {
       sender,
       senderPubKey,
       interchainFee: interchainQuote,
+      fillDeadline,
     });
 
     return {
@@ -424,12 +447,14 @@ export class WarpCore {
     sender,
     senderPubKey,
     feeEstimate,
+    fillDeadline,
   }: {
     balance: TokenAmount;
     destination: ChainNameOrId;
     sender: Address;
     senderPubKey?: HexString;
     feeEstimate?: WarpCoreFeeEstimate;
+    fillDeadline?: number;
   }): Promise<TokenAmount> {
     const originToken = balance.token;
 
@@ -439,6 +464,7 @@ export class WarpCore {
         destination,
         sender,
         senderPubKey,
+        fillDeadline,
       });
     }
     const { localQuote, interchainQuote } = feeEstimate;
@@ -531,7 +557,8 @@ export class WarpCore {
     const adapter = token.getAdapter(this.multiProvider);
     const isRequired = await adapter.isApproveRequired(
       owner,
-      token.addressOrDenom,
+      // @ts-ignore
+      adapter.addresses.router ?? token.addressOrDenom,
       amount,
     );
     this.logger.debug(
@@ -551,12 +578,14 @@ export class WarpCore {
     recipient,
     sender,
     senderPubKey,
+    fillDeadline,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
     recipient: Address;
     sender: Address;
     senderPubKey?: HexString;
+    fillDeadline?: number;
   }): Promise<Record<string, string> | null> {
     const chainError = this.validateChains(
       originTokenAmount.token.chainName,
@@ -590,6 +619,7 @@ export class WarpCore {
       destination,
       sender,
       senderPubKey,
+      fillDeadline,
     );
     if (balancesError) return balancesError;
 
@@ -705,6 +735,7 @@ export class WarpCore {
     destination: ChainNameOrId,
     sender: Address,
     senderPubKey?: HexString,
+    fillDeadline?: number,
   ): Promise<Record<string, string> | null> {
     const { token: originToken, amount } = originTokenAmount;
 
@@ -743,6 +774,7 @@ export class WarpCore {
       sender,
       senderPubKey,
       interchainFee: interchainQuote,
+      fillDeadline,
     });
 
     const feeEstimate = { interchainQuote, localQuote };
@@ -754,6 +786,7 @@ export class WarpCore {
       sender,
       senderPubKey,
       feeEstimate,
+      fillDeadline,
     });
     if (amount > maxTransfer.amount) {
       return { amount: 'Insufficient balance for gas and transfer' };

@@ -55,6 +55,7 @@ import {
 import type {
   IHypTokenAdapter,
   ITokenAdapter,
+  IntentHypTokenAdapter,
 } from './adapters/ITokenAdapter.js';
 import {
   SealevelHypCollateralAdapter,
@@ -174,6 +175,7 @@ export class Token implements IToken {
       return new EvmIntentTokenAdapter(chainName, multiProvider, {
         router: this.intentRouterAddressOrDenom,
         token: addressOrDenom,
+        outputToken: addressOrDenom,
       });
     } else if (standard === TokenStandard.EvmIntentNative) {
       assert(
@@ -184,6 +186,7 @@ export class Token implements IToken {
       return new EvmIntentNativeTokenAdapter(chainName, multiProvider, {
         router: this.intentRouterAddressOrDenom,
         token: addressOrDenom,
+        outputToken: addressOrDenom,
       });
     } else {
       throw new Error(`No adapter found for token standard: ${standard}`);
@@ -199,7 +202,7 @@ export class Token implements IToken {
   getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     destination?: ChainName,
-  ): IHypTokenAdapter<unknown> {
+  ): IHypTokenAdapter<unknown> | IntentHypTokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
       this;
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
@@ -321,18 +324,34 @@ export class Token implements IToken {
         this.intentRouterAddressOrDenom,
         'Intent router required for EvmIntent tokens',
       );
+      const outputToken =
+        destination &&
+        this.getConnectionForChain(destination)?.token.addressOrDenom;
+      assert(
+        outputToken,
+        `Couldn't find token on destination chain ${destination}`,
+      );
       return new EvmIntentMultiChainAdapter(chainName, multiProvider, {
         token: addressOrDenom,
         router: this.intentRouterAddressOrDenom,
+        outputToken,
       });
     } else if (standard === TokenStandard.EvmIntentNative) {
       assert(
         this.intentRouterAddressOrDenom,
         'Intent router required for EvmIntentNative tokens',
       );
+      const outputToken =
+        destination &&
+        this.getConnectionForChain(destination)?.token.addressOrDenom;
+      assert(
+        outputToken,
+        `Couldn't find token on destination chain ${destination}`,
+      );
       return new EvmIntentNativeMultiChainAdapter(chainName, multiProvider, {
         token: addressOrDenom,
         router: this.intentRouterAddressOrDenom,
+        outputToken,
       });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);

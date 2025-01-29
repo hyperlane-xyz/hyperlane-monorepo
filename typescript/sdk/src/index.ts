@@ -441,7 +441,6 @@ export {
   IcaRouterConfigSchema,
   RemoteIcaRouterConfigSchema,
 } from './ica/types.js';
-export { IntentCore } from './intent/IntentCore.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
 export {
   chainMetadataToCosmosChain,
