@@ -23,7 +23,7 @@ export const getEthereumSeiPumpBTCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...getOwnerConfigForAddress(ethereumOwner),
+    owner: ethereumOwner,
     proxyAdmin: {
       // Address explicitly specified as move away from the AW proxy admin
       address: '0x64d4ba42f033927ca3babbbebaa11ac8caed9472',
@@ -36,7 +36,7 @@ export const getEthereumSeiPumpBTCWarpConfig = async (
 
   const sei: HypTokenRouterConfig = {
     ...routerConfig.sei,
-    ...getOwnerConfigForAddress(seiOwner),
+    owner: seiOwner,
     proxyAdmin: {
       // Address explicitly specified as move away from the AW proxy admin
       address: '0x932a0a357CbE9a06c0FCec8C56335DA162c5D071',
