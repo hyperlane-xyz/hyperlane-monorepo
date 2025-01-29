@@ -99,6 +99,7 @@ export const mainnet3SupportedChainNames = [
   'solanamainnet',
   'soneium',
   'sonic',
+  'sonicsvm',
   'soon',
   'stride',
   // 'subtensor',
