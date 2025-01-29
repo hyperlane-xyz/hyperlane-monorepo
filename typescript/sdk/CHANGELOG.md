@@ -1,5 +1,43 @@
 # @hyperlane-xyz/sdk
 
+## 8.5.0
+
+### Minor Changes
+
+- 55b8ccdff: Improve usability of Token.FromChainMetadataNativeToken
+
+### Patch Changes
+
+- Updated dependencies [044665692]
+  - @hyperlane-xyz/core@5.11.1
+  - @hyperlane-xyz/utils@8.5.0
+
+## 8.4.0
+
+### Minor Changes
+
+- f6b682cdb: Deploy to abstract, glue, matchain, unitzero.
+
+### Patch Changes
+
+- Updated dependencies [47ae33c6a]
+  - @hyperlane-xyz/core@5.11.0
+  - @hyperlane-xyz/utils@8.4.0
+
+## 8.3.0
+
+### Minor Changes
+
+- 7546c0181: Deploy to trumpchain.
+- 49856fbb9: Deploy to flametestnet, sonicblaze. Remove support for sonictestnet.
+
+### Patch Changes
+
+- Updated dependencies [db8c09011]
+- Updated dependencies [11cf66c5e]
+  - @hyperlane-xyz/core@5.10.0
+  - @hyperlane-xyz/utils@8.3.0
+
 ## 8.2.0
 
 ### Minor Changes

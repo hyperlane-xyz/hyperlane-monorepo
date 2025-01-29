@@ -1,5 +1,39 @@
 # @hyperlane-xyz/core
 
+## 5.11.1
+
+### Patch Changes
+
+- 044665692: Make `initialize` function public virtual
+  - @hyperlane-xyz/utils@8.5.0
+
+## 5.11.0
+
+### Minor Changes
+
+- 47ae33c6a: Revert zksync changes.
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.4.0
+
+## 5.10.0
+
+### Minor Changes
+
+- db8c09011: Add ZKSync support and restructure build artifacts:
+
+  - Add ZKSync compilation support
+  - Restructure typechain directory location to core-utils/typechain
+  - Add ZKSync-specific artifact generation and exports
+  - Update build process to handle both standard and ZKSync artifacts
+  - Add new exports for ZKSync build artifacts and contract types
+
+### Patch Changes
+
+- 11cf66c5e: Export empty zksync buildArtifact to satisfy package.json exports
+  - @hyperlane-xyz/utils@8.3.0
+
 ## 5.9.2
 
 ### Patch Changes

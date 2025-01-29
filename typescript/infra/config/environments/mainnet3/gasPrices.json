@@ -1,4 +1,8 @@
 {
+  "abstract": {
+    "amount": "0.04525",
+    "decimals": 9
+  },
   "ancient8": {
     "amount": "0.001000252",
     "decimals": 9
@@ -171,6 +175,10 @@
     "amount": "20.0",
     "decimals": 9
   },
+  "glue": {
+    "amount": "125.0",
+    "decimals": 9
+  },
   "gnosis": {
     "amount": "1.500000007",
     "decimals": 9
@@ -241,6 +249,10 @@
   },
   "mantle": {
     "amount": "0.02",
+    "decimals": 9
+  },
+  "matchain": {
+    "amount": "0.001000008",
     "decimals": 9
   },
   "merlin": {
@@ -371,6 +383,10 @@
     "amount": "5.5",
     "decimals": 9
   },
+  "sonicsvm": {
+    "amount": "0.1",
+    "decimals": 1
+  },
   "soon": {
     "amount": "0.0000001",
     "decimals": 1
@@ -417,6 +433,10 @@
   },
   "unichain": {
     "amount": "0.001000252",
+    "decimals": 9
+  },
+  "unitzero": {
+    "amount": "0.00006064",
     "decimals": 9
   },
   "vana": {

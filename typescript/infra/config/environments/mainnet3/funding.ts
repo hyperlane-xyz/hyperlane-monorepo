@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
 > = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '95deca3-20250120-103554',
+    tag: '9602137-20250123-180143',
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -26,6 +26,7 @@ export const keyFunderConfig: KeyFunderConfig<
   },
   // desired balance config, must be set for each chain
   desiredBalancePerChain: {
+    abstract: '0',
     // acala: '5',
     ancient8: '0.5',
     alephzeroevmmainnet: '100',
@@ -70,6 +71,7 @@ export const keyFunderConfig: KeyFunderConfig<
     // fractal: '500',
     fraxtal: '0.2',
     fusemainnet: '20',
+    glue: '50',
     gnosis: '5',
     gravity: '500',
     guru: '100',
@@ -87,6 +89,7 @@ export const keyFunderConfig: KeyFunderConfig<
     lumiaprism: '1',
     mantapacific: '0.2',
     mantle: '20',
+    matchain: '0.05',
     merlin: '0.002',
     metal: '0.05',
     metis: '3',
@@ -129,6 +132,7 @@ export const keyFunderConfig: KeyFunderConfig<
     treasure: '900',
     trumpchain: '0.25',
     unichain: '0.05',
+    unitzero: '50',
     // temporarily low until we're able to fund more
     vana: '0.001',
     viction: '3',
@@ -149,6 +153,7 @@ export const keyFunderConfig: KeyFunderConfig<
     solanamainnet: '0',
     eclipsemainnet: '0',
     soon: '0',
+    sonicsvm: '0',
   },
   // if not set, keyfunder defaults to 0
   desiredKathyBalancePerChain: {
@@ -205,6 +210,7 @@ export const keyFunderConfig: KeyFunderConfig<
     eclipsemainnet: '0',
     solanamainnet: '0',
     soon: '0',
+    sonicsvm: '0',
   },
   // if not set, keyfunder defaults to using desired balance * 0.2 as the threshold
   igpClaimThresholdPerChain: {
@@ -261,5 +267,6 @@ export const keyFunderConfig: KeyFunderConfig<
     eclipsemainnet: '0',
     solanamainnet: '0',
     soon: '0',
+    sonicsvm: '0',
   },
 };

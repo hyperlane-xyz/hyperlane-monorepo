@@ -6,8 +6,13 @@ import { getMainnetAddresses } from '../../registry.js';
 import { ethereumChainNames } from './chains.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
-export const timelocks: ChainMap<Address | undefined> = {
+export const upgradeTimelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
+};
+
+export const timelocks: ChainMap<Address> = {
+  ...upgradeTimelocks,
+  ethereum: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2', // symbiotic network timelock
 };
 
 export function localAccountRouters(): ChainMap<Address> {
@@ -210,7 +215,7 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
       {
         owner,
         ownerOverrides: {
-          proxyAdmin: timelocks[local] ?? owner,
+          proxyAdmin: upgradeTimelocks[local] ?? owner,
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
@@ -253,6 +258,11 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     owner: 'n/a - nothing owned here',
   },
   soon: {
-    owner: 'n/a - nothing owned here',
+    // Squads vault
+    owner: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',
+  },
+  sonicsvm: {
+    // Will move to a Squads once it's live
+    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
 };
