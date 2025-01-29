@@ -1,5 +1,12 @@
 # @hyperlane-xyz/core
 
+## 5.11.1
+
+### Patch Changes
+
+- 044665692: Make `initialize` function public virtual
+  - @hyperlane-xyz/utils@8.5.0
+
 ## 5.11.0
 
 ### Minor Changes

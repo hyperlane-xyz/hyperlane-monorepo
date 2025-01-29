@@ -62,4 +62,5 @@ export enum WarpRouteIds {
   ArtelaBaseWETH = 'WETH/artela-base',
   SolanaSoonBonk = 'Bonk/solanamainnet-soon',
   SolanaSoonSOL = 'SOL/solanamainnet-soon',
+  SolanaSonicsvmSOL = 'SOL/solanamainnet-sonicsvm',
 }
