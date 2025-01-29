@@ -1,5 +1,7 @@
 # @hyperlane-xyz/ccip-server
 
+## 8.5.0
+
 ## 8.4.0
 
 ## 8.3.0
