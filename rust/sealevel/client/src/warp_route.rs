@@ -459,7 +459,10 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
 
                     // Ensure that the metadata contents match the provided token config.
                     assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
-                    assert_eq!(metadata_contents.symbol, synthetic.symbol, "Symbol mismatch");
+                    assert_eq!(
+                        metadata_contents.symbol, synthetic.symbol,
+                        "Symbol mismatch"
+                    );
                 }
                 _ => {}
             }
