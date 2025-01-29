@@ -1,5 +1,4 @@
 {
-  "abstract": "0.0349",
   "alephzeroevmmainnet": "200",
   "ancient8": "1",
   "apechain": "100",
@@ -76,7 +75,6 @@
   "oortmainnet": "4000",
   "optimism": "1.2",
   "orderly": "0.1",
-  "osmosis": "99.4",
   "polygon": "250",
   "polygonzkevm": "1.1",
   "polynomialfi": "0.1",
