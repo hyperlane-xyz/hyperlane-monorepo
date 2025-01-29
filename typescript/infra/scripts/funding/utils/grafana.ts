@@ -6,6 +6,7 @@ import {
   ProvisionedAlertRule,
   WalletName,
   alertConfigMapping,
+  walletNameQueryFormat,
 } from '../../../config/grafanaAlerts.js';
 import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
 
