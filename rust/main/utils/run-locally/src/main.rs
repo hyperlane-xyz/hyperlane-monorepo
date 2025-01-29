@@ -452,22 +452,7 @@ fn main() -> ExitCode {
             )
         },
         || !SHUTDOWN.load(Ordering::Relaxed),
-        || {
-            // verify long-running tasks are still running
-            for (name, (child, _)) in state.agents.iter_mut() {
-                if let Some(status) = child.try_wait().unwrap() {
-                    if !status.success() {
-                        log!(
-                            "Child process {} exited unexpectedly, with code {}. Shutting down",
-                            name,
-                            status.code().unwrap()
-                        );
-                        return true;
-                    }
-                }
-            }
-            false
-        },
+        || long_running_processes_live_check(&mut state),
     );
 
     if !test_passed {
@@ -489,7 +474,7 @@ fn main() -> ExitCode {
         loop_start,
         relayer_restart_invariants_met,
         || !SHUTDOWN.load(Ordering::Relaxed),
-        || false,
+        || long_running_processes_live_check(&mut state),
     );
 
     // test retry request
@@ -639,18 +624,15 @@ where
         if !config.ci_mode {
             continue;
         }
-
         if condition_fn().unwrap_or(false) {
             // end condition reached successfully
             break;
         }
-
-        if check_ci_timed_out(config, start_time) {
+        if check_ci_timed_out(config.ci_mode_timeout, start_time) {
             // we ran out of time
             log!("CI timeout reached before invariants were met");
             return false;
         }
-
         if shutdown_criteria_fn() {
             return false;
         }
@@ -658,8 +640,26 @@ where
     true
 }
 
-fn check_ci_timed_out(config: &Config, start_time: Instant) -> bool {
-    (Instant::now() - start_time).as_secs() > config.ci_mode_timeout
+/// check if CI has timed out based on config
+fn check_ci_timed_out(timeout_secs: u64, start_time: Instant) -> bool {
+    (Instant::now() - start_time).as_secs() > timeout_secs
+}
+
+/// verify long-running tasks are still running
+fn long_running_processes_live_check(state: &mut State) -> bool {
+    for (name, (child, _)) in state.agents.iter_mut() {
+        if let Some(status) = child.try_wait().unwrap() {
+            if !status.success() {
+                log!(
+                    "Child process {} exited unexpectedly, with code {}. Shutting down",
+                    name,
+                    status.code().unwrap()
+                );
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn report_test_result(passed: bool) -> ExitCode {
