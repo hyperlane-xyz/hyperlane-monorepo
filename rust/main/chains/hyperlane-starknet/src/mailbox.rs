@@ -130,7 +130,7 @@ impl StarknetMailbox {
 
 impl HyperlaneChain for StarknetMailbox {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.provider.domain()
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -220,16 +220,13 @@ impl Mailbox for StarknetMailbox {
         let contract_call = self.process_contract_call(message, metadata, None).await?;
 
         // Get fee estimate from the provider
-        let fee_estimate = contract_call
-            .estimate_fee()
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to estimate fee in process_estimate_costs: {:?}", e);
-                HyperlaneStarknetError::AccountError(e.to_string())
-            })?;
+        let fee_estimate = contract_call.estimate_fee().await.map_err(|e| {
+            tracing::error!("Failed to estimate fee in process_estimate_costs: {:?}", e);
+            HyperlaneStarknetError::AccountError(e.to_string())
+        })?;
 
         Ok(TxCostEstimate {
-            gas_limit: HyU256::from(fee_estimate.gas_consumed).0,
+            gas_limit: HyU256::from(fee_estimate.overall_fee).0,
             gas_price: FixedPointNumber::try_from(HyU256::from(fee_estimate.gas_price).0).map_err(
                 |e| {
                     HyperlaneStarknetError::AccountError(format!(
@@ -242,7 +239,8 @@ impl Mailbox for StarknetMailbox {
     }
 
     fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
-        todo!()
+        // For Starknet, we don't need to process the calldata as it's handled by the contract
+        Vec::new()
     }
 }
 
@@ -252,6 +250,6 @@ impl HyperlaneAbi for StarknetMailboxAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        todo!()
+        HashMap::default()
     }
 }

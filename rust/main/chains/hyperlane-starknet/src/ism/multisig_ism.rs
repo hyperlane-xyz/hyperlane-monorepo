@@ -80,7 +80,7 @@ impl StarknetMultisigIsm {
 
 impl HyperlaneChain for StarknetMultisigIsm {
     fn domain(&self) -> &HyperlaneDomain {
-        &self.provider.domain()
+        self.provider.domain()
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
@@ -143,6 +143,6 @@ impl HyperlaneAbi for StarknetMultisigIsmAbi {
     const SELECTOR_SIZE_BYTES: usize = 4;
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
-        todo!()
+        HashMap::default()
     }
 }

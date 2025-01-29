@@ -252,8 +252,7 @@ pub(crate) async fn get_block_height_for_reorg_period(
                 .block_number()
                 .await
                 .map_err(Into::<HyperlaneStarknetError>::into)?;
-            let block_height = tip - blocks.get() as u64;
-            block_height
+            tip - blocks.get() as u64
         }
         ReorgPeriod::None => provider
             .block_number()
@@ -275,13 +274,10 @@ pub async fn send_and_confirm(
     rpc_client: &Arc<AnyProvider>,
     contract_call: Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>,
 ) -> ChainResult<TxOutcome> {
-    let tx = contract_call
-        .send()
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to send transaction in send_and_confirm: {:?}", e);
-            HyperlaneStarknetError::AccountError(e.to_string())
-        })?;
+    let tx = contract_call.send().await.map_err(|e| {
+        tracing::error!("Failed to send transaction in send_and_confirm: {:?}", e);
+        HyperlaneStarknetError::AccountError(e.to_string())
+    })?;
 
     let receipt = get_transaction_receipt(rpc_client, tx.transaction_hash).await?;
 

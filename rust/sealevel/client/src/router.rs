@@ -599,6 +599,8 @@ fn enroll_all_remote_routers<
             .collect::<Vec<RemoteRouterConfig>>();
 
         if !router_configs.is_empty() {
+            adjust_gas_price_if_needed(chain_name.as_str(), ctx);
+
             ctx.new_txn()
                 .add_with_description(
                     deployer.enroll_remote_routers_instruction(

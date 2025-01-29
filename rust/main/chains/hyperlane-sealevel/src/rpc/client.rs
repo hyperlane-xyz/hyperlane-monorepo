@@ -10,6 +10,7 @@ use solana_client::{
     },
     rpc_response::{Response, RpcSimulateTransactionResult},
 };
+use solana_program::clock::Slot;
 use solana_sdk::{
     account::Account,
     commitment_config::CommitmentConfig,
@@ -32,6 +33,12 @@ use crate::{
     error::HyperlaneSealevelError, priority_fee::PriorityFeeOracle,
     tx_submitter::TransactionSubmitter,
 };
+
+const COMPUTE_UNIT_MULTIPLIER_NUMERATOR: u32 = 11;
+const COMPUTE_UNIT_MULTIPLIER_DENOMINATOR: u32 = 10;
+
+const PRIORITY_FEE_MULTIPLIER_NUMERATOR: u64 = 110;
+const PRIORITY_FEE_MULTIPLIER_DENOMINATOR: u64 = 100;
 
 pub struct SealevelTxCostEstimate {
     compute_units: u32,
@@ -183,14 +190,19 @@ impl SealevelRpcClient {
 
     pub async fn get_slot(&self) -> ChainResult<u32> {
         let slot = self
-            .0
-            .get_slot_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
+            .get_slot_raw()
+            .await?
             .try_into()
             // FIXME solana block height is u64...
             .expect("sealevel block slot exceeds u32::MAX");
         Ok(slot)
+    }
+
+    pub async fn get_slot_raw(&self) -> ChainResult<Slot> {
+        self.0
+            .get_slot_with_commitment(CommitmentConfig::finalized())
+            .await
+            .map_err(ChainCommunicationError::from_other)
     }
 
     pub async fn get_transaction(
@@ -389,11 +401,34 @@ impl SealevelRpcClient {
             ));
         }
 
-        // Bump the compute units by 10% to ensure we have enough, but cap it at the max.
-        let simulation_compute_units =
-            Self::MAX_COMPUTE_UNITS.min((simulation_compute_units * 11) / 10);
+        // Bump the compute units to be conservative
+        let simulation_compute_units = Self::MAX_COMPUTE_UNITS.min(
+            (simulation_compute_units * COMPUTE_UNIT_MULTIPLIER_NUMERATOR)
+                / COMPUTE_UNIT_MULTIPLIER_DENOMINATOR,
+        );
 
-        let priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+        let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+
+        if let Ok(max_priority_fee) = std::env::var("SVM_MAX_PRIORITY_FEE") {
+            let max_priority_fee = max_priority_fee.parse()?;
+            if priority_fee > max_priority_fee {
+                tracing::info!(
+                    priority_fee,
+                    max_priority_fee,
+                    "Estimated priority fee is very high, capping to a max",
+                );
+                priority_fee = max_priority_fee;
+            }
+        }
+
+        let priority_fee_numerator: u64 = std::env::var("SVM_PRIORITY_FEE_NUMERATOR")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
+
+        // Bump the priority fee to be conservative
+        let priority_fee =
+            (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
 
         Ok(SealevelTxCostEstimate {
             compute_units: simulation_compute_units,
