@@ -634,6 +634,7 @@ where
             return false;
         }
         if shutdown_criteria_fn() {
+            SHUTDOWN.store(true, Ordering::Relaxed);
             return false;
         }
     }
