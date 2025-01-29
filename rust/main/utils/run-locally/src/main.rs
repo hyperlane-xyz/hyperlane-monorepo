@@ -452,7 +452,7 @@ fn main() -> ExitCode {
             )
         },
         || !SHUTDOWN.load(Ordering::Relaxed),
-        || long_running_processes_live_check(&mut state),
+        || long_running_processes_exited_check(&mut state),
     );
 
     if !test_passed {
@@ -474,7 +474,7 @@ fn main() -> ExitCode {
         loop_start,
         relayer_restart_invariants_met,
         || !SHUTDOWN.load(Ordering::Relaxed),
-        || long_running_processes_live_check(&mut state),
+        || long_running_processes_exited_check(&mut state),
     );
 
     // test retry request
@@ -646,7 +646,7 @@ fn check_ci_timed_out(timeout_secs: u64, start_time: Instant) -> bool {
 }
 
 /// verify long-running tasks are still running
-fn long_running_processes_live_check(state: &mut State) -> bool {
+fn long_running_processes_exited_check(state: &mut State) -> bool {
     for (name, (child, _)) in state.agents.iter_mut() {
         if let Some(status) = child.try_wait().unwrap() {
             if !status.success() {
