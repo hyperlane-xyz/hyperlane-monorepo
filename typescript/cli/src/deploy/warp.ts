@@ -51,6 +51,7 @@ import {
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
+  isIsmCompatible,
   isTokenMetadata,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -127,6 +128,9 @@ export async function runWarpRouteDeploy({
 
   const chains = Object.keys(warpRouteConfig);
 
+  // Validate ISM compatibility for all chains
+  validateIsmCompatibility(warpRouteConfig, context);
+
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys(chains, chainMetadata, registry);
@@ -174,6 +178,34 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
     message: 'Is this deployment plan correct?',
   });
   if (!isConfirmed) throw new Error('Deployment cancelled');
+}
+
+/**
+ * Validates that the ISM configurations are compatible with each chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured for a chain.
+ */
+function validateIsmCompatibility(
+  warpRouteConfig: WarpRouteDeployConfig,
+  context: WriteCommandContext,
+) {
+  for (const chain of Object.keys(warpRouteConfig)) {
+    const config = warpRouteConfig[chain];
+    const { technicalStack: chainTechnicalStack } =
+      context.multiProvider.getChainMetadata(chain);
+
+    if (
+      config.interchainSecurityModule &&
+      typeof config.interchainSecurityModule !== 'string'
+    ) {
+      assert(
+        isIsmCompatible({
+          chainTechnicalStack,
+          ismType: config.interchainSecurityModule.type,
+        }),
+        `Selected ISM of type ${config.interchainSecurityModule.type} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack} for chain ${chain}!`,
+      );
+    }
+  }
 }
 
 async function executeDeploy(

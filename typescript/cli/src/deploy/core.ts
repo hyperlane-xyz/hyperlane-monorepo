@@ -63,6 +63,10 @@ export async function runCoreDeploy(params: DeployParams) {
       'Select chain to connect:',
     );
   }
+
+  // Validate ISM compatibility
+  validateIsmCompatibility(chain, config, context);
+
   let apiKeys: ChainMap<string> = {};
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
@@ -83,19 +87,6 @@ export async function runCoreDeploy(params: DeployParams) {
   });
 
   const userAddress = await signer.getAddress();
-
-  const { technicalStack: chainTechnicalStack } =
-    context.multiProvider.getChainMetadata(chain);
-
-  if (typeof config.defaultIsm !== 'string') {
-    assert(
-      isIsmCompatible({
-        chainTechnicalStack,
-        ismType: config.defaultIsm?.type,
-      }),
-      `ERROR: Selected ISM of type ${config.defaultIsm?.type} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack}!`,
-    );
-  }
 
   const initialBalances = await prepareDeploy(context, userAddress, [chain]);
 
@@ -126,6 +117,29 @@ export async function runCoreDeploy(params: DeployParams) {
 
   logGreen('✅ Core contract deployments complete:\n');
   log(indentYamlOrJson(yamlStringify(deployedAddresses, null, 2), 4));
+}
+
+/**
+ * Validates that the ISM configuration is compatible with the chain's technical stack.
+ * Throws an error if an incompatible ISM type is configured.
+ */
+function validateIsmCompatibility(
+  chain: ChainName,
+  config: CoreConfig,
+  context: WriteCommandContext,
+) {
+  const { technicalStack: chainTechnicalStack } =
+    context.multiProvider.getChainMetadata(chain);
+
+  if (typeof config.defaultIsm !== 'string') {
+    assert(
+      isIsmCompatible({
+        chainTechnicalStack,
+        ismType: config.defaultIsm?.type,
+      }),
+      `Selected ISM of type ${config.defaultIsm?.type} is not compatible with the selected Chain Technical Stack of ${chainTechnicalStack} for chain ${chain}!`,
+    );
+  }
 }
 
 export async function runCoreApply(params: ApplyParams) {
