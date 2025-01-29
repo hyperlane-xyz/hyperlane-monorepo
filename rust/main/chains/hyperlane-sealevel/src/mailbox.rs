@@ -29,7 +29,7 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signer::{keypair::Keypair, Signer as _},
+    signer::Signer as _,
 };
 use tracing::{debug, info, instrument, warn};
 
@@ -40,13 +40,16 @@ use hyperlane_core::{
     ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
-use crate::log_meta_composer::{
-    is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
-};
 use crate::tx_submitter::TransactionSubmitter;
 use crate::{
     account::{search_accounts_by_discriminator, search_and_validate_account},
     priority_fee::PriorityFeeOracle,
+};
+use crate::{
+    log_meta_composer::{
+        is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
+    },
+    SealevelKeypair,
 };
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
@@ -79,7 +82,7 @@ pub struct SealevelMailbox {
     inbox: (Pubkey, u8),
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: SealevelProvider,
-    payer: Option<Keypair>,
+    payer: Option<SealevelKeypair>,
     priority_fee_oracle: Box<dyn PriorityFeeOracle>,
     tx_submitter: Box<dyn TransactionSubmitter>,
 }
@@ -89,7 +92,7 @@ impl SealevelMailbox {
     pub fn new(
         conf: &ConnectionConf,
         locator: ContractLocator,
-        payer: Option<Keypair>,
+        payer: Option<SealevelKeypair>,
     ) -> ChainResult<Self> {
         let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
@@ -379,7 +382,7 @@ impl SealevelMailbox {
         Ok(inbox)
     }
 
-    fn get_payer(&self) -> ChainResult<&Keypair> {
+    fn get_payer(&self) -> ChainResult<&SealevelKeypair> {
         self.payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
