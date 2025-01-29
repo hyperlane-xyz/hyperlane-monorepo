@@ -136,6 +136,7 @@ jobs:
           - relay
           # Warp Commands
           - warp-apply
+          - warp-apply-extend
           - warp-check
           - warp-bridge-1
           - warp-bridge-2
