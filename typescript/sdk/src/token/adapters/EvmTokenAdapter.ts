@@ -1,3 +1,4 @@
+import { Hyperlane7683__factory } from '@bootnodedev/intents-framework-core';
 import { BigNumber, PopulatedTransaction } from 'ethers';
 import { type Address as ViemAddress, encodeAbiParameters, pad } from 'viem';
 
@@ -28,7 +29,6 @@ import {
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
-import { Hyperlane7683__factory } from '../contracts/Hyperlane7683__factory.js';
 import { TokenMetadata } from '../types.js';
 
 import {
