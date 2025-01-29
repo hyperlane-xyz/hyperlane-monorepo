@@ -21,7 +21,7 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
 
   const base: HypTokenRouterConfig = {
     ...routerConfig.base,
-    owner: abacusWorksEnvOwnerConfig.base.owner,
+    ...abacusWorksEnvOwnerConfig.base,
     proxyAdmin: {
       ...abacusWorksEnvOwnerConfig.base,
       address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0',
