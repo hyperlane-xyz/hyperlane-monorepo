@@ -9,7 +9,10 @@ use std::{
     process::{Command, Stdio},
 };
 
-use solana_client::{client_error::ClientError, rpc_client::RpcClient};
+use solana_client::{
+    client_error::{reqwest, ClientError},
+    rpc_client::RpcClient,
+};
 
 use solana_sdk::{instruction::Instruction, program_error::ProgramError, pubkey::Pubkey};
 
@@ -38,6 +41,45 @@ use crate::{
     },
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+struct SplTokenOffchainMetadata {
+    name: String,
+    symbol: String,
+    description: Option<String>,
+    image: Option<String>,
+    website: Option<String>,
+    // Array of key-value pairs
+    attributes: Option<Vec<(String, String)>>,
+}
+
+impl SplTokenOffchainMetadata {
+    fn validate(&self) {
+        assert!(!self.name.is_empty(), "Name must not be empty");
+        assert!(
+            !self.symbol.is_empty(),
+            "Symbol must not be empty for token with name: {}",
+            self.name
+        );
+        assert!(
+            self.description.is_some(),
+            "Description must be provided for token with name: {}",
+            self.name
+        );
+        assert!(
+            self.image.is_some(),
+            "Image must be provided for token with name: {}",
+            self.name
+        );
+        let image_url = self.image.as_ref().unwrap();
+        let image = reqwest::blocking::get(image_url).unwrap();
+        assert!(
+            image.status().is_success(),
+            "Image URL must return a successful status code, url: {}",
+            image_url,
+        );
+    }
+}
 
 /// Configuration relating to decimals.
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -393,6 +435,35 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         }
 
         try_fund_ata_payer(ctx, client);
+    }
+
+    fn verify_config(
+        &self,
+        _ctx: &mut Context,
+        _app_configs: &HashMap<String, TokenConfig>,
+        app_configs_to_deploy: &HashMap<&String, &TokenConfig>,
+        _chain_configs: &HashMap<String, ChainMetadata>,
+    ) {
+        // We only have validations for SVM tokens at the moment.
+        for (_, config) in app_configs_to_deploy.into_iter() {
+            match &config.token_type {
+                TokenType::Synthetic(synthetic) => {
+                    // Verify that the metadata URI provided points to a valid JSON file.
+                    let metadata_uri = synthetic.uri.as_ref().expect("URI not provided");
+                    println!("Validating metadata URI: {}", metadata_uri);
+                    let metadata_response = reqwest::blocking::get(metadata_uri).unwrap();
+                    let metadata_contents: SplTokenOffchainMetadata = metadata_response
+                        .json()
+                        .expect("Failed to parse metadata JSON");
+                    metadata_contents.validate();
+
+                    // Ensure that the metadata contents match the provided token config.
+                    assert_eq!(metadata_contents.name, synthetic.name, "Name mismatch");
+                    assert_eq!(metadata_contents.symbol, synthetic.symbol, "Symbol mismatch");
+                }
+                _ => {}
+            }
+        }
     }
 
     /// Sets gas router configs on all deployable chains.

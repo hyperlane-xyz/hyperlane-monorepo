@@ -215,6 +215,16 @@ pub(crate) trait RouterDeployer<Config: RouterConfigGetter + std::fmt::Debug>:
         program_id
     }
 
+    fn verify_config(
+        &self,
+        _ctx: &mut Context,
+        _app_configs: &HashMap<String, Config>,
+        _app_configs_to_deploy: &HashMap<&String, &Config>,
+        _chain_configs: &HashMap<String, ChainMetadata>,
+    ) {
+        // By default, do nothing.
+    }
+
     fn init_program_idempotent(
         &self,
         ctx: &mut Context,
@@ -357,6 +367,11 @@ pub(crate) fn deploy_routers<
         .iter()
         .filter(|(_, app_config)| app_config.router_config().foreign_deployment.is_none())
         .collect::<HashMap<_, _>>();
+
+    // Verify the configuration.
+    println!("Verifying configuration...");
+    deployer.verify_config(ctx, &app_configs, &app_configs_to_deploy, &chain_configs);
+    println!("Configuration successfully verified!");
 
     warp_route::install_spl_token_cli();
 
