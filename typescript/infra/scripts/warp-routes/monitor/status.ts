@@ -9,19 +9,27 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds.js';
-import { getArgs, withWarpRouteIdRequired } from '../../agent-utils.js';
+import {
+  assertCorrectKubeContext,
+  getArgs,
+  withWarpRouteIdRequired,
+} from '../../agent-utils.js';
+import { getEnvironmentConfig } from '../../core-utils.js';
 
 const orange = chalk.hex('#FFA500');
-const grafanaLink =
+const GRAFANA_LINK =
   'https://abacusworks.grafana.net/d/ddz6ma94rnzswc/warp-routes?orgId=1&var-warp_route_id=';
-const logAmount = 5;
-const podPrefix = 'hyperlane-warp-route';
+const LOG_AMOUNT = 5;
+const POD_PREFIX = 'hyperlane-warp-route';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const { environment, warpRouteId } = await withWarpRouteIdRequired(
     getArgs(),
   ).parse();
+
+  const config = getEnvironmentConfig(environment);
+  await assertCorrectKubeContext(config);
 
   try {
     if (!Object.values(WarpRouteIds).includes(warpRouteId as WarpRouteIds)) {
@@ -45,12 +53,12 @@ async function main() {
       'logs',
       podWarpRouteId,
       environment,
-      [`--tail=${logAmount}`],
+      [`--tail=${LOG_AMOUNT}`],
     );
-    rootLogger.info(latestLogs);
+    formatAndPrintLogs(latestLogs);
 
     rootLogger.info(
-      orange.bold(`Grafana Dashboard Link: ${grafanaLink}${warpRouteId}`),
+      orange.bold(`Grafana Dashboard Link: ${GRAFANA_LINK}${warpRouteId}`),
     );
   } catch (error) {
     rootLogger.error(error);
@@ -59,7 +67,7 @@ async function main() {
 }
 
 function getPodWarpRouteId(warpRouteId: string) {
-  return `${podPrefix}-${warpRouteId.replace('/', '-').toLowerCase()}-0`;
+  return `${POD_PREFIX}-${warpRouteId.replace('/', '-').toLowerCase()}-0`;
 }
 
 function runKubernetesWarpRouteCommand(
@@ -75,6 +83,45 @@ function runKubernetesWarpRouteCommand(
       encoding: 'utf-8',
     },
   );
+}
+
+function formatAndPrintLogs(rawLogs: string) {
+  try {
+    const logs = rawLogs
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    logs.forEach((log) => {
+      const { time, module, msg, labels, balance, valueUSD } = log;
+      const timestamp = new Date(time).toISOString();
+      const chain = labels?.chain_name || 'Unknown Chain';
+      const token = labels?.token_name || 'Unknown Token';
+      const warpRoute = labels?.warp_route_id || 'Unknown Warp Route';
+      const tokenStandard = labels?.token_standard || 'Unknown Standard';
+      const tokenAddress = labels?.token_address || 'Unknown Token Address';
+      const walletAddress = labels?.wallet_address || 'Unknown Wallet';
+
+      let logMessage =
+        chalk.gray(`[${timestamp}] `) + chalk.white(`[${module}] `);
+      logMessage += chalk.blue(`${warpRoute} `);
+      logMessage += chalk.green(`${chain} `);
+      logMessage += chalk.blue.italic(`Token: ${token} (${tokenAddress}) `);
+      logMessage += chalk.green.italic(`${tokenStandard} `);
+      logMessage += chalk.blue.italic(`Wallet: ${walletAddress} `);
+
+      if (balance) {
+        logMessage += chalk.yellow.italic(`Balance: ${balance} `);
+      }
+      if (valueUSD) {
+        logMessage += chalk.green.italic(`Value (USD): ${valueUSD} `);
+      }
+      logMessage += chalk.white(`→ ${msg}\n`);
+
+      rootLogger.info(logMessage);
+    });
+  } catch (error) {
+    rootLogger.error(`Failed to parse logs: ${error}`);
+  }
 }
 
 main().catch((err) => {
