@@ -240,9 +240,13 @@ impl ChainConf {
             }
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                h_sealevel::SealevelMailbox::new(conf, locator, keypair)
-                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
-                    .map_err(Into::into)
+                h_sealevel::SealevelMailbox::new(
+                    conf,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                )
+                .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                .map_err(Into::into)
             }
             ChainConnectionConf::Cosmos(conf) => {
                 let signer = self.cosmos_signer().await.context(ctx)?;
@@ -568,7 +572,9 @@ impl ChainConf {
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
                 let ism = Box::new(h_sealevel::SealevelInterchainSecurityModule::new(
-                    conf, locator, keypair,
+                    conf,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
                 ));
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
@@ -601,7 +607,11 @@ impl ChainConf {
             ChainConnectionConf::Fuel(_) => todo!(),
             ChainConnectionConf::Sealevel(conf) => {
                 let keypair = self.sealevel_signer().await.context(ctx)?;
-                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(conf, locator, keypair));
+                let ism = Box::new(h_sealevel::SealevelMultisigIsm::new(
+                    conf,
+                    locator,
+                    keypair.map(h_sealevel::SealevelKeypair::new),
+                ));
                 Ok(ism as Box<dyn MultisigIsm>)
             }
             ChainConnectionConf::Cosmos(conf) => {

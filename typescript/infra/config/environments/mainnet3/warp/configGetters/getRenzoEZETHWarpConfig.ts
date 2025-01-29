@@ -16,10 +16,8 @@ import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
-import rawTokenPrices from '../../tokenPrices.json';
 
-const tokenPrices: ChainMap<string> = rawTokenPrices;
-export const chainsToDeploy = [
+const chainsToDeploy = [
   'arbitrum',
   'optimism',
   'base',
@@ -36,6 +34,21 @@ export const chainsToDeploy = [
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
+const tokenPrices: ChainMap<string> = {
+  arbitrum: '3157.26',
+  optimism: '3157.26',
+  base: '3157.26',
+  blast: '3157.26',
+  bsc: '673.59',
+  mode: '3157.26',
+  linea: '3157.26',
+  ethereum: '3157.26',
+  fraxtal: '3168.75',
+  zircuit: '3157.26',
+  taiko: '3157.26',
+  sei: '0.354988',
+  swell: '3157.26',
+};
 export function getProtocolFee(chain: ChainName) {
   return (0.5 / Number(tokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
 }
@@ -305,6 +318,11 @@ export function getRenzoEZETHWarpConfigGenerator(
       new Set(chainsToDeploy),
       new Set(Object.keys(xERC20)),
     );
+    const tokenPriceDiff = symmetricDifference(
+      new Set(chainsToDeploy),
+      new Set(Object.keys(tokenPrices)),
+    );
+
     if (validatorDiff.size > 0) {
       throw new Error(
         `chainsToDeploy !== validatorConfig, diff is ${Array.from(
@@ -320,6 +338,14 @@ export function getRenzoEZETHWarpConfigGenerator(
       );
     }
     if (xERC20Diff.size > 0) {
+      throw new Error(
+        `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
+          ', ',
+        )}`,
+      );
+    }
+
+    if (tokenPriceDiff.size > 0) {
       throw new Error(
         `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
           ', ',

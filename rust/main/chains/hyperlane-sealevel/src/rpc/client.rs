@@ -10,6 +10,7 @@ use solana_client::{
     },
     rpc_response::{Response, RpcSimulateTransactionResult},
 };
+use solana_program::clock::Slot;
 use solana_sdk::{
     account::Account,
     commitment_config::CommitmentConfig,
@@ -18,7 +19,7 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     message::Message,
     pubkey::Pubkey,
-    signature::{Keypair, Signature, Signer},
+    signature::{Signature, Signer},
     transaction::Transaction,
 };
 use solana_transaction_status::{
@@ -30,8 +31,14 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 
 use crate::{
     error::HyperlaneSealevelError, priority_fee::PriorityFeeOracle,
-    tx_submitter::TransactionSubmitter,
+    tx_submitter::TransactionSubmitter, SealevelKeypair,
 };
+
+const COMPUTE_UNIT_MULTIPLIER_NUMERATOR: u32 = 11;
+const COMPUTE_UNIT_MULTIPLIER_DENOMINATOR: u32 = 10;
+
+const PRIORITY_FEE_MULTIPLIER_NUMERATOR: u64 = 110;
+const PRIORITY_FEE_MULTIPLIER_DENOMINATOR: u64 = 100;
 
 pub struct SealevelTxCostEstimate {
     compute_units: u32,
@@ -67,7 +74,7 @@ impl SealevelRpcClient {
     /// Simulates an Instruction that will return a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
         // If there's no data at all, default to an empty vec.
@@ -183,14 +190,19 @@ impl SealevelRpcClient {
 
     pub async fn get_slot(&self) -> ChainResult<u32> {
         let slot = self
-            .0
-            .get_slot_with_commitment(CommitmentConfig::finalized())
-            .await
-            .map_err(ChainCommunicationError::from_other)?
+            .get_slot_raw()
+            .await?
             .try_into()
             // FIXME solana block height is u64...
             .expect("sealevel block slot exceeds u32::MAX");
         Ok(slot)
+    }
+
+    pub async fn get_slot_raw(&self) -> ChainResult<Slot> {
+        self.0
+            .get_slot_with_commitment(CommitmentConfig::finalized())
+            .await
+            .map_err(ChainCommunicationError::from_other)
     }
 
     pub async fn get_transaction(
@@ -290,7 +302,7 @@ impl SealevelRpcClient {
     /// an Err is returned.
     pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
         &self,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         instruction: Instruction,
     ) -> ChainResult<Option<T>> {
         let commitment = CommitmentConfig::finalized();
@@ -345,7 +357,7 @@ impl SealevelRpcClient {
     pub async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         tx_submitter: &dyn TransactionSubmitter,
         priority_fee_oracle: &dyn PriorityFeeOracle,
     ) -> ChainResult<SealevelTxCostEstimate> {
@@ -389,11 +401,34 @@ impl SealevelRpcClient {
             ));
         }
 
-        // Bump the compute units by 10% to ensure we have enough, but cap it at the max.
-        let simulation_compute_units =
-            Self::MAX_COMPUTE_UNITS.min((simulation_compute_units * 11) / 10);
+        // Bump the compute units to be conservative
+        let simulation_compute_units = Self::MAX_COMPUTE_UNITS.min(
+            (simulation_compute_units * COMPUTE_UNIT_MULTIPLIER_NUMERATOR)
+                / COMPUTE_UNIT_MULTIPLIER_DENOMINATOR,
+        );
 
-        let priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+        let mut priority_fee = priority_fee_oracle.get_priority_fee(&simulation_tx).await?;
+
+        if let Ok(max_priority_fee) = std::env::var("SVM_MAX_PRIORITY_FEE") {
+            let max_priority_fee = max_priority_fee.parse()?;
+            if priority_fee > max_priority_fee {
+                tracing::info!(
+                    priority_fee,
+                    max_priority_fee,
+                    "Estimated priority fee is very high, capping to a max",
+                );
+                priority_fee = max_priority_fee;
+            }
+        }
+
+        let priority_fee_numerator: u64 = std::env::var("SVM_PRIORITY_FEE_NUMERATOR")
+            .ok()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(PRIORITY_FEE_MULTIPLIER_NUMERATOR);
+
+        // Bump the priority fee to be conservative
+        let priority_fee =
+            (priority_fee * priority_fee_numerator) / PRIORITY_FEE_MULTIPLIER_DENOMINATOR;
 
         Ok(SealevelTxCostEstimate {
             compute_units: simulation_compute_units,
@@ -405,7 +440,7 @@ impl SealevelRpcClient {
     pub async fn build_estimated_tx_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         tx_submitter: &dyn TransactionSubmitter,
         priority_fee_oracle: &dyn PriorityFeeOracle,
     ) -> ChainResult<Transaction> {
@@ -450,7 +485,7 @@ impl SealevelRpcClient {
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         tx_submitter: &dyn TransactionSubmitter,
         sign: bool,
     ) -> ChainResult<Transaction> {
@@ -478,7 +513,7 @@ impl SealevelRpcClient {
             Transaction::new_signed_with_payer(
                 &instructions,
                 Some(&payer.pubkey()),
-                &[payer],
+                &[payer.keypair()],
                 recent_blockhash,
             )
         } else {

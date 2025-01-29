@@ -6,8 +6,13 @@ import { getMainnetAddresses } from '../../registry.js';
 import { ethereumChainNames } from './chains.js';
 import { supportedChainNames } from './supportedChainNames.js';
 
-export const timelocks: ChainMap<Address | undefined> = {
+export const upgradeTimelocks: ChainMap<Address | undefined> = {
   arbitrum: '0xAC98b0cD1B64EA4fe133C6D2EDaf842cE5cF4b01',
+};
+
+export const timelocks: ChainMap<Address> = {
+  ...upgradeTimelocks,
+  ethereum: '0x59cf937Ea9FA9D7398223E3aA33d92F7f5f986A2', // symbiotic network timelock
 };
 
 export function localAccountRouters(): ChainMap<Address> {
@@ -188,6 +193,15 @@ export const icas: Partial<
   soneium: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   sonic: '0x5926599B8Aff45f1708b804B30213babdAD78C83',
   telos: '0xDde4Ce691d1c0579d48BCdd3491aA71472b6cC38',
+
+  // Jan 13, 2025 batch
+  // ----------------------------------------------------------
+  artela: '0x745CEA119757ea3e27093da590bC91f408bD4448',
+  guru: '0x825cF3d703F384E4aA846BA72eCf70f1985C91b6',
+  hemi: '0x8D18CBB212920e5ef070b23b813d82F8981cC276',
+  nero: '0xbBdb1682B2922C282b56DD716C29db5EFbdb5632',
+  torus: '0xc1e20A0D78E79B94D71d4bDBC8FD0Af7c856Dd7A',
+  xpla: '0x24832680dF0468967F413be1C83acfE24154F88D',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
@@ -201,7 +215,7 @@ export const ethereumChainOwners: ChainMap<OwnableConfig> = Object.fromEntries(
       {
         owner,
         ownerOverrides: {
-          proxyAdmin: timelocks[local] ?? owner,
+          proxyAdmin: upgradeTimelocks[local] ?? owner,
           validatorAnnounce: DEPLOYER, // unused
           testRecipient: DEPLOYER,
           fallbackRoutingHook: DEPLOYER,
@@ -244,6 +258,11 @@ export const chainOwners: ChainMap<OwnableConfig> = {
     owner: 'n/a - nothing owned here',
   },
   soon: {
-    owner: 'n/a - nothing owned here',
+    // Squads vault
+    owner: 'E3QPSn2Upk2EiidSsUqSQpRCc7BhzWZCKpVncemz3p62',
+  },
+  sonicsvm: {
+    // Will move to a Squads once it's live
+    owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
   },
 };
