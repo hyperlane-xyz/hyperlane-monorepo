@@ -60,10 +60,6 @@ const VAULTS = [
     vault: '0x81bb35c4152B605574BAbD320f8EABE2871CE8C6',
   },
   {
-    name: 'Gauntlet swETH',
-    vault: '0x65B560d887c010c4993C8F8B36E595C171d69D63',
-  },
-  {
     name: 'P2P wstETH',
     vault: '0x7b276aAD6D2ebfD7e270C5a2697ac79182D9550E',
   },
@@ -149,7 +145,19 @@ async function main() {
     };
   });
 
+  const provider = multiProvider.getProvider(chain);
+  for (const call of delegatorLimitCalls) {
+    // simulate
+    await provider.estimateGas({
+      from: NETWORK,
+      to: call.to,
+      data: call.data,
+    });
+  }
+
   const targets = delegatorLimitCalls.map(({ to }) => to);
+  assert(new Set(targets).size === targets.length, 'Duplicate targets');
+
   const payloads = delegatorLimitCalls.map(({ data }) => data);
   const values = delegatorLimitCalls.map(() => BigInt(0));
 
@@ -174,14 +182,14 @@ async function main() {
       abi: [EXECUTE_BATCH_ABI],
       args: [targets, values, payloads, ZERO_BYTES32, ZERO_BYTES32],
     }),
-    description: `Execute batch:\n ${description}`,
+    // description: `Execute batch:\n ${description}`,
   };
 
   console.log(executeTx);
 
-  await multisend.sendTransactions([scheduleTx]);
-  return;
   await multiProvider.sendTransaction(chain, executeTx);
+  return;
+  await multisend.sendTransactions([scheduleTx]);
 }
 
 main().catch((error) => {
