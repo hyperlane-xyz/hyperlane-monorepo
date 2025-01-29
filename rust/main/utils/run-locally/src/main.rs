@@ -451,6 +451,7 @@ fn main() -> ExitCode {
                 solana_config_path.as_deref(),
             )
         },
+        || !SHUTDOWN.load(Ordering::Relaxed),
         || {
             // verify long-running tasks are still running
             for (name, (child, _)) in state.agents.iter_mut() {
@@ -483,9 +484,13 @@ fn main() -> ExitCode {
 
     let loop_start = Instant::now();
     // wait for Relayer restart invariants to pass
-    test_passed = wait_for_condition(&config, loop_start, relayer_restart_invariants_met, || {
-        false
-    });
+    test_passed = wait_for_condition(
+        &config,
+        loop_start,
+        relayer_restart_invariants_met,
+        || !SHUTDOWN.load(Ordering::Relaxed),
+        || false,
+    );
 
     // test retry request
     let resp = server::run_retry_request().expect("Failed to process retry request");
@@ -616,18 +621,20 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     Ok(true)
 }
 
-fn wait_for_condition<F1, F2>(
+fn wait_for_condition<F1, F2, F3>(
     config: &Config,
     start_time: Instant,
     condition_fn: F1,
-    mut shutdown_criteria_fn: F2,
+    loop_invariant_fn: F2,
+    mut shutdown_criteria_fn: F3,
 ) -> bool
 where
     F1: Fn() -> eyre::Result<bool>,
-    F2: FnMut() -> bool,
+    F2: Fn() -> bool,
+    F3: FnMut() -> bool,
 {
     let loop_check_interval = Duration::from_secs(5);
-    while !SHUTDOWN.load(Ordering::Relaxed) {
+    while loop_invariant_fn() {
         sleep(loop_check_interval);
         if !config.ci_mode {
             continue;
