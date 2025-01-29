@@ -23,7 +23,7 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
     ...routerConfig.base,
     owner: abacusWorksEnvOwnerConfig.base.owner,
     proxyAdmin: {
-      owner: abacusWorksEnvOwnerConfig.base.owner,
+      ...abacusWorksEnvOwnerConfig.base,
       address: '0x0FC41a92F526A8CD22060A4052e156502D6B9db0',
     },
     type: TokenType.collateral,
@@ -33,9 +33,9 @@ export const getBaseZeroNetworkCBBTCWarpConfig = async (
 
   const zeronetwork: HypTokenRouterConfig = {
     ...routerConfig.zeronetwork,
-    owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
+    ...abacusWorksEnvOwnerConfig.zeronetwork,
     proxyAdmin: {
-      owner: abacusWorksEnvOwnerConfig.zeronetwork.owner,
+      ...abacusWorksEnvOwnerConfig.zeronetwork,
       address: '0xDb0F69187750b52A637938Ea790fAE667123367c',
     },
     type: TokenType.synthetic,
