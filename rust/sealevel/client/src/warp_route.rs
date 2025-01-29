@@ -18,7 +18,7 @@ use hyperlane_sealevel_connection_client::{
 };
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_token::{
-    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token, spl_token_2022,
+    hyperlane_token_mint_pda_seeds, plugin::SyntheticPlugin, spl_token_2022,
 };
 use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
@@ -87,26 +87,9 @@ struct TokenMetadata {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-enum SplTokenProgramType {
-    Token,
-    Token2022,
-}
-
-impl SplTokenProgramType {
-    fn program_id(&self) -> Pubkey {
-        match &self {
-            SplTokenProgramType::Token => spl_token::id(),
-            SplTokenProgramType::Token2022 => spl_token_2022::id(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
 struct CollateralInfo {
     #[serde(rename = "token")]
     mint: String,
-    spl_token_program: Option<SplTokenProgramType>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -321,20 +304,24 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     .unwrap(),
                 )
             }
-            TokenType::Collateral(collateral_info) => ctx.new_txn().add(
-                hyperlane_sealevel_token_collateral::instruction::init_instruction(
-                    program_id,
-                    ctx.payer_pubkey,
-                    init,
-                    collateral_info
-                        .spl_token_program
-                        .as_ref()
-                        .expect("Cannot initialize collateral warp route without SPL token program")
-                        .program_id(),
-                    collateral_info.mint.parse().expect("Invalid mint address"),
+            TokenType::Collateral(collateral_info) => {
+                let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
+                let collateral_mint_account = client.get_account(&collateral_mint).unwrap();
+                // The owner of the mint account is the SPL Token program responsible for it
+                // (either spl-token or spl-token-2022).
+                let collateral_spl_token_program = collateral_mint_account.owner;
+
+                ctx.new_txn().add(
+                    hyperlane_sealevel_token_collateral::instruction::init_instruction(
+                        program_id,
+                        ctx.payer_pubkey,
+                        init,
+                        collateral_spl_token_program,
+                        collateral_mint,
+                    )
+                    .unwrap(),
                 )
-                .unwrap(),
-            ),
+            }
         }
         .with_client(client)
         .send_with_payer();
