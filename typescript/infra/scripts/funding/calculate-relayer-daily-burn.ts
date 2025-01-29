@@ -6,11 +6,10 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import rawDailyRelayerBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
 import { mainnet3SupportedChainNames } from '../../config/environments/mainnet3/supportedChainNames.js';
 import rawTokenPrices from '../../config/environments/mainnet3/tokenPrices.json';
+import { RELAYER_MIN_DOLLAR_BALANCE_PER_DAY } from '../../src/config/funding/balances.js';
+import { formatDailyRelayerBurn } from '../../src/funding/grafana.js';
 import { fetchLatestGCPSecret } from '../../src/utils/gcloud.js';
 import { writeJsonAtPath } from '../../src/utils/utils.js';
-
-import { RELAYER_MIN_DOLLAR_BALANCE_PER_DAY } from './utils/constants.js';
-import { formatDailyRelayerBurn } from './utils/grafana.js';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 const currentDailyRelayerBurn: ChainMap<number> = rawDailyRelayerBurn;
@@ -31,9 +30,8 @@ async function main() {
       `Token prices missing for chains: ${chainsMissingInTokenPrices.join(
         ', ',
       )} consider adding them to tokenPrices.json and running the script again.`,
-
-      process.exit(1),
     );
+    process.exit(1);
   }
 
   const sql = await getReadOnlyScraperDb();
@@ -84,7 +82,7 @@ async function fetchDailyRelayerBurnData(sql: Sql) {
         WHERE
           mv.send_occurred_at >= CURRENT_TIMESTAMP - (INTERVAL '1 day' * ${LOOK_BACK_DAYS})
           AND dest_domain.is_test_net IS FALSE
-          AND mv.destination_domain_id not in (1408864445, 1399811149) -- ignore sealevel chains as scrapper does not capture all costs
+          AND mv.destination_domain_id not in (1408864445, 1399811149) -- ignore sealevel chains as scraper does not capture all costs
           AND mv.is_delivered IS TRUE
         GROUP BY
           dest_domain.name

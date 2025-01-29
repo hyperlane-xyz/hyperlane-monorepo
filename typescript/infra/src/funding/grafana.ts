@@ -3,16 +3,13 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AlertType,
+  GRAFANA_URL,
   ProvisionedAlertRule,
   WalletName,
   alertConfigMapping,
   walletNameQueryFormat,
-} from '../../../config/grafanaAlerts.js';
-import { fetchGCPSecret } from '../../../src/utils/gcloud.js';
-
-export const GRAFANA_URL = 'https://abacusworks.grafana.net';
-
-export const THRESHOLD_CONFIG_PATH = './config/environments/mainnet3/balances';
+} from '../config/funding/grafanaAlerts.js';
+import { fetchGCPSecret } from '../utils/gcloud.js';
 
 export const logger = rootLogger.child({ module: 'grafana' });
 

@@ -26,7 +26,6 @@ import { Contexts } from '../config/contexts.js';
 import { agents } from '../config/environments/agents.js';
 import { WarpRouteIds } from '../config/environments/mainnet3/warp/warpIds.js';
 import { validatorBaseConfigsFn } from '../config/environments/utils.js';
-import { AlertType } from '../config/grafanaAlerts.js';
 import {
   getChain,
   getChainAddresses,
@@ -44,6 +43,8 @@ import {
   EnvironmentConfig,
   assertEnvironment,
 } from '../src/config/environment.js';
+import { BalanceThresholdType } from '../src/config/funding/balances.js';
+import { AlertType } from '../src/config/funding/grafanaAlerts.js';
 import { Role } from '../src/roles.js';
 import {
   assertContext,
@@ -54,8 +55,6 @@ import {
   readJSONAtPath,
   writeMergedJSONAtPath,
 } from '../src/utils/utils.js';
-
-import { BalanceThresholdType } from './funding/utils/constants.js';
 
 const debugLog = rootLogger.child({ module: 'infra:scripts:utils' }).debug;
 

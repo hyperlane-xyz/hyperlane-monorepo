@@ -3,11 +3,13 @@ import {
   HIGH_URGENCY_RELAYER_HEADER,
   LOW_URGENCY_KEY_FUNDER_FOOTER,
   LOW_URGENCY_KEY_FUNDER_HEADER,
-} from '../scripts/funding/utils/alert-query-templates.js';
+} from './alert-query-templates.js';
 import {
   BalanceThresholdType,
   balanceThresholdConfigMapping,
-} from '../scripts/funding/utils/constants.js';
+} from './balances.js';
+
+export const GRAFANA_URL = 'https://abacusworks.grafana.net';
 
 export enum AlertType {
   LowUrgencyKeyFunderBalance = 'lowUrgencyKeyFunderBalance',

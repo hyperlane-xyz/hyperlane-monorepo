@@ -11,6 +11,8 @@ interface BalanceThresholdConfig {
   choiceLabel: string;
 }
 
+export const THRESHOLD_CONFIG_PATH = './config/environments/mainnet3/balances';
+
 const RELAYER_BALANCE_TARGET_DAYS = 8;
 const RELAYER_MIN_DOLLAR_BALANCE_TARGET = 25;
 export const RELAYER_MIN_DOLLAR_BALANCE_PER_DAY =

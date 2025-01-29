@@ -4,17 +4,19 @@ import yargs from 'yargs';
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { AlertType, alertConfigMapping } from '../../config/grafanaAlerts.js';
-import { readJSONAtPath } from '../../src/utils/utils.js';
-import { withAlertType, withConfirmAllChoices } from '../agent-utils.js';
-
+import { THRESHOLD_CONFIG_PATH } from '../../src/config/funding/balances.js';
 import {
-  THRESHOLD_CONFIG_PATH,
+  AlertType,
+  alertConfigMapping,
+} from '../../src/config/funding/grafanaAlerts.js';
+import {
   fetchGrafanaAlert,
   fetchServiceAccountToken,
   generateQuery,
   updateGrafanaAlert,
-} from './utils/grafana.js';
+} from '../../src/funding/grafana.js';
+import { readJSONAtPath } from '../../src/utils/utils.js';
+import { withAlertType, withConfirmAllChoices } from '../agent-utils.js';
 
 async function main() {
   const { alertType, all } = await withConfirmAllChoices(

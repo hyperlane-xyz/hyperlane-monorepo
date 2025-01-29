@@ -5,21 +5,20 @@ import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import rawDailyBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
+import {
+  BalanceThresholdType,
+  THRESHOLD_CONFIG_PATH,
+  balanceThresholdConfigMapping,
+} from '../../src/config/funding/balances.js';
+import {
+  formatDailyRelayerBurn,
+  sortThresholds,
+} from '../../src/funding/grafana.js';
 import { readJSONAtPath, writeJsonAtPath } from '../../src/utils/utils.js';
 import {
   withBalanceThresholdConfig,
   withConfirmAllChoices,
 } from '../agent-utils.js';
-
-import {
-  BalanceThresholdType,
-  balanceThresholdConfigMapping,
-} from './utils/constants.js';
-import {
-  THRESHOLD_CONFIG_PATH,
-  formatDailyRelayerBurn,
-  sortThresholds,
-} from './utils/grafana.js';
 
 const dailyBurn: ChainMap<number> = rawDailyBurn;
 

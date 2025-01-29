@@ -2,15 +2,14 @@ import yargs from 'yargs';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { alertConfigMapping } from '../../config/grafanaAlerts.js';
-import { writeJsonAtPath } from '../../src/utils/utils.js';
-import { withAlertTypeRequired, withWrite } from '../agent-utils.js';
-
+import { THRESHOLD_CONFIG_PATH } from '../../src/config/funding/balances.js';
+import { alertConfigMapping } from '../../src/config/funding/grafanaAlerts.js';
 import {
-  THRESHOLD_CONFIG_PATH,
   getAlertThresholds,
   sortThresholds,
-} from './utils/grafana.js';
+} from '../../src/funding/grafana.js';
+import { writeJsonAtPath } from '../../src/utils/utils.js';
+import { withAlertTypeRequired, withWrite } from '../agent-utils.js';
 
 async function main() {
   const { alertType, write } = await withWrite(
