@@ -322,7 +322,6 @@ export function getRenzoEZETHWarpConfigGenerator(
       new Set(chainsToDeploy),
       new Set(Object.keys(tokenPrices)),
     );
-
     if (validatorDiff.size > 0) {
       throw new Error(
         `chainsToDeploy !== validatorConfig, diff is ${Array.from(
