@@ -185,7 +185,10 @@ export function withOutputFile<T>(args: Argv<T>) {
 }
 
 export function withWarpRouteId<T>(args: Argv<T>) {
-  return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
+  return args
+    .describe('warpRouteId', 'warp route id')
+    .string('warpRouteId')
+    .choices('warpRouteId', Object.values(WarpRouteIds));
 }
 
 export function withWarpRouteIdRequired<T>(args: Argv<T>) {

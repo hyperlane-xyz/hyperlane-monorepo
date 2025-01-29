@@ -8,7 +8,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { WarpRouteIds } from '../../../config/environments/mainnet3/warp/warpIds.js';
+import { WarpRouteMonitorHelmManager } from '../../../src/warp/helm.js';
 import {
   assertCorrectKubeContext,
   getArgs,
@@ -20,7 +20,6 @@ const orange = chalk.hex('#FFA500');
 const GRAFANA_LINK =
   'https://abacusworks.grafana.net/d/ddz6ma94rnzswc/warp-routes?orgId=1&var-warp_route_id=';
 const LOG_AMOUNT = 5;
-const POD_PREFIX = 'hyperlane-warp-route';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -32,13 +31,9 @@ async function main() {
   await assertCorrectKubeContext(config);
 
   try {
-    if (!Object.values(WarpRouteIds).includes(warpRouteId as WarpRouteIds)) {
-      throw new Error(
-        `Invalid warpRouteId: ${warpRouteId}. Must be one of the defined WarpRouteIds.`,
-      );
-    }
-
-    const podWarpRouteId = getPodWarpRouteId(warpRouteId);
+    const podWarpRouteId = `${WarpRouteMonitorHelmManager.getHelmReleaseName(
+      warpRouteId,
+    )}-0`;
 
     rootLogger.info(chalk.grey.italic(`Fetching pod status...`));
     const pod = runKubernetesWarpRouteCommand(
@@ -64,10 +59,6 @@ async function main() {
     rootLogger.error(error);
     process.exit(1);
   }
-}
-
-function getPodWarpRouteId(warpRouteId: string) {
-  return `${POD_PREFIX}-${warpRouteId.replace('/', '-').toLowerCase()}-0`;
 }
 
 function runKubernetesWarpRouteCommand(
