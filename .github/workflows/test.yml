@@ -137,8 +137,8 @@ jobs:
           # Warp Commands
           - warp-apply
           - warp-check
-          - warp-deploy
-          - warp-deploy-bridge
+          - warp-bridge-1
+          - warp-bridge-2
           - warp-init
           - warp-read
           - warp-send
