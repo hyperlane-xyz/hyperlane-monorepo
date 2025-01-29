@@ -19,7 +19,7 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     message::Message,
     pubkey::Pubkey,
-    signature::{Keypair, Signature, Signer},
+    signature::{Signature, Signer},
     transaction::Transaction,
 };
 use solana_transaction_status::{
@@ -31,7 +31,7 @@ use hyperlane_core::{ChainCommunicationError, ChainResult, U256};
 
 use crate::{
     error::HyperlaneSealevelError, priority_fee::PriorityFeeOracle,
-    tx_submitter::TransactionSubmitter,
+    tx_submitter::TransactionSubmitter, SealevelKeypair,
 };
 
 const COMPUTE_UNIT_MULTIPLIER_NUMERATOR: u32 = 11;
@@ -74,7 +74,7 @@ impl SealevelRpcClient {
     /// Simulates an Instruction that will return a list of AccountMetas.
     pub async fn get_account_metas(
         &self,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         instruction: Instruction,
     ) -> ChainResult<Vec<AccountMeta>> {
         // If there's no data at all, default to an empty vec.
@@ -302,7 +302,7 @@ impl SealevelRpcClient {
     /// an Err is returned.
     pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
         &self,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         instruction: Instruction,
     ) -> ChainResult<Option<T>> {
         let commitment = CommitmentConfig::finalized();
@@ -357,7 +357,7 @@ impl SealevelRpcClient {
     pub async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         tx_submitter: &dyn TransactionSubmitter,
         priority_fee_oracle: &dyn PriorityFeeOracle,
     ) -> ChainResult<SealevelTxCostEstimate> {
@@ -440,7 +440,7 @@ impl SealevelRpcClient {
     pub async fn build_estimated_tx_for_instruction(
         &self,
         instruction: Instruction,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         tx_submitter: &dyn TransactionSubmitter,
         priority_fee_oracle: &dyn PriorityFeeOracle,
     ) -> ChainResult<Transaction> {
@@ -485,7 +485,7 @@ impl SealevelRpcClient {
         compute_unit_limit: u32,
         compute_unit_price_micro_lamports: u64,
         instruction: Instruction,
-        payer: &Keypair,
+        payer: &SealevelKeypair,
         tx_submitter: &dyn TransactionSubmitter,
         sign: bool,
     ) -> ChainResult<Transaction> {
@@ -513,7 +513,7 @@ impl SealevelRpcClient {
             Transaction::new_signed_with_payer(
                 &instructions,
                 Some(&payer.pubkey()),
-                &[payer],
+                &[payer.keypair()],
                 recent_blockhash,
             )
         } else {

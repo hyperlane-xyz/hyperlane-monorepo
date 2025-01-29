@@ -1770,6 +1770,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  sonicsvm: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf21f46905d8d09f76bc8c503f856e5466bc5ffea',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   sonicsvmtestnet: {
     threshold: 1,
     validators: [

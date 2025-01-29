@@ -518,6 +518,7 @@ checksum = "3b829e4e32b91e643de6eafe82b1d90675f5874230191a4ffbc1b336dec4d6bf"
 dependencies = [
  "async-trait",
  "axum-core 0.3.4",
+ "axum-macros",
  "bitflags 1.3.2",
  "bytes",
  "futures-util",
@@ -604,6 +605,18 @@ dependencies = [
  "sync_wrapper 1.0.2",
  "tower-layer",
  "tower-service",
+]
+
+[[package]]
+name = "axum-macros"
+version = "0.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdca6a10ecad987bda04e95606ef85a5417dcaac1a78455242d72e031e2b6b62"
+dependencies = [
+ "heck 0.4.1",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "syn 2.0.77",
 ]
 
 [[package]]
@@ -7197,6 +7210,7 @@ dependencies = [
  "tracing-futures",
  "tracing-test",
  "typetag",
+ "uuid 1.12.0",
 ]
 
 [[package]]
@@ -7332,7 +7346,7 @@ dependencies = [
  "rkyv_derive",
  "seahash",
  "tinyvec",
- "uuid 1.10.0",
+ "uuid 1.12.0",
 ]
 
 [[package]]
@@ -7432,6 +7446,7 @@ dependencies = [
  "once_cell",
  "regex",
  "relayer",
+ "reqwest",
  "ripemd",
  "serde",
  "serde_json",
@@ -7953,7 +7968,7 @@ dependencies = [
  "time",
  "tracing",
  "url",
- "uuid 1.10.0",
+ "uuid 1.12.0",
 ]
 
 [[package]]
@@ -8014,7 +8029,7 @@ dependencies = [
  "sea-query-derive",
  "serde_json",
  "time",
- "uuid 1.10.0",
+ "uuid 1.12.0",
 ]
 
 [[package]]
@@ -8030,7 +8045,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "time",
- "uuid 1.10.0",
+ "uuid 1.12.0",
 ]
 
 [[package]]
@@ -9352,7 +9367,7 @@ dependencies = [
  "time",
  "tokio-stream",
  "url",
- "uuid 1.10.0",
+ "uuid 1.12.0",
  "whoami",
 ]
 
@@ -9753,7 +9768,7 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
- "uuid 1.10.0",
+ "uuid 1.12.0",
  "walkdir",
 ]
 
@@ -10606,10 +10621,11 @@ dependencies = [
 
 [[package]]
 name = "uuid"
-version = "1.10.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
+checksum = "744018581f9a3454a9e15beb8a33b017183f1e7c0cd170232a2d1453b23a51c4"
 dependencies = [
+ "getrandom 0.2.15",
  "serde",
 ]
 

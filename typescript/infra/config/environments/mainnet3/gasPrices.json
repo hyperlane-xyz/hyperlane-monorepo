@@ -383,6 +383,10 @@
     "amount": "5.5",
     "decimals": 9
   },
+  "sonicsvm": {
+    "amount": "0.1",
+    "decimals": 1
+  },
   "soon": {
     "amount": "0.0000001",
     "decimals": 1

@@ -5,17 +5,16 @@ import * as path from 'path';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { getChains } from '../config/registry.js';
-import { InfraS3Validator } from '../src/agents/aws/validator.js';
-import { CheckpointSyncerType } from '../src/config/agent/validator.js';
-import { isEthereumProtocolChain } from '../src/utils/utils.js';
-
+import { getChains } from '../../config/registry.js';
+import { InfraS3Validator } from '../../src/agents/aws/validator.js';
+import { CheckpointSyncerType } from '../../src/config/agent/validator.js';
+import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import {
   getAgentConfig,
   getArgs as getRootArgs,
   withContext,
-} from './agent-utils.js';
-import { getHyperlaneCore } from './core-utils.js';
+} from '../agent-utils.js';
+import { getHyperlaneCore } from '../core-utils.js';
 
 function getArgs() {
   return withContext(getRootArgs())
@@ -75,11 +74,6 @@ async function main() {
         .filter(([validatorChain, _]) => {
           // Ensure we skip lumia, as we don't have the addresses in registry.
           if (validatorChain === 'lumia') {
-            return false;
-          }
-
-          // temporarily skip abstract, as the RPC is done temporarily
-          if (validatorChain === 'abstract') {
             return false;
           }
 
