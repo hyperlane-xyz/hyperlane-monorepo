@@ -50,6 +50,7 @@ import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/con
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
 import { getEthereumSeiFastUSDWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiFastUSDWarpConfig.js';
 import { getEthereumSeiPumpBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiPumpBTCWarpConfig.js';
+import { getEthereumSolanaTreasureSMOLWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSolanaTreasureSMOLWarpConfig.js';
 import {
   getEthereumSuperseedCBBTCWarpConfig,
   getEthereumSuperseedUSDCWarpConfig,
@@ -132,6 +133,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.BaseFormGAME]: getBaseFormGAMEWarpConfig,
   [WarpRouteIds.ArtelaBaseUSDC]: getArtelaBaseUSDCWarpConfig,
   [WarpRouteIds.ArtelaBaseWETH]: getArtelaBaseWETHWarpConfig,
+  [WarpRouteIds.EthereumTreasureSMOL]: getEthereumSolanaTreasureSMOLWarpConfig,
 };
 
 export async function getWarpConfig(
