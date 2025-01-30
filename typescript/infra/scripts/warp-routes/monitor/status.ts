@@ -8,6 +8,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { HelmManager } from '../../../src/utils/helm.js';
 import { WarpRouteMonitorHelmManager } from '../../../src/warp/helm.js';
 import {
   assertCorrectKubeContext,
@@ -36,7 +37,7 @@ async function main() {
     )}-0`;
 
     rootLogger.info(chalk.grey.italic(`Fetching pod status...`));
-    const pod = runKubernetesWarpRouteCommand(
+    const pod = HelmManager.runK8sCommand(
       'get pod',
       podWarpRouteId,
       environment,
@@ -44,7 +45,7 @@ async function main() {
     rootLogger.info(chalk.green(pod));
 
     rootLogger.info(chalk.gray.italic(`Fetching latest logs...`));
-    const latestLogs = runKubernetesWarpRouteCommand(
+    const latestLogs = HelmManager.runK8sCommand(
       'logs',
       podWarpRouteId,
       environment,
@@ -59,21 +60,6 @@ async function main() {
     rootLogger.error(error);
     process.exit(1);
   }
-}
-
-function runKubernetesWarpRouteCommand(
-  command: string,
-  warpRouteId: string,
-  namespace: string,
-  args: string[] = [],
-) {
-  const argsString = args.join(' ');
-  return execSync(
-    `kubectl ${command} ${warpRouteId} -n ${namespace} ${argsString}`,
-    {
-      encoding: 'utf-8',
-    },
-  );
 }
 
 function formatAndPrintLogs(rawLogs: string) {
