@@ -24,14 +24,20 @@ export const getArbitrumEthereumZircuitAmphrETHWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const arbitrum: HypTokenRouterConfig = {
     ...routerConfig.arbitrum,
-    ...getOwnerConfigForAddress(arbitrumOwner),
+    owner: arbitrumOwner,
+    proxyAdmin: {
+      owner: arbitrumOwner,
+    },
     type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
 
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...getOwnerConfigForAddress(ethereumOwner),
+    owner: ethereumOwner,
+    proxyAdmin: {
+      owner: ethereumOwner,
+    },
     type: TokenType.collateral,
     token: tokens.ethereum.amphrETH,
     interchainSecurityModule: ethers.constants.AddressZero,
@@ -39,7 +45,10 @@ export const getArbitrumEthereumZircuitAmphrETHWarpConfig = async (
 
   const zircuit: HypTokenRouterConfig = {
     ...routerConfig.zircuit,
-    ...getOwnerConfigForAddress(zircuitOwner),
+    owner: zircuitOwner,
+    proxyAdmin: {
+      owner: zircuitOwner,
+    },
     type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
