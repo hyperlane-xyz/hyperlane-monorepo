@@ -1472,16 +1472,16 @@ export const validatorChainConfig = (
         'nero',
       ),
     },
-    // subtensor: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod('subtensor'),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: ['0xd5f8196d7060b85bea491f0b52a671e05f3d10a2'],
-    //     },
-    //     'subtensor',
-    //   ),
-    // },
+    subtensor: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('subtensor'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xd5f8196d7060b85bea491f0b52a671e05f3d10a2'],
+        },
+        'subtensor',
+      ),
+    },
     xpla: {
       interval: 5,
       reorgPeriod: getReorgPeriod('xpla'),

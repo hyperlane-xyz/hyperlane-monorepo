@@ -395,6 +395,10 @@
     "amount": "0.005",
     "decimals": 1
   },
+  "subtensor": {
+    "amount": "10.0",
+    "decimals": 9
+  },
   "superseed": {
     "amount": "0.001000252",
     "decimals": 9

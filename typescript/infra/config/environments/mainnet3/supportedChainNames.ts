@@ -102,7 +102,7 @@ export const mainnet3SupportedChainNames = [
   'sonicsvm',
   'soon',
   'stride',
-  // 'subtensor',
+  'subtensor',
   'superseed',
   'superpositionmainnet',
   'swell',

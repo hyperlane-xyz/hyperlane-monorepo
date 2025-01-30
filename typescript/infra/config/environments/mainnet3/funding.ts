@@ -121,7 +121,7 @@ export const keyFunderConfig: KeyFunderConfig<
     sonic: '0.5',
     // ignore non-evm chains
     stride: '0',
-    // subtensor: '0.05',
+    subtensor: '0.05',
     superseed: '0.05',
     superpositionmainnet: '0.05',
     swell: '0.05',
