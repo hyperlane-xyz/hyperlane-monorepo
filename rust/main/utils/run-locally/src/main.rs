@@ -33,7 +33,9 @@ use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
 use program::Program;
-use tempfile::tempdir;
+use relayer::msg::pending_message::RETRIEVED_MESSAGE_LOG;
+use tempfile::{tempdir, TempDir};
+use utils::get_matching_lines;
 
 use crate::{
     config::Config,
@@ -179,72 +181,8 @@ fn main() -> ExitCode {
         .map(|i| concat_path(&rocks_db_dir, format!("validator{i}")))
         .collect::<Vec<_>>();
 
-    let common_agent_env = Program::default()
-        .env("RUST_BACKTRACE", "full")
-        .hyp_env("LOG_FORMAT", "compact")
-        .hyp_env("LOG_LEVEL", "debug")
-        .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
-        .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
-        .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1");
-
-    let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
-
-    let relayer_env = common_agent_env
-        .clone()
-        .bin(concat_path(AGENT_BIN_PATH, "relayer"))
-        .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "fallback")
-        .hyp_env(
-            "CHAINS_TEST2_CONNECTION_URLS",
-            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        )
-        .hyp_env(
-            "CHAINS_TEST1_BATCHCONTRACTADDRESS",
-            multicall_address_string.clone(),
-        )
-        .hyp_env("CHAINS_TEST1_MAXBATCHSIZE", "5")
-        // by setting this as a quorum provider we will cause nonce errors when delivering to test2
-        // because the message will be sent to the node 3 times.
-        .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
-        .hyp_env(
-            "CHAINS_TEST2_BATCHCONTRACTADDRESS",
-            multicall_address_string.clone(),
-        )
-        .hyp_env("CHAINS_TEST2_MAXBATCHSIZE", "5")
-        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
-        .hyp_env(
-            "CHAINS_TEST3_BATCHCONTRACTADDRESS",
-            multicall_address_string,
-        )
-        .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
-        .hyp_env("METRICSPORT", RELAYER_METRICS_PORT)
-        .hyp_env("DB", relayer_db.to_str().unwrap())
-        .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
-        .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
-        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
-        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
-        .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
-        .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
-        .hyp_env(
-            "GASPAYMENTENFORCEMENT",
-            r#"[{
-                "type": "minimum",
-                "payment": "1"
-            }]"#,
-        )
-        .arg(
-            "chains.test1.customRpcUrls",
-            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
-        )
-        // default is used for TEST3
-        .arg("defaultSigner.key", RELAYER_KEYS[2]);
-    let relayer_env = if config.sealevel_enabled {
-        relayer_env.arg(
-            "relayChains",
-            "test1,test2,test3,sealeveltest1,sealeveltest2",
-        )
-    } else {
-        relayer_env.arg("relayChains", "test1,test2,test3")
-    };
+    let common_agent_env = create_common_agent();
+    let relayer_env = create_relayer(&config, &rocks_db_dir);
 
     let base_validator_env = common_agent_env
         .clone()
@@ -491,17 +429,19 @@ fn main() -> ExitCode {
 
     if !post_startup_invariants(&checkpoints_dirs) {
         log!("Failure: Post startup invariants are not met");
-        return report_test_result(true);
+        return report_test_result(false);
     } else {
         log!("Success: Post startup invariants are met");
     }
 
-    let mut failure_occurred = false;
     let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
-    while !SHUTDOWN.load(Ordering::Relaxed) {
-        if config.ci_mode {
-            // for CI we have to look for the end condition.
-            if termination_invariants_met(
+
+    // wait for CI invariants to pass
+    let mut test_passed = wait_for_condition(
+        &config,
+        loop_start,
+        || {
+            termination_invariants_met(
                 &config,
                 starting_relayer_balance,
                 solana_paths
@@ -510,49 +450,225 @@ fn main() -> ExitCode {
                     .as_deref(),
                 solana_config_path.as_deref(),
             )
-            .unwrap_or(false)
-            {
-                // end condition reached successfully
-                break;
-            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
-                // we ran out of time
-                log!("CI timeout reached before queues emptied");
-                failure_occurred = true;
-                break;
-            }
-        }
+        },
+        || !SHUTDOWN.load(Ordering::Relaxed),
+        || long_running_processes_exited_check(&mut state),
+    );
 
-        // verify long-running tasks are still running
-        for (name, (child, _)) in state.agents.iter_mut() {
-            if let Some(status) = child.try_wait().unwrap() {
-                if !status.success() {
-                    log!(
-                        "Child process {} exited unexpectedly, with code {}. Shutting down",
-                        name,
-                        status.code().unwrap()
-                    );
-                    failure_occurred = true;
-                    SHUTDOWN.store(true, Ordering::Relaxed);
-                    break;
-                }
-            }
-        }
-
-        sleep(Duration::from_secs(5));
+    if !test_passed {
+        log!("Failure occurred during E2E");
+        return report_test_result(test_passed);
     }
+
+    // Here we want to restart the relayer and validate
+    // its restart behaviour.
+    restart_relayer(&config, &mut state, &rocks_db_dir);
+
+    // give relayer a chance to fully restart.
+    sleep(Duration::from_secs(20));
+
+    let loop_start = Instant::now();
+    // wait for Relayer restart invariants to pass
+    test_passed = wait_for_condition(
+        &config,
+        loop_start,
+        relayer_restart_invariants_met,
+        || !SHUTDOWN.load(Ordering::Relaxed),
+        || long_running_processes_exited_check(&mut state),
+    );
+
     // test retry request
     let resp = server::run_retry_request().expect("Failed to process retry request");
     assert!(resp.matched > 0);
 
-    report_test_result(failure_occurred)
+    report_test_result(test_passed)
 }
 
-fn report_test_result(failure_occurred: bool) -> ExitCode {
-    if failure_occurred {
-        log!("E2E tests failed");
-        ExitCode::FAILURE
+fn create_common_agent() -> Program {
+    Program::default()
+        .env("RUST_BACKTRACE", "full")
+        .hyp_env("LOG_FORMAT", "compact")
+        .hyp_env("LOG_LEVEL", "debug")
+        .hyp_env("CHAINS_TEST1_INDEX_CHUNK", "1")
+        .hyp_env("CHAINS_TEST2_INDEX_CHUNK", "1")
+        .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1")
+}
+
+fn create_relayer(config: &Config, rocks_db_dir: &TempDir) -> Program {
+    let relayer_db = concat_path(rocks_db_dir, "relayer");
+
+    let common_agent_env = create_common_agent();
+
+    let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
+
+    let relayer_env = common_agent_env
+        .clone()
+        .bin(concat_path(AGENT_BIN_PATH, "relayer"))
+        .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "fallback")
+        .hyp_env(
+            "CHAINS_TEST2_CONNECTION_URLS",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
+        .hyp_env(
+            "CHAINS_TEST1_BATCHCONTRACTADDRESS",
+            multicall_address_string.clone(),
+        )
+        .hyp_env("CHAINS_TEST1_MAXBATCHSIZE", "5")
+        // by setting this as a quorum provider we will cause nonce errors when delivering to test2
+        // because the message will be sent to the node 3 times.
+        .hyp_env("CHAINS_TEST2_RPCCONSENSUSTYPE", "quorum")
+        .hyp_env(
+            "CHAINS_TEST2_BATCHCONTRACTADDRESS",
+            multicall_address_string.clone(),
+        )
+        .hyp_env("CHAINS_TEST2_MAXBATCHSIZE", "5")
+        .hyp_env("CHAINS_TEST3_CONNECTION_URL", "http://127.0.0.1:8545")
+        .hyp_env(
+            "CHAINS_TEST3_BATCHCONTRACTADDRESS",
+            multicall_address_string,
+        )
+        .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
+        .hyp_env("METRICSPORT", RELAYER_METRICS_PORT)
+        .hyp_env("DB", relayer_db.to_str().unwrap())
+        .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
+        .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
+        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
+        .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
+        .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .hyp_env(
+            "GASPAYMENTENFORCEMENT",
+            r#"[{
+                "type": "minimum",
+                "payment": "1"
+            }]"#,
+        )
+        .arg(
+            "chains.test1.customRpcUrls",
+            "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
+        )
+        // default is used for TEST3
+        .arg("defaultSigner.key", RELAYER_KEYS[2]);
+    if config.sealevel_enabled {
+        relayer_env.arg(
+            "relayChains",
+            "test1,test2,test3,sealeveltest1,sealeveltest2",
+        )
     } else {
+        relayer_env.arg("relayChains", "test1,test2,test3")
+    }
+}
+
+/// Kills relayer in State and respawns the relayer again
+fn restart_relayer(config: &Config, state: &mut State, rocks_db_dir: &TempDir) {
+    log!("Stopping relayer...");
+    let (child, _) = state.agents.get_mut("RLY").expect("No relayer agent found");
+    child.kill().expect("Failed to stop relayer");
+
+    log!("Restarting relayer...");
+    let relayer_env = create_relayer(config, rocks_db_dir);
+    state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
+    log!("Restarted relayer...");
+}
+
+/// Check relayer restart behaviour is correct.
+/// So far, we only check if undelivered messages' statuses
+/// are correctly retrieved from the database
+fn relayer_restart_invariants_met() -> eyre::Result<bool> {
+    let log_file_path = AGENT_LOGGING_DIR.join("RLY-output.log");
+    let relayer_logfile = File::open(log_file_path).unwrap();
+
+    let line_filters = vec![RETRIEVED_MESSAGE_LOG, "CouldNotFetchMetadata"];
+
+    log!("Checking message statuses were retrieved from logs...");
+    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
+
+    let no_metadata_message_count = *matched_logs
+        .get(&line_filters)
+        .expect("Failed to get matched message count");
+    // These messages are never inserted into the merkle tree.
+    // So these messages will never be deliverable and will always
+    // be in a CouldNotFetchMetadata state.
+    // When the relayer restarts, these messages' statuses should be
+    // retrieved from the database with CouldNotFetchMetadata status.
+    if no_metadata_message_count < ZERO_MERKLE_INSERTION_KATHY_MESSAGES {
+        log!(
+            "No metadata message count is {}, expected {}",
+            no_metadata_message_count,
+            ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+        );
+        return Ok(false);
+    }
+    assert_eq!(
+        no_metadata_message_count,
+        ZERO_MERKLE_INSERTION_KATHY_MESSAGES
+    );
+    Ok(true)
+}
+
+fn wait_for_condition<F1, F2, F3>(
+    config: &Config,
+    start_time: Instant,
+    condition_fn: F1,
+    loop_invariant_fn: F2,
+    mut shutdown_criteria_fn: F3,
+) -> bool
+where
+    F1: Fn() -> eyre::Result<bool>,
+    F2: Fn() -> bool,
+    F3: FnMut() -> bool,
+{
+    let loop_check_interval = Duration::from_secs(5);
+    while loop_invariant_fn() {
+        sleep(loop_check_interval);
+        if !config.ci_mode {
+            continue;
+        }
+        if condition_fn().unwrap_or(false) {
+            // end condition reached successfully
+            break;
+        }
+        if check_ci_timed_out(config.ci_mode_timeout, start_time) {
+            // we ran out of time
+            log!("CI timeout reached before invariants were met");
+            return false;
+        }
+        if shutdown_criteria_fn() {
+            SHUTDOWN.store(true, Ordering::Relaxed);
+            return false;
+        }
+    }
+    true
+}
+
+/// check if CI has timed out based on config
+fn check_ci_timed_out(timeout_secs: u64, start_time: Instant) -> bool {
+    (Instant::now() - start_time).as_secs() > timeout_secs
+}
+
+/// verify long-running tasks are still running
+fn long_running_processes_exited_check(state: &mut State) -> bool {
+    for (name, (child, _)) in state.agents.iter_mut() {
+        if let Some(status) = child.try_wait().unwrap() {
+            if !status.success() {
+                log!(
+                    "Child process {} exited unexpectedly, with code {}. Shutting down",
+                    name,
+                    status.code().unwrap()
+                );
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn report_test_result(passed: bool) -> ExitCode {
+    if passed {
         log!("E2E tests passed");
         ExitCode::SUCCESS
+    } else {
+        log!("E2E tests failed");
+        ExitCode::FAILURE
     }
 }

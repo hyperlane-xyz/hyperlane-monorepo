@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
 import {
   RouterConfigWithoutOwner,
   tokens,
@@ -20,7 +19,10 @@ export const getEthereumFormUSDTWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...getOwnerConfigForAddress(safeOwners.ethereum),
+    owner: safeOwners.ethereum,
+    proxyAdmin: {
+      owner: safeOwners.ethereum,
+    },
     type: TokenType.collateral,
     token: tokens.ethereum.USDT,
     interchainSecurityModule: ethers.constants.AddressZero,
@@ -28,7 +30,10 @@ export const getEthereumFormUSDTWarpConfig = async (
 
   const form: HypTokenRouterConfig = {
     ...routerConfig.form,
-    ...getOwnerConfigForAddress(safeOwners.form),
+    owner: safeOwners.form,
+    proxyAdmin: {
+      owner: safeOwners.form,
+    },
     type: TokenType.synthetic,
     interchainSecurityModule: ethers.constants.AddressZero,
   };
