@@ -3,6 +3,7 @@ import {
   getRenzoEZETHWarpConfigGenerator,
 } from './getRenzoEZETHWarpConfig.js';
 
+// TODO: Deploy xERC20
 const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   arbitrum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   optimism: '0x2416092f143378750bb29b79eD961ab195CcEea5',
