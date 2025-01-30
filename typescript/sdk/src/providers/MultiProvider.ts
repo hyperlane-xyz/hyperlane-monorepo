@@ -348,27 +348,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     chainNameOrId: ChainNameOrId,
     tx: ContractTransaction | Promise<ContractTransaction>,
   ): Promise<ContractReceipt> {
-    const { name, blocks } = this.getChainMetadata(chainNameOrId);
+    const confirmations =
+      this.getChainMetadata(chainNameOrId).blocks?.confirmations ?? 1;
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
-
-    const provider = this.getProvider(chainNameOrId);
-
-    // Special handling for Subtensor chain
-    if (name === 'subtensor') {
-      this.logger.info(
-        `Pending ${
-          txUrl || response.hash
-        } (waiting 15 seconds for Subtensor confirmation)`,
-      );
-      // Wait for 15 seconds
-      await new Promise((resolve) => setTimeout(resolve, 15000));
-      // Get transaction receipt without waiting for confirmations
-      return provider.getTransactionReceipt(response.hash);
-    }
-
-    // Normal handling for other chains
-    const confirmations = blocks?.confirmations ?? 1;
     this.logger.info(
       `Pending ${
         txUrl || response.hash
