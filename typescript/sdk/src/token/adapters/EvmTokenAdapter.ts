@@ -686,47 +686,52 @@ export class EvmIntentNativeMultiChainAdapter
     const amountOut = weiAmountOrId;
     const senderNonce = Date.now();
 
-    return this.intent.populateTransaction.open({
-      fillDeadline: this.fillDeadline,
-      orderDataType,
-      orderData: encodeAbiParameters(
-        [
-          {
-            components: [
-              { name: 'sender', type: 'bytes32' },
-              { name: 'recipient', type: 'bytes32' },
-              { name: 'inputToken', type: 'bytes32' },
-              { name: 'outputToken', type: 'bytes32' },
-              { name: 'amountIn', type: 'uint256' },
-              { name: 'amountOut', type: 'uint256' },
-              { name: 'senderNonce', type: 'uint256' },
-              { name: 'originDomain', type: 'uint32' },
-              { name: 'destinationDomain', type: 'uint32' },
-              { name: 'destinationSettler', type: 'bytes32' },
-              { name: 'fillDeadline', type: 'uint32' },
-              { name: 'data', type: 'bytes' },
-            ],
-            name: 'orderData',
-            type: 'tuple',
-          },
-        ],
-        [
-          {
-            sender: pad(fromAccountOwner as ViemAddress),
-            recipient: pad(recipient as ViemAddress),
-            inputToken: pad(this.addresses.token as ViemAddress),
-            outputToken: pad(this.addresses.outputToken as ViemAddress),
-            amountIn: BigInt(weiAmountOrId),
-            amountOut: BigInt(amountOut),
-            senderNonce: BigInt(senderNonce.toString()),
-            originDomain: Number(this.multiProvider.getChainId(this.chainName)),
-            destinationDomain: destination,
-            destinationSettler: pad(this.addresses.router as ViemAddress),
-            fillDeadline: Number(this.fillDeadline),
-            data: '0x',
-          },
-        ],
-      ),
-    });
+    return this.intent.populateTransaction.open(
+      {
+        fillDeadline: this.fillDeadline,
+        orderDataType,
+        orderData: encodeAbiParameters(
+          [
+            {
+              components: [
+                { name: 'sender', type: 'bytes32' },
+                { name: 'recipient', type: 'bytes32' },
+                { name: 'inputToken', type: 'bytes32' },
+                { name: 'outputToken', type: 'bytes32' },
+                { name: 'amountIn', type: 'uint256' },
+                { name: 'amountOut', type: 'uint256' },
+                { name: 'senderNonce', type: 'uint256' },
+                { name: 'originDomain', type: 'uint32' },
+                { name: 'destinationDomain', type: 'uint32' },
+                { name: 'destinationSettler', type: 'bytes32' },
+                { name: 'fillDeadline', type: 'uint32' },
+                { name: 'data', type: 'bytes' },
+              ],
+              name: 'orderData',
+              type: 'tuple',
+            },
+          ],
+          [
+            {
+              sender: pad(fromAccountOwner as ViemAddress),
+              recipient: pad(recipient as ViemAddress),
+              inputToken: pad(this.addresses.token as ViemAddress),
+              outputToken: pad(this.addresses.outputToken as ViemAddress),
+              amountIn: BigInt(weiAmountOrId),
+              amountOut: BigInt(amountOut),
+              senderNonce: BigInt(senderNonce.toString()),
+              originDomain: Number(
+                this.multiProvider.getChainId(this.chainName),
+              ),
+              destinationDomain: destination,
+              destinationSettler: pad(this.addresses.router as ViemAddress),
+              fillDeadline: Number(this.fillDeadline),
+              data: '0x',
+            },
+          ],
+        ),
+      },
+      { value: amountOut },
+    );
   }
 }
