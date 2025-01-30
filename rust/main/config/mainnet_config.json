@@ -4967,7 +4967,8 @@
       "validatorAnnounce": "0x576aF402c97bFE452Dcc203B6c3f6F4EBC92A0f5",
       "index": {
         "from": 47325797
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://safe-transaction-zksync.safe.global/"
     },
     "alephzeroevmmainnet": {
       "blockExplorers": [
@@ -6392,7 +6393,8 @@
       "validatorAnnounce": "0x73a82061Cd258d02BEa145fe183120456e718c2A",
       "index": {
         "from": 1552
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://prod.treasure.keypersafe.xyz/"
     },
     "zklink": {
       "blockExplorers": [
@@ -6453,7 +6455,8 @@
       "validatorAnnounce": "0xf5626c0f33Ca102eb3ca1633A410cd8aa92909e4",
       "index": {
         "from": 7286869
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://transaction.safe.zklink.io/"
     },
     "arthera": {
       "blockExplorers": [
@@ -7815,7 +7818,8 @@
       "staticMessageIdWeightedMultisigIsmFactory": "0x0000000000000000000000000000000000000000",
       "storageGasOracle": "0x1cE4d0E16570C362feef85Ce2713555fCbd3dBC7",
       "testRecipient": "0xCDfE1782fDC9E74810D3B69E971d752bC4b4D6E6",
-      "validatorAnnounce": "0x2235662a9a8ED39AE489aafb2feE13Db26f72044"
+      "validatorAnnounce": "0x2235662a9a8ED39AE489aafb2feE13Db26f72044",
+      "gnosisSafeTransactionServiceUrl": "https://transaction.abstract-safe.protofire.io/"
     },
     "glue": {
       "blockExplorers": [
