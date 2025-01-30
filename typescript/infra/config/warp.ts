@@ -17,6 +17,7 @@ import { getAppChainBaseUSDCWarpConfig } from './environments/mainnet3/warp/conf
 import { getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig.js';
 import { getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
 import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBscEthereumMantleModePolygonScrollZeronetworkUSDTWarpConfig.js';
+import { getArbitrumEthereumSolanaTreasureSMOLWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumSolanaTreasureSMOLWarpConfig.js';
 import { getArbitrumEthereumZircuitAmphrETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumZircuitAmphrETHWarpConfig.js';
 import { getArbitrumNeutronEclipWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronEclipWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
@@ -50,7 +51,6 @@ import { getEthereumInevmUSDTWarpConfig } from './environments/mainnet3/warp/con
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
 import { getEthereumSeiFastUSDWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiFastUSDWarpConfig.js';
 import { getEthereumSeiPumpBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSeiPumpBTCWarpConfig.js';
-import { getEthereumSolanaTreasureSMOLWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSolanaTreasureSMOLWarpConfig.js';
 import {
   getEthereumSuperseedCBBTCWarpConfig,
   getEthereumSuperseedUSDCWarpConfig,
@@ -133,7 +133,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.BaseFormGAME]: getBaseFormGAMEWarpConfig,
   [WarpRouteIds.ArtelaBaseUSDC]: getArtelaBaseUSDCWarpConfig,
   [WarpRouteIds.ArtelaBaseWETH]: getArtelaBaseWETHWarpConfig,
-  [WarpRouteIds.EthereumTreasureSMOL]: getEthereumSolanaTreasureSMOLWarpConfig,
+  [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
+    getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
 };
 
 export async function getWarpConfig(
