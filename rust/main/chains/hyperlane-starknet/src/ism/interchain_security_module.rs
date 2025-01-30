@@ -23,7 +23,8 @@ use crate::contracts::interchain_security_module::{
 use crate::error::HyperlaneStarknetError;
 use crate::types::HyH256;
 use crate::{
-    build_single_owner_account, to_hpl_module_type, ConnectionConf, Signer, StarknetProvider,
+    build_single_owner_account, to_hpl_module_type, to_packed_bytes, ConnectionConf, Signer,
+    StarknetProvider,
 };
 
 impl<A> std::fmt::Display for StarknetInterchainSecurityModuleInternal<A>
@@ -140,7 +141,7 @@ impl InterchainSecurityModule for StarknetInterchainSecurityModule {
         let tx = self.contract.verify(
             &StarknetBytes {
                 size: metadata.len() as u32,
-                data: metadata.iter().map(|b| *b as u128).collect(),
+                data: to_packed_bytes(metadata),
             },
             message,
         );
