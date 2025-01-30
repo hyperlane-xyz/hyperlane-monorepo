@@ -18,7 +18,7 @@ describe('Warp Configs', async function () {
   let multiProvider: MultiProvider;
   let configsFromGithub;
 
-  before(async () => {
+  before(async function () {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
     configsFromGithub = await getGithubRegistry().getWarpDeployConfigs();
   });
