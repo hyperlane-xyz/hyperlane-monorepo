@@ -12,8 +12,6 @@ use hyperlane_core::{
 pub struct ConnectionConf {
     /// API urls to connect to
     api_urls: Vec<Url>,
-    /// The GRPC urls to connect to
-    grpc_urls: Vec<Url>,
     /// The RPC url to connect to
     rpc_urls: Vec<Url>,
     /// The chain ID
@@ -26,6 +24,8 @@ pub struct ConnectionConf {
     /// minimum price set by the validator.
     /// More details here: https://docs.cosmos.network/main/learn/beginner/gas-fees#antehandler
     gas_price: RawCosmosAmount,
+    /// The gas multiplier is used to estimate gas cost. The gas limit of the simulated transaction will be multiplied by this modifier.
+    gas_multiplier: f64,
     /// The number of bytes used to represent a contract address.
     /// Cosmos address lengths are sometimes less than 32 bytes, so this helps to serialize it in
     /// bech32 with the appropriate length.
@@ -85,11 +85,6 @@ pub enum ConnectionConfError {
 }
 
 impl ConnectionConf {
-    /// Get the GRPC url
-    pub fn get_grpc_urls(&self) -> Vec<Url> {
-        self.grpc_urls.clone()
-    }
-
     /// Get the RPC urls
     pub fn get_rpc_urls(&self) -> Vec<Url> {
         self.rpc_urls.clone()
@@ -130,23 +125,27 @@ impl ConnectionConf {
         self.api_urls.clone()
     }
 
+    /// Returns the gas multiplier from the config. Used to estimate txn costs more reliable
+    pub fn get_gas_multiplier(&self) -> f64 {
+        self.gas_multiplier
+    }
+
     /// Create a new connection configuration
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        grpc_urls: Vec<Url>,
         rpc_urls: Vec<Url>,
         api_urls: Vec<Url>,
         chain_id: String,
         bech32_prefix: String,
         canonical_asset: String,
         minimum_gas_price: RawCosmosAmount,
+        gas_multiplier: f64,
         contract_address_bytes: usize,
         operation_batch: OperationBatchConfig,
         native_token: NativeToken,
     ) -> Self {
         Self {
             api_urls,
-            grpc_urls,
             rpc_urls,
             chain_id,
             bech32_prefix,
@@ -155,6 +154,7 @@ impl ConnectionConf {
             contract_address_bytes,
             operation_batch,
             native_token,
+            gas_multiplier,
         }
     }
 }

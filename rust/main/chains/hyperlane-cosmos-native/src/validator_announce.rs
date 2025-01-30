@@ -10,7 +10,10 @@ use hyperlane_core::{
 };
 use prost::Message;
 
-use crate::{signers::Signer, ConnectionConf, CosmosNativeProvider, MsgAnnounceValidator};
+use crate::{
+    signers::Signer, ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError,
+    MsgAnnounceValidator,
+};
 
 /// A reference to a ValidatorAnnounce contract on some Cosmos chain
 #[derive(Debug)]
@@ -100,12 +103,12 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
             value: announce.encode_to_vec(),
         };
 
-        let response = self.provider.grpc().send(vec![any_msg], None).await;
-        let response = response?;
+        let response = self.provider.rpc().send(vec![any_msg], None).await?;
+        let tx = TxResponse::decode(response.data).map_err(HyperlaneCosmosError::from)?;
         Ok(TxOutcome {
-            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
-            executed: response.code == 0,
-            gas_used: U256::from(response.gas_used),
+            transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
+            executed: tx.code == 0,
+            gas_used: tx.gas_used.into(),
             gas_price: U256::one().try_into()?,
         })
     }

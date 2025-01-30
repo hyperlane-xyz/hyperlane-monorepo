@@ -38,29 +38,38 @@ impl<T: PartialEq> ParsedEvent<T> {
         self.event
     }
 }
-
+/// Event indexer
+///
+/// Indexes all events of a specified event type.
 #[derive(Debug, Clone)]
 pub struct EventIndexer {
     target_type: String,
     provider: Arc<CosmosNativeProvider>,
 }
 
+/// Parsing function
+///
+/// This function is used to parse the event attributes into a ParsedEvent.
 pub type Parser<T> = for<'a> fn(&'a Vec<EventAttribute>) -> ChainResult<ParsedEvent<T>>;
 
 impl EventIndexer {
+    /// Create a new EventIndexer.
     pub fn new(target_type: String, provider: Arc<CosmosNativeProvider>) -> EventIndexer {
         EventIndexer {
-            target_type: target_type,
-            provider: provider,
+            target_type,
+            provider,
         }
     }
 
+    /// Current block height
+    ///
+    /// used by the indexer struct
     pub async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let result = self.provider.grpc().get_block_number().await?;
+        let result = self.provider.rpc().get_block_number().await?;
         Ok(result as u32)
     }
 
-    pub async fn fetch_logs_by_tx_hash<T>(
+    pub(crate) async fn fetch_logs_by_tx_hash<T>(
         &self,
         tx_hash: H512,
         parser: Parser<T>,
@@ -69,7 +78,7 @@ impl EventIndexer {
         T: PartialEq + 'static,
         Indexed<T>: From<T>,
     {
-        let tx_response = self.provider.get_tx(&tx_hash).await?;
+        let tx_response = self.provider.rpc().get_tx(&tx_hash).await?;
         let block_height = tx_response.height;
         let block = self
             .provider
@@ -83,7 +92,7 @@ impl EventIndexer {
         Ok(result)
     }
 
-    pub async fn fetch_logs_in_range<T>(
+    pub(crate) async fn fetch_logs_in_range<T>(
         &self,
         range: RangeInclusive<u32>,
         parser: Parser<T>,
@@ -108,7 +117,6 @@ impl EventIndexer {
             .flatten()
             .map(|(logs, block_number)| {
                 if let Err(err) = &logs {
-                    warn!(?err, "error");
                     warn!(?err, ?block_number, "Failed to fetch logs for block");
                 }
                 logs
@@ -132,8 +140,8 @@ impl EventIndexer {
     where
         T: PartialEq + Debug + 'static,
     {
-        let block = self.provider.get_block(block_height).await?;
-        let block_results = self.provider.get_block_results(block_height).await?;
+        let block = self.provider.rpc().get_block(block_height).await?;
+        let block_results = self.provider.rpc().get_block_results(block_height).await?;
         let result = self.handle_txs(block, block_results, parser);
         Ok(result)
     }
@@ -218,9 +226,6 @@ impl EventIndexer {
 
             parser(&event.attributes)
                 .map_err(|err| {
-                    // This can happen if we attempt to parse an event that just happens
-                    // to have the same name but a different structure.
-                    println!("Failed to parse event attributes: {}", err);
                     trace!(?err, tx_hash=?tx_hash, log_idx, ?event, "Failed to parse event attributes");
                 })
                 .ok()

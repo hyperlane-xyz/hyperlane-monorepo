@@ -10,6 +10,7 @@ use tonic::async_trait;
 
 use crate::{ConnectionConf, CosmosNativeProvider, Signer, ISM};
 
+/// Cosmos Native ISM
 #[derive(Debug)]
 pub struct CosmosNativeIsm {
     /// The domain of the ISM contract.
@@ -36,7 +37,6 @@ impl CosmosNativeIsm {
 
     async fn get_ism(&self) -> ChainResult<Option<ISM>> {
         let isms = self.provider.rest().isms(ReorgPeriod::None).await?;
-
         for ism in isms {
             match ism.clone() {
                 ISM::NoOpISM { id, .. } if id.parse::<H256>()? == self.address => {
@@ -103,7 +103,7 @@ impl InterchainSecurityModule for CosmosNativeIsm {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        // TODO: is only relevant for aggeration isms -> cosmos native does not support them yet
+        // NOTE: is only relevant for aggeration isms -> cosmos native does not support them yet
         Ok(Some(1.into()))
     }
 }

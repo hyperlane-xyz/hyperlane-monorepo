@@ -33,6 +33,7 @@ pub struct CosmosNativeTreeInsertionIndexer {
 }
 
 impl CosmosNativeTreeInsertionIndexer {
+    ///  New Tree Insertion Indexer
     pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let provider =
             CosmosNativeProvider::new(locator.domain.clone(), conf, locator.clone(), None)?;
@@ -56,8 +57,12 @@ impl CosmosNativeTreeInsertionIndexer {
         let mut contract_address: Option<H256> = None;
 
         for attribute in attrs {
-            let value = attribute.value.replace("\"", "");
-            match attribute.key.as_str() {
+            let key = attribute.key_str().map_err(HyperlaneCosmosError::from)?;
+            let value = attribute
+                .value_str()
+                .map_err(HyperlaneCosmosError::from)?
+                .replace("\"", "");
+            match key {
                 "message_id" => {
                     message_id = Some(value.parse()?);
                 }

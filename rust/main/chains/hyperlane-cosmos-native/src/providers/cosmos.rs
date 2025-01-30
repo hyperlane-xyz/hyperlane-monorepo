@@ -1,13 +1,21 @@
-use std::io::Cursor;
+use std::{io::Cursor, ops::Deref};
 
 use cosmrs::{
     crypto::PublicKey,
-    proto::{cosmos::base::abci::v1beta1::TxResponse, tendermint::types::Block},
+    proto::{
+        cosmos::{
+            auth::v1beta1::QueryAccountRequest,
+            bank::v1beta1::{QueryBalanceRequest, QueryBalanceResponse},
+            base::abci::v1beta1::TxResponse,
+        },
+        tendermint::types::Block,
+    },
     tx::{SequenceNumber, SignerInfo, SignerPublicKey},
     AccountId, Any, Coin, Tx,
 };
+use derive_new::new;
 
-use super::{grpc::GrpcProvider, rest::RestProvider, CosmosFallbackProvider};
+use super::{rest::RestProvider, RpcProvider};
 use crate::{
     ConnectionConf, CosmosAccountId, CosmosAddress, CosmosAmount, HyperlaneCosmosError, Signer,
 };
@@ -33,9 +41,32 @@ use time::OffsetDateTime;
 use tonic::async_trait;
 use tracing::{debug, trace, warn};
 
-// proto structs for encoding and decoding transactions
+/// Wrapper of `FallbackProvider` for use in `hyperlane-cosmos-native`
+#[derive(new, Clone)]
+pub(crate) struct CosmosFallbackProvider<T> {
+    fallback_provider: FallbackProvider<T, T>,
+}
+
+impl<T> Deref for CosmosFallbackProvider<T> {
+    type Target = FallbackProvider<T, T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.fallback_provider
+    }
+}
+
+impl<C> std::fmt::Debug for CosmosFallbackProvider<C>
+where
+    C: std::fmt::Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.fallback_provider.fmt(f)
+    }
+}
+
+// structs for encoding and decoding transactions with protofbuf
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MsgProcessMessage {
+pub(crate) struct MsgProcessMessage {
     #[prost(string, tag = "1")]
     pub mailbox_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -47,7 +78,7 @@ pub struct MsgProcessMessage {
 }
 
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MsgAnnounceValidator {
+pub(crate) struct MsgAnnounceValidator {
     #[prost(string, tag = "1")]
     pub validator: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -61,7 +92,7 @@ pub struct MsgAnnounceValidator {
 }
 
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct MsgRemoteTransfer {
+pub(crate) struct MsgRemoteTransfer {
     #[prost(string, tag = "1")]
     pub sender: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
@@ -72,69 +103,49 @@ pub struct MsgRemoteTransfer {
     pub amount: ::prost::alloc::string::String,
 }
 
-#[derive(Debug, Clone)]
-struct CosmosHttpClient {
-    client: HttpClient,
-}
-
+/// Cosmos Native Provider
+///
+/// implements the HyperlaneProvider trait
 #[derive(Debug, Clone)]
 pub struct CosmosNativeProvider {
-    connection_conf: ConnectionConf,
-    provider: CosmosFallbackProvider<CosmosHttpClient>,
-    grpc: GrpcProvider,
+    conf: ConnectionConf,
     rest: RestProvider,
+    rpc: RpcProvider,
     domain: HyperlaneDomain,
 }
 
 impl CosmosNativeProvider {
-    #[doc = "Create a new Cosmos Provider instance"]
+    /// Create a new Cosmos Provider instance
     pub fn new(
         domain: HyperlaneDomain,
         conf: ConnectionConf,
         locator: ContractLocator,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let clients = conf
-            .get_rpc_urls()
-            .iter()
-            .map(|url| {
-                tendermint_rpc::Url::try_from(url.to_owned())
-                    .map_err(ChainCommunicationError::from_other)
-                    .and_then(|url| {
-                        tendermint_rpc::HttpClientUrl::try_from(url)
-                            .map_err(ChainCommunicationError::from_other)
-                    })
-                    .and_then(|url| {
-                        HttpClient::builder(url)
-                            .compat_mode(CompatMode::latest())
-                            .build()
-                            .map_err(ChainCommunicationError::from_other)
-                    })
-                    .map(|client| CosmosHttpClient { client })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let providers = FallbackProvider::new(clients);
-        let client = CosmosFallbackProvider::new(providers);
-
         let gas_price = CosmosAmount::try_from(conf.get_minimum_gas_price().clone())?;
-        let grpc_provider = GrpcProvider::new(
-            domain.clone(),
-            conf.clone(),
-            gas_price.clone(),
-            locator,
-            signer,
-        )?;
-
+        let rpc = RpcProvider::new(conf.clone(), signer)?;
         let rest = RestProvider::new(conf.get_api_urls().iter().map(|url| url.to_string()));
 
         Ok(CosmosNativeProvider {
             domain,
-            connection_conf: conf,
-            provider: client,
-            grpc: grpc_provider,
+            conf,
+            rpc,
             rest,
         })
+    }
+
+    /// RPC Provider
+    ///
+    /// This is used for general chain communication like getting the block number, block, transaction, etc.
+    pub fn rpc(&self) -> &RpcProvider {
+        &self.rpc
+    }
+
+    /// Rest Provider
+    ///
+    /// This is used for the Module Communication and querying the module state. Like mailboxes, isms etc.
+    pub fn rest(&self) -> &RestProvider {
+        &self.rest
     }
 
     // extract the contract address from the tx
@@ -148,17 +159,17 @@ impl CosmosNativeProvider {
             .cloned()
             .collect();
 
+        // right now one transaction can include max. one transfer
         if remote_transfers.len() > 1 {
             let msg = "transaction contains multiple execution messages";
             Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
         }
 
-        let msg = &remote_transfers[0];
-        let result = MsgRemoteTransfer::decode(Cursor::new(msg.value.to_vec())).map_err(|err| {
-            HyperlaneCosmosError::ParsingFailed(format!(
-                "Can't parse any to MsgRemoteTransfer. {msg:?}"
-            ))
+        let msg = remote_transfers.first().ok_or_else(|| {
+            ChainCommunicationError::from_other_str("tx does not contain any remote transfers")
         })?;
+        let result =
+            MsgRemoteTransfer::decode(msg.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
 
         let recipient = result.recipient;
         let recipient: H256 = recipient.parse()?;
@@ -198,7 +209,7 @@ impl CosmosNativeProvider {
 
         let account_id = CosmosAccountId::account_id_from_pubkey(
             public_key,
-            &self.connection_conf.get_bech32_prefix(),
+            &self.conf.get_bech32_prefix(),
             &account_address_type,
         )?;
 
@@ -270,7 +281,7 @@ impl CosmosNativeProvider {
     /// in the configuration of a chain. If fees contain an entry in a different denomination,
     /// we report it in the logs.
     fn report_unsupported_denominations(&self, tx: &Tx, tx_hash: &H256) -> ChainResult<()> {
-        let supported_denomination = self.connection_conf.get_minimum_gas_price().denom;
+        let supported_denomination = self.conf.get_minimum_gas_price().denom;
         let unsupported_denominations = tx
             .auth_info
             .fee
@@ -298,7 +309,7 @@ impl CosmosNativeProvider {
     ///
     /// If fees are expressed in an unsupported denomination, they will be ignored.
     fn convert_fee(&self, coin: &Coin) -> ChainResult<U256> {
-        let native_token = self.connection_conf.get_native_token();
+        let native_token = self.conf.get_native_token();
 
         if coin.denom.as_ref() != native_token.denom {
             return Ok(U256::zero());
@@ -312,7 +323,6 @@ impl CosmosNativeProvider {
     }
 
     fn calculate_gas_price(&self, hash: &H256, tx: &Tx) -> ChainResult<U256> {
-        // TODO support multiple denominations for amount
         let supported = self.report_unsupported_denominations(tx, hash);
         if supported.is_err() {
             return Ok(U256::max_value());
@@ -333,84 +343,15 @@ impl CosmosNativeProvider {
 
         Ok(fee / gas_limit)
     }
-
-    pub fn grpc(&self) -> &GrpcProvider {
-        &self.grpc
-    }
-
-    pub fn rest(&self) -> &RestProvider {
-        &self.rest
-    }
-
-    pub async fn get_tx(&self, hash: &H512) -> ChainResult<tx::Response> {
-        let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
-
-        let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
-            .expect("transaction hash should be of correct size");
-
-        let response =
-            self.provider
-                .call(|client| {
-                    let future = async move {
-                        client.client.tx(tendermint_hash, false).await.map_err(|e| {
-                            ChainCommunicationError::from(HyperlaneCosmosError::from(e))
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
-
-        let received_hash = H256::from_slice(response.hash.as_bytes());
-        if received_hash != hash {
-            return Err(ChainCommunicationError::from_other_str(&format!(
-                "received incorrect transaction, expected hash: {:?}, received hash: {:?}",
-                hash, received_hash,
-            )));
-        }
-
-        Ok(response)
-    }
-
-    pub async fn get_block(&self, height: u32) -> ChainResult<block::Response> {
-        let response =
-            self.provider
-                .call(|client| {
-                    let future = async move {
-                        client.client.block(height).await.map_err(|e| {
-                            ChainCommunicationError::from(HyperlaneCosmosError::from(e))
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
-
-        Ok(response)
-    }
-
-    pub async fn get_block_results(&self, height: u32) -> ChainResult<block_results::Response> {
-        let response =
-            self.provider
-                .call(|client| {
-                    let future = async move {
-                        client.client.block_results(height).await.map_err(|e| {
-                            ChainCommunicationError::from(HyperlaneCosmosError::from(e))
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
-
-        Ok(response)
-    }
 }
 
 impl HyperlaneChain for CosmosNativeProvider {
-    #[doc = " Return the domain"]
+    /// Return the domain
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
 
-    #[doc = " A provider for the chain"]
+    /// A provider for the chain
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
         Box::new(self.clone())
     }
@@ -419,18 +360,7 @@ impl HyperlaneChain for CosmosNativeProvider {
 #[async_trait]
 impl HyperlaneProvider for CosmosNativeProvider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
-        let response =
-            self.provider
-                .call(|client| {
-                    let future = async move {
-                        client.client.block(height as u32).await.map_err(|e| {
-                            ChainCommunicationError::from(HyperlaneCosmosError::from(e))
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
-
+        let response = self.rpc.get_block(height as u32).await?;
         let block = response.block;
         let block_height = block.header.height.value();
 
@@ -454,36 +384,13 @@ impl HyperlaneProvider for CosmosNativeProvider {
     }
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
-
-        let tendermint_hash = Hash::from_bytes(Algorithm::Sha256, hash.as_bytes())
-            .expect("transaction hash should be of correct size");
-
-        let response =
-            self.provider
-                .call(|client| {
-                    let future = async move {
-                        client.client.tx(tendermint_hash, false).await.map_err(|e| {
-                            ChainCommunicationError::from(HyperlaneCosmosError::from(e))
-                        })
-                    };
-                    Box::pin(future)
-                })
-                .await?;
-
-        let received_hash = H256::from_slice(response.hash.as_bytes());
-
-        if received_hash != hash {
-            return Err(ChainCommunicationError::from_other_str(&format!(
-                "received incorrect transaction, expected hash: {:?}, received hash: {:?}",
-                hash, received_hash,
-            )));
-        }
-
+        let response = self.rpc.get_tx(hash).await?;
         let tx = Tx::from_bytes(&response.tx)?;
 
         let contract = Self::contract(&tx)?;
         let (sender, nonce) = self.sender_and_nonce(&tx)?;
+
+        let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
         let gas_price = self.calculate_gas_price(&hash, &tx)?;
 
         let tx_info = TxnInfo {
@@ -512,24 +419,10 @@ impl HyperlaneProvider for CosmosNativeProvider {
     }
 
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        self.grpc
-            .get_balance(address, self.connection_conf.get_canonical_asset())
-            .await
+        self.rpc.get_balance(address).await
     }
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         return Ok(None);
-    }
-}
-
-#[async_trait]
-impl BlockNumberGetter for CosmosHttpClient {
-    async fn get_block_number(&self) -> Result<u64, ChainCommunicationError> {
-        let block = self
-            .client
-            .latest_block()
-            .await
-            .map_err(Into::<HyperlaneCosmosError>::into)?;
-        Ok(block.block.header.height.value())
     }
 }

@@ -34,6 +34,7 @@ pub struct CosmosNativeDispatchIndexer {
 }
 
 impl CosmosNativeDispatchIndexer {
+    ///  New Dispatch Indexer
     pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let provider =
             CosmosNativeProvider::new(locator.domain.clone(), conf, locator.clone(), None)?;
@@ -55,10 +56,14 @@ impl CosmosNativeDispatchIndexer {
         let mut contract_address: Option<H256> = None;
 
         for attribute in attrs {
-            let value = attribute.value.replace("\"", "");
-            let value = value.trim_start_matches("0x");
-            match attribute.key.as_str() {
+            let key = attribute.key_str().map_err(HyperlaneCosmosError::from)?;
+            let value = attribute
+                .value_str()
+                .map_err(HyperlaneCosmosError::from)?
+                .replace("\"", "");
+            match key {
                 "message" => {
+                    let value = value.strip_prefix("0x").unwrap_or(&value);
                     let mut reader = Cursor::new(hex::decode(value)?);
                     message = Some(HyperlaneMessage::read_from(&mut reader)?);
                 }
@@ -110,7 +115,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for CosmosNativeDispatchIndexer {
     #[instrument(err, skip(self), ret)]
     #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(&self).await?;
+        let tip = self.get_finalized_block_number().await?;
         let sequence = self
             .provider
             .rest()

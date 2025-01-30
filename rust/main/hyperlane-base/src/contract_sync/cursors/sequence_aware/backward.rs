@@ -123,10 +123,15 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         &self,
         current_indexing_snapshot: &TargetSnapshot,
     ) -> RangeInclusive<u32> {
-        // Query the block range ending at the current_indexing_snapshot's at_block.
-        current_indexing_snapshot
+        let start = current_indexing_snapshot
             .at_block
-            .saturating_sub(self.chunk_size)..=current_indexing_snapshot.at_block
+            .saturating_sub(self.chunk_size);
+        // limit this to 1
+        if start < 1 {
+            return 1..=current_indexing_snapshot.at_block;
+        }
+        // Query the block range ending at the current_indexing_snapshot's at_block.
+        start..=current_indexing_snapshot.at_block
     }
 
     /// Gets the next sequence range to index.

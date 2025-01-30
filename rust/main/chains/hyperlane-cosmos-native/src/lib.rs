@@ -1,7 +1,7 @@
-//! Implementation of hyperlane for cosmos.
+//! Implementation of hyperlane for the native cosmos module.
 
 #![forbid(unsafe_code)]
-// #![warn(missing_docs)]
+#![warn(missing_docs)]
 // TODO: Remove once we start filling things in
 #![allow(unused_variables)]
 #![allow(unused_imports)] // TODO: `rustc` 1.80.1 clippy issue

@@ -16,6 +16,7 @@ impl Config {
         let ci_mode = env::var("E2E_CI_MODE")
             .map(|k| k.parse::<bool>().unwrap())
             .unwrap_or_default();
+
         Arc::new(Self {
             ci_mode,
             is_ci_env: env::var("CI").as_deref() == Ok("true"),

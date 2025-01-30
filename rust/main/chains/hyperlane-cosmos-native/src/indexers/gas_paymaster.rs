@@ -40,6 +40,7 @@ pub struct CosmosNativeGasPaymaster {
 impl InterchainGasPaymaster for CosmosNativeGasPaymaster {}
 
 impl CosmosNativeGasPaymaster {
+    ///  Gas Payment Indexer
     pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let provider =
             CosmosNativeProvider::new(locator.domain.clone(), conf.clone(), locator.clone(), None)?;
@@ -65,8 +66,12 @@ impl CosmosNativeGasPaymaster {
         let mut destination: Option<u32> = None;
 
         for attribute in attrs {
-            let value = attribute.value.replace("\"", "");
-            match attribute.key.as_str() {
+            let key = attribute.key_str().map_err(HyperlaneCosmosError::from)?;
+            let value = attribute
+                .value_str()
+                .map_err(HyperlaneCosmosError::from)?
+                .replace("\"", "");
+            match key {
                 "igp_id" => igp_id = Some(value.parse()?),
                 "message_id" => message_id = Some(value.parse()?),
                 "gas_amount" => gas_amount = Some(U256::from_dec_str(&value)?),
@@ -162,7 +167,7 @@ impl Indexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
 #[async_trait]
 impl SequenceAwareIndexer<InterchainGasPayment> for CosmosNativeGasPaymaster {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let tip = Indexer::<InterchainGasPayment>::get_finalized_block_number(&self).await?;
+        let tip = self.get_finalized_block_number().await?;
         Ok((None, tip))
     }
 }

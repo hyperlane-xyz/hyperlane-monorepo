@@ -1,4 +1,4 @@
-use cosmrs::Any;
+use cosmrs::{proto::cosmos::base::abci::v1beta1::TxResponse, Any, Tx};
 use hex::ToHex;
 use hyperlane_core::{
     rpc_clients::BlockNumberGetter, ChainResult, ContractLocator, HyperlaneChain,
@@ -8,8 +8,11 @@ use hyperlane_core::{
 use prost::Message;
 use tonic::async_trait;
 
-use crate::{ConnectionConf, CosmosNativeProvider, MsgProcessMessage, Signer};
+use crate::{
+    ConnectionConf, CosmosNativeProvider, HyperlaneCosmosError, MsgProcessMessage, Signer,
+};
 
+/// Cosmos Native Mailbox
 #[derive(Debug, Clone)]
 pub struct CosmosNativeMailbox {
     provider: CosmosNativeProvider,
@@ -127,14 +130,16 @@ impl Mailbox for CosmosNativeMailbox {
 
         let response = self
             .provider
-            .grpc()
+            .rpc()
             .send(vec![any_encoded], gas_limit)
             .await?;
 
+        let tx = TxResponse::decode(response.data).map_err(HyperlaneCosmosError::from)?;
+
         Ok(TxOutcome {
-            transaction_id: H256::from_slice(hex::decode(response.txhash)?.as_slice()).into(),
-            executed: response.code == 0,
-            gas_used: U256::from(response.gas_used),
+            transaction_id: H256::from_slice(response.hash.as_bytes()).into(),
+            executed: tx.code == 0,
+            gas_used: tx.gas_used.into(),
             gas_price: U256::one().try_into()?,
         })
     }
@@ -147,10 +152,10 @@ impl Mailbox for CosmosNativeMailbox {
     ) -> ChainResult<TxCostEstimate> {
         let hex_string = hex::encode(metadata);
         let any_encoded = self.encode_hyperlane_message(message, metadata);
-        let gas_limit = self.provider.grpc().estimate_gas(vec![any_encoded]).await?;
+        let gas_limit = self.provider.rpc().estimate_gas(vec![any_encoded]).await?;
         Ok(TxCostEstimate {
             gas_limit: gas_limit.into(),
-            gas_price: self.provider.grpc().gas_price(),
+            gas_price: self.provider.rpc().gas_price(),
             l2_gas_limit: None,
         })
     }
@@ -158,6 +163,6 @@ impl Mailbox for CosmosNativeMailbox {
     /// Get the calldata for a transaction to process a message with a proof
     /// against the provided signed checkpoint
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
-        todo!() // TODO: check if we really don't need that
+        todo!() // we dont need this for now
     }
 }

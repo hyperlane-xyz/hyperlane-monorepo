@@ -167,8 +167,6 @@ pub fn build_cosmos_native_connection_conf(
     operation_batch: OperationBatchConfig,
 ) -> Option<ChainConnectionConf> {
     let mut local_err = ConfigParsingError::default();
-    let grpcs =
-        parse_base_and_override_urls(chain, "grpcUrls", "customGrpcUrls", "http", &mut local_err);
     let apis =
         parse_base_and_override_urls(chain, "apiUrls", "customApiUrls", "http", &mut local_err);
 
@@ -218,6 +216,13 @@ pub fn build_cosmos_native_connection_conf(
         .and_then(parse_cosmos_gas_price)
         .end();
 
+    let gas_multiplier = chain
+        .chain(err)
+        .get_opt_key("gasMultiplier")
+        .parse_f64()
+        .end()
+        .unwrap_or(1.4);
+
     let contract_address_bytes = chain
         .chain(err)
         .get_opt_key("contractAddressBytes")
@@ -238,13 +243,13 @@ pub fn build_cosmos_native_connection_conf(
 
         Some(ChainConnectionConf::CosmosNative(
             h_cosmos_native::ConnectionConf::new(
-                grpcs,
                 rpcs.to_owned(),
                 apis,
                 chain_id.unwrap().to_string(),
                 prefix.unwrap().to_string(),
                 canonical_asset.unwrap(),
                 gas_price,
+                gas_multiplier,
                 contract_address_bytes.unwrap().try_into().unwrap(),
                 operation_batch,
                 native_token,

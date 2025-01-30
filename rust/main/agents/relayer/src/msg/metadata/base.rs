@@ -243,6 +243,7 @@ impl MessageMetadataBuilder {
             .module_type()
             .await
             .context("When fetching module type")?;
+
         let cloned = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {

@@ -95,7 +95,7 @@ impl MerkleTreeHook for CosmosMerkleTreeHook {
         let branch = branch.as_slice();
         let branch: [H256; 32] = match branch.try_into() {
             Ok(ba) => ba,
-            Err(_) => {
+            Err(e) => {
                 return Err(ChainCommunicationError::CustomError(
                     "Failed to convert incremental tree. expected branch length of 32".to_string(),
                 ))
