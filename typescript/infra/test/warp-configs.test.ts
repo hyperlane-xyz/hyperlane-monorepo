@@ -16,27 +16,25 @@ describe('Warp Configs', async function () {
   const ENV = 'mainnet3';
   const warpIdsToCheck = Object.keys(warpConfigGetterMap);
   let multiProvider: MultiProvider;
+  let configsFromGithub;
 
-  before(async () => {
+  before(async function () {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
+    configsFromGithub = await getGithubRegistry().getWarpDeployConfigs();
   });
 
   const envConfig = getEnvironmentConfig(ENV);
 
   for (const warpRouteId of warpIdsToCheck) {
-    it(`should match Github Registry configs for ${warpRouteId}`, async () => {
+    it(`should match Github Registry configs for ${warpRouteId}`, async function () {
       const warpConfig = await getWarpConfig(
         multiProvider,
         envConfig,
         warpRouteId,
       );
-      const githubRegistry = getGithubRegistry();
-      const configsFromGithub = await githubRegistry.getWarpDeployConfig(
-        warpRouteId,
-      );
       const { mergedObject, isInvalid } = diffObjMerge(
         warpConfig,
-        configsFromGithub!,
+        configsFromGithub![warpRouteId],
       );
 
       if (isInvalid) {
