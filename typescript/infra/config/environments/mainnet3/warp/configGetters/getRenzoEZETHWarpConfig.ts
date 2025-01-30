@@ -17,7 +17,7 @@ import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
-const chainsToDeploy = [
+export const chainsToDeploy = [
   'arbitrum',
   'optimism',
   'base',
