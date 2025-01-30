@@ -26,13 +26,13 @@
       "concreteTypeId": "b760f44fa5965c2474a3b471467a22c43185152129295af588b022ae50b50903"
     },
     {
-      "type": "enum interfaces::merkle_tree_hook::MerkleTreeError",
-      "concreteTypeId": "5410af966c0a9e8479bc59d683495479f235475d5ba3ac58c55b46d7e508aab5",
+      "type": "enum interfaces::hooks::merkle_tree_hook::MerkleTreeHookError",
+      "concreteTypeId": "426dfda92f184fcf45cda17321259db8a156eaf4feb660630f639da630463334",
       "metadataTypeId": 2
     },
     {
-      "type": "enum interfaces::post_dispatch_hook::PostDispatchHookType",
-      "concreteTypeId": "92d375dbe21d8ba43fcbaa7f70e70c94baee06743f2d11d49bbe4fb8785becff",
+      "type": "enum interfaces::hooks::post_dispatch_hook::PostDispatchHookType",
+      "concreteTypeId": "88d5bf06eca6ec129b0c98e6d67271d9012ccd96caf9fe498d5dd2d191db9428",
       "metadataTypeId": 3
     },
     {
@@ -41,8 +41,8 @@
       "metadataTypeId": 4
     },
     {
-      "type": "struct interfaces::merkle_tree_hook::InsertedIntoTreeEvent",
-      "concreteTypeId": "3effa20b4d80bbc5778de2fd83fda27778f7cda3c122fe2120a4d3298509abcc",
+      "type": "struct interfaces::hooks::merkle_tree_hook::InsertedIntoTreeEvent",
+      "concreteTypeId": "d2f65b9b35997bd4c25ba60c8fdfc379fb7277a88e621b81804e37ee727dee7b",
       "metadataTypeId": 7
     },
     {
@@ -99,7 +99,7 @@
       ]
     },
     {
-      "type": "enum interfaces::merkle_tree_hook::MerkleTreeError",
+      "type": "enum interfaces::hooks::merkle_tree_hook::MerkleTreeHookError",
       "metadataTypeId": 2,
       "components": [
         {
@@ -121,7 +121,7 @@
       ]
     },
     {
-      "type": "enum interfaces::post_dispatch_hook::PostDispatchHookType",
+      "type": "enum interfaces::hooks::post_dispatch_hook::PostDispatchHookType",
       "metadataTypeId": 3,
       "components": [
         {
@@ -189,7 +189,7 @@
       "metadataTypeId": 6
     },
     {
-      "type": "struct interfaces::merkle_tree_hook::InsertedIntoTreeEvent",
+      "type": "struct interfaces::hooks::merkle_tree_hook::InsertedIntoTreeEvent",
       "metadataTypeId": 7,
       "components": [
         {
@@ -273,9 +273,7 @@
           "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
         }
       ],
-      "typeParameters": [
-        5
-      ]
+      "typeParameters": [5]
     },
     {
       "type": "struct std::vec::Vec",
@@ -296,9 +294,7 @@
           "typeId": "1506e6f44c1d6291cdf46395a8e573276a4fa79e8ace3fc891e092ef32d1b0a0"
         }
       ],
-      "typeParameters": [
-        5
-      ]
+      "typeParameters": [5]
     }
   ],
   "functions": [
@@ -309,39 +305,27 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns the count from the MerkleTree."
-          ]
+          "arguments": [" Returns the count from the MerkleTree."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [u32] - The count from the MerkleTree."
-          ]
+          "arguments": [" * [u32] - The count from the MerkleTree."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -352,39 +336,27 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Gets the stored count of the MerkleTree."
-          ]
+          "arguments": [" Gets the stored count of the MerkleTree."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " And the current block number."
-          ]
+          "arguments": [" And the current block number."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " Used since we cannot query point in time data."
-          ]
+          "arguments": [" Used since we cannot query point in time data."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -394,9 +366,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -418,21 +388,15 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -442,33 +406,23 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the contract is already initialized."
-          ]
+          "arguments": [" * If the contract is already initialized."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     },
@@ -479,9 +433,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -492,39 +444,27 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns the root from the MerkleTree."
-          ]
+          "arguments": [" Returns the root from the MerkleTree."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [b256] - The root from the MerkleTree."
-          ]
+          "arguments": [" * [b256] - The root from the MerkleTree."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -535,88 +475,58 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns the latest checkpoint from the MerkleTree."
-          ]
+          "arguments": [" Returns the latest checkpoint from the MerkleTree."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [b256] - The root from the MerkleTree."
-          ]
+          "arguments": [" * [b256] - The root from the MerkleTree."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [u32] - The count from the MerkleTree."
-          ]
+          "arguments": [" * [u32] - The count from the MerkleTree."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
     {
       "inputs": [],
       "name": "hook_type",
-      "output": "92d375dbe21d8ba43fcbaa7f70e70c94baee06743f2d11d49bbe4fb8785becff",
+      "output": "88d5bf06eca6ec129b0c98e6d67271d9012ccd96caf9fe498d5dd2d191db9428",
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns an enum that represents the type of hook"
-          ]
+          "arguments": [" Returns an enum that represents the type of hook"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [PostDispatchHookType] - The type of the hook."
-          ]
-        },
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": [" * [PostDispatchHookType] - The type of the hook."]
         }
       ]
     },
@@ -648,21 +558,15 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -672,45 +576,31 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `message`: [Bytes] - The message to be processed."
-          ]
+          "arguments": [" * `message`: [Bytes] - The message to be processed."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the contract is not initialized."
-          ]
+          "arguments": [" * If the contract is not initialized."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the message ID is not the latest dispatched ID."
-          ]
+          "arguments": [" * If the message ID is not the latest dispatched ID."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If there was assets sent with the function call."
-          ]
+          "arguments": [" * If there was assets sent with the function call."]
         },
         {
           "name": "payable",
@@ -718,10 +608,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -747,21 +634,15 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -771,27 +652,19 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `message`: [Bytes] - The message to be processed."
-          ]
+          "arguments": [" * `message`: [Bytes] - The message to be processed."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -801,9 +674,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -819,79 +690,55 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns whether the hook supports metadata"
-          ]
+          "arguments": [" Returns whether the hook supports metadata"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `metadata`: [Bytes] - The metadata to be checked."
-          ]
+          "arguments": [" * `metadata`: [Bytes] - The metadata to be checked."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [bool] - Whether the hook supports the metadata."
-          ]
-        },
-        {
-          "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": [" * [bool] - Whether the hook supports the metadata."]
         }
       ]
     }
   ],
   "loggedTypes": [
     {
-      "logId": "6057534559405907588",
-      "concreteTypeId": "5410af966c0a9e8479bc59d683495479f235475d5ba3ac58c55b46d7e508aab5"
+      "logId": "4786760882046128079",
+      "concreteTypeId": "426dfda92f184fcf45cda17321259db8a156eaf4feb660630f639da630463334"
     },
     {
       "logId": "15984911484641280648",
       "concreteTypeId": "ddd5d04db81b028838a7ccd28dd2d24122ce431e475b353a1d076c740b9168cb"
     },
     {
-      "logId": "4539525118841371589",
-      "concreteTypeId": "3effa20b4d80bbc5778de2fd83fda27778f7cda3c122fe2120a4d3298509abcc"
+      "logId": "15201438314412997588",
+      "concreteTypeId": "d2f65b9b35997bd4c25ba60c8fdfc379fb7277a88e621b81804e37ee727dee7b"
     }
   ],
   "messagesTypes": [],

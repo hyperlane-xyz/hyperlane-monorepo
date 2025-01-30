@@ -4,11 +4,6 @@
   "encodingVersion": "1",
   "concreteTypes": [
     {
-      "type": "[u8; 32]",
-      "concreteTypeId": "c0cb0154daecd457849d890b38a00e4ebac52e820cb461e0477aaadee6919e1e",
-      "metadataTypeId": 1
-    },
-    {
       "type": "b256",
       "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
     },
@@ -17,34 +12,34 @@
       "concreteTypeId": "b760f44fa5965c2474a3b471467a22c43185152129295af588b022ae50b50903"
     },
     {
-      "type": "enum ValidatorAnnounceError",
-      "concreteTypeId": "6dea538ce06cc546aa65f360420bf2395788f6009094d96bedda53dc9e364178",
-      "metadataTypeId": 2
+      "type": "enum interfaces::va::ValidatorAnnounceError",
+      "concreteTypeId": "ec76592f2dcf24ec6527242afd8946282ac000fffe21a0ed75a797cbf460a556",
+      "metadataTypeId": 1
     },
     {
       "type": "struct interfaces::va::ValidatorAnnouncementEvent",
       "concreteTypeId": "d99160a54786c91aa3bfabca957c17df96dbae05a4c79f958b3da89ddc751fbf",
-      "metadataTypeId": 5
+      "metadataTypeId": 4
     },
     {
       "type": "struct std::bytes::Bytes",
       "concreteTypeId": "cdd87b7d12fe505416570c294c884bca819364863efe3bf539245fa18515fbbb",
-      "metadataTypeId": 6
+      "metadataTypeId": 5
     },
     {
       "type": "struct std::contract_id::ContractId",
       "concreteTypeId": "29c10735d33b5159f0c71ee1dbd17b36a3e69e41f00fab0d42e1bd9f428d8a54",
-      "metadataTypeId": 8
+      "metadataTypeId": 7
     },
     {
       "type": "struct std::string::String",
       "concreteTypeId": "9a7f1d3e963c10e0a4ea70a8e20a4813d1dc5682e28f74cb102ae50d32f7f98c",
-      "metadataTypeId": 9
+      "metadataTypeId": 8
     },
     {
       "type": "struct std::vec::Vec<b256>",
       "concreteTypeId": "32559685d0c9845f059bf9d472a0a38cf77d36c23dfcffe5489e86a65cdd9198",
-      "metadataTypeId": 11,
+      "metadataTypeId": 10,
       "typeArguments": [
         "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
       ]
@@ -52,7 +47,7 @@
     {
       "type": "struct std::vec::Vec<struct std::string::String>",
       "concreteTypeId": "44fe2320bc65785fc0e617cb83e9eed432430acbf1a3999783a15982b84237e8",
-      "metadataTypeId": 11,
+      "metadataTypeId": 10,
       "typeArguments": [
         "9a7f1d3e963c10e0a4ea70a8e20a4813d1dc5682e28f74cb102ae50d32f7f98c"
       ]
@@ -60,7 +55,7 @@
     {
       "type": "struct std::vec::Vec<struct std::vec::Vec<struct std::string::String>>",
       "concreteTypeId": "356056ebd0caea5064f10ead20d08a92ad675e09e3fa875f9d632a675fdea875",
-      "metadataTypeId": 11,
+      "metadataTypeId": 10,
       "typeArguments": [
         "44fe2320bc65785fc0e617cb83e9eed432430acbf1a3999783a15982b84237e8"
       ]
@@ -68,15 +63,11 @@
     {
       "type": "struct std::vm::evm::evm_address::EvmAddress",
       "concreteTypeId": "05a44d8c3e00faf7ed545823b7a2b32723545d8715d87a0ab3cf65904948e8d2",
-      "metadataTypeId": 12
+      "metadataTypeId": 11
     },
     {
       "type": "u32",
       "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-    },
-    {
-      "type": "u8",
-      "concreteTypeId": "c89951a24c6ca28c13fd1cfdc646b2b656d69e61a92b91023be7eb58eb914b6b"
     }
   ],
   "metadataTypes": [
@@ -85,18 +76,8 @@
       "metadataTypeId": 0
     },
     {
-      "type": "[_; 32]",
+      "type": "enum interfaces::va::ValidatorAnnounceError",
       "metadataTypeId": 1,
-      "components": [
-        {
-          "name": "__array_element",
-          "typeId": "c89951a24c6ca28c13fd1cfdc646b2b656d69e61a92b91023be7eb58eb914b6b"
-        }
-      ]
-    },
-    {
-      "type": "enum ValidatorAnnounceError",
-      "metadataTypeId": 2,
       "components": [
         {
           "name": "ValidatorNotSigner",
@@ -110,57 +91,57 @@
     },
     {
       "type": "generic T",
-      "metadataTypeId": 3
+      "metadataTypeId": 2
     },
     {
       "type": "raw untyped ptr",
-      "metadataTypeId": 4
+      "metadataTypeId": 3
     },
     {
       "type": "struct interfaces::va::ValidatorAnnouncementEvent",
-      "metadataTypeId": 5,
+      "metadataTypeId": 4,
       "components": [
         {
           "name": "validator",
-          "typeId": 12
+          "typeId": 11
         },
         {
           "name": "storage_location",
-          "typeId": 9
+          "typeId": 8
         }
       ]
     },
     {
       "type": "struct std::bytes::Bytes",
-      "metadataTypeId": 6,
+      "metadataTypeId": 5,
       "components": [
         {
           "name": "buf",
-          "typeId": 7
+          "typeId": 6
         },
         {
           "name": "len",
-          "typeId": 13
+          "typeId": 12
         }
       ]
     },
     {
       "type": "struct std::bytes::RawBytes",
-      "metadataTypeId": 7,
+      "metadataTypeId": 6,
       "components": [
         {
           "name": "ptr",
-          "typeId": 4
+          "typeId": 3
         },
         {
           "name": "cap",
-          "typeId": 13
+          "typeId": 12
         }
       ]
     },
     {
       "type": "struct std::contract_id::ContractId",
-      "metadataTypeId": 8,
+      "metadataTypeId": 7,
       "components": [
         {
           "name": "bits",
@@ -170,57 +151,53 @@
     },
     {
       "type": "struct std::string::String",
-      "metadataTypeId": 9,
+      "metadataTypeId": 8,
       "components": [
         {
           "name": "bytes",
-          "typeId": 6
+          "typeId": 5
         }
       ]
     },
     {
       "type": "struct std::vec::RawVec",
-      "metadataTypeId": 10,
+      "metadataTypeId": 9,
       "components": [
         {
           "name": "ptr",
-          "typeId": 4
+          "typeId": 3
         },
         {
           "name": "cap",
-          "typeId": 13
+          "typeId": 12
         }
       ],
-      "typeParameters": [
-        3
-      ]
+      "typeParameters": [2]
     },
     {
       "type": "struct std::vec::Vec",
-      "metadataTypeId": 11,
+      "metadataTypeId": 10,
       "components": [
         {
           "name": "buf",
-          "typeId": 10,
+          "typeId": 9,
           "typeArguments": [
             {
               "name": "",
-              "typeId": 3
+              "typeId": 2
             }
           ]
         },
         {
           "name": "len",
-          "typeId": 13
+          "typeId": 12
         }
       ],
-      "typeParameters": [
-        3
-      ]
+      "typeParameters": [2]
     },
     {
       "type": "struct std::vm::evm::evm_address::EvmAddress",
-      "metadataTypeId": 12,
+      "metadataTypeId": 11,
       "components": [
         {
           "name": "bits",
@@ -230,7 +207,7 @@
     },
     {
       "type": "u64",
-      "metadataTypeId": 13
+      "metadataTypeId": 12
     }
   ],
   "functions": [
@@ -254,33 +231,23 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Announces a validator signature storage location    "
-          ]
+          "arguments": [" Announces a validator signature storage location    "]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `validator`: [b256] - The address of the validator"
-          ]
+          "arguments": [" * `validator`: [b256] - The address of the validator"]
         },
         {
           "name": "doc-comment",
@@ -296,51 +263,35 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [bool] - Whether the announcement was successful"
-          ]
+          "arguments": [" * [bool] - Whether the announcement was successful"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the announcement has already been made"
-          ]
+          "arguments": [" * If the announcement has already been made"]
         },
         {
           "name": "doc-comment",
@@ -350,10 +301,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -369,27 +317,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns a list of all announced storage locations   "
-          ]
+          "arguments": [" Returns a list of all announced storage locations   "]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -399,9 +339,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -418,21 +356,15 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -442,25 +374,15 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     }
   ],
   "loggedTypes": [
     {
-      "logId": "7920234759210190150",
-      "concreteTypeId": "6dea538ce06cc546aa65f360420bf2395788f6009094d96bedda53dc9e364178"
-    },
-    {
-      "logId": "13892198939516261463",
-      "concreteTypeId": "c0cb0154daecd457849d890b38a00e4ebac52e820cb461e0477aaadee6919e1e"
-    },
-    {
-      "logId": "14454674236531057292",
-      "concreteTypeId": "c89951a24c6ca28c13fd1cfdc646b2b656d69e61a92b91023be7eb58eb914b6b"
+      "logId": "17038904299369735404",
+      "concreteTypeId": "ec76592f2dcf24ec6527242afd8946282ac000fffe21a0ed75a797cbf460a556"
     },
     {
       "logId": "15677418040839293210",
@@ -472,12 +394,12 @@
     {
       "name": "LOCAL_DOMAIN",
       "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc",
-      "offset": 39256
+      "offset": 38440
     },
     {
       "name": "MAILBOX_ID",
       "concreteTypeId": "29c10735d33b5159f0c71ee1dbd17b36a3e69e41f00fab0d42e1bd9f428d8a54",
-      "offset": 39264
+      "offset": 38448
     }
   ]
 }

@@ -16,8 +16,8 @@
       "concreteTypeId": "b760f44fa5965c2474a3b471467a22c43185152129295af588b022ae50b50903"
     },
     {
-      "type": "enum MailboxError",
-      "concreteTypeId": "440e9980d3bd496a07b9348ba2cc9553c25410fe4a1c251d8303bc073ca3c472",
+      "type": "enum interfaces::mailbox::mailbox::MailboxError",
+      "concreteTypeId": "68180f8a59a30ee2f3461d64d15269bb1789948b3138b259046029f86c0b23a1",
       "metadataTypeId": 0
     },
     {
@@ -121,7 +121,7 @@
   ],
   "metadataTypes": [
     {
-      "type": "enum MailboxError",
+      "type": "enum interfaces::mailbox::mailbox::MailboxError",
       "metadataTypeId": 0,
       "components": [
         {
@@ -146,10 +146,6 @@
         },
         {
           "name": "MessageVerificationFailed",
-          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-        },
-        {
-          "name": "AlreadyInitialized",
           "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
         },
         {
@@ -433,27 +429,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Gets the default hook used for message verification."
-          ]
+          "arguments": [" Gets the default hook used for message verification."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -463,9 +451,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -476,39 +462,27 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Gets the default ISM used for message verification."
-          ]
+          "arguments": [" Gets the default ISM used for message verification."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [ContractId] - Address implementing ISM interface."
-          ]
+          "arguments": [" * [ContractId] - Address implementing ISM interface."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -524,27 +498,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns true if the message has been processed."
-          ]
+          "arguments": [" Returns true if the message has been processed."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -554,33 +520,23 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [bool] - True if the message has been processed."
-          ]
+          "arguments": [" * [bool] - True if the message has been processed."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -618,27 +574,19 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns the message's ID."
-          ]
+          "arguments": [" Returns the message's ID."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -666,75 +614,51 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `hook`: [ContractId] - The hook contract Id."
-          ]
+          "arguments": [" * `hook`: [ContractId] - The hook contract Id."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [b256] - The ID of the dispatched message."
-          ]
+          "arguments": [" * [b256] - The ID of the dispatched message."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the message body is too large."
-          ]
+          "arguments": [" * If the message body is too large."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the contract is paused."
-          ]
+          "arguments": [" * If the contract is paused."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If reentrancy is detected."
-          ]
+          "arguments": [" * If reentrancy is detected."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If any external call fails."
-          ]
+          "arguments": [" * If any external call fails."]
         },
         {
           "name": "payable",
@@ -742,10 +666,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -753,7 +674,7 @@
       "inputs": [
         {
           "name": "owner",
-          "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
+          "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
         },
         {
           "name": "default_ism",
@@ -773,33 +694,23 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Initializes the contract."
-          ]
+          "arguments": [" Initializes the contract."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `owner`: [b256] - The owner of the contract."
-          ]
+          "arguments": [" * `owner`: [Identity] - The owner of the contract."]
         },
         {
           "name": "doc-comment",
@@ -821,33 +732,23 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the contract is already initialized."
-          ]
+          "arguments": [" * If the contract is already initialized."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     },
@@ -858,39 +759,27 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns the ID of the last dispatched message."
-          ]
+          "arguments": [" Returns the ID of the last dispatched message."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [b256] - The ID of the last dispatched message."
-          ]
+          "arguments": [" * [b256] - The ID of the last dispatched message."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -907,27 +796,19 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [u32] - The domain of the contract."
-          ]
+          "arguments": [" * [u32] - The domain of the contract."]
         }
       ]
     },
@@ -944,33 +825,23 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [u32] - The number of leaves in the merkle tree."
-          ]
+          "arguments": [" * [u32] - The number of leaves in the merkle tree."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -990,27 +861,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Processes a message."
-          ]
+          "arguments": [" Processes a message."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -1026,70 +889,47 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the contract is paused."
-          ]
+          "arguments": [" * If the contract is paused."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If reentrancy is detected."
-          ]
+          "arguments": [" * If reentrancy is detected."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the message has already been delivered."
-          ]
+          "arguments": [" * If the message has already been delivered."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the message's protocol version is invalid."
-          ]
+          "arguments": [" * If the message's protocol version is invalid."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the message's origin is invalid."
-          ]
+          "arguments": [" * If the message's origin is invalid."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the message's verification fails."
-          ]
+          "arguments": [" * If the message's verification fails."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If any external call fails."
-          ]
+          "arguments": [" * If any external call fails."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -1121,27 +961,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Quotes a price for dispatching a message"
-          ]
+          "arguments": [" Quotes a price for dispatching a message"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -1169,63 +1001,43 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `hook`: [ContractId] - The hook contract Id."
-          ]
+          "arguments": [" * `hook`: [ContractId] - The hook contract Id."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [u64] - The price of the dispatch."
-          ]
+          "arguments": [" * [u64] - The price of the dispatch."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If any external call fails."
-          ]
+          "arguments": [" * If any external call fails."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -1241,27 +1053,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Returns the ISM set by a recipient."
-          ]
+          "arguments": [" Returns the ISM set by a recipient."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -1271,57 +1075,39 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [ContractId] - The ISM contract Id."
-          ]
+          "arguments": [" * [ContractId] - The ISM contract Id."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If recipient call fails."
-          ]
+          "arguments": [" * If recipient call fails."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -1338,21 +1124,15 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -1362,9 +1142,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -1386,21 +1164,15 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -1410,39 +1182,27 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the caller is not the owner."
-          ]
+          "arguments": [" * If the caller is not the owner."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the provided hook address is zero."
-          ]
+          "arguments": [" * If the provided hook address is zero."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     },
@@ -1458,27 +1218,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Sets the default ISM used for message verification."
-          ]
+          "arguments": [" Sets the default ISM used for message verification."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -1488,40 +1240,27 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the caller is not the owner."
-          ]
+          "arguments": [" * If the caller is not the owner."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the provided ISM address is zero."
-          ]
+          "arguments": [" * If the provided ISM address is zero."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -1543,21 +1282,15 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -1567,39 +1300,27 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the caller is not the owner."
-          ]
+          "arguments": [" * If the caller is not the owner."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the provided hook address is zero."
-          ]
+          "arguments": [" * If the provided hook address is zero."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     },
@@ -1610,9 +1331,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -1623,9 +1342,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     },
@@ -1636,9 +1353,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     },
@@ -1654,10 +1369,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -1668,9 +1380,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -1681,9 +1391,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -1694,10 +1402,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -1713,9 +1418,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     }
@@ -1730,8 +1433,8 @@
       "concreteTypeId": "8b3afcadf894415a10b09fc3717487e33802c8ffbb030edafe84ca4a71b280bc"
     },
     {
-      "logId": "4904025822840310122",
-      "concreteTypeId": "440e9980d3bd496a07b9348ba2cc9553c25410fe4a1c251d8303bc073ca3c472"
+      "logId": "7500762266269322978",
+      "concreteTypeId": "68180f8a59a30ee2f3461d64d15269bb1789948b3138b259046029f86c0b23a1"
     },
     {
       "logId": "16070551783826937832",
@@ -1787,7 +1490,7 @@
     {
       "name": "LOCAL_DOMAIN",
       "concreteTypeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc",
-      "offset": 56264
+      "offset": 56136
     }
   ]
 }

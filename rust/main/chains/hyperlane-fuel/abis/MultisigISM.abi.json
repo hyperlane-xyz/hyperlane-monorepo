@@ -17,13 +17,13 @@
       "concreteTypeId": "b760f44fa5965c2474a3b471467a22c43185152129295af588b022ae50b50903"
     },
     {
-      "type": "enum MerkleRootMultisigError",
-      "concreteTypeId": "838f554c0502325db7a2eb625a0eb694105f5366eb11999093426c18433a2969",
+      "type": "enum interfaces::isms::ism::ModuleType",
+      "concreteTypeId": "4fcafc76b3c7218fc6592123cebdc1b111dcfb70e34f254ca8279c70c0d5fae5",
       "metadataTypeId": 2
     },
     {
-      "type": "enum interfaces::isms::ism::ModuleType",
-      "concreteTypeId": "4fcafc76b3c7218fc6592123cebdc1b111dcfb70e34f254ca8279c70c0d5fae5",
+      "type": "enum interfaces::isms::multisig::multisig_ism::MerkleRootMultisigError",
+      "concreteTypeId": "a9e12ce5428a3a5e60ce6d80348e323f1da0b084f3ba9e8bbe8c226d85c72c8d",
       "metadataTypeId": 3
     },
     {
@@ -71,34 +71,8 @@
       "metadataTypeId": 1
     },
     {
-      "type": "enum MerkleRootMultisigError",
-      "metadataTypeId": 2,
-      "components": [
-        {
-          "name": "NoMultisigThreshold",
-          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-        },
-        {
-          "name": "NoValidatorMatch",
-          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-        },
-        {
-          "name": "FailedToRecoverSigner",
-          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-        },
-        {
-          "name": "InvalidMerkleIndexMetadata",
-          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-        },
-        {
-          "name": "FailedToRecoverSignature",
-          "typeId": 6
-        }
-      ]
-    },
-    {
       "type": "enum interfaces::isms::ism::ModuleType",
-      "metadataTypeId": 3,
+      "metadataTypeId": 2,
       "components": [
         {
           "name": "UNUSED",
@@ -131,6 +105,32 @@
         {
           "name": "CCIP_READ",
           "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        }
+      ]
+    },
+    {
+      "type": "enum interfaces::isms::multisig::multisig_ism::MerkleRootMultisigError",
+      "metadataTypeId": 3,
+      "components": [
+        {
+          "name": "NoMultisigThreshold",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "NoValidatorMatch",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "FailedToRecoverSigner",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "InvalidMerkleIndexMetadata",
+          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+        },
+        {
+          "name": "FailedToRecoverSignature",
+          "typeId": 6
         }
       ]
     },
@@ -183,9 +183,7 @@
           "typeId": 11
         }
       ],
-      "typeParameters": [
-        4
-      ]
+      "typeParameters": [4]
     },
     {
       "type": "struct std::vec::Vec",
@@ -206,9 +204,7 @@
           "typeId": 11
         }
       ],
-      "typeParameters": [
-        4
-      ]
+      "typeParameters": [4]
     },
     {
       "type": "struct std::vm::evm::evm_address::EvmAddress",
@@ -245,27 +241,19 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [ModuleType] - The type of security model."
-          ]
+          "arguments": [" * [ModuleType] - The type of security model."]
         }
       ]
     },
@@ -285,27 +273,25 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Verifies the message using the metadata."
-          ]
+          "arguments": [" Verifies the message using the metadata."]
         },
         {
           "name": "doc-comment",
           "arguments": [
-            ""
+            " Assumes the signatures are in the same order as the validators."
           ]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [" ### Arguments"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -315,27 +301,19 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `message`: [Bytes] - The message to be verified."
-          ]
+          "arguments": [" * `message`: [Bytes] - The message to be verified."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -345,51 +323,35 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the threshold is not set or is less than 0."
-          ]
+          "arguments": [" * If the threshold is not set or is less than 0."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the signature recovery fails."
-          ]
+          "arguments": [" * If the signature recovery fails."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If the signer recovery fails."
-          ]
+          "arguments": [" * If the signer recovery fails."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If no validator matches the signer."
-          ]
+          "arguments": [" * If no validator matches the signer."]
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -415,75 +377,51 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `metadata`: [Bytes] - ABI encoded module metadata."
-          ]
+          "arguments": [" * `metadata`: [Bytes] - ABI encoded module metadata."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `message`: [Bytes] - Formatted Hyperlane message."
-          ]
+          "arguments": [" * `message`: [Bytes] - Formatted Hyperlane message."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [Bytes] - The digest to be signed by validators."
-          ]
+          "arguments": [" * [Bytes] - The digest to be signed by validators."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Reverts"
-          ]
+          "arguments": [" ### Reverts"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -493,9 +431,7 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * If data passed in is invalid."
-          ]
+          "arguments": [" * If data passed in is invalid."]
         }
       ]
     },
@@ -521,27 +457,19 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `metadata`: [Bytes] - ABI encoded module metadata."
-          ]
+          "arguments": [" * `metadata`: [Bytes] - ABI encoded module metadata."]
         },
         {
           "name": "doc-comment",
@@ -551,27 +479,19 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * [Bytes] - Packed encoding of signature (65 bytes)."
-          ]
+          "arguments": [" * [Bytes] - Packed encoding of signature (65 bytes)."]
         }
       ]
     },
@@ -593,45 +513,31 @@
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " * `message`: [Bytes] - The message to be processed."
-          ]
+          "arguments": [" * `message`: [Bytes] - The message to be processed."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Returns"
-          ]
+          "arguments": [" ### Returns"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -647,9 +553,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -665,27 +569,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Enrolls a validator to the Multisig ISM."
-          ]
+          "arguments": [" Enrolls a validator to the Multisig ISM."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -695,9 +591,7 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     },
@@ -713,27 +607,19 @@
       "attributes": [
         {
           "name": "doc-comment",
-          "arguments": [
-            " Sets the threshold for the Multisig ISM."
-          ]
+          "arguments": [" Sets the threshold for the Multisig ISM."]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            " ### Arguments"
-          ]
+          "arguments": [" ### Arguments"]
         },
         {
           "name": "doc-comment",
-          "arguments": [
-            ""
-          ]
+          "arguments": [""]
         },
         {
           "name": "doc-comment",
@@ -743,17 +629,15 @@
         },
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     }
   ],
   "loggedTypes": [
     {
-      "logId": "9479889525628088925",
-      "concreteTypeId": "838f554c0502325db7a2eb625a0eb694105f5366eb11999093426c18433a2969"
+      "logId": "12241114625345206878",
+      "concreteTypeId": "a9e12ce5428a3a5e60ce6d80348e323f1da0b084f3ba9e8bbe8c226d85c72c8d"
     }
   ],
   "messagesTypes": [],

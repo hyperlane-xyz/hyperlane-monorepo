@@ -16,13 +16,13 @@
       "concreteTypeId": "b760f44fa5965c2474a3b471467a22c43185152129295af588b022ae50b50903"
     },
     {
-      "type": "enum DomainRoutingIsmError",
-      "concreteTypeId": "d6a68e63771bcc70200ac9382eacbf6434843d6e1d95b91d3d4752aaa277bb50",
+      "type": "enum interfaces::isms::ism::ModuleType",
+      "concreteTypeId": "4fcafc76b3c7218fc6592123cebdc1b111dcfb70e34f254ca8279c70c0d5fae5",
       "metadataTypeId": 1
     },
     {
-      "type": "enum interfaces::isms::ism::ModuleType",
-      "concreteTypeId": "4fcafc76b3c7218fc6592123cebdc1b111dcfb70e34f254ca8279c70c0d5fae5",
+      "type": "enum interfaces::isms::routing::default_fallback_domain_routing_ism::DefaultFallbackDomainRoutingIsmError",
+      "concreteTypeId": "f417349370c05301429c43a092123f2c779795b031cda28952bc772aa336c228",
       "metadataTypeId": 2
     },
     {
@@ -102,30 +102,8 @@
       ]
     },
     {
-      "type": "enum DomainRoutingIsmError",
-      "metadataTypeId": 1,
-      "components": [
-        {
-          "name": "AlreadyInitialized",
-          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-        },
-        {
-          "name": "NotInitialized",
-          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-        },
-        {
-          "name": "DomainModuleLengthMismatch",
-          "typeId": 0
-        },
-        {
-          "name": "DomainNotSet",
-          "typeId": "d7649d428b9ff33d188ecbf38a7e4d8fd167fa01b2e10fe9a8f9308e52f1d7cc"
-        }
-      ]
-    },
-    {
       "type": "enum interfaces::isms::ism::ModuleType",
-      "metadataTypeId": 2,
+      "metadataTypeId": 1,
       "components": [
         {
           "name": "UNUSED",
@@ -158,10 +136,16 @@
         {
           "name": "CCIP_READ",
           "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
-        },
+        }
+      ]
+    },
+    {
+      "type": "enum interfaces::isms::routing::default_fallback_domain_routing_ism::DefaultFallbackDomainRoutingIsmError",
+      "metadataTypeId": 2,
+      "components": [
         {
-          "name": "ARB_L2_TO_L1",
-          "typeId": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d"
+          "name": "DomainModuleLengthMismatch",
+          "typeId": 0
         }
       ]
     },
@@ -286,9 +270,7 @@
           "typeId": 18
         }
       ],
-      "typeParameters": [
-        7
-      ]
+      "typeParameters": [7]
     },
     {
       "type": "struct std::vec::Vec",
@@ -309,9 +291,7 @@
           "typeId": 18
         }
       ],
-      "typeParameters": [
-        7
-      ]
+      "typeParameters": [7]
     },
     {
       "type": "struct sway_libs::ownership::events::OwnershipRenounced",
@@ -357,7 +337,36 @@
       "inputs": [],
       "name": "module_type",
       "output": "4fcafc76b3c7218fc6592123cebdc1b111dcfb70e34f254ca8279c70c0d5fae5",
-      "attributes": null
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " Returns an enum that represents the type of security model"
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " encoded by this ISM. Relayers infer how to fetch and format metadata."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Returns"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * [ModuleType] - The type of security model."]
+        }
+      ]
     },
     {
       "inputs": [
@@ -374,10 +383,68 @@
       "output": "b760f44fa5965c2474a3b471467a22c43185152129295af588b022ae50b50903",
       "attributes": [
         {
-          "name": "storage",
+          "name": "doc-comment",
+          "arguments": [" Verifies the message using the metadata."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Arguments"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
           "arguments": [
-            "read"
+            " * `metadata`: [Bytes] - The metadata to be used for verification."
           ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `message`: [Bytes] - The message to be verified."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Returns"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [bool] - True if the message is verified successfully."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Reverts"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * If the ISM call fails."]
+        },
+        {
+          "name": "storage",
+          "arguments": ["read"]
         }
       ]
     },
@@ -392,10 +459,46 @@
       "output": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b",
       "attributes": [
         {
-          "name": "storage",
+          "name": "doc-comment",
           "arguments": [
-            "read"
+            " Returns the ISM responsible for verifying the message."
           ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Arguments"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `message`: [Bytes] - Formatted Hyperlane message"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Returns"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * [b256] - The ISM to use to verify the message"]
+        },
+        {
+          "name": "storage",
+          "arguments": ["read"]
         }
       ]
     },
@@ -405,10 +508,28 @@
       "output": "13c38f4111bad6468fad4f8ea82fd744546b63be49db9439fb3d94e14ae2bb3a",
       "attributes": [
         {
+          "name": "doc-comment",
+          "arguments": [" Returns the domains that have been set"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Returns"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * [Vec<u32>] - The list of origin domains."]
+        },
+        {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -416,6 +537,10 @@
       "inputs": [
         {
           "name": "owner",
+          "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
+        },
+        {
+          "name": "mailbox",
           "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
         }
       ],
@@ -423,11 +548,48 @@
       "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
       "attributes": [
         {
+          "name": "doc-comment",
+          "arguments": [" Sets the owner and mailbox of the ISM."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Arguments"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `owner`: [Identity] - The address of the owner."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `mailbox`: [b256] - The address of the mailbox."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Reverts"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * If the ISM is already initialized."]
+        },
+        {
           "name": "storage",
-          "arguments": [
-            "write",
-            "read"
-          ]
+          "arguments": ["write", "read"]
         }
       ]
     },
@@ -435,6 +597,10 @@
       "inputs": [
         {
           "name": "owner",
+          "concreteTypeId": "ab7cd04e05be58e3fc15d424c2c4a57f824a2a2d97d67252440a3925ebdc1335"
+        },
+        {
+          "name": "mailbox",
           "concreteTypeId": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b"
         },
         {
@@ -450,11 +616,99 @@
       "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
       "attributes": [
         {
-          "name": "storage",
+          "name": "doc-comment",
           "arguments": [
-            "write",
-            "read"
+            " Sets the ISMs to be used for the specified origin domains"
           ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Arguments"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `owner`: [Identity] - The address of the owner."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `mailbox`: [b256] - The address of the mailbox."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `domains`: [Vec<u32>] - The list of origin domains."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `modules`: [Vec<b256>] - The list of ISMs to be used for the specified domains."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Reverts"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * If the ISM is already initialized."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * If the length of the domains and modules do not match."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": ["write", "read"]
+        }
+      ]
+    },
+    {
+      "inputs": [],
+      "name": "mailbox",
+      "output": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b",
+      "attributes": [
+        {
+          "name": "doc-comment",
+          "arguments": [" Returns the fallback mailbox for the ISM"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Returns"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * [b256] - The address of the mailbox."]
+        },
+        {
+          "name": "storage",
+          "arguments": ["read"]
         }
       ]
     },
@@ -469,10 +723,48 @@
       "output": "7c5ee1cecf5f8eacd1284feb5f0bf2bdea533a51e2f0c9aabe9236d335989f3b",
       "attributes": [
         {
-          "name": "storage",
+          "name": "doc-comment",
           "arguments": [
-            "read"
+            " Returns the ISM to be used for the specified origin domain"
           ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Arguments"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `domain`: [u32] - The origin domain."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Returns"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * [b256] - The ISM to be used for the specified domain."
+          ]
+        },
+        {
+          "name": "storage",
+          "arguments": ["read"]
         }
       ]
     },
@@ -487,11 +779,48 @@
       "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
       "attributes": [
         {
+          "name": "doc-comment",
+          "arguments": [" Removes the specified origin domain"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Arguments"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `domain`: [u32] - The origin domain."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Reverts"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * If the ISM is not initialized."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * If the caller is not the owner."]
+        },
+        {
           "name": "storage",
-          "arguments": [
-            "write",
-            "read"
-          ]
+          "arguments": ["write", "read"]
         }
       ]
     },
@@ -510,11 +839,56 @@
       "output": "2e38e77b22c314a449e91fafed92a43826ac6aa403ae6a8acb6cf58239fbaf5d",
       "attributes": [
         {
-          "name": "storage",
+          "name": "doc-comment",
           "arguments": [
-            "write",
-            "read"
+            " Sets the ISM to be used for the specified origin domain"
           ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Arguments"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * `domain`: [u32] - The origin domain."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [
+            " * `module`: [b256] - The ISM to be used for the specified domain."
+          ]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" ### Reverts"]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [""]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * If the ISM is not initialized."]
+        },
+        {
+          "name": "doc-comment",
+          "arguments": [" * If the caller is not the owner."]
+        },
+        {
+          "name": "storage",
+          "arguments": ["write", "read"]
         }
       ]
     },
@@ -530,10 +904,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -544,9 +915,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -557,9 +926,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read"
-          ]
+          "arguments": ["read"]
         }
       ]
     },
@@ -570,10 +937,7 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "read",
-            "write"
-          ]
+          "arguments": ["read", "write"]
         }
       ]
     },
@@ -589,18 +953,12 @@
       "attributes": [
         {
           "name": "storage",
-          "arguments": [
-            "write"
-          ]
+          "arguments": ["write"]
         }
       ]
     }
   ],
   "loggedTypes": [
-    {
-      "logId": "15467206528101764208",
-      "concreteTypeId": "d6a68e63771bcc70200ac9382eacbf6434843d6e1d95b91d3d4752aaa277bb50"
-    },
     {
       "logId": "2161305517876418151",
       "concreteTypeId": "1dfe7feadc1d9667a4351761230f948744068a090fe91b1bc6763a90ed5d3893"
@@ -608,6 +966,10 @@
     {
       "logId": "16280289466020123285",
       "concreteTypeId": "e1ef35033ea9d2956f17c3292dea4a46ce7d61fdf37bbebe03b7b965073f43b5"
+    },
+    {
+      "logId": "17588584677575250689",
+      "concreteTypeId": "f417349370c05301429c43a092123f2c779795b031cda28952bc772aa336c228"
     },
     {
       "logId": "4571204900286667806",
