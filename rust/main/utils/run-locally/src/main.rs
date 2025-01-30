@@ -139,13 +139,11 @@ impl Drop for State {
         for data in self.data.drain(..) {
             drop(data)
         }
-        /*
         #[cfg(feature = "sealevel")]
         {
             use sealevel::solana::SOLANA_CHECKPOINT_LOCATION;
             fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
         }
-         */
         fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
 
         log!("Done...");
@@ -375,7 +373,7 @@ fn main() -> ExitCode {
 
     // Here we want to restart the relayer and validate
     // its restart behaviour.
-    restart_relayer(&config, &mut state, &rocks_db_dir);
+    restart_relayer(&mut state, &rocks_db_dir);
 
     // give relayer a chance to fully restart.
     sleep(Duration::from_secs(20));
@@ -445,8 +443,6 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
-        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
-        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
@@ -466,7 +462,7 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
 }
 
 /// Kills relayer in State and respawns the relayer again
-fn restart_relayer(config: &Config, state: &mut State, rocks_db_dir: &TempDir) {
+fn restart_relayer(state: &mut State, rocks_db_dir: &TempDir) {
     log!("Stopping relayer...");
     let (child, _) = state.agents.get_mut("RLY").expect("No relayer agent found");
     child.kill().expect("Failed to stop relayer");
@@ -487,7 +483,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     let line_filters = vec![RETRIEVED_MESSAGE_LOG, "CouldNotFetchMetadata"];
 
     log!("Checking message statuses were retrieved from logs...");
-    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
+    let matched_logs = get_matching_lines(&relayer_logfile, &[line_filters.clone()]);
 
     let no_metadata_message_count = *matched_logs
         .get(&line_filters)

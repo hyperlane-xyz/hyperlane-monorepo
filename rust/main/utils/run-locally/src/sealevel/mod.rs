@@ -14,7 +14,7 @@ use tempfile::tempdir;
 use crate::SHUTDOWN;
 use crate::{
     config::Config,
-    invariants::{post_startup_invariants, SOL_MESSAGES_EXPECTED},
+    invariants::post_startup_invariants,
     logging::log,
     metrics::agent_balance_sum,
     program::Program,
@@ -25,6 +25,11 @@ use crate::{
     },
     State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
+
+// This number should be even, so the messages can be split into two equal halves
+// sent before and after the relayer spins up, to avoid rounding errors.
+pub const SOL_MESSAGES_EXPECTED: u32 = 20;
+pub const SOL_MESSAGES_WITH_NON_MATCHING_IGP: u32 = 1;
 
 /// These private keys are from hardhat/anvil's testing accounts.
 const RELAYER_KEYS: &[&str] = &[

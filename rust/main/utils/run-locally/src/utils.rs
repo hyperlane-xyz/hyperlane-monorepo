@@ -127,7 +127,7 @@ pub fn stop_child(child: &mut Child) {
 /// and return this hashmap.
 pub fn get_matching_lines<'a>(
     file: &File,
-    search_strings: Vec<Vec<&'a str>>,
+    search_strings: &[Vec<&'a str>],
 ) -> HashMap<Vec<&'a str>, u32> {
     let reader = io::BufReader::new(file);
     let mut matches = HashMap::new();
