@@ -53,50 +53,50 @@ type WarpConfigGetter = (
 ) => Promise<ChainMap<HypTokenRouterConfig>>;
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
-  [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig, // Hyperlane Managed
+  [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumZircuitAMPHRETH]: getConfigFromGithub,
-  [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig, // Hyperlane Managed
+  [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
+  [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
   [WarpRouteIds.ArbitrumNeutronEclip]: getConfigFromGithub,
-  [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig, // Hyperlane Managed
+  [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
-    getRenzoEZETHWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig, // Hyperlane Managed
+    getRenzoEZETHWarpConfig,
+  [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.BaseSolanamainnetTONY]: getConfigFromGithub,
   [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
-    getTRUMPWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.SolanamainnetTrumpchainTRUMP]: getTrumpchainTRUMPWarpConfig, // Hyperlane Managed
+    getTRUMPWarpConfig,
+  [WarpRouteIds.SolanamainnetTrumpchainTRUMP]: getTrumpchainTRUMPWarpConfig,
   [WarpRouteIds.BscEthereumLumiaPrismPNDR]: getConfigFromGithub,
   [WarpRouteIds.EthereumFlowCbBTC]: getConfigFromGithub,
-  [WarpRouteIds.EthereumInkUSDC]: getEthereumInkUSDCConfig, // Hyperlane Managed
+  [WarpRouteIds.EthereumInkUSDC]: getEthereumInkUSDCConfig,
   [WarpRouteIds.EthereumSeiFastUSD]: getConfigFromGithub,
   [WarpRouteIds.EthereumSeiPumpBTC]: getConfigFromGithub,
-  [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EthereumSwellZircuitPZETH]: getRenzoPZETHWarpConfig, // Hyperlane Managed
+  [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
+  [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
+  [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
+  [WarpRouteIds.EthereumSwellZircuitPZETH]: getRenzoPZETHWarpConfig,
   [WarpRouteIds.EthereumBscLumiaLUMIA]: getConfigFromGithub,
-  [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig, // Hyperlane Managed
+  [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
   [WarpRouteIds.EclipseEthereumApxEth]: getConfigFromGithub,
   [WarpRouteIds.EclipseEthereumSolanaUSDT]:
-    getEclipseEthereumSolanaUSDTWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig, // Hyperlane Managed
+    getEclipseEthereumSolanaUSDTWarpConfig,
+  [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
   [WarpRouteIds.EclipseEthereumWeETHs]: getConfigFromGithub,
-  [WarpRouteIds.BaseZeroNetworkCBBTC]: getBaseZeroNetworkCBBTCWarpConfig, // Hyperlane Managed
+  [WarpRouteIds.BaseZeroNetworkCBBTC]: getBaseZeroNetworkCBBTCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT]:
-    getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig, // Hyperlane Managed
+    getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig,
   [WarpRouteIds.ArbitrumBaseEthereumLiskOptimismPolygonZeroNetworkUSDC]:
-    getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC, // Hyperlane Managed
+    getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet]:
-    getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig, // Hyperlane Managed
+    getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig,
   [WarpRouteIds.ArtelaBaseSolanaART]: getConfigFromGithub,
-  [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.BobaBsquaredSwellUBTC]: getBobaBsquaredSwellUBTCWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EthereumSuperseedCBBTC]: getEthereumSuperseedCBBTCWarpConfig, // Hyperlane Managed
-  [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig, // Hyperlane Managed
+  [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
+  [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
+  [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
+  [WarpRouteIds.BobaBsquaredSwellUBTC]: getBobaBsquaredSwellUBTCWarpConfig,
+  [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
+  [WarpRouteIds.EthereumSuperseedCBBTC]: getEthereumSuperseedCBBTCWarpConfig,
+  [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
   [WarpRouteIds.EthereumFormUSDT]: getConfigFromGithub,
   [WarpRouteIds.EthereumFormUSDC]: getConfigFromGithub,
   [WarpRouteIds.EthereumSuperseedUSDT]: getConfigFromGithub,
