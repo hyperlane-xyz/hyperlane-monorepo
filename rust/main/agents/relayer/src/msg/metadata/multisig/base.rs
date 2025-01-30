@@ -115,9 +115,11 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             return Ok(None);
         }
 
+        info!(hyp_message=?message, ?validators, threshold, "List of validators and threshold for message");
+
         let checkpoint_syncer = self
             .as_ref()
-            .build_checkpoint_syncer(&validators, self.as_ref().app_context.clone())
+            .build_checkpoint_syncer(message, &validators, self.as_ref().app_context.clone())
             .await
             .context(CTX)?;
 

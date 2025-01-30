@@ -5,12 +5,10 @@ import {
   TokenType,
 } from '@hyperlane-xyz/sdk';
 
-import { getOwnerConfigForAddress } from '../../../../../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 
 // Lumia Team
 const owner = '0x8bBA07Ddc72455b55530C17e6f6223EF6E156863';
-const ownerConfig = getOwnerConfigForAddress(owner);
 
 export const getEthereumBscLUMIAWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -18,20 +16,26 @@ export const getEthereumBscLUMIAWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const ethereum: HypTokenRouterConfig = {
     ...routerConfig.ethereum,
-    ...ownerConfig,
+    owner,
+    proxyAdmin: {
+      owner,
+    },
     type: TokenType.collateral,
     token: '0xD9343a049D5DBd89CD19DC6BcA8c48fB3a0a42a7',
   };
 
   const bsc: HypTokenRouterConfig = {
     ...routerConfig.bsc,
-    ...ownerConfig,
+    owner,
+    proxyAdmin: {
+      owner,
+    },
     type: TokenType.synthetic,
   };
 
   const lumia: HypTokenRouterConfig = {
     ...routerConfig.lumia,
-    ...ownerConfig,
+    owner,
     type: TokenType.native,
     // As this has been removed from the registry in https://github.com/hyperlane-xyz/hyperlane-registry/pull/348,
     // we must specify this explicitly.

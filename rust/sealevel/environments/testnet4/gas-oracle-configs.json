@@ -1,29 +1,22 @@
-[
-    {
-        "domain": 11155111,
-        "gasOracle": {
-            "type": "remoteGasData",
-            "tokenExchangeRate": "10000000000000000000",
-            "gasPrice": "15000000000",
-            "tokenDecimals": 18
-        }
-    },
-    {
-        "domain": 1399811150,
-        "gasOracle": {
-            "type": "remoteGasData",
-            "tokenExchangeRate": "10000000000000000000",
-            "gasPrice": "28",
-            "tokenDecimals": 9
-        }
-    },
-    {
-        "domain": 239092742,
-        "gasOracle": {
-            "type": "remoteGasData",
-            "tokenExchangeRate": "10000000000000000000",
-            "gasPrice": "28",
-            "tokenDecimals": 9
-        }
+{
+  "solanatestnet": {
+    "sonicsvmtestnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
     }
-]
+  },
+  "sonicsvmtestnet": {
+    "solanatestnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    }
+  }
+}
