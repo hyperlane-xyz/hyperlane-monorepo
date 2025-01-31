@@ -1,4 +1,4 @@
-import { Contract } from 'ethers';
+import { Contract, constants } from 'ethers';
 
 import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
@@ -12,6 +12,7 @@ import {
   objMap,
   pick,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
@@ -58,16 +59,37 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
   factories: F,
 ): HyperlaneAddressesMap<F> {
   const factoryKeys = Object.keys(factories);
-  // Filter out addresses that we do not have factories for and remove undefined values
+  // Filter out addresses that we do not have factories for
   const pickedAddressesMap = objMap(addressesMap, (_, addresses) =>
-    objFilter(
-      pick(addresses, factoryKeys),
-      (_, value): value is Address => value !== undefined,
-    ),
+    pick(addresses, factoryKeys),
   );
+
+  let chainWithMissingAddresses = '';
+  const filledAddressesMap = objMap(
+    pickedAddressesMap,
+    (chainName, addresses) =>
+      objMap(addresses, (key, value) => {
+        if (value === undefined) {
+          rootLogger.warn(
+            `Missing address for contract "${key}" on chain ${chainName}`,
+          );
+          chainWithMissingAddresses = chainName;
+          return constants.AddressZero;
+        }
+        return value;
+      }),
+  );
+  // Add summary warning if any addresses were missing
+  if (chainWithMissingAddresses) {
+    rootLogger.warn(
+      `\nWarning: Core deployment incomplete for chain: ${chainWithMissingAddresses}. ` +
+        `Please run 'core deploy' again for this chain to fix the deployment.\n`,
+    );
+  }
+
   // Filter out chains for which we do not have a complete set of addresses
   return objFilter(
-    pickedAddressesMap,
+    filledAddressesMap,
     (_, addresses): addresses is HyperlaneAddresses<F> => {
       return Object.keys(addresses).every((a) => factoryKeys.includes(a));
     },
