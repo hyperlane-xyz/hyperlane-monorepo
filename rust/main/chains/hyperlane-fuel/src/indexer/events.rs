@@ -75,41 +75,11 @@ pub trait EventDataTransformer {
         Self: Sized;
 }
 
-// Implement `EventDataTransformer` for `GasPaymentEvent`
-impl EventDataTransformer for GasPaymentEvent {
+impl<S> EventDataTransformer for S {
     fn transform<T>(self) -> T
     where
-        T: From<Self> + Into<Indexed<T>> + PartialEq + Send + Sync + Debug + 'static,
-    {
-        T::from(self)
-    }
-}
-
-// Implement `EventDataTransformer` for `DispatchEvent`
-impl EventDataTransformer for DispatchEvent {
-    fn transform<T>(self) -> T
-    where
-        T: From<Self> + Into<Indexed<T>> + PartialEq + Send + Sync + Debug + 'static,
-    {
-        T::from(self)
-    }
-}
-
-// Implement `EventDataTransformer` for `InsertedIntoTreeEvent`
-impl EventDataTransformer for InsertedIntoTreeEvent {
-    fn transform<T>(self) -> T
-    where
-        T: From<Self> + Into<Indexed<T>> + PartialEq + Send + Sync + Debug + 'static,
-    {
-        T::from(self)
-    }
-}
-
-// Implement `EventDataTransformer` for `ProcessIdEvent`
-impl EventDataTransformer for ProcessIdEvent {
-    fn transform<T>(self) -> T
-    where
-        T: From<Self> + Into<Indexed<T>> + PartialEq + Send + Sync + Debug + 'static,
+        T: From<S> + Into<Indexed<T>> + PartialEq + Send + Sync + Debug + 'static,
+        Self: Sized,
     {
         T::from(self)
     }
