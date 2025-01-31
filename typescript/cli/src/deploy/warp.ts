@@ -708,12 +708,25 @@ async function updateExistingWarpRoute(
           .getRemoteChains(chain)
           .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
 
+        // Set remote routers and destination gas
         config.remoteRouters = otherChains.reduce<RemoteRouters>(
           (remoteRouters, otherChain) => {
-            remoteRouters[multiProvider.getDomainId(otherChain)] = {
+            const domainId = multiProvider.getDomainId(otherChain);
+            remoteRouters[domainId] = {
               address: deployedRoutersAddresses[otherChain],
             };
             return remoteRouters;
+          },
+          {},
+        );
+
+        // Set destination gas for each remote chain
+        config.destinationGas = otherChains.reduce<Record<string, string>>(
+          (destinationGas, otherChain) => {
+            const domainId = multiProvider.getDomainId(otherChain);
+            const otherConfig = warpDeployConfig[otherChain];
+            destinationGas[domainId] = (otherConfig.gas || 0).toString();
+            return destinationGas;
           },
           {},
         );
