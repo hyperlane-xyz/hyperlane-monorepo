@@ -17,7 +17,7 @@ use crate::utils::{
 pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
 
 /// Solana CLI version for compiling programs
-pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.29";
+pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
 pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/solana-labs/solana";
 
 /// Solana version used by mainnet validators

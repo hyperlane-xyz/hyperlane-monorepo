@@ -51,11 +51,6 @@ fn metadata_file_check(expected_git_sha: &str, path: &DynPath) -> bool {
     };
 
     if metadata.git_sha != expected_git_sha {
-        log!(
-            "Expected git SHA: {}, got {}",
-            expected_git_sha,
-            metadata.git_sha
-        );
         return false;
     }
 
