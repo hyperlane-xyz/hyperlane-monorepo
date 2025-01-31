@@ -353,6 +353,9 @@
   "soon": {
     "validators": ["0x0e6723b3c1ed3db0c24347aa2cf16d28bc2a1f76"]
   },
+  "subtensor": {
+    "validators": ["0xd5f8196d7060b85bea491f0b52a671e05f3d10a2"]
+  },
   "superseed": {
     "validators": ["0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88"]
   },
