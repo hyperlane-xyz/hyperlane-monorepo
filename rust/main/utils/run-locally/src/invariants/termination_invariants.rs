@@ -265,6 +265,8 @@ pub fn scraper_termination_invariants_met(
         );
         return Ok(false);
     }
+
+    log!("Termination invariants have been meet");
     Ok(true)
 }
 
