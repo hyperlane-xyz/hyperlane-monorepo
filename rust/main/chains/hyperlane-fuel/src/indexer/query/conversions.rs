@@ -330,5 +330,5 @@ pub fn word_to_panic_instruction(val: Word) -> PanicInstruction {
     // Cast to truncate in order to remove the `reason` bits.
     let instruction = (val >> INSTR_OFFSET) as u32;
     let reason = PanicReason::from(reason_u8);
-    PanicInstruction::error(reason, instruction.into())
+    PanicInstruction::error(reason, instruction)
 }

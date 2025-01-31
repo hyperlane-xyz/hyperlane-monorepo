@@ -84,14 +84,12 @@ impl Settings {
 
     /// Check and warn if reorg period is set for FuelVM domains.
     pub fn check_fuel_reorg(&self) {
-        self.chains.values().into_iter().for_each(|conf| {
-            if conf.domain.domain_protocol() == HyperlaneDomainProtocol::Fuel {
-                if !conf.reorg_period.is_none() {
-                    warn!(
-                        "Reorg period is set for fuel domain {:?}. FuelVM chains are implemented with instant finality",
-                        conf.domain
-                    );
-                }
+        self.chains.values().for_each(|conf| {
+            if conf.domain.domain_protocol() == HyperlaneDomainProtocol::Fuel && !conf.reorg_period.is_none() {
+                warn!(
+                    "Reorg period is set for fuel domain {:?}. FuelVM chains are implemented with instant finality",
+                    conf.domain
+                );
             }
         });
     }

@@ -105,7 +105,7 @@ impl HyperlaneProvider for FuelProvider {
             .get_transaction_by_id(&hash_parsed.0.into())
             .await
             .map_err(|_| HyperlaneProviderError::CouldNotFindTransactionByHash(*hash))?
-            .ok_or_else(|| HyperlaneProviderError::CouldNotFindTransactionByHash(*hash))?;
+            .ok_or(HyperlaneProviderError::CouldNotFindTransactionByHash(*hash))?;
 
         let block_number = transaction.block_height.ok_or_else(|| {
             ChainCommunicationError::from_other_str(
@@ -130,13 +130,13 @@ impl HyperlaneProvider for FuelProvider {
             .iter()
             .filter_map(|receipt| receipt.sender())
             .next()
-            .map(|sender| H256::from_slice(&sender.as_slice()))
+            .map(|sender| H256::from_slice(sender.as_slice()))
             .unwrap_or(H256::zero());
         let recipient = receipts
             .iter()
             .filter_map(|receipt| receipt.recipient())
             .next()
-            .map(|recipient| H256::from_slice(&recipient.as_slice()));
+            .map(|recipient| H256::from_slice(recipient.as_slice()));
         let nonce = receipts
             .iter()
             .filter_map(|receipt| receipt.nonce())
