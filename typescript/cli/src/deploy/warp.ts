@@ -627,6 +627,12 @@ async function updateExistingWarpRoute(
   );
   const transactions: AnnotatedEV5Transaction[] = [];
 
+  // Get all deployed router addresses
+  const deployedRoutersAddresses: ChainMap<Address> = objMap(
+    warpCoreConfigByChain,
+    (_, config) => config.addressOrDenom as Address,
+  );
+
   await promiseObjAll(
     objMap(warpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
@@ -666,6 +672,22 @@ async function updateExistingWarpRoute(
           },
           contractVerifier,
         );
+
+        // Derive remote routers from all deployed routers
+        const otherChains = multiProvider
+          .getRemoteChains(chain)
+          .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
+
+        config.remoteRouters = otherChains.reduce<RemoteRouters>(
+          (remoteRouters, otherChain) => {
+            remoteRouters[multiProvider.getDomainId(otherChain)] = {
+              address: deployedRoutersAddresses[otherChain],
+            };
+            return remoteRouters;
+          },
+          {},
+        );
+
         transactions.push(...(await evmERC20WarpModule.update(config)));
       });
     }),
