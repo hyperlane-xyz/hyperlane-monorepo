@@ -141,8 +141,8 @@ impl Drop for State {
         }
         #[cfg(feature = "sealevel")]
         {
-            use sealevel::solana::SOLANA_CHECKPOINT_LOCATION;
-            fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+            // use sealevel::solana::SOLANA_CHECKPOINT_LOCATION;
+            // fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
         }
         fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
 
@@ -483,7 +483,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     let line_filters = vec![RETRIEVED_MESSAGE_LOG, "CouldNotFetchMetadata"];
 
     log!("Checking message statuses were retrieved from logs...");
-    let matched_logs = get_matching_lines(&relayer_logfile, &[line_filters.clone()]);
+    let matched_logs = get_matching_lines(&relayer_logfile, vec![line_filters.clone()]);
 
     let no_metadata_message_count = *matched_logs
         .get(&line_filters)
@@ -508,7 +508,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     Ok(true)
 }
 
-fn wait_for_condition<F1, F2, F3>(
+pub fn wait_for_condition<F1, F2, F3>(
     config: &Config,
     start_time: Instant,
     condition_fn: F1,
@@ -532,7 +532,7 @@ where
         }
         if check_ci_timed_out(config.ci_mode_timeout, start_time) {
             // we ran out of time
-            log!("CI timeout reached before invariants were met");
+            log!("Error: CI timeout reached before invariants were met");
             return false;
         }
         if shutdown_criteria_fn() {
@@ -565,7 +565,7 @@ fn long_running_processes_exited_check(state: &mut State) -> bool {
     false
 }
 
-fn report_test_result(passed: bool) -> ExitCode {
+pub fn report_test_result(passed: bool) -> ExitCode {
     if passed {
         log!("E2E tests passed");
         ExitCode::SUCCESS

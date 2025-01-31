@@ -16,6 +16,7 @@ use crate::{
     config::Config,
     invariants::post_startup_invariants,
     logging::log,
+    long_running_processes_exited_check,
     metrics::agent_balance_sum,
     program::Program,
     sealevel::{solana::*, termination_invariant::*},
@@ -23,7 +24,7 @@ use crate::{
         concat_path, get_sealevel_path, get_ts_infra_path, get_workspace_path, make_static,
         TaskHandle,
     },
-    State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
+    wait_for_condition, State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
 
 // This number should be even, so the messages can be split into two equal halves
@@ -213,7 +214,6 @@ fn run_locally() {
     let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
     let (solana_cli_tools_path, solana_config_path) = {
         // use the agave 2.x validator version to ensure mainnet compatibility
-
         let solana_tools_dir = tempdir().expect("Failed to create solana tools dir");
         let solana_bin_path = install_solana_cli_tools(
             SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
@@ -271,6 +271,7 @@ fn run_locally() {
         )
         .join();
     }
+
     initiate_solana_non_matching_igp_paying_transfer(
         solana_cli_tools_path.clone(),
         solana_config_path.clone(),
@@ -290,54 +291,28 @@ fn run_locally() {
         log!("Success: Post startup invariants are met");
     }
 
-    let mut failure_occurred = false;
-    let starting_relayer_balance: f64 =
-        agent_balance_sum(9092).expect("Failed to get relayer agent balance");
-    while !SHUTDOWN.load(Ordering::Relaxed) {
-        if config.ci_mode {
-            // for CI we have to look for the end condition.
-            if termination_invariants_met(
+    let starting_relayer_balance: f64 = agent_balance_sum(9092).unwrap();
+
+    // wait for CI invariants to pass
+    let test_passed = wait_for_condition(
+        &config,
+        loop_start,
+        || {
+            termination_invariants_met(
                 &config,
                 starting_relayer_balance,
                 &solana_programs_path,
                 &solana_config_path,
             )
-            .unwrap_or(false)
-            {
-                // end condition reached successfully
-                break;
-            } else if (Instant::now() - loop_start).as_secs() > config.ci_mode_timeout {
-                // we ran out of time
-                log!("CI timeout reached before queues emptied");
-                failure_occurred = true;
-                break;
-            }
-        }
+        },
+        || !SHUTDOWN.load(Ordering::Relaxed),
+        || long_running_processes_exited_check(&mut state),
+    );
 
-        // verify long-running tasks are still running
-        for (name, (child, _)) in state.agents.iter_mut() {
-            if let Some(status) = child.try_wait().unwrap() {
-                if !status.success() {
-                    log!(
-                        "Child process {} exited unexpectedly, with code {:?}. Shutting down",
-                        name,
-                        status.code()
-                    );
-                    failure_occurred = true;
-                    SHUTDOWN.store(true, Ordering::Relaxed);
-                    break;
-                }
-            }
-        }
-
-        sleep(Duration::from_secs(5));
+    if !test_passed {
+        panic!("Failure occurred during E2E");
     }
-
-    if failure_occurred {
-        panic!("E2E tests failed");
-    } else {
-        log!("E2E tests passed");
-    }
+    log!("E2E tests passed");
 }
 
 #[cfg(test)]

@@ -127,7 +127,7 @@ pub fn stop_child(child: &mut Child) {
 /// and return this hashmap.
 pub fn get_matching_lines<'a>(
     file: &File,
-    search_strings: &[Vec<&'a str>],
+    search_strings: Vec<Vec<&'a str>>,
 ) -> HashMap<Vec<&'a str>, u32> {
     let reader = io::BufReader::new(file);
     let mut matches = HashMap::new();
@@ -169,6 +169,7 @@ pub fn get_workspace_path() -> PathBuf {
 
 /// Returns absolute path to sealevel directory
 /// `/<...>/hyperlane-monorepo/rust/sealevel`
+#[cfg(feature = "sealevel")]
 pub fn get_sealevel_path(workspace_path: &Path) -> PathBuf {
     concat_path(
         workspace_path
