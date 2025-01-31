@@ -64,26 +64,28 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
     pick(addresses, factoryKeys),
   );
 
-  let chainWithMissingAddresses = '';
+  const chainsWithMissingAddresses = new Set<string>();
   const filledAddressesMap = objMap(
     pickedAddressesMap,
     (chainName, addresses) =>
       objMap(addresses, (key, value) => {
-        if (value === undefined) {
+        if (!value) {
           rootLogger.warn(
             `Missing address for contract "${key}" on chain ${chainName}`,
           );
-          chainWithMissingAddresses = chainName;
+          chainsWithMissingAddresses.add(chainName);
           return constants.AddressZero;
         }
         return value;
       }),
   );
   // Add summary warning if any addresses were missing
-  if (chainWithMissingAddresses) {
+  if (chainsWithMissingAddresses.size > 0) {
     rootLogger.warn(
-      `\nWarning: Core deployment incomplete for chain: ${chainWithMissingAddresses}. ` +
-        `Please run 'core deploy' again for this chain to fix the deployment.\n`,
+      `Warning: Core deployment incomplete for chain(s): ${Array.from(
+        chainsWithMissingAddresses,
+      ).join(', ')}. ` +
+        `Please run 'core deploy' again for these chains to fix the deployment.`,
     );
   }
 
