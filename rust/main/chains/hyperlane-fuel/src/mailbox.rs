@@ -162,7 +162,7 @@ impl Mailbox for FuelMailbox {
             )
             .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
             .with_tx_policies(tx_policies)
-            .determine_missing_contracts(Some(10))
+            .determine_missing_contracts(None)
             .await
             .map_err(ChainCommunicationError::from_other)?
             .call()
@@ -214,7 +214,7 @@ impl Mailbox for FuelMailbox {
                 Bytes(RawHyperlaneMessage::from(message)),
             )
             .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
-            .determine_missing_contracts(Some(10))
+            .determine_missing_contracts(None)
             .await
             .map_err(ChainCommunicationError::from_other)?
             .simulate(Execution::Realistic)

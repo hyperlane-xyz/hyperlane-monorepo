@@ -85,7 +85,7 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
                 Bytes(metadata.to_vec()),
                 Bytes(RawHyperlaneMessage::from(message)),
             )
-            .determine_missing_contracts(Some(10))
+            .determine_missing_contracts(None)
             .await
             .map_err(ChainCommunicationError::from_other)?
             .simulate(Execution::Realistic)

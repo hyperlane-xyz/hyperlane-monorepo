@@ -64,7 +64,7 @@ impl RoutingIsm for FuelRoutingIsm {
         self.contract
             .methods()
             .route(Bytes(message.to_vec()))
-            .determine_missing_contracts(Some(10))
+            .determine_missing_contracts(None)
             .await
             .map_err(ChainCommunicationError::from_other)?
             .simulate(Execution::StateReadOnly)
