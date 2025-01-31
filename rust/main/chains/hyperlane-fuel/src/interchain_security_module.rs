@@ -14,7 +14,7 @@ use hyperlane_core::{
     RawHyperlaneMessage, H256, U256,
 };
 
-/// A reference to a AggregationIsm contract on some Fuel chain
+/// A reference to an ISM contract on some Fuel chain
 #[derive(Debug)]
 pub struct FuelInterchainSecurityModule {
     contract: InterchainSecurityModuleContract<WalletUnlocked>,
@@ -23,7 +23,7 @@ pub struct FuelInterchainSecurityModule {
 }
 
 impl FuelInterchainSecurityModule {
-    /// Create a new fuel validator announce contract
+    /// Create a new fuel ISM contract interface
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
