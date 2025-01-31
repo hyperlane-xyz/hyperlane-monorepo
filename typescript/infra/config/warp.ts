@@ -54,34 +54,24 @@ type WarpConfigGetter = (
 
 export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.Ancient8EthereumUSDC]: getAncient8EthereumUSDCWarpConfig,
-  [WarpRouteIds.ArbitrumEthereumZircuitAMPHRETH]: getConfigFromGithub,
   [WarpRouteIds.EthereumInevmUSDC]: getEthereumInevmUSDCWarpConfig,
   [WarpRouteIds.EthereumInevmUSDT]: getEthereumInevmUSDTWarpConfig,
-  [WarpRouteIds.ArbitrumNeutronEclip]: getConfigFromGithub,
   [WarpRouteIds.ArbitrumNeutronTIA]: getArbitrumNeutronTiaWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
-  [WarpRouteIds.BaseSolanamainnetTONY]: getConfigFromGithub,
   [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
     getTRUMPWarpConfig,
   [WarpRouteIds.SolanamainnetTrumpchainTRUMP]: getTrumpchainTRUMPWarpConfig,
-  [WarpRouteIds.BscEthereumLumiaPrismPNDR]: getConfigFromGithub,
-  [WarpRouteIds.EthereumFlowCbBTC]: getConfigFromGithub,
   [WarpRouteIds.EthereumInkUSDC]: getEthereumInkUSDCConfig,
-  [WarpRouteIds.EthereumSeiFastUSD]: getConfigFromGithub,
-  [WarpRouteIds.EthereumSeiPumpBTC]: getConfigFromGithub,
   [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.EthereumSwellZircuitPZETH]: getRenzoPZETHWarpConfig,
-  [WarpRouteIds.EthereumBscLumiaLUMIA]: getConfigFromGithub,
   [WarpRouteIds.MantapacificNeutronTIA]: getMantapacificNeutronTiaWarpConfig,
-  [WarpRouteIds.EclipseEthereumApxEth]: getConfigFromGithub,
   [WarpRouteIds.EclipseEthereumSolanaUSDT]:
     getEclipseEthereumSolanaUSDTWarpConfig,
   [WarpRouteIds.EclipseEthereumWBTC]: getEclipseEthereumWBTCWarpConfig,
-  [WarpRouteIds.EclipseEthereumWeETHs]: getConfigFromGithub,
   [WarpRouteIds.BaseZeroNetworkCBBTC]: getBaseZeroNetworkCBBTCWarpConfig,
   [WarpRouteIds.ArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDT]:
     getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig,
@@ -89,7 +79,6 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumGnosisLiskMantleModeOptimismPolygonScrollZeroNetworkZoraMainnet]:
     getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig,
-  [WarpRouteIds.ArtelaBaseSolanaART]: getConfigFromGithub,
   [WarpRouteIds.EclipseStrideTIA]: getEclipseStrideTiaWarpConfig,
   [WarpRouteIds.EclipseStrideSTTIA]: getEclipseStrideStTiaWarpConfig,
   [WarpRouteIds.AppchainBaseUSDC]: getAppChainBaseUSDCWarpConfig,
@@ -97,17 +86,6 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
   [WarpRouteIds.EthereumSuperseedCBBTC]: getEthereumSuperseedCBBTCWarpConfig,
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
-  [WarpRouteIds.EthereumFormUSDT]: getConfigFromGithub,
-  [WarpRouteIds.EthereumFormUSDC]: getConfigFromGithub,
-  [WarpRouteIds.EthereumSuperseedUSDT]: getConfigFromGithub,
-  [WarpRouteIds.OptimismSuperseedOP]: getConfigFromGithub,
-  [WarpRouteIds.EthereumZircuitRstETH]: getConfigFromGithub,
-  [WarpRouteIds.EthereumFormWBTC]: getConfigFromGithub,
-  [WarpRouteIds.EthereumFormWSTETH]: getConfigFromGithub,
-  [WarpRouteIds.BaseFormAIXBT]: getConfigFromGithub,
-  [WarpRouteIds.BaseFormGAME]: getConfigFromGithub,
-  [WarpRouteIds.ArtelaBaseUSDC]: getConfigFromGithub,
-  [WarpRouteIds.ArtelaBaseWETH]: getConfigFromGithub,
 };
 
 async function getConfigFromGithub(
@@ -148,15 +126,15 @@ export async function getWarpConfig(
   });
 
   const warpConfigGetter = warpConfigGetterMap[warpRouteId];
-  if (!warpConfigGetter) {
-    throw new Error(
-      `Unknown warp route: ${warpRouteId}, must be one of: ${Object.keys(
-        warpConfigGetterMap,
-      ).join(', ')}`,
+  if (warpConfigGetter) {
+    return warpConfigGetter(
+      routerConfigWithoutOwner,
+      abacusWorksEnvOwnerConfig,
+      warpRouteId,
     );
   }
 
-  return warpConfigGetter(
+  return getConfigFromGithub(
     routerConfigWithoutOwner,
     abacusWorksEnvOwnerConfig,
     warpRouteId,

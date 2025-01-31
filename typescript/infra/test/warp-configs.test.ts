@@ -47,4 +47,15 @@ describe('Warp Configs', async function () {
       ).to.be.false;
     });
   }
+
+  it('should throw if warpRouteId is not found in either Getter nor Registry', async function () {
+    const invalidWarpIds = '1111bla-bla-bla111';
+    try {
+      await getWarpConfig(multiProvider, envConfig, invalidWarpIds);
+    } catch (e: any) {
+      expect(e.message).to.equal(
+        `Warp route Config not found for ${invalidWarpIds}`,
+      );
+    }
+  });
 });
