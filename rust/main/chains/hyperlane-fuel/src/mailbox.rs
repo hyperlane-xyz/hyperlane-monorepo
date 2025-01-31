@@ -86,7 +86,16 @@ impl Mailbox for FuelMailbox {
             .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read nonce for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
@@ -98,7 +107,15 @@ impl Mailbox for FuelMailbox {
             .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read delivered status for message 0x{:?} - {:?}",
+                        id, e
+                    )
+                    .as_str(),
+                )
+            })
     }
 
     #[instrument(err, ret, skip(self))]
@@ -110,7 +127,16 @@ impl Mailbox for FuelMailbox {
             .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value.into_h256())
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read default ISM for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
     }
 
     #[instrument(err, ret, skip(self))]
@@ -124,7 +150,16 @@ impl Mailbox for FuelMailbox {
             .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value.into_h256())
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read recipient ISM for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
     }
 
     #[instrument(err, ret, skip(self))]
@@ -164,10 +199,28 @@ impl Mailbox for FuelMailbox {
             .with_tx_policies(tx_policies)
             .determine_missing_contracts(None)
             .await
-            .map_err(ChainCommunicationError::from_other)?
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to determine missing contracts for process call of mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?
             .call()
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to call process for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?;
 
         // Extract transaction success from the receipts
         let success = call_res
@@ -216,10 +269,28 @@ impl Mailbox for FuelMailbox {
             .with_variable_output_policy(VariableOutputPolicy::EstimateMinimum)
             .determine_missing_contracts(None)
             .await
-            .map_err(ChainCommunicationError::from_other)?
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to determine missing contracts for process cost estimation of mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?
             .simulate(Execution::Realistic)
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read process call cost for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?;
 
         Ok(TxCostEstimate {
             gas_limit: ((simulate_call.gas_used as f64 * GAS_ESTIMATE_MULTIPLIER) as u64).into(),
@@ -286,7 +357,16 @@ impl SequenceAwareIndexer<HyperlaneMessage> for FuelDispatchIndexer {
             .simulate(Execution::StateReadOnly)
             .await
             .map(|r| r.value)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read nonce for mailbox contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
             .map(|sequence| (Some(sequence), tip))
     }
 }

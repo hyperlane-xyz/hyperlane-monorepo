@@ -72,7 +72,13 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
             .simulate(Execution::StateReadOnly)
             .await
             .map(|res| res.value)
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(format!(
+                    "Failed to fetch announced storage locations from ValidatorAnnounce contract at 0x{:?} - {:?}",
+                    self.contract.contract_id().hash,
+                    e
+                ).as_str())
+            })
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
@@ -87,7 +93,16 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
             )
             .call()
             .await
-            .map_err(ChainCommunicationError::from_other)?;
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                    "Failed to announce validator in ValidatorAnnounce contract at 0x{:?} - {:?}",
+                    self.contract.contract_id().hash,
+                    e
+                )
+                    .as_str(),
+                )
+            })?;
 
         // Extract transaction success from the receipts
         let success = call_res

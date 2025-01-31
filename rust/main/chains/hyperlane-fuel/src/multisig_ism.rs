@@ -69,7 +69,13 @@ impl MultisigIsm for FuelMultisigIsm {
             .validators_and_threshold(Bytes(message.to_vec()))
             .simulate(Execution::StateReadOnly)
             .await
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(format!(
+                    "Failed to fetch validators and threshold from MultisigIsm contract at 0x{:?} - {:?}",
+                    self.contract.contract_id().hash,
+                    e
+                ).as_str())
+            })
             .map(|res| (res.value.0.into_h256_vec(), res.value.1))
     }
 }

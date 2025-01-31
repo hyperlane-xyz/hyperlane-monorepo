@@ -66,10 +66,28 @@ impl RoutingIsm for FuelRoutingIsm {
             .route(Bytes(message.to_vec()))
             .determine_missing_contracts(None)
             .await
-            .map_err(ChainCommunicationError::from_other)?
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed derermine dependencies for routing using RoutingIsm contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?
             .simulate(Execution::StateReadOnly)
             .await
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to route message using RoutingIsm contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
             .map(|res| res.value.into_h256())
     }
 }

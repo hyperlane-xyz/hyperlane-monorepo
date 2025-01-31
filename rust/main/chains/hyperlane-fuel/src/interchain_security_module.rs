@@ -70,7 +70,16 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
             .module_type()
             .simulate(Execution::StateReadOnly)
             .await
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to get module type for ISM contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
             .map(|res| IsmType(res.value).into())
     }
 
@@ -87,10 +96,28 @@ impl InterchainSecurityModule for FuelInterchainSecurityModule {
             )
             .determine_missing_contracts(None)
             .await
-            .map_err(ChainCommunicationError::from_other)?
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to get contract dependencies for dry run verify for ISM contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })?
             .simulate(Execution::Realistic)
             .await
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to dry run verify for ISM contract at 0x{:?} - {:?}",
+                        self.contract.contract_id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
             .map(|res| Some(U256::from(res.gas_used)))
     }
 }

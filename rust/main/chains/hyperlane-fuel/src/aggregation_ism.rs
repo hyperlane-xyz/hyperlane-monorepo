@@ -5,7 +5,7 @@ use crate::{
 use async_trait::async_trait;
 use fuels::{
     accounts::wallet::WalletUnlocked,
-    programs::calls::Execution,
+    programs::calls::{ContractDependency, Execution},
     types::{bech32::Bech32ContractId, Bytes},
 };
 use hyperlane_core::{
@@ -68,7 +68,16 @@ impl AggregationIsm for FuelAggregationIsm {
             .modules_and_threshold(Bytes(message.to_vec()))
             .simulate(Execution::StateReadOnly)
             .await
-            .map_err(ChainCommunicationError::from_other)
+            .map_err(|e| {
+                ChainCommunicationError::from_other_str(
+                    format!(
+                        "Failed to read modules and threshold, for contract 0x{:?} - {:?}",
+                        self.contract.id().hash,
+                        e
+                    )
+                    .as_str(),
+                )
+            })
             .map(|res| {
                 let (modules, threshold) = res.value;
                 let modules = modules.iter().map(|v| v.into_h256()).collect();
