@@ -3,16 +3,16 @@ use fuel_core_types::{
     fuel_asm::{Instruction, Word},
     fuel_tx::{PanicInstruction, PanicReason},
 };
-use fuels::tx::Receipt as FuelRecepit;
+use fuels::tx::Receipt as FuelReceipt;
 
 use super::{types::Receipt, ReceiptType};
 
 // These conversions are the `From` implementations for converting the `Receipt` schema from the Fuels Rust SDK
 // since we cannot implement `From` for our custom Recipt schema on the `fuels::tx::Receipt` directly.
 
-pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError> {
+pub fn generate_receipt(schema: Receipt) -> Result<FuelReceipt, ConversionError> {
     Ok(match schema.receipt_type {
-        ReceiptType::Call => FuelRecepit::Call {
+        ReceiptType::Call => FuelReceipt::Call {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             to: schema
                 .to
@@ -47,7 +47,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::Return => FuelRecepit::Return {
+        ReceiptType::Return => FuelReceipt::Return {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             val: schema
                 .val
@@ -62,7 +62,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::ReturnData => FuelRecepit::ReturnData {
+        ReceiptType::ReturnData => FuelReceipt::ReturnData {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             ptr: schema
                 .ptr
@@ -91,7 +91,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::Panic => FuelRecepit::Panic {
+        ReceiptType::Panic => FuelReceipt::Panic {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             reason: {
                 let reason = schema
@@ -109,7 +109,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .into(),
             contract_id: schema.contract_id.map(Into::into),
         },
-        ReceiptType::Revert => FuelRecepit::Revert {
+        ReceiptType::Revert => FuelReceipt::Revert {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             ra: schema
                 .ra
@@ -124,7 +124,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::Log => FuelRecepit::Log {
+        ReceiptType::Log => FuelReceipt::Log {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             ra: schema
                 .ra
@@ -151,7 +151,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::LogData => FuelRecepit::LogData {
+        ReceiptType::LogData => FuelReceipt::LogData {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             ra: schema
                 .ra
@@ -188,7 +188,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::Transfer => FuelRecepit::Transfer {
+        ReceiptType::Transfer => FuelReceipt::Transfer {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             to: schema
                 .to
@@ -211,7 +211,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::TransferOut => FuelRecepit::TransferOut {
+        ReceiptType::TransferOut => FuelReceipt::TransferOut {
             id: schema.id.map(|id| id.into()).unwrap_or_default(),
             to: schema
                 .to_address
@@ -234,7 +234,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::ScriptResult => FuelRecepit::ScriptResult {
+        ReceiptType::ScriptResult => FuelReceipt::ScriptResult {
             result: Word::from(
                 schema
                     .result
@@ -246,7 +246,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("gas_used".to_string()))?
                 .into(),
         },
-        ReceiptType::MessageOut => FuelRecepit::MessageOut {
+        ReceiptType::MessageOut => FuelReceipt::MessageOut {
             sender: schema
                 .sender
                 .ok_or_else(|| MissingField("sender".to_string()))?
@@ -278,7 +278,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                     .into(),
             ),
         },
-        ReceiptType::Mint => FuelRecepit::Mint {
+        ReceiptType::Mint => FuelReceipt::Mint {
             sub_id: schema
                 .sub_id
                 .ok_or_else(|| MissingField("sub_id".to_string()))?
@@ -297,7 +297,7 @@ pub fn generate_receipt(schema: Receipt) -> Result<FuelRecepit, ConversionError>
                 .ok_or_else(|| MissingField("is".to_string()))?
                 .into(),
         },
-        ReceiptType::Burn => FuelRecepit::Burn {
+        ReceiptType::Burn => FuelReceipt::Burn {
             sub_id: schema
                 .sub_id
                 .ok_or_else(|| MissingField("sub_id".to_string()))?
