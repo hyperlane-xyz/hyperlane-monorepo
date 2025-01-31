@@ -26,7 +26,7 @@ pub struct FuelInterchainGasPaymaster {
 }
 
 impl FuelInterchainGasPaymaster {
-    /// Create a new fuel validator announce contract
+    /// Create a new fuel IGP contract interface
     pub async fn new(
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
