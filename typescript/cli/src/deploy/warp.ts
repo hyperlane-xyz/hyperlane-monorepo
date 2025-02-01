@@ -731,7 +731,28 @@ async function updateExistingWarpRoute(
           {},
         );
 
-        transactions.push(...(await evmERC20WarpModule.update(config)));
+        const currentConfig = await evmERC20WarpModule.read();
+        const ownerNeedsUpdate =
+          config.owner && config.owner !== currentConfig.owner;
+
+        // Handle non-owner updates first
+        if (ownerNeedsUpdate) {
+          transactions.push(
+            ...(await evmERC20WarpModule.update({
+              ...config,
+              owner: currentConfig.owner,
+            })),
+          );
+          // Handle owner update last
+          transactions.push(
+            ...(await evmERC20WarpModule.update({
+              ...config,
+              mailbox: config.mailbox,
+            })),
+          );
+        } else {
+          transactions.push(...(await evmERC20WarpModule.update(config)));
+        }
       });
     }),
   );
