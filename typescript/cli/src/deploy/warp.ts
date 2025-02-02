@@ -15,7 +15,6 @@ import {
   ContractVerifier,
   DestinationGas,
   EvmERC20WarpModule,
-  EvmERC20WarpRouteReader,
   EvmHookModule,
   EvmIsmModule,
   ExplorerLicenseType,
@@ -416,7 +415,7 @@ async function createWarpHook({
 }
 
 async function getWarpCoreConfig(
-  { warpDeployConfig, context }: DeployParams,
+  params: DeployParams,
   contracts: HyperlaneContractsMap<TokenFactories>,
 ): Promise<{
   warpCoreConfig: WarpCoreConfig;
@@ -426,8 +425,8 @@ async function getWarpCoreConfig(
 
   // TODO: replace with warp read
   const tokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
-    context.multiProvider,
-    warpDeployConfig,
+    params.context.multiProvider,
+    params.warpDeployConfig,
   );
   assert(
     tokenMetadata && isTokenMetadata(tokenMetadata),
@@ -438,7 +437,7 @@ async function getWarpCoreConfig(
 
   generateTokenConfigs(
     warpCoreConfig,
-    warpDeployConfig,
+    params.warpDeployConfig,
     contracts,
     symbol,
     name,
@@ -530,32 +529,73 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
-  const transactions: AnnotatedEV5Transaction[] = [
-    ...(await extendWarpRoute(
-      params,
-      apiKeys,
-      warpDeployConfig,
-      warpCoreConfigByChain,
-    )),
-    ...(await updateExistingWarpRoute(
-      params,
-      apiKeys,
-      warpDeployConfig,
-      warpCoreConfigByChain,
-    )),
-  ];
+  // First deploy any new contracts and get updated configs
+  const deployResult = await deployNewWarpRoutes(
+    params,
+    apiKeys,
+    warpDeployConfig,
+    warpCoreConfigByChain,
+  );
+
+  if (deployResult) {
+    const { newDeployedContracts, updatedWarpCoreConfig, addWarpRouteOptions } =
+      deployResult;
+
+    // Update warpDeployConfig with newly deployed contract addresses
+    for (const chain of Object.keys(newDeployedContracts)) {
+      const config = warpDeployConfig[chain];
+      const contracts = newDeployedContracts[
+        chain
+      ] as HyperlaneContracts<HypERC20Factories>;
+      const router = getRouter(contracts);
+
+      if (isCollateralTokenConfig(config)) {
+        config.token = router.address;
+      }
+    }
+
+    // Update warpCoreConfigByChain with new addresses
+    for (const token of updatedWarpCoreConfig.tokens) {
+      warpCoreConfigByChain[token.chainName] = token;
+    }
+
+    // Write the updated artifacts
+    await writeDeploymentArtifacts(
+      updatedWarpCoreConfig,
+      context,
+      addWarpRouteOptions,
+    );
+  }
+
+  // Then create and submit update transactions
+  const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
+    params,
+    apiKeys,
+    warpDeployConfig,
+    warpCoreConfigByChain,
+  );
+
   if (transactions.length == 0)
     return logGreen(`Warp config is the same as target. No updates needed.`);
 
   await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
 }
 
-async function extendWarpRoute(
+async function deployNewWarpRoutes(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
-) {
+): Promise<
+  | {
+      newDeployedContracts: HyperlaneContractsMap<
+        HypERC20Factories | HypERC721Factories
+      >;
+      updatedWarpCoreConfig: WarpCoreConfig;
+      addWarpRouteOptions: AddWarpRouteOptions | undefined;
+    }
+  | undefined
+> {
   const { multiProvider } = params.context;
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
@@ -571,7 +611,7 @@ async function extendWarpRoute(
   );
 
   const extendedChains = Object.keys(extendedConfigs);
-  if (extendedChains.length === 0) return [];
+  if (extendedChains.length === 0) return undefined;
 
   logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
 
@@ -581,6 +621,7 @@ async function extendWarpRoute(
     extendedConfigs,
   );
 
+  // Deploy new contracts
   const newDeployedContracts = await executeDeploy(
     {
       context: params.context,
@@ -589,6 +630,7 @@ async function extendWarpRoute(
     apiKeys,
   );
 
+  // Merge existing and new routers
   const mergedRouters = mergeAllRouters(
     multiProvider,
     existingConfigs,
@@ -596,17 +638,16 @@ async function extendWarpRoute(
     warpCoreConfigByChain,
   );
 
+  // Get the updated core config that includes both existing and new contracts
   const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
     await getWarpCoreConfig(params, mergedRouters);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
-  await writeDeploymentArtifacts(
+  return {
+    newDeployedContracts,
     updatedWarpCoreConfig,
-    params.context,
     addWarpRouteOptions,
-  );
-
-  return enrollRemoteRouters(params, mergedRouters);
+  };
 }
 
 async function updateExistingWarpRoute(
@@ -627,17 +668,36 @@ async function updateExistingWarpRoute(
   );
   const transactions: AnnotatedEV5Transaction[] = [];
 
+  // Get all deployed router addresses
+  const deployedRoutersAddresses: ChainMap<Address> = objMap(
+    warpCoreConfigByChain,
+    (_, config) => config.addressOrDenom as Address,
+  );
+
+  // Get destination gas for all chains
+  const destinationGas = await populateDestinationGas(
+    multiProvider,
+    warpDeployConfig,
+    connectContractsMap(
+      attachContractsMap(
+        objMap(deployedRoutersAddresses, (_, address) => ({
+          synthetic: address,
+        })),
+        hypERC20factories,
+      ),
+      multiProvider,
+    ),
+  );
+
   await promiseObjAll(
     objMap(warpDeployConfig, async (chain, config) => {
       await retryAsync(async () => {
-        logGray(`Update existing warp route for chain ${chain}`);
-        const deployedConfig = warpCoreConfigByChain[chain];
-        if (!deployedConfig)
+        const deployedTokenRoute = deployedRoutersAddresses[chain];
+        if (!deployedTokenRoute)
           return logGray(
             `Missing artifacts for ${chain}. Probably new deployment. Skipping update...`,
           );
 
-        const deployedTokenRoute = deployedConfig.addressOrDenom!;
         const {
           domainRoutingIsmFactory,
           staticMerkleRootMultisigIsmFactory,
@@ -666,6 +726,34 @@ async function updateExistingWarpRoute(
           },
           contractVerifier,
         );
+
+        // Derive remote routers from all deployed routers
+        const otherChains = multiProvider
+          .getRemoteChains(chain)
+          .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
+
+        config.remoteRouters = otherChains.reduce<RemoteRouters>(
+          (remoteRouters, otherChain) => {
+            remoteRouters[multiProvider.getDomainId(otherChain)] = {
+              address: deployedRoutersAddresses[otherChain],
+            };
+            return remoteRouters;
+          },
+          {},
+        );
+
+        // Set destination gas for this chain
+        config.destinationGas = otherChains.reduce<DestinationGas>(
+          (gas, otherChain) => {
+            const otherDomain = multiProvider
+              .getDomainId(otherChain)
+              .toString();
+            gas[otherDomain] = destinationGas[otherDomain];
+            return gas;
+          },
+          {},
+        );
+
         transactions.push(...(await evmERC20WarpModule.update(config)));
       });
     }),
@@ -733,104 +821,6 @@ function mergeAllRouters(
     ...deployedContractsMap,
   } as HyperlaneContractsMap<HypERC20Factories>;
 }
-
-/**
- * Enroll all deployed routers with each other.
- *
- * @param deployedContractsMap - A map of deployed Hyperlane contracts by chain.
- * @param multiProvider - A MultiProvider instance to interact with multiple chains.
- */
-async function enrollRemoteRouters(
-  params: WarpApplyParams,
-  deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
-): Promise<AnnotatedEV5Transaction[]> {
-  logBlue(`Enrolling deployed routers with each other...`);
-  const { multiProvider, registry } = params.context;
-  const registryAddresses = await registry.getAddresses();
-  const deployedRoutersAddresses: ChainMap<Address> = objMap(
-    deployedContractsMap,
-    (_, contracts) => getRouter(contracts).address,
-  );
-  const deployedDestinationGas: DestinationGas = await populateDestinationGas(
-    multiProvider,
-    params.warpDeployConfig,
-    deployedContractsMap,
-  );
-
-  const deployedChains = Object.keys(deployedRoutersAddresses);
-  const transactions: AnnotatedEV5Transaction[] = [];
-  await promiseObjAll(
-    objMap(deployedContractsMap, async (chain, contracts) => {
-      await retryAsync(async () => {
-        const router = getRouter(contracts); // Assume deployedContract always has 1 value
-        const deployedTokenRoute = router.address;
-        // Mutate the config.remoteRouters by setting it to all other routers to update
-        const warpRouteReader = new EvmERC20WarpRouteReader(
-          multiProvider,
-          chain,
-        );
-        const mutatedWarpRouteConfig =
-          await warpRouteReader.deriveWarpRouteConfig(deployedTokenRoute);
-        const {
-          domainRoutingIsmFactory,
-          staticMerkleRootMultisigIsmFactory,
-          staticMessageIdMultisigIsmFactory,
-          staticAggregationIsmFactory,
-          staticAggregationHookFactory,
-          staticMerkleRootWeightedMultisigIsmFactory,
-          staticMessageIdWeightedMultisigIsmFactory,
-        } = registryAddresses[chain];
-
-        const evmERC20WarpModule = new EvmERC20WarpModule(multiProvider, {
-          config: mutatedWarpRouteConfig,
-          chain,
-          addresses: {
-            deployedTokenRoute,
-            staticMerkleRootMultisigIsmFactory,
-            staticMessageIdMultisigIsmFactory,
-            staticAggregationIsmFactory,
-            staticAggregationHookFactory,
-            domainRoutingIsmFactory,
-            staticMerkleRootWeightedMultisigIsmFactory,
-            staticMessageIdWeightedMultisigIsmFactory,
-          },
-        });
-
-        const otherChains = multiProvider
-          .getRemoteChains(chain)
-          .filter((c) => deployedChains.includes(c));
-
-        mutatedWarpRouteConfig.remoteRouters =
-          otherChains.reduce<RemoteRouters>((remoteRouters, otherChain) => {
-            remoteRouters[multiProvider.getDomainId(otherChain)] = {
-              address: deployedRoutersAddresses[otherChain],
-            };
-            return remoteRouters;
-          }, {});
-
-        mutatedWarpRouteConfig.destinationGas =
-          otherChains.reduce<DestinationGas>((destinationGas, otherChain) => {
-            const otherChainDomain = multiProvider.getDomainId(otherChain);
-            destinationGas[otherChainDomain] =
-              deployedDestinationGas[otherChainDomain];
-            return destinationGas;
-          }, {});
-
-        const mutatedConfigTxs: AnnotatedEV5Transaction[] =
-          await evmERC20WarpModule.update(mutatedWarpRouteConfig);
-
-        if (mutatedConfigTxs.length == 0)
-          return logGreen(
-            `Warp config on ${chain} is the same as target. No updates needed.`,
-          );
-        transactions.push(...mutatedConfigTxs);
-      });
-    }),
-  );
-
-  return transactions;
-}
-
 /**
  * Populates the destination gas amounts for each chain using warpConfig.gas OR querying other router's destinationGas
  */
@@ -852,8 +842,9 @@ async function populateDestinationGas(
 
         for (const otherChain of otherChains) {
           const otherDomain = multiProvider.getDomainId(otherChain);
-          if (!destinationGas[otherDomain])
-            destinationGas[otherDomain] =
+          const domainStr = otherDomain.toString();
+          if (!destinationGas[domainStr])
+            destinationGas[domainStr] =
               warpDeployConfig[otherChain].gas?.toString() ||
               (await router.destinationGas(otherDomain)).toString();
         }
