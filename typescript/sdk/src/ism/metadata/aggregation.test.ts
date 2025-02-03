@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-imports */
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { existsSync, readFileSync, readdirSync } from 'fs';
