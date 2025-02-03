@@ -55,7 +55,3 @@ export interface IHypXERC20Adapter<Tx> extends IHypTokenAdapter<Tx> {
   getBurnLimit(): Promise<bigint>;
   getBurnMaxLimit(): Promise<bigint>;
 }
-
-export interface IntentHypTokenAdapter<Tx> extends IHypTokenAdapter<Tx> {
-  set deadline(value: number);
-}

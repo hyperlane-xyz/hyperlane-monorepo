@@ -318,7 +318,7 @@ export class WarpCore {
     sender,
     recipient,
     interchainFee,
-    fillDeadline = Math.floor(Date.now() / 1000) + 60 * 60 * 24, // default for gas estimation
+    fillDeadline,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
@@ -333,20 +333,27 @@ export class WarpCore {
     const destinationName = this.multiProvider.getChainName(destination);
     const destinationDomainId = this.multiProvider.getDomainId(destination);
     const providerType = TOKEN_STANDARD_TO_PROVIDER_TYPE[token.standard];
-    const hypAdapter = token.getHypAdapter(this.multiProvider, destinationName);
-
-    if (
-      hypAdapter instanceof EvmIntentMultiChainAdapter ||
-      hypAdapter instanceof EvmIntentNativeMultiChainAdapter
-    ) {
-      hypAdapter.deadline = fillDeadline;
-    }
+    const hypAdapter = token.getHypAdapter(
+      this.multiProvider,
+      destinationName,
+      fillDeadline,
+    );
 
     if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
       this.logger.info(`Approval required for transfer of ${token.symbol}`);
+
+      let recipient = token.addressOrDenom;
+      if (
+        token.standard === TokenStandard.EvmIntent ||
+        token.standard === TokenStandard.EvmIntentNative
+      ) {
+        // intentRouterAddressOrDenom is verified to exist here thanks to the token schema superRefinement check
+        recipient = token.intentRouterAddressOrDenom!;
+      }
+
       const approveTxReq = await hypAdapter.populateApproveTx({
         weiAmountOrId: amount.toString(),
-        recipient: token.intentRouterAddressOrDenom ?? token.addressOrDenom,
+        recipient,
       });
       this.logger.debug(`Approval tx for ${token.symbol} populated`);
 
@@ -542,12 +549,16 @@ export class WarpCore {
   }): Promise<boolean> {
     const { token, amount } = originTokenAmount;
     const adapter = token.getAdapter(this.multiProvider);
-    const isRequired = await adapter.isApproveRequired(
-      owner,
-      // @ts-ignore
-      adapter.addresses.router ?? token.addressOrDenom,
-      amount,
-    );
+
+    let spender = token.addressOrDenom;
+    if (
+      adapter instanceof EvmIntentMultiChainAdapter ||
+      adapter instanceof EvmIntentNativeMultiChainAdapter
+    ) {
+      spender = adapter.addresses.router;
+    }
+
+    const isRequired = await adapter.isApproveRequired(owner, spender, amount);
     this.logger.debug(
       `Approval is${isRequired ? '' : ' not'} required for transfer of ${
         token.symbol

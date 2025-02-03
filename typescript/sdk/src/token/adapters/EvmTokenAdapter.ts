@@ -1,6 +1,11 @@
 import { Hyperlane7683__factory } from '@bootnodedev/intents-framework-core';
 import { BigNumber, PopulatedTransaction } from 'ethers';
-import { type Address as ViemAddress, encodeAbiParameters, pad } from 'viem';
+import {
+  type Address as ViemAddress,
+  encodeAbiParameters,
+  pad,
+  zeroAddress,
+} from 'viem';
 
 import {
   ERC20,
@@ -35,7 +40,6 @@ import {
   IHypTokenAdapter,
   IHypXERC20Adapter,
   ITokenAdapter,
-  IntentHypTokenAdapter,
   InterchainGasQuote,
   TransferParams,
   TransferRemoteParams,
@@ -527,13 +531,13 @@ export class EvmIntentNativeTokenAdapter extends EvmNativeTokenAdapter {
 
 export class EvmIntentMultiChainAdapter
   extends EvmIntentTokenAdapter
-  implements IntentHypTokenAdapter<PopulatedTransaction>
+  implements IHypTokenAdapter<PopulatedTransaction>
 {
-  fillDeadline = 0;
   intent;
 
   constructor(
     public readonly chainName: ChainName,
+    public readonly fillDeadline: number,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: {
       token: Address;
@@ -546,6 +550,9 @@ export class EvmIntentMultiChainAdapter
     super(chainName, multiProvider, addresses);
     this.intent = intentFactory.connect(addresses.router, this.getProvider());
   }
+  set deadline(value: number) {
+    throw new Error('Method not implemented.');
+  }
   getDomains(): Promise<Domain[]> {
     throw new Error('Method not implemented.');
   }
@@ -557,10 +564,6 @@ export class EvmIntentMultiChainAdapter
   }
   getBridgedSupply(): Promise<bigint | undefined> {
     throw new Error('Method not implemented.');
-  }
-
-  set deadline(value: number) {
-    this.fillDeadline = value;
   }
 
   async quoteTransferRemoteGas(
@@ -611,7 +614,9 @@ export class EvmIntentMultiChainAdapter
           {
             sender: pad(fromAccountOwner as ViemAddress),
             recipient: pad(recipient as ViemAddress),
-            inputToken: pad(this.addresses.token as ViemAddress),
+            inputToken: pad(
+              (this.addresses.token ?? zeroAddress) as ViemAddress,
+            ),
             outputToken: pad(this.addresses.outputToken as ViemAddress),
             amountIn: BigInt(weiAmountOrId),
             amountOut: BigInt(amountOut),
@@ -630,13 +635,13 @@ export class EvmIntentMultiChainAdapter
 
 export class EvmIntentNativeMultiChainAdapter
   extends EvmIntentNativeTokenAdapter
-  implements IntentHypTokenAdapter<PopulatedTransaction>
+  implements IHypTokenAdapter<PopulatedTransaction>
 {
-  fillDeadline = 0;
   intent;
 
   constructor(
     public readonly chainName: ChainName,
+    public readonly fillDeadline: number,
     public readonly multiProvider: MultiProtocolProvider,
     public readonly addresses: {
       token: Address;
@@ -649,6 +654,9 @@ export class EvmIntentNativeMultiChainAdapter
     super(chainName, multiProvider, addresses);
     this.intent = intentFactory.connect(addresses.router, this.getProvider());
   }
+  set deadline(value: number) {
+    throw new Error('Method not implemented.');
+  }
   getDomains(): Promise<Domain[]> {
     throw new Error('Method not implemented.');
   }
@@ -660,10 +668,6 @@ export class EvmIntentNativeMultiChainAdapter
   }
   getBridgedSupply(): Promise<bigint | undefined> {
     throw new Error('Method not implemented.');
-  }
-
-  set deadline(value: number) {
-    this.fillDeadline = value;
   }
 
   async quoteTransferRemoteGas(
@@ -715,7 +719,9 @@ export class EvmIntentNativeMultiChainAdapter
             {
               sender: pad(fromAccountOwner as ViemAddress),
               recipient: pad(recipient as ViemAddress),
-              inputToken: pad(this.addresses.token as ViemAddress),
+              inputToken: pad(
+                (this.addresses.token ?? zeroAddress) as ViemAddress,
+              ),
               outputToken: pad(this.addresses.outputToken as ViemAddress),
               amountIn: BigInt(weiAmountOrId),
               amountOut: BigInt(amountOut),

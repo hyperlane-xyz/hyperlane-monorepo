@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 import { MsgTransferEncodeObject } from '@cosmjs/stargate';
+import { zeroAddress } from 'viem';
 
 import {
   Address,
@@ -55,7 +56,6 @@ import {
 import type {
   IHypTokenAdapter,
   ITokenAdapter,
-  IntentHypTokenAdapter,
 } from './adapters/ITokenAdapter.js';
 import {
   SealevelHypCollateralAdapter,
@@ -202,7 +202,8 @@ export class Token implements IToken {
   getHypAdapter(
     multiProvider: MultiProtocolProvider<{ mailbox?: Address }>,
     destination?: ChainName,
-  ): IHypTokenAdapter<unknown> | IntentHypTokenAdapter<unknown> {
+    fillDeadline: number = Math.floor(Date.now() / 1000) + 60 * 60 * 24,
+  ): IHypTokenAdapter<unknown> {
     const { standard, chainName, addressOrDenom, collateralAddressOrDenom } =
       this;
     const chainMetadata = multiProvider.tryGetChainMetadata(chainName);
@@ -331,28 +332,35 @@ export class Token implements IToken {
         outputToken,
         `Couldn't find token on destination chain ${destination}`,
       );
-      return new EvmIntentMultiChainAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-        router: this.intentRouterAddressOrDenom,
-        outputToken,
-      });
+      return new EvmIntentMultiChainAdapter(
+        chainName,
+        fillDeadline,
+        multiProvider,
+        {
+          token: addressOrDenom,
+          router: this.intentRouterAddressOrDenom,
+          outputToken,
+        },
+      );
     } else if (standard === TokenStandard.EvmIntentNative) {
       assert(
         this.intentRouterAddressOrDenom,
         'Intent router required for EvmIntentNative tokens',
       );
       const outputToken =
-        destination &&
-        this.getConnectionForChain(destination)?.token.addressOrDenom;
-      assert(
-        outputToken,
-        `Couldn't find token on destination chain ${destination}`,
+        (destination &&
+          this.getConnectionForChain(destination)?.token.addressOrDenom) ??
+        zeroAddress; // when native, it can be undefined or null, thus default to zero address
+      return new EvmIntentNativeMultiChainAdapter(
+        chainName,
+        fillDeadline,
+        multiProvider,
+        {
+          token: addressOrDenom,
+          router: this.intentRouterAddressOrDenom,
+          outputToken,
+        },
       );
-      return new EvmIntentNativeMultiChainAdapter(chainName, multiProvider, {
-        token: addressOrDenom,
-        router: this.intentRouterAddressOrDenom,
-        outputToken,
-      });
     } else {
       throw new Error(`No hyp adapter found for token standard: ${standard}`);
     }
