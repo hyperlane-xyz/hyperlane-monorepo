@@ -478,6 +478,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  chronicleyellowstone: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   citreatestnet: {
     threshold: 1,
     validators: [
@@ -1851,6 +1861,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xd5f8196d7060b85bea491f0b52a671e05f3d10a2',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  subtensortestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

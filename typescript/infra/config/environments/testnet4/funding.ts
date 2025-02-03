@@ -35,6 +35,7 @@ export const keyFunderConfig: KeyFunderConfig<
     berabartio: '0.1',
     bsctestnet: '5',
     camptestnet: '0.1',
+    chronicleyellowstone: '0.001',
     citreatestnet: '0.001',
     connextsepolia: '1',
     ecotestnet: '0.02',
@@ -60,6 +61,7 @@ export const keyFunderConfig: KeyFunderConfig<
     // no funding for SVM chains
     sonicsvmtestnet: '0',
     suavetoliman: '0.1',
+    subtensortestnet: '0.01',
     superpositiontestnet: '1',
     treasuretopaz: '5',
     unichaintestnet: '0.1',
