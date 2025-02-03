@@ -81,6 +81,7 @@ export {
 export {
   CoreConfig,
   CoreConfigSchema,
+  CoreDeploymentPlan,
   CoreViolationType,
   DeployedCoreAddresses,
   DeployedCoreAddressesSchema,

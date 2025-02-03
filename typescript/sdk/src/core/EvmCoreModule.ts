@@ -27,6 +27,7 @@ import {
 import {
   CoreConfig,
   CoreConfigSchema,
+  CoreDeploymentPlan,
   DeployedCoreAddresses,
   DerivedCoreConfig,
 } from '../core/types.js';
@@ -264,7 +265,7 @@ export class EvmCoreModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
     existingAddresses?: DeployedCoreAddresses;
-    deploymentPlan?: Record<keyof DeployedCoreAddresses, boolean>;
+    deploymentPlan?: CoreDeploymentPlan;
   }): Promise<EvmCoreModule> {
     const {
       chain,
@@ -303,7 +304,7 @@ export class EvmCoreModule extends HyperlaneModule<
     chain: ChainNameOrId;
     contractVerifier?: ContractVerifier;
     existingAddresses?: DeployedCoreAddresses;
-    deploymentPlan?: Record<keyof DeployedCoreAddresses, boolean>;
+    deploymentPlan?: CoreDeploymentPlan;
   }): Promise<DeployedCoreAddresses> {
     const {
       config,
@@ -463,7 +464,7 @@ export class EvmCoreModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
     existingAddresses?: DeployedCoreAddresses;
-    deploymentPlan?: Record<keyof DeployedCoreAddresses, boolean>;
+    deploymentPlan?: CoreDeploymentPlan;
   }): Promise<HyperlaneAddresses<ProxyFactoryFactories>> {
     const {
       chainName,

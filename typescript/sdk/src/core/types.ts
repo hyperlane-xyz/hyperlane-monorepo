@@ -88,3 +88,8 @@ export type DispatchedMessage = {
   message: string;
   parsed: ParsedMessage;
 };
+
+/**
+ * Type for a deployment plan that maps contract keys to whether they need deployment
+ */
+export type CoreDeploymentPlan = Record<keyof DeployedCoreAddresses, boolean>;
