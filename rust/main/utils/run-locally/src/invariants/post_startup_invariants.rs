@@ -17,10 +17,6 @@ fn post_startup_validator_metadata_written(checkpoints_dirs: &[DynPath]) -> bool
         .map(|path| metadata_file_check(expected_git_sha, path))
         .any(|b| !b);
 
-    if failed_metadata {
-        log!("Error: Metadata git hash mismatch, maybe try `cargo clean` and try again");
-    }
-
     !failed_metadata
 }
 
@@ -51,6 +47,7 @@ fn metadata_file_check(expected_git_sha: &str, path: &DynPath) -> bool {
     };
 
     if metadata.git_sha != expected_git_sha {
+        log!("Error: Metadata git hash mismatch, maybe try `cargo clean` and try again");
         return false;
     }
 
