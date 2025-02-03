@@ -288,7 +288,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     sonicsvm: true,
     soon: true,
     stride: true,
-    subtensor: true,
+    subtensor: false,
     superseed: true,
     superpositionmainnet: true,
     swell: true,
