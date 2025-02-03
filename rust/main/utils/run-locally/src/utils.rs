@@ -119,15 +119,28 @@ pub fn stop_child(child: &mut Child) {
     };
 }
 
-pub fn get_matching_lines(file: &File, search_strings: &[&str]) -> HashMap<String, u32> {
+/// Given a Vec<Vec<&str>>,
+/// for each Vec<&str>, count how many lines in the file
+/// matches all the &str in that Vec.
+/// Store this count in a hashmap where the key is the vector
+/// Vec<&str>
+/// and return this hashmap.
+pub fn get_matching_lines<'a>(
+    file: &File,
+    search_strings: Vec<Vec<&'a str>>,
+) -> HashMap<Vec<&'a str>, u32> {
     let reader = io::BufReader::new(file);
     let mut matches = HashMap::new();
 
     let mut lines = reader.lines();
     while let Some(Ok(line)) = lines.next() {
-        search_strings.iter().for_each(|search_string| {
-            if line.contains(search_string) {
-                let count = matches.entry(search_string.to_string()).or_insert(0);
+        search_strings.iter().for_each(|search_string_vec| {
+            if search_string_vec
+                .iter()
+                .map(|search_string| line.contains(search_string))
+                .all(|x| x)
+            {
+                let count = matches.entry(search_string_vec.clone()).or_insert(0);
                 *count += 1;
             }
         });
