@@ -1,14 +1,11 @@
 use std::path::Path;
 
-use maplit::hashmap;
-
 use crate::{
     config::Config,
-    fetch_metric,
     invariants::{relayer_termination_invariants_met, scraper_termination_invariants_met},
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
-    RELAYER_METRICS_PORT,
+    server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
 };
 
 /// Use the metrics to check if the relayer queues are empty and the expected
