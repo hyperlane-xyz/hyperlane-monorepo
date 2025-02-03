@@ -59,12 +59,9 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
   factories: F,
 ): HyperlaneAddressesMap<F> {
   const factoryKeys = Object.keys(factories);
-  // Filter out addresses that we do not have factories for and remove undefined values
+  // Filter out addresses that we do not have factories for
   const pickedAddressesMap = objMap(addressesMap, (_, addresses) =>
-    objFilter(
-      pick(addresses, factoryKeys),
-      (_, value): value is Address => value !== undefined,
-    ),
+    pick(addresses, factoryKeys),
   );
 
   const chainsWithMissingAddresses = new Set<string>();
