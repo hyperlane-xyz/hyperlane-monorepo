@@ -56,6 +56,7 @@ export function getProtocolFee(chain: ChainName) {
 export function getRenzoHook(
   defaultHook: Address,
   chain: ChainName,
+  ezEthSafe: Address,
 ): HookConfig {
   return {
     type: HookType.AGGREGATION,
@@ -63,8 +64,8 @@ export function getRenzoHook(
       defaultHook,
       {
         type: HookType.PROTOCOL_FEE,
-        owner: ezEthSafes[chain],
-        beneficiary: ezEthSafes[chain],
+        owner: ezEthSafe,
+        beneficiary: ezEthSafe,
         protocolFee: parseEther(getProtocolFee(chain)).toString(),
         maxProtocolFee: MAX_PROTOCOL_FEE,
       },
@@ -392,7 +393,7 @@ export function getRenzoEZETHWarpConfigGenerator(
                     },
                   ],
                 },
-                hook: getRenzoHook(defaultHook, chain),
+                hook: getRenzoHook(defaultHook, chain, ezEthSafes[chain]),
                 proxyAdmin: existingProxyAdmins[chain],
               },
             ];
