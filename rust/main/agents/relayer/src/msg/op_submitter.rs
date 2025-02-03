@@ -230,14 +230,8 @@ async fn receive_task(
         // make sure things are getting wired up correctly; if this works in testing it
         // should also be valid in production.
         debug_assert_eq!(*op.destination_domain(), domain);
-        let status = op.retrieve_status_from_db().unwrap_or_else(|| {
-            trace!(
-                ?op,
-                "No status found for message, defaulting to FirstPrepareAttempt"
-            );
-            PendingOperationStatus::FirstPrepareAttempt
-        });
-        prepare_queue.push(op, Some(status)).await;
+        let op_status = op.status();
+        prepare_queue.push(op, Some(op_status)).await;
     }
 }
 

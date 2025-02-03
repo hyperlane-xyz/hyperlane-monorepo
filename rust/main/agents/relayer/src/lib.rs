@@ -1,5 +1,6 @@
+pub mod msg;
+
 mod merkle_tree;
-mod msg;
 mod processor;
 mod prover;
 mod relayer;
