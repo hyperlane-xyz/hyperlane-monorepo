@@ -3,21 +3,20 @@ import {
   getRenzoEZETHWarpConfigGenerator,
 } from './getRenzoEZETHWarpConfig.js';
 
-// TODO: Deploy xERC20
 const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
-  arbitrum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  optimism: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  base: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  blast: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  bsc: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  mode: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  linea: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  ethereum: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  fraxtal: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  zircuit: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  taiko: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  sei: '0x6DCfbF4729890043DFd34A93A2694E5303BA2703', // redEth
-  swell: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  arbitrum: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  optimism: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  base: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  blast: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  bsc: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  mode: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  linea: '0x5EA461E19ba6C002b7024E4A2e9CeFe79a47d3bB',
+  ethereum: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  fraxtal: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  zircuit: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  taiko: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  sei: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
+  swell: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
 };
 
 export const ezEthSafes: Record<string, string> = {
@@ -36,7 +35,7 @@ export const ezEthSafes: Record<string, string> = {
   swell: '0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115',
 };
 
-export const getRenzoEZETHWarpStagingConfig = getRenzoEZETHWarpConfigGenerator(
+export const getRenzoEZETHWarpStageConfig = getRenzoEZETHWarpConfigGenerator(
   ezEthSafes,
   xERC20,
 );
