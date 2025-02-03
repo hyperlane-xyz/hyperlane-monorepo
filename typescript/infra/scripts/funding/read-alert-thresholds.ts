@@ -11,6 +11,9 @@ import {
 import { writeJsonAtPath } from '../../src/utils/utils.js';
 import { withAlertTypeRequired, withWrite } from '../agent-utils.js';
 
+// this scripts reads the thresholds in the grafana alert, prints and then overwrites the thresholds in the file
+// it has been helpful in debugging and updating the thresholds during the development phase to reset the thresholds
+// it is not intended to be used in the production process of managing the thresholds
 async function main() {
   const { alertType, write } = await withWrite(
     withAlertTypeRequired(yargs(process.argv.slice(2))),

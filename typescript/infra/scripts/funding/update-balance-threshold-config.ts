@@ -7,11 +7,12 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import rawDailyBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
 import {
   BalanceThresholdType,
+  RELAYER_BALANCE_TARGET_DAYS,
   THRESHOLD_CONFIG_PATH,
   balanceThresholdConfigMapping,
 } from '../../src/config/funding/balances.js';
 import {
-  formatDailyRelayerBurn,
+  formatBalanceThreshold,
   sortThresholds,
 } from '../../src/funding/grafana.js';
 import { readJSONAtPath, writeJsonAtPath } from '../../src/utils/utils.js';
@@ -21,8 +22,6 @@ import {
 } from '../agent-utils.js';
 
 const dailyBurn: ChainMap<number> = rawDailyBurn;
-
-const exclusionList = ['osmosis'];
 
 async function main() {
   const { balanceThresholdConfig, all } = await withConfirmAllChoices(
@@ -42,50 +41,74 @@ async function main() {
         })),
       });
 
+  const desiredRelayerBalanceOverrides: ChainMap<string> = readJSONAtPath(
+    `${THRESHOLD_CONFIG_PATH}/desiredRelayerBalanceOverrides.json`,
+  );
+
   for (const config of configToUpdate) {
     rootLogger.info(`Updating ${config} config`);
 
     let currentThresholds: ChainMap<string> = {};
     const newThresholds: ChainMap<string> = {};
-    try {
-      currentThresholds = readJSONAtPath(
-        `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[config].configFileName}`,
-      );
-    } catch (e) {
-      rootLogger.error(`Error reading ${config} config: ${e}`);
-    }
 
-    // Update the threshold for each chain, if it doesn't exist, create a new one
+    currentThresholds = readJSONAtPath(
+      `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[config].configFileName}`,
+    );
+
+    const manualReview: Array<{
+      chain: string;
+      proposedThreshold: number;
+      currentThreshold: number;
+    }> = [];
+
     for (const chain in dailyBurn) {
-      if (!currentThresholds[chain]) {
-        // Skip chains in the exclusion list
-        if (exclusionList.includes(chain)) {
-          rootLogger.info(`Skipping ${chain} as it is in the exclusion list`);
-          continue;
+      // check if there is an override for the desired relayer balance, if so, use that to calculate the threshold
+      if (desiredRelayerBalanceOverrides[chain]) {
+        const override = handleDesiredRelayerBalanceOverride(
+          chain,
+          desiredRelayerBalanceOverrides[chain],
+          config,
+        );
+        if (override) {
+          newThresholds[chain] = override;
         }
-
-        newThresholds[chain] = formatDailyRelayerBurn(
-          dailyBurn[chain] *
-            balanceThresholdConfigMapping[config].dailyRelayerBurnMultiplier,
-        ).toString();
       } else {
-        // This will ensure that chains where the desired threshold is 0 will be unchanged
-        if (
-          config === BalanceThresholdType.RelayerBalance &&
-          parseFloat(currentThresholds[chain]) === 0
-        ) {
-          newThresholds[chain] = currentThresholds[chain];
-          continue;
-        }
-
-        newThresholds[chain] = Math.max(
-          formatDailyRelayerBurn(
+        // no overrides, update the threshold for each chain, if it doesn't exist, create a new one
+        if (!currentThresholds[chain]) {
+          newThresholds[chain] = formatBalanceThreshold(
             dailyBurn[chain] *
               balanceThresholdConfigMapping[config].dailyRelayerBurnMultiplier,
-          ),
-          parseFloat(currentThresholds[chain]),
-        ).toString();
+          ).toString();
+        } else {
+          const proposedThreshold = formatBalanceThreshold(
+            dailyBurn[chain] *
+              balanceThresholdConfigMapping[config].dailyRelayerBurnMultiplier,
+          );
+
+          // check if proposedThreshold is 50% less than currentThreshold, if so suggest manual review
+          if (proposedThreshold < parseFloat(currentThresholds[chain]) * 0.5) {
+            manualReview.push({
+              chain,
+              proposedThreshold: formatBalanceThreshold(proposedThreshold),
+              currentThreshold: formatBalanceThreshold(
+                parseFloat(currentThresholds[chain]),
+              ),
+            });
+          }
+
+          newThresholds[chain] = Math.max(
+            proposedThreshold,
+            parseFloat(currentThresholds[chain]),
+          ).toString();
+        }
       }
+    }
+
+    if (manualReview.length) {
+      rootLogger.info(
+        `Table contains ${config} proposed thresholds that are 50% less than the current thresholds, consider manually reviewing and updating the thresholds`,
+      );
+      console.table(manualReview);
     }
 
     const sortedThresholds = sortThresholds(newThresholds);
@@ -101,6 +124,33 @@ async function main() {
       rootLogger.error(`Error writing ${config} config: ${e}`);
     }
   }
+}
+
+function handleDesiredRelayerBalanceOverride(
+  chain: string,
+  override: string,
+  configType: BalanceThresholdType,
+): string | undefined {
+  if (override === '0') {
+    // zero balance covers two cases:
+    // 1. new chain: we don't want key funder to attempt fund the chain and we don't want alerting for now
+    // 2. special cases where the relayer is not in use and balance should be 0, covers the osmosis case
+    if (configType === BalanceThresholdType.DesiredRelayerBalance) {
+      return override;
+    } else {
+      return undefined;
+    }
+  }
+
+  // derive a new daily burn threshold based on the override
+  const dailyRelayerBurnOverride =
+    parseFloat(override) / RELAYER_BALANCE_TARGET_DAYS;
+
+  // calculate the new threshold based on the override using config multiplier
+  return formatBalanceThreshold(
+    dailyRelayerBurnOverride *
+      balanceThresholdConfigMapping[configType].dailyRelayerBurnMultiplier,
+  ).toString();
 }
 
 main()

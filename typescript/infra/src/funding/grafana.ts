@@ -13,7 +13,7 @@ import { fetchGCPSecret } from '../utils/gcloud.js';
 
 export const logger = rootLogger.child({ module: 'grafana' });
 
-export function formatDailyRelayerBurn(dailyRelayerBurn: number): number {
+export function formatBalanceThreshold(dailyRelayerBurn: number): number {
   return Number(dailyRelayerBurn.toPrecision(3));
 }
 
@@ -197,11 +197,9 @@ ${config.queryTemplate.footer}
 export function sortThresholds(
   newThresholds: ChainMap<string>,
 ): ChainMap<string> {
-  const orderedThresholds: ChainMap<string> = {};
-  Object.keys(newThresholds)
-    .sort()
-    .forEach((key) => {
-      orderedThresholds[key] = newThresholds[key];
-    });
-  return orderedThresholds;
+  return Object.fromEntries(
+    Object.entries(newThresholds).sort(([keyA], [keyB]) =>
+      keyA.localeCompare(keyB),
+    ),
+  );
 }
