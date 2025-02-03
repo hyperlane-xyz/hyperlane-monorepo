@@ -20,6 +20,7 @@
     "@typechain/hardhat": "^9.1.0",
     "@types/node": "^18.14.5",
     "chai": "^4.5.0",
+    "eslint": "^9.15.0",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
     "hardhat": "^2.22.2",
