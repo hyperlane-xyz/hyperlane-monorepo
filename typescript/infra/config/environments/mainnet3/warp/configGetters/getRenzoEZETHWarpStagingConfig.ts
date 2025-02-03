@@ -19,7 +19,7 @@ const xERC20: Record<(typeof chainsToDeploy)[number], string> = {
   swell: '0x585afea249031Ea4168A379F664e91dFc5F77E7D',
 };
 
-export const ezEthSafes: Record<string, string> = {
+export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   arbitrum: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
   optimism: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
   base: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
