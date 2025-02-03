@@ -181,12 +181,14 @@ pub fn get_sealevel_path(workspace_path: &Path) -> PathBuf {
 
 /// Returns absolute path to typescript infra directory
 /// `/<...>/hyperlane-monorepo/typescript/infra`
-pub fn get_ts_infra_path(workspace_path: &Path) -> PathBuf {
-    concat_path(
-        workspace_path
-            .parent()
-            .and_then(|p| p.parent())
-            .expect("workspace path has no parent x2"),
-        "typescript/infra",
-    )
+pub fn get_ts_infra_path() -> PathBuf {
+    let output = Command::new("git")
+        .arg("rev-parse")
+        .arg("--show-toplevel")
+        .output()
+        .expect("Failed to get git workspace path")
+        .stdout;
+    let path_str = String::from_utf8(output).expect("Failed to parse workspace path");
+    let git_workspace_path = PathBuf::from(path_str.trim());
+    concat_path(git_workspace_path, "typescript/infra")
 }

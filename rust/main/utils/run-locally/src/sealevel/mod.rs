@@ -1,5 +1,5 @@
 pub mod solana;
-pub mod termination_invariant;
+pub mod termination_invariants;
 
 use std::{
     fs,
@@ -19,7 +19,7 @@ use crate::{
     long_running_processes_exited_check,
     metrics::agent_balance_sum,
     program::Program,
-    sealevel::{solana::*, termination_invariant::*},
+    sealevel::{solana::*, termination_invariants::*},
     utils::{
         concat_path, get_sealevel_path, get_ts_infra_path, get_workspace_path, make_static,
         TaskHandle,
@@ -32,7 +32,7 @@ use crate::{
 pub const SOL_MESSAGES_EXPECTED: u32 = 20;
 pub const SOL_MESSAGES_WITH_NON_MATCHING_IGP: u32 = 1;
 
-/// These private keys are from hardhat/anvil's testing accounts.
+/// These private keys are from the solana-test-validator network
 const RELAYER_KEYS: &[&str] = &[
     // sealeveltest1
     "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
@@ -61,7 +61,7 @@ fn run_locally() {
 
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
-    let ts_infra_path = get_ts_infra_path(&workspace_path);
+    let ts_infra_path = get_ts_infra_path();
     log!(
         "Paths:\n{:?}\n{:?}\n{:?}",
         workspace_path,
@@ -243,15 +243,6 @@ fn run_locally() {
         .join();
     state.push_agent(scraper_env.spawn("SCR", None));
 
-    // spawn the rest of the validators
-    for (i, validator_env) in validator_envs.into_iter().enumerate() {
-        let validator = validator_env.spawn(
-            make_static(format!("VL{}", 1 + i)),
-            Some(AGENT_LOGGING_DIR.as_ref()),
-        );
-        state.push_agent(validator);
-    }
-
     // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
     for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
         initiate_solana_hyperlane_transfer(
@@ -261,6 +252,16 @@ fn run_locally() {
         .join();
     }
 
+    // spawn validators
+    for (i, validator_env) in validator_envs.into_iter().enumerate() {
+        let validator = validator_env.spawn(
+            make_static(format!("VL{}", 1 + i)),
+            Some(AGENT_LOGGING_DIR.as_ref()),
+        );
+        state.push_agent(validator);
+    }
+
+    // spawn relayer
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
 
     // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor

@@ -35,7 +35,7 @@ use program::Program;
 use relayer::msg::pending_message::RETRIEVED_MESSAGE_LOG;
 use tempfile::{tempdir, TempDir};
 use utils::get_matching_lines;
-use utils::{get_ts_infra_path, get_workspace_path};
+use utils::get_ts_infra_path;
 
 use crate::{
     config::Config,
@@ -161,8 +161,7 @@ fn main() -> ExitCode {
     let config = Config::load();
     log!("Running with config: {:?}", config);
 
-    let workspace_path = get_workspace_path();
-    let ts_infra_path = get_ts_infra_path(&workspace_path);
+    let ts_infra_path = get_ts_infra_path();
 
     let validator_origin_chains = ["test1", "test2", "test3"].to_vec();
     let validator_keys = ETH_VALIDATOR_KEYS.to_vec();

@@ -5,10 +5,7 @@ use maplit::hashmap;
 use crate::{
     config::Config,
     fetch_metric,
-    invariants::{
-        relayer_balance_check, relayer_termination_invariants_met,
-        scraper_termination_invariants_met,
-    },
+    invariants::{relayer_termination_invariants_met, scraper_termination_invariants_met},
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
     RELAYER_METRICS_PORT,
@@ -32,30 +29,19 @@ pub fn termination_invariants_met(
 
     // Also ensure the counter is as expected (total number of messages), summed
     // across all mailboxes.
-    let msg_processed_count = fetch_metric(
-        RELAYER_METRICS_PORT,
-        "hyperlane_messages_processed_count",
-        &hashmap! {},
-    )?
-    .iter()
-    .sum::<u32>();
-
-    let gas_payment_events_count = fetch_metric(
-        RELAYER_METRICS_PORT,
-        "hyperlane_contract_sync_stored_events",
-        &hashmap! {"data_type" => "gas_payments"},
-    )?
-    .iter()
-    .sum::<u32>();
+    let msg_processed_count = fetch_relayer_message_processed_count()?;
+    let gas_payment_events_count = fetch_relayer_gas_payment_event_count()?;
 
     if !relayer_termination_invariants_met(
         config,
+        starting_relayer_balance,
         msg_processed_count,
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched,
         sol_messages_with_non_matching_igp,
-        total_messages_expected + sol_messages_with_non_matching_igp,
+        0,
+        sol_messages_with_non_matching_igp,
     )? {
         return Ok(false);
     }
@@ -70,10 +56,6 @@ pub fn termination_invariants_met(
         total_messages_dispatched,
         total_messages_expected,
     )? {
-        return Ok(false);
-    }
-
-    if !relayer_balance_check(starting_relayer_balance)? {
         return Ok(false);
     }
 

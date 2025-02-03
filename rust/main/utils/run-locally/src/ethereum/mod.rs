@@ -19,7 +19,7 @@ pub fn start_anvil(config: Arc<Config>) -> AgentHandles {
     log!("Installing typescript dependencies...");
 
     let workspace_path = get_workspace_path();
-    let ts_infra_path = get_ts_infra_path(&workspace_path);
+    let ts_infra_path = get_ts_infra_path();
 
     let yarn_monorepo = Program::new("yarn").working_dir(workspace_path);
     if !config.is_ci_env {
