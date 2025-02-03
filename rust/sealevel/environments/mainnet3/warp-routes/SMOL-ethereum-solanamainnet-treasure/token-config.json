@@ -20,6 +20,6 @@
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
     "name": "SMOL",
     "symbol": "SMOL",
-    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/5e76a6b754fc150cf7ba7c2970be344cee9f29be/deployments/warp_routes/SMOL/metadata.json"
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/cd3a66849bcb252404ea63a389121cab4d71eb87/deployments/warp_routes/SMOL/metadata.json"
   }
 }
