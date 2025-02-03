@@ -171,7 +171,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // aren't accounted for directly in the gas price.
     arbitrum: 0.5,
     ancient8: 0.5,
-    base: 0.5,
+    base: 0.25,
     blast: 0.5,
     bob: 0.5,
     fraxtal: 0.5,
@@ -179,7 +179,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     mantapacific: 0.5,
     mantle: 0.5,
     mode: 0.5,
-    optimism: 0.5,
+    optimism: 0.25,
     polygonzkevm: 0.5,
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 1.5,

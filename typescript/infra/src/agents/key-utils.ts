@@ -1,5 +1,4 @@
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 
 import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import { Address, objMap, rootLogger } from '@hyperlane-xyz/utils';
