@@ -121,7 +121,7 @@ export const getRenzoPZETHWarpConfig = async (): Promise<
                   },
                 ],
               },
-              hook: getRenzoHook(defaultHook, chain),
+              hook: getRenzoHook(defaultHook, chain, ezEthSafes[chain]),
               proxyAdmin: existingProxyAdmins[chain],
             },
           ];
