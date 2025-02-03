@@ -1,4 +1,5 @@
 import { stringify as yamlStringify } from 'yaml';
+import { z } from 'zod';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
@@ -10,6 +11,7 @@ import {
   EvmCoreModule,
   ExplorerLicenseType,
 } from '@hyperlane-xyz/sdk';
+import { DeployedCoreAddressesSchema } from '@hyperlane-xyz/sdk';
 
 import { MINIMUM_CORE_DEPLOY_GAS } from '../consts.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
@@ -29,6 +31,8 @@ interface DeployParams {
   context: WriteCommandContext;
   chain: ChainName;
   config: CoreConfig;
+  fix?: boolean;
+  deploymentPlan?: Record<keyof DeployedCoreAddresses, boolean>;
 }
 
 interface ApplyParams extends DeployParams {
@@ -39,8 +43,8 @@ interface ApplyParams extends DeployParams {
  * Executes the core deploy command.
  */
 export async function runCoreDeploy(params: DeployParams) {
-  const { context, config } = params;
-  let chain = params.chain;
+  const { context, config, fix } = params;
+  let { chain } = params;
 
   const {
     isDryRun,
@@ -65,12 +69,57 @@ export async function runCoreDeploy(params: DeployParams) {
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
 
+  let existingAddresses: DeployedCoreAddresses | undefined;
+  let deploymentPlan: Record<keyof DeployedCoreAddresses, boolean> | undefined;
+
+  if (fix) {
+    existingAddresses = (await registry.getChainAddresses(
+      chain,
+    )) as DeployedCoreAddresses;
+    if (existingAddresses) {
+      // Get required fields from the schema (those that are z.string() without .optional())
+      const requiredContracts = Object.entries(
+        DeployedCoreAddressesSchema.shape,
+      )
+        .filter(
+          ([_, schema]) =>
+            schema instanceof z.ZodString && !schema.isOptional(),
+        )
+        .map(([key]) => key) as Array<keyof DeployedCoreAddresses>;
+
+      const missingContracts = requiredContracts.filter(
+        (contract) => !existingAddresses?.[contract],
+      );
+
+      if (missingContracts.length === 0) {
+        logGreen('All core contracts already deployed, nothing to do');
+        process.exit(0);
+      }
+
+      // Create a deployment plan indicating which contracts need to be deployed
+      deploymentPlan = Object.fromEntries(
+        requiredContracts.map((contract) => [
+          contract,
+          !existingAddresses?.[contract], // true means needs deployment
+        ]),
+      ) as Record<keyof DeployedCoreAddresses, boolean>;
+
+      logBlue(
+        `Found existing core contracts, will deploy missing ones: ${missingContracts.join(
+          ', ',
+        )}`,
+      );
+    }
+  }
+
   const signer = multiProvider.getSigner(chain);
 
   const deploymentParams: DeployParams = {
     context: { ...context, signer },
     chain,
     config,
+    fix,
+    deploymentPlan,
   };
 
   await runDeployPlanStep(deploymentParams);
@@ -97,7 +146,9 @@ export async function runCoreDeploy(params: DeployParams) {
     config,
     multiProvider,
     contractVerifier,
-  });
+    existingAddresses,
+    deploymentPlan,
+  } as const);
 
   await completeDeploy(context, 'core', initialBalances, userAddress, [chain]);
   const deployedAddresses = evmCoreModule.serialize();
@@ -105,7 +156,10 @@ export async function runCoreDeploy(params: DeployParams) {
   if (!isDryRun) {
     await registry.updateChain({
       chainName: chain,
-      addresses: deployedAddresses,
+      addresses: {
+        ...existingAddresses,
+        ...deployedAddresses,
+      },
     });
   }
 

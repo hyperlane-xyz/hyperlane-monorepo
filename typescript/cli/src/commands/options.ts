@@ -253,3 +253,9 @@ export const avsChainCommandOption: Options = {
   demandOption: true,
   choices: ['holesky', 'ethereum'],
 };
+
+export const fixCommandOption = {
+  type: 'boolean',
+  description: 'Only deploy missing contracts while preserving existing ones',
+  default: false,
+} as const;
