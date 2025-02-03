@@ -1,3 +1,5 @@
+import { execSync } from 'child_process';
+
 import { DockerConfig } from '../config/agent/agent.js';
 import {
   HelmChartConfig,
@@ -210,5 +212,20 @@ export abstract class HelmManager<T = HelmValues> {
     );
     // Split on new lines and remove empty strings
     return output.split('\n').filter(Boolean);
+  }
+
+  static runK8sCommand(
+    command: string,
+    podId: string,
+    namespace: string,
+    args: string[] = [],
+  ) {
+    const argsString = args.join(' ');
+    return execSync(
+      `kubectl ${command} ${podId} -n ${namespace} ${argsString}`,
+      {
+        encoding: 'utf-8',
+      },
+    );
   }
 }
