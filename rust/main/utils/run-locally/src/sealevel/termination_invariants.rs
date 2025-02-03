@@ -2,7 +2,10 @@ use std::path::Path;
 
 use crate::{
     config::Config,
-    invariants::{relayer_termination_invariants_met, scraper_termination_invariants_met},
+    invariants::{
+        relayer_termination_invariants_met, scraper_termination_invariants_met,
+        RelayerTerminationInvariantParams,
+    },
     logging::log,
     sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
     server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
@@ -29,17 +32,18 @@ pub fn termination_invariants_met(
     let msg_processed_count = fetch_relayer_message_processed_count()?;
     let gas_payment_events_count = fetch_relayer_gas_payment_event_count()?;
 
-    if !relayer_termination_invariants_met(
+    let params = RelayerTerminationInvariantParams {
         config,
         starting_relayer_balance,
         msg_processed_count,
         gas_payment_events_count,
         total_messages_expected,
         total_messages_dispatched,
-        sol_messages_with_non_matching_igp,
-        0,
-        sol_messages_with_non_matching_igp,
-    )? {
+        submitter_queue_length_expected: sol_messages_with_non_matching_igp,
+        non_matching_igp_message_count: 0,
+        double_insertion_message_count: sol_messages_with_non_matching_igp,
+    };
+    if !relayer_termination_invariants_met(params)? {
         return Ok(false);
     }
 

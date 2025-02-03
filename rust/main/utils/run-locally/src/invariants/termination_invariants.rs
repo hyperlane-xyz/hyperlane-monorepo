@@ -30,17 +30,18 @@ pub fn termination_invariants_met(
     let msg_processed_count = fetch_relayer_message_processed_count()?;
     let gas_payment_events_count = fetch_relayer_gas_payment_event_count()?;
 
-    if !relayer_termination_invariants_met(
+    let params = RelayerTerminationInvariantParams {
         config,
         starting_relayer_balance,
         msg_processed_count,
         gas_payment_events_count,
         total_messages_expected,
-        total_messages_expected,
-        ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
-        0,
-        (config.kathy_messages as u32 / 4) * 2,
-    )? {
+        total_messages_dispatched: total_messages_expected,
+        submitter_queue_length_expected: ZERO_MERKLE_INSERTION_KATHY_MESSAGES,
+        non_matching_igp_message_count: 0,
+        double_insertion_message_count: (config.kathy_messages as u32 / 4) * 2,
+    };
+    if !relayer_termination_invariants_met(params)? {
         return Ok(false);
     }
 
@@ -56,19 +57,35 @@ pub fn termination_invariants_met(
     Ok(true)
 }
 
+pub struct RelayerTerminationInvariantParams<'a> {
+    pub config: &'a Config,
+    pub starting_relayer_balance: f64,
+    pub msg_processed_count: u32,
+    pub gas_payment_events_count: u32,
+    pub total_messages_expected: u32,
+    pub total_messages_dispatched: u32,
+    pub submitter_queue_length_expected: u32,
+    pub non_matching_igp_message_count: u32,
+    pub double_insertion_message_count: u32,
+}
+
 /// returns false if invariants are not met
 /// returns true if invariants are met
 pub fn relayer_termination_invariants_met(
-    config: &Config,
-    starting_relayer_balance: f64,
-    msg_processed_count: u32,
-    gas_payment_events_count: u32,
-    total_messages_expected: u32,
-    total_messages_dispatched: u32,
-    submitter_queue_length_expected: u32,
-    non_matching_igp_message_count: u32,
-    double_insertion_message_count: u32,
+    params: RelayerTerminationInvariantParams,
 ) -> eyre::Result<bool> {
+    let RelayerTerminationInvariantParams {
+        config,
+        starting_relayer_balance,
+        msg_processed_count,
+        gas_payment_events_count,
+        total_messages_expected,
+        total_messages_dispatched,
+        submitter_queue_length_expected,
+        non_matching_igp_message_count,
+        double_insertion_message_count,
+    } = params;
+
     log!("Checking relayer termination invariants");
 
     let lengths = fetch_metric(
