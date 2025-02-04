@@ -45,6 +45,7 @@ export async function contextMiddleware(argv: Record<string, any>) {
     disableProxy: argv.disableProxy,
     skipConfirmation: argv.yes,
     strategyPath: argv.strategy,
+    fixFactories: argv.fixFactories,
   };
   if (!isDryRun && settings.fromAddress)
     throw new Error(
@@ -106,6 +107,7 @@ export async function getContext({
   skipConfirmation,
   disableProxy = false,
   strategyPath,
+  fixFactories,
 }: ContextSettings): Promise<CommandContext> {
   const registry = getRegistry(registryUri, registryOverrideUri, !disableProxy);
 
@@ -128,6 +130,7 @@ export async function getContext({
     skipConfirmation: !!skipConfirmation,
     signerAddress,
     strategyPath,
+    fixFactories,
   } as CommandContext;
 }
 

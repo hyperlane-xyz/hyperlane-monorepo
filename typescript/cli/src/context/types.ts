@@ -18,6 +18,7 @@ export interface ContextSettings {
   disableProxy?: boolean;
   skipConfirmation?: boolean;
   strategyPath?: string;
+  fixFactories?: boolean;
 }
 
 export interface CommandContext {
@@ -30,6 +31,7 @@ export interface CommandContext {
   signerAddress?: string;
   warpCoreConfig?: WarpCoreConfig;
   strategyPath?: string;
+  fixFactories?: boolean;
 }
 
 export interface WriteCommandContext extends CommandContext {
