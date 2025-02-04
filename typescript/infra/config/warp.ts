@@ -45,7 +45,7 @@ import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/war
 import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
-import { getGithubRegistry } from './registry.js';
+import { getMergedRegistry } from './registry.js';
 
 type WarpConfigGetter = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -96,7 +96,7 @@ async function getConfigFromGithub(
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const warpRoute = await getGithubRegistry().getWarpDeployConfig(warpRouteId);
+  const warpRoute = await getMergedRegistry().getWarpDeployConfig(warpRouteId);
   assert(warpRoute, `Warp route Config not found for ${warpRouteId}`);
   return warpRoute;
 }
