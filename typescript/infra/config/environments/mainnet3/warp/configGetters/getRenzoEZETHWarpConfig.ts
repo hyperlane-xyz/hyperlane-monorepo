@@ -16,10 +16,8 @@ import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
-import rawTokenPrices from '../../tokenPrices.json';
 
-const tokenPrices: ChainMap<string> = rawTokenPrices;
-const chainsToDeploy = [
+export const chainsToDeploy = [
   'arbitrum',
   'optimism',
   'base',
@@ -36,6 +34,21 @@ const chainsToDeploy = [
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
+const tokenPrices: ChainMap<string> = {
+  arbitrum: '3157.26',
+  optimism: '3157.26',
+  base: '3157.26',
+  blast: '3157.26',
+  bsc: '673.59',
+  mode: '3157.26',
+  linea: '3157.26',
+  ethereum: '3157.26',
+  fraxtal: '3168.75',
+  zircuit: '3157.26',
+  taiko: '3157.26',
+  sei: '0.354988',
+  swell: '3157.26',
+};
 export function getProtocolFee(chain: ChainName) {
   return (0.5 / Number(tokenPrices[chain])).toFixed(10).toString(); // ~$0.50 USD
 }
@@ -43,6 +56,7 @@ export function getProtocolFee(chain: ChainName) {
 export function getRenzoHook(
   defaultHook: Address,
   chain: ChainName,
+  owner: Address,
 ): HookConfig {
   return {
     type: HookType.AGGREGATION,
@@ -50,8 +64,8 @@ export function getRenzoHook(
       defaultHook,
       {
         type: HookType.PROTOCOL_FEE,
-        owner: ezEthSafes[chain],
-        beneficiary: ezEthSafes[chain],
+        owner: owner,
+        beneficiary: owner,
         protocolFee: parseEther(getProtocolFee(chain)).toString(),
         maxProtocolFee: MAX_PROTOCOL_FEE,
       },
@@ -212,7 +226,7 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
   },
 };
 
-export const ezEthSafes: Record<string, string> = {
+export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   arbitrum: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
   optimism: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   base: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
@@ -279,100 +293,122 @@ const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
   },
 };
 
-export const getRenzoEZETHWarpConfig = async (): Promise<
-  ChainMap<HypTokenRouterConfig>
-> => {
-  const config = getEnvironmentConfig('mainnet3');
-  const multiProvider = await config.getMultiProvider();
-  const registry = await getMainnet3Registry();
+export function getRenzoEZETHWarpConfigGenerator(
+  ezEthSafes: Record<string, string>,
+  xERC20: Record<(typeof chainsToDeploy)[number], string>,
+) {
+  return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
+    const config = getEnvironmentConfig('mainnet3');
+    const multiProvider = await config.getMultiProvider();
+    const registry = await getMainnet3Registry();
 
-  const validatorDiff = symmetricDifference(
-    new Set(chainsToDeploy),
-    new Set(Object.keys(ezEthValidators)),
-  );
-  const safeDiff = symmetricDifference(
-    new Set(chainsToDeploy),
-    new Set(Object.keys(ezEthSafes)),
-  );
-  const xERC20Diff = symmetricDifference(
-    new Set(chainsToDeploy),
-    new Set(Object.keys(xERC20)),
-  );
-  if (validatorDiff.size > 0) {
-    throw new Error(
-      `chainsToDeploy !== validatorConfig, diff is ${Array.from(
-        validatorDiff,
-      ).join(', ')}`,
+    const validatorDiff = symmetricDifference(
+      new Set(chainsToDeploy),
+      new Set(Object.keys(ezEthValidators)),
     );
-  }
-  if (safeDiff.size > 0) {
-    throw new Error(
-      `chainsToDeploy !== safeDiff, diff is ${Array.from(safeDiff).join(', ')}`,
+    const safeDiff = symmetricDifference(
+      new Set(chainsToDeploy),
+      new Set(Object.keys(ezEthSafes)),
     );
-  }
-  if (xERC20Diff.size > 0) {
-    throw new Error(
-      `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
-        ', ',
-      )}`,
+    const xERC20Diff = symmetricDifference(
+      new Set(chainsToDeploy),
+      new Set(Object.keys(xERC20)),
     );
-  }
+    const tokenPriceDiff = symmetricDifference(
+      new Set(chainsToDeploy),
+      new Set(Object.keys(tokenPrices)),
+    );
+    if (validatorDiff.size > 0) {
+      throw new Error(
+        `chainsToDeploy !== validatorConfig, diff is ${Array.from(
+          validatorDiff,
+        ).join(', ')}`,
+      );
+    }
+    if (safeDiff.size > 0) {
+      throw new Error(
+        `chainsToDeploy !== safeDiff, diff is ${Array.from(safeDiff).join(
+          ', ',
+        )}`,
+      );
+    }
+    if (xERC20Diff.size > 0) {
+      throw new Error(
+        `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
+          ', ',
+        )}`,
+      );
+    }
 
-  const tokenConfig = Object.fromEntries<HypTokenRouterConfig>(
-    await Promise.all(
-      chainsToDeploy.map(
-        async (chain): Promise<[string, HypTokenRouterConfig]> => {
-          const addresses = await registry.getChainAddresses(chain);
-          assert(addresses, 'No addresses in Registry');
-          const { mailbox } = addresses;
+    if (tokenPriceDiff.size > 0) {
+      throw new Error(
+        `chainsToDeploy !== xERC20Diff, diff is ${Array.from(xERC20Diff).join(
+          ', ',
+        )}`,
+      );
+    }
 
-          const mailboxContract = Mailbox__factory.connect(
-            mailbox,
-            multiProvider.getProvider(chain),
-          );
-          const defaultHook = await mailboxContract.defaultHook();
-          const ret: [string, HypTokenRouterConfig] = [
-            chain,
-            {
-              isNft: false,
-              type:
-                chain === lockboxChain
-                  ? TokenType.XERC20Lockbox
-                  : TokenType.XERC20,
-              token: chain === lockboxChain ? lockbox : xERC20[chain],
-              owner: ezEthSafes[chain],
-              gas: warpRouteOverheadGas,
+    const tokenConfig = Object.fromEntries<HypTokenRouterConfig>(
+      await Promise.all(
+        chainsToDeploy.map(
+          async (chain): Promise<[string, HypTokenRouterConfig]> => {
+            const addresses = await registry.getChainAddresses(chain);
+            assert(addresses, 'No addresses in Registry');
+            const { mailbox } = addresses;
+
+            const mailboxContract = Mailbox__factory.connect(
               mailbox,
-              interchainSecurityModule: {
-                type: IsmType.AGGREGATION,
-                threshold: 2,
-                modules: [
-                  {
-                    type: IsmType.ROUTING,
-                    owner: ezEthSafes[chain],
-                    domains: buildAggregationIsmConfigs(
-                      chain,
-                      chainsToDeploy,
-                      ezEthValidators,
-                    ),
-                  },
-                  {
-                    type: IsmType.FALLBACK_ROUTING,
-                    domains: {},
-                    owner: ezEthSafes[chain],
-                  },
-                ],
+              multiProvider.getProvider(chain),
+            );
+            const defaultHook = await mailboxContract.defaultHook();
+            const ret: [string, HypTokenRouterConfig] = [
+              chain,
+              {
+                isNft: false,
+                type:
+                  chain === lockboxChain
+                    ? TokenType.XERC20Lockbox
+                    : TokenType.XERC20,
+                token: chain === lockboxChain ? lockbox : xERC20[chain],
+                owner: ezEthSafes[chain],
+                gas: warpRouteOverheadGas,
+                mailbox,
+                interchainSecurityModule: {
+                  type: IsmType.AGGREGATION,
+                  threshold: 2,
+                  modules: [
+                    {
+                      type: IsmType.ROUTING,
+                      owner: ezEthSafes[chain],
+                      domains: buildAggregationIsmConfigs(
+                        chain,
+                        chainsToDeploy,
+                        ezEthValidators,
+                      ),
+                    },
+                    {
+                      type: IsmType.FALLBACK_ROUTING,
+                      domains: {},
+                      owner: ezEthSafes[chain],
+                    },
+                  ],
+                },
+                hook: getRenzoHook(defaultHook, chain, ezEthSafes[chain]),
+                proxyAdmin: existingProxyAdmins[chain],
               },
-              hook: getRenzoHook(defaultHook, chain),
-              proxyAdmin: existingProxyAdmins[chain],
-            },
-          ];
+            ];
 
-          return ret;
-        },
+            return ret;
+          },
+        ),
       ),
-    ),
-  );
+    );
 
-  return tokenConfig;
-};
+    return tokenConfig;
+  };
+}
+
+export const getRenzoEZETHWarpConfig = getRenzoEZETHWarpConfigGenerator(
+  ezEthSafes,
+  xERC20,
+);

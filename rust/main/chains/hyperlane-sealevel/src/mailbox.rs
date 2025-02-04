@@ -29,7 +29,7 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    signer::{keypair::Keypair, Signer as _},
+    signer::Signer as _,
 };
 use tracing::{debug, info, instrument, warn};
 
@@ -40,13 +40,16 @@ use hyperlane_core::{
     ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 
-use crate::log_meta_composer::{
-    is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
-};
 use crate::tx_submitter::TransactionSubmitter;
 use crate::{
     account::{search_accounts_by_discriminator, search_and_validate_account},
     priority_fee::PriorityFeeOracle,
+};
+use crate::{
+    log_meta_composer::{
+        is_message_delivery_instruction, is_message_dispatch_instruction, LogMetaComposer,
+    },
+    SealevelKeypair,
 };
 use crate::{ConnectionConf, SealevelProvider, SealevelRpcClient};
 
@@ -79,7 +82,7 @@ pub struct SealevelMailbox {
     inbox: (Pubkey, u8),
     pub(crate) outbox: (Pubkey, u8),
     pub(crate) provider: SealevelProvider,
-    payer: Option<Keypair>,
+    payer: Option<SealevelKeypair>,
     priority_fee_oracle: Box<dyn PriorityFeeOracle>,
     tx_submitter: Box<dyn TransactionSubmitter>,
 }
@@ -89,7 +92,7 @@ impl SealevelMailbox {
     pub fn new(
         conf: &ConnectionConf,
         locator: ContractLocator,
-        payer: Option<Keypair>,
+        payer: Option<SealevelKeypair>,
     ) -> ChainResult<Self> {
         let provider = SealevelProvider::new(locator.domain.clone(), conf);
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
@@ -379,7 +382,7 @@ impl SealevelMailbox {
         Ok(inbox)
     }
 
-    fn get_payer(&self) -> ChainResult<&Keypair> {
+    fn get_payer(&self) -> ChainResult<&SealevelKeypair> {
         self.payer
             .as_ref()
             .ok_or_else(|| ChainCommunicationError::SignerUnavailable)
@@ -490,8 +493,10 @@ impl Mailbox for SealevelMailbox {
 
         let send_instant = std::time::Instant::now();
 
+        let rpc = self.tx_submitter.rpc_client().unwrap_or_else(|| self.rpc());
+
         // Wait for the transaction to be confirmed.
-        self.rpc().wait_for_transaction_confirmation(&tx).await?;
+        rpc.wait_for_transaction_confirmation(&tx).await?;
 
         // We expect time_to_confirm to fluctuate depending on the commitment level when submitting the
         // tx, but still use it as a proxy for tx latency to help debug.
@@ -499,8 +504,7 @@ impl Mailbox for SealevelMailbox {
 
         // TODO: not sure if this actually checks if the transaction was executed / reverted?
         // Confirm the transaction.
-        let executed = self
-            .rpc()
+        let executed = rpc
             .confirm_transaction_with_commitment(&signature, commitment)
             .await
             .map_err(|err| warn!("Failed to confirm inbox process transaction: {}", err))

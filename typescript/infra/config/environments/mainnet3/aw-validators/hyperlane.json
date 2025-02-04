@@ -1,4 +1,7 @@
 {
+  "abstract": {
+    "validators": ["0x2ef8ece5b51562e65970c7d36007baa43a1de685"]
+  },
   "ancient8": {
     "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
   },
@@ -152,6 +155,9 @@
   "fusemainnet": {
     "validators": ["0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9"]
   },
+  "glue": {
+    "validators": ["0xbe2ded12f7b023916584836506677ea89a0b6924"]
+  },
   "gnosis": {
     "validators": [
       "0xd4df66a859585678f2ea8357161d896be19cc1ca",
@@ -217,6 +223,9 @@
   },
   "mantle": {
     "validators": ["0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52"]
+  },
+  "matchain": {
+    "validators": ["0x8a052f7934b0626105f34f980c875ec03aaf82e8"]
   },
   "merlin": {
     "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
@@ -338,6 +347,9 @@
   "sonic": {
     "validators": ["0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7"]
   },
+  "sonicsvm": {
+    "validators": ["0xf21f46905d8d09f76bc8c503f856e5466bc5ffea"]
+  },
   "soon": {
     "validators": ["0x0e6723b3c1ed3db0c24347aa2cf16d28bc2a1f76"]
   },
@@ -370,6 +382,9 @@
   },
   "unichain": {
     "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
+  },
+  "unitzero": {
+    "validators": ["0x18818e3ad2012728465d394f2e3c0ea2357ae9c5"]
   },
   "vana": {
     "validators": ["0xfdf3b0dfd4b822d10cacb15c8ae945ea269e7534"]

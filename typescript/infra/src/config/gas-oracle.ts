@@ -1,6 +1,5 @@
 import { BigNumber as BigNumberJs } from 'bignumber.js';
-import chalk from 'chalk';
-import { BigNumber, ethers } from 'ethers';
+import { BigNumber } from 'ethers';
 
 import {
   ChainGasOracleParams,
@@ -18,16 +17,13 @@ import {
   ProtocolType,
   assert,
   convertDecimals,
-  convertDecimalsToIntegerString,
   fromWei,
+  rootLogger,
   toWei,
 } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
-import {
-  isEthereumProtocolChain,
-  mustGetChainNativeToken,
-} from '../utils/utils.js';
+import { mustGetChainNativeToken } from '../utils/utils.js';
 
 // gas oracle configs for each chain, which includes
 // a map for each chain's remote chains
@@ -175,7 +171,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     // aren't accounted for directly in the gas price.
     arbitrum: 0.5,
     ancient8: 0.5,
-    base: 0.5,
+    base: 0.25,
     blast: 0.5,
     bob: 0.5,
     fraxtal: 0.5,
@@ -183,7 +179,7 @@ function getMinUsdCost(local: ChainName, remote: ChainName): number {
     mantapacific: 0.5,
     mantle: 0.5,
     mode: 0.5,
-    optimism: 0.5,
+    optimism: 0.25,
     polygonzkevm: 0.5,
     // Scroll is more expensive than the rest due to higher L1 fees
     scroll: 1.5,
@@ -257,6 +253,21 @@ export function getAllStorageGasOracleConfigs(
   getOverhead: (local: ChainName, remote: ChainName) => number,
   applyMinUsdCost: boolean = true,
 ): AllStorageGasOracleConfigs {
+  // Ensure all chains have token prices and gas prices by adding stub values
+  chainNames.forEach((chain) => {
+    if (!tokenPrices[chain]) {
+      rootLogger.warn(`Missing token price for ${chain}, using default value`);
+      tokenPrices[chain] = '1';
+    }
+    if (!gasPrices[chain]) {
+      rootLogger.warn(`Missing gas price for ${chain}, using default value`);
+      gasPrices[chain] = {
+        amount: '1',
+        decimals: 9,
+      };
+    }
+  });
+
   return chainNames
     .filter((chain) => {
       // For now, only support Ethereum and Sealevel chains.

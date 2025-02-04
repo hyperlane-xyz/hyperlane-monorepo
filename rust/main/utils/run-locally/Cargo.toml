@@ -15,6 +15,7 @@ hyperlane-cosmos-native = { path = "../../chains/hyperlane-cosmos-native" }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true
+reqwest.workspace = true
 ripemd.workspace = true
 sha2.workspace = true
 serde.workspace = true

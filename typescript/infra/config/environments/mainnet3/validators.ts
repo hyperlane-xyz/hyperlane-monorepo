@@ -1503,5 +1503,57 @@ export const validatorChainConfig = (
         'trumpchain',
       ),
     },
+
+    abstract: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('abstract'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x2ef8ece5b51562e65970c7d36007baa43a1de685'],
+        },
+        'abstract',
+      ),
+    },
+    glue: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('glue'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xbe2ded12f7b023916584836506677ea89a0b6924'],
+        },
+        'glue',
+      ),
+    },
+    matchain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('matchain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x8a052f7934b0626105f34f980c875ec03aaf82e8'],
+        },
+        'matchain',
+      ),
+    },
+    unitzero: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('unitzero'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x18818e3ad2012728465d394f2e3c0ea2357ae9c5'],
+        },
+        'unitzero',
+      ),
+    },
+
+    sonicsvm: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('sonicsvm'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf21f46905d8d09f76bc8c503f856e5466bc5ffea'],
+        },
+        'sonicsvm',
+      ),
+    },
   };
 };
