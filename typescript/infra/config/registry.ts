@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import {
   ChainAddresses,
   GithubRegistry,
+  IRegistry,
   MergedRegistry,
   PartialRegistry,
   warpConfigToWarpAddresses,
@@ -17,7 +18,12 @@ import {
   getDomainId as resolveDomainId,
   getReorgPeriod as resolveReorgPeriod,
 } from '@hyperlane-xyz/sdk';
-import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  isHttpsUrl,
+  objFilter,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import type { DeployEnvironment } from '../src/config/environment.js';
 
@@ -64,13 +70,43 @@ export function getRegistry(): FileSystemRegistry {
   return registry;
 }
 
-export function getGithubRegistry(): GithubRegistry {
-  return new GithubRegistry({
-    proxyUrl: REGISTRY_PROXY,
-    logger: rootLogger.child({ module: 'infra-registry' }),
+/**
+ * Creates a new MergedRegistry using the provided URIs
+ * The intention of the MergedRegistry is to join the common data
+ * from a primary URI (In this case the DEFAULT_REGISTRY_URI/Adjacent registry)
+ * and an override one (such as a github directory)
+ * @returns a new MergedRegistry
+ */
+export function getMergedRegistry(): IRegistry {
+  const primaryRegistryUri = DEFAULT_REGISTRY_URI;
+  const overrideRegistryUri = process.env.REGISTRY_URI || '';
+  const logger = rootLogger.child({ module: 'MergedRegistry' });
+
+  logger.info(`Using ${primaryRegistryUri} as primary registry`);
+  logger.info(`Using ${overrideRegistryUri} as override registry`);
+  const registries = [primaryRegistryUri, overrideRegistryUri]
+    .map((uri) => uri.trim())
+    .filter((uri) => !!uri)
+    .map((uri, index) => {
+      if (isHttpsUrl(uri)) {
+        return new GithubRegistry({
+          uri,
+          logger: rootLogger.child({ module: 'infra-registry' }),
+          branch: process.env.REGISTRY_BRANCH || 'main',
+          proxyUrl: REGISTRY_PROXY,
+        });
+      } else {
+        return new FileSystemRegistry({
+          uri,
+          logger: rootLogger.child({ module: 'infra-registry' }),
+        });
+      }
+    });
+  return new MergedRegistry({
+    registries,
+    logger,
   });
 }
-
 export function getChains(): ChainName[] {
   return getRegistry().getChains();
 }
