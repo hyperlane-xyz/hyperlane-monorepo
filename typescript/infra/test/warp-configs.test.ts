@@ -20,7 +20,7 @@ const DEFAULT_TIMEOUT = 60000;
 describe('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
-  const warpIdsToCheck = Object.keys(warpConfigGetterMap); // TODO Fix this such that the ids to check will be from Github as it includes all the configs
+  let warpIdsToCheck: string[]; // TODO Fix this such that the ids to check will be from Github as it includes all the configs
   let multiProvider: MultiProvider;
   let configsFromGithub;
 
@@ -29,32 +29,39 @@ describe('Warp Configs', async function () {
     configsFromGithub = await getMergedRegistry(
       DEFAULT_GITHUB_REGISTRY,
     ).getWarpDeployConfigs();
+
+    warpIdsToCheck = Object.keys(configsFromGithub);
   });
 
   const envConfig = getEnvironmentConfig(ENV);
 
-  for (const warpRouteId of warpIdsToCheck) {
-    it(`should match Github Registry configs for ${warpRouteId}`, async function () {
-      const warpConfig = await getWarpConfig(
-        multiProvider,
-        envConfig,
-        warpRouteId,
-      );
-      const { mergedObject, isInvalid } = diffObjMerge(
-        warpConfig,
-        configsFromGithub![warpRouteId],
-      );
+  it('Each Warp Config', function () {
+    describe('', function () {
+      for (const warpRouteId of warpIdsToCheck) {
+        it(`should match Github Registry configs for ${warpRouteId}`, async function () {
+          this.timeout(DEFAULT_TIMEOUT);
+          const warpConfig = await getWarpConfig(
+            multiProvider,
+            envConfig,
+            warpRouteId,
+          );
+          const { mergedObject, isInvalid } = diffObjMerge(
+            warpConfig,
+            configsFromGithub![warpRouteId],
+          );
 
-      if (isInvalid) {
-        console.log('Differences', JSON.stringify(mergedObject, null, 2));
+          if (isInvalid) {
+            console.log('Differences', JSON.stringify(mergedObject, null, 2));
+          }
+
+          expect(
+            isInvalid,
+            `Registry config does not match Getter for ${warpRouteId}`,
+          ).to.be.false;
+        });
       }
-
-      expect(
-        isInvalid,
-        `Registry config does not match Getter for ${warpRouteId}`,
-      ).to.be.false;
     });
-  }
+  });
 
   it('should throw if warpRouteId is not found in either Getter nor Registry', async () => {
     const invalidWarpIds = '1111bla-bla-bla111';
