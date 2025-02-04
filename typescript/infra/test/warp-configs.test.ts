@@ -20,7 +20,6 @@ const DEFAULT_TIMEOUT = 60000;
 describe('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
-  console.log('ENV');
   const warpIdsToCheck = Object.keys(warpConfigGetterMap); // TODO Fix this such that the ids to check will be from Github as it includes all the configs
   let multiProvider: MultiProvider;
   let configsFromGithub;
