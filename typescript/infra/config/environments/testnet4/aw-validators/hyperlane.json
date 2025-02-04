@@ -34,6 +34,9 @@
   "camptestnet": {
     "validators": ["0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"]
   },
+  "chronicleyellowstone": {
+    "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
+  },
   "citreatestnet": {
     "validators": ["0x60d7380a41eb95c49be18f141efd2fde5e3dba20"]
   },
@@ -111,11 +114,5 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
-  },
-  "subtensortestnet": {
-    "validators": ["0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33"]
-  },
-  "chronicleyellowstone": {
-    "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
   }
 }
