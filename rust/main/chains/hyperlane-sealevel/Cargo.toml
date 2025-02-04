@@ -28,6 +28,7 @@ tracing.workspace = true
 url.workspace = true
 
 account-utils = { path = "../../../sealevel/libraries/account-utils" }
+hyperlane-application = { path = "../../applications/hyperlane-application" }
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "solana",
     "async",
@@ -46,5 +47,6 @@ hyperlane-sealevel-multisig-ism-message-id = { path = "../../../sealevel/program
 hyperlane-sealevel-validator-announce = { path = "../../../sealevel/programs/validator-announce", features = [
     "no-entrypoint",
 ] }
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 multisig-ism = { path = "../../../sealevel/libraries/multisig-ism" }
 serializable-account-meta = { path = "../../../sealevel/libraries/serializable-account-meta" }

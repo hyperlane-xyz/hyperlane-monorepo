@@ -1,11 +1,11 @@
-use axum::async_trait;
-use ethers::prelude::Selector;
-use h_cosmos::CosmosProvider;
 use std::{collections::HashMap, sync::Arc};
 
-use eyre::{eyre, Context, Result};
+use axum::async_trait;
+use ethers::prelude::Selector;
+use eyre::{eyre, Context, Report, Result};
 
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
+use hyperlane_application::ApplicationOperationVerifier;
 use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
     HyperlaneDomain, HyperlaneDomainProtocol, HyperlaneMessage, HyperlaneProvider, IndexMode,
@@ -191,6 +191,34 @@ impl ChainConf {
         self.index.clone()
     }
 
+    /// Try to convert the chain settings into an ApplicationOperationVerifier.
+    pub async fn build_application_operation_verifier(
+        &self,
+        _metrics: &CoreMetrics,
+    ) -> Result<Box<dyn ApplicationOperationVerifier>> {
+        let ctx = "Building application operation verifier";
+        let locator = self.locator(H256::zero());
+        let result: Result<Box<dyn ApplicationOperationVerifier>, Report> = match &self.connection {
+            ChainConnectionConf::Ethereum(_conf) => Ok(Box::new(
+                h_eth::application::EthereumApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Fuel(_) => todo!(),
+            ChainConnectionConf::Sealevel(conf) => {
+                let provider = h_sealevel::SealevelProvider::new(locator.domain.clone(), conf);
+                let verifier =
+                    h_sealevel::application::SealevelApplicationOperationVerifier::new(provider);
+                Ok(Box::new(verifier) as Box<dyn ApplicationOperationVerifier>)
+            }
+            ChainConnectionConf::Cosmos(_conf) => Ok(Box::new(
+                h_cosmos::application::CosmosApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+        };
+
+        result.context(ctx)
+    }
+
     /// Try to convert the chain settings into an HyperlaneProvider.
     pub async fn build_provider(
         &self,
@@ -209,7 +237,7 @@ impl ChainConf {
                 conf,
             )) as Box<dyn HyperlaneProvider>),
             ChainConnectionConf::Cosmos(conf) => {
-                let provider = CosmosProvider::new(
+                let provider = h_cosmos::CosmosProvider::new(
                     locator.domain.clone(),
                     conf.clone(),
                     locator.clone(),

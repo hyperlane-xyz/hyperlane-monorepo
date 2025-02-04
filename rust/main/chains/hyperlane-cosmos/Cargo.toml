@@ -19,8 +19,10 @@ derive-new = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 http = { workspace = true }
+hyperlane-application = { path = "../../applications/hyperlane-application" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
 hyperlane-cosmwasm-interface.workspace = true
+hyperlane-warp-route = { path = "../../applications/hyperlane-warp-route" }
 hyper = { workspace = true }
 hyper-tls = { workspace = true }
 ibc-proto = { workspace = true }

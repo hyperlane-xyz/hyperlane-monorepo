@@ -253,10 +253,13 @@ pub enum ReprepareReason {
     /// The metadata building was refused for the message.
     #[strum(to_string = "Message metadata refused")]
     MessageMetadataRefused,
+    #[strum(to_string = "Application operation verification failed")]
+    /// Application operation verification failed
+    ApplicationOperationVerificationFailed,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]
-/// Reasons for repreparing an operation
+/// Reasons for confirming an operation
 /// WARNING: This enum is serialized to JSON and stored in the database, so to keep backwards compatibility, we shouldn't remove or rename any variants.
 /// Adding new variants is fine.
 pub enum ConfirmReason {

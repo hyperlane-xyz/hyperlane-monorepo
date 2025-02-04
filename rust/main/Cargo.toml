@@ -8,6 +8,8 @@ members = [
   "chains/hyperlane-fuel",
   "chains/hyperlane-sealevel",
   "ethers-prometheus",
+  "applications/hyperlane-application",
+  "applications/hyperlane-warp-route",
   "hyperlane-base",
   "hyperlane-core",
   "hyperlane-test",

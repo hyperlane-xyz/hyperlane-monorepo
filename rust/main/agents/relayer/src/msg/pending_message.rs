@@ -9,6 +9,11 @@ use std::{
 use async_trait::async_trait;
 use derive_new::new;
 use eyre::Result;
+use prometheus::{IntCounter, IntGauge};
+use serde::Serialize;
+use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
+
+use hyperlane_application::ApplicationOperationVerifier;
 use hyperlane_base::{
     db::{HyperlaneDb, HyperlaneRocksDB},
     CoreMetrics,
@@ -19,9 +24,6 @@ use hyperlane_core::{
     PendingOperation, PendingOperationResult, PendingOperationStatus, ReprepareReason, TryBatchAs,
     TxOutcome, H256, U256,
 };
-use prometheus::{IntCounter, IntGauge};
-use serde::Serialize;
-use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument, Level};
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
@@ -55,6 +57,8 @@ pub struct MessageContext {
     /// destination.
     pub transaction_gas_limit: Option<U256>,
     pub metrics: MessageSubmissionMetrics,
+    /// Application operation verifier
+    pub application_operation_verifier: Arc<dyn ApplicationOperationVerifier>,
 }
 
 /// A message that the submitter can and should try to submit.
@@ -301,7 +305,10 @@ impl PendingOperation for PendingMessage {
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
             Err(err) => {
-                return self.on_reprepare(Some(err), ReprepareReason::ErrorEstimatingGas);
+                let reason = self
+                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                    .await;
+                return self.on_reprepare(Some(err), reason);
             }
         };
 
@@ -371,7 +378,10 @@ impl PendingOperation for PendingMessage {
                 .await
                 .is_err()
             {
-                return self.on_reprepare::<String>(None, ReprepareReason::ErrorEstimatingGas);
+                let reason = self
+                    .clarify_reason(ReprepareReason::ErrorEstimatingGas)
+                    .await;
+                return self.on_reprepare::<String>(None, reason);
             }
         }
 
@@ -673,6 +683,26 @@ impl PendingMessage {
                 target + (rand::random::<u64>() % (6 * hour))
             }
         }))
+    }
+
+    async fn clarify_reason(&self, reason: ReprepareReason) -> ReprepareReason {
+        use hyperlane_application::ApplicationOperationVerifierError::*;
+        use ReprepareReason::ApplicationOperationVerificationFailed;
+
+        match self
+            .ctx
+            .application_operation_verifier
+            .verify(&self.app_context, &self.message)
+            .await
+        {
+            Ok(()) => reason,
+            Err(e) => match e {
+                InsufficientAmountError | MalformedMessageError(_) => {
+                    ApplicationOperationVerificationFailed
+                }
+                ChainCommunicationError(_) | UnknownApplicationError(_) => reason,
+            },
+        }
     }
 }
 

@@ -46,11 +46,12 @@ tracing.workspace = true
 typetag.workspace = true
 uuid.workspace = true
 
+hyperlane-application = { path = "../../applications/hyperlane-application" }
+hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-core = { path = "../../hyperlane-core", features = [
     "agent",
     "async",
 ] }
-hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
 hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
 
 [dev-dependencies]
