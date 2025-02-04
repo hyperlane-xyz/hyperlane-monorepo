@@ -1,22 +1,27 @@
 import { z } from 'zod';
 
+import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  CoreDeploymentPlan,
   DeployedCoreAddresses,
-  DeployedCoreAddressesSchema,
+  ProxyFactoryFactoriesAddresses,
+  ProxyFactoryFactoriesSchema,
 } from '@hyperlane-xyz/sdk';
 
-import { logBlue, logGreen } from '../logger.js';
+import { logGreen } from '../logger.js';
+
+export type FactoryDeployPlan = Record<
+  keyof ProxyFactoryFactoriesAddresses,
+  boolean
+>;
 
 /**
- * Creates a deployment plan based on required and existing contracts
+ * Creates a deployment plan for proxy factories based on existing deployments
  */
-export function createCoreDeploymentPlan(
-  existingAddresses: DeployedCoreAddresses | undefined,
-  fix: boolean,
-): CoreDeploymentPlan {
+export function planFactoryDeployments(
+  existingAddresses: ChainAddresses,
+): FactoryDeployPlan {
   // Get required fields from the schema (those that are z.string() without .optional())
-  const requiredContracts = Object.entries(DeployedCoreAddressesSchema.shape)
+  const requiredFactories = Object.entries(ProxyFactoryFactoriesSchema.shape)
     .filter(
       ([_, schema]) => schema instanceof z.ZodString && !schema.isOptional(),
     )
@@ -25,32 +30,24 @@ export function createCoreDeploymentPlan(
   if (!existingAddresses) {
     // If no existing addresses, deploy everything
     return Object.fromEntries(
-      requiredContracts.map((contract) => [contract, true]),
-    ) as CoreDeploymentPlan;
+      requiredFactories.map((factory) => [factory, true]),
+    ) as FactoryDeployPlan;
   }
 
-  const missingContracts = requiredContracts.filter(
-    (contract) => !existingAddresses[contract],
+  const missingFactories = requiredFactories.filter(
+    (factory) => !existingAddresses[factory],
   );
 
-  if (fix && missingContracts.length === 0) {
-    logGreen('All core contracts already deployed, nothing to do');
+  if (missingFactories.length === 0) {
+    logGreen('All core factories already deployed, nothing to do');
     process.exit(0);
   }
 
-  if (fix) {
-    logBlue(
-      `Found existing core contracts, will deploy missing ones: ${missingContracts.join(
-        ', ',
-      )}`,
-    );
-  }
-
-  // Create a deployment plan indicating which contracts need to be deployed
+  // Create a deployment plan indicating which factories need to be deployed
   return Object.fromEntries(
-    requiredContracts.map((contract) => [
-      contract,
-      !existingAddresses[contract], // true means needs deployment
+    requiredFactories.map((factory) => [
+      factory,
+      !existingAddresses[factory], // true means needs deployment
     ]),
-  ) as CoreDeploymentPlan;
+  ) as FactoryDeployPlan;
 }

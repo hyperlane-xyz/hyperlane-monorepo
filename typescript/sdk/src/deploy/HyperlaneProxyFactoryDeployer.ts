@@ -1,7 +1,6 @@
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts } from '../contracts/types.js';
-import { DeployedCoreAddresses } from '../core/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
@@ -21,7 +20,7 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
     multiProvider: MultiProvider,
     contractVerifier?: ContractVerifier,
     concurrentDeploy: boolean = false,
-    private deploymentPlan?: Record<keyof DeployedCoreAddresses, boolean>,
+    private factoryDeploymentPlan?: Record<string, boolean>,
   ) {
     super(multiProvider, proxyFactoryFactories, {
       logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
@@ -38,7 +37,10 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
       this.factories,
     ) as (keyof ProxyFactoryFactories)[]) {
       // Skip deployment if not in deployment plan
-      if (this.deploymentPlan && !this.deploymentPlan[factoryName]) {
+      if (
+        this.factoryDeploymentPlan &&
+        !this.factoryDeploymentPlan[factoryName]
+      ) {
         this.logger.debug(
           `Skipping ${factoryName} deployment as it's not in deployment plan`,
         );

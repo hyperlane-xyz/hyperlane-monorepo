@@ -4,7 +4,6 @@ import {
   Mailbox,
   Mailbox__factory,
   Ownable__factory,
-  ProxyAdmin__factory,
 } from '@hyperlane-xyz/core';
 import {
   Address,
@@ -27,7 +26,6 @@ import {
 import {
   CoreConfig,
   CoreConfigSchema,
-  CoreDeploymentPlan,
   DeployedCoreAddresses,
   DerivedCoreConfig,
 } from '../core/types.js';
@@ -38,6 +36,7 @@ import {
 } from '../deploy/contracts.js';
 import { proxyAdminUpdateTxs } from '../deploy/proxy.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
+import { HookFactories } from '../hook/contracts.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
@@ -53,6 +52,7 @@ import {
 import { EvmCoreReader } from './EvmCoreReader.js';
 import { EvmIcaModule } from './EvmIcaModule.js';
 import { HyperlaneCoreDeployer } from './HyperlaneCoreDeployer.js';
+import { CoreFactories } from './contracts.js';
 
 export class EvmCoreModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -264,24 +264,13 @@ export class EvmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
-    existingAddresses?: DeployedCoreAddresses;
-    deploymentPlan?: CoreDeploymentPlan;
   }): Promise<EvmCoreModule> {
-    const {
-      chain,
-      config,
-      multiProvider,
-      contractVerifier,
-      existingAddresses,
-      deploymentPlan,
-    } = params;
+    const { chain, config, multiProvider, contractVerifier } = params;
     const addresses = await EvmCoreModule.deploy({
       config,
       multiProvider,
       chain,
       contractVerifier,
-      existingAddresses,
-      deploymentPlan,
     });
 
     // Create CoreModule and deploy the Core contracts
@@ -303,46 +292,20 @@ export class EvmCoreModule extends HyperlaneModule<
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
     contractVerifier?: ContractVerifier;
-    existingAddresses?: DeployedCoreAddresses;
-    deploymentPlan?: CoreDeploymentPlan;
   }): Promise<DeployedCoreAddresses> {
-    const {
-      config,
-      multiProvider,
-      chain,
-      contractVerifier,
-      existingAddresses,
-      deploymentPlan,
-    } = params;
+    const { config, multiProvider, chain, contractVerifier } = params;
     const chainName = multiProvider.getChainName(chain);
 
-    // If we have existing addresses, use them as a base
-    const deployedAddresses: DeployedCoreAddresses = existingAddresses
-      ? { ...existingAddresses }
-      : ({} as DeployedCoreAddresses);
-
-    // Check if any ISM factories need to be deployed based on the deployment plan
-    const needsIsmFactories = deploymentPlan
-      ? Object.entries(proxyFactoryFactories).some(
-          ([key]) => deploymentPlan[key as keyof DeployedCoreAddresses],
-        )
-      : !existingAddresses; // If no plan, deploy all if no existing addresses
-
-    if (needsIsmFactories) {
-      const ismFactoryFactories = await EvmCoreModule.deployIsmFactories({
-        chainName,
-        config,
-        multiProvider,
-        contractVerifier,
-        existingAddresses,
-        deploymentPlan,
-      });
-      Object.assign(deployedAddresses, ismFactoryFactories);
-    }
+    const ismFactoryFactories = await EvmCoreModule.deployIsmFactories({
+      chainName,
+      config,
+      multiProvider,
+      contractVerifier,
+    });
 
     const ismFactory = new HyperlaneIsmFactory(
       attachContractsMap(
-        { [chainName]: deployedAddresses },
+        { [chainName]: ismFactoryFactories },
         proxyFactoryFactories,
       ),
       multiProvider,
@@ -352,90 +315,69 @@ export class EvmCoreModule extends HyperlaneModule<
       multiProvider,
       ismFactory,
       contractVerifier,
-      false,
-      undefined,
-      existingAddresses,
-      deploymentPlan,
     );
 
-    // Deploy proxyAdmin if it doesn't exist
-    if (!existingAddresses?.proxyAdmin) {
-      const proxyAdmin = await coreDeployer.deployContract(
-        chainName,
-        'proxyAdmin',
-        [],
-      );
-      deployedAddresses.proxyAdmin = proxyAdmin.address;
-    }
+    // Deploy proxyAdmin
+    const proxyAdmin = await coreDeployer.deployContract(
+      chainName,
+      'proxyAdmin',
+      [],
+    );
 
-    // Deploy Mailbox if it doesn't exist
-    if (!existingAddresses?.mailbox) {
-      const mailbox = await this.deployMailbox({
-        config,
-        coreDeployer,
-        proxyAdmin: deployedAddresses.proxyAdmin,
-        multiProvider,
-        chain,
-      });
-      deployedAddresses.mailbox = mailbox.address;
-    }
+    // Deploy Mailbox
+    const mailbox = await this.deployMailbox({
+      config,
+      coreDeployer,
+      proxyAdmin: proxyAdmin.address,
+      multiProvider,
+      chain,
+    });
 
-    // Deploy ICA ISM and Router if they don't exist
-    if (!existingAddresses?.interchainAccountRouter) {
-      const { interchainAccountRouter, interchainAccountIsm } = (
-        await EvmIcaModule.create({
-          chain: chainName,
-          multiProvider: multiProvider,
-          config: {
-            mailbox: deployedAddresses.mailbox,
-            owner: await multiProvider.getSigner(chain).getAddress(),
-          },
-          contractVerifier,
-        })
-      ).serialize();
-      deployedAddresses.interchainAccountRouter = interchainAccountRouter;
-      deployedAddresses.interchainAccountIsm = interchainAccountIsm;
-    }
+    // Deploy ICA ISM and Router
+    const { interchainAccountRouter, interchainAccountIsm } = (
+      await EvmIcaModule.create({
+        chain: chainName,
+        multiProvider: multiProvider,
+        config: {
+          mailbox: mailbox.address,
+          owner: await multiProvider.getSigner(chain).getAddress(),
+        },
+        contractVerifier,
+      })
+    ).serialize();
 
-    // Deploy Validator announce if it doesn't exist
-    if (!existingAddresses?.validatorAnnounce) {
-      const validatorAnnounce = (
-        await coreDeployer.deployValidatorAnnounce(
-          chainName,
-          deployedAddresses.mailbox,
-        )
-      ).address;
-      deployedAddresses.validatorAnnounce = validatorAnnounce;
-    }
+    // Deploy Validator announce
+    const validatorAnnounce = (
+      await coreDeployer.deployValidatorAnnounce(chainName, mailbox.address)
+    ).address;
 
-    // Deploy timelock controller if config.upgrade is set and it doesn't exist
-    if (config.upgrade && !existingAddresses?.timelockController) {
-      const timelockController = (
+    // Deploy timelock controller if config.upgrade is set
+    let timelockController;
+    if (config.upgrade) {
+      timelockController = (
         await coreDeployer.deployTimelock(chainName, config.upgrade.timelock)
       ).address;
-      deployedAddresses.timelockController = timelockController;
     }
 
-    // Deploy Test Recipient if it doesn't exist
-    if (!existingAddresses?.testRecipient) {
-      const mailbox = Mailbox__factory.connect(
-        deployedAddresses.mailbox,
-        multiProvider.getProvider(chain),
-      );
-      const testRecipient = (
-        await coreDeployer.deployTestRecipient(
-          chainName,
-          await mailbox.defaultIsm(),
-        )
-      ).address;
-      deployedAddresses.testRecipient = testRecipient;
-    }
+    // Deploy Test Recipient
+    const testRecipient = (
+      await coreDeployer.deployTestRecipient(
+        chainName,
+        await mailbox.defaultIsm(),
+      )
+    ).address;
+
+    // Obtain addresses of every contract created by the deployer
+    // and extract only the merkleTreeHook and interchainGasPaymaster
+    const serializedContracts = serializeContractsMap(
+      coreDeployer.deployedContracts as HyperlaneContractsMap<
+        CoreFactories & HookFactories
+      >,
+    );
+    const { merkleTreeHook, interchainGasPaymaster } =
+      serializedContracts[chainName];
 
     // Update the ProxyAdmin owner of the Mailbox if the config defines a different owner from the current signer
-    const proxyAdmin = ProxyAdmin__factory.connect(
-      deployedAddresses.proxyAdmin,
-      multiProvider.getProvider(chain),
-    );
     const currentProxyOwner = await proxyAdmin.owner();
     if (
       config?.proxyAdmin?.owner &&
@@ -451,7 +393,20 @@ export class EvmCoreModule extends HyperlaneModule<
       });
     }
 
-    return deployedAddresses;
+    // Set Core & extra addresses
+    return {
+      ...ismFactoryFactories,
+
+      proxyAdmin: proxyAdmin.address,
+      mailbox: mailbox.address,
+      interchainAccountRouter,
+      interchainAccountIsm,
+      validatorAnnounce,
+      timelockController,
+      testRecipient,
+      merkleTreeHook,
+      interchainGasPaymaster,
+    };
   }
 
   /**
@@ -463,77 +418,29 @@ export class EvmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
-    existingAddresses?: DeployedCoreAddresses;
-    deploymentPlan?: CoreDeploymentPlan;
+    factoryDeploymentPlan?: Record<string, boolean>;
   }): Promise<HyperlaneAddresses<ProxyFactoryFactories>> {
     const {
       chainName,
       config,
       multiProvider,
       contractVerifier,
-      existingAddresses,
-      deploymentPlan,
+      factoryDeploymentPlan,
     } = params;
 
-    // Initialize with existing addresses if in fix mode
-    const deployedFactories: HyperlaneAddresses<ProxyFactoryFactories> =
-      existingAddresses
-        ? {
-            domainRoutingIsmFactory: existingAddresses.domainRoutingIsmFactory,
-            staticAggregationIsmFactory:
-              existingAddresses.staticAggregationIsmFactory,
-            staticAggregationHookFactory:
-              existingAddresses.staticAggregationHookFactory,
-            staticMessageIdMultisigIsmFactory:
-              existingAddresses.staticMessageIdMultisigIsmFactory,
-            staticMerkleRootMultisigIsmFactory:
-              existingAddresses.staticMerkleRootMultisigIsmFactory,
-            staticMerkleRootWeightedMultisigIsmFactory:
-              existingAddresses.staticMerkleRootWeightedMultisigIsmFactory,
-            staticMessageIdWeightedMultisigIsmFactory:
-              existingAddresses.staticMessageIdWeightedMultisigIsmFactory,
-          }
-        : ({} as HyperlaneAddresses<ProxyFactoryFactories>);
-
-    // Only deploy factories that don't exist or are marked for deployment in the plan
     const proxyFactoryDeployer = new HyperlaneProxyFactoryDeployer(
       multiProvider,
       contractVerifier,
       false,
-      deploymentPlan,
+      factoryDeploymentPlan,
     );
 
-    // Check if we need to deploy any factories based on the deployment plan
-    const needsDeployment = Object.entries(proxyFactoryFactories).some(
-      ([key]) =>
-        !deployedFactories[key as keyof ProxyFactoryFactories] || // Missing factory
-        (deploymentPlan && deploymentPlan[key as keyof DeployedCoreAddresses]), // Or marked for deployment
-    );
+    // If no deployment plan, deploy all factories as before
+    const ismFactoriesFactory = await proxyFactoryDeployer.deploy({
+      [chainName]: config,
+    });
 
-    if (needsDeployment) {
-      const newFactories: HyperlaneContractsMap<ProxyFactoryFactories> =
-        await proxyFactoryDeployer.deploy({
-          [chainName]: config,
-        });
-
-      const serializedNewFactories =
-        serializeContractsMap(newFactories)[chainName];
-      // Only assign addresses for factories that need deployment
-      (
-        Object.keys(serializedNewFactories) as Array<
-          keyof ProxyFactoryFactories
-        >
-      ).forEach((key) => {
-        if (
-          !deployedFactories[key] || // Missing factory
-          (deploymentPlan && deploymentPlan[key as keyof DeployedCoreAddresses]) // Or marked for deployment
-        ) {
-          deployedFactories[key] = serializedNewFactories[key];
-        }
-      });
-    }
-
-    return deployedFactories;
+    return serializeContractsMap(ismFactoriesFactory)[chainName];
   }
 
   /**
