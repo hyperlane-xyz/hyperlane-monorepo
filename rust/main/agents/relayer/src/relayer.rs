@@ -445,6 +445,7 @@ impl Relayer {
                 })
             },
             CURSOR_INSTANTIATION_ATTEMPTS,
+            None,
         )
         .await
     }

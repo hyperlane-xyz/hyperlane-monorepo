@@ -37,6 +37,13 @@ pub enum SignerConf {
         /// Account address type for cosmos address
         account_address_type: AccountAddressType,
     },
+    /// Starknet Specific key
+    StarkKey {
+        /// Private key value
+        key: H256,
+        /// Starknet address
+        address: H256,
+    },
     /// Assume node will sign on RPC calls
     #[default]
     Node,
@@ -87,6 +94,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
             }
             SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")
+            }
+            SignerConf::StarkKey { .. } => {
+                bail!("starkKey signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
         })
@@ -164,5 +174,22 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
 impl ChainSigner for hyperlane_cosmos::Signer {
     fn address_string(&self) -> String {
         self.address.clone()
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_starknet::Signer {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::StarkKey { key, address } = conf {
+            Ok(hyperlane_starknet::Signer::new(key, address)?)
+        } else {
+            bail!(format!("{conf:?} key is not supported by starknet"));
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_starknet::Signer {
+    fn address_string(&self) -> String {
+        self.address.to_string()
     }
 }

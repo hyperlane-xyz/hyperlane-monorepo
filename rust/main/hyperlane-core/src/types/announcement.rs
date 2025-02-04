@@ -35,12 +35,10 @@ impl Debug for Announcement {
 #[async_trait]
 impl Signable for Announcement {
     fn signing_hash(&self) -> H256 {
+        let domain_hash = announcement_domain_hash(self.mailbox_address, self.mailbox_domain);
         H256::from_slice(
             Keccak256::new()
-                .chain(announcement_domain_hash(
-                    self.mailbox_address,
-                    self.mailbox_domain,
-                ))
+                .chain(domain_hash)
                 .chain(&self.storage_location)
                 .finalize()
                 .as_slice(),
