@@ -193,8 +193,8 @@ pub enum KnownHyperlaneDomain {
     SealevelTest2 = 13376,
     CosmosTest99990 = 99990,
     CosmosTest99991 = 99991,
-    CosmosTestNative1 = 75898671,
-    CosmosTestNative2 = 75898670,
+    CosmosTestNative1 = 75898670,
+    CosmosTestNative2 = 75898671,
 
     // -- Test chains --
     //

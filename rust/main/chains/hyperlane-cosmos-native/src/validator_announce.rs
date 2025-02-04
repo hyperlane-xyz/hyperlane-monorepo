@@ -99,7 +99,7 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
         };
 
         let any_msg = Any {
-            type_url: "/hyperlane.mailbox.v1.MsgAnnounceValidator".to_string(),
+            type_url: "/hyperlane.core.v1.MsgAnnounceValidator".to_string(),
             value: announce.encode_to_vec(),
         };
 

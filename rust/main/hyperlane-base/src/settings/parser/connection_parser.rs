@@ -221,7 +221,7 @@ pub fn build_cosmos_native_connection_conf(
         .get_opt_key("gasMultiplier")
         .parse_f64()
         .end()
-        .unwrap_or(1.4);
+        .unwrap_or(1.8);
 
     let contract_address_bytes = chain
         .chain(err)

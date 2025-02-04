@@ -56,7 +56,7 @@ impl CosmosNativeMailbox {
             relayer: signer,
         };
         Any {
-            type_url: "/hyperlane.mailbox.v1.MsgProcessMessage".to_string(),
+            type_url: "/hyperlane.core.v1.MsgProcessMessage".to_string(),
             value: process.encode_to_vec(),
         }
     }

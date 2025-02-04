@@ -7462,6 +7462,7 @@ dependencies = [
  "hyperlane-base",
  "hyperlane-core",
  "hyperlane-cosmos",
+ "hyperlane-cosmos-native",
  "hyperlane-cosmwasm-interface",
  "jobserver",
  "k256 0.13.4",

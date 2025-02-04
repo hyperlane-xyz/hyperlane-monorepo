@@ -46,7 +46,7 @@ impl CosmosNativeGasPaymaster {
             CosmosNativeProvider::new(locator.domain.clone(), conf.clone(), locator.clone(), None)?;
         Ok(CosmosNativeGasPaymaster {
             indexer: EventIndexer::new(
-                "hyperlane.mailbox.v1.GasPayment".to_string(),
+                "hyperlane.core.v1.GasPayment".to_string(),
                 Arc::new(provider),
             ),
             address: locator.address.clone(),

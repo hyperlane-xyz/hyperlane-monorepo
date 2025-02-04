@@ -35,10 +35,7 @@ impl CosmosNativeDeliveryIndexer {
     pub fn new(conf: ConnectionConf, locator: ContractLocator) -> ChainResult<Self> {
         let provider = CosmosNativeProvider::new(locator.domain.clone(), conf, locator, None)?;
         Ok(CosmosNativeDeliveryIndexer {
-            indexer: EventIndexer::new(
-                "hyperlane.mailbox.v1.Process".to_string(),
-                Arc::new(provider),
-            ),
+            indexer: EventIndexer::new("hyperlane.core.v1.Process".to_string(), Arc::new(provider)),
         })
     }
 

@@ -24,8 +24,9 @@ use hyperlane_core::{
     rpc_clients::{BlockNumberGetter, FallbackProvider},
     utils::{self, to_atto},
     AccountAddressType, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult,
-    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneProvider, HyperlaneProviderError,
-    LogMeta, ModuleType, TxnInfo, TxnReceiptInfo, H256, H512, U256,
+    ContractLocator, HyperlaneChain, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider,
+    HyperlaneProviderError, LogMeta, ModuleType, RawHyperlaneMessage, TxnInfo, TxnReceiptInfo,
+    H256, H512, U256,
 };
 use itertools::Itertools;
 use prost::Message;
@@ -148,8 +149,44 @@ impl CosmosNativeProvider {
         &self.rest
     }
 
+    fn check_msg_process(tx: &Tx) -> ChainResult<Option<H256>> {
+        // check for all transfer messages
+        let remote_transfers: Vec<Any> = tx
+            .body
+            .messages
+            .iter()
+            .filter(|a| a.type_url == "/hyperlane.core.v1.MsgProcessMessage")
+            .cloned()
+            .collect();
+
+        // right now one transaction can include max. one transfer
+        if remote_transfers.len() > 1 {
+            let msg = "transaction contains multiple execution messages";
+            Err(HyperlaneCosmosError::ParsingFailed(msg.to_owned()))?
+        }
+
+        let msg = remote_transfers.first();
+        match msg {
+            Some(msg) => {
+                let result = MsgProcessMessage::decode(msg.value.as_slice())
+                    .map_err(HyperlaneCosmosError::from)?;
+                let message: RawHyperlaneMessage = hex::decode(result.message)?;
+                let message = HyperlaneMessage::from(message);
+                Ok(Some(message.recipient))
+            }
+            None => Ok(None),
+        }
+    }
+
     // extract the contract address from the tx
+    // the tx is either a MsgPorcessMessage on the destination or a MsgRemoteTransfer on the origin
+    // we check for both tx types, if both are missing or an error occured while parsing we return the error
     fn contract(tx: &Tx) -> ChainResult<H256> {
+        // first check for the process message
+        if let Some(recipient) = Self::check_msg_process(tx)? {
+            return Ok(recipient);
+        }
+
         // check for all transfer messages
         let remote_transfers: Vec<Any> = tx
             .body
@@ -170,9 +207,7 @@ impl CosmosNativeProvider {
         })?;
         let result =
             MsgRemoteTransfer::decode(msg.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
-
-        let recipient = result.recipient;
-        let recipient: H256 = recipient.parse()?;
+        let recipient: H256 = result.recipient.parse()?;
         Ok(recipient)
     }
 

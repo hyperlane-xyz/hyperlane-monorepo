@@ -40,7 +40,7 @@ impl CosmosNativeTreeInsertionIndexer {
         let provider = Arc::new(provider);
         Ok(CosmosNativeTreeInsertionIndexer {
             indexer: EventIndexer::new(
-                "hyperlane.mailbox.v1.InsertedIntoTree".to_string(),
+                "hyperlane.core.v1.InsertedIntoTree".to_string(),
                 provider.clone(),
             ),
             provider,

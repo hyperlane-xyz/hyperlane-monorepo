@@ -41,10 +41,7 @@ impl CosmosNativeDispatchIndexer {
         let provider = Arc::new(provider);
 
         Ok(CosmosNativeDispatchIndexer {
-            indexer: EventIndexer::new(
-                "hyperlane.mailbox.v1.Dispatch".to_string(),
-                provider.clone(),
-            ),
+            indexer: EventIndexer::new("hyperlane.core.v1.Dispatch".to_string(), provider.clone()),
             provider,
             address: locator.address,
         })

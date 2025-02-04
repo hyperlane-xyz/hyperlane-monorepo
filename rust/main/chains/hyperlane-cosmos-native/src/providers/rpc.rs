@@ -197,7 +197,6 @@ impl RpcProvider {
             )));
         }
 
-        // this should always work as the response must have a default value
         let response = R::decode(response.value.as_slice()).map_err(HyperlaneCosmosError::from)?;
         Ok(response)
     }
@@ -342,6 +341,7 @@ impl RpcProvider {
 
         let sign_doc = self.generate_sign_doc(msgs, gas_limit).await?;
         let signer = self.get_signer()?;
+
         let signed_tx = sign_doc
             .sign(&signer.signing_key()?)
             .map_err(HyperlaneCosmosError::from)?;

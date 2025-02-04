@@ -91,7 +91,7 @@ impl Indexable for Delivery {
             HyperlaneDomainProtocol::Fuel => todo!(),
             HyperlaneDomainProtocol::Sealevel => CursorType::SequenceAware,
             HyperlaneDomainProtocol::Cosmos => CursorType::RateLimited,
-            HyperlaneDomainProtocol::CosmosNative => CursorType::SequenceAware,
+            HyperlaneDomainProtocol::CosmosNative => CursorType::RateLimited,
         }
     }
 
