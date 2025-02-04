@@ -124,7 +124,7 @@ export class WarpCore {
       }
     });
     // Create new Warp
-    return new this(multiProvider, tokens, parsedConfig.options);
+    return new WarpCore(multiProvider, tokens, parsedConfig.options);
   }
 
   /**
