@@ -20,7 +20,7 @@ const DEFAULT_TIMEOUT = 60000;
 describe('Warp Configs', async function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
-  let warpIdsToCheck: string[]; // TODO Fix this such that the ids to check will be from Github as it includes all the configs
+  let warpIdsToCheck: string[];
   let multiProvider: MultiProvider;
   let configsFromGithub;
 
@@ -36,6 +36,7 @@ describe('Warp Configs', async function () {
   const envConfig = getEnvironmentConfig(ENV);
 
   it('Each Warp Config', function () {
+    // Another describe is a hack to use for-loop with async before to populate warpIdsToCheck https://stackoverflow.com/questions/29798049/tests-from-looping-through-async-javascript-mocha
     describe('', function () {
       for (const warpRouteId of warpIdsToCheck) {
         it(`should match Github Registry configs for ${warpRouteId}`, async function () {
