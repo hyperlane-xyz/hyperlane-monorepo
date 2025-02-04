@@ -1,53 +1,33 @@
-import { checkbox } from '@inquirer/prompts';
-import yargs from 'yargs';
-
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import rawDailyBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
 import {
   BalanceThresholdType,
+  ManualReview,
   RELAYER_BALANCE_TARGET_DAYS,
   THRESHOLD_CONFIG_PATH,
+  ThresholdConfigs,
   balanceThresholdConfigMapping,
 } from '../../src/config/funding/balances.js';
+import { validateThresholds } from '../../src/funding/balances.js';
 import {
   formatBalanceThreshold,
   sortThresholds,
 } from '../../src/funding/grafana.js';
 import { readJSONAtPath, writeJsonAtPath } from '../../src/utils/utils.js';
-import {
-  withBalanceThresholdConfig,
-  withConfirmAllChoices,
-} from '../agent-utils.js';
 
 const dailyBurn: ChainMap<number> = rawDailyBurn;
 
 async function main() {
-  const { balanceThresholdConfig, all } = await withConfirmAllChoices(
-    withBalanceThresholdConfig(yargs(process.argv.slice(2))),
-  ).argv;
-
-  const configToUpdate: BalanceThresholdType[] = all
-    ? Object.values(BalanceThresholdType)
-    : balanceThresholdConfig
-    ? [balanceThresholdConfig]
-    : await checkbox({
-        message: 'Select the balance threshold config to update',
-        choices: Object.values(BalanceThresholdType).map((config) => ({
-          name: balanceThresholdConfigMapping[config].choiceLabel,
-          value: config,
-          checked: true, // default to all checked
-        })),
-      });
+  const configsToUpdate = Object.values(BalanceThresholdType);
+  const newConfigs: ThresholdConfigs = {};
 
   const desiredRelayerBalanceOverrides: ChainMap<string> = readJSONAtPath(
     `${THRESHOLD_CONFIG_PATH}/desiredRelayerBalanceOverrides.json`,
   );
 
-  for (const config of configToUpdate) {
-    rootLogger.info(`Updating ${config} config`);
-
+  for (const config of configsToUpdate) {
     let currentThresholds: ChainMap<string> = {};
     const newThresholds: ChainMap<string> = {};
 
@@ -55,11 +35,7 @@ async function main() {
       `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[config].configFileName}`,
     );
 
-    const manualReview: Array<{
-      chain: string;
-      proposedThreshold: number;
-      currentThreshold: number;
-    }> = [];
+    const manualReview: Array<ManualReview> = [];
 
     for (const chain in dailyBurn) {
       // check if there is an override for the desired relayer balance, if so, use that to calculate the threshold
@@ -104,28 +80,22 @@ async function main() {
       }
     }
 
-    if (manualReview.length) {
-      rootLogger.info(
-        `Table contains ${config} proposed thresholds that are 50% less than the current thresholds, consider manually reviewing and updating the thresholds`,
-      );
-      console.table(manualReview);
-    }
-
     const sortedThresholds = sortThresholds(newThresholds);
 
-    try {
-      rootLogger.info(`Writing ${config} config to file..`);
-      writeJsonAtPath(
-        `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[config].configFileName}`,
-        sortedThresholds,
-      );
-      rootLogger.info(`Successfully updated ${config} config`);
-    } catch (e) {
-      rootLogger.error(`Error writing ${config} config: ${e}`);
-    }
+    newConfigs[config] = {
+      thresholds: sortedThresholds,
+      manualReview,
+    };
   }
+
+  validateThresholds(newConfigs);
+  handleManualReviews(newConfigs);
+  writeConfigsToFile(newConfigs);
 }
 
+/**
+ * Handles the desired relayer balance override for a given chain.
+ */
 function handleDesiredRelayerBalanceOverride(
   chain: string,
   override: string,
@@ -151,6 +121,42 @@ function handleDesiredRelayerBalanceOverride(
     dailyRelayerBurnOverride *
       balanceThresholdConfigMapping[configType].dailyRelayerBurnMultiplier,
   ).toString();
+}
+
+/**
+ * Writes each config’s thresholds object to its designated JSON file.
+ */
+function writeConfigsToFile(newConfigs: ThresholdConfigs) {
+  for (const configKey of Object.keys(newConfigs) as BalanceThresholdType[]) {
+    const { thresholds } = newConfigs[configKey];
+
+    try {
+      rootLogger.info(`Writing ${configKey} config to file`);
+      writeJsonAtPath(
+        `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[configKey].configFileName}`,
+        thresholds,
+      );
+      rootLogger.info(`Successfully updated ${configKey} config`);
+    } catch (e) {
+      rootLogger.error(`Error writing ${configKey} config to file: ${e}`);
+    }
+  }
+}
+
+/**
+ * If any manual review items exist for a config, prints an informational message
+ * and displays a table of the chain thresholds that require review.
+ */
+function handleManualReviews(newConfigs: ThresholdConfigs) {
+  for (const configKey of Object.keys(newConfigs) as BalanceThresholdType[]) {
+    const { manualReview } = newConfigs[configKey];
+    if (manualReview && manualReview.length > 0) {
+      rootLogger.info(
+        `The ${configKey} config contains ${manualReview.length} chain(s) where the proposed threshold is less than 50% of the current threshold. Please review the following items:`,
+      );
+      console.table(manualReview);
+    }
+  }
 }
 
 main()

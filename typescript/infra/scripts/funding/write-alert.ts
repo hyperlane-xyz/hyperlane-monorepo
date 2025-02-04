@@ -1,14 +1,17 @@
-import { checkbox } from '@inquirer/prompts';
-import yargs from 'yargs';
-
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { THRESHOLD_CONFIG_PATH } from '../../src/config/funding/balances.js';
+import {
+  BalanceThresholdType,
+  THRESHOLD_CONFIG_PATH,
+  ThresholdConfigs,
+  balanceThresholdConfigMapping,
+} from '../../src/config/funding/balances.js';
 import {
   AlertType,
   alertConfigMapping,
 } from '../../src/config/funding/grafanaAlerts.js';
+import { validateThresholds } from '../../src/funding/balances.js';
 import {
   fetchGrafanaAlert,
   fetchServiceAccountToken,
@@ -16,27 +19,25 @@ import {
   updateGrafanaAlert,
 } from '../../src/funding/grafana.js';
 import { readJSONAtPath } from '../../src/utils/utils.js';
-import { withAlertType, withConfirmAllChoices } from '../agent-utils.js';
 
 async function main() {
-  const { alertType, all } = await withConfirmAllChoices(
-    withAlertType(yargs(process.argv.slice(2))),
-  ).argv;
-
   const saToken = await fetchServiceAccountToken();
 
-  const alertsToUpdate: AlertType[] = all
-    ? Object.values(AlertType)
-    : alertType
-    ? [alertType]
-    : await checkbox({
-        message: 'Select the alert type to update',
-        choices: Object.values(AlertType).map((alert) => ({
-          name: alertConfigMapping[alert].choiceLabel,
-          value: alert,
-          checked: true, // default to all checked
-        })),
-      });
+  const balanceThresholdTypes = Object.values(BalanceThresholdType);
+  const balanceThresholdConfigs: ThresholdConfigs = Object.fromEntries(
+    balanceThresholdTypes.map((balanceThresholdType) => [
+      balanceThresholdType,
+      {
+        thresholds: readJSONAtPath(
+          `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[balanceThresholdType].configFileName}`,
+        ) as ChainMap<string>,
+      },
+    ]),
+  );
+
+  validateThresholds(balanceThresholdConfigs);
+
+  const alertsToUpdate = Object.values(AlertType);
 
   for (const alert of alertsToUpdate) {
     // fetch alertRule config from Grafana

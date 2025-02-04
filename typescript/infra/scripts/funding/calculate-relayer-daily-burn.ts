@@ -190,7 +190,9 @@ async function getDailyRelayerBurn(
     burnInfoTable.push({
       chain,
       proposedDailyBurn: formatBalanceThreshold(proposedDailyRelayerBurn),
-      currentDailyBurn: formatBalanceThreshold(currentDailyRelayerBurn[chain]),
+      currentDailyBurn: formatBalanceThreshold(
+        currentDailyRelayerBurn[chain] ?? 0,
+      ),
       proposedRelayerBallanceDollars: formatBalanceThreshold(
         proposedDailyRelayerBurn *
           parseFloat(tokenPrices[chain]) *
@@ -207,10 +209,12 @@ async function getDailyRelayerBurn(
 
   console.table(burnInfoTable);
 
-  rootLogger.warn(
-    `Proposed daily burn for the following chains are 50% less than current daily burn. Consider manually reviewing updating the daily burn.`,
-  );
-  console.table(lowProposedDailyBurn);
+  if (lowProposedDailyBurn.length) {
+    rootLogger.warn(
+      `Proposed daily burn for the following chains are 50% less than current daily burn. Consider manually reviewing updating the daily burn.`,
+    );
+    console.table(lowProposedDailyBurn);
+  }
 
   return burn;
 }
