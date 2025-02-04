@@ -34,7 +34,7 @@ import {
 } from './environments/test/chains.js';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/supportedChainNames.js';
 
-const DEFAULT_REGISTRY_URI = join(
+export const DEFAULT_REGISTRY_URI = join(
   dirname(fileURLToPath(import.meta.url)),
   '../../../../',
   'hyperlane-registry',
@@ -77,11 +77,11 @@ export function getRegistry(): FileSystemRegistry {
  * and an override one (such as a github directory)
  * @returns a new MergedRegistry
  */
-export function getMergedRegistry(): IRegistry {
-  const primaryRegistryUri = DEFAULT_REGISTRY_URI;
-  const overrideRegistryUri = process.env.REGISTRY_URI || '';
-  const logger = rootLogger.child({ module: 'MergedRegistry' });
-
+export function getMergedRegistry(
+  primaryRegistryUri: string = DEFAULT_REGISTRY_URI,
+  overrideRegistryUri: string = process.env.REGISTRY_URI || '',
+): IRegistry {
+  const logger = rootLogger.child({ module: 'infra-registry' });
   logger.info(`Using ${primaryRegistryUri} as primary registry`);
   logger.info(`Using ${overrideRegistryUri} as override registry`);
   const registries = [primaryRegistryUri, overrideRegistryUri]
