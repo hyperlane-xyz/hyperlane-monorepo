@@ -1,8 +1,5 @@
 import { ChainAddresses } from '@hyperlane-xyz/registry';
-import {
-  ProxyFactoryFactoriesAddresses,
-  ProxyFactoryFactoriesSchema,
-} from '@hyperlane-xyz/sdk';
+import { ProxyFactoryFactoriesSchema } from '@hyperlane-xyz/sdk';
 
 import { logGreen } from '../logger.js';
 
