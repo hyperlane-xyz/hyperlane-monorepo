@@ -78,8 +78,8 @@ export function getRegistry(): FileSystemRegistry {
  * @returns a new MergedRegistry
  */
 export function getMergedRegistry(
-  primaryRegistryUri: string = DEFAULT_REGISTRY_URI,
-  overrideRegistryUri: string = process.env.REGISTRY_URI || '',
+  primaryRegistryUri: string,
+  overrideRegistryUri: string = '',
 ): IRegistry {
   const logger = rootLogger.child({ module: 'infra-registry' });
   logger.info(`Using ${primaryRegistryUri} as primary registry`);
@@ -87,7 +87,7 @@ export function getMergedRegistry(
   const registries = [primaryRegistryUri, overrideRegistryUri]
     .map((uri) => uri.trim())
     .filter((uri) => !!uri)
-    .map((uri, index) => {
+    .map((uri) => {
       if (isHttpsUrl(uri)) {
         return new GithubRegistry({
           uri,
