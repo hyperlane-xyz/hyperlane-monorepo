@@ -91,14 +91,14 @@ export function getMergedRegistry(
       if (isHttpsUrl(uri)) {
         return new GithubRegistry({
           uri,
-          logger: rootLogger.child({ module: 'infra-registry' }),
+          logger: rootLogger.child({ module: 'infra-github-registry' }),
           branch: process.env.REGISTRY_BRANCH || 'main',
           proxyUrl: REGISTRY_PROXY,
         });
       } else {
         return new FileSystemRegistry({
           uri,
-          logger: rootLogger.child({ module: 'infra-registry' }),
+          logger: rootLogger.child({ module: 'infra-filesystem-registry' }),
         });
       }
     });
