@@ -59,6 +59,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 
   cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
     this.hookDeployer.cacheAddressesMap(addressesMap);
+    this.testRecipient.cacheAddressesMap(addressesMap);
     super.cacheAddressesMap(addressesMap);
   }
 
