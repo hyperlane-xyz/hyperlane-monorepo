@@ -27,11 +27,7 @@ import {
   TOKEN_STANDARD_TO_PROVIDER_TYPE,
   TokenStandard,
 } from '../token/TokenStandard.js';
-import {
-  EVM_TRANSFER_REMOTE_GAS_ESTIMATE,
-  EvmIntentMultiChainAdapter,
-  EvmIntentNativeMultiChainAdapter,
-} from '../token/adapters/EvmTokenAdapter.js';
+import { EVM_TRANSFER_REMOTE_GAS_ESTIMATE } from '../token/adapters/EvmTokenAdapter.js';
 import { IHypXERC20Adapter } from '../token/adapters/ITokenAdapter.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
@@ -103,10 +99,20 @@ export class WarpCore {
         const { chainName, addressOrDenom } = parseTokenConnectionId(
           connection.token,
         );
-        const token2 = tokens.find(
-          (t) =>
-            t.chainName === chainName && t.addressOrDenom === addressOrDenom,
-        );
+        const token2 = tokens.find((t) => {
+          if (t.chainName !== chainName) {
+            return false;
+          }
+
+          switch (t.standard) {
+            case TokenStandard.EvmIntent:
+              return t.collateralAddressOrDenom === addressOrDenom;
+            case TokenStandard.EvmIntentNative:
+              return true;
+            default:
+              return t.addressOrDenom === addressOrDenom;
+          }
+        });
         assert(
           token2,
           `Connected token not found: ${chainName} ${addressOrDenom}`,
@@ -341,19 +347,9 @@ export class WarpCore {
 
     if (await this.isApproveRequired({ originTokenAmount, owner: sender })) {
       this.logger.info(`Approval required for transfer of ${token.symbol}`);
-
-      let recipient = token.addressOrDenom;
-      if (
-        token.standard === TokenStandard.EvmIntent ||
-        token.standard === TokenStandard.EvmIntentNative
-      ) {
-        // intentRouterAddressOrDenom is verified to exist here thanks to the token schema superRefinement check
-        recipient = token.intentRouterAddressOrDenom!;
-      }
-
       const approveTxReq = await hypAdapter.populateApproveTx({
         weiAmountOrId: amount.toString(),
-        recipient,
+        recipient: token.addressOrDenom,
       });
       this.logger.debug(`Approval tx for ${token.symbol} populated`);
 
@@ -549,16 +545,11 @@ export class WarpCore {
   }): Promise<boolean> {
     const { token, amount } = originTokenAmount;
     const adapter = token.getAdapter(this.multiProvider);
-
-    let spender = token.addressOrDenom;
-    if (
-      adapter instanceof EvmIntentMultiChainAdapter ||
-      adapter instanceof EvmIntentNativeMultiChainAdapter
-    ) {
-      spender = adapter.addresses.router;
-    }
-
-    const isRequired = await adapter.isApproveRequired(owner, spender, amount);
+    const isRequired = await adapter.isApproveRequired(
+      owner,
+      token.addressOrDenom,
+      amount,
+    );
     this.logger.debug(
       `Approval is${isRequired ? '' : ' not'} required for transfer of ${
         token.symbol

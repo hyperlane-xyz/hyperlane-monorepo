@@ -168,25 +168,19 @@ export class Token implements IToken {
       });
     } else if (standard === TokenStandard.EvmIntent) {
       assert(
-        this.intentRouterAddressOrDenom,
-        'Intent router required for EvmIntent tokens',
+        this.collateralAddressOrDenom,
+        'collateralAddressOrDenom required for EvmIntent tokens',
       );
-
       return new EvmIntentTokenAdapter(chainName, multiProvider, {
-        router: this.intentRouterAddressOrDenom,
-        token: addressOrDenom,
-        outputToken: addressOrDenom,
+        token: this.collateralAddressOrDenom,
+        router: addressOrDenom,
+        outputToken: zeroAddress,
       });
     } else if (standard === TokenStandard.EvmIntentNative) {
-      assert(
-        this.intentRouterAddressOrDenom,
-        'Intent router required for EvmIntentNative tokens',
-      );
-
       return new EvmIntentNativeTokenAdapter(chainName, multiProvider, {
-        router: this.intentRouterAddressOrDenom,
-        token: addressOrDenom,
-        outputToken: addressOrDenom,
+        token: this.collateralAddressOrDenom ?? zeroAddress,
+        router: addressOrDenom,
+        outputToken: zeroAddress,
       });
     } else {
       throw new Error(`No adapter found for token standard: ${standard}`);
@@ -322,8 +316,8 @@ export class Token implements IToken {
       return this.getIbcAdapter(multiProvider, connection);
     } else if (standard === TokenStandard.EvmIntent) {
       assert(
-        this.intentRouterAddressOrDenom,
-        'Intent router required for EvmIntent tokens',
+        this.collateralAddressOrDenom,
+        'collateralAddressOrDenom required for EvmIntent tokens',
       );
       const outputToken =
         destination &&
@@ -337,27 +331,23 @@ export class Token implements IToken {
         fillDeadline,
         multiProvider,
         {
-          token: addressOrDenom,
-          router: this.intentRouterAddressOrDenom,
+          router: addressOrDenom,
+          token: this.collateralAddressOrDenom,
           outputToken,
         },
       );
     } else if (standard === TokenStandard.EvmIntentNative) {
-      assert(
-        this.intentRouterAddressOrDenom,
-        'Intent router required for EvmIntentNative tokens',
-      );
       const outputToken =
         (destination &&
-          this.getConnectionForChain(destination)?.token.addressOrDenom) ??
+          this.getConnectionForChain(destination)?.token.addressOrDenom) ||
         zeroAddress; // when native, it can be undefined or null, thus default to zero address
       return new EvmIntentNativeMultiChainAdapter(
         chainName,
         fillDeadline,
         multiProvider,
         {
-          token: addressOrDenom,
-          router: this.intentRouterAddressOrDenom,
+          router: addressOrDenom,
+          token: this.collateralAddressOrDenom ?? zeroAddress,
           outputToken,
         },
       );

@@ -17,60 +17,41 @@ import type {
   ITokenAdapter,
 } from './adapters/ITokenAdapter.js';
 
-export const TokenConfigSchema = z
-  .object({
-    chainName: ZChainName.describe(
-      'The name of the chain, must correspond to a chain in the multiProvider chainMetadata',
-    ),
-    standard: z
-      .nativeEnum(TokenStandard)
-      .describe('The type of token. See TokenStandard for valid values.'),
-    decimals: ZUint.lt(256).describe('The decimals value (e.g. 18 for Eth)'),
-    symbol: z.string().min(1).describe('The symbol of the token'),
-    name: z.string().min(1).describe('The name of the token'),
-    addressOrDenom: z
-      .string()
-      .min(1)
-      .or(z.null())
-      .describe('The address or denom, or null for native tokens'),
-    collateralAddressOrDenom: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('The address or denom of the collateralized token'),
-    igpTokenAddressOrDenom: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('The address or denom of the token for IGP payments'),
-    intentRouterAddressOrDenom: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('The address or denom of the Intent Router'),
-    logoURI: z.string().optional().describe('The URI of the token logo'),
-    connections: z
-      .array(TokenConnectionConfigSchema)
-      .optional()
-      .describe('The list of token connections (e.g. warp or IBC)'),
-    coinGeckoId: z
-      .string()
-      .optional()
-      .describe('The CoinGecko id of the token, used for price lookups'),
-  })
-  .superRefine((data, ctx) => {
-    if (
-      data.standard === TokenStandard.EvmIntent ||
-      data.standard === TokenStandard.EvmIntentNative
-    ) {
-      if (!data.intentRouterAddressOrDenom) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'intentRouterAddressOrDenom is required for Intent tokens',
-        });
-      }
-    }
-  });
+export const TokenConfigSchema = z.object({
+  chainName: ZChainName.describe(
+    'The name of the chain, must correspond to a chain in the multiProvider chainMetadata',
+  ),
+  standard: z
+    .nativeEnum(TokenStandard)
+    .describe('The type of token. See TokenStandard for valid values.'),
+  decimals: ZUint.lt(256).describe('The decimals value (e.g. 18 for Eth)'),
+  symbol: z.string().min(1).describe('The symbol of the token'),
+  name: z.string().min(1).describe('The name of the token'),
+  addressOrDenom: z
+    .string()
+    .min(1)
+    .or(z.null())
+    .describe('The address or denom, or null for native tokens'),
+  collateralAddressOrDenom: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The address or denom of the collateralized token'),
+  igpTokenAddressOrDenom: z
+    .string()
+    .min(1)
+    .optional()
+    .describe('The address or denom of the token for IGP payments'),
+  logoURI: z.string().optional().describe('The URI of the token logo'),
+  connections: z
+    .array(TokenConnectionConfigSchema)
+    .optional()
+    .describe('The list of token connections (e.g. warp or IBC)'),
+  coinGeckoId: z
+    .string()
+    .optional()
+    .describe('The CoinGecko id of the token, used for price lookups'),
+});
 
 export type TokenArgs = Omit<
   z.infer<typeof TokenConfigSchema>,
