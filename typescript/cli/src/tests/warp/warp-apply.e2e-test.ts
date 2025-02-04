@@ -371,4 +371,114 @@ describe('hyperlane warp apply e2e tests', async function () {
     expect(Object.keys(destinationGas_3)).to.include(chain2Id);
     expect(destinationGas_3[chain2Id]).to.equal('7777');
   });
+
+  it('should recover from manual router unenrollment', async () => {
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    // Initial setup
+    const config: HypTokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain2Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(ANVIL_KEY).address,
+      symbol: 'ETH',
+      totalSupply: 0,
+      type: TokenType.native,
+    };
+
+    warpDeployConfig[CHAIN_NAME_3] = config;
+    writeYamlOrJson(warpConfigPath, warpDeployConfig);
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+    // Manually remove router enrollment
+    delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
+    writeYamlOrJson(warpConfigPath, warpDeployConfig);
+
+    // Reapply and verify recovery
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+
+    const recoveredConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+    expect(
+      Object.keys(recoveredConfig[CHAIN_NAME_2].remoteRouters!),
+    ).to.include(chain3Id);
+  });
+
+  it('should be idempotent when applying warp route multiple times', async () => {
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+
+    // Apply configuration multiple times and store results
+    const numberOfApplies = 2;
+    const configs = [];
+
+    for (let i = 0; i < numberOfApplies; i++) {
+      await extendWarpConfig({
+        chain: CHAIN_NAME_2,
+        chainToExtend: CHAIN_NAME_3,
+        extendedConfig: {
+          decimals: 18,
+          mailbox: chain2Addresses!.mailbox,
+          name: 'Etherum',
+          owner: new Wallet(ANVIL_KEY).address,
+          symbol: 'ETH',
+          totalSupply: 0,
+          type: TokenType.native,
+        },
+        warpCorePath: WARP_CORE_CONFIG_PATH_2,
+        warpDeployPath: warpConfigPath,
+      });
+
+      const config = await readWarpConfig(
+        CHAIN_NAME_2,
+        COMBINED_WARP_CORE_CONFIG_PATH,
+        warpConfigPath,
+      );
+      configs.push(normalizeConfig(config));
+    }
+
+    // Verify all configurations are identical by comparing with the first one
+    for (let i = 1; i < configs.length; i++) {
+      expect(configs[0]).to.deep.equal(
+        configs[i],
+        `Apply ${i + 1} should result in identical config as first apply`,
+      );
+    }
+
+    // Verify both chains are still properly enrolled
+    const chain2Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+    const chain1Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
+
+    // Check chain2's remote routers
+    const remoteRouterKeys1 = Object.keys(
+      configs[configs.length - 1][CHAIN_NAME_2].remoteRouters!,
+    );
+    expect(remoteRouterKeys1).to.include(chain2Id);
+
+    // Check chain3's remote routers
+    const finalChain3Config = await readWarpConfig(
+      CHAIN_NAME_3,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+    const remoteRouterKeys2 = Object.keys(
+      finalChain3Config[CHAIN_NAME_3].remoteRouters!,
+    );
+    expect(remoteRouterKeys2).to.include(chain1Id);
+  });
 });
