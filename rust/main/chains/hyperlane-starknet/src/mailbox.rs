@@ -74,7 +74,7 @@ impl StarknetMailbox {
             &conn.url,
             signer.local_wallet(),
             &signer.address,
-            false,
+            true,
             locator.domain.id(),
         );
 
@@ -99,6 +99,17 @@ impl StarknetMailbox {
         metadata: &[u8],
         tx_gas_estimate: Option<U256>,
     ) -> ChainResult<Execution<'_, SingleOwnerAccount<AnyProvider, LocalWallet>>> {
+        println!("MAILBOX address: {:?}", self.contract.address);
+        let msg = StarknetMessage::from(message);
+        println!("SAQUON recipient {:?}", msg.recipient.to_bytes_be());
+
+        println!(
+            "SAQUON process call: metadata {:?} and message {:?}",
+            &to_mailbox_bytes(metadata),
+            StarknetMessage::from(message)
+        );
+
+        // self.contract.
         let tx = self
             .contract
             .process(&to_mailbox_bytes(metadata), &message.into());
