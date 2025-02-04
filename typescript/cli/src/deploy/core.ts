@@ -17,10 +17,7 @@ import { requestAndSaveApiKeys } from '../context/context.js';
 import { WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
 import { runSingleChainSelectionStep } from '../utils/chains.js';
-import {
-  FactoryDeployPlan,
-  planFactoryDeployments,
-} from '../utils/deploymentPlan.js';
+import { planFactoryDeployments } from '../utils/deploymentPlan.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
 import {
@@ -70,7 +67,7 @@ export async function runCoreDeploy(params: DeployParams) {
   }
 
   let existingCoreAddresses: ChainAddresses = {};
-  let factoryDeploymentPlan: FactoryDeployPlan | undefined;
+  let factoryDeploymentPlan: Record<string, boolean> = {};
   if (fixFactories) {
     existingCoreAddresses = (await registry.getChainAddresses(
       chain,
@@ -91,6 +88,7 @@ export async function runCoreDeploy(params: DeployParams) {
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
 
   const signer = multiProvider.getSigner(chain);
+
   // Skips confirmations in fix mode for mailbox redeployment prompt
   const deploymentParams: DeployParams = {
     context: fixFactories

@@ -1,37 +1,27 @@
-import { z } from 'zod';
-
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  DeployedCoreAddresses,
   ProxyFactoryFactoriesAddresses,
   ProxyFactoryFactoriesSchema,
 } from '@hyperlane-xyz/sdk';
 
 import { logGreen } from '../logger.js';
 
-export type FactoryDeployPlan = Record<
-  keyof ProxyFactoryFactoriesAddresses,
-  boolean
->;
-
 /**
  * Creates a deployment plan for proxy factories based on existing deployments
  */
 export function planFactoryDeployments(
   existingAddresses: ChainAddresses,
-): FactoryDeployPlan {
-  // Get required fields from the schema (those that are z.string() without .optional())
+): Record<string, boolean> {
+  // Get required factories from the schema (those that are z.string() without .optional())
   const requiredFactories = Object.entries(ProxyFactoryFactoriesSchema.shape)
-    .filter(
-      ([_, schema]) => schema instanceof z.ZodString && !schema.isOptional(),
-    )
-    .map(([key]) => key) as Array<keyof DeployedCoreAddresses>;
+    .filter(([_, schema]) => schema && !schema.isOptional())
+    .map(([key]) => key);
 
   if (!existingAddresses) {
     // If no existing addresses, deploy everything
     return Object.fromEntries(
       requiredFactories.map((factory) => [factory, true]),
-    ) as FactoryDeployPlan;
+    );
   }
 
   const missingFactories = requiredFactories.filter(
@@ -49,5 +39,5 @@ export function planFactoryDeployments(
       factory,
       !existingAddresses[factory], // true means needs deployment
     ]),
-  ) as FactoryDeployPlan;
+  );
 }
