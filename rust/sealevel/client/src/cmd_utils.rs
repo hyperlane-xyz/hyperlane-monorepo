@@ -147,13 +147,23 @@ fn attempt_program_deploy(
         program_keypair_path.to_str().unwrap(),
         "--buffer",
         buffer_keypair_path.to_str().unwrap(),
+        "--verbose",
+        "--use-rpc",
     ];
 
     let compute_unit_price_str = compute_unit_price.to_string();
     command.extend(vec!["--with-compute-unit-price", &compute_unit_price_str]);
 
     // Success!
-    if let Ok(true) = run_cmd(command.as_slice(), None, None) {
+    if let Ok(true) = run_cmd(
+        command.as_slice(),
+        None,
+        Some(
+            &[("RUST_LOG", "solana=trace,debug,info")]
+                .into_iter()
+                .collect(),
+        ),
+    ) {
         // TODO: use commitment level instead of just sleeping here?
         println!("Sleeping for 5 seconds to fully allow program to be deployed");
         sleep(Duration::from_secs(5));

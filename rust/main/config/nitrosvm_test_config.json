@@ -1,0 +1,50 @@
+{
+  "chains": {
+    "nitrosvmtest": {
+      "name": "nitrosvmtest",
+      "chainId": 13440,
+      "domainId": 13440,
+      "mailbox": "FWNyEXJYU34MkNR2yg6XzBDKSkgBCVZomvmSud5QdTek",
+      "merkleTreeHook": "FWNyEXJYU34MkNR2yg6XzBDKSkgBCVZomvmSud5QdTek",
+      "interchainGasPaymaster": "8XgxrUnrPkVSTaPQgjuLWNBrz5i1Tm7awCzYpcEF86fE",
+      "validatorAnnounce": "BSr2s7xetGbGoqDeBH77ULwrcZzLciKcyK9VLhr34c5N",
+      "protocol": "sealevel",
+      "blocks": {
+        "reorgPeriod": 0,
+        "confirmations": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:12345"
+        }
+      ],
+      "index": {
+        "from": 1,
+        "mode": "sequence"
+      }
+    },
+    "solanalocaltest": {
+      "name": "solanalocaltest",
+      "chainId": 13400,
+      "domainId": 13400,
+      "mailbox": "TyHFB91JTtREH6fpNsXFkjZzHc7T6fWefGZiEAG9qb6",
+      "merkleTreeHook": "TyHFB91JTtREH6fpNsXFkjZzHc7T6fWefGZiEAG9qb6",
+      "interchainGasPaymaster": "3VTG2jKyqBKNzg7zsrp4w7MXiAMGEVYhoK8ZoLqqxKJd",
+      "validatorAnnounce": "EPn3BVcZhxEWjPQmALPeV8vR1YdtUhvGBaDFmsSfWAa6",
+      "protocol": "sealevel",
+      "blocks": {
+        "reorgPeriod": 0,
+        "confirmations": 0
+      },
+      "rpcUrls": [
+        {
+          "http": "http://127.0.0.1:8899"
+        }
+      ],
+      "index": {
+        "from": 1,
+        "mode": "sequence"
+      }
+    }
+  }
+}

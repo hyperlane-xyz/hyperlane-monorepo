@@ -1,0 +1,10 @@
+{
+  "nitrosvmtest": {
+    "type": "native",
+    "decimals": 9
+  },
+  "solanalocaltest": {
+    "type": "native",
+    "decimals": 9
+  }
+}

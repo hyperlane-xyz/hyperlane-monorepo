@@ -1,0 +1,10 @@
+{
+  "solanalocaltest": {
+    "hex": "0x9c020cca8117624fa7bfefdf334e587e87c3b3ba337c7851f7d36339a8c8a693",
+    "base58": "BVzR1C8kTS7DWZbyrYrwChAaXUemMAdqXyzW87yfVsbQ"
+  },
+  "nitrosvmtest": {
+    "hex": "0xae3f188107d1561e2e0000c61f721579d9bdf5e7af10a443e45f1cc65daa66fc",
+    "base58": "CjBk1gx6WLdC4y1XJujpeeFYJPJS1XdABiuzsaSHUut7"
+  }
+}
