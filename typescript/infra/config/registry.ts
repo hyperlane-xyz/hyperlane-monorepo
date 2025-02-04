@@ -73,7 +73,7 @@ export function getRegistry(): FileSystemRegistry {
 /**
  * Creates a new MergedRegistry using the provided URIs
  * The intention of the MergedRegistry is to join the common data
- * from a primary URI (In this case the DEFAULT_REGISTRY_URI/Adjacent registry)
+ * from a primary URI (such as a filesystem)
  * and an override one (such as a github directory)
  * @returns a new MergedRegistry
  */
