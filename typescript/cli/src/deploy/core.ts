@@ -68,7 +68,6 @@ export async function runCoreDeploy(params: DeployParams) {
       'Select chain to connect:',
     );
   }
-  const signer = multiProvider.getSigner(chain);
 
   let existingCoreAddresses: ChainAddresses = {};
   let factoryDeploymentPlan: FactoryDeployPlan | undefined;
@@ -91,7 +90,8 @@ export async function runCoreDeploy(params: DeployParams) {
   if (!skipConfirmation)
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
 
-  // Skip confirmations in fix mode
+  const signer = multiProvider.getSigner(chain);
+  // Skips confirmations in fix mode for mailbox redeployment prompt
   const deploymentParams: DeployParams = {
     context: fixFactories
       ? { ...context, skipConfirmation: true }
