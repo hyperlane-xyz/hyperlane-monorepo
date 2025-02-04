@@ -2,9 +2,7 @@ import {
   IPostDispatchHook,
   IPostDispatchHook__factory,
   Mailbox,
-  Mailbox__factory,
   TestRecipient,
-  TestRecipient__factory,
   ValidatorAnnounce,
 } from '@hyperlane-xyz/core';
 import { Address, isZeroishAddress, rootLogger } from '@hyperlane-xyz/utils';
@@ -22,7 +20,7 @@ import { ChainMap, ChainName } from '../types.js';
 
 import { TestRecipientDeployer } from './TestRecipientDeployer.js';
 import { CoreAddresses, CoreFactories, coreFactories } from './contracts.js';
-import { CoreConfig, DeployedCoreAddresses } from './types.js';
+import { CoreConfig } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
   CoreConfig,
@@ -30,7 +28,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
 > {
   hookDeployer: HyperlaneHookDeployer;
   testRecipient: TestRecipientDeployer;
-  protected _cachedAddresses: Record<string, any> = {};
 
   constructor(
     multiProvider: MultiProvider,
@@ -38,8 +35,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
     concurrentDeploy: boolean = false,
     chainTimeoutMs: number = 1000 * 60 * 10, // 10 minutes
-    private existingAddresses?: DeployedCoreAddresses,
-    private deploymentPlan?: Record<keyof DeployedCoreAddresses, boolean>,
   ) {
     super(multiProvider, coreFactories, {
       logger: rootLogger.child({ module: 'CoreDeployer' }),
@@ -60,10 +55,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       contractVerifier,
       concurrentDeploy,
     );
-    // Initialize with existing addresses if in fix mode
-    if (existingAddresses) {
-      this._cachedAddresses = existingAddresses;
-    }
   }
 
   cacheAddressesMap(addressesMap: ChainMap<CoreAddresses>): void {
@@ -77,18 +68,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     proxyAdmin: Address,
   ): Promise<Mailbox> {
     const domain = this.multiProvider.getDomainId(chain);
-
-    // In fix mode, check if mailbox already exists
-    if (this.existingAddresses?.mailbox) {
-      this.logger.debug(
-        `Using existing mailbox at ${this.existingAddresses.mailbox}`,
-      );
-      return Mailbox__factory.connect(
-        this.existingAddresses.mailbox,
-        this.multiProvider.getProvider(chain),
-      );
-    }
-
     const mailbox = await this.deployProxiedContract(
       chain,
       'mailbox',
@@ -113,8 +92,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
         mailbox.address,
       );
     }
-    this._cachedAddresses[chain] = this._cachedAddresses[chain] || {};
-    this._cachedAddresses[chain].interchainSecurityModule = defaultIsm;
+    this.cachedAddresses[chain].interchainSecurityModule = defaultIsm;
 
     const hookAddresses = { mailbox: mailbox.address, proxyAdmin };
 
@@ -194,16 +172,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     mailboxAddress: string,
   ): Promise<ValidatorAnnounce> {
-    // In fix mode, check if validator announce already exists
-    if (this.existingAddresses?.validatorAnnounce) {
-      this.logger.debug(
-        `Using existing validator announce at ${this.existingAddresses.validatorAnnounce}`,
-      );
-      return this.factories.validatorAnnounce.attach(
-        this.existingAddresses.validatorAnnounce,
-      );
-    }
-
     const validatorAnnounce = await this.deployContract(
       chain,
       'validatorAnnounce',
@@ -259,17 +227,6 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     interchainSecurityModule?: IsmConfig,
   ): Promise<TestRecipient> {
-    // In fix mode, check if test recipient already exists
-    if (this.existingAddresses?.testRecipient) {
-      this.logger.debug(
-        `Using existing test recipient at ${this.existingAddresses.testRecipient}`,
-      );
-      return TestRecipient__factory.connect(
-        this.existingAddresses.testRecipient,
-        this.multiProvider.getProvider(chain),
-      );
-    }
-
     const testRecipient = await this.testRecipient.deployContracts(chain, {
       interchainSecurityModule,
     });
@@ -281,50 +238,45 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     chain: ChainName,
     config: CoreConfig,
   ): Promise<HyperlaneContracts<CoreFactories>> {
-    const contracts: Partial<HyperlaneContracts<CoreFactories>> = {};
-
-    // Only deploy contracts that don't exist in fix mode or are marked for deployment in the plan
-    if (
-      !this.existingAddresses?.proxyAdmin ||
-      this.deploymentPlan?.proxyAdmin
-    ) {
-      contracts.proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
+    if (config.remove) {
+      // skip deploying to chains configured to be removed
+      return undefined as any;
     }
 
-    if (!this.existingAddresses?.mailbox || this.deploymentPlan?.mailbox) {
-      contracts.mailbox = await this.deployMailbox(
+    const proxyAdmin = await this.deployContract(chain, 'proxyAdmin', []);
+
+    const mailbox = await this.deployMailbox(chain, config, proxyAdmin.address);
+
+    const validatorAnnounce = await this.deployValidatorAnnounce(
+      chain,
+      mailbox.address,
+    );
+
+    if (config.upgrade) {
+      const timelockController = await this.deployTimelock(
         chain,
-        config,
-        contracts.proxyAdmin?.address ||
-          this.existingAddresses?.proxyAdmin ||
-          '',
+        config.upgrade.timelock,
       );
+      config.ownerOverrides = {
+        ...config.ownerOverrides,
+        proxyAdmin: timelockController.address,
+      };
     }
 
-    if (
-      !this.existingAddresses?.validatorAnnounce ||
-      this.deploymentPlan?.validatorAnnounce
-    ) {
-      contracts.validatorAnnounce = await this.deployValidatorAnnounce(
-        chain,
-        contracts.mailbox?.address || this.existingAddresses?.mailbox || '',
-      );
-    }
+    const testRecipient = await this.deployTestRecipient(
+      chain,
+      this.cachedAddresses[chain].interchainSecurityModule,
+    );
 
-    if (
-      !this.existingAddresses?.testRecipient ||
-      this.deploymentPlan?.testRecipient
-    ) {
-      const testRecipient = await this.deployTestRecipient(
-        chain,
-        this._cachedAddresses[chain]?.interchainSecurityModule,
-      );
-      (contracts as any).testRecipient = testRecipient;
-    }
+    const contracts = {
+      mailbox,
+      proxyAdmin,
+      validatorAnnounce,
+      testRecipient,
+    };
 
-    return {
-      ...this.existingAddresses,
-      ...contracts,
-    } as HyperlaneContracts<CoreFactories>;
+    await this.transferOwnershipOfContracts(chain, config, contracts);
+
+    return contracts;
   }
 }
