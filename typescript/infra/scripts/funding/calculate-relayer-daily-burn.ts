@@ -209,7 +209,7 @@ async function getDailyRelayerBurn(
 
   console.table(burnInfoTable);
 
-  if (lowProposedDailyBurn.length) {
+  if (lowProposedDailyBurn.length > 0) {
     rootLogger.warn(
       `Proposed daily burn for the following chains are 50% less than current daily burn. Consider manually reviewing updating the daily burn.`,
     );

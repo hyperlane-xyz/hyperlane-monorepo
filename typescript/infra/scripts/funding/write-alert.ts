@@ -24,16 +24,19 @@ async function main() {
   const saToken = await fetchServiceAccountToken();
 
   const balanceThresholdTypes = Object.values(BalanceThresholdType);
-  const balanceThresholdConfigs: ThresholdConfigs = Object.fromEntries(
-    balanceThresholdTypes.map((balanceThresholdType) => [
-      balanceThresholdType,
-      {
-        thresholds: readJSONAtPath(
-          `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[balanceThresholdType].configFileName}`,
-        ) as ChainMap<string>,
-      },
-    ]),
-  );
+  const balanceThresholdConfigs: ThresholdConfigs =
+    balanceThresholdTypes.reduce((acc, balanceThresholdType) => {
+      const thresholds = readJSONAtPath(
+        `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[balanceThresholdType].configFileName}`,
+      ) as ChainMap<string>;
+
+      return {
+        ...acc,
+        [balanceThresholdType]: {
+          thresholds,
+        },
+      };
+    }, {} as ThresholdConfigs);
 
   validateThresholds(balanceThresholdConfigs);
 

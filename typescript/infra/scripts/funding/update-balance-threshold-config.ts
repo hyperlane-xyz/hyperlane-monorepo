@@ -21,7 +21,15 @@ const dailyBurn: ChainMap<number> = rawDailyBurn;
 
 async function main() {
   const configsToUpdate = Object.values(BalanceThresholdType);
-  const newConfigs: ThresholdConfigs = {};
+  const newConfigs: ThresholdConfigs = configsToUpdate.reduce<ThresholdConfigs>(
+    (acc, config) => {
+      return {
+        ...acc,
+        [config]: { thresholds: {} },
+      };
+    },
+    {} as ThresholdConfigs,
+  );
 
   const desiredRelayerBalanceOverrides: ChainMap<string> = readJSONAtPath(
     `${THRESHOLD_CONFIG_PATH}/desiredRelayerBalanceOverrides.json`,
