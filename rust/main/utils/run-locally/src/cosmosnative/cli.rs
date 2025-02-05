@@ -38,11 +38,11 @@ pub(crate) fn modify_json<T: serde::de::DeserializeOwned + serde::Serialize>(
 
 /// Sim app
 ///
-/// the sim app is a light cosmos chain that implementes the hyperlane cosmos module
+/// the sim app is a light cosmos chain that implemenets the hyperlane cosmos module
 impl SimApp {
     pub fn new(bin: String, home: String, port_offset: u32) -> Self {
         let port_base = 26657 + port_offset * 5; // we increment by 5 ports as we need 5 unique ports per chain
-        let addr_base = "tcp://127.0.01";
+        let addr_base = "tcp://127.0.0.1";
 
         let mut next_port = port_base;
         let mut get_next_addr = || {
@@ -151,7 +151,7 @@ impl SimApp {
         // TODO: test against the tx result to see if everything was created correctly
         self.tx(vec!["hyperlane", "igp", "create-igp", DENOM]);
 
-        // set the interchain gas config -> this determins the interchain gaspayments
+        // set the interchain gas config -> this determines the interchain gaspayments
         // cmd is following: igp-address remote-domain exchange-rate gas-price and gas-overhead
         // this config requires a payment of at least 0.200001uhyp
         self.tx(vec![

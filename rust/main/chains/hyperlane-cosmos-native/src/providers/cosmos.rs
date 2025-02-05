@@ -180,7 +180,7 @@ impl CosmosNativeProvider {
 
     // extract the contract address from the tx
     // the tx is either a MsgPorcessMessage on the destination or a MsgRemoteTransfer on the origin
-    // we check for both tx types, if both are missing or an error occured while parsing we return the error
+    // we check for both tx types, if both are missing or an error occurred while parsing we return the error
     fn contract(tx: &Tx) -> ChainResult<H256> {
         // first check for the process message
         if let Some(recipient) = Self::check_msg_process(tx)? {

@@ -51,7 +51,7 @@ impl Drop for CosmosNativeStack {
     }
 }
 
-// right now we only test two chains that communicate with eachother
+// right now we only test two chains that communicate with each other
 // we send a one uhyp from node1 -> node2, this will result in a wrapped uhyp on node2
 // we send a one uhyp from node2 -> node1, this will result in a wrapped uhyp on node1
 fn dispatch(node1: &Deployment, node2: &Deployment) -> u32 {
@@ -204,7 +204,7 @@ fn install_sim_app() -> PathBuf {
     let release_name = format!("{BINARY_NAME}_{target}");
     log!("Downloading Sim App {}", release_name);
     let uri = format!(
-        "https://files.kyve.network/hyperlane/nightly/{}", // TODO: point to offical releases on github, right now we only have this private preview binary of a simulation app
+        "https://files.kyve.network/hyperlane/nightly/{}", // TODO: point to official releases on github, right now we only have this private preview binary of a simulation app
         release_name
     );
 
