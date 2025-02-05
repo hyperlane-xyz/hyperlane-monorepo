@@ -43,6 +43,7 @@ export const keyFunderConfig: KeyFunderConfig<
     avalanche: '5',
     b3: '0.05',
     base: '0.5',
+    berachain: '0.05',
     bitlayer: '0.002',
     blast: '0.2',
     bob: '0.2',

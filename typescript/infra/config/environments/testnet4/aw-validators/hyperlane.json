@@ -34,6 +34,9 @@
   "camptestnet": {
     "validators": ["0x238f40f055a7ff697ea6dbff3ae943c9eae7a38e"]
   },
+  "chronicleyellowstone": {
+    "validators": ["0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4"]
+  },
   "citreatestnet": {
     "validators": ["0x60d7380a41eb95c49be18f141efd2fde5e3dba20"]
   },

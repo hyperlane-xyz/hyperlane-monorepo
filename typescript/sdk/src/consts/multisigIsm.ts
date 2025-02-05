@@ -316,6 +316,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  berachain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x0190915c55d9c7555e6d2cb838f04d18b5e2260e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   bitlayer: {
     threshold: 2,
     validators: [
@@ -477,6 +487,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  chronicleyellowstone: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4',
+        alias: AW_VALIDATOR_ALIAS,
+      },
     ],
   },
 
@@ -1863,6 +1883,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xd5f8196d7060b85bea491f0b52a671e05f3d10a2',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  subtensortestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],
