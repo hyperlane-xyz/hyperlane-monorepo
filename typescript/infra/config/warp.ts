@@ -45,7 +45,7 @@ import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/con
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
 import {
   getRenzoEZETHWarpConfig,
-  getRenzoStrategyConfig,
+  getRenzoGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
@@ -98,7 +98,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
 export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
-    getRenzoStrategyConfig,
+    getRenzoGnosisSafeBuilderStrategyConfig,
 };
 
 async function getConfigFromGithub(

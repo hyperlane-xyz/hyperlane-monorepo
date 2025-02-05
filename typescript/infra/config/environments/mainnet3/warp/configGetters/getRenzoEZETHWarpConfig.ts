@@ -436,5 +436,5 @@ export function getRenzoStrategyConfigGenerator(
   };
 }
 
-export const getRenzoStrategyConfig =
+export const getRenzoGnosisSafeBuilderStrategyConfig =
   getRenzoStrategyConfigGenerator(ezEthSafes);
