@@ -25,8 +25,8 @@
     },
     "solanalocaltest": {
       "name": "solanalocaltest",
-      "chainId": 13400,
-      "domainId": 13400,
+      "chainId": 13377,
+      "domainId": 13377,
       "mailbox": "TyHFB91JTtREH6fpNsXFkjZzHc7T6fWefGZiEAG9qb6",
       "merkleTreeHook": "TyHFB91JTtREH6fpNsXFkjZzHc7T6fWefGZiEAG9qb6",
       "interchainGasPaymaster": "3VTG2jKyqBKNzg7zsrp4w7MXiAMGEVYhoK8ZoLqqxKJd",

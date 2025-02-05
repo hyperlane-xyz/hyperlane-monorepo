@@ -1,10 +1,10 @@
 {
   "solanalocaltest": {
-    "hex": "0x9c020cca8117624fa7bfefdf334e587e87c3b3ba337c7851f7d36339a8c8a693",
-    "base58": "BVzR1C8kTS7DWZbyrYrwChAaXUemMAdqXyzW87yfVsbQ"
+    "hex": "0xb5e25b4f3f6f39871e14e19c0561f09dd36e8fe0e67d93e6a6aab3163f50b0f8",
+    "base58": "DEzz69TL9uP828eRWkNr9CLQrbFzAXd2SBz9HdBkzaa3"
   },
   "nitrosvmtest": {
-    "hex": "0xae3f188107d1561e2e0000c61f721579d9bdf5e7af10a443e45f1cc65daa66fc",
-    "base58": "CjBk1gx6WLdC4y1XJujpeeFYJPJS1XdABiuzsaSHUut7"
+    "hex": "0xf5555a998217ab7efdd1520d062eead2b4f9b84d06180a9f4c5b52515b4fdb5f",
+    "base58": "HWgNf3TdeMG2vzgQX1WnKiTbUBvnvu4TUi6qvg7fKiia"
   }
 }
