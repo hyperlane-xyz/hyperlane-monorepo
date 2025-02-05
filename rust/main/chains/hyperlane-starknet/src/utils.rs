@@ -41,6 +41,7 @@ pub async fn get_transaction_receipt(
     call_and_retry_n_times(
         || {
             let rpc = rpc.clone();
+            println!("SAQUON transaction_hash {:?}", transaction_hash);
             Box::pin(async move {
                 let receipt = rpc
                     .get_transaction_receipt(transaction_hash)
