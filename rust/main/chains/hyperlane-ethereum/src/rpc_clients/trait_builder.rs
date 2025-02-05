@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Write};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -14,6 +15,7 @@ use ethers::prelude::{
 use ethers::types::Address;
 use ethers_signers::Signer;
 use hyperlane_core::rpc_clients::FallbackProvider;
+use reqwest::header::{HeaderName, HeaderValue};
 use reqwest::{Client, Url};
 use thiserror::Error;
 
@@ -73,12 +75,8 @@ pub trait BuildableWithProvider {
         Ok(match &conn.rpc_connection {
             RpcConnectionConf::HttpQuorum { urls } => {
                 let mut builder = QuorumProvider::builder().quorum(Quorum::Majority);
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()
-                    .map_err(EthereumProviderConnectionError::from)?;
                 for url in urls {
-                    let http_provider = Http::new_with_client(url.clone(), http_client.clone());
+                    let http_provider = build_http_provider(url.clone())?;
                     // Wrap the inner providers as RetryingProviders rather than the QuorumProvider.
                     // We've observed issues where the QuorumProvider will first get the latest
                     // block number and then submit an RPC at that block height,
@@ -104,12 +102,8 @@ pub trait BuildableWithProvider {
             }
             RpcConnectionConf::HttpFallback { urls } => {
                 let mut builder = FallbackProvider::builder();
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()
-                    .map_err(EthereumProviderConnectionError::from)?;
                 for url in urls {
-                    let http_provider = Http::new_with_client(url.clone(), http_client.clone());
+                    let http_provider = build_http_provider(url.clone())?;
                     let metrics_provider = self.wrap_rpc_with_metrics(
                         http_provider,
                         url.clone(),
@@ -127,11 +121,7 @@ pub trait BuildableWithProvider {
                     .await?
             }
             RpcConnectionConf::Http { url } => {
-                let http_client = Client::builder()
-                    .timeout(HTTP_CLIENT_TIMEOUT)
-                    .build()
-                    .map_err(EthereumProviderConnectionError::from)?;
-                let http_provider = Http::new_with_client(url.clone(), http_client);
+                let http_provider = build_http_provider(url.clone())?;
                 let metrics_provider = self.wrap_rpc_with_metrics(
                     http_provider,
                     url.clone(),
@@ -311,4 +301,38 @@ where
     // which adds unnecessary load on the provider.
     const FREQUENCY: Frequency = Frequency::Duration(Duration::from_secs(12).as_millis() as _);
     GasEscalatorMiddleware::new(provider, escalator, FREQUENCY)
+}
+
+fn build_http_provider(url: Url) -> ChainResult<Http> {
+    let mut queries_to_keep = vec![];
+    let mut headers = reqwest::header::HeaderMap::new();
+
+    let mut updated_url = url.clone();
+    for (key, value) in url.query_pairs() {
+        if !key.starts_with("custom_rpc_header") {
+            queries_to_keep.push((key.clone(), value.clone()));
+            continue;
+        }
+        if let Some((header_name, header_value)) = value.split_once(':') {
+            let header_name =
+                HeaderName::from_str(header_name).map_err(ChainCommunicationError::from_other)?;
+            let mut header_value =
+                HeaderValue::from_str(header_value).map_err(ChainCommunicationError::from_other)?;
+            header_value.set_sensitive(true);
+            headers.insert(header_name, header_value);
+        }
+    }
+
+    updated_url
+        .query_pairs_mut()
+        .clear()
+        .extend_pairs(queries_to_keep);
+
+    let http_client = Client::builder()
+        .timeout(HTTP_CLIENT_TIMEOUT)
+        .default_headers(headers)
+        .build()
+        .map_err(EthereumProviderConnectionError::from)?;
+
+    Ok(Http::new_with_client(url, http_client))
 }
