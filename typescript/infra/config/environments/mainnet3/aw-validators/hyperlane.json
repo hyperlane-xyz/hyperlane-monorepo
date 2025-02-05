@@ -421,5 +421,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "berachain": {
+    "validators": ["0x0190915c55d9c7555e6d2cb838f04d18b5e2260e"]
   }
 }
