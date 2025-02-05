@@ -82,6 +82,18 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       }
     }
 
+    this.logger.debug(
+      `Removing gas params for ${chain} -> lumia: gasOverhead = 0 gasOracle = ${ethers.constants.AddressZero}`,
+    );
+    // Temporary to remove old Lumia
+    gasParamsToSet.push({
+      remoteDomain: 994873017,
+      config: {
+        gasOverhead: 0,
+        gasOracle: ethers.constants.AddressZero,
+      },
+    });
+
     if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () =>
         this.multiProvider.handleTx(
