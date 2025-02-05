@@ -4,12 +4,14 @@ import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  ChainSubmissionStrategy,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
   IsmType,
   MultisigConfig,
   TokenType,
+  TxSubmitterType,
   buildAggregationIsmConfigs,
 } from '@hyperlane-xyz/sdk';
 import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
@@ -412,3 +414,27 @@ export const getRenzoEZETHWarpConfig = getRenzoEZETHWarpConfigGenerator(
   ezEthSafes,
   xERC20,
 );
+
+// Create a GnosisSafeBuilder Strategy for each safe address
+export function getRenzoGnosisSafeBuilderStrategyConfigGenerator(
+  ezEthSafes: Record<string, string>,
+) {
+  return (): ChainSubmissionStrategy => {
+    return Object.fromEntries(
+      Object.entries(ezEthSafes).map(([chain, safeAddress]) => [
+        chain,
+        {
+          submitter: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            version: '1.0',
+            chain,
+            safeAddress,
+          },
+        },
+      ]),
+    );
+  };
+}
+
+export const getRenzoGnosisSafeBuilderStrategyConfig =
+  getRenzoGnosisSafeBuilderStrategyConfigGenerator(ezEthSafes);

@@ -7320,7 +7320,7 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
-    "@hyperlane-xyz/registry": "npm:7.4.0"
+    "@hyperlane-xyz/registry": "npm:9.1.0"
     "@hyperlane-xyz/sdk": "npm:8.5.0"
     "@hyperlane-xyz/utils": "npm:8.5.0"
     "@inquirer/core": "npm:9.0.10"
@@ -7425,7 +7425,7 @@ __metadata:
   dependencies:
     "@eslint/js": "npm:^9.15.0"
     "@hyperlane-xyz/core": "npm:5.11.1"
-    "@hyperlane-xyz/registry": "npm:7.4.0"
+    "@hyperlane-xyz/registry": "npm:9.1.0"
     "@hyperlane-xyz/sdk": "npm:8.5.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
@@ -7476,7 +7476,7 @@ __metadata:
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:8.5.0"
-    "@hyperlane-xyz/registry": "npm:7.4.0"
+    "@hyperlane-xyz/registry": "npm:9.1.0"
     "@hyperlane-xyz/sdk": "npm:8.5.0"
     "@hyperlane-xyz/utils": "npm:8.5.0"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7539,13 +7539,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/registry@npm:7.4.0":
-  version: 7.4.0
-  resolution: "@hyperlane-xyz/registry@npm:7.4.0"
+"@hyperlane-xyz/registry@npm:9.1.0":
+  version: 9.1.0
+  resolution: "@hyperlane-xyz/registry@npm:9.1.0"
   dependencies:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
-  checksum: 10/a7843cf18d69b595f2c7320f6165632685468a893d15c8e2456d1a41359a1c28d924f50931adbd7111494cae64a51efaa8e5ec102a581171bf051566fc872e00
+  checksum: 10/44c9ae520880a11a186cebedeab50056859a120c66938564d0f64500971b161b4df556d288ba5347b8fcb348787aeb4829a117ae9946156a2314407b52f0bb3e
   languageName: node
   linkType: hard
 
@@ -7644,7 +7644,7 @@ __metadata:
     "@emotion/styled": "npm:^11.13.0"
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
-    "@hyperlane-xyz/registry": "npm:7.4.0"
+    "@hyperlane-xyz/registry": "npm:9.1.0"
     "@hyperlane-xyz/sdk": "npm:8.5.0"
     "@hyperlane-xyz/utils": "npm:8.5.0"
     "@interchain-ui/react": "npm:^1.23.28"
