@@ -430,5 +430,26 @@ export const validatorChainConfig = (
         'sonicblaze',
       ),
     },
+
+    // subtensortestnet: {
+    //   interval: 5,
+    //   reorgPeriod: getReorgPeriod('subtensortestnet'),
+    //   validators: validatorsConfig(
+    //     {
+    //       [Contexts.Hyperlane]: ['0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33'],
+    //     },
+    //     'subtensortestnet',
+    //   ),
+    // },
+    chronicleyellowstone: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('chronicleyellowstone'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xf11cfeb2b6db66ec14c2ef7b685b36390cd648b4'],
+        },
+        'chronicleyellowstone',
+      ),
+    },
   };
 };

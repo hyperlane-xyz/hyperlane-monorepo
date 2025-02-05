@@ -17,6 +17,7 @@ import { getAppChainBaseUSDCWarpConfig } from './environments/mainnet3/warp/conf
 import { getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBaseBlastBscEthereumGnosisMantleModeOptimismPolygonScrollZeroNetworkZoraMainnetETHWarpConfig.js';
 import { getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDC } from './environments/mainnet3/warp/configGetters/getArbitrumBaseEthereumOptimismPolygonZeroNetworkUSDCWarpConfig.js';
 import { getArbitrumEthereumMantleModePolygonScrollZeroNetworkUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumBscEthereumMantleModePolygonScrollZeronetworkUSDTWarpConfig.js';
+import { getArbitrumEthereumSolanaTreasureSMOLWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumEthereumSolanaTreasureSMOLWarpConfig.js';
 import { getArbitrumNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getArbitrumNeutronTiaWarpConfig.js';
 import {
   getTRUMPWarpConfig,
@@ -86,6 +87,8 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
   [WarpRouteIds.EthereumSuperseedCBBTC]: getEthereumSuperseedCBBTCWarpConfig,
   [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
+  [WarpRouteIds.ArbitrumEthereumSolanaTreasureSMOL]:
+    getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
 };
 
 async function getConfigFromGithub(
