@@ -276,6 +276,8 @@ pub enum HyperlaneDomainProtocol {
     Sealevel,
     /// A Cosmos-based chain type which uses hyperlane-cosmos.
     Cosmos,
+    /// A Sovereign-based chain type which uses hyperlane-sovereign.
+    Sovereign,
 }
 
 impl HyperlaneDomainProtocol {
@@ -286,6 +288,7 @@ impl HyperlaneDomainProtocol {
             Fuel => format!("{:?}", addr),
             Sealevel => format!("{:?}", addr),
             Cosmos => format!("{:?}", addr),
+            Sovereign => format!("{addr:?}"),
         }
     }
 }
@@ -592,7 +595,7 @@ impl HyperlaneDomain {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();
         many_to_one!(match protocol {
-            IndexMode::Block: [Ethereum, Cosmos],
+            IndexMode::Block: [Ethereum, Cosmos, Sovereign],
             IndexMode::Sequence : [Sealevel, Fuel],
         })
     }

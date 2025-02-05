@@ -379,5 +379,11 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Cosmos => {
             build_cosmos_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Sovereign => rpcs.iter().next().map(|url| {
+            ChainConnectionConf::Sovereign(h_sovereign::ConnectionConf {
+                url: url.clone(),
+                operation_batch,
+            })
+        }),
     }
 }
