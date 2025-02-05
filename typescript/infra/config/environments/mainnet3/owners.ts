@@ -61,7 +61,9 @@ export const safes: ChainMap<Address> = {
   endurance: '0xaCD1865B262C89Fb0b50dcc8fB095330ae8F35b5',
   zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
   swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
-  berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
+  // Q5, 2025 batch
+  // berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 
   // zksync chains
   zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
