@@ -1,0 +1,25 @@
+{
+  "ethereum": {
+    "type": "synthetic",
+    "decimals": 18,
+    "name": "SMOL",
+    "symbol": "SMOL",
+    "foreignDeployment": "0x53cce6d10e43d1b3d11872ad22ec2acd8d2537b8"
+  },
+  "treasure": {
+    "type": "synthetic",
+    "decimals": 18,
+    "name": "SMOL",
+    "symbol": "SMOL",
+    "foreignDeployment": "0xb73e4f558F7d4436d77a18f56e4EE9d01764c641"
+  },
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 9,
+    "remoteDecimals": 18,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "name": "SMOL",
+    "symbol": "SMOL",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/cd3a66849bcb252404ea63a389121cab4d71eb87/deployments/warp_routes/SMOL/metadata.json"
+  }
+}
