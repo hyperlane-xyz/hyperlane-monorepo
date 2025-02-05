@@ -1555,5 +1555,16 @@ export const validatorChainConfig = (
         'sonicsvm',
       ),
     },
+
+    berachain: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('berachain'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x0190915c55d9c7555e6d2cb838f04d18b5e2260e'],
+        },
+        'berachain',
+      ),
+    },
   };
 };

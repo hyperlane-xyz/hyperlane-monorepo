@@ -316,6 +316,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  berachain: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x0190915c55d9c7555e6d2cb838f04d18b5e2260e',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   bitlayer: {
     threshold: 2,
     validators: [

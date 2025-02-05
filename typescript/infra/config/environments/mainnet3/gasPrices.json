@@ -63,6 +63,10 @@
     "amount": "0.060189299",
     "decimals": 9
   },
+  "berachain": {
+    "amount": "0.040000007",
+    "decimals": 9
+  },
   "bitlayer": {
     "amount": "0.050000007",
     "decimals": 9
