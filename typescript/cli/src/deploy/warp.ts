@@ -559,7 +559,7 @@ async function extendWarpRoute(
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
   // Split between the existing and additional config
-  let [existingConfigs, extendedConfigs] = Object.entries(
+  const [existingConfigs, initialExtendedConfigs] = Object.entries(
     warpDeployConfig,
   ).reduce<[WarpRouteDeployConfig, WarpRouteDeployConfig]>(
     ([existing, extended], [chain, config]) => {
@@ -573,15 +573,15 @@ async function extendWarpRoute(
     [{}, {}],
   );
 
-  const extendedChains = Object.keys(extendedConfigs);
+  const extendedChains = Object.keys(initialExtendedConfigs);
   if (extendedChains.length === 0) return;
 
   logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
 
-  extendedConfigs = await deriveMetadataFromExisting(
+  let extendedConfigs = await deriveMetadataFromExisting(
     context.multiProvider,
     existingConfigs,
-    extendedConfigs,
+    initialExtendedConfigs,
   );
 
   // Deploy new contracts
@@ -632,39 +632,44 @@ async function extendWarpRoute(
   );
 }
 
-function configureRemoteRouters(
+/**
+ * Gets remote routers configuration for a chain
+ */
+function getRemoteRouters(
   multiProvider: MultiProvider,
   chain: string,
   deployedRoutersAddresses: ChainMap<Address>,
-  destinationGas: DestinationGas,
-): {
-  remoteRouters: RemoteRouters;
-  chainDestinationGas: DestinationGas;
-} {
+): RemoteRouters {
   const otherChains = multiProvider
     .getRemoteChains(chain)
     .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
 
-  const remoteRouters = otherChains.reduce<RemoteRouters>(
-    (routers, otherChain) => {
-      routers[multiProvider.getDomainId(otherChain)] = {
-        address: deployedRoutersAddresses[otherChain],
-      };
-      return routers;
-    },
-    {},
-  );
+  return otherChains.reduce<RemoteRouters>((routers, otherChain) => {
+    routers[multiProvider.getDomainId(otherChain)] = {
+      address: deployedRoutersAddresses[otherChain],
+    };
+    return routers;
+  }, {});
+}
 
-  const chainDestinationGas = otherChains.reduce<DestinationGas>(
-    (gas, otherChain) => {
-      const otherDomain = multiProvider.getDomainId(otherChain).toString();
-      gas[otherDomain] = destinationGas[otherDomain];
-      return gas;
-    },
-    {},
-  );
+/**
+ * Gets destination gas configuration for a chain
+ */
+function getChainDestinationGas(
+  multiProvider: MultiProvider,
+  chain: string,
+  deployedRoutersAddresses: ChainMap<Address>,
+  destinationGas: DestinationGas,
+): DestinationGas {
+  const otherChains = multiProvider
+    .getRemoteChains(chain)
+    .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
 
-  return { remoteRouters, chainDestinationGas };
+  return otherChains.reduce<DestinationGas>((gas, otherChain) => {
+    const otherDomain = multiProvider.getDomainId(otherChain).toString();
+    gas[otherDomain] = destinationGas[otherDomain];
+    return gas;
+  }, {});
 }
 
 async function updateExistingWarpRoute(
@@ -744,17 +749,21 @@ async function updateExistingWarpRoute(
           contractVerifier,
         );
 
-        const { remoteRouters, chainDestinationGas } = configureRemoteRouters(
-          multiProvider,
-          chain,
-          deployedRoutersAddresses,
-          destinationGas,
-        );
-
-        config.remoteRouters = remoteRouters;
-        config.destinationGas = chainDestinationGas;
-
-        transactions.push(...(await evmERC20WarpModule.update(config)));
+        const updatedConfig = {
+          destinationGas: getChainDestinationGas(
+            multiProvider,
+            chain,
+            deployedRoutersAddresses,
+            destinationGas,
+          ),
+          remoteRouters: getRemoteRouters(
+            multiProvider,
+            chain,
+            deployedRoutersAddresses,
+          ),
+          ...config,
+        };
+        transactions.push(...(await evmERC20WarpModule.update(updatedConfig)));
       });
     }),
   );
