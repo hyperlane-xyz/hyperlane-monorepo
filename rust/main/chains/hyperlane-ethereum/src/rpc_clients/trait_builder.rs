@@ -310,8 +310,8 @@ fn build_http_provider(url: Url) -> ChainResult<Http> {
     // A hack to pass custom headers to the provider without
     // requiring a bunch of changes to our configuration surface area.
     // Any `custom_rpc_header` query parameter is expected to have the value
-    // format: `header_name:header_value`, and will be added to the headers
-    // of the HTTP client and removed from the URL params.
+    // format: `header_name:header_value`, will be added to the headers
+    // of the HTTP client, and removed from the URL params.
     let mut updated_url = url.clone();
     for (key, value) in url.query_pairs() {
         if key != "custom_rpc_header" {
