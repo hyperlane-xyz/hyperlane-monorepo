@@ -1,16 +1,19 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
+import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   HookType,
   HypTokenRouterConfig,
   TokenType,
+  WarpCoreConfig,
   WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 
+import { getContext } from '../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
@@ -20,6 +23,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   E2E_TEST_BURN_ADDRESS,
   EXAMPLES_PATH,
+  REGISTRY_PATH,
   TEMP_PATH,
   WARP_CONFIG_PATH_2,
   WARP_CONFIG_PATH_EXAMPLE,
@@ -372,7 +376,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     expect(destinationGas_3[chain2Id]).to.equal('7777');
   });
 
-  it('should recover from manual router unenrollment', async () => {
+  it('should recover and re-enroll routers after configuration tampering through manual deletion of remoteRouters', async () => {
     const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
     const warpDeployConfig = await readWarpConfig(
       CHAIN_NAME_2,
@@ -480,5 +484,93 @@ describe('hyperlane warp apply e2e tests', async function () {
       finalChain3Config[CHAIN_NAME_3].remoteRouters!,
     );
     expect(remoteRouterKeys2).to.include(chain1Id);
+  });
+
+  it('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface', async () => {
+    const { multiProvider } = await getContext({
+      registryUri: REGISTRY_PATH,
+      registryOverrideUri: '',
+      key: ANVIL_KEY,
+    });
+
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+
+    // Initial setup with chain3 using extendWarpConfig
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig: {
+        decimals: 18,
+        mailbox: chain2Addresses!.mailbox,
+        name: 'Ether',
+        owner: new Wallet(ANVIL_KEY).address,
+        symbol: 'ETH',
+        totalSupply: 0,
+        type: TokenType.native,
+      },
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: warpConfigPath,
+    });
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+
+    const warpCoreConfig = readYamlOrJson(
+      COMBINED_WARP_CORE_CONFIG_PATH,
+    ) as WarpCoreConfig;
+    const deployedTokenRoute = warpCoreConfig.tokens.find(
+      (t) => t.chainName === CHAIN_NAME_2,
+    )?.addressOrDenom;
+
+    if (!deployedTokenRoute) {
+      throw new Error('Failed to find deployed token route address');
+    }
+
+    // Manually call unenrollRemoteRouters
+    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+    const tokenRouter = TokenRouter__factory.connect(
+      deployedTokenRoute,
+      new Wallet(ANVIL_KEY).connect(multiProvider.getProvider(CHAIN_NAME_2)),
+    );
+    await tokenRouter.unenrollRemoteRouters([chain3Id]);
+
+    // Verify the router was unenrolled
+    const beforeRecoveryConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+    expect(
+      Object.keys(beforeRecoveryConfig[CHAIN_NAME_2].remoteRouters || {}),
+    ).to.not.include(chain3Id.toString());
+
+    // Re-extend to fix the configuration
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig: {
+        decimals: 18,
+        mailbox: chain2Addresses!.mailbox,
+        name: 'Ether',
+        owner: new Wallet(ANVIL_KEY).address,
+        symbol: 'ETH',
+        totalSupply: 0,
+        type: TokenType.native,
+      },
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: warpConfigPath,
+    });
+
+    const recoveredConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+
+    expect(
+      Object.keys(recoveredConfig[CHAIN_NAME_2].remoteRouters!),
+    ).to.include(chain3Id.toString());
   });
 });
