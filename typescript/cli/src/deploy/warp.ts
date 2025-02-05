@@ -578,7 +578,7 @@ async function extendWarpRoute(
 
   logBlue(`Extending Warp Route to ${extendedChains.join(', ')}`);
 
-  let extendedConfigs = await deriveMetadataFromExisting(
+  const extendedConfigs = await deriveMetadataFromExisting(
     context.multiProvider,
     existingConfigs,
     initialExtendedConfigs,
