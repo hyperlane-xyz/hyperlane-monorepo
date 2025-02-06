@@ -62,6 +62,9 @@ export const safes: ChainMap<Address> = {
   zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
   swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 
+  // Q5, 2024 batch
+  berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+
   // zksync chains
   zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
   abstract: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
@@ -215,6 +218,10 @@ export const icas: Partial<
   matchain: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
   unitzero: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
   trumpchain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
+
+  // Q5, 2024 batch
+  // ----------------------------------------------------------
+  // berachain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
 } as const;
 
 export const DEPLOYER = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
