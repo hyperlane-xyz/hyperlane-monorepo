@@ -299,6 +299,7 @@ export function getRenzoEZETHWarpConfigGenerator(
   ezEthSafes: Record<string, string>,
   xERC20: Record<(typeof chainsToDeploy)[number], string>,
   existingProxyAdmins?: ChainMap<{ address: string; owner: string }>,
+  lockbox: string,
 ) {
   return async (): Promise<ChainMap<HypTokenRouterConfig>> => {
     const config = getEnvironmentConfig('mainnet3');
@@ -415,6 +416,7 @@ export const getRenzoEZETHWarpConfig = getRenzoEZETHWarpConfigGenerator(
   ezEthSafes,
   xERC20,
   existingProxyAdmins,
+  lockbox,
 );
 
 // Create a GnosisSafeBuilder Strategy for each safe address
