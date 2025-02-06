@@ -63,7 +63,7 @@ export const safes: ChainMap<Address> = {
   swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 
   // Q5, 2025 batch
-  // berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
+  berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 
   // zksync chains
   zeronetwork: '0xCB21F61A3c8139F18e635d45aD1e62A4A61d2c3D',
