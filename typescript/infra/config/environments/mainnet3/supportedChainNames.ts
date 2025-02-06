@@ -18,6 +18,7 @@ export const mainnet3SupportedChainNames = [
   'avalanche',
   'b3',
   'base',
+  'berachain',
   'bitlayer',
   'blast',
   'bob',
