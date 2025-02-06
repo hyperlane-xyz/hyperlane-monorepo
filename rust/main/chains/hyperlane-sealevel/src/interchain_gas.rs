@@ -203,6 +203,7 @@ impl SealevelInterchainGasPaymasterIndexer {
     }
 
     fn interchain_payment_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        tracing::warn!(?account, account_data_len=account.data.len(), domain=?self.igp.domain(), "In interchain_payment_account");
         let unique_gas_payment_pubkey = Pubkey::new(&account.data);
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),

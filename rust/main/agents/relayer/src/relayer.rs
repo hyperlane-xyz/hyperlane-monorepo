@@ -411,6 +411,8 @@ impl BaseAgent for Relayer {
             tasks.push(self.run_merkle_tree_processor(origin, task_monitor.clone()));
         }
 
+        tracing::warn!(tasks=?tasks.iter().map(|t| t.inner().id()).collect::<Vec<_>>(), "Relayer tasks started");
+
         if let Err(err) = try_join_all(tasks).await {
             tracing::error!(
                 error=?err,

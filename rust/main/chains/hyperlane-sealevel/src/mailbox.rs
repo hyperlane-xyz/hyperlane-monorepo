@@ -658,6 +658,7 @@ impl SealevelMailboxIndexer {
     }
 
     fn dispatched_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+        tracing::warn!(?account, account_data_len=account.data.len(), domain=?self.mailbox.domain(), "In dispatched_message_account");
         let unique_message_pubkey = Pubkey::new(&account.data);
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
