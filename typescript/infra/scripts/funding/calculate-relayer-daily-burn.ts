@@ -1,4 +1,4 @@
-import postgres, { Sql } from 'postgres';
+import postgres from 'postgres';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
@@ -211,7 +211,7 @@ async function calculateDailyRelayerBurn(sealevelDomainIds: ChainMap<string>) {
   }> = [];
 
   for (const chain of Object.keys(tokenPrices)) {
-    const dailyBurn = burnData[chain];
+    const dailyBurn = burnData[chain] ?? 0;
 
     // minimum native balance required to maintain our desired minimum dollar balance in the relayer
     const minNativeBalance =
