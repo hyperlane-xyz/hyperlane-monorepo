@@ -25,7 +25,7 @@ pub async fn search_accounts_by_discriminator(
     // To keep responses small in case there is ever more than 1
     // match, we don't request the full account data, and just request
     // the field which was used to generate account id
-    // #[allow(deprecated)]
+    #[allow(deprecated)]
     let memcmp = RpcFilterType::Memcmp(Memcmp {
         // Ignore the first byte, which is the `initialized` bool flag.
         offset: 1,
