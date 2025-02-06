@@ -134,10 +134,6 @@ export class MultiChainResolver implements ChainResolver {
       chains.push(argv.origin);
     }
 
-    if (argv.destination) {
-      chains.push(argv.destination);
-    }
-
     if (argv.chain) {
       chains.push(argv.chain);
     }
@@ -149,9 +145,13 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    return chains.length > 0
-      ? chains
-      : Array.from(this.getEvmChains(multiProvider));
+    // If no destination is specified, return all EVM chains
+    if (!argv.destination) {
+      return Array.from(this.getEvmChains(multiProvider));
+    }
+
+    chains.push(argv.destination);
+    return chains;
   }
 
   private async getWarpRouteConfigChains(
