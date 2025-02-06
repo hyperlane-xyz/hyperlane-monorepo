@@ -20,6 +20,10 @@ use crate::processor::ProcessorExt;
 
 use super::builder::MerkleTreeBuilder;
 
+/// The number of leaf insertions to process before yielding to the tokio scheduler
+/// to avoid starving other tasks.
+const LEAF_INSERTIONS_BETWEEN_YIELDS: u32 = 32;
+
 /// Finds unprocessed merkle tree insertions and adds them to the prover sync
 #[derive(new)]
 pub struct MerkleTreeProcessor {
@@ -60,6 +64,14 @@ impl ProcessorExt for MerkleTreeProcessor {
 
             // Increase the leaf index to move on to the next leaf
             self.leaf_index += 1;
+
+            // Yield to the tokio scheduler every so often to avoid
+            // starving other tasks. If we ever end up waiting for a
+            // new leaf with next_unprocessed_leaf returning None,
+            // we end up yielding as well with the sleep.
+            if self.leaf_index % LEAF_INSERTIONS_BETWEEN_YIELDS == 0 {
+                tokio::task::yield_now().await;
+            }
         } else {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
