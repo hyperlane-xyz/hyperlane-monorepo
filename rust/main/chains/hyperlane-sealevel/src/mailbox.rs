@@ -608,6 +608,15 @@ impl SealevelMailboxIndexer {
         let nonce_bytes = nonce.to_le_bytes();
         let unique_dispatched_message_pubkey_offset = 1 + 8 + 4 + 8; // the offset to get the `unique_message_pubkey` field
         let unique_dispatch_message_pubkey_length = 32; // the length of the `unique_message_pubkey` field
+
+        tracing::warn!(
+            ?nonce,
+            ?nonce_bytes,
+            unique_dispatched_message_pubkey_offset,
+            unique_dispatch_message_pubkey_length,
+            "Before search_accounts_by_discriminator"
+        );
+
         let accounts = search_accounts_by_discriminator(
             self.rpc(),
             &self.program_id,
@@ -618,15 +627,29 @@ impl SealevelMailboxIndexer {
         )
         .await?;
 
+        tracing::warn!(?nonce, ?accounts, "After search_accounts_by_discriminator");
+
         let valid_message_storage_pda_pubkey = search_and_validate_account(accounts, |account| {
             self.dispatched_message_account(account)
         })?;
+
+        tracing::warn!(
+            ?nonce,
+            ?valid_message_storage_pda_pubkey,
+            "After search_and_validate_account"
+        );
 
         // Now that we have the valid message storage PDA pubkey, we can get the full account data.
         let account = self
             .rpc()
             .get_account_with_finalized_commitment(&valid_message_storage_pda_pubkey)
             .await?;
+        tracing::warn!(
+            ?nonce,
+            ?valid_message_storage_pda_pubkey,
+            ?account,
+            "Full account data of valid_message_storage_pda_pubkey"
+        );
         let dispatched_message_account =
             DispatchedMessageAccount::fetch(&mut account.data.as_ref())
                 .map_err(ChainCommunicationError::from_other)?
@@ -805,6 +828,7 @@ impl Indexer<HyperlaneMessage> for SealevelMailboxIndexer {
         let message_capacity = range.end().saturating_sub(*range.start());
         let mut messages = Vec::with_capacity(message_capacity as usize);
         for nonce in range {
+            tracing::warn!(?nonce, "Fetching SVM message");
             messages.push(self.get_dispatched_message_with_nonce(nonce).await?);
         }
         Ok(messages)

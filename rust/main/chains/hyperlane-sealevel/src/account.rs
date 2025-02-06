@@ -42,6 +42,7 @@ pub async fn search_accounts_by_discriminator(
         },
         with_context: Some(false),
     };
+    tracing::warn!(?program_id, ?config, "In search_accounts_by_discriminator");
     let accounts = client
         .get_program_accounts_with_config(program_id, config)
         .await?;
