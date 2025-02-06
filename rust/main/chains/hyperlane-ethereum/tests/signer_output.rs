@@ -30,6 +30,7 @@ pub fn output_message() {
             H160::from_str("0x2222222222222222222222222222222222222222").unwrap(),
         ),
         body: Vec::from_hex("1234").unwrap(),
+        id: std::sync::OnceLock::new(),
     };
 
     let message_json = json!({

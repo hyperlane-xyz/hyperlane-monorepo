@@ -56,6 +56,7 @@ cosmwasm-std = "*"
 crunchy = "0.2"
 ctrlc = "3.2"
 curve25519-dalek = { version = "~3.2", features = ["serde"] }
+derivative = "2.2.0"
 derive-new = "0.5"
 derive_builder = "0.12"
 derive_more = "0.99"

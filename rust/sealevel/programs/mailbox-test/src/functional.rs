@@ -228,6 +228,7 @@ async fn test_dispatch_from_eoa() {
         .unwrap();
 
     let expected_message = HyperlaneMessage {
+        id: std::sync::OnceLock::new(),
         version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
@@ -285,6 +286,7 @@ async fn test_dispatch_from_eoa() {
         .unwrap();
 
     let expected_message = HyperlaneMessage {
+        id: std::sync::OnceLock::new(),
         version: 3,
         nonce: 1,
         origin: LOCAL_DOMAIN,
@@ -596,6 +598,7 @@ async fn test_dispatch_from_program() {
             .unwrap();
 
     let expected_message = HyperlaneMessage {
+        id: std::sync::OnceLock::new(),
         version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
@@ -659,6 +662,7 @@ async fn test_dispatch_returns_message_id() {
         message_body: message_body.clone(),
     };
     let expected_message = HyperlaneMessage {
+        id: std::sync::OnceLock::new(),
         version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
@@ -879,6 +883,7 @@ async fn test_process_successful_verify_and_handle() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
+        id: std::sync::OnceLock::new(),
         version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
@@ -910,6 +915,7 @@ async fn test_process_successful_verify_and_handle() {
 
     // Send another to illustrate that the sequence is incremented
     let message = HyperlaneMessage {
+        id: std::sync::OnceLock::new(),
         version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
@@ -959,6 +965,7 @@ async fn test_process_errors_if_message_already_processed() {
     let recipient_id = hyperlane_sealevel_test_send_receiver::id();
 
     let message = HyperlaneMessage {
+        id: std::sync::OnceLock::new(),
         version: 3,
         nonce: 0,
         origin: REMOTE_DOMAIN,
@@ -1027,6 +1034,7 @@ async fn test_process_errors_if_ism_verify_fails() {
         destination: LOCAL_DOMAIN,
         recipient: recipient_id.to_bytes().into(),
         body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        id: std::sync::OnceLock::new(),
     };
 
     let result = process(
@@ -1080,6 +1088,7 @@ async fn test_process_errors_if_recipient_handle_fails() {
         destination: LOCAL_DOMAIN,
         recipient: recipient_id.to_bytes().into(),
         body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        id: std::sync::OnceLock::new(),
     };
 
     let result = process(
@@ -1129,6 +1138,7 @@ async fn test_process_errors_if_incorrect_destination_domain() {
         destination: LOCAL_DOMAIN + 1,
         recipient: recipient_id.to_bytes().into(),
         body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        id: std::sync::OnceLock::new(),
     };
 
     let result = process(
@@ -1177,6 +1187,7 @@ async fn test_process_errors_if_wrong_message_version() {
         destination: LOCAL_DOMAIN,
         recipient: recipient_id.to_bytes().into(),
         body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        id: std::sync::OnceLock::new(),
     };
 
     let result = process(
@@ -1223,6 +1234,7 @@ async fn test_process_errors_if_recipient_not_a_program() {
         destination: LOCAL_DOMAIN,
         recipient: H256::random(),
         body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        id: std::sync::OnceLock::new(),
     };
 
     let result = process(
@@ -1270,6 +1282,7 @@ async fn test_process_errors_if_reentrant() {
         destination: LOCAL_DOMAIN,
         recipient: recipient_id.to_bytes().into(),
         body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        id: std::sync::OnceLock::new(),
     };
 
     let mut accounts = get_process_account_metas(

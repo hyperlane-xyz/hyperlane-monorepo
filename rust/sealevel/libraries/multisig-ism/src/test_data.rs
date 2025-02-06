@@ -30,6 +30,7 @@ pub fn get_multisig_ism_test_data() -> MultisigIsmTestData {
         )
         .unwrap(),
         body: vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        id: std::sync::OnceLock::new(),
     };
 
     let checkpoint = CheckpointWithMessageId {

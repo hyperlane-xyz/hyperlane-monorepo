@@ -1,6 +1,8 @@
+use derivative::Derivative;
 use serde::Serialize;
 use sha3::{digest::Update, Digest, Keccak256};
 use std::fmt::{Debug, Display, Formatter};
+use std::sync::OnceLock;
 
 use crate::utils::{fmt_address_for_domain, fmt_domain};
 use crate::{Decode, Encode, HyperlaneProtocolError, H256};
@@ -22,7 +24,8 @@ impl From<&HyperlaneMessage> for RawHyperlaneMessage {
 }
 
 /// A full Hyperlane message between chains
-#[derive(Clone, Eq, PartialEq, Hash, Serialize)]
+#[derive(Derivative, Serialize)]
+#[derivative(Clone, Eq, PartialEq, Hash)]
 pub struct HyperlaneMessage {
     /// 1   Hyperlane version number
     pub version: u8,
@@ -38,6 +41,11 @@ pub struct HyperlaneMessage {
     pub recipient: H256,
     /// 0+  Message contents
     pub body: Vec<u8>,
+
+    /// Cache for the message ID to avoid generating it a bunch
+    #[derivative(PartialEq = "ignore", Hash = "ignore")]
+    #[serde(skip_serializing)]
+    pub id: OnceLock<H256>,
 }
 
 impl Default for HyperlaneMessage {
@@ -51,6 +59,7 @@ impl Default for HyperlaneMessage {
             destination: 0,
             recipient: H256::zero(),
             body: vec![],
+            id: OnceLock::new(),
         }
     }
 }
@@ -101,6 +110,7 @@ impl From<&RawHyperlaneMessage> for HyperlaneMessage {
             destination: u32::from_be_bytes(destination),
             recipient: H256::from(recipient),
             body,
+            id: OnceLock::new(),
         }
     }
 }
@@ -155,6 +165,7 @@ impl Decode for HyperlaneMessage {
             destination: u32::from_be_bytes(destination),
             recipient,
             body,
+            id: OnceLock::new(),
         })
     }
 }
@@ -162,6 +173,10 @@ impl Decode for HyperlaneMessage {
 impl HyperlaneMessage {
     /// Convert the message to a message id
     pub fn id(&self) -> H256 {
+        *self.id.get_or_init(|| self.compute_id())
+    }
+
+    fn compute_id(&self) -> H256 {
         H256::from_slice(Keccak256::new().chain(self.to_vec()).finalize().as_slice())
     }
 }

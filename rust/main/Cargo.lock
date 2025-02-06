@@ -4623,6 +4623,7 @@ dependencies = [
  "bytes",
  "config",
  "convert_case 0.6.0",
+ "derivative",
  "derive-new",
  "derive_more 0.99.18",
  "ethers-contract",
