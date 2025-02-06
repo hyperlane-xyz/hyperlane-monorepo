@@ -91,6 +91,11 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   //     gasPrice: 600 * 10 ** 9, // 600 gwei
   //   },
   // },
+  // matchain: {
+  //   blocks: {
+  //     confirmations: 5,
+  //   },
+  // },
 };
 
 export const getRegistry = async (
