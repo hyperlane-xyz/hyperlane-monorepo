@@ -661,6 +661,8 @@ const blacklistedMessageIds = [
   // malformed recipient in warp transfers
   '0xf20e3dc5172d824b146b91bb33d66532915fab605e44d2d76af7b5898a6390fe',
   '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
+  '0xad52d640ed71b4363731a78becc8ad1d4aa8549a290c554e48281196478ade83',
+  '0x984994d247edd9967182ba91b236a4e10223ef66e3b96259f06f2b7c7fbd8176',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
