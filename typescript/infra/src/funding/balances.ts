@@ -1,3 +1,4 @@
+import { ChainMap } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
@@ -73,4 +74,18 @@ export function validateThresholds(newConfigs: ThresholdConfigs): void {
   } else {
     rootLogger.info('All thresholds validated successfully across configs.');
   }
+}
+
+export function formatBalanceThreshold(dailyRelayerBurn: number): number {
+  return Number(dailyRelayerBurn.toPrecision(3));
+}
+
+export function sortThresholds(
+  newThresholds: ChainMap<string>,
+): ChainMap<string> {
+  return Object.fromEntries(
+    Object.entries(newThresholds).sort(([keyA], [keyB]) =>
+      keyA.localeCompare(keyB),
+    ),
+  );
 }

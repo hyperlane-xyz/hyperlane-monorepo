@@ -5,28 +5,51 @@ import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import rawDailyRelayerBurn from '../../config/environments/mainnet3/balances/dailyRelayerBurn.json';
 import rawDesiredRelayerBalances from '../../config/environments/mainnet3/balances/desiredRelayerBalances.json';
+import { getRegistry } from '../../config/environments/mainnet3/chains.js';
 import { mainnet3SupportedChainNames } from '../../config/environments/mainnet3/supportedChainNames.js';
 import rawTokenPrices from '../../config/environments/mainnet3/tokenPrices.json';
 import {
   RELAYER_BALANCE_TARGET_DAYS,
   RELAYER_MIN_DOLLAR_BALANCE_PER_DAY,
+  THRESHOLD_CONFIG_PATH,
 } from '../../src/config/funding/balances.js';
-import { formatBalanceThreshold } from '../../src/funding/grafana.js';
+import { formatBalanceThreshold } from '../../src/funding/balances.js';
+import {
+  PrometheusResult,
+  fetchPrometheusData,
+  portForwardPrometheusServer,
+} from '../../src/infrastructure/monitoring/prometheus.js';
 import { fetchLatestGCPSecret } from '../../src/utils/gcloud.js';
 import { writeJsonAtPath } from '../../src/utils/utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
 
 const tokenPrices: ChainMap<string> = rawTokenPrices;
 const currentDailyRelayerBurn: ChainMap<number> = rawDailyRelayerBurn;
 const desiredRelayerBalances: ChainMap<string> = rawDesiredRelayerBalances;
 
-const DAILY_BURN_PATH =
-  './config/environments/mainnet3/balances/dailyRelayerBurn.json';
+const DAILY_BURN_PATH = `${THRESHOLD_CONFIG_PATH}/dailyRelayerBurn.json`;
+const SCRAPER_READ_ONLY_DB = 'hyperlane-mainnet3-scraper3-db-read-only';
 
 const LOOK_BACK_DAYS = 10; // the number of days to look back for average destination tx costs
 const MIN_NUMBER_OF_TXS = 100; // the minimum number of txs to consider for daily burn
+const PROMETHEUS_LOCAL_PORT = 9092;
 
 async function main() {
+  validateTokenPrices();
+
+  const sealevelDomainIds: ChainMap<string> = await getSealeveDomainIds();
+
+  let burnData: ChainMap<number>;
+  try {
+    burnData = await calculateDailyRelayerBurn(sealevelDomainIds);
+  } catch (err) {
+    rootLogger.error('Error fetching daily burn data:', err);
+    process.exit(1);
+  }
+
+  writeBurnDataToFile(burnData);
+}
+
+function validateTokenPrices() {
   const chainsMissingInTokenPrices = mainnet3SupportedChainNames.filter(
     (chain) => !(chain in tokenPrices),
   );
@@ -35,55 +58,20 @@ async function main() {
     rootLogger.error(
       `Token prices missing for chains: ${chainsMissingInTokenPrices.join(
         ', ',
-      )} consider adding them to tokenPrices.json and running the script again.`,
+      )} -- consider adding them to tokenPrices.json and running again.`,
     );
     process.exit(1);
-  }
-
-  const environment = 'mainnet3';
-  const environmentConfig = getEnvironmentConfig(environment);
-  const registry = await environmentConfig.getRegistry();
-  const allMetadata = await registry.getMetadata();
-  const sealevelDomainIds: ChainMap<string> = Object.values(allMetadata)
-    .filter(
-      (metadata) =>
-        metadata.protocol == ProtocolType.Sealevel && !metadata.isTestnet,
-    )
-    .reduce((acc: { [key: string]: string }, metadata) => {
-      acc[metadata.name] = metadata.domainId.toString();
-      return acc;
-    }, {});
-
-  const sql = await getReadOnlyScraperDb();
-  let burnData: ChainMap<number>;
-  try {
-    burnData = await getDailyRelayerBurn(sql, sealevelDomainIds);
-    await sql.end();
-  } catch (err) {
-    rootLogger.error('Error fetching daily burn data:', err);
-    process.exit(1);
-  }
-
-  try {
-    rootLogger.info('Writing daily burn data to file..');
-    writeJsonAtPath(DAILY_BURN_PATH, burnData);
-    rootLogger.info('Daily burn data written to file.');
-  } catch (err) {
-    rootLogger.error('Error writing daily burn data to file:', err);
   }
 }
 
 async function getReadOnlyScraperDb() {
-  const credentialsUrl = await fetchLatestGCPSecret(
-    'hyperlane-mainnet3-scraper3-db-read-only',
-  );
+  const credentialsUrl = await fetchLatestGCPSecret(SCRAPER_READ_ONLY_DB);
   return postgres(credentialsUrl);
 }
 
-async function fetchDailyRelayerBurnData(
-  sql: Sql,
-  sealevelDomainIds: string[],
-) {
+async function getDailyRelayerBurnScraperDB(sealevelDomainIds: string[]) {
+  const sql = await getReadOnlyScraperDb();
+
   const results = await sql`
     WITH
       look_back_stats AS (
@@ -121,21 +109,94 @@ async function fetchDailyRelayerBurnData(
       domain_name
   `;
 
-  return results;
+  await sql.end();
+
+  const burnData: ChainMap<number> = {};
+  for (const row of results) {
+    burnData[row.chain] = row.daily_burn;
+  }
+
+  return burnData;
 }
 
-async function getDailyRelayerBurn(
-  sql: Sql,
-  sealevelDomainIds: ChainMap<string>,
-) {
-  const dailyRelayerBurnQueryResults = await fetchDailyRelayerBurnData(
-    sql,
+async function getSealevelBurnProm(
+  chainNames: string[],
+  lookBackDays: number = 10,
+): Promise<ChainMap<number>> {
+  const portForwardProcess = await portForwardPrometheusServer(
+    PROMETHEUS_LOCAL_PORT,
+  );
+
+  const promUrl = `http://localhost:${PROMETHEUS_LOCAL_PORT}`;
+
+  const burn: ChainMap<number> = {};
+
+  const rangeHours = lookBackDays * 24;
+
+  // This PromQL does:
+  // - sum_over_time(... [${rangeHours}h:]): accumulate the "only decrease" deltas over the last lookBackDays
+  // - sum by (chain)(...): get a separate series for each chain
+  // - / lookBackDays: divide the total by lookBackDays, yielding an average "per day" value.
+  const promQlQuery = `
+    sum by (chain) (
+      sum_over_time(
+        clamp_min(
+          (
+            hyperlane_wallet_balance{
+              hyperlane_deployment="mainnet3",
+              hyperlane_context=~"rc|hyperlane",
+              chain=~"(${chainNames.join('|')})",
+              wallet_name="relayer"
+            } offset 1m
+          )
+          -
+          hyperlane_wallet_balance{
+            hyperlane_deployment="mainnet3",
+            hyperlane_context=~"rc|hyperlane",
+            chain=~"(${chainNames.join('|')})",
+            wallet_name="relayer"
+          },
+          0
+        )[${rangeHours}h:]
+      )
+    ) / ${lookBackDays}
+  `.trim();
+
+  let results: PrometheusResult[];
+
+  try {
+    results = await fetchPrometheusData(promUrl, promQlQuery);
+  } finally {
+    portForwardProcess.kill();
+    rootLogger.info('Prometheus server port-forward process killed');
+  }
+
+  for (const series of results) {
+    const chainLabel = series.metric.chain;
+
+    // value is [ <timestamp>, <stringValue> ].
+    if (series.value && series.value.length === 2) {
+      const numericStr = series.value[1];
+      burn[chainLabel] = formatBalanceThreshold(parseFloat(numericStr));
+    } else {
+      burn[chainLabel] = 0;
+    }
+  }
+
+  return burn;
+}
+
+async function calculateDailyRelayerBurn(sealevelDomainIds: ChainMap<string>) {
+  const dbBurnData = await getDailyRelayerBurnScraperDB(
     Object.values(sealevelDomainIds),
   );
 
-  const sealevelChainNames = Object.keys(sealevelDomainIds);
+  const sealevelBurnData: ChainMap<number> = await getSealevelBurnProm(
+    Object.keys(sealevelDomainIds),
+    LOOK_BACK_DAYS,
+  );
 
-  const burn: ChainMap<number> = {};
+  const burnData: ChainMap<number> = { ...dbBurnData, ...sealevelBurnData };
   const lowProposedDailyBurn: Array<{
     chain: string;
     proposedDailyBurn: number;
@@ -150,22 +211,14 @@ async function getDailyRelayerBurn(
   }> = [];
 
   for (const chain of Object.keys(tokenPrices)) {
-    // skip if chain is a sealevel chain
-    if (chain in sealevelChainNames) {
-      continue;
-    }
-
-    const row = dailyRelayerBurnQueryResults.find((row) => row.chain === chain);
+    const dailyBurn = burnData[chain];
 
     // minimum native balance required to maintain our desired minimum dollar balance in the relayer
     const minNativeBalance =
       RELAYER_MIN_DOLLAR_BALANCE_PER_DAY / parseFloat(tokenPrices[chain]);
 
     // some chains may have had no messages in the look back window so we set daily burn based on the minimum dollar balance
-    const proposedDailyRelayerBurn =
-      row === undefined
-        ? minNativeBalance
-        : Math.max(row.daily_burn, minNativeBalance);
+    const proposedDailyRelayerBurn = Math.max(dailyBurn, minNativeBalance);
 
     // only update the daily burn if the proposed daily burn is greater than the current daily burn
     // add the chain to the daily burn if it doesn't exist
@@ -204,7 +257,7 @@ async function getDailyRelayerBurn(
       ),
     });
 
-    burn[chain] = formatBalanceThreshold(newDailyRelayerBurn);
+    burnData[chain] = formatBalanceThreshold(newDailyRelayerBurn);
   }
 
   console.table(burnInfoTable);
@@ -216,7 +269,32 @@ async function getDailyRelayerBurn(
     console.table(lowProposedDailyBurn);
   }
 
-  return burn;
+  return burnData;
+}
+
+async function getSealeveDomainIds(): Promise<ChainMap<string>> {
+  const registry = await getRegistry();
+  const allMetadata = await registry.getMetadata();
+  const sealevelDomainIds: ChainMap<string> = Object.values(allMetadata)
+    .filter(
+      (metadata) =>
+        metadata.protocol == ProtocolType.Sealevel && !metadata.isTestnet,
+    )
+    .reduce((acc: { [key: string]: string }, metadata) => {
+      acc[metadata.name] = metadata.domainId.toString();
+      return acc;
+    }, {});
+  return sealevelDomainIds;
+}
+
+function writeBurnDataToFile(burnData: ChainMap<number>) {
+  try {
+    rootLogger.info('Writing daily burn data to file..');
+    writeJsonAtPath(DAILY_BURN_PATH, burnData);
+    rootLogger.info('Daily burn data written to file.');
+  } catch (err) {
+    rootLogger.error('Error writing daily burn data to file:', err);
+  }
 }
 
 main().catch((err) => {

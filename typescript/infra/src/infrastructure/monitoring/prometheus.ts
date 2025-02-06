@@ -1,3 +1,7 @@
+import { ChildProcess, spawn } from 'child_process';
+
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import { InfrastructureConfig } from '../../config/infrastructure.js';
 import { fetchGCPSecret } from '../../utils/gcloud.js';
 import {
@@ -8,10 +12,18 @@ import {
 } from '../../utils/helm.js';
 import { execCmd } from '../../utils/utils.js';
 
+const PROMETHEUS_SERVER_POD_NAME = 'prometheus-server-5f65597dd4-q5gmk';
+const PROMETHEUS_SERVER_NAMESPACE = 'monitoring';
+
 interface PrometheusSecrets {
   remote_write_uri: string;
   remote_write_username: string;
   remote_write_password: string;
+}
+
+export interface PrometheusResult {
+  metric: Record<string, string>;
+  value?: [number, string];
 }
 
 export async function runPrometheusHelmCommand(
@@ -114,4 +126,78 @@ async function fetchPrometheusSecrets(): Promise<PrometheusSecrets> {
     'hyperlane-prometheus-remote_write_config',
   );
   return secrets as PrometheusSecrets;
+}
+
+/**
+ * Fetches data from Prometheus using the given URL and query.
+ *
+ * Returns an array of PrometheusResult objects.
+ */
+export async function fetchPrometheusData(
+  promUrl: string,
+  promQlQuery: string,
+): Promise<PrometheusResult[]> {
+  const url = `${promUrl}/api/v1/query?query=${encodeURIComponent(
+    promQlQuery,
+  )}`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `Error fetching from Prometheus: ${response.status} - ${response.statusText}`,
+    );
+  }
+
+  const data = await response.json();
+
+  return data.data?.result ?? [];
+}
+
+/**
+ * Spawns a `kubectl port-forward ...` process in the background and
+ * resolves once we detect the forward is established (via stdout).
+ *
+ * Returns the `ChildProcess` so you can kill it when done.
+ */
+export async function portForwardPrometheusServer(
+  localPort: number,
+  remotePort: number = 9090,
+): Promise<ChildProcess> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('kubectl', [
+      'port-forward',
+      PROMETHEUS_SERVER_POD_NAME,
+      `${localPort}:${remotePort}`,
+      '-n',
+      PROMETHEUS_SERVER_NAMESPACE,
+    ]);
+
+    // Listen to stdout for the line that confirms the forward is active
+    child.stdout.on('data', (data) => {
+      const output = data.toString();
+      rootLogger.info('port-forward stdout:', output);
+
+      if (output.includes('Forwarding from')) {
+        // Port-forward is ready, so we can query Prometheus now
+        resolve(child);
+      }
+    });
+
+    // If anything is written to stderr, log it (for debugging).
+    child.stderr.on('data', (data) => {
+      rootLogger.error('port-forward stderr:', data.toString());
+    });
+
+    // If there's an error spawning the process
+    child.on('error', (err) => {
+      reject(err);
+    });
+
+    // If the process closes prematurely, reject
+    child.on('close', (code) => {
+      reject(
+        new Error(`port-forward process exited unexpectedly with code ${code}`),
+      );
+    });
+  });
 }

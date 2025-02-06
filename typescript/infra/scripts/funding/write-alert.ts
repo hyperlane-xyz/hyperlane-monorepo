@@ -14,14 +14,14 @@ import {
 import { validateThresholds } from '../../src/funding/balances.js';
 import {
   fetchGrafanaAlert,
-  fetchServiceAccountToken,
+  fetchGrafanaServiceAccountToken,
   generateQuery,
   updateGrafanaAlert,
-} from '../../src/funding/grafana.js';
+} from '../../src/infrastructure/monitoring/grafana.js';
 import { readJSONAtPath } from '../../src/utils/utils.js';
 
 async function main() {
-  const saToken = await fetchServiceAccountToken();
+  const saToken = await fetchGrafanaServiceAccountToken();
 
   const balanceThresholdTypes = Object.values(BalanceThresholdType);
   const balanceThresholdConfigs: ThresholdConfigs =

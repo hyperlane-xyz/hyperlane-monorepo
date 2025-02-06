@@ -10,11 +10,11 @@ import {
   ThresholdConfigs,
   balanceThresholdConfigMapping,
 } from '../../src/config/funding/balances.js';
-import { validateThresholds } from '../../src/funding/balances.js';
 import {
   formatBalanceThreshold,
   sortThresholds,
-} from '../../src/funding/grafana.js';
+  validateThresholds,
+} from '../../src/funding/balances.js';
 import { readJSONAtPath, writeJsonAtPath } from '../../src/utils/utils.js';
 
 const dailyBurn: ChainMap<number> = rawDailyBurn;

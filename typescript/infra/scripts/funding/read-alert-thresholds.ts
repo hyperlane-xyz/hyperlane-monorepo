@@ -4,10 +4,8 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { THRESHOLD_CONFIG_PATH } from '../../src/config/funding/balances.js';
 import { alertConfigMapping } from '../../src/config/funding/grafanaAlerts.js';
-import {
-  getAlertThresholds,
-  sortThresholds,
-} from '../../src/funding/grafana.js';
+import { getBalanceAlertThresholds } from '../../src/funding/alerts.js';
+import { sortThresholds } from '../../src/funding/balances.js';
 import { writeJsonAtPath } from '../../src/utils/utils.js';
 import { withAlertTypeRequired, withWrite } from '../agent-utils.js';
 
@@ -19,7 +17,7 @@ async function main() {
     withAlertTypeRequired(yargs(process.argv.slice(2))),
   ).argv;
 
-  const alertThresholds = await getAlertThresholds(alertType);
+  const alertThresholds = await getBalanceAlertThresholds(alertType);
   const sortedThresholds = sortThresholds(alertThresholds);
 
   console.table(sortedThresholds);
