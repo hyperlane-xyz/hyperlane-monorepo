@@ -128,14 +128,14 @@ export class MultiChainResolver implements ChainResolver {
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
     const { multiProvider } = argv.context;
-    const chains = [];
+    const chains = new Set<ChainName>();
 
     if (argv.origin) {
-      chains.push(argv.origin);
+      chains.add(argv.origin);
     }
 
     if (argv.chain) {
-      chains.push(argv.chain);
+      chains.add(argv.chain);
     }
 
     if (argv.chains) {
@@ -150,8 +150,8 @@ export class MultiChainResolver implements ChainResolver {
       return Array.from(this.getEvmChains(multiProvider));
     }
 
-    chains.push(argv.destination);
-    return chains;
+    chains.add(argv.destination);
+    return Array.from(chains);
   }
 
   private async getWarpRouteConfigChains(

@@ -183,10 +183,10 @@ export class GovernTransactionReader {
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
     const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const valueInEth = ethers.utils.formatEther(tx.value ?? BigNumber.from(0));
+    const numTokens = ethers.utils.formatEther(tx.value ?? BigNumber.from(0));
     return {
       chain,
-      insight: `Send ${valueInEth} ${symbol} to ${tx.to}`,
+      insight: `Send ${numTokens} ${symbol} to ${tx.to}`,
       tx,
     };
   }

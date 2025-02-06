@@ -62,7 +62,7 @@ export const safes: ChainMap<Address> = {
   zircuit: '0x9e2fe7723b018d02cDE4f5cC1A9bC9C65b922Fc8',
   swell: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 
-  // Q5, 2025 batch
+  // Q5, 2024 batch
   berachain: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
 
   // zksync chains
@@ -219,7 +219,7 @@ export const icas: Partial<
   unitzero: '0x66af72e46b3e8DFc19992A2A88C05d9EEFE01ffB',
   trumpchain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
 
-  // Q5, 2025 batch
+  // Q5, 2024 batch
   // ----------------------------------------------------------
   // berachain: '0x56895bFa7f7dFA5743b2A0994B5B0f88b88350F9',
 } as const;
