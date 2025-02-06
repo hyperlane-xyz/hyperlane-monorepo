@@ -680,8 +680,18 @@ impl SealevelMailboxIndexer {
         Ok((hyperlane_message.into(), log_meta))
     }
 
-    fn dispatched_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+    fn dispatched_message_account(&self, account: &Account) -> ChainResult<Option<Pubkey>> {
         tracing::warn!(?account, account_data_len=account.data.len(), domain=?self.mailbox.domain(), "In dispatched_message_account");
+
+        if account.data.len() != 32 {
+            tracing::warn!(
+                ?account,
+                account_data_len = account.data.len(),
+                "Unexpected account data length"
+            );
+            return Ok(None);
+        }
+
         let unique_message_pubkey = Pubkey::new(&account.data);
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
@@ -692,7 +702,7 @@ impl SealevelMailboxIndexer {
                 "Could not find program address for unique message pubkey",
             )
         })?;
-        Ok(expected_pubkey)
+        Ok(Some(expected_pubkey))
     }
 
     async fn dispatch_message_log_meta(
@@ -778,7 +788,16 @@ impl SealevelMailboxIndexer {
         Ok((indexed, log_meta))
     }
 
-    fn delivered_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
+    fn delivered_message_account(&self, account: &Account) -> ChainResult<Option<Pubkey>> {
+        if account.data.len() != 32 {
+            tracing::warn!(
+                ?account,
+                account_data_len = account.data.len(),
+                "Unexpected account data length"
+            );
+            return Ok(None);
+        }
+
         let message_id = H256::from_slice(&account.data);
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             mailbox_processed_message_pda_seeds!(message_id),
@@ -787,7 +806,7 @@ impl SealevelMailboxIndexer {
         .ok_or_else(|| {
             ChainCommunicationError::from_other_str("Could not find program address for message id")
         })?;
-        Ok(expected_pubkey)
+        Ok(Some(expected_pubkey))
     }
 
     async fn delivered_message_log_meta(

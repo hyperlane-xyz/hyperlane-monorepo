@@ -202,8 +202,18 @@ impl SealevelInterchainGasPaymasterIndexer {
         ))
     }
 
-    fn interchain_payment_account(&self, account: &Account) -> ChainResult<Pubkey> {
+    fn interchain_payment_account(&self, account: &Account) -> ChainResult<Option<Pubkey>> {
         tracing::warn!(?account, account_data_len=account.data.len(), domain=?self.igp.domain(), "In interchain_payment_account");
+
+        if account.data.len() != 32 {
+            tracing::warn!(
+                ?account,
+                account_data_len = account.data.len(),
+                "Unexpected account data length"
+            );
+            return Ok(None);
+        }
+
         let unique_gas_payment_pubkey = Pubkey::new(&account.data);
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             igp_gas_payment_pda_seeds!(unique_gas_payment_pubkey),
@@ -214,7 +224,7 @@ impl SealevelInterchainGasPaymasterIndexer {
                 "Could not find program address for unique_gas_payment_pubkey",
             )
         })?;
-        Ok(expected_pubkey)
+        Ok(Some(expected_pubkey))
     }
 
     async fn interchain_payment_log_meta(
