@@ -142,18 +142,16 @@ export class MultiChainResolver implements ChainResolver {
       chains.push(argv.chain);
     }
 
-    if (!argv.chains && chains.length === 0) {
-      return Array.from(this.getEvmChains(multiProvider));
+    if (argv.chains) {
+      const additionalChains = argv.chains
+        .split(',')
+        .map((item: string) => item.trim());
+      return Array.from(new Set([...chains, ...additionalChains]));
     }
 
-    return Array.from(
-      new Set([
-        ...chains,
-        ...(argv.chains
-          ? argv.chains.split(',').map((item: string) => item.trim())
-          : []),
-      ]),
-    );
+    return chains.length > 0
+      ? chains
+      : Array.from(this.getEvmChains(multiProvider));
   }
 
   private async getWarpRouteConfigChains(
