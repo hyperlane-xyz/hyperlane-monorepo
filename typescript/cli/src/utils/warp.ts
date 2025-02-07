@@ -2,8 +2,10 @@ import search from '@inquirer/search';
 
 import { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 
-import { readWarpCoreConfig } from '../config/warp.js';
-import { readWarpRouteDeployConfig } from '../config/warp.js';
+import {
+  readWarpCoreConfig,
+  readWarpRouteDeployConfig,
+} from '../config/warp.js';
 import { CommandContext } from '../context/types.js';
 import { logRed } from '../logger.js';
 import {

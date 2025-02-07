@@ -26,8 +26,7 @@ import {
   writeYamlOrJson,
 } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
-import { getWarpCoreConfigOrExit } from '../utils/warp.js';
-import { getWarpConfigs } from '../utils/warp.js';
+import { getWarpConfigs, getWarpCoreConfigOrExit } from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
 
 import {
