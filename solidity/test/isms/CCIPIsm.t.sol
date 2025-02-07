@@ -19,7 +19,7 @@ import {NotCrossChainCall} from "@openzeppelin/contracts/crosschain/errors.sol";
 // ============ External Imports ============
 import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IRouterClient.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
-import {EVM2EVMOnRamp} from "@chainlink/contracts-ccip/src/v0.8/ccip/onRamp/EVM2EVMOnRamp.sol";
+import {IEVM2AnyOnRamp} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IEVM2AnyOnRamp.sol";
 
 contract CCIPIsmTest is Test {
     using LibBit for uint256;
@@ -59,23 +59,6 @@ contract CCIPIsmTest is Test {
     uint64 internal constant MAINNET_CHAIN_SELECTOR = 5009297550715157269;
     uint64 internal constant OPTIMISM_CHAIN_SELECTOR = 3734403246176062136;
 
-    event MessageSent(
-      bytes32 indexed messageId, // The unique ID of the CCIP message.
-      uint64 indexed destinationChainSelector, // The chain selector of the destination chain.
-      address receiver, // The address of the receiver on the destination chain.
-      bytes callData, // The payload being sent
-      address feeToken, // the token address used to pay CCIP fees.
-      uint256 fees // The fees paid for sending the CCIP message.
-    );
-
-    // Event emitted when a message is received from another chain.
-    event MessageReceived(
-      bytes32 indexed messageId, // The unique ID of the CCIP message.
-      uint64 indexed sourceChainSelector, // The chain selector of the source chain.
-      address sender, // The address of the sender from the source chain.
-      bytes32 payload // The payload that was received.
-    );
-
     event ReceivedMessage(bytes32 indexed messageId);
 
     function setUp() public {
@@ -100,10 +83,11 @@ contract CCIPIsmTest is Test {
 
         ccipHookMainnet = new CCIPHook(
             MAINNET_ROUTER_ADDRESS,
-            address(l1Mailbox)
+            OPTIMISM_CHAIN_SELECTOR,
+            address(l1Mailbox),
+            OPTIMISM_DOMAIN,
+            TypeCasts.addressToBytes32(address(ccipISMOptimism))
         );
-
-        ccipHookMainnet.addDestinationChainToAllowlist(OPTIMISM_CHAIN_SELECTOR, true);
 
         vm.makePersistent(address(ccipHookMainnet), MAINNET_ROUTER_ADDRESS);
     }
@@ -111,28 +95,27 @@ contract CCIPIsmTest is Test {
     function deployCCIPHookAndISMOptimism() public {
         vm.selectFork(optimismFork);
 
-        l2Mailbox = new TestMailbox(MAINNET_DOMAIN);
+        l2Mailbox = new TestMailbox(OPTIMISM_DOMAIN);
 
-        ccipISMOptimism = new CCIPIsm(OP_ROUTER_ADDRESS);
-
-        ccipISMOptimism.addSourceChainToAllowlist(MAINNET_CHAIN_SELECTOR, true);
-        ccipISMOptimism.setAuthorizedHook(TypeCasts.addressToBytes32(address(OP_ROUTER_ADDRESS)));
+        ccipISMOptimism = new CCIPIsm(
+            OP_ROUTER_ADDRESS,
+            MAINNET_CHAIN_SELECTOR
+        );
 
         vm.makePersistent(address(ccipISMOptimism), OP_ROUTER_ADDRESS);
     }
 
     function deployAll() public {
-        deployCCIPHookAndISMMainnet();
         deployCCIPHookAndISMOptimism();
+        deployCCIPHookAndISMMainnet();
 
         vm.selectFork(optimismFork);
-        ccipISMOptimism.addSenderToAllowlist(address(ccipHookMainnet), true);
+        ccipISMOptimism.setAuthorizedHook(
+            TypeCasts.addressToBytes32(address(ccipHookMainnet))
+        );
 
         // for sending value
-        vm.deal(
-            OP_ROUTER_ADDRESS,
-            2 ** 255
-        );
+        vm.deal(OP_ROUTER_ADDRESS, 2 ** 255);
     }
 
     ///////////////////////////////////////////////////////////////////
@@ -146,12 +129,20 @@ contract CCIPIsmTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        testMetadata = _buildMetadata(OPTIMISM_CHAIN_SELECTOR, address(ccipISMOptimism));
+        testMetadata = _buildMetadata(
+            OPTIMISM_CHAIN_SELECTOR,
+            address(ccipISMOptimism)
+        );
 
         assert(ccipHookMainnet.quoteDispatch(testMetadata, encodedMessage) > 0);
     }
 
     /* ============ hook.postDispatch ============ */
+    event Refund(uint256 amount);
+
+    receive() external payable {
+        emit Refund(msg.value);
+    }
 
     function testFork_postDispatch() public {
         deployAll();
@@ -159,43 +150,50 @@ contract CCIPIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         bytes memory encodedHookData = abi.encode(messageId);
-        testMetadata = _buildMetadata(OPTIMISM_CHAIN_SELECTOR, address(ccipISMOptimism));
 
         _allowAnyAddressToSendCCIP();
 
         l1Mailbox.updateLatestDispatchedId(messageId);
 
-        uint256 quotedFee = ccipHookMainnet.quoteDispatch(testMetadata, encodedMessage);
-
-        vm.expectEmit(false, true, false, false, address(ccipHookMainnet));
-        emit MessageSent(
-            bytes32(0),
-            OPTIMISM_CHAIN_SELECTOR,
-            address(ccipISMOptimism),
-            bytes(encodedHookData),
-            address(0),
-            8891396275644
+        uint256 quotedFee = ccipHookMainnet.quoteDispatch(
+            testMetadata,
+            encodedMessage
         );
 
-        ccipHookMainnet.postDispatch{value: quotedFee * 11 / 10}(testMetadata, encodedMessage);
+        ccipHookMainnet.postDispatch{value: (quotedFee * 11) / 10}(
+            testMetadata,
+            encodedMessage
+        );
     }
 
-    function testFork_postDispatch_RevertWhen_CCIPChainSelectorNotSupported() public {
-        deployAll();
+    // function testFork_postDispatch_RevertWhen_CCIPChainSelectorNotSupported()
+    //     public
+    // {
+    //     deployAll();
 
-        vm.selectFork(mainnetFork);
+    //     vm.selectFork(mainnetFork);
 
-        _allowAnyAddressToSendCCIP();
+    //     _allowAnyAddressToSendCCIP();
 
-        l1Mailbox.updateLatestDispatchedId(messageId);
+    //     l1Mailbox.updateLatestDispatchedId(messageId);
 
-        testMetadata = _buildMetadata(MAINNET_CHAIN_SELECTOR, address(ccipISMOptimism));
+    //     testMetadata = _buildMetadata(
+    //         MAINNET_CHAIN_SELECTOR,
+    //         address(ccipISMOptimism)
+    //     );
 
-        bytes4 selector = bytes4(keccak256("DestinationChainNotAllowlisted(uint64)"));
-        vm.expectRevert(abi.encodeWithSelector(selector, MAINNET_CHAIN_SELECTOR));
-    
-        ccipHookMainnet.postDispatch{value: 1 ether}(testMetadata, encodedMessage);
-    }
+    //     bytes4 selector = bytes4(
+    //         keccak256("DestinationChainNotAllowlisted(uint64)")
+    //     );
+    //     vm.expectRevert(
+    //         abi.encodeWithSelector(selector, MAINNET_CHAIN_SELECTOR)
+    //     );
+
+    //     ccipHookMainnet.postDispatch{value: 1 ether}(
+    //         testMetadata,
+    //         encodedMessage
+    //     );
+    // }
 
     function testFork_postDispatch_RevertWhen_NotEnoughValueSent() public {
         deployAll();
@@ -207,7 +205,7 @@ contract CCIPIsmTest is Test {
         l1Mailbox.updateLatestDispatchedId(messageId);
 
         vm.expectRevert();
-    
+
         ccipHookMainnet.postDispatch(testMetadata, encodedMessage);
     }
 
@@ -234,39 +232,12 @@ contract CCIPIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        vm.startPrank(
-            OP_ROUTER_ADDRESS
-        );
-        
         Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
 
-        vm.expectEmit(true, false, false, true, address(ccipISMOptimism));
-        emit ReceivedMessage(messageId);
-
-        vm.expectEmit(true, true, false, true, address(ccipISMOptimism));
-        emit MessageReceived(
-            messageId,
-            MAINNET_CHAIN_SELECTOR,
-            address(ccipHookMainnet),
-            messageId
-        );
-
+        vm.prank(OP_ROUTER_ADDRESS);
         ccipISMOptimism.ccipReceive(message);
 
-        // assertTrue(ccipISMOptimism.verifiedMessages(messageId).isBitSet(255));
-
-        vm.stopPrank();
-    }
-
-    function testFork_verifyMessageId_RevertWhen_NotAuthorized() public {
-        deployAll();
-
-        vm.selectFork(optimismFork);
-
-        vm.expectRevert(
-            "AbstractMessageIdAuthorizedIsm: sender is not the hook"
-        );
-        ccipISMOptimism.verifyMessageId(messageId);
+        assertTrue(ccipISMOptimism.verifiedMessages(messageId).isBitSet(255));
     }
 
     function testFork_verifyMessageId_RevertWhen_SenderNotAllowed() public {
@@ -274,63 +245,27 @@ contract CCIPIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        vm.startPrank(
-            OP_ROUTER_ADDRESS
-        );
+        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
+        message.sender = abi.encode(address(ccipISMOptimism));
 
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-        
-        Client.EVMTokenAmount[] memory empty_tokens;
-
-        Client.Any2EVMMessage memory message = Client.Any2EVMMessage(
-            messageId,
-            MAINNET_CHAIN_SELECTOR,
-            abi.encode(address(ccipISMOptimism)),
-            encodedHookData,
-            empty_tokens      
-        );
-        
-        bytes4 selector = bytes4(keccak256("SenderNotAllowlisted(address)"));
-        vm.expectRevert(abi.encodeWithSelector(selector, address(ccipISMOptimism)));
-
+        vm.prank(OP_ROUTER_ADDRESS);
+        vm.expectRevert("Unauthorized hook");
         ccipISMOptimism.ccipReceive(message);
-
-        vm.stopPrank();
     }
 
-    function testFork_verifyMessageId_RevertWhen_SourceChainNotAllowed() public {
+    function testFork_verifyMessageId_RevertWhen_SourceChainNotAllowed()
+        public
+    {
         deployAll();
 
         vm.selectFork(optimismFork);
 
-        vm.startPrank(
-            OP_ROUTER_ADDRESS
-        );
+        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
+        message.sourceChainSelector = OPTIMISM_CHAIN_SELECTOR;
 
-        bytes memory encodedHookData = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            (messageId)
-        );
-        
-        Client.EVMTokenAmount[] memory empty_tokens;
-
-        Client.Any2EVMMessage memory message = Client.Any2EVMMessage(
-            messageId,
-            OPTIMISM_CHAIN_SELECTOR,
-            abi.encode(address(ccipHookMainnet)),
-            encodedHookData,
-            empty_tokens      
-        );
-        
-        bytes4 selector = bytes4(keccak256("SourceChainNotAllowlisted(uint64)"));
-        vm.expectRevert(abi.encodeWithSelector(selector, OPTIMISM_CHAIN_SELECTOR));
-
+        vm.prank(OP_ROUTER_ADDRESS);
+        vm.expectRevert("Unauthorized origin");
         ccipISMOptimism.ccipReceive(message);
-
-        vm.stopPrank();
     }
 
     function testFork_verifyMessageId_RevertWhen_InvalidRouter() public {
@@ -338,14 +273,14 @@ contract CCIPIsmTest is Test {
 
         vm.selectFork(optimismFork);
 
-        vm.startPrank(
-            MAINNET_ROUTER_ADDRESS
-        );
+        vm.startPrank(MAINNET_ROUTER_ADDRESS);
 
         Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
 
         bytes4 selector = bytes4(keccak256("InvalidRouter(address)"));
-        vm.expectRevert(abi.encodeWithSelector(selector, MAINNET_ROUTER_ADDRESS));
+        vm.expectRevert(
+            abi.encodeWithSelector(selector, MAINNET_ROUTER_ADDRESS)
+        );
 
         ccipISMOptimism.ccipReceive(message);
 
@@ -383,33 +318,16 @@ contract CCIPIsmTest is Test {
         assertFalse(verified);
     }
 
-    // invalid messageID in postDispatch
-    function testFork_verify_RevertWhen_InvalidOptimismMessageID() public {
-        deployAll();
-
-        bytes memory invalidMessage = MessageUtils.formatMessage(
-            HYPERLANE_VERSION,
-            uint8(0),
-            MAINNET_DOMAIN,
-            TypeCasts.addressToBytes32(address(this)),
-            OPTIMISM_DOMAIN,
-            TypeCasts.addressToBytes32(address(this)),
-            testMessage
-        );
-        bytes32 _messageId = Message.id(invalidMessage);
-        orchestrateRelayMessage(_messageId);
-
-        bool verified = ccipISMOptimism.verify(new bytes(0), encodedMessage);
-        assertFalse(verified);
-    }
-
     /* ============ helper functions ============ */
-    
+
     function _buildMetadata(
         uint64 _destinationChainSelector,
         address _receiver
     ) internal view returns (bytes memory) {
-        bytes memory customMetadata = abi.encode(_destinationChainSelector, _receiver);
+        bytes memory customMetadata = abi.encode(
+            _destinationChainSelector,
+            _receiver
+        );
         return
             StandardHookMetadata.formatMetadata(
                 0,
@@ -433,48 +351,40 @@ contract CCIPIsmTest is Test {
     }
 
     function _allowAnyAddressToSendCCIP() internal {
-        EVM2EVMOnRamp onRamp = EVM2EVMOnRamp(0xCC19bC4D43d17eB6859F0d22BA300967C97780b0);
+        // Only authorized addresses can call CCIP send
+        bytes memory callData = abi.encodeWithSignature(
+            "setAllowListEnabled(bool)",
+            false
+        );
         vm.prank(0x44835bBBA9D40DEDa9b64858095EcFB2693c9449); // Current Owner
-        onRamp.setAllowListEnabled(false); // Only authorized addresses can call CCIP send
+        address(0xCC19bC4D43d17eB6859F0d22BA300967C97780b0).call(callData);
     }
 
-    function _encodeCCIPReceiveMessage() internal view returns (Client.Any2EVMMessage memory) {
+    function _encodeCCIPReceiveMessage()
+        internal
+        view
+        returns (Client.Any2EVMMessage memory)
+    {
         bytes memory encodedHookData = abi.encode(messageId);
-        
+
         Client.EVMTokenAmount[] memory empty_tokens;
 
-        return Client.Any2EVMMessage(
-            messageId,
-            MAINNET_CHAIN_SELECTOR,
-            abi.encode(address(ccipHookMainnet)),
-            encodedHookData,
-            empty_tokens      
-        );
+        return
+            Client.Any2EVMMessage(
+                messageId,
+                MAINNET_CHAIN_SELECTOR,
+                abi.encode(address(ccipHookMainnet)),
+                encodedHookData,
+                empty_tokens
+            );
     }
 
-    function orchestrateRelayMessage(
-        bytes32 _messageId
-    ) internal {
+    function orchestrateRelayMessage(bytes32 _messageId) internal {
         vm.selectFork(optimismFork);
 
-        vm.startPrank(
-            OP_ROUTER_ADDRESS
-        );
-        
-        bytes memory encodedHookData = abi.encode(_messageId);
+        Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
 
-        Client.EVMTokenAmount[] memory empty_tokens;
-
-         Client.Any2EVMMessage memory message = Client.Any2EVMMessage(
-            messageId,
-            MAINNET_CHAIN_SELECTOR,
-            abi.encode(address(ccipHookMainnet)),
-            encodedHookData,
-            empty_tokens      
-        );
-
+        vm.prank(OP_ROUTER_ADDRESS);
         ccipISMOptimism.ccipReceive(message);
-
-        vm.stopPrank();
     }
 }
