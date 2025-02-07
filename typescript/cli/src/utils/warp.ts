@@ -67,17 +67,11 @@ export async function getWarpConfigs({
   warpCoreConfig: WarpCoreConfig;
 }> {
   if (warpRouteId) {
-    try {
-      const configs = await getWarpConfigFromRegistry(warpRouteId, context);
-      return {
-        warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
-        warpCoreConfig: configs.coreConfig,
-      };
-    } catch (error: any) {
-      throw new Error(
-        `Failed to get configs for warp route ${warpRouteId}: ${error.message}`,
-      );
-    }
+    const configs = await getWarpConfigFromRegistry(warpRouteId, context);
+    return {
+      warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
+      warpCoreConfig: configs.coreConfig,
+    };
   }
 
   if (config || warp) {
@@ -96,24 +90,19 @@ export async function getWarpConfigs({
       context.registry,
       symbol,
     );
-    try {
-      const routeIds = await getWarpRouteIds(context);
-      const matchingId = routeIds.find((id) =>
-        id.toUpperCase().includes(symbol.toUpperCase()),
-      );
-      if (!matchingId) {
-        throw new Error(`No matching warp route ID found for symbol ${symbol}`);
-      }
-      const configs = await getWarpConfigFromRegistry(matchingId, context);
-      return {
-        warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
-        warpCoreConfig,
-      };
-    } catch (error: any) {
-      throw new Error(
-        `Failed to get deploy config for symbol ${symbol}: ${error.message}`,
-      );
+
+    const routeIds = await getWarpRouteIds(context);
+    const matchingId = routeIds.find((id) =>
+      id.toUpperCase().includes(symbol.toUpperCase()),
+    );
+    if (!matchingId) {
+      throw new Error(`No matching warp route ID found for symbol ${symbol}`);
     }
+    const configs = await getWarpConfigFromRegistry(matchingId, context);
+    return {
+      warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
+      warpCoreConfig,
+    };
   }
 
   const routeIds = await getWarpRouteIds(context);
@@ -131,15 +120,9 @@ export async function getWarpConfigs({
     pageSize: 20,
   })) as string;
 
-  try {
-    const configs = await getWarpConfigFromRegistry(selectedId, context);
-    return {
-      warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
-      warpCoreConfig: configs.coreConfig,
-    };
-  } catch (error: any) {
-    throw new Error(
-      `Failed to get configs for selected warp route ${selectedId}: ${error.message}`,
-    );
-  }
+  const configs = await getWarpConfigFromRegistry(selectedId, context);
+  return {
+    warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
+    warpCoreConfig: configs.coreConfig,
+  };
 }
