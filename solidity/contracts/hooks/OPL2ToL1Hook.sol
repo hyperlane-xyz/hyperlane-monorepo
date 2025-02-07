@@ -79,15 +79,14 @@ contract OPL2ToL1Hook is AbstractMessageIdAuthHook {
         bytes calldata message,
         uint256 quote
     ) internal override {
+        uint256 msgValue = metadata.msgValue(0);
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,
-            (message.id(), metadata.msgValue(0))
+            (message.id(), msgValue)
         );
 
-        childHook.postDispatch{
-            value: childHook.quoteDispatch(metadata, message)
-        }(metadata, message);
-        l2Messenger.sendMessage{value: metadata.msgValue(0)}(
+        childHook.postDispatch{value: quote - msgValue}(metadata, message);
+        l2Messenger.sendMessage{value: msgValue}(
             TypeCasts.bytes32ToAddress(ism),
             payload,
             MIN_GAS_LIMIT

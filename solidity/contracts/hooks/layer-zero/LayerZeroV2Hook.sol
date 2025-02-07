@@ -80,7 +80,6 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
             false // payInLzToken
         );
 
-        uint256 quote = _quoteDispatch(metadata, message);
         lZEndpoint.send{value: quote}(msgParams, refundAddress);
     }
 
