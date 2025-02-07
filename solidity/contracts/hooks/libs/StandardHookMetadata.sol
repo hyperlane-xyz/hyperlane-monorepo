@@ -98,9 +98,9 @@ library StandardHookMetadata {
     }
 
     /**
-     * @notice Returns the specified refund address for the message.
+     * @notice Returns any custom metadata.
      * @param _metadata ABI encoded standard hook metadata.
-     * @return Refund address for the message as address.
+     * @return Custom metadata.
      */
     function getCustomMetadata(
         bytes calldata _metadata

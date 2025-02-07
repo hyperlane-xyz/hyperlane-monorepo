@@ -1,63 +1,102 @@
-import { debug } from 'debug';
 import { ethers } from 'ethers';
+import { Logger } from 'pino';
 
 import {
+  ArbL2ToL1Ism__factory,
+  DefaultFallbackRoutingIsm,
+  DefaultFallbackRoutingIsm__factory,
+  DomainRoutingIsm,
   DomainRoutingIsm__factory,
+  IAggregationIsm,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
+  IMultisigIsm,
   IMultisigIsm__factory,
-  IRoutingIsm__factory,
+  IRoutingIsm,
+  IStaticWeightedMultisigIsm,
+  InterchainAccountIsm__factory,
   OPStackIsm__factory,
+  PausableIsm__factory,
   StaticAddressSetFactory,
-  StaticAggregationIsm__factory,
   StaticThresholdAddressSetFactory,
+  StaticWeightedValidatorSetFactory,
+  StorageAggregationIsm__factory,
+  StorageMerkleRootMultisigIsm__factory,
+  StorageMessageIdMultisigIsm__factory,
   TestIsm__factory,
+  TrustedRelayerIsm__factory,
 } from '@hyperlane-xyz/core';
-import { Address, eqAddress, formatMessage, warn } from '@hyperlane-xyz/utils';
-
-import { HyperlaneApp } from '../app/HyperlaneApp';
 import {
-  HyperlaneEnvironment,
-  hyperlaneEnvironments,
-} from '../consts/environments';
-import { appFromAddressesMapHelper } from '../contracts/contracts';
-import { HyperlaneAddressesMap, HyperlaneContracts } from '../contracts/types';
+  Address,
+  Domain,
+  addBufferToGasLimit,
+  assert,
+  eqAddress,
+  objFilter,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
+
+import { HyperlaneApp } from '../app/HyperlaneApp.js';
+import { appFromAddressesMapHelper } from '../contracts/contracts.js';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContractsMap,
+} from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
-} from '../deploy/contracts';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+} from '../deploy/contracts.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
 
 import {
   AggregationIsmConfig,
   DeployedIsm,
   DeployedIsmType,
+  DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
-  ModuleType,
   MultisigIsmConfig,
-  OpStackIsmConfig,
   RoutingIsmConfig,
-  ismTypeToModuleType,
-} from './types';
+  RoutingIsmDelta,
+  WeightedMultisigIsmConfig,
+} from './types.js';
+import { routingModuleDelta } from './utils.js';
+
+const ismFactories = {
+  [IsmType.PAUSABLE]: new PausableIsm__factory(),
+  [IsmType.TRUSTED_RELAYER]: new TrustedRelayerIsm__factory(),
+  [IsmType.TEST_ISM]: new TestIsm__factory(),
+  [IsmType.OP_STACK]: new OPStackIsm__factory(),
+  [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
+};
+
+class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
+  protected readonly cachingEnabled = false;
+
+  deployContracts(_chain: ChainName, _config: any): Promise<any> {
+    throw new Error('Method not implemented.');
+  }
+}
 
 export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   // The shape of this object is `ChainMap<Address | ChainMap<Address>`,
   // although `any` is use here because that type breaks a lot of signatures.
   // TODO: fix this in the next refactoring
   public deployedIsms: ChainMap<any> = {};
+  protected readonly deployer: IsmDeployer;
 
-  static fromEnvironment<Env extends HyperlaneEnvironment>(
-    env: Env,
-    multiProvider: MultiProvider,
-  ): HyperlaneIsmFactory {
-    const envAddresses = hyperlaneEnvironments[env];
-    if (!envAddresses) {
-      throw new Error(`No addresses found for ${env}`);
-    }
-    /// @ts-ignore
-    return HyperlaneIsmFactory.fromAddressesMap(envAddresses, multiProvider);
+  constructor(
+    contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
+    public readonly multiProvider: MultiProvider,
+  ) {
+    super(
+      contractsMap,
+      multiProvider,
+      rootLogger.child({ module: 'ismFactoryApp' }),
+    );
+    this.deployer = new IsmDeployer(multiProvider, ismFactories);
   }
 
   static fromAddressesMap(
@@ -69,29 +108,30 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       proxyFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(
-      helper.contractsMap,
-      helper.multiProvider,
-      debug('hyperlane:IsmFactoryApp'),
-    );
+    return new HyperlaneIsmFactory(helper.contractsMap, multiProvider);
   }
 
-  async deploy<C extends IsmConfig>(
-    chain: ChainName,
-    config: C,
-    origin?: ChainName,
-  ): Promise<DeployedIsm> {
+  async deploy<C extends IsmConfig>(params: {
+    destination: ChainName;
+    config: C;
+    origin?: ChainName;
+    mailbox?: Address;
+    existingIsmAddress?: Address;
+  }): Promise<DeployedIsm> {
+    const { destination, config, origin, mailbox, existingIsmAddress } = params;
     if (typeof config === 'string') {
       // @ts-ignore
       return IInterchainSecurityModule__factory.connect(
         config,
-        this.multiProvider.getSignerOrProvider(chain),
+        this.multiProvider.getSignerOrProvider(destination),
       );
     }
 
     const ismType = config.type;
-    this.logger(
-      `Deploying ${ismType} to ${chain} ${
+    const logger = this.logger.child({ destination, ismType });
+
+    logger.debug(
+      `Deploying ISM of type ${ismType} to ${destination} ${
         origin ? `(for verifying ${origin})` : ''
       }`,
     );
@@ -100,147 +140,445 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     switch (ismType) {
       case IsmType.MESSAGE_ID_MULTISIG:
       case IsmType.MERKLE_ROOT_MULTISIG:
-        contract = await this.deployMultisigIsm(chain, config);
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+        contract = await this.deployMultisigIsm(destination, config, logger);
+        break;
+      case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+      case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
+        contract = await this.deployWeightedMultisigIsm(
+          destination,
+          config,
+          logger,
+        );
         break;
       case IsmType.ROUTING:
-        contract = await this.deployRoutingIsm(chain, config);
+      case IsmType.FALLBACK_ROUTING:
+      case IsmType.ICA_ROUTING:
+        contract = await this.deployRoutingIsm({
+          destination,
+          config,
+          origin,
+          mailbox,
+          existingIsmAddress,
+          logger,
+        });
         break;
       case IsmType.AGGREGATION:
-        contract = await this.deployAggregationIsm(chain, config, origin);
+      case IsmType.STORAGE_AGGREGATION:
+        contract = await this.deployAggregationIsm({
+          destination,
+          config,
+          origin,
+          mailbox,
+          logger,
+        });
         break;
       case IsmType.OP_STACK:
-        contract = await this.deployOpStackIsm(chain, config);
+        contract = await this.deployer.deployContract(destination, ismType, [
+          config.nativeBridge,
+        ]);
+        break;
+      case IsmType.PAUSABLE:
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.PAUSABLE,
+          [config.owner],
+        );
+        break;
+      case IsmType.TRUSTED_RELAYER:
+        assert(mailbox, `Mailbox address is required for deploying ${ismType}`);
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.TRUSTED_RELAYER,
+          [mailbox, config.relayer],
+        );
         break;
       case IsmType.TEST_ISM:
-        contract = await this.multiProvider.handleDeploy(
-          chain,
-          new TestIsm__factory(),
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.TEST_ISM,
           [],
+        );
+        break;
+      case IsmType.ARB_L2_TO_L1:
+        contract = await this.deployer.deployContract(
+          destination,
+          IsmType.ARB_L2_TO_L1,
+          [config.bridge],
         );
         break;
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
 
-    if (!this.deployedIsms[chain]) {
-      this.deployedIsms[chain] = {};
+    if (!this.deployedIsms[destination]) {
+      this.deployedIsms[destination] = {};
     }
     if (origin) {
       // if we're deploying network-specific contracts (e.g. ISMs), store them as sub-entry
       // under that network's key (`origin`)
-      if (!this.deployedIsms[chain][origin]) {
-        this.deployedIsms[chain][origin] = {};
+      if (!this.deployedIsms[destination][origin]) {
+        this.deployedIsms[destination][origin] = {};
       }
-      this.deployedIsms[chain][origin][ismType] = contract;
+      this.deployedIsms[destination][origin][ismType] = contract;
     } else {
       // otherwise store the entry directly
-      this.deployedIsms[chain][ismType] = contract;
+      this.deployedIsms[destination][ismType] = contract;
     }
 
     return contract;
   }
 
-  private async deployMultisigIsm(chain: ChainName, config: MultisigIsmConfig) {
-    const signer = this.multiProvider.getSigner(chain);
-    const multisigIsmFactory =
-      config.type === IsmType.MERKLE_ROOT_MULTISIG
-        ? this.getContracts(chain).merkleRootMultisigIsmFactory
-        : this.getContracts(chain).messageIdMultisigIsmFactory;
+  protected async deployMultisigIsm(
+    destination: ChainName,
+    config: MultisigIsmConfig,
+    logger: Logger,
+  ): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(destination);
 
-    const address = await this.deployStaticAddressSet(
-      chain,
-      multisigIsmFactory,
+    const deployStatic = (factory: StaticThresholdAddressSetFactory) =>
+      this.deployStaticAddressSet(
+        destination,
+        factory,
+        config.validators,
+        logger,
+        config.threshold,
+      );
+
+    const deployStorage = async (
+      factory:
+        | StorageMerkleRootMultisigIsm__factory
+        | StorageMessageIdMultisigIsm__factory,
+    ) => {
+      const contract = await this.multiProvider.handleDeploy(
+        destination,
+        factory,
+        [config.validators, config.threshold],
+      );
+      return contract.address;
+    };
+
+    let address: string;
+    switch (config.type) {
+      case IsmType.MERKLE_ROOT_MULTISIG:
+        address = await deployStatic(
+          this.getContracts(destination).staticMerkleRootMultisigIsmFactory,
+        );
+        break;
+      case IsmType.MESSAGE_ID_MULTISIG:
+        address = await deployStatic(
+          this.getContracts(destination).staticMessageIdMultisigIsmFactory,
+        );
+        break;
+      // TODO: support using minimal proxy factories for storage multisig ISMs too
+      case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+        address = await deployStorage(
+          new StorageMerkleRootMultisigIsm__factory(),
+        );
+        break;
+      case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+        address = await deployStorage(
+          new StorageMessageIdMultisigIsm__factory(),
+        );
+        break;
+      default:
+        throw new Error(`Unsupported multisig ISM type ${config.type}`);
+    }
+
+    return IMultisigIsm__factory.connect(address, signer);
+  }
+
+  protected async deployWeightedMultisigIsm(
+    destination: ChainName,
+    config: WeightedMultisigIsmConfig,
+    logger: Logger,
+  ): Promise<IMultisigIsm> {
+    const signer = this.multiProvider.getSigner(destination);
+    const weightedmultisigIsmFactory =
+      config.type === IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG
+        ? this.getContracts(destination)
+            .staticMerkleRootWeightedMultisigIsmFactory
+        : this.getContracts(destination)
+            .staticMessageIdWeightedMultisigIsmFactory;
+
+    const address = await this.deployStaticWeightedValidatorSet(
+      destination,
+      weightedmultisigIsmFactory,
       config.validators,
-      config.threshold,
+      config.thresholdWeight,
+      logger,
     );
 
     return IMultisigIsm__factory.connect(address, signer);
   }
 
-  private async deployRoutingIsm(chain: ChainName, config: RoutingIsmConfig) {
-    const signer = this.multiProvider.getSigner(chain);
-    const routingIsmFactory = this.getContracts(chain).routingIsmFactory;
-    // TODO: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/2895
-    // config.defaultFallback
-    //   ? this.getContracts(chain).defaultFallbackRoutingIsmFactory
-    // : this.getContracts(chain).routingIsmFactory;
-    const isms: ChainMap<Address> = {};
-    for (const origin in config.domains) {
-      const ism = await this.deploy(chain, config.domains[origin], origin);
-      isms[origin] = ism.address;
+  protected async deployRoutingIsm(params: {
+    destination: ChainName;
+    config: RoutingIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+    existingIsmAddress?: Address;
+    logger: Logger;
+  }): Promise<IRoutingIsm> {
+    const { config } = params;
+
+    if (config.type === IsmType.ICA_ROUTING) {
+      return this.deployIcaIsm(params);
     }
-    const domains = Object.keys(isms).map((chain) =>
-      this.multiProvider.getDomainId(chain),
-    );
-    const submoduleAddresses = Object.values(isms);
-    const overrides = this.multiProvider.getTransactionOverrides(chain);
-    const tx = await routingIsmFactory.deploy(
-      domains,
-      submoduleAddresses,
-      overrides,
-    );
-    const receipt = await this.multiProvider.handleTx(chain, tx);
-    // TODO: Break this out into a generalized function
-    const dispatchLogs = receipt.logs
-      .map((log) => {
-        try {
-          return routingIsmFactory.interface.parseLog(log);
-        } catch (e) {
-          return undefined;
-        }
-      })
-      .filter(
-        (log): log is ethers.utils.LogDescription =>
-          !!log && log.name === 'ModuleDeployed',
-      );
-    const moduleAddress = dispatchLogs[0].args['module'];
-    const routingIsm = DomainRoutingIsm__factory.connect(
-      moduleAddress,
-      this.multiProvider.getSigner(chain),
-    );
-    this.logger(`Transferring ownership of routing ISM to ${config.owner}`);
-    await this.multiProvider.handleTx(
-      chain,
-      await routingIsm.transferOwnership(config.owner, overrides),
-    );
-    const address = dispatchLogs[0].args['module'];
-    return IRoutingIsm__factory.connect(address, signer);
+
+    return this.deployOwnableRoutingIsm({
+      ...params,
+      // Can't pass params directly because ts will complain that the types do not match
+      config,
+    });
   }
 
-  private async deployAggregationIsm(
-    chain: ChainName,
-    config: AggregationIsmConfig,
-    origin?: ChainName,
-  ) {
-    const signer = this.multiProvider.getSigner(chain);
-    const aggregationIsmFactory =
-      this.getContracts(chain).aggregationIsmFactory;
+  private async deployIcaIsm(params: {
+    destination: ChainName;
+    config: RoutingIsmConfig;
+    mailbox?: Address;
+  }): Promise<IRoutingIsm> {
+    if (!params.mailbox) {
+      throw new Error('Mailbox address is required for deploying ICA ISM');
+    }
+
+    return this.multiProvider.handleDeploy(
+      params.destination,
+      new InterchainAccountIsm__factory(),
+      [params.mailbox],
+    );
+  }
+
+  private async deployOwnableRoutingIsm(params: {
+    destination: ChainName;
+    config: DomainRoutingIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+    existingIsmAddress?: Address;
+    logger: Logger;
+  }): Promise<IRoutingIsm> {
+    const { destination, config, mailbox, existingIsmAddress, logger } = params;
+    const overrides = this.multiProvider.getTransactionOverrides(destination);
+    const domainRoutingIsmFactory =
+      this.getContracts(destination).domainRoutingIsmFactory;
+    let routingIsm: DomainRoutingIsm | DefaultFallbackRoutingIsm;
+    // filtering out domains which are not part of the multiprovider
+    config.domains = objFilter(config.domains, (domain, _): _ is IsmConfig => {
+      const domainId = this.multiProvider.tryGetDomainId(domain);
+      if (domainId === null) {
+        logger.warn(
+          `Domain ${domain} doesn't have chain metadata provided, skipping ...`,
+        );
+      }
+      return domainId !== null;
+    });
+    const safeConfigDomains = Object.keys(config.domains).map((domain) =>
+      this.multiProvider.getDomainId(domain),
+    );
+    const delta: RoutingIsmDelta = existingIsmAddress
+      ? await routingModuleDelta(
+          destination,
+          existingIsmAddress,
+          config,
+          this.multiProvider,
+          this.getContracts(destination),
+          mailbox,
+        )
+      : {
+          domainsToUnenroll: [],
+          domainsToEnroll: safeConfigDomains,
+        };
+
+    const signer = this.multiProvider.getSigner(destination);
+    const provider = this.multiProvider.getProvider(destination);
+    let isOwner = false;
+    if (existingIsmAddress) {
+      const owner = await DomainRoutingIsm__factory.connect(
+        existingIsmAddress,
+        provider,
+      ).owner();
+      isOwner = eqAddress(await signer.getAddress(), owner);
+    }
+
+    // reconfiguring existing routing ISM
+    if (existingIsmAddress && isOwner && !delta.mailbox) {
+      const isms: Record<Domain, Address> = {};
+      routingIsm = DomainRoutingIsm__factory.connect(
+        existingIsmAddress,
+        this.multiProvider.getSigner(destination),
+      );
+      // deploying all the ISMs which have to be updated
+      for (const originDomain of delta.domainsToEnroll) {
+        const origin = this.multiProvider.getChainName(originDomain); // already filtered to only include domains in the multiprovider
+        logger.debug(
+          `Reconfiguring preexisting routing ISM at for origin ${origin}...`,
+        );
+        const ism = await this.deploy({
+          destination,
+          config: config.domains[origin],
+          origin,
+          mailbox,
+        });
+        isms[originDomain] = ism.address;
+        const tx = await routingIsm.set(
+          originDomain,
+          isms[originDomain],
+          overrides,
+        );
+        await this.multiProvider.handleTx(destination, tx);
+      }
+      // unenrolling domains if needed
+      for (const originDomain of delta.domainsToUnenroll) {
+        logger.debug(
+          `Unenrolling originDomain ${originDomain} from preexisting routing ISM at ${existingIsmAddress}...`,
+        );
+        const tx = await routingIsm.remove(originDomain, overrides);
+        await this.multiProvider.handleTx(destination, tx);
+      }
+      // transfer ownership if needed
+      if (delta.owner) {
+        logger.debug(`Transferring ownership of routing ISM...`);
+        const tx = await routingIsm.transferOwnership(delta.owner, overrides);
+        await this.multiProvider.handleTx(destination, tx);
+      }
+    } else {
+      const isms: ChainMap<Address> = {};
+      for (const origin of Object.keys(config.domains)) {
+        const ism = await this.deploy({
+          destination,
+          config: config.domains[origin],
+          origin,
+          mailbox,
+        });
+        isms[origin] = ism.address;
+      }
+      const submoduleAddresses = Object.values(isms);
+      let receipt: ethers.providers.TransactionReceipt;
+      if (config.type === IsmType.FALLBACK_ROUTING) {
+        // deploying new fallback routing ISM
+        if (!mailbox) {
+          throw new Error(
+            'Mailbox address is required for deploying fallback routing ISM',
+          );
+        }
+        logger.debug('Deploying fallback routing ISM ...');
+        routingIsm = await this.multiProvider.handleDeploy(
+          destination,
+          new DefaultFallbackRoutingIsm__factory(),
+          [mailbox],
+        );
+        // TODO: Should verify contract here
+        logger.debug('Initialising fallback routing ISM ...');
+        receipt = await this.multiProvider.handleTx(
+          destination,
+          routingIsm['initialize(address,uint32[],address[])'](
+            config.owner,
+            safeConfigDomains,
+            submoduleAddresses,
+            overrides,
+          ),
+        );
+      } else {
+        // deploying new domain routing ISM
+        const owner = config.owner;
+        // estimate gas
+        const estimatedGas = await domainRoutingIsmFactory.estimateGas.deploy(
+          owner,
+          safeConfigDomains,
+          submoduleAddresses,
+          overrides,
+        );
+        // add gas buffer
+        const tx = await domainRoutingIsmFactory.deploy(
+          owner,
+          safeConfigDomains,
+          submoduleAddresses,
+          {
+            gasLimit: addBufferToGasLimit(estimatedGas),
+            ...overrides,
+          },
+        );
+        // TODO: Should verify contract here
+        receipt = await this.multiProvider.handleTx(destination, tx);
+
+        // TODO: Break this out into a generalized function
+        const dispatchLogs = receipt.logs
+          .map((log) => {
+            try {
+              return domainRoutingIsmFactory.interface.parseLog(log);
+            } catch {
+              return undefined;
+            }
+          })
+          .filter(
+            (log): log is ethers.utils.LogDescription =>
+              !!log && log.name === 'ModuleDeployed',
+          );
+        if (dispatchLogs.length === 0) {
+          throw new Error('No ModuleDeployed event found');
+        }
+        const moduleAddress = dispatchLogs[0].args['module'];
+        routingIsm = DomainRoutingIsm__factory.connect(
+          moduleAddress,
+          this.multiProvider.getSigner(destination),
+        );
+      }
+    }
+    return routingIsm;
+  }
+
+  protected async deployAggregationIsm(params: {
+    destination: ChainName;
+    config: AggregationIsmConfig;
+    origin?: ChainName;
+    mailbox?: Address;
+    logger: Logger;
+  }): Promise<IAggregationIsm> {
+    const { destination, config, origin, mailbox } = params;
+    const signer = this.multiProvider.getSigner(destination);
+
     const addresses: Address[] = [];
     for (const module of config.modules) {
-      const submodule = await this.deploy(chain, module, origin);
+      const submodule = await this.deploy({
+        destination,
+        config: module,
+        origin,
+        mailbox,
+      });
       addresses.push(submodule.address);
     }
-    const address = await this.deployStaticAddressSet(
-      chain,
-      aggregationIsmFactory,
-      addresses,
-      config.threshold,
-    );
-    return IAggregationIsm__factory.connect(address, signer);
-  }
 
-  private async deployOpStackIsm(chain: ChainName, config: OpStackIsmConfig) {
-    return await this.multiProvider.handleDeploy(
-      chain,
-      new OPStackIsm__factory(),
-      [config.nativeBridge],
-    );
+    let ismAddress: string;
+    if (config.type === IsmType.STORAGE_AGGREGATION) {
+      // TODO: support using minimal proxy factories for storage aggregation ISMs too
+      const factory = new StorageAggregationIsm__factory().connect(signer);
+      const ism = await this.multiProvider.handleDeploy(destination, factory, [
+        addresses,
+        config.threshold,
+      ]);
+      ismAddress = ism.address;
+    } else {
+      const staticAggregationIsmFactory =
+        this.getContracts(destination).staticAggregationIsmFactory;
+
+      ismAddress = await this.deployStaticAddressSet(
+        destination,
+        staticAggregationIsmFactory,
+        addresses,
+        params.logger,
+        config.threshold,
+      );
+    }
+
+    return IAggregationIsm__factory.connect(ismAddress, signer);
   }
 
   async deployStaticAddressSet(
     chain: ChainName,
     factory: StaticThresholdAddressSetFactory | StaticAddressSetFactory,
     values: Address[],
+    logger: Logger,
     threshold = values.length,
   ): Promise<Address> {
     const sorted = [...values].sort();
@@ -251,317 +589,74 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     );
     const code = await this.multiProvider.getProvider(chain).getCode(address);
     if (code === '0x') {
-      this.logger(
+      logger.debug(
         `Deploying new ${threshold} of ${values.length} address set to ${chain}`,
       );
       const overrides = this.multiProvider.getTransactionOverrides(chain);
-      const hash = await factory['deploy(address[],uint8)'](
+
+      // estimate gas
+      const estimatedGas = await factory.estimateGas['deploy(address[],uint8)'](
         sorted,
         threshold,
         overrides,
       );
+      // add gas buffer
+      const hash = await factory['deploy(address[],uint8)'](sorted, threshold, {
+        gasLimit: addBufferToGasLimit(estimatedGas),
+        ...overrides,
+      });
+
       await this.multiProvider.handleTx(chain, hash);
       // TODO: add proxy verification artifact?
     } else {
-      this.logger(
-        `Recovered ${threshold} of ${values.length} address set on ${chain}`,
+      logger.debug(
+        `Recovered ${threshold} of ${values.length} address set on ${chain}: ${address}`,
       );
     }
     return address;
   }
-}
 
-// Note that this function may return false negatives, but should
-// not return false positives.
-// This can happen if, for example, the module has sender, recipient, or
-// body specific logic, as the sample message used when querying the ISM
-// sets all of these to zero.
-export async function moduleCanCertainlyVerify(
-  destModule: Address | IsmConfig,
-  multiProvider: MultiProvider,
-  origin: ChainName,
-  destination: ChainName,
-): Promise<boolean> {
-  const message = formatMessage(
-    0,
-    0,
-    multiProvider.getDomainId(origin),
-    ethers.constants.AddressZero,
-    multiProvider.getDomainId(destination),
-    ethers.constants.AddressZero,
-    '0x',
-  );
-  const provider = multiProvider.getSignerOrProvider(destination);
+  async deployStaticWeightedValidatorSet(
+    chain: ChainName,
+    factory: StaticWeightedValidatorSetFactory,
+    values: IStaticWeightedMultisigIsm.ValidatorInfoStruct[],
+    thresholdWeight = 66e8,
+    logger: Logger,
+  ): Promise<Address> {
+    const sorted = [...values].sort();
 
-  if (typeof destModule === 'string') {
-    const module = IInterchainSecurityModule__factory.connect(
-      destModule,
-      provider,
+    const address = await factory['getAddress((address,uint96)[],uint96)'](
+      sorted,
+      thresholdWeight,
     );
-
-    try {
-      const moduleType = await module.moduleType();
-      if (
-        moduleType === ModuleType.MERKLE_ROOT_MULTISIG ||
-        moduleType === ModuleType.MESSAGE_ID_MULTISIG
-      ) {
-        const multisigModule = IMultisigIsm__factory.connect(
-          destModule,
-          provider,
-        );
-
-        const [, threshold] = await multisigModule.validatorsAndThreshold(
-          message,
-        );
-        return threshold > 0;
-      } else if (moduleType === ModuleType.ROUTING) {
-        const routingIsm = IRoutingIsm__factory.connect(destModule, provider);
-        const subModule = await routingIsm.route(message);
-        return moduleCanCertainlyVerify(
-          subModule,
-          multiProvider,
-          origin,
-          destination,
-        );
-      } else if (moduleType === ModuleType.AGGREGATION) {
-        const aggregationIsm = IAggregationIsm__factory.connect(
-          destModule,
-          provider,
-        );
-        const [subModules, threshold] =
-          await aggregationIsm.modulesAndThreshold(message);
-        let verified = 0;
-        for (const subModule of subModules) {
-          const canVerify = await moduleCanCertainlyVerify(
-            subModule,
-            multiProvider,
-            origin,
-            destination,
-          );
-          if (canVerify) {
-            verified += 1;
-          }
-        }
-        return verified >= threshold;
-      } else {
-        throw new Error(`Unsupported module type: ${moduleType}`);
-      }
-    } catch (e) {
-      warn(`Error checking module ${destModule}: ${e}`);
-      return false;
-    }
-  } else {
-    // destModule is an IsmConfig
-    switch (destModule.type) {
-      case IsmType.MERKLE_ROOT_MULTISIG:
-      case IsmType.MESSAGE_ID_MULTISIG:
-        return destModule.threshold > 0;
-      case IsmType.ROUTING: {
-        const checking = moduleCanCertainlyVerify(
-          destModule.domains[destination],
-          multiProvider,
-          origin,
-          destination,
-        );
-        return checking;
-      }
-      case IsmType.AGGREGATION: {
-        let verified = 0;
-        for (const subModule of destModule.modules) {
-          const canVerify = await moduleCanCertainlyVerify(
-            subModule,
-            multiProvider,
-            origin,
-            destination,
-          );
-          if (canVerify) {
-            verified += 1;
-          }
-        }
-        return verified >= destModule.threshold;
-      }
-      case IsmType.OP_STACK:
-        return destModule.nativeBridge !== ethers.constants.AddressZero;
-      case IsmType.TEST_ISM: {
-        return true;
-      }
-      default:
-        throw new Error(`Unsupported module type: ${(destModule as any).type}`);
-    }
-  }
-}
-
-export async function moduleMatchesConfig(
-  chain: ChainName,
-  moduleAddress: Address,
-  config: IsmConfig,
-  multiProvider: MultiProvider,
-  contracts: HyperlaneContracts<ProxyFactoryFactories>,
-  _origin?: ChainName,
-): Promise<boolean> {
-  if (typeof config === 'string') {
-    return eqAddress(moduleAddress, config);
-  }
-
-  // If the module address is zero, it can't match any object-based config.
-  // The subsequent check of what moduleType it is will throw, so we fail here.
-  if (eqAddress(moduleAddress, ethers.constants.AddressZero)) {
-    return false;
-  }
-
-  const provider = multiProvider.getProvider(chain);
-  const module = IInterchainSecurityModule__factory.connect(
-    moduleAddress,
-    provider,
-  );
-  const actualType = await module.moduleType();
-  if (actualType !== ismTypeToModuleType(config.type)) return false;
-  let matches = true;
-  switch (config.type) {
-    case IsmType.MERKLE_ROOT_MULTISIG: {
-      // A MerkleRootMultisigIsm matches if validators and threshold match the config
-      const expectedAddress =
-        await contracts.merkleRootMultisigIsmFactory.getAddress(
-          config.validators.sort(),
-          config.threshold,
-        );
-      matches = eqAddress(expectedAddress, module.address);
-      break;
-    }
-    case IsmType.MESSAGE_ID_MULTISIG: {
-      // A MessageIdMultisigIsm matches if validators and threshold match the config
-      const expectedAddress =
-        await contracts.messageIdMultisigIsmFactory.getAddress(
-          config.validators.sort(),
-          config.threshold,
-        );
-      matches = eqAddress(expectedAddress, module.address);
-      break;
-    }
-    case IsmType.ROUTING: {
-      // A RoutingIsm matches if:
-      //   1. The set of domains in the config equals those on-chain
-      //   2. The modules for each domain match the config
-      // TODO: Check (1)
-      const routingIsm = DomainRoutingIsm__factory.connect(
-        moduleAddress,
-        provider,
+    const code = await this.multiProvider.getProvider(chain).getCode(address);
+    if (code === '0x') {
+      logger.debug(
+        `Deploying new weighted set of ${values.length} validators with a threshold weight ${thresholdWeight} on ${chain} `,
       );
-      // Check that the RoutingISM owner matches the config
-      const owner = await routingIsm.owner();
-      matches = matches && eqAddress(owner, config.owner);
-      // Recursively check that the submodule for each configured
-      // domain matches the submodule config.
-      for (const [origin, subConfig] of Object.entries(config.domains)) {
-        const subModule = await routingIsm.module(
-          multiProvider.getDomainId(origin),
-        );
-        const subModuleMatches = await moduleMatchesConfig(
-          chain,
-          subModule,
-          subConfig,
-          multiProvider,
-          contracts,
-          origin,
-        );
-        matches = matches && subModuleMatches;
-      }
-      break;
-    }
-    case IsmType.AGGREGATION: {
-      // An AggregationIsm matches if:
-      //   1. The threshold matches the config
-      //   2. There is a bijection between on and off-chain configured modules
-      const aggregationIsm = StaticAggregationIsm__factory.connect(
-        moduleAddress,
-        provider,
+      const overrides = this.multiProvider.getTransactionOverrides(chain);
+
+      // estimate gas
+      const estimatedGas = await factory.estimateGas[
+        'deploy((address,uint96)[],uint96)'
+      ](sorted, thresholdWeight, overrides);
+      // add gas buffer
+      const hash = await factory['deploy((address,uint96)[],uint96)'](
+        sorted,
+        thresholdWeight,
+        {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        },
       );
-      const [subModules, threshold] = await aggregationIsm.modulesAndThreshold(
-        '0x',
+
+      await this.multiProvider.handleTx(chain, hash);
+      // TODO: add proxy verification artifact?
+    } else {
+      logger.debug(
+        `Recovered weighted set of ${values.length} validators on ${chain} with a threshold weight ${thresholdWeight}: ${address}`,
       );
-      matches = matches && threshold === config.threshold;
-      matches = matches && subModules.length === config.modules.length;
-
-      const configIndexMatched = new Map();
-      for (const subModule of subModules) {
-        const subModuleMatchesConfig = await Promise.all(
-          config.modules.map((c) =>
-            moduleMatchesConfig(chain, subModule, c, multiProvider, contracts),
-          ),
-        );
-        // The submodule returned by the ISM must match exactly one
-        // entry in the config.
-        const count = subModuleMatchesConfig.filter(Boolean).length;
-        matches = matches && count === 1;
-
-        // That entry in the config should not have been matched already.
-        subModuleMatchesConfig.forEach((matched, index) => {
-          if (matched) {
-            matches = matches && !configIndexMatched.has(index);
-            configIndexMatched.set(index, true);
-          }
-        });
-      }
-      break;
     }
-    case IsmType.OP_STACK: {
-      const opStackIsm = OPStackIsm__factory.connect(moduleAddress, provider);
-      const type = await opStackIsm.moduleType();
-      matches = matches && type === ModuleType.NULL;
-      break;
-    }
-    case IsmType.TEST_ISM: {
-      // This is just a TestISM
-      matches = true;
-      break;
-    }
-    default: {
-      throw new Error('Unsupported ModuleType');
-    }
+    return address;
   }
-
-  return matches;
-}
-
-export function collectValidators(
-  origin: ChainName,
-  config: IsmConfig,
-): Set<string> {
-  // TODO: support address configurations in collectValidators
-  if (typeof config === 'string') {
-    debug('hyperlane:IsmFactory')(
-      'Address config unimplemented in collectValidators',
-    );
-    return new Set([]);
-  }
-
-  let validators: string[] = [];
-  if (
-    config.type === IsmType.MERKLE_ROOT_MULTISIG ||
-    config.type === IsmType.MESSAGE_ID_MULTISIG
-  ) {
-    validators = config.validators;
-  } else if (config.type === IsmType.ROUTING) {
-    if (Object.keys(config.domains).includes(origin)) {
-      const domainValidators = collectValidators(
-        origin,
-        config.domains[origin],
-      );
-      validators = [...domainValidators];
-    }
-  } else if (config.type === IsmType.AGGREGATION) {
-    const aggregatedValidators = config.modules.map((c) =>
-      collectValidators(origin, c),
-    );
-    aggregatedValidators.forEach((set) => {
-      validators = validators.concat([...set]);
-    });
-  } else if (config.type === IsmType.TEST_ISM) {
-    // This is just a TestISM
-    return new Set([]);
-  } else {
-    throw new Error('Unsupported ModuleType');
-  }
-
-  return new Set(validators);
 }

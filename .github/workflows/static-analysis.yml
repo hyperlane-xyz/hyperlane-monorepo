@@ -1,41 +1,73 @@
 name: static-analysis
 
 on:
-  # Triggers the workflow on pull request against main
-  pull_request:
+  push:
+  # Triggers the workflow on push to main
     branches: [main]
     paths:
       - 'solidity/**'
+      - '.github/workflows/static-analysis.yml'
+  # Triggers the workflow on pull request
+  pull_request:
+    paths:
+      - 'solidity/**'
+      - '.github/workflows/static-analysis.yml'
 
 jobs:
   slither:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v4
         with:
           path: |
             **/node_modules
-            .yarn/cache
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+            .yarn
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-4.5.1.-cache-
 
-      - run: yarn workspaces focus @hyperlane-xyz/core
+      - name: yarn-install
+        run: yarn install
+
+      - name: foundry-install
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: forge-build
+        run: cd solidity && forge build --build-info
 
       - name: Static analysis
-        uses: crytic/slither-action@v0.3.0
+        uses: crytic/slither-action@v0.4.0
         id: slither
         with:
           target: 'solidity/'
           slither-config: 'solidity/slither.config.json'
           sarif: results.sarif
           fail-on: none
+          ignore-compile: true
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: ${{ steps.slither.outputs.sarif }}
+          category: "slither"
+
+      - name: Olympix Integrated Security
+        uses: olympix/integrated-security@main
+        env:
+          OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
+          OLYMPIX_CLI_LOG_LEVEL: 0
+        with:
+          args: -p ./solidity/contracts --output-format sarif --output-path ./
+
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: olympix.sarif
+          category: "olympix"

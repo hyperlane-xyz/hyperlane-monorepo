@@ -1,7 +1,7 @@
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
-import { BaseAppAdapter } from '../../app/MultiProtocolApp';
-import { ChainName } from '../../types';
+import { BaseAppAdapter } from '../../app/MultiProtocolApp.js';
+import { ChainName } from '../../types.js';
 
 export interface IRouterAdapter extends BaseAppAdapter {
   interchainSecurityModule(): Promise<Address>;

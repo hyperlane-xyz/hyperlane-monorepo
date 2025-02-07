@@ -1,6 +1,11 @@
 import { ethers } from 'ethers';
 
-import { Address, eqAddress } from '@hyperlane-xyz/utils';
+import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { Address, ChainId, eqAddress } from '@hyperlane-xyz/utils';
+
+import { transferOwnershipTransactions } from '../contracts/contracts.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { DeployedOwnableConfig } from '../types.js';
 
 export type UpgradeConfig = {
   timelock: {
@@ -23,6 +28,18 @@ export async function proxyImplementation(
     '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc',
   );
   return ethers.utils.getAddress(storageValue.slice(26));
+}
+
+export async function isInitialized(
+  provider: ethers.providers.Provider,
+  contract: Address,
+): Promise<boolean> {
+  // Using OZ's Initializable 4.9 which keeps it at the 0x0 slot
+  const storageValue = await provider.getStorageAt(contract, '0x0');
+  return (
+    storageValue ===
+    '0x00000000000000000000000000000000000000000000000000000000000000ff'
+  );
 }
 
 export async function proxyAdmin(
@@ -54,4 +71,51 @@ export async function isProxy(
 ): Promise<boolean> {
   const admin = await proxyAdmin(provider, proxy);
   return !eqAddress(admin, ethers.constants.AddressZero);
+}
+
+export function proxyAdminUpdateTxs(
+  chainId: ChainId,
+  proxyAddress: Address,
+  actualConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
+  expectedConfig: Readonly<{ proxyAdmin?: DeployedOwnableConfig }>,
+): AnnotatedEV5Transaction[] {
+  const transactions: AnnotatedEV5Transaction[] = [];
+
+  // Return early because old config files did not have the
+  // proxyAdmin property
+  if (!expectedConfig.proxyAdmin?.address) {
+    return transactions;
+  }
+
+  const actualProxyAdmin = actualConfig.proxyAdmin!;
+  const parsedChainId =
+    typeof chainId === 'string' ? parseInt(chainId) : chainId;
+
+  if (
+    actualProxyAdmin.address &&
+    actualProxyAdmin.address !== expectedConfig.proxyAdmin.address
+  ) {
+    transactions.push({
+      chainId: parsedChainId,
+      annotation: `Updating ProxyAdmin for proxy at "${proxyAddress}" from "${actualProxyAdmin.address}" to "${expectedConfig.proxyAdmin.address}"`,
+      to: actualProxyAdmin.address,
+      data: ProxyAdmin__factory.createInterface().encodeFunctionData(
+        'changeProxyAdmin(address,address)',
+        [proxyAddress, expectedConfig.proxyAdmin.address],
+      ),
+    });
+  } else {
+    transactions.push(
+      // Internally the createTransferOwnershipTx method already checks if the
+      // two owner values are the same and produces an empty tx batch if they are
+      ...transferOwnershipTransactions(
+        parsedChainId,
+        actualProxyAdmin.address!,
+        actualProxyAdmin,
+        expectedConfig.proxyAdmin,
+      ),
+    );
+  }
+
+  return transactions;
 }

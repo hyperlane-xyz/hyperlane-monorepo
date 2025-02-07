@@ -1,5 +1,6 @@
 import { formatUnits, parseUnits } from '@ethersproject/units';
-import BigNumber from 'bignumber.js';
+import { BigNumber } from 'bignumber.js';
+import { ethers } from 'ethers';
 
 const DEFAULT_DISPLAY_DECIMALS = 4;
 const DEFAULT_TOKEN_DECIMALS = 18;
@@ -81,7 +82,7 @@ export function tryParseAmount(
     const parsed = BigNumber(value);
     if (!parsed || parsed.isNaN() || !parsed.isFinite()) return null;
     else return parsed;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -110,24 +111,47 @@ export function eqAmountApproximate(
  * @param value The value to convert.
  * @returns `value` represented with `toDecimals` decimals in string type.
  */
-export function convertDecimals(
+export function convertDecimalsToIntegerString(
   fromDecimals: number,
   toDecimals: number,
   value: BigNumber.Value,
 ): string {
+  const converted = convertDecimals(fromDecimals, toDecimals, value);
+  return converted.integerValue(BigNumber.ROUND_FLOOR).toString(10);
+}
+
+export function convertDecimals(
+  fromDecimals: number,
+  toDecimals: number,
+  value: BigNumber.Value,
+): BigNumber {
   const amount = BigNumber(value);
 
-  if (fromDecimals === toDecimals) return amount.toString(10);
+  if (fromDecimals === toDecimals) return amount;
   else if (fromDecimals > toDecimals) {
     const difference = fromDecimals - toDecimals;
-    return amount
-      .div(BigNumber(10).pow(difference))
-      .integerValue(BigNumber.ROUND_FLOOR)
-      .toString(10);
+    return amount.div(BigNumber(10).pow(difference));
   }
   // fromDecimals < toDecimals
   else {
     const difference = toDecimals - fromDecimals;
-    return amount.times(BigNumber(10).pow(difference)).toString(10);
+    return amount.times(BigNumber(10).pow(difference));
   }
+}
+
+// Default gas limit buffer percentage
+const DEFAULT_GAS_LIMIT_BUFFER_PERCENT = 10;
+
+/**
+ * Calculates the gas limit with a buffer added to the estimated gas.
+ * @param estimatedGas The estimated gas for the transaction.
+ * @param bufferPercent The percentage to add as a buffer (default: 10%).
+ * @returns The calculated gas limit with the buffer added.
+ */
+export function addBufferToGasLimit(
+  estimatedGas: ethers.BigNumber,
+  bufferPercent: number = DEFAULT_GAS_LIMIT_BUFFER_PERCENT,
+): ethers.BigNumber {
+  const bufferMultiplier = 100 + bufferPercent;
+  return estimatedGas.mul(bufferMultiplier).div(100);
 }

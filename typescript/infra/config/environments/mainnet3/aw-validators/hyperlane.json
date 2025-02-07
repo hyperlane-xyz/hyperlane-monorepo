@@ -1,0 +1,428 @@
+{
+  "abstract": {
+    "validators": ["0x2ef8ece5b51562e65970c7d36007baa43a1de685"]
+  },
+  "ancient8": {
+    "validators": ["0xbb5842ae0e05215b53df4787a29144efb7e67551"]
+  },
+  "alephzeroevmmainnet": {
+    "validators": ["0x33f20e6e775747d60301c6ea1c50e51f0389740c"]
+  },
+  "apechain": {
+    "validators": ["0x773d7fe6ffb1ba4de814c28044ff9a2d83a48221"]
+  },
+  "appchain": {
+    "validators": ["0x0531251bbadc1f9f19ccce3ca6b3f79f08eae1be"]
+  },
+  "arbitrum": {
+    "validators": [
+      "0x4d966438fe9e2b1e7124c87bbb90cb4f0f6c59a1",
+      "0x6333e110b8a261cab28acb43030bcde59f26978a",
+      "0x3369e12edd52570806f126eb50be269ba5e65843"
+    ]
+  },
+  "arbitrumnova": {
+    "validators": ["0xd2a5e9123308d187383c87053811a2c21bd8af1f"]
+  },
+  "artela": {
+    "validators": ["0x8fcc1ebd4c0b463618db13f83e4565af3e166b00"]
+  },
+  "arthera": {
+    "validators": ["0x13710ac11c36c169f62fba95767ae59a1e57098d"]
+  },
+  "astar": {
+    "validators": ["0x4d1b2cade01ee3493f44304653d8e352c66ec3e7"]
+  },
+  "astarzkevm": {
+    "validators": ["0x89ecdd6caf138934bf3a2fb7b323984d72fd66de"]
+  },
+  "aurora": {
+    "validators": ["0x37105aec3ff37c7bb0abdb0b1d75112e1e69fa86"]
+  },
+  "flame": {
+    "validators": ["0x1fa928ce884fa16357d4b8866e096392d4d81f43"]
+  },
+  "avalanche": {
+    "validators": [
+      "0x3fb8263859843bffb02950c492d492cae169f4cf",
+      "0xe58c63ad669b946e7c8211299f22679deecc9c83",
+      "0x6c754f1e9cd8287088b46a7c807303d55d728b49"
+    ]
+  },
+  "b3": {
+    "validators": ["0xd77b516730a836fc41934e7d5864e72c165b934e"]
+  },
+  "base": {
+    "validators": [
+      "0xb9453d675e0fa3c178a17b4ce1ad5b1a279b3af9",
+      "0x4512985a574cb127b2af2d4bb676876ce804e3f8",
+      "0xb144bb2f599a5af095bc30367856f27ea8a8adc7"
+    ]
+  },
+  "berachain": {
+    "validators": ["0x0190915c55d9c7555e6d2cb838f04d18b5e2260e"]
+  },
+  "bitlayer": {
+    "validators": ["0x1d9b0f4ea80dbfc71cb7d64d8005eccf7c41e75f"]
+  },
+  "blast": {
+    "validators": ["0xf20c0b09f597597c8d2430d3d72dfddaf09177d1"]
+  },
+  "bob": {
+    "validators": ["0x20f283be1eb0e81e22f51705dcb79883cfdd34aa"]
+  },
+  "boba": {
+    "validators": ["0xebeb92c94ca8408e73aa16fd554cb3a7df075c59"]
+  },
+  "bsc": {
+    "validators": [
+      "0x570af9b7b36568c8877eebba6c6727aa9dab7268",
+      "0x7bf928d5d262365d31d64eaa24755d48c3cae313",
+      "0x03047213365800f065356b4a2fe97c3c3a52296a"
+    ]
+  },
+  "bsquared": {
+    "validators": ["0xcadc90933c9fbe843358a4e70e46ad2db78e28aa"]
+  },
+  "celo": {
+    "validators": [
+      "0x63478422679303c3e4fc611b771fa4a707ef7f4a",
+      "0x2f4e808744df049d8acc050628f7bdd8265807f9",
+      "0x7bf30afcb6a7d92146d5a910ea4c154fba38d25e"
+    ]
+  },
+  "cheesechain": {
+    "validators": ["0x478fb53c6860ae8fc35235ba0d38d49b13128226"]
+  },
+  "chilizmainnet": {
+    "validators": ["0x7403e5d58b48b0f5f715d9c78fbc581f01a625cb"]
+  },
+  "conflux": {
+    "validators": ["0x113dfa1dc9b0a2efb6ad01981e2aad86d3658490"]
+  },
+  "conwai": {
+    "validators": ["0x949e2cdd7e79f99ee9bbe549540370cdc62e73c3"]
+  },
+  "coredao": {
+    "validators": ["0xbd6e158a3f5830d99d7d2bce192695bc4a148de2"]
+  },
+  "corn": {
+    "validators": ["0xc80b2e3e38220e02d194a0effa9d5bfe89894c07"]
+  },
+  "cyber": {
+    "validators": ["0x94d7119ceeb802173b6924e6cc8c4cd731089a27"]
+  },
+  "degenchain": {
+    "validators": ["0x433e311f19524cd64fb2123ad0aa1579a4e1fc83"]
+  },
+  "dogechain": {
+    "validators": ["0xe43f742c37858746e6d7e458bc591180d0cba440"]
+  },
+  "duckchain": {
+    "validators": ["0x91d55fe6dac596a6735d96365e21ce4bca21d83c"]
+  },
+  "eclipsemainnet": {
+    "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
+  },
+  "endurance": {
+    "validators": ["0x28c5b322da06f184ebf68693c5d19df4d4af13e5"]
+  },
+  "ethereum": {
+    "validators": [
+      "0x03c842db86a6a3e524d4a6615390c1ea8e2b9541",
+      "0x4346776b10f5e0d9995d884b7a1dbaee4e24c016",
+      "0x749d6e7ad949e522c92181dc77f7bbc1c5d71506"
+    ]
+  },
+  "everclear": {
+    "validators": ["0xeff20ae3d5ab90abb11e882cfce4b92ea6c74837"]
+  },
+  "evmos": {
+    "validators": ["0x8f82387ad8b7b13aa9e06ed3f77f78a77713afe0"]
+  },
+  "fantom": {
+    "validators": ["0xa779572028e634e16f26af5dfd4fa685f619457d"]
+  },
+  "flare": {
+    "validators": ["0xb65e52be342dba3ab2c088ceeb4290c744809134"]
+  },
+  "flowmainnet": {
+    "validators": ["0xe132235c958ca1f3f24d772e5970dd58da4c0f6e"]
+  },
+  "form": {
+    "validators": ["0x58554b2e76167993b5fc000d0070a2f883cd333a"]
+  },
+  "fraxtal": {
+    "validators": ["0x4bce180dac6da60d0f3a2bdf036ffe9004f944c1"]
+  },
+  "fusemainnet": {
+    "validators": ["0x770c8ec9aac8cec4b2ead583b49acfbc5a1cf8a9"]
+  },
+  "glue": {
+    "validators": ["0xbe2ded12f7b023916584836506677ea89a0b6924"]
+  },
+  "gnosis": {
+    "validators": [
+      "0xd4df66a859585678f2ea8357161d896be19cc1ca",
+      "0x06a833508579f8b59d756b3a1e72451fc70840c3",
+      "0xb93a72cee19402553c9dd7fed2461aebd04e2454"
+    ]
+  },
+  "gravity": {
+    "validators": ["0x23d549bf757a02a6f6068e9363196ecd958c974e"]
+  },
+  "guru": {
+    "validators": ["0x0d756d9051f12c4de6aee2ee972193a2adfe00ef"]
+  },
+  "harmony": {
+    "validators": ["0xd677803a67651974b1c264171b5d7ca8838db8d5"]
+  },
+  "hemi": {
+    "validators": ["0x312dc72c17d01f3fd0abd31dd9b569bc473266dd"]
+  },
+  "immutablezkevmmainnet": {
+    "validators": ["0xbdda85b19a5efbe09e52a32db1a072f043dd66da"]
+  },
+  "inevm": {
+    "validators": [
+      "0xf9e35ee88e4448a3673b4676a4e153e3584a08eb",
+      "0xae3e6bb6b3ece1c425aa6f47adc8cb0453c1f9a2",
+      "0xd98c9522cd9d3e3e00bee05ff76c34b91b266ec3"
+    ]
+  },
+  "injective": {
+    "validators": ["0xbfb8911b72cfb138c7ce517c57d9c691535dc517"]
+  },
+  "ink": {
+    "validators": ["0xb533b8b104522958b984fb258e0684dec0f1a6a5"]
+  },
+  "kaia": {
+    "validators": ["0x9de0b3abb221d19719882fa4d61f769fdc2be9a4"]
+  },
+  "kroma": {
+    "validators": ["0x71b83c21342787d758199e4b8634d3a15f02dc6e"]
+  },
+  "linea": {
+    "validators": ["0xf2d5409a59e0f5ae7635aff73685624904a77d94"]
+  },
+  "lisk": {
+    "validators": ["0xc0b282aa5bac43fee83cf71dc3dd1797c1090ea5"]
+  },
+  "lukso": {
+    "validators": ["0xa5e953701dcddc5b958b5defb677a829d908df6d"]
+  },
+  "lumia": {
+    "validators": ["0x9e283254ed2cd2c80f007348c2822fc8e5c2fa5f"]
+  },
+  "lumiaprism": {
+    "validators": ["0xb69731640ffd4338a2c9358a935b0274c6463f85"]
+  },
+  "mantapacific": {
+    "validators": [
+      "0x8e668c97ad76d0e28375275c41ece4972ab8a5bc",
+      "0x80afdde2a81f3fb056fd088a97f0af3722dbc4f3",
+      "0x5dda0c4cf18de3b3ab637f8df82b24921082b54c"
+    ]
+  },
+  "mantle": {
+    "validators": ["0xf930636c5a1a8bf9302405f72e3af3c96ebe4a52"]
+  },
+  "matchain": {
+    "validators": ["0x8a052f7934b0626105f34f980c875ec03aaf82e8"]
+  },
+  "merlin": {
+    "validators": ["0xc1d6600cb9326ed2198cc8c4ba8d6668e8671247"]
+  },
+  "metal": {
+    "validators": ["0xd9f7f1a05826197a93df51e86cefb41dfbfb896a"]
+  },
+  "metis": {
+    "validators": ["0xc4a3d25107060e800a43842964546db508092260"]
+  },
+  "mint": {
+    "validators": ["0xfed01ccdd7a65e8a6ad867b7fb03b9eb47777ac9"]
+  },
+  "mode": {
+    "validators": ["0x7eb2e1920a4166c19d6884c1cec3d2cf356fc9b7"]
+  },
+  "molten": {
+    "validators": ["0xad5aa33f0d67f6fa258abbe75458ea4908f1dc9f"]
+  },
+  "moonbeam": {
+    "validators": [
+      "0x2225e2f4e9221049456da93b71d2de41f3b6b2a8",
+      "0x4fe067bb455358e295bfcfb92519a6f9de94b98e",
+      "0xcc4a78aa162482bea43313cd836ba7b560b44fc4"
+    ]
+  },
+  "morph": {
+    "validators": ["0x4884535f393151ec419add872100d352f71af380"]
+  },
+  "nero": {
+    "validators": ["0xb86f872df37f11f33acbe75b6ed208b872b57183"]
+  },
+  "neutron": {
+    "validators": [
+      "0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0",
+      "0x60e890b34cb44ce3fa52f38684f613f31b47a1a6",
+      "0x7885fae56dbcf5176657f54adbbd881dc6714132"
+    ]
+  },
+  "oortmainnet": {
+    "validators": ["0x9b7ff56cd9aa69006f73f1c5b8c63390c706a5d7"]
+  },
+  "optimism": {
+    "validators": [
+      "0x20349eadc6c72e94ce38268b96692b1a5c20de4f",
+      "0x04d040cee072272789e2d1f29aef73b3ad098db5",
+      "0x779a17e035018396724a6dec8a59bda1b5adf738"
+    ]
+  },
+  "orderly": {
+    "validators": ["0xec3dc91f9fa2ad35edf5842aa764d5573b778bb6"]
+  },
+  "osmosis": {
+    "validators": ["0xea483af11c19fa41b16c31d1534c2a486a92bcac"]
+  },
+  "polygon": {
+    "validators": [
+      "0x12ecb319c7f4e8ac5eb5226662aeb8528c5cefac",
+      "0x8dd8f8d34b5ecaa5f66de24b01acd7b8461c3916",
+      "0xdbf3666de031bea43ec35822e8c33b9a9c610322"
+    ]
+  },
+  "polygonzkevm": {
+    "validators": [
+      "0x86f2a44592bb98da766e880cfd70d3bbb295e61a",
+      "0xc84076030bdabaabb9e61161d833dd84b700afda",
+      "0x6a1da2e0b7ae26aaece1377c0a4dbe25b85fa3ca"
+    ]
+  },
+  "polynomialfi": {
+    "validators": ["0x23d348c2d365040e56f3fee07e6897122915f513"]
+  },
+  "prom": {
+    "validators": ["0xb0c4042b7c9a95345be8913f4cdbf4043b923d98"]
+  },
+  "proofofplay": {
+    "validators": ["0xcda40baa71970a06e5f55e306474de5ca4e21c3b"]
+  },
+  "rarichain": {
+    "validators": ["0xeac012df7530720dd7d6f9b727e4fe39807d1516"]
+  },
+  "real": {
+    "validators": ["0xaebadd4998c70b05ce8715cf0c3cb8862fe0beec"]
+  },
+  "redstone": {
+    "validators": ["0x1400b9737007f7978d8b4bbafb4a69c83f0641a7"]
+  },
+  "rivalz": {
+    "validators": ["0xf87c3eb3dde972257b0d6d110bdadcda951c0dc1"]
+  },
+  "rootstockmainnet": {
+    "validators": ["0x8675eb603d62ab64e3efe90df914e555966e04ac"]
+  },
+  "sanko": {
+    "validators": ["0x795c37d5babbc44094b084b0c89ed9db9b5fae39"]
+  },
+  "scroll": {
+    "validators": [
+      "0xad557170a9f2f21c35e03de07cb30dcbcc3dff63",
+      "0xb37fe43a9f47b7024c2d5ae22526cc66b5261533",
+      "0x7210fa0a6be39a75cb14d682ebfb37e2b53ecbe5"
+    ]
+  },
+  "sei": {
+    "validators": ["0x9920d2dbf6c85ffc228fdc2e810bf895732c6aa5"]
+  },
+  "shibarium": {
+    "validators": ["0xfa33391ee38597cbeef72ccde8c9e13e01e78521"]
+  },
+  "snaxchain": {
+    "validators": ["0x2c25829ae32a772d2a49f6c4b34f8b01fd03ef9e"]
+  },
+  "solanamainnet": {
+    "validators": ["0x28464752829b3ea59a497fca0bdff575c534c3ff"]
+  },
+  "soneium": {
+    "validators": ["0xd4b7af853ed6a2bfc329ecef545df90c959cbee8"]
+  },
+  "sonic": {
+    "validators": ["0xa313d72dbbd3fa51a2ed1611ea50c37946fa42f7"]
+  },
+  "sonicsvm": {
+    "validators": ["0xf21f46905d8d09f76bc8c503f856e5466bc5ffea"]
+  },
+  "soon": {
+    "validators": ["0x0e6723b3c1ed3db0c24347aa2cf16d28bc2a1f76"]
+  },
+  "superseed": {
+    "validators": ["0xdc2b87cb555411bb138d3a4e5f7832c87fae2b88"]
+  },
+  "superpositionmainnet": {
+    "validators": ["0x3f489acdd341c6b4dd86293fa2cc5ecc8ccf4f84"]
+  },
+  "swell": {
+    "validators": ["0x4f51e4f4c7fb45d82f91568480a1a2cfb69216ed"]
+  },
+  "taiko": {
+    "validators": ["0xa930073c8f2d0b2f7423ea32293e0d1362e65d79"]
+  },
+  "tangle": {
+    "validators": ["0x1ee52cbbfacd7dcb0ba4e91efaa6fbc61602b15b"]
+  },
+  "telos": {
+    "validators": ["0xcb08410b14d3adf0d0646f0c61cd07e0daba8e54"]
+  },
+  "torus": {
+    "validators": ["0x96982a325c28a842bc8cf61b63000737bb9f1f7d"]
+  },
+  "treasure": {
+    "validators": ["0x6ad994819185553e8baa01533f0cd2c7cadfe6cc"]
+  },
+  "trumpchain": {
+    "validators": ["0x3ada634c8dfa57a67f5f22ca757b35cde6cfab5e"]
+  },
+  "unichain": {
+    "validators": ["0x9773a382342ebf604a2e5de0a1f462fb499e28b1"]
+  },
+  "unitzero": {
+    "validators": ["0x18818e3ad2012728465d394f2e3c0ea2357ae9c5"]
+  },
+  "vana": {
+    "validators": ["0xfdf3b0dfd4b822d10cacb15c8ae945ea269e7534"]
+  },
+  "viction": {
+    "validators": ["0x1f87c368f8e05a85ef9126d984a980a20930cb9c"]
+  },
+  "worldchain": {
+    "validators": ["0x31048785845325b22817448b68d08f8a8fe36854"]
+  },
+  "xai": {
+    "validators": ["0xe993f01fea86eb64cda45ae5af1d5be40ac0c7e9"]
+  },
+  "xlayer": {
+    "validators": ["0xa2ae7c594703e988f23d97220717c513db638ea3"]
+  },
+  "xpla": {
+    "validators": ["0xc11cba01d67f2b9f0288c4c8e8b23c0eca03f26e"]
+  },
+  "zeronetwork": {
+    "validators": ["0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87"]
+  },
+  "zetachain": {
+    "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
+  },
+  "zircuit": {
+    "validators": ["0x169ec400cc758fef3df6a0d6c51fbc6cdd1015bb"]
+  },
+  "zklink": {
+    "validators": ["0x217a8cb4789fc45abf56cb6e2ca96f251a5ac181"]
+  },
+  "zksync": {
+    "validators": ["0xadd1d39ce7a687e32255ac457cf99a6d8c5b5d1a"]
+  },
+  "zoramainnet": {
+    "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  }
+}

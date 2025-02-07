@@ -1,45 +1,69 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { ChainName } from '@hyperlane-xyz/sdk';
 
 import {
   getKeysForRole,
+  getMultiProtocolProvider,
   getMultiProviderForRole,
-} from '../../../scripts/utils';
-import { EnvironmentConfig } from '../../../src/config';
-import { Role } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+} from '../../../scripts/agent-utils.js';
+import { getRegistryForEnvironment } from '../../../src/config/chain.js';
+import { EnvironmentConfig } from '../../../src/config/environment.js';
+import { Role } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { agents } from './agent';
-import { environment as environmentName, testnetConfigs } from './chains';
-import { core } from './core';
-import { keyFunderConfig } from './funding';
-import { storageGasOracleConfig } from './gas-oracle';
-import { helloWorld } from './helloworld';
-import { igp } from './igp';
-import { infrastructure } from './infrastructure';
-import { bridgeAdapterConfigs } from './liquidityLayer';
-import { liquidityLayerRelayerConfig } from './middleware';
-import { owners } from './owners';
+import { agents } from './agent.js';
+import {
+  chainMetadataOverrides,
+  environment as environmentName,
+} from './chains.js';
+import { core } from './core.js';
+import { keyFunderConfig } from './funding.js';
+import { helloWorld } from './helloworld.js';
+import { igp } from './igp.js';
+import { infrastructure } from './infrastructure.js';
+import { bridgeAdapterConfigs } from './liquidityLayer.js';
+import { liquidityLayerRelayerConfig } from './middleware.js';
+import { owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
+
+const getRegistry = async (
+  useSecrets = true,
+  chains: ChainName[] = supportedChainNames,
+): Promise<IRegistry> =>
+  getRegistryForEnvironment(
+    environmentName,
+    chains,
+    chainMetadataOverrides,
+    useSecrets,
+  );
 
 export const environment: EnvironmentConfig = {
   environment: environmentName,
-  chainMetadataConfigs: testnetConfigs,
-  getMultiProvider: (
+  supportedChainNames,
+  getRegistry,
+  getMultiProtocolProvider: async () =>
+    getMultiProtocolProvider(await getRegistry()),
+  getMultiProvider: async (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-    connectionType?: RpcConsensusType,
-  ) =>
-    getMultiProviderForRole(
-      testnetConfigs,
+    useSecrets?: boolean,
+    chains?: ChainName[],
+  ) => {
+    const providerChains =
+      chains && chains.length > 0 ? chains : supportedChainNames;
+    return getMultiProviderForRole(
       environmentName,
+      providerChains,
+      await getRegistry(useSecrets, providerChains),
       context,
       role,
       undefined,
-      connectionType,
-    ),
+    );
+  },
   getKeys: (
     context: Contexts = Contexts.Hyperlane,
     role: Role = Role.Deployer,
-  ) => getKeysForRole(testnetConfigs, environmentName, context, role),
+  ) => getKeysForRole(environmentName, supportedChainNames, context, role),
   agents,
   core,
   igp,
@@ -51,5 +75,4 @@ export const environment: EnvironmentConfig = {
     bridgeAdapters: bridgeAdapterConfigs,
     relayer: liquidityLayerRelayerConfig,
   },
-  storageGasOracleConfig,
 };

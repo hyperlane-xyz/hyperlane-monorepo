@@ -1,13 +1,14 @@
 import { Wallet } from 'ethers';
 
+import { chainAddresses } from '@hyperlane-xyz/registry';
 import {
   HyperlaneCore,
   MultiProvider,
   serializeContractsMap,
 } from '@hyperlane-xyz/sdk';
 
-import { prodConfigs } from '../deploy/config';
-import { HelloWorldDeployer } from '../deploy/deploy';
+import { prodConfigs } from '../deploy/config.js';
+import { HelloWorldDeployer } from '../deploy/deploy.js';
 
 async function main() {
   console.info('Getting signer');
@@ -17,7 +18,9 @@ async function main() {
   const multiProvider = new MultiProvider(prodConfigs);
   multiProvider.setSharedSigner(signer);
 
-  const core = HyperlaneCore.fromEnvironment('testnet', multiProvider);
+  // If the default registry does not contain the core contract addresses you need,
+  // Replace `chainAddresses` with a custom map of addresses
+  const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
   const config = core.getRouterConfig(signer.address);
 
   const deployer = new HelloWorldDeployer(multiProvider);

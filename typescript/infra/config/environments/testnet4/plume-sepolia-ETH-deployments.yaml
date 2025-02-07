@@ -1,0 +1,21 @@
+# Configs and artifacts for the deployment of Hyperlane Warp Routes
+# Between Plume Testnet and ethereum, ETH
+description: Hyperlane Warp Route artifacts
+timestamp: '2023-02-14T20:00:00.000Z'
+deployer: Abacus Works (Hyperlane)
+data:
+  config:
+    sepolia:
+      protocolType: ethereum
+      type: native
+      hypAddress: '0xd99eA1D8b9542D35252504DDd59EDe8C43FB15fd'
+      name: Ether
+      symbol: ETH
+      decimals: 18
+    plumetestnet:
+      protocolType: ethereum
+      type: synthetic
+      hypAddress: '0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f'
+      name: Wrapped Ether
+      symbol: WETH
+      decimals: 18

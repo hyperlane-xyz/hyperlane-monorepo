@@ -10,7 +10,7 @@ describe('readIsmConfig', () => {
 
     const exampleIsmConfig: ChainMap<IsmConfig> = {
       anvil1: {
-        type: IsmType.ROUTING,
+        type: IsmType.FALLBACK_ROUTING,
         owner: '0xa0ee7a142d267c1f36714e4a8f75612f20a79720',
         domains: {
           anvil2: {
@@ -80,6 +80,8 @@ describe('readIsmConfig', () => {
   it('parsing failure, threshold > modules.length', () => {
     expect(function () {
       readIsmConfig('src/tests/ism/threshold-gt-modules-length-fail.yaml');
-    }).to.throw('Threshold cannot be greater than number of modules');
+    }).to.throw(
+      'Threshold must be less than or equal to the number of modules',
+    );
   });
 });

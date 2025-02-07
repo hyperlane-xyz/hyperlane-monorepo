@@ -1,48 +1,26 @@
 // @ts-ignore
-import * as asn1 from 'asn1.js';
+import asn1 from 'asn1.js';
 import { exec } from 'child_process';
 import { ethers } from 'ethers';
+// eslint-disable-next-line
 import fs from 'fs';
-import path from 'path';
+import path, { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { parse as yamlParse } from 'yaml';
 
+import { ChainMap, ChainName, NativeToken } from '@hyperlane-xyz/sdk';
 import {
-  AllChains,
-  ChainName,
-  CoreChainName,
-  chainMetadata,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
+  Address,
+  ProtocolType,
+  objFilter,
+  objMerge,
+  stringifyObject,
+} from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { Role } from '../roles';
-
-export function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Map an async function over a list xs with a given concurrency level
- *
- * @param concurrency number of `mapFn` concurrent executions
- * @param xs list of value
- * @param mapFn mapping function
- */
-export async function concurrentMap<A, B>(
-  concurrency: number,
-  xs: A[],
-  mapFn: (val: A, idx: number) => Promise<B>,
-): Promise<B[]> {
-  let res: B[] = [];
-  for (let i = 0; i < xs.length; i += concurrency) {
-    const remaining = xs.length - i;
-    const sliceSize = Math.min(remaining, concurrency);
-    const slice = xs.slice(i, i + sliceSize);
-    res = res.concat(
-      await Promise.all(slice.map((elem, index) => mapFn(elem, i + index))),
-    );
-  }
-  return res;
-}
+import { Contexts } from '../../config/contexts.js';
+import { testChainNames } from '../../config/environments/test/chains.js';
+import { getChain, getChains } from '../../config/registry.js';
+import { FundableRole, Role } from '../roles.js';
 
 export function include(condition: boolean, data: any) {
   return condition ? data : {};
@@ -69,7 +47,7 @@ export function getEthereumAddress(publicKey: Buffer): string {
   pubKeyBuffer = pubKeyBuffer.slice(1, pubKeyBuffer.length);
 
   const address = ethers.utils.keccak256(pubKeyBuffer); // keccak256 hash of publicKey
-  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum adress
+  const EthAddr = `0x${address.slice(-40)}`; // take last 20 bytes as ethereum address
   return EthAddr;
 }
 
@@ -173,12 +151,26 @@ export function writeMergedJSON(directory: string, filename: string, obj: any) {
   writeMergedJSONAtPath(path.join(directory, filename), obj);
 }
 
-export function writeJsonAtPath(filepath: string, obj: any) {
+function ensureDirectoryExists(filepath: string) {
   const dir = path.dirname(filepath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(filepath, JSON.stringify(obj, null, 2) + '\n');
+}
+
+function writeToFile(filepath: string, content: string) {
+  ensureDirectoryExists(filepath);
+  fs.writeFileSync(filepath, content + '\n');
+}
+
+export function writeJsonAtPath(filepath: string, obj: any) {
+  const content = stringifyObject(obj, 'json', 2);
+  writeToFile(filepath, content);
+}
+
+export function writeYamlAtPath(filepath: string, obj: any) {
+  const content = stringifyObject(obj, 'yaml', 2);
+  writeToFile(filepath, content);
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
@@ -200,6 +192,10 @@ export function readJSON(directory: string, filename: string) {
   return readJSONAtPath(path.join(directory, filename));
 }
 
+export function readYaml<T>(filepath: string): T {
+  return yamlParse(readFileAtPath(filepath)) as T;
+}
+
 export function assertRole(roleStr: string) {
   const role = roleStr as Role;
   if (!Object.values(Role).includes(role)) {
@@ -208,9 +204,16 @@ export function assertRole(roleStr: string) {
   return role;
 }
 
-export function assertChain(chainStr: string) {
-  const chain = chainStr as ChainName;
-  if (!AllChains.includes(chain as CoreChainName)) {
+export function assertFundableRole(roleStr: string): FundableRole {
+  const role = roleStr as Role;
+  if (role !== Role.Relayer && role !== Role.Kathy) {
+    throw Error(`Invalid fundable role ${role}`);
+  }
+  return role;
+}
+
+export function assertChain(chain: ChainName) {
+  if (!getChains().includes(chain) && !testChainNames.includes(chain)) {
     throw Error(`Invalid chain ${chain}`);
   }
   return chain;
@@ -266,15 +269,45 @@ export function diagonalize<T>(array: Array<Array<T>>): Array<T> {
   return diagonalized;
 }
 
-export function mustGetChainNativeTokenDecimals(chain: ChainName): number {
-  const metadata = chainMetadata[chain];
+export function mustGetChainNativeToken(chain: ChainName): NativeToken {
+  const metadata = getChain(chain);
   if (!metadata.nativeToken) {
     throw new Error(`No native token for chain ${chain}`);
   }
-  return metadata.nativeToken.decimals;
+  return metadata.nativeToken;
 }
 
-export function isNotEthereumProtocolChain(chainName: ChainName) {
-  if (!chainMetadata[chainName]) throw new Error(`Unknown chain ${chainName}`);
-  return chainMetadata[chainName].protocol !== ProtocolType.Ethereum;
+export function chainIsProtocol(chainName: ChainName, protocol: ProtocolType) {
+  if (!getChain(chainName)) throw new Error(`Unknown chain ${chainName}`);
+  return getChain(chainName).protocol === protocol;
+}
+
+export function isEthereumProtocolChain(chainName: ChainName) {
+  return chainIsProtocol(chainName, ProtocolType.Ethereum);
+}
+
+export function getInfraPath() {
+  return join(dirname(fileURLToPath(import.meta.url)), '../../');
+}
+
+export function inCIMode() {
+  return process.env.CI === 'true';
+}
+
+// Filter out chains that are not supported by the multiProvider
+// Filter out any value that is not a string e.g. remote domain metadata
+export function filterRemoteDomainMetadata(
+  addressesMap: ChainMap<Record<string, Address>>,
+): ChainMap<Record<string, Address>> {
+  return Object.fromEntries(
+    Object.entries(addressesMap).map(([chain, addresses]) => [
+      chain,
+      // Filter out any non-string writes
+      // e.g. remote domain metadata that might be present
+      objFilter(
+        addresses,
+        (_, value): value is string => typeof value === 'string',
+      ),
+    ]),
+  );
 }

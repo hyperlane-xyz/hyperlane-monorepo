@@ -14,9 +14,7 @@
 
 Note this is the branch for Hyperlane v3.
 
-V2 is still in operation but is not being actively developed. The code for V2 can be found in the [v2](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v2) branch.
-
-V1 has since been deprecated in favor of V2, but if you are looking for code relating to the existing V1 deployments, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
+V2 is deprecated in favor of V3. The code for V2 can be found in the [v2](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v2) branch. For V1 code, refer to the [v1](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/v1) branch.
 
 ## Overview
 
@@ -27,6 +25,49 @@ Developers can use Hyperlane to share state between blockchains, allowing them t
 To read more about interchain applications, how the protocol works, and how to integrate with Hyperlane, please see the [documentation](https://docs.hyperlane.xyz).
 
 ## Working on Hyperlane
+
+### Prerequisites
+
+#### Install `jq`
+
+You need `jq` installed on your machine. You can download it from [official page](https://jqlang.github.io/jq/download/) or use a package manager of your choice.
+
+#### Foundry
+
+First ensure you have Foundry installed on your machine.
+
+Run the following to install `foundryup`:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+```
+
+Then run `foundryup` to install `forge`, `cast`, `anvil` and `chisel`.
+
+```bash
+foundryup
+```
+
+Check out the [Foundry Book](https://book.getfoundry.sh/getting-started/installation) for more information.
+
+#### Node
+
+This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
+
+To install nvm
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+```
+
+To install version 20
+
+```bash
+nvm install 20
+nvm use 20
+```
+
+You should change versions automatically with the `.nvmrc` file.
 
 ### Workspaces
 
@@ -46,6 +87,16 @@ This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). I
 
 If you are using [VSCode](https://code.visualstudio.com/), you can launch the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) with `code mono.code-workspace`, install the recommended workspace extensions, and use the editor settings.
 
+### Logging
+
+The typescript tooling uses [Pino](https://github.com/pinojs/pino) based logging, which outputs structured JSON logs by default.
+The verbosity level and style can be configured with environment variables:
+
+```sh
+LOG_LEVEL=DEBUG|INFO|WARN|ERROR|OFF
+LOG_FORMAT=PRETTY|JSON
+```
+
 ### Rust
 
 See [`rust/README.md`](rust/README.md)
@@ -58,3 +109,9 @@ See [`rust/README.md`](rust/README.md)
 - Create a summary of change highlights
 - Create a "breaking changes" section with any changes required
 - Deploy agents with the new image tag (if it makes sense to)
+
+### Releasing packages to NPM
+
+We use [changesets](https://github.com/changesets/changesets) to release to NPM. You can use the `release` script in `package.json` to publish.
+
+For an alpha or beta version, follow the directions [here](https://github.com/changesets/changesets/blob/main/docs/prereleases.md).

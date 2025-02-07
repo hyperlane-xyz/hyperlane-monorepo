@@ -1,18 +1,34 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ Internal Imports ============
 import {IMailbox} from "../interfaces/IMailbox.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../libs/Message.sol";
+import {PackageVersioned} from "../PackageVersioned.sol";
 
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-abstract contract MailboxClient is OwnableUpgradeable {
+abstract contract MailboxClient is OwnableUpgradeable, PackageVersioned {
     using Message for bytes;
+
+    event HookSet(address _hook);
+    event IsmSet(address _ism);
 
     IMailbox public immutable mailbox;
 
@@ -42,7 +58,7 @@ abstract contract MailboxClient is OwnableUpgradeable {
     }
 
     /**
-     * @notice Only accept messages from an Hyperlane Mailbox contract
+     * @notice Only accept messages from a Hyperlane Mailbox contract
      */
     modifier onlyMailbox() {
         require(
@@ -62,8 +78,11 @@ abstract contract MailboxClient is OwnableUpgradeable {
      * @notice Sets the address of the application's custom hook.
      * @param _hook The address of the hook contract.
      */
-    function setHook(address _hook) public onlyContractOrNull(_hook) onlyOwner {
+    function setHook(
+        address _hook
+    ) public virtual onlyContractOrNull(_hook) onlyOwner {
         hook = IPostDispatchHook(_hook);
+        emit HookSet(_hook);
     }
 
     /**
@@ -74,6 +93,7 @@ abstract contract MailboxClient is OwnableUpgradeable {
         address _module
     ) public onlyContractOrNull(_module) onlyOwner {
         interchainSecurityModule = IInterchainSecurityModule(_module);
+        emit IsmSet(_module);
     }
 
     // ======== Initializer =========
@@ -92,49 +112,7 @@ abstract contract MailboxClient is OwnableUpgradeable {
         return mailbox.latestDispatchedId() == id;
     }
 
-    function _metadata(
-        uint32 /*_destinationDomain*/
-    ) internal view virtual returns (bytes memory) {
-        return "";
-    }
-
-    function _dispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        bytes memory _messageBody
-    ) internal virtual returns (bytes32) {
-        return
-            _dispatch(_destinationDomain, _recipient, msg.value, _messageBody);
-    }
-
-    function _dispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        uint256 _value,
-        bytes memory _messageBody
-    ) internal virtual returns (bytes32) {
-        return
-            mailbox.dispatch{value: _value}(
-                _destinationDomain,
-                _recipient,
-                _messageBody,
-                _metadata(_destinationDomain),
-                hook
-            );
-    }
-
-    function _quoteDispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        bytes memory _messageBody
-    ) internal view virtual returns (uint256) {
-        return
-            mailbox.quoteDispatch(
-                _destinationDomain,
-                _recipient,
-                _messageBody,
-                _metadata(_destinationDomain),
-                hook
-            );
+    function _isDelivered(bytes32 id) internal view returns (bool) {
+        return mailbox.delivered(id);
     }
 }

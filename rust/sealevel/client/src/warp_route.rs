@@ -3,7 +3,11 @@ use hyperlane_core::H256;
 use hyperlane_sealevel_token_collateral::plugin::CollateralPlugin;
 use hyperlane_sealevel_token_native::plugin::NativePlugin;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Debug};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    process::{Command, Stdio},
+};
 
 use solana_client::{client_error::ClientError, rpc_client::RpcClient};
 
@@ -20,7 +24,7 @@ use hyperlane_sealevel_token_lib::{
     accounts::{HyperlaneToken, HyperlaneTokenAccount},
     hyperlane_token_pda_seeds,
     instruction::{
-        enroll_remote_routers_instruction, set_destination_gas_configs,
+        enroll_remote_routers_instruction, set_destination_gas_configs, set_igp_instruction,
         set_interchain_security_module_instruction, transfer_ownership_instruction, Init,
     },
 };
@@ -78,6 +82,7 @@ struct TokenMetadata {
     name: String,
     symbol: String,
     total_supply: Option<String>,
+    uri: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -125,8 +130,8 @@ pub(crate) fn process_warp_route_cmd(mut ctx: Context, cmd: WarpRouteCmd) {
                 &deploy.warp_route_name,
                 deploy.token_config_file,
                 deploy.chain_config_file,
-                deploy.environments_dir,
-                &deploy.environment,
+                deploy.env_args.environments_dir,
+                &deploy.env_args.environment,
                 deploy.built_so_dir,
             );
         }
@@ -187,26 +192,32 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         app_config: &TokenConfig,
         program_id: Pubkey,
     ) {
-        if let Some(ata_payer_funding_amount) = self.ata_payer_funding_amount {
-            if matches!(
-                app_config.token_type,
-                TokenType::Collateral(_) | TokenType::Synthetic(_)
-            ) {
-                fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
+        let try_fund_ata_payer = |ctx: &mut Context, client: &RpcClient| {
+            if let Some(ata_payer_funding_amount) = self.ata_payer_funding_amount {
+                if matches!(
+                    app_config.token_type,
+                    TokenType::Collateral(_) | TokenType::Synthetic(_)
+                ) {
+                    fund_ata_payer_up_to(ctx, client, program_id, ata_payer_funding_amount);
+                }
             }
-        }
+        };
 
         let (token_pda, _token_bump) =
             Pubkey::find_program_address(hyperlane_token_pda_seeds!(), &program_id);
         if account_exists(client, &token_pda).unwrap() {
             println!("Warp route token already exists, skipping init");
+
+            // Fund the ATA payer up to the specified amount.
+            try_fund_ata_payer(ctx, client);
+
             return;
         }
 
         let domain_id = chain_config.domain_id();
 
         // TODO: consider pulling the setting of defaults into router.rs,
-        // and possibly have a more distinct connection client abstration.
+        // and possibly have a more distinct connection client abstraction.
 
         let mailbox = app_config
             .router_config()
@@ -243,6 +254,9 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             remote_decimals: app_config.decimal_metadata.remote_decimals(),
         };
 
+        let home_path = std::env::var("HOME").unwrap();
+        let spl_token_binary_path = format!("{home_path}/.cargo/bin/spl-token");
+
         match &app_config.token_type {
             TokenType::Native => ctx.new_txn().add(
                 hyperlane_sealevel_token_native::instruction::init_instruction(
@@ -255,23 +269,52 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
-                let init_txn = ctx.new_txn().add(
-                    hyperlane_sealevel_token::instruction::init_instruction(
-                        program_id,
-                        ctx.payer_pubkey,
-                        init,
+                ctx.new_txn()
+                    .add(
+                        hyperlane_sealevel_token::instruction::init_instruction(
+                            program_id,
+                            ctx.payer_pubkey,
+                            init,
+                        )
+                        .unwrap(),
                     )
-                    .unwrap(),
-                );
+                    .with_client(client)
+                    .send_with_payer();
 
                 let (mint_account, _mint_bump) =
                     Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
-                // TODO: Also set Metaplex metadata?
-                init_txn.add(
+
+                let mut cmd = Command::new(spl_token_binary_path.clone());
+                cmd.args([
+                    "create-token",
+                    mint_account.to_string().as_str(),
+                    "--enable-metadata",
+                    "-p",
+                    spl_token_2022::id().to_string().as_str(),
+                    "--url",
+                    client.url().as_str(),
+                    "--with-compute-unit-limit",
+                    "500000",
+                    "--mint-authority",
+                    &ctx.payer_pubkey.to_string(),
+                    "--fee-payer",
+                    ctx.payer_keypair_path(),
+                ]);
+
+                println!("running command: {:?}", cmd);
+                let status = cmd
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+                    .expect("Failed to run command");
+
+                println!("initialized metadata pointer. Status: {status}");
+
+                ctx.new_txn().add(
                     spl_token_2022::instruction::initialize_mint2(
                         &spl_token_2022::id(),
                         &mint_account,
-                        &mint_account,
+                        &ctx.payer_pubkey,
                         None,
                         decimals,
                     )
@@ -286,7 +329,7 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                     collateral_info
                         .spl_token_program
                         .as_ref()
-                        .expect("Cannot initalize collateral warp route without SPL token program")
+                        .expect("Cannot initialize collateral warp route without SPL token program")
                         .program_id(),
                     collateral_info.mint.parse().expect("Invalid mint address"),
                 )
@@ -295,6 +338,74 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
         }
         .with_client(client)
         .send_with_payer();
+
+        if let TokenType::Synthetic(token_metadata) = &app_config.token_type {
+            let (mint_account, _mint_bump) =
+                Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+
+            let mut cmd = Command::new(spl_token_binary_path.clone());
+            cmd.args([
+                "initialize-metadata",
+                mint_account.to_string().as_str(),
+                token_metadata.name.as_str(),
+                token_metadata.symbol.as_str(),
+                token_metadata.uri.as_deref().unwrap_or(""),
+                "-p",
+                spl_token_2022::id().to_string().as_str(),
+                "--url",
+                client.url().as_str(),
+                "--with-compute-unit-limit",
+                "500000",
+                "--mint-authority",
+                ctx.payer_keypair_path(),
+                "--fee-payer",
+                ctx.payer_keypair_path(),
+                "--update-authority",
+                &ctx.payer_pubkey.to_string(),
+            ]);
+            println!("running command: {:?}", cmd);
+            let status = cmd
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .status()
+                .expect("Failed to run command");
+            println!("initialized metadata. Status: {status}");
+
+            // Move the mint authority to the mint account.
+            // The deployer key will still hold the metadata pointer and metadata authorities.
+            let authorities_to_transfer = &["mint"];
+
+            for authority in authorities_to_transfer {
+                println!("Transferring authority: {authority} to the mint account {mint_account}");
+
+                let mut cmd = Command::new(spl_token_binary_path.clone());
+                cmd.args([
+                    "authorize",
+                    mint_account.to_string().as_str(),
+                    authority,
+                    mint_account.to_string().as_str(),
+                    "-p",
+                    spl_token_2022::id().to_string().as_str(),
+                    "--url",
+                    client.url().as_str(),
+                    "--with-compute-unit-limit",
+                    "500000",
+                    "--fee-payer",
+                    ctx.payer_keypair_path(),
+                    "--authority",
+                    ctx.payer_keypair_path(),
+                ]);
+                println!("Running command: {:?}", cmd);
+                let status = cmd
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+                    .expect("Failed to run command");
+                println!("Set the {authority} authority to the mint account. Status: {status}");
+            }
+        }
+
+        try_fund_ata_payer(ctx, client);
     }
 
     /// Sets gas router configs on all deployable chains.
@@ -434,6 +545,27 @@ impl ConnectionClient for WarpRouteDeployer {
         set_interchain_security_module_instruction(*program_id, token_data.owner.unwrap(), ism)
             .unwrap()
     }
+
+    fn get_interchain_gas_paymaster(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+    ) -> Option<(Pubkey, InterchainGasPaymasterType)> {
+        let token_data = get_token_data::<()>(client, program_id);
+
+        token_data.interchain_gas_paymaster
+    }
+
+    fn set_interchain_gas_paymaster_instruction(
+        &self,
+        client: &RpcClient,
+        program_id: &Pubkey,
+        igp_config: Option<(Pubkey, InterchainGasPaymasterType)>,
+    ) -> Option<Instruction> {
+        let token_data = get_token_data::<()>(client, program_id);
+
+        Some(set_igp_instruction(*program_id, token_data.owner.unwrap(), igp_config).unwrap())
+    }
 }
 
 fn get_token_data<T>(client: &RpcClient, program_id: &Pubkey) -> HyperlaneToken<T>
@@ -517,4 +649,31 @@ pub fn parse_token_account_data(token_type: FlatTokenType, data: &mut &[u8]) {
             print_data_or_err(res);
         }
     }
+}
+
+pub fn install_spl_token_cli() {
+    println!("Installing cargo 1.76.0 (required by spl-token-cli)");
+    Command::new("rustup")
+        .args(["toolchain", "install", "1.76.0"])
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .expect("Failed to run command");
+    println!("Installing the spl token cli");
+    Command::new("cargo")
+        .args([
+            "+1.76.0",
+            "install",
+            "spl-token-cli",
+            "--git",
+            "https://github.com/hyperlane-xyz/solana-program-library",
+            "--branch",
+            "dan/create-token-for-mint",
+            "--rev",
+            "ae4c8ac46",
+        ])
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .expect("Failed to run command");
 }

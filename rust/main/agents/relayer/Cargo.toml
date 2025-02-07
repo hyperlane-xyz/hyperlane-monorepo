@@ -1,0 +1,72 @@
+
+[package]
+name = "relayer"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+axum.workspace = true
+config.workspace = true
+console-subscriber.workspace = true
+convert_case.workspace = true
+ctrlc = { workspace = true, features = ["termination"], optional = true }
+derive-new.workspace = true
+derive_more.workspace = true
+dhat = { workspace = true, optional = true }
+ethers-contract.workspace = true
+ethers.workspace = true
+eyre.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+itertools.workspace = true
+num-derive.workspace = true
+num-traits.workspace = true
+prometheus.workspace = true
+rand.workspace = true
+regex.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+serde.workspace = true
+serde_json.workspace = true
+strum.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = [
+    "rt",
+    "macros",
+    "parking_lot",
+    "rt-multi-thread",
+] }
+tokio-metrics.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+typetag.workspace = true
+uuid.workspace = true
+
+hyperlane-core = { path = "../../hyperlane-core", features = [
+    "agent",
+    "async",
+] }
+hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
+hyperlane-ethereum = { path = "../../chains/hyperlane-ethereum" }
+
+[dev-dependencies]
+axum = { workspace = true, features = ["macros"] }
+once_cell.workspace = true
+mockall.workspace = true
+tokio-test.workspace = true
+tracing-test.workspace = true
+hyperlane-test = { path = "../../hyperlane-test" }
+hyperlane-base = { path = "../../hyperlane-base", features = ["test-utils"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["agent", "async", "test-utils"] }
+ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
+
+[features]
+default = ["color-eyre", "oneline-errors"]
+oneline-errors = ["hyperlane-base/oneline-errors"]
+color-eyre = ["hyperlane-base/color-eyre"]
+test-utils = ["hyperlane-base/test-utils"]
+memory-profiling = ["dep:ctrlc", "dep:dhat"]

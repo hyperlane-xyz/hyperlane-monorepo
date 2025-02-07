@@ -15,7 +15,26 @@ info: This is the version for the rustup toolchain manager, not the rustc compil
 info: The currently active `rustc` version is `rustc 1.72.1 (d5c2e9c34 2023-09-13)`
 ```
 
-### Running Locally
+### Overview of Rust Workspaces
+
+There are two Rust workspaces in this directory:
+
+- [main](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/main/rust/main): The offchain agents workspace, most notably comprised of the relayer, validator, scraper and the Rust end-to-end tests (in `utils/run-locally`)
+- [sealevel](https://github.com/hyperlane-xyz/hyperlane-monorepo/tree/main/rust/sealevel): Hyperlane smart contracts and tooling for the SVM, implemented in native Rust.
+
+You can only run `cargo build` after `cd`-ing into one of these workspaces.
+
+#### Apple Silicon
+
+If your device has an Apple Silicon processor, you may need to install Rosetta 2:
+
+```bash
+softwareupdate --install-rosetta --agree-to-license
+```
+
+### Running Agents Locally
+
+Make sure you're in the `main` workspace.
 
 To run the validator, run:
 
@@ -43,7 +62,7 @@ cargo build --release --bin relayer
 ./target/release/relayer
 ```
 
-### Running local binary against cloud resources (AWS KMS, S3, Postgresql etc)
+### Running local binary against cloud resources (AWS KMS, S3, Postgresql, Google Cloud Storage, etc)
 
 Building the docker image and upgrading the pod is a **slow** process. To speed up the development cycle, you can run a local binary against cloud resources.
 This workflow is useful for testing local changes against cloud resources. It is also useful for debugging issues in production.
@@ -66,6 +85,9 @@ Configure additional env variables appropriately:
 HYP_DB=/tmp/fuji-validator-db
 CONFIG_FILES=./config/testnet_config.json
 HYP_TRACING_FMT=pretty
+GCS_USER_SECRET=./path/to/file
+# or if service account used
+GCS_SERVICE_ACCOUNT_KEY=./path/to/file
 DATABASE_URL=<READ_REPLICA_POSTGRES_URL> # for scraper
 ```
 
@@ -77,7 +99,9 @@ env $(cat ./config/validator.fuji.env | grep -v "#" | xargs) ./target/debug/vali
 
 #### Automated E2E Test
 
-To perform an automated e2e test of the agents locally, from within the `hyperlane-monorepo/rust` directory, run:
+Clone `hyperlane-registry` repo next to `hyperlane-monorepo` repo.
+
+To perform an automated e2e test of the agents locally, from within the `hyperlane-monorepo/rust/main` directory, run:
 
 ```bash
 cargo run --release --bin run-locally
@@ -86,19 +110,24 @@ cargo run --release --bin run-locally
 This will automatically build the agents, start a local node, build and deploy the contracts, and run a relayer and
 validator. By default, this test will run indefinitely, but can be stopped with `ctrl-c`.
 
+To run the tests for a specific VM, use the `--features` flag.
+
+```bash
+cargo test --release --package run-locally --bin run-locally --features cosmos -- cosmos::test --nocapture
+```
+
 ### Building Agent Docker Images
 
 There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a
-production environment.
+production environment. You should run this at the top level of the repo.
 
 ```bash
-cd rust
-./build.sh <image_tag>
+./rust/build.sh <image_tag>
 ```
 
 ### Deploy Procedure
 
-The contract addresses of each deploy can be found in `rust/config`. The agents will
+The contract addresses of each deploy can be found in `rust/main/config`. The agents will
 automatically pull in all configs in this directory.
 
 When agents are deployed to point at a new environment, they cease to point at
@@ -155,7 +184,7 @@ For Ethereum and Celo connections we use
 We use the tokio async runtime environment. Please see the docs
 [here](https://docs.rs/tokio/1.1.0/tokio/).
 
-### Repo layout
+### `main` workspace layout
 
 - `hyperlane-base`
   - lowest dependency hyperlane utilities
@@ -171,11 +200,9 @@ We use the tokio async runtime environment. Please see the docs
     - traits (interfaces) for the on-chain contracts
     - model implementations of the contracts in rust
     - merkle tree implementations (for provers)
-- `chains/hyperlane-ethereum`
+- `chains/hyperlane-*`
+  - VM-specific integration of the agents
   - depends on hyperlane-core (and transitively hyperlane-base)
-  - interfaces to the ethereum contracts
-- `chains/hyperlane-fuel`
-  - depends on hyperlane-core
-  - interfaces to the fuel contracts
+  - interfaces with the contracts of that VM (e.g `ethereum`, `sealevel`, `cosmos`, `fuel`, etc)
 - `agents`
   - each of the off-chain agents implemented thus far

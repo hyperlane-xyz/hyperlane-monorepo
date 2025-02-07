@@ -1,10 +1,25 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
+// ============ Internal Imports ============
 import {Router} from "./Router.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
 abstract contract GasRouter is Router {
+    event GasSet(uint32 domain, uint256 gas);
+
     // ============ Mutable Storage ============
     mapping(uint32 => uint256) public destinationGas;
 
@@ -43,18 +58,49 @@ abstract contract GasRouter is Router {
      */
     function quoteGasPayment(
         uint32 _destinationDomain
-    ) external view returns (uint256 _gasPayment) {
-        return _quoteDispatch(_destinationDomain, "");
+    ) external view returns (uint256) {
+        return _GasRouter_quoteDispatch(_destinationDomain, "", address(hook));
     }
 
-    function _metadata(
+    function _GasRouter_hookMetadata(
         uint32 _destination
-    ) internal view virtual override returns (bytes memory) {
+    ) internal view returns (bytes memory) {
         return
             StandardHookMetadata.overrideGasLimit(destinationGas[_destination]);
     }
 
     function _setDestinationGas(uint32 domain, uint256 gas) internal {
         destinationGas[domain] = gas;
+        emit GasSet(domain, gas);
+    }
+
+    function _GasRouter_dispatch(
+        uint32 _destination,
+        uint256 _value,
+        bytes memory _messageBody,
+        address _hook
+    ) internal returns (bytes32) {
+        return
+            _Router_dispatch(
+                _destination,
+                _value,
+                _messageBody,
+                _GasRouter_hookMetadata(_destination),
+                _hook
+            );
+    }
+
+    function _GasRouter_quoteDispatch(
+        uint32 _destination,
+        bytes memory _messageBody,
+        address _hook
+    ) internal view returns (uint256) {
+        return
+            _Router_quoteDispatch(
+                _destination,
+                _messageBody,
+                _GasRouter_hookMetadata(_destination),
+                _hook
+            );
     }
 }

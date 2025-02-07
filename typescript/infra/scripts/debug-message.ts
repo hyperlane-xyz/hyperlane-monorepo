@@ -7,10 +7,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { bytes32ToAddress, ensure0x, messageId } from '@hyperlane-xyz/utils';
 
-import { deployEnvToSdkEnv } from '../src/config/environment';
-import { assertChain } from '../src/utils/utils';
+import { getChainMetadata } from '../config/registry.js';
+import { assertChain } from '../src/utils/utils.js';
 
-import { getArgs } from './utils';
+import { getArgs } from './agent-utils.js';
+import { getHyperlaneCore } from './core-utils.js';
 
 async function main() {
   const argv = await getArgs()
@@ -37,12 +38,8 @@ async function main() {
 
   // Intentionally use public RPC providers to avoid requiring access to our GCP secrets
   // to run this script
-  const multiProvider = new MultiProvider();
-
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[argv.environment],
-    multiProvider,
-  );
+  const multiProvider = new MultiProvider(getChainMetadata());
+  const { core } = await getHyperlaneCore(argv.environment, multiProvider);
 
   const originProvider = multiProvider.getProvider(argv.originChain);
   const dispatchReceipt = await originProvider.getTransactionReceipt(

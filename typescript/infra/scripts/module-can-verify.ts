@@ -1,22 +1,15 @@
-import { HyperlaneCore, moduleCanCertainlyVerify } from '@hyperlane-xyz/sdk';
+import { moduleCanCertainlyVerify } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { deployEnvToSdkEnv } from '../src/config/environment';
-
-import { getArgs, getEnvironmentConfig } from './utils';
+import { getArgs } from './agent-utils.js';
+import { getHyperlaneCore } from './core-utils.js';
 
 async function main() {
   const args = await getArgs().argv;
 
   const { environment } = args;
 
-  const config = getEnvironmentConfig(environment);
-  const multiProvider = await config.getMultiProvider();
-
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[environment],
-    multiProvider,
-  );
+  const { core, multiProvider } = await getHyperlaneCore(environment);
 
   for (const local of core.chains()) {
     if (

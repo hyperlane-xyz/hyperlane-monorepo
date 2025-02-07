@@ -29,7 +29,7 @@ impl From<SerializableAccountMeta> for AccountMeta {
     }
 }
 
-/// A ridiculous workaround for https://github.com/solana-labs/solana/issues/31391,
+/// A ridiculous workaround for `<https://github.com/solana-labs/solana/issues/31391>`,
 /// which is a bug where if a simulated transaction's return data ends with zero byte(s),
 /// they end up being incorrectly truncated.
 /// As a workaround, we can (de)serialize data with a trailing non-zero byte.

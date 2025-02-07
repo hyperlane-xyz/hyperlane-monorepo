@@ -46,4 +46,6 @@ contract TestRecipient is
     function setInterchainSecurityModule(address _ism) external onlyOwner {
         interchainSecurityModule = IInterchainSecurityModule(_ism);
     }
+
+    receive() external payable {}
 }

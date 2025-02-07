@@ -56,7 +56,7 @@ abstract contract FastTokenRouter is TokenRouter {
 
     /**
      * @dev allows an external user to full an unfilled fast transfer order.
-     * @param _recipient The recepient of the wrapped token on base chain.
+     * @param _recipient The recipient of the wrapped token on base chain.
      * @param _amount The amount of wrapped tokens that is being bridged.
      * @param _fastFee The fee the bridging entity will pay.
      * @param _fastTransferId Id assigned on the remote chain to uniquely identify the transfer.
@@ -109,9 +109,11 @@ abstract contract FastTokenRouter is TokenRouter {
             _fastTransferId
         );
 
-        messageId = _dispatch(
+        messageId = _GasRouter_dispatch(
             _destination,
-            TokenMessage.format(_recipient, _amountOrId, metadata)
+            msg.value,
+            TokenMessage.format(_recipient, _amountOrId, metadata),
+            address(hook)
         );
         emit SentTransferRemote(_destination, _recipient, _amountOrId);
     }
@@ -131,8 +133,8 @@ abstract contract FastTokenRouter is TokenRouter {
     }
 
     /**
-     * @dev returns an address that indicates who should recieve the bridged tokens.
-     * @dev if _fastFees was inlcuded and someone filled the order before the mailbox made the contract call, the filler gets the funds.
+     * @dev returns an address that indicates who should receive the bridged tokens.
+     * @dev if _fastFees was included and someone filled the order before the mailbox made the contract call, the filler gets the funds.
      */
     function _getTokenRecipient(
         address _recipient,

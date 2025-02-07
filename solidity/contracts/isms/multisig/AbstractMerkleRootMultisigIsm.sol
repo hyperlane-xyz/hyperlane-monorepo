@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
+import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
 import {MerkleRootMultisigIsmMetadata} from "../../isms/libs/MerkleRootMultisigIsmMetadata.sol";
 import {Message} from "../../libs/Message.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
@@ -22,23 +22,19 @@ import {CheckpointLib} from "../../libs/CheckpointLib.sol";
  * This abstract contract can be overridden for customizing the `validatorsAndThreshold()` (static or dynamic).
  * @dev May be adapted in future to support batch message verification against a single root.
  */
-abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
+abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisig {
     using MerkleRootMultisigIsmMetadata for bytes;
     using Message for bytes;
 
     // ============ Constants ============
 
-    // solhint-disable-next-line const-name-snakecase
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MERKLE_ROOT_MULTISIG);
-
     /**
-     * @inheritdoc AbstractMultisigIsm
+     * @inheritdoc AbstractMultisig
      */
     function digest(
         bytes calldata _metadata,
         bytes calldata _message
-    ) internal pure override returns (bytes32) {
+    ) internal pure virtual override returns (bytes32) {
         require(
             _metadata.messageIndex() <= _metadata.signedIndex(),
             "Invalid merkle index metadata"
@@ -61,12 +57,21 @@ abstract contract AbstractMerkleRootMultisigIsm is AbstractMultisigIsm {
     }
 
     /**
-     * @inheritdoc AbstractMultisigIsm
+     * @inheritdoc AbstractMultisig
      */
     function signatureAt(
         bytes calldata _metadata,
         uint256 _index
     ) internal pure virtual override returns (bytes calldata) {
         return _metadata.signatureAt(_index);
+    }
+
+    /**
+     * @inheritdoc AbstractMultisig
+     */
+    function signatureCount(
+        bytes calldata _metadata
+    ) public pure override returns (uint256) {
+        return _metadata.signatureCount();
     }
 }

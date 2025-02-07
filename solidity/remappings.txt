@@ -1,5 +1,8 @@
-@openzeppelin=../node_modules/@openzeppelin
 @chainlink=../node_modules/@chainlink
+@arbitrum=../node_modules/@arbitrum
 @eth-optimism=../node_modules/@eth-optimism
+@layerzerolabs=../node_modules/@layerzerolabs
+@openzeppelin=../node_modules/@openzeppelin
 ds-test/=lib/forge-std/lib/ds-test/src/
 forge-std/=lib/forge-std/src/
+fx-portal/=lib/fx-portal/

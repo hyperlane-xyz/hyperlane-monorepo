@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
-import {AbstractMultisigIsm} from "./AbstractMultisigIsm.sol";
+import {AbstractMultisig} from "./AbstractMultisigIsm.sol";
 import {MessageIdMultisigIsmMetadata} from "../libs/MessageIdMultisigIsmMetadata.sol";
 import {Message} from "../../libs/Message.sol";
 import {CheckpointLib} from "../../libs/CheckpointLib.sol";
@@ -18,18 +18,14 @@ import {CheckpointLib} from "../../libs/CheckpointLib.sol";
  * @dev Provides the default implementation of verifying signatures over a checkpoint related to a specific message ID.
  * This abstract contract can be customized to change the `validatorsAndThreshold()` (static or dynamic).
  */
-abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
+abstract contract AbstractMessageIdMultisigIsm is AbstractMultisig {
     using Message for bytes;
     using MessageIdMultisigIsmMetadata for bytes;
 
     // ============ Constants ============
 
-    // solhint-disable-next-line const-name-snakecase
-    uint8 public constant moduleType =
-        uint8(IInterchainSecurityModule.Types.MESSAGE_ID_MULTISIG);
-
     /**
-     * @inheritdoc AbstractMultisigIsm
+     * @inheritdoc AbstractMultisig
      */
     function digest(
         bytes calldata _metadata,
@@ -46,12 +42,21 @@ abstract contract AbstractMessageIdMultisigIsm is AbstractMultisigIsm {
     }
 
     /**
-     * @inheritdoc AbstractMultisigIsm
+     * @inheritdoc AbstractMultisig
      */
     function signatureAt(
         bytes calldata _metadata,
         uint256 _index
     ) internal pure virtual override returns (bytes calldata) {
         return _metadata.signatureAt(_index);
+    }
+
+    /**
+     * @inheritdoc AbstractMultisig
+     */
+    function signatureCount(
+        bytes calldata _metadata
+    ) public pure override returns (uint256) {
+        return _metadata.signatureCount();
     }
 }

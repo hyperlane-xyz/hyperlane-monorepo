@@ -1,24 +1,32 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
-import { Contexts } from '../../config/contexts';
-import { Role } from '../roles';
+import { Contexts } from '../../config/contexts.js';
+import { FundableRole, Role } from '../roles.js';
 
-import { DockerConfig } from './agent';
+import { DockerConfig } from './agent/agent.js';
 
 export interface ContextAndRoles {
   context: Contexts;
   roles: Role[];
 }
 
-export type ContextAndRolesMap = Partial<Record<Contexts, Role[]>>;
+export type ContextAndRolesMap = Partial<Record<Contexts, FundableRole[]>>;
 
-export interface KeyFunderConfig {
+export interface CronJobConfig {
   docker: DockerConfig;
   cronSchedule: string;
   namespace: string;
+  prometheusPushGateway: string;
+}
+
+export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
+  extends CronJobConfig {
   contextFundingFrom: Contexts;
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
-  prometheusPushGateway: string;
-  connectionType: RpcConsensusType.Single | RpcConsensusType.Quorum;
+  desiredBalancePerChain: Record<SupportedChains[number], string>;
+  desiredKathyBalancePerChain: ChainMap<string>;
+  igpClaimThresholdPerChain: ChainMap<string>;
 }
+
+export interface CheckWarpDeployConfig extends CronJobConfig {}

@@ -1,18 +1,18 @@
 import { Mailbox__factory } from '@hyperlane-xyz/core';
 import { Address, HexString } from '@hyperlane-xyz/utils';
 
-import { BaseEvmAdapter } from '../../app/MultiProtocolApp';
-import { HyperlaneContractsMap } from '../../contracts/types';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
+import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
+import { HyperlaneContractsMap } from '../../contracts/types.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import {
   ProviderType,
   TypedTransactionReceipt,
-} from '../../providers/ProviderType';
-import { ChainName } from '../../types';
-import { HyperlaneCore } from '../HyperlaneCore';
-import { CoreFactories } from '../contracts';
+} from '../../providers/ProviderType.js';
+import { ChainName } from '../../types.js';
+import { HyperlaneCore } from '../HyperlaneCore.js';
+import { CoreFactories } from '../contracts.js';
 
-import { ICoreAdapter } from './types';
+import { ICoreAdapter } from './types.js';
 
 // This adapter just routes to the HyperlaneCore
 // Which implements the needed functionality for EVM chains

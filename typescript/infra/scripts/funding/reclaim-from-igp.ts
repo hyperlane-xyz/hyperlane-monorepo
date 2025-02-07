@@ -3,18 +3,19 @@ import { BigNumber } from 'ethers';
 import { HyperlaneIgp } from '@hyperlane-xyz/sdk';
 import { objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { getArgs, getEnvironmentConfig } from '../utils';
+import { getEnvAddresses } from '../../config/registry.js';
+import { getArgs } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
 
 // Some arbitrary threshold for now
 const RECLAIM_BALANCE_THRESHOLD = BigNumber.from(10).pow(17);
 
 async function main() {
   const { environment } = await getArgs().argv;
-  const environmentConfig = await getEnvironmentConfig(environment);
+  const environmentConfig = getEnvironmentConfig(environment);
   const multiProvider = await environmentConfig.getMultiProvider();
-  const igp = HyperlaneIgp.fromEnvironment(
-    deployEnvToSdkEnv[environment],
+  const igp = HyperlaneIgp.fromAddressesMap(
+    getEnvAddresses(environment),
     multiProvider,
   );
 

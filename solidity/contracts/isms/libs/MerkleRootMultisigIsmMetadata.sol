@@ -109,4 +109,20 @@ library MerkleRootMultisigIsmMetadata {
         uint256 _end = _start + SIGNATURE_LENGTH;
         return _metadata[_start:_end];
     }
+
+    /**
+     * @notice Returns the number of signatures in the metadata.
+     * @param _metadata ABI encoded Merkle Root Multisig ISM metadata.
+     * @return The number of signatures in the metadata.
+     */
+    function signatureCount(
+        bytes calldata _metadata
+    ) internal pure returns (uint256) {
+        uint256 signatures = _metadata.length - SIGNATURES_OFFSET;
+        require(
+            signatures % SIGNATURE_LENGTH == 0,
+            "Invalid signatures length"
+        );
+        return signatures / SIGNATURE_LENGTH;
+    }
 }

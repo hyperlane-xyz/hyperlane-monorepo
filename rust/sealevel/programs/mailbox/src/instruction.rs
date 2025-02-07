@@ -8,13 +8,10 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds};
+use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, protocol_fee::ProtocolFee};
 
 /// The current message version.
-pub const VERSION: u8 = 0;
-
-/// Maximum bytes per message = 2 KiB (somewhat arbitrarily set to begin).
-pub const MAX_MESSAGE_BODY_BYTES: usize = 2 * 2_usize.pow(10);
+pub const VERSION: u8 = 3;
 
 /// Instructions supported by the Mailbox program.
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
@@ -39,6 +36,10 @@ pub enum Instruction {
     GetOwner,
     /// Transfers ownership of the Mailbox.
     TransferOwnership(Option<Pubkey>),
+    /// Transfers accumulated protocol fees to the beneficiary.
+    ClaimProtocolFees,
+    /// Sets the protocol fee configuration.
+    SetProtocolFeeConfig(ProtocolFee),
 }
 
 impl Instruction {
@@ -61,6 +62,10 @@ pub struct Init {
     pub local_domain: u32,
     /// The default ISM.
     pub default_ism: Pubkey,
+    /// The maximum protocol fee that can be charged.
+    pub max_protocol_fee: u64,
+    /// The protocol fee configuration.
+    pub protocol_fee: ProtocolFee,
 }
 
 /// Instruction data for the OutboxDispatch instruction.
@@ -94,6 +99,8 @@ pub fn init_instruction(
     program_id: Pubkey,
     local_domain: u32,
     default_ism: Pubkey,
+    max_protocol_fee: u64,
+    protocol_fee: ProtocolFee,
     payer: Pubkey,
 ) -> Result<SolanaInstruction, ProgramError> {
     let (inbox_account, _inbox_bump) =
@@ -108,6 +115,8 @@ pub fn init_instruction(
         data: Instruction::Init(Init {
             local_domain,
             default_ism,
+            max_protocol_fee,
+            protocol_fee,
         })
         .into_instruction_data()?,
         accounts: vec![
@@ -156,9 +165,9 @@ pub fn set_default_ism_instruction(
         Pubkey::try_find_program_address(mailbox_outbox_pda_seeds!(), &program_id)
             .ok_or(ProgramError::InvalidSeeds)?;
 
-    // 0. [writeable] - The Inbox PDA account.
-    // 1. [] - The Outbox PDA account.
-    // 2. [signer] - The owner of the Mailbox.
+    // 0. `[writeable]` - The Inbox PDA account.
+    // 1. `[]` - The Outbox PDA account.
+    // 2. `[signer]` - The owner of the Mailbox.
     let instruction = SolanaInstruction {
         program_id,
         data: Instruction::InboxSetDefaultIsm(default_ism).into_instruction_data()?,

@@ -1,6 +1,7 @@
-export function isNullish<T>(val: T) {
-  if (val === null || val === undefined) return true;
-  else return false;
+export function isNullish<T>(
+  val: T,
+): val is T extends null | undefined ? T : never {
+  return val === null || val === undefined;
 }
 
 export function isNumeric(value: string | number) {

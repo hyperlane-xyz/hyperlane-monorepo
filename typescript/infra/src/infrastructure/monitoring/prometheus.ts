@@ -1,12 +1,12 @@
-import { InfrastructureConfig } from '../../config/infrastructure';
-import { fetchGCPSecret } from '../../utils/gcloud';
+import { InfrastructureConfig } from '../../config/infrastructure.js';
+import { fetchGCPSecret } from '../../utils/gcloud.js';
 import {
   HelmCommand,
   addHelmRepoIfRequired,
   getDeployableHelmChartName,
   helmifyValues,
-} from '../../utils/helm';
-import { execCmd } from '../../utils/utils';
+} from '../../utils/helm.js';
+import { execCmd } from '../../utils/utils.js';
 
 interface PrometheusSecrets {
   remote_write_uri: string;
@@ -78,15 +78,31 @@ async function getPrometheusConfig(
             {
               action: 'keep',
               regex:
-                '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|hyperlane.*|kube_pod_status_phase|kube_pod_container_status_restarts_total)',
+                '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|hyperlane.*|kube_pod_status_phase|kube_pod_container_status_restarts_total|kube_pod_container_resource_requests)',
               source_labels: ['__name__'],
+            },
+            {
+              action: 'labeldrop',
+              regex: 'id|controller_revision_hash|name|uid|instance|node',
             },
           ],
         },
       ],
+      resources: {
+        requests: {
+          cpu: '200m',
+          memory: '3Gi',
+        },
+      },
     },
-    nodeExporter: {
+    'prometheus-node-exporter': {
       enabled: infraConfig.monitoring.prometheus.nodeExporterEnabled,
+      resources: {
+        requests: {
+          cpu: '50m',
+          memory: '100Mi',
+        },
+      },
     },
   };
 }

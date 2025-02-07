@@ -3,16 +3,15 @@ use std::{fs::File, path::Path};
 
 use serde::{Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
 
 use crate::{
     artifacts::{write_json, SingularProgramIdArtifact},
-    cmd_utils::{create_and_write_keypair, create_new_directory, deploy_program},
+    cmd_utils::{create_new_directory, deploy_program},
     router::ChainMetadata,
     Context, MultisigIsmMessageIdCmd, MultisigIsmMessageIdSubCmd,
 };
 
-use hyperlane_core::H160;
+use hyperlane_core::{KnownHyperlaneDomain, H160};
 
 use hyperlane_sealevel_multisig_ism_message_id::{
     access_control_pda_seeds,
@@ -27,8 +26,10 @@ pub(crate) struct MultisigIsmConfig {
     /// Note this type is ignored in this tooling. It'll always assume this
     /// relates to a multisig-ism-message-id variant, which is the only type
     /// implemented in Sealevel.
-    #[serde(rename = "type")]
-    pub module_type: u8,
+    /// Commenting out for now until this is needed, and due to `infra`
+    /// generating non-numeric types at the moment.
+    // #[serde(rename = "type")]
+    // pub module_type: u8,
     pub validators: Vec<H160>,
     pub threshold: u8,
 }
@@ -45,15 +46,26 @@ impl From<MultisigIsmConfig> for ValidatorsAndThreshold {
 pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: MultisigIsmMessageIdCmd) {
     match cmd.cmd {
         MultisigIsmMessageIdSubCmd::Deploy(deploy) => {
-            let environments_dir =
-                create_new_directory(&deploy.environments_dir, &deploy.environment);
+            let environments_dir = create_new_directory(
+                &deploy.env_args.environments_dir,
+                &deploy.env_args.environment,
+            );
             let ism_dir = create_new_directory(&environments_dir, "multisig-ism-message-id");
             let chain_dir = create_new_directory(&ism_dir, &deploy.chain);
             let context_dir = create_new_directory(&chain_dir, &deploy.context);
             let key_dir = create_new_directory(&context_dir, "keys");
+            let local_domain = deploy
+                .chain
+                .parse::<KnownHyperlaneDomain>()
+                .map(|v| v as u32)
+                .expect("Invalid chain name");
 
-            let ism_program_id =
-                deploy_multisig_ism_message_id(&mut ctx, &deploy.built_so_dir, true, &key_dir);
+            let ism_program_id = deploy_multisig_ism_message_id(
+                &mut ctx,
+                &deploy.built_so_dir,
+                &key_dir,
+                local_domain,
+            );
 
             write_json::<SingularProgramIdArtifact>(
                 &context_dir.join("program-ids.json"),
@@ -154,25 +166,21 @@ pub(crate) fn process_multisig_ism_message_id_cmd(mut ctx: Context, cmd: Multisi
 pub(crate) fn deploy_multisig_ism_message_id(
     ctx: &mut Context,
     built_so_dir: &Path,
-    use_existing_keys: bool,
     key_dir: &Path,
+    local_domain: u32,
 ) -> Pubkey {
-    let (keypair, keypair_path) = create_and_write_keypair(
-        key_dir,
-        "hyperlane_sealevel_multisig_ism_message_id-keypair.json",
-        use_existing_keys,
-    );
-    let program_id = keypair.pubkey();
-
-    deploy_program(
+    let program_id = deploy_program(
         ctx.payer_keypair_path(),
-        keypair_path.to_str().unwrap(),
+        key_dir,
+        "hyperlane_sealevel_multisig_ism_message_id",
         built_so_dir
             .join("hyperlane_sealevel_multisig_ism_message_id.so")
             .to_str()
             .unwrap(),
         &ctx.client.url(),
-    );
+        local_domain,
+    )
+    .unwrap();
 
     println!(
         "Deployed Multisig ISM Message ID at program ID {}",
@@ -195,6 +203,10 @@ pub(crate) fn deploy_multisig_ism_message_id(
             ),
         )
         .send_with_payer();
+    println!(
+        "initialized Multisig ISM Message ID at program ID {}",
+        program_id
+    );
 
     program_id
 }

@@ -1,0 +1,106 @@
+use ethers::providers::Middleware;
+use ethers_core::types::{BlockId, BlockNumber};
+use hyperlane_core::{
+    config::OperationBatchConfig, ChainCommunicationError, ChainResult, ReorgPeriod, U256,
+};
+use url::Url;
+
+/// Ethereum RPC connection configuration
+#[derive(Debug, Clone)]
+pub enum RpcConnectionConf {
+    /// An HTTP-only quorum.
+    HttpQuorum {
+        /// List of urls to connect to
+        urls: Vec<Url>,
+    },
+    /// An HTTP-only fallback set.
+    HttpFallback {
+        /// List of urls to connect to in order of priority
+        urls: Vec<Url>,
+    },
+    /// HTTP connection details
+    Http {
+        /// Url to connect to
+        url: Url,
+    },
+    /// Websocket connection details
+    Ws {
+        /// Url to connect to
+        url: Url,
+    },
+}
+
+/// Ethereum connection configuration
+#[derive(Debug, Clone)]
+pub struct ConnectionConf {
+    /// RPC connection configuration
+    pub rpc_connection: RpcConnectionConf,
+    /// Transaction overrides to use when sending transactions.
+    pub transaction_overrides: TransactionOverrides,
+    /// Operation batching configuration
+    pub operation_batch: OperationBatchConfig,
+}
+
+/// Ethereum transaction overrides.
+#[derive(Debug, Clone, Default)]
+pub struct TransactionOverrides {
+    /// Gas price to use for transactions, in wei.
+    /// If specified, non-1559 transactions will be used with this gas price.
+    pub gas_price: Option<U256>,
+    /// Gas limit to use for transactions.
+    /// If unspecified, the gas limit will be estimated.
+    /// If specified, transactions will use `max(estimated_gas, gas_limit)`
+    pub gas_limit: Option<U256>,
+    /// Max fee per gas to use for EIP-1559 transactions.
+    pub max_fee_per_gas: Option<U256>,
+    /// Max priority fee per gas to use for EIP-1559 transactions.
+    pub max_priority_fee_per_gas: Option<U256>,
+}
+
+/// Ethereum reorg period
+#[derive(Copy, Clone, Debug)]
+pub enum EthereumReorgPeriod {
+    /// Number of blocks
+    Blocks(u32),
+    /// A block tag
+    Tag(BlockId),
+}
+
+impl TryFrom<&ReorgPeriod> for EthereumReorgPeriod {
+    type Error = ChainCommunicationError;
+
+    fn try_from(value: &ReorgPeriod) -> Result<Self, Self::Error> {
+        match value {
+            ReorgPeriod::None => Ok(EthereumReorgPeriod::Blocks(0)),
+            ReorgPeriod::Blocks(blocks) => Ok(EthereumReorgPeriod::Blocks(blocks.get())),
+            ReorgPeriod::Tag(tag) => {
+                let tag = match tag.as_str() {
+                    "latest" => BlockNumber::Latest,
+                    "finalized" => BlockNumber::Finalized,
+                    "safe" => BlockNumber::Safe,
+                    "earliest" => BlockNumber::Earliest,
+                    "pending" => BlockNumber::Pending,
+                    _ => return Err(ChainCommunicationError::InvalidReorgPeriod(value.clone())),
+                };
+                Ok(EthereumReorgPeriod::Tag(tag.into()))
+            }
+        }
+    }
+}
+
+impl EthereumReorgPeriod {
+    /// Converts the reorg period into a block id
+    pub async fn into_block_id<M: Middleware + 'static>(
+        &self,
+        provider: &M,
+    ) -> ChainResult<BlockId> {
+        let block_id = match self {
+            EthereumReorgPeriod::Blocks(_) => {
+                (crate::get_finalized_block_number(provider, self).await? as u64).into()
+            }
+            // no need to fetch the block number for the `tag`
+            EthereumReorgPeriod::Tag(tag) => *tag,
+        };
+        Ok(block_id)
+    }
+}

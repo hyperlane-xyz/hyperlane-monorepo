@@ -42,13 +42,13 @@ pub async fn dispatch_from_payer(
             .into_instruction_data()
             .unwrap(),
         accounts: vec![
-            // 0. [writeable] Outbox PDA.
-            // 1. [signer] Message sender signer.
-            // 2. [executable] System program.
-            // 3. [executable] SPL Noop program.
-            // 4. [signer] Payer.
-            // 5. [signer] Unique message account.
-            // 6. [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
+            // 0. `[writeable]` Outbox PDA.
+            // 1. `[signer]` Message sender signer.
+            // 2. `[executable]` System program.
+            // 3. `[executable]` SPL Noop program.
+            // 4. `[signer]` Payer.
+            // 5. `[signer]` Unique message account.
+            // 6. `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
             //    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
             AccountMeta::new(mailbox_accounts.outbox, false),
             AccountMeta::new(payer.pubkey(), true),

@@ -299,7 +299,7 @@ async fn test_set_validators_and_threshold_creates_pda_account() {
     // to fetch the account metas required for the instruction.
 
     let test_message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: domain,
         sender: H256::random(),
@@ -421,6 +421,7 @@ async fn test_ism_verify() {
         metadata: MultisigIsmMessageIdMetadata {
             origin_merkle_tree_hook: checkpoint.merkle_tree_hook_address,
             merkle_root: checkpoint.root,
+            merkle_index: checkpoint.index,
             validator_signatures: vec![
                 EcdsaSignature::from_bytes(&signatures[0]).unwrap(),
                 EcdsaSignature::from_bytes(&signatures[1]).unwrap(),

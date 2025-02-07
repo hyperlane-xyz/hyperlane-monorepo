@@ -3,12 +3,12 @@ import {
   RpcConsensusType,
 } from '@hyperlane-xyz/sdk';
 
-import { RootAgentConfig } from '../../../src/config';
-import { ALL_KEY_ROLES } from '../../../src/roles';
-import { Contexts } from '../../contexts';
+import { RootAgentConfig } from '../../../src/config/agent/agent.js';
+import { ALL_KEY_ROLES } from '../../../src/roles.js';
+import { Contexts } from '../../contexts.js';
 
-import { agentChainNames, chainNames } from './chains';
-import { validators } from './validators';
+import { agentChainNames, testChainNames } from './chains.js';
+import { validators } from './validators.js';
 
 const roleBase = {
   docker: {
@@ -24,7 +24,7 @@ const hyperlane: RootAgentConfig = {
   context: Contexts.Hyperlane,
   rolesWithKeys: ALL_KEY_ROLES,
   contextChainNames: agentChainNames,
-  environmentChainNames: chainNames,
+  environmentChainNames: testChainNames,
   relayer: {
     ...roleBase,
     gasPaymentEnforcement: [

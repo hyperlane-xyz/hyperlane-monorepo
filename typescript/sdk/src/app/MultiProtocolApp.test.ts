@@ -2,8 +2,8 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { Chains } from '../consts/chains';
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider';
+import { TestChainName } from '../consts/testChains.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 import {
   BaseAppAdapter,
@@ -11,7 +11,7 @@ import {
   BaseEvmAdapter,
   BaseSealevelAdapter,
   MultiProtocolApp,
-} from './MultiProtocolApp';
+} from './MultiProtocolApp.js';
 
 class TestMultiProtocolApp extends MultiProtocolApp<BaseAppAdapter> {
   override protocolToAdapter(protocol: ProtocolType) {
@@ -23,14 +23,18 @@ class TestMultiProtocolApp extends MultiProtocolApp<BaseAppAdapter> {
 }
 
 describe('MultiProtocolApp', () => {
-  describe('constructs', () => {
-    const multiProvider = new MultiProtocolProvider();
-    it('creates an app class and gleans types from generic', async () => {
-      const app = new TestMultiProtocolApp(multiProvider, {});
-      expect(app).to.be.instanceOf(MultiProtocolApp);
-      expect(app.adapter(Chains.ethereum).protocol).to.eql(
-        ProtocolType.Ethereum,
-      );
-    });
+  const multiProvider = MultiProtocolProvider.createTestMultiProtocolProvider();
+  it('creates an app class and gleans types from generic', async () => {
+    const addresses = {
+      test1: {},
+    };
+    const app = new TestMultiProtocolApp(
+      multiProvider.intersect(Object.keys(addresses)).result,
+      addresses,
+    );
+    expect(app).to.be.instanceOf(MultiProtocolApp);
+    expect(app.adapter(TestChainName.test1).protocol).to.eql(
+      ProtocolType.Ethereum,
+    );
   });
 });

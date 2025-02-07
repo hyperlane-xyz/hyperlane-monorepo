@@ -1,0 +1,36 @@
+{
+  "name": "@hyperlane-xyz/github-proxy",
+  "description": "Github proxy that adds the API key to requests",
+  "version": "8.5.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:key": "wrangler secret put GITHUB_API_KEY",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "test": "vitest",
+    "prettier": "prettier --write ./src ./test",
+    "cf-typegen": "wrangler types"
+  },
+  "type": "module",
+  "homepage": "https://www.hyperlane.xyz",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "Hyperlane",
+    "Github",
+    "Proxy",
+    "Typescript"
+  ],
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.4.5",
+    "@cloudflare/workers-types": "^4.20240821.1",
+    "@faker-js/faker": "^8.4.1",
+    "chai": "^4.5.0",
+    "prettier": "^2.8.8",
+    "typescript": "5.3.3",
+    "vitest": "1.4.0",
+    "wrangler": "^3.74.0"
+  }
+}

@@ -23,19 +23,17 @@ use account_utils::DiscriminatorEncode;
 use hyperlane_core::{H160, H256};
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
 use hyperlane_sealevel_igp::{
-    accounts::{
-        GasOracle, GasPaymentAccount, IgpAccount, InterchainGasPaymasterType, OverheadIgpAccount,
-        ProgramDataAccount as IgpProgramDataAccount, RemoteGasData,
-    },
+    accounts::{InterchainGasPaymasterType, OverheadIgpAccount},
     igp_gas_payment_pda_seeds, igp_program_data_pda_seeds,
-    instruction::{GasOracleConfig, GasOverheadConfig},
 };
 use hyperlane_sealevel_mailbox::{
     accounts::{InboxAccount, OutboxAccount},
     instruction::{Instruction as MailboxInstruction, OutboxDispatch},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
-    mailbox_processed_message_pda_seeds, spl_noop,
+    mailbox_processed_message_pda_seeds,
+    protocol_fee::ProtocolFee,
+    spl_noop,
 };
 
 use hyperlane_sealevel_token::{
@@ -67,12 +65,14 @@ mod cmd_utils;
 mod context;
 mod r#core;
 mod helloworld;
+mod igp;
 mod multisig_ism;
 mod router;
 mod serde;
 mod warp_route;
 
 use crate::helloworld::process_helloworld_cmd;
+use crate::igp::process_igp_cmd;
 use crate::multisig_ism::process_multisig_ism_message_id_cmd;
 use crate::warp_route::process_warp_route_cmd;
 pub(crate) use crate::{context::*, core::*};
@@ -116,6 +116,14 @@ enum HyperlaneSealevelCmd {
 }
 
 #[derive(Args)]
+struct EnvironmentArgs {
+    #[arg(long)]
+    environment: String,
+    #[arg(long)]
+    environments_dir: PathBuf,
+}
+
+#[derive(Args)]
 pub(crate) struct WarpRouteCmd {
     #[command(subcommand)]
     cmd: WarpRouteSubCmd,
@@ -129,10 +137,8 @@ pub(crate) enum WarpRouteSubCmd {
 
 #[derive(Args)]
 pub(crate) struct WarpRouteDeploy {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     built_so_dir: PathBuf,
     #[arg(long)]
@@ -168,18 +174,16 @@ enum CoreSubCmd {
 struct CoreDeploy {
     #[arg(long)]
     local_domain: u32,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
-    environment: String,
+    protocol_fee_config_file: Option<PathBuf>,
     #[arg(long)]
     gas_oracle_config_file: Option<PathBuf>,
     #[arg(long)]
     overhead_config_file: Option<PathBuf>,
     #[arg(long)]
     chain: String,
-    #[arg(long)]
-    use_existing_keys: bool,
-    #[arg(long)]
-    environments_dir: PathBuf,
     #[arg(long, num_args = 1.., value_delimiter = ',')]
     remote_domains: Vec<u32>,
     #[arg(long)]
@@ -207,6 +211,8 @@ const HYPERLANE_TOKEN_PROG_ID: Pubkey = pubkey!("3MzUPjP5LEkiHH82nEAe28Xtz9ztuMq
 const MULTISIG_ISM_MESSAGE_ID_PROG_ID: Pubkey =
     pubkey!("2YjtZDiUoptoSsA5eVrDCcX6wxNK6YoEVW7y82x5Z2fw");
 const VALIDATOR_ANNOUNCE_PROG_ID: Pubkey = pubkey!("DH43ae1LwemXAboWwSh8zc9pG8j72gKUEXNi57w8fEnn");
+pub const DEFAULT_PROTOCOL_FEE: u64 = 0;
+pub const ONE_SOL_IN_LAMPORTS: u64 = 1_000_000_000;
 
 #[derive(Args)]
 struct Init {
@@ -216,6 +222,12 @@ struct Init {
     local_domain: u32,
     #[arg(long, short, default_value_t = MULTISIG_ISM_MESSAGE_ID_PROG_ID)]
     default_ism: Pubkey,
+    #[arg(long, short, default_value_t = ONE_SOL_IN_LAMPORTS)]
+    max_protocol_fee: u64,
+    #[arg(long, short, default_value_t = DEFAULT_PROTOCOL_FEE)]
+    protocol_fee: u64,
+    #[arg(long, short, default_value = None)]
+    protocol_fee_beneficiary: Option<Pubkey>,
 }
 
 #[derive(Args)]
@@ -381,12 +393,58 @@ struct IgpCmd {
 
 #[derive(Subcommand)]
 enum IgpSubCmd {
+    DeployProgram(IgpDeployProgramArgs),
+    InitIgpAccount(InitIgpAccountArgs),
+    InitOverheadIgpAccount(InitOverheadIgpAccountArgs),
     Query(IgpQueryArgs),
     PayForGas(PayForGasArgs),
+    Claim(ClaimArgs),
+    SetIgpBeneficiary(SetIgpBeneficiaryArgs),
     GasOracleConfig(GasOracleConfigArgs),
     DestinationGasOverhead(DestinationGasOverheadArgs),
     TransferIgpOwnership(TransferIgpOwnership),
     TransferOverheadIgpOwnership(TransferIgpOwnership),
+    Configure(ConfigureIgpArgs),
+}
+
+#[derive(Args)]
+struct IgpDeployProgramArgs {
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    built_so_dir: PathBuf,
+}
+
+#[derive(Args)]
+struct InitIgpAccountArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    context: Option<String>,
+    #[arg(long)]
+    account_salt: Option<String>, // optional salt for deterministic account creation
+}
+
+#[derive(Args)]
+struct InitOverheadIgpAccountArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    inner_igp_account: Pubkey,
+    #[arg(long)]
+    context: Option<String>,
+    #[arg(long)]
+    account_salt: Option<String>, // optional salt for deterministic account creation
 }
 
 #[derive(Args)]
@@ -420,14 +478,31 @@ struct PayForGasArgs {
     destination_domain: u32,
     #[arg(long)]
     gas: u64,
+    #[arg(long)]
+    account_salt: Option<String>, // optional salt for paying gas to a deterministically derived account
+}
+
+#[derive(Args)]
+struct ClaimArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    igp_account: Pubkey,
+}
+
+#[derive(Args)]
+struct SetIgpBeneficiaryArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    igp_account: Pubkey,
+    new_beneficiary: Pubkey,
 }
 
 #[derive(Args)]
 struct GasOracleConfigArgs {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     chain_name: String,
     #[arg(long)]
@@ -451,10 +526,8 @@ struct GetGasOracleArgs;
 
 #[derive(Args)]
 struct DestinationGasOverheadArgs {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     chain_name: String,
     #[arg(long)]
@@ -473,6 +546,20 @@ enum GasOverheadSubCmd {
 struct SetGasOverheadArgs {
     #[arg(long)]
     gas_overhead: u64,
+}
+
+#[derive(Args)]
+struct ConfigureIgpArgs {
+    #[arg(long)]
+    program_id: Pubkey,
+    #[arg(long)]
+    chain: String,
+    #[arg(long)]
+    gas_oracle_config_file: PathBuf,
+    #[arg(long)]
+    chain_config_file: PathBuf,
+    #[arg(long)]
+    account_salt: Option<H256>,
 }
 
 #[derive(Args)]
@@ -535,10 +622,8 @@ enum MultisigIsmMessageIdSubCmd {
 
 #[derive(Args)]
 struct MultisigIsmMessageIdDeploy {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     built_so_dir: PathBuf,
     #[arg(long)]
@@ -597,10 +682,8 @@ pub(crate) enum HelloWorldSubCmd {
 
 #[derive(Args)]
 pub(crate) struct HelloWorldDeploy {
-    #[arg(long)]
-    environment: String,
-    #[arg(long)]
-    environments_dir: PathBuf,
+    #[command(flatten)]
+    env_args: EnvironmentArgs,
     #[arg(long)]
     built_so_dir: PathBuf,
     #[arg(long)]
@@ -638,7 +721,7 @@ fn main() {
             payer_keypair.pubkey(),
             Some(PayerKeypair {
                 keypair: payer_keypair,
-                keypair_path,
+                keypair_path: keypair_path.clone(),
             }),
         )
     } else {
@@ -649,9 +732,10 @@ fn main() {
         (Pubkey::from_str(&keypair_path).unwrap(), None)
     };
 
-    let commitment = CommitmentConfig::processed();
+    let commitment = CommitmentConfig::confirmed();
 
     let mut instructions = vec![];
+
     if cli.compute_budget != DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT {
         assert!(cli.compute_budget <= MAX_COMPUTE_UNIT_LIMIT);
         instructions.push(
@@ -698,10 +782,17 @@ fn main() {
 fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
     match cmd.cmd {
         MailboxSubCmd::Init(init) => {
+            let protocol_fee_beneficiary =
+                init.protocol_fee_beneficiary.unwrap_or(ctx.payer_pubkey);
             let instruction = hyperlane_sealevel_mailbox::instruction::init_instruction(
                 init.program_id,
                 init.local_domain,
                 init.default_ism,
+                init.max_protocol_fee,
+                ProtocolFee {
+                    fee: init.protocol_fee,
+                    beneficiary: protocol_fee_beneficiary,
+                },
                 ctx.payer_pubkey,
             )
             .unwrap();
@@ -815,7 +906,7 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
     };
 }
 
-fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
+fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
     match cmd.cmd {
         TokenSubCmd::Query(query) => {
             let (token_account, token_bump) =
@@ -944,6 +1035,7 @@ fn process_token_cmd(ctx: Context, cmd: TokenCmd) {
         }
         TokenSubCmd::TransferRemote(xfer) => {
             is_keypair(&xfer.sender).unwrap();
+            ctx.commitment = CommitmentConfig::finalized();
             let sender = read_keypair_file(xfer.sender).unwrap();
 
             let recipient = if xfer.recipient.starts_with("0x") {
@@ -1310,205 +1402,6 @@ fn process_validator_announce_cmd(ctx: Context, cmd: ValidatorAnnounceCmd) {
             } else {
                 println!("Validator not yet announced");
             }
-        }
-    }
-}
-
-fn process_igp_cmd(ctx: Context, cmd: IgpCmd) {
-    match cmd.cmd {
-        IgpSubCmd::Query(query) => {
-            let (program_data_account_pda, _program_data_account_bump) =
-                Pubkey::find_program_address(igp_program_data_pda_seeds!(), &query.program_id);
-
-            let accounts = ctx
-                .client
-                .get_multiple_accounts_with_commitment(
-                    &[program_data_account_pda, query.igp_account],
-                    ctx.commitment,
-                )
-                .unwrap()
-                .value;
-
-            let igp_program_data =
-                IgpProgramDataAccount::fetch(&mut &accounts[0].as_ref().unwrap().data[..])
-                    .unwrap()
-                    .into_inner();
-
-            println!("IGP program data: {:?}", igp_program_data);
-
-            let igp = IgpAccount::fetch(&mut &accounts[1].as_ref().unwrap().data[..])
-                .unwrap()
-                .into_inner();
-
-            println!("IGP account: {:?}", igp);
-
-            if let Some(gas_payment_account_pubkey) = query.gas_payment_account {
-                let account = ctx
-                    .client
-                    .get_account_with_commitment(&gas_payment_account_pubkey, ctx.commitment)
-                    .unwrap()
-                    .value
-                    .unwrap();
-                let gas_payment_account = GasPaymentAccount::fetch(&mut &account.data[..])
-                    .unwrap()
-                    .into_inner();
-                println!("Gas payment account: {:?}", gas_payment_account);
-            }
-        }
-        IgpSubCmd::PayForGas(payment_details) => {
-            let unique_gas_payment_keypair = Keypair::new();
-            let salt = H256::zero();
-            let (igp_account, _igp_account_bump) = Pubkey::find_program_address(
-                hyperlane_sealevel_igp::igp_pda_seeds!(salt),
-                &payment_details.program_id,
-            );
-
-            let (overhead_igp_account, _) = Pubkey::find_program_address(
-                hyperlane_sealevel_igp::overhead_igp_pda_seeds!(salt),
-                &payment_details.program_id,
-            );
-            let (ixn, gas_payment_data_account) =
-                hyperlane_sealevel_igp::instruction::pay_for_gas_instruction(
-                    payment_details.program_id,
-                    ctx.payer_pubkey,
-                    igp_account,
-                    Some(overhead_igp_account),
-                    unique_gas_payment_keypair.pubkey(),
-                    H256::from_str(&payment_details.message_id).unwrap(),
-                    payment_details.destination_domain,
-                    payment_details.gas,
-                )
-                .unwrap();
-
-            ctx.new_txn()
-                .add(ixn)
-                .send(&[&*ctx.payer_signer(), &unique_gas_payment_keypair]);
-
-            println!(
-                "Made a payment for message {} with gas payment data account {}",
-                payment_details.message_id, gas_payment_data_account
-            );
-        }
-        IgpSubCmd::GasOracleConfig(args) => {
-            let core_program_ids =
-                read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
-            match args.cmd {
-                GetSetCmd::Set(set_args) => {
-                    let remote_gas_data = RemoteGasData {
-                        token_exchange_rate: set_args.token_exchange_rate,
-                        gas_price: set_args.gas_price,
-                        token_decimals: set_args.token_decimals,
-                    };
-                    let gas_oracle_config = GasOracleConfig {
-                        domain: args.remote_domain,
-                        gas_oracle: Some(GasOracle::RemoteGasData(remote_gas_data)),
-                    };
-                    let instruction =
-                        hyperlane_sealevel_igp::instruction::set_gas_oracle_configs_instruction(
-                            core_program_ids.igp_program_id,
-                            core_program_ids.igp_account,
-                            ctx.payer_pubkey,
-                            vec![gas_oracle_config],
-                        )
-                        .unwrap();
-                    ctx.new_txn().add(instruction).send_with_payer();
-                    println!("Set gas oracle for remote domain {:?}", args.remote_domain);
-                }
-                GetSetCmd::Get(_) => {
-                    let igp_account = ctx
-                        .client
-                        .get_account_with_commitment(&core_program_ids.igp_account, ctx.commitment)
-                        .unwrap()
-                        .value
-                        .expect(
-                            "IGP account not found. Make sure you are connected to the right RPC.",
-                        );
-
-                    let igp_account = IgpAccount::fetch(&mut &igp_account.data[..])
-                        .unwrap()
-                        .into_inner();
-
-                    println!(
-                        "IGP account gas oracle: {:#?}",
-                        igp_account.gas_oracles.get(&args.remote_domain)
-                    );
-                }
-            }
-        }
-        IgpSubCmd::DestinationGasOverhead(args) => {
-            let core_program_ids =
-                read_core_program_ids(&args.environments_dir, &args.environment, &args.chain_name);
-            match args.cmd {
-                GasOverheadSubCmd::Get => {
-                    // Read the gas overhead config
-                    let overhead_igp_account = ctx
-                        .client
-                        .get_account_with_commitment(
-                            &core_program_ids.overhead_igp_account,
-                            ctx.commitment,
-                        )
-                        .unwrap()
-                        .value
-                        .expect("Overhead IGP account not found. Make sure you are connected to the right RPC.");
-                    let overhead_igp_account =
-                        OverheadIgpAccount::fetch(&mut &overhead_igp_account.data[..])
-                            .unwrap()
-                            .into_inner();
-                    println!(
-                        "Overhead IGP account gas oracle: {:#?}",
-                        overhead_igp_account.gas_overheads.get(&args.remote_domain)
-                    );
-                }
-                GasOverheadSubCmd::Set(set_args) => {
-                    let overhead_config = GasOverheadConfig {
-                        destination_domain: args.remote_domain,
-                        gas_overhead: Some(set_args.gas_overhead),
-                    };
-                    // Set the gas overhead config
-                    let instruction =
-                        hyperlane_sealevel_igp::instruction::set_destination_gas_overheads(
-                            core_program_ids.igp_program_id,
-                            core_program_ids.overhead_igp_account,
-                            ctx.payer_pubkey,
-                            vec![overhead_config],
-                        )
-                        .unwrap();
-                    ctx.new_txn().add(instruction).send_with_payer();
-                    println!(
-                        "Set gas overheads for remote domain {:?}",
-                        args.remote_domain
-                    )
-                }
-            }
-        }
-        IgpSubCmd::TransferIgpOwnership(ref transfer_ownership)
-        | IgpSubCmd::TransferOverheadIgpOwnership(ref transfer_ownership) => {
-            let igp_account_type = match cmd.cmd {
-                IgpSubCmd::TransferIgpOwnership(_) => {
-                    InterchainGasPaymasterType::Igp(transfer_ownership.igp_account)
-                }
-                IgpSubCmd::TransferOverheadIgpOwnership(_) => {
-                    InterchainGasPaymasterType::OverheadIgp(transfer_ownership.igp_account)
-                }
-                _ => unreachable!(),
-            };
-            let instruction =
-                hyperlane_sealevel_igp::instruction::transfer_igp_account_ownership_instruction(
-                    transfer_ownership.program_id,
-                    igp_account_type.clone(),
-                    ctx.payer_pubkey,
-                    Some(transfer_ownership.new_owner),
-                )
-                .unwrap();
-            ctx.new_txn()
-                .add_with_description(
-                    instruction,
-                    format!(
-                        "Transfer ownership of {:?} to {}",
-                        igp_account_type, transfer_ownership.new_owner
-                    ),
-                )
-                .send_with_payer();
         }
     }
 }

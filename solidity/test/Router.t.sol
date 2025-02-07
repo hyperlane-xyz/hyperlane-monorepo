@@ -97,6 +97,7 @@ contract RouterTest is Test {
         address notOwner,
         bytes32 remoteRouter
     ) public {
+        vm.assume(notOwner != router.owner());
         vm.prank(notOwner);
         vm.expectRevert(bytes("Ownable: caller is not the owner"));
         router.enrollRemoteRouter(origin, remoteRouter);

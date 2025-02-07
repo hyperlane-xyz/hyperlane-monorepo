@@ -1,20 +1,24 @@
-import { Contract, ethers } from 'ethers';
+import { Contract, constants } from 'ethers';
 
-import { Ownable } from '@hyperlane-xyz/core';
+import { Ownable, Ownable__factory } from '@hyperlane-xyz/core';
 import {
   Address,
+  EvmChainId,
   ProtocolType,
   ValueOf,
+  eqAddress,
   hexOrBase58ToHex,
   objFilter,
   objMap,
   pick,
   promiseObjAll,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { ChainMetadataManager } from '../metadata/ChainMetadataManager';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, Connection } from '../types';
+import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+import { ChainMap, Connection, OwnableConfig } from '../types.js';
 
 import {
   HyperlaneAddresses,
@@ -22,7 +26,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from './types';
+} from './types.js';
 
 export function serializeContractsMap<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>,
@@ -59,9 +63,35 @@ export function filterAddressesMap<F extends HyperlaneFactories>(
   const pickedAddressesMap = objMap(addressesMap, (_, addresses) =>
     pick(addresses, factoryKeys),
   );
+
+  const chainsWithMissingAddresses = new Set<string>();
+  const filledAddressesMap = objMap(
+    pickedAddressesMap,
+    (chainName, addresses) =>
+      objMap(addresses, (key, value) => {
+        if (!value) {
+          rootLogger.warn(
+            `Missing address for contract "${key}" on chain ${chainName}`,
+          );
+          chainsWithMissingAddresses.add(chainName);
+          return constants.AddressZero;
+        }
+        return value;
+      }),
+  );
+  // Add summary warning if any addresses were missing
+  if (chainsWithMissingAddresses.size > 0) {
+    rootLogger.warn(
+      `Warning: Core deployment incomplete for chain(s): ${Array.from(
+        chainsWithMissingAddresses,
+      ).join(', ')}. ` +
+        `Please run 'core deploy' again for these chains to fix the deployment.`,
+    );
+  }
+
   // Filter out chains for which we do not have a complete set of addresses
   return objFilter(
-    pickedAddressesMap,
+    filledAddressesMap,
     (_, addresses): addresses is HyperlaneAddresses<F> => {
       return Object.keys(addresses).every((a) => factoryKeys.includes(a));
     },
@@ -131,19 +161,58 @@ export function attachContractsMapAndGetForeignDeployments<
     factories,
   );
 
+  // TODO: This function shouldn't need to be aware of application types like collateral / synthetic / native etc. Ideally this should work for any app, not just warp routes. is it safe to assume this is always an object containing 1 key/value pair, and that the value will always be an address?
   const foreignDeployments = objMap(
     filterChainMapExcludeProtocol(
       addressesMap,
       ProtocolType.Ethereum,
       metadataManager,
     ),
-    (_, addresses) => hexOrBase58ToHex(addresses.router),
+    (chain, addresses) => {
+      const router =
+        addresses.router ||
+        addresses.collateral ||
+        addresses.synthetic ||
+        addresses.native;
+      const protocolType = metadataManager.tryGetChainMetadata(chain)?.protocol;
+
+      if (!router || typeof router !== 'string') {
+        throw new Error(`Router address not found for ${chain}`);
+      }
+
+      if (!protocolType) {
+        throw new Error(`Protocol type not found for ${chain}`);
+      }
+
+      switch (protocolType) {
+        case ProtocolType.Ethereum:
+          throw new Error('Ethereum chain should not have foreign deployments');
+
+        case ProtocolType.Cosmos:
+          return router;
+
+        case ProtocolType.Sealevel:
+          return hexOrBase58ToHex(router);
+
+        default:
+          throw new Error(`Unsupported protocol type: ${protocolType}`);
+      }
+    },
   );
 
   return {
     contractsMap,
     foreignDeployments,
   };
+}
+
+export function attachAndConnectContracts<F extends HyperlaneFactories>(
+  addresses: HyperlaneAddresses<F>,
+  factories: F,
+  connection: Connection,
+): HyperlaneContracts<F> {
+  const contracts = attachContracts(addresses, factories);
+  return connectContracts(contracts, connection);
 }
 
 export function connectContracts<F extends HyperlaneFactories>(
@@ -196,31 +265,15 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
   contractsMap: HyperlaneContractsMap<F>;
   multiProvider: MultiProvider;
 } {
-  // Hack to accommodate non-Ethereum artifacts, while still retaining their
-  // presence in the addressesMap so that they are included in the list of chains
-  // on the MultiProvider (needed for getting metadata). A non-Ethereum-style address
-  // from another execution environment will cause Ethers to throw if we try to attach
-  // it, so we just replace it with the zero address.
-  const addressesMapWithEthereumizedAddresses = objMap(
+  // Filter out non-Ethereum chains from the addressesMap
+  const ethereumAddressesMap = objFilter(
     addressesMap,
-    (chain, addresses) => {
-      const metadata = multiProvider.getChainMetadata(chain);
-      if (metadata.protocol === ProtocolType.Ethereum) {
-        return addresses;
-      }
-      return objMap(
-        addresses,
-        (_key, _address) => ethers.constants.AddressZero,
-      );
-    },
+    (chain, _): _ is HyperlaneAddresses<F> =>
+      multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
   );
 
-  // Attaches contracts for each chain for which we have a complete set of
-  // addresses
-  const contractsMap = attachContractsMap(
-    addressesMapWithEthereumizedAddresses,
-    factories,
-  );
+  // Attaches contracts for each Ethereum chain for which we have a complete set of addresses
+  const contractsMap = attachContractsMap(ethereumAddressesMap, factories);
 
   // Filters out providers for chains for which we don't have a complete set
   // of addresses
@@ -231,6 +284,32 @@ export function appFromAddressesMapHelper<F extends HyperlaneFactories>(
 
   return {
     contractsMap: filteredContractsMap,
-    multiProvider: intersection.result,
+    multiProvider,
   };
+}
+
+export function transferOwnershipTransactions(
+  chainId: EvmChainId,
+  contract: Address,
+  actual: OwnableConfig,
+  expected: OwnableConfig,
+  label?: string,
+): AnnotatedEV5Transaction[] {
+  if (eqAddress(actual.owner, expected.owner)) {
+    return [];
+  }
+
+  return [
+    {
+      chainId,
+      annotation: `Transferring ownership of ${label ?? contract} from ${
+        actual.owner
+      } to ${expected.owner}`,
+      to: contract,
+      data: Ownable__factory.createInterface().encodeFunctionData(
+        'transferOwnership',
+        [expected.owner],
+      ),
+    },
+  ];
 }

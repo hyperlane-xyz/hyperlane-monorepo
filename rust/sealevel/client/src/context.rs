@@ -29,6 +29,7 @@ pub(crate) struct Context {
     pub require_tx_approval: bool,
 }
 
+#[derive(Debug)]
 pub(crate) struct InstructionWithDescription {
     pub instruction: Instruction,
     pub description: Option<String>,
@@ -154,8 +155,21 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             );
         }
 
-        let message = Message::new(&self.instructions(), None);
-        let txn = Transaction::new_unsigned(message);
+        let message = Message::new(&self.instructions(), Some(&self.ctx.payer_pubkey));
+        // Useful for plugging into ledger-friendly tools
+        if std::env::var("TX_BINARY").is_ok() {
+            println!(
+                "\t==== Message as binary: ====\n\t{:?}",
+                bincode::serialize(&message)
+                    .unwrap()
+                    .iter()
+                    .map(|n| n.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            );
+        }
+
+        let txn = Transaction::new_unsigned(message.clone());
         println!(
             "\t==== Transaction in base58: ====\n\t{}",
             bs58::encode(bincode::serialize(&txn).unwrap()).into_string()
@@ -239,14 +253,17 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
 fn wait_for_user_confirmation() {
     println!("Continue? [y/n] then press Enter");
     let mut input = [0u8; 1];
-    std::io::stdin().read_exact(&mut input).unwrap();
-    match input[0] {
-        b'y' => {
-            println!("Continuing...");
+    loop {
+        std::io::stdin().read_exact(&mut input).unwrap();
+        match input[0] {
+            b'y' => {
+                println!("Continuing...");
+                break;
+            }
+            b'n' => {
+                panic!("User requested exit");
+            }
+            _ => {}
         }
-        b'n' => {
-            panic!("User requested exit");
-        }
-        _ => {}
     }
 }

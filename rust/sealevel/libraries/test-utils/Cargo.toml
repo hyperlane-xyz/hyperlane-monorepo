@@ -13,17 +13,20 @@ solana-sdk.workspace = true
 spl-noop.workspace = true
 spl-token-2022.workspace = true
 
-hyperlane-core = { path = "../../../hyperlane-core" }
+hyperlane-core = { path = "../../../main/hyperlane-core" }
 hyperlane-sealevel-interchain-security-module-interface = { path = "../interchain-security-module-interface" }
-hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = ["no-entrypoint"] }
-hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = ["no-entrypoint"] }
+hyperlane-sealevel-mailbox = { path = "../../programs/mailbox", features = [
+    "no-entrypoint",
+] }
+hyperlane-sealevel-igp = { path = "../../programs/hyperlane-sealevel-igp", features = [
+    "no-entrypoint",
+] }
 hyperlane-sealevel-message-recipient-interface = { path = "../message-recipient-interface" }
-hyperlane-sealevel-test-ism = { path = "../../programs/ism/test-ism", features = ["test-client"] }
+hyperlane-sealevel-test-ism = { path = "../../programs/ism/test-ism", features = [
+    "test-client",
+] }
 hyperlane-test-transaction-utils = { path = "../test-transaction-utils" }
 serializable-account-meta = { path = "../serializable-account-meta" }
 
 [lib]
 crate-type = ["cdylib", "lib"]
-
-[profile.release]
-overflow-checks = true

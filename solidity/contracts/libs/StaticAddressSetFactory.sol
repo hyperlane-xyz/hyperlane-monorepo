@@ -6,8 +6,13 @@ import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 
 // ============ Internal Imports ============
 import {MetaProxy} from "./MetaProxy.sol";
+import {PackageVersioned} from "../PackageVersioned.sol";
+import {IThresholdAddressFactory} from "../interfaces/IThresholdAddressFactory.sol";
 
-abstract contract StaticThresholdAddressSetFactory {
+abstract contract StaticThresholdAddressSetFactory is
+    PackageVersioned,
+    IThresholdAddressFactory
+{
     // ============ Immutables ============
     address public immutable implementation;
 
@@ -31,6 +36,10 @@ abstract contract StaticThresholdAddressSetFactory {
         address[] calldata _values,
         uint8 _threshold
     ) public returns (address) {
+        require(
+            0 < _threshold && _threshold <= _values.length,
+            "Invalid threshold"
+        );
         (bytes32 _salt, bytes memory _bytecode) = _saltAndBytecode(
             _values,
             _threshold

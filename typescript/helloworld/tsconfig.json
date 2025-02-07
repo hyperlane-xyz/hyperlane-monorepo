@@ -9,11 +9,11 @@
       "ES2015", "ES2016", "ES2017", "ES2018",
       "ES2019", "ES2020","ES2021", "DOM"
     ],
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "outDir": "./dist",
@@ -21,13 +21,17 @@
     "preserveWatchOutput": true,
     "pretty": false,
     "resolveJsonModule": true,
-    "rootDir": "./",
+    "rootDir": "./src",
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
-    "target": "ES2020",
+    "target": "es2022",
   },
   "exclude": ["./node_modules/", "./dist/", "./src/types/hardhat.d.ts"],
   "include": ["./src/"],
-  "files": ["hardhat.config.ts"]
+  "ts-node": {
+    "experimentalSpecifierResolution": "node",
+    "experimentalResolver": true,
+    "files": true
+  }
 }

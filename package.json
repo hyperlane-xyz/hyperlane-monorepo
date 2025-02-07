@@ -3,27 +3,35 @@
   "description": "A yarn workspace of core Hyperlane packages",
   "version": "0.0.0",
   "devDependencies": {
+    "@eslint/js": "^9.15.0",
     "@trivago/prettier-plugin-sort-imports": "^4.2.1",
-    "@typescript-eslint/eslint-plugin": "^5.62.0",
-    "@typescript-eslint/parser": "^5.62.0",
-    "eslint": "^8.43.0",
-    "eslint-config-prettier": "^8.8.0",
+    "@typescript-eslint/eslint-plugin": "^8.1.6",
+    "@typescript-eslint/parser": "^8.1.6",
+    "eslint": "^9.15.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-import-resolver-typescript": "^3.6.3",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-jest": "^28.2.0",
     "husky": "^8.0.0",
     "lint-staged": "^12.4.3",
-    "prettier": "^2.8.8"
+    "prettier": "^2.8.8",
+    "syncpack": "^13.0.0",
+    "tsx": "^4.19.1"
   },
   "dependencies": {
     "@changesets/cli": "^2.26.2"
   },
-  "packageManager": "yarn@4.0.2",
+  "packageManager": "yarn@4.5.1",
   "private": true,
   "scripts": {
+    "agent-configs": "yarn --cwd typescript/infra/ update-agent-config:mainnet3 && yarn --cwd typescript/infra/ update-agent-config:testnet4 && yarn prettier",
     "build": "yarn workspaces foreach --all --parallel --topological run build",
     "clean": "yarn workspaces foreach --all --parallel run clean",
     "prettier": "yarn workspaces foreach --since --parallel run prettier",
-    "lint": "yarn workspaces foreach --since --parallel run lint",
+    "lint": "yarn workspaces foreach --all --parallel run lint",
     "test": "yarn workspaces foreach --all --parallel run test",
-    "coverage": "yarn workspaces foreach --since --parallel run coverage",
+    "test:ci": "yarn workspaces foreach --all --topological run test:ci",
+    "coverage": "yarn workspaces foreach --all --parallel run coverage",
     "version:prepare": "yarn changeset version && yarn workspaces foreach --all --parallel run version:update && yarn install --no-immutable",
     "version:check": "yarn changeset status",
     "release": "yarn build && yarn changeset publish",
@@ -37,10 +45,13 @@
     "async": "^2.6.4",
     "fetch-ponyfill": "^7.1",
     "flat": "^5.0.2",
+    "globals": "^14.0.0",
     "lodash": "^4.17.21",
     "recursive-readdir": "^2.2.3",
     "underscore": "^1.13",
     "undici": "^5.11",
-    "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7"
+    "@trivago/prettier-plugin-sort-imports/@babel/parser": "^7.22.7",
+    "@typechain/ethers-v5": "11.1.2",
+    "typechain@npm:^8.0.0": "patch:typechain@npm%3A8.3.2#~/.yarn/patches/typechain-npm-8.3.2-b02e27439e.patch"
   }
 }

@@ -24,7 +24,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { Address, Domain } from '@hyperlane-xyz/utils';
 
-import { IHelloWorldAdapter } from './types';
+import { IHelloWorldAdapter } from './types.js';
 
 export class SealevelHelloWorldAdapter
   extends SealevelRouterAdapter
@@ -44,7 +44,7 @@ export class SealevelHelloWorldAdapter
     value: string,
     sender: Address,
   ): Promise<SolanaWeb3Transaction> {
-    this.logger(
+    this.logger.info(
       'Creating sendHelloWorld tx for sealevel',
       this.chainName,
       destination,

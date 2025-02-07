@@ -1,8 +1,8 @@
-import BigNumber from 'bignumber.js';
+import { BigNumber } from 'bignumber.js';
 import { utils } from 'ethers';
 
-import { addressToBytes32 } from './addresses';
-import { ParsedLegacyMultisigIsmMetadata } from './types';
+import { addressToBytes32 } from './addresses.js';
+import { ParsedLegacyMultisigIsmMetadata } from './types.js';
 
 export const parseLegacyMultisigIsmMetadata = (
   metadata: string,

@@ -1,10 +1,9 @@
-import { Wallet } from 'ethers';
-import { HDNode } from 'ethers/lib/utils';
+import { Wallet, utils } from 'ethers';
 
-import { Contexts } from '../../config/contexts';
-import { AgentGCPKey } from '../agents/gcp';
-import { DeployEnvironment } from '../config';
-import { Role } from '../roles';
+import { Contexts } from '../../config/contexts.js';
+import { AgentGCPKey } from '../agents/gcp.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { Role } from '../roles.js';
 
 // Keys that are derived from the deployer key, mainly to have deterministic addresses on every chain
 // The order here matters so don't mix it up
@@ -30,7 +29,7 @@ export const getDeterministicKey = async (
     Role.Deployer,
   );
   await deployerKey.fetch();
-  const seed = HDNode.fromSeed(deployerKey.privateKey);
+  const seed = utils.HDNode.fromSeed(deployerKey.privateKey);
   const derivedKey = seed.derivePath(
     `m/44'/60'/0'/${deterministicKeyRole}/${DeterministicKeyRoleNonces[deterministicKeyRole]}`,
   );

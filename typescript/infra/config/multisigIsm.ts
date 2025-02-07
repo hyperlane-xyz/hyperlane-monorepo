@@ -4,21 +4,14 @@ import {
   MultisigIsmConfig,
   buildMultisigIsmConfigs,
   defaultMultisigConfigs,
+  multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { DeployEnvironment } from '../src/config';
+import { DeployEnvironment } from '../src/config/environment.js';
 
-import { Contexts } from './contexts';
-import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
-import { chainNames as testChains } from './environments/test/chains';
-import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
-import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs';
-
-const chains = {
-  mainnet3: mainnet3Chains,
-  testnet4: testnet4Chains,
-  test: testChains,
-};
+import { Contexts } from './contexts.js';
+import { rcMultisigIsmConfigs } from './rcMultisigIsmConfigs.js';
+import { getEnvChains } from './registry.js';
 
 export const multisigIsms = (
   env: DeployEnvironment,
@@ -30,7 +23,12 @@ export const multisigIsms = (
     context === Contexts.ReleaseCandidate
       ? rcMultisigIsmConfigs
       : defaultMultisigConfigs;
-  return buildMultisigIsmConfigs(type, local, chains[env], multisigConfigs);
+  return buildMultisigIsmConfigs(
+    type,
+    local,
+    getEnvChains(env),
+    multisigConfigs,
+  );
 };
 
 export const multisigIsm = (
@@ -43,8 +41,5 @@ export const multisigIsm = (
       ? rcMultisigIsmConfigs
       : defaultMultisigConfigs;
 
-  return {
-    ...configs[remote],
-    type,
-  };
+  return multisigConfigToIsmConfig(type, configs[remote]);
 };

@@ -1,8 +1,8 @@
-import { ProxiedRouterChecker } from '../../router/ProxiedRouterChecker';
+import { ProxiedRouterChecker } from '../../router/ProxiedRouterChecker.js';
 
-import { InterchainQuery } from './InterchainQuery';
-import { InterchainQueryConfig } from './InterchainQueryDeployer';
-import { InterchainQueryFactories } from './contracts';
+import { InterchainQuery } from './InterchainQuery.js';
+import { InterchainQueryConfig } from './InterchainQueryDeployer.js';
+import { InterchainQueryFactories } from './contracts.js';
 
 export class InterchainQueryChecker extends ProxiedRouterChecker<
   InterchainQueryFactories,

@@ -22,6 +22,9 @@ import {Message} from "../../libs/Message.sol";
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 
+// ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+
 /**
  * @title AbstractMessageIdAuthHook
  * @notice Message hook to inform an Abstract Message ID ISM of messages published through
@@ -31,8 +34,10 @@ abstract contract AbstractMessageIdAuthHook is
     AbstractPostDispatchHook,
     MailboxClient
 {
+    using Address for address payable;
     using StandardHookMetadata for bytes;
     using Message for bytes;
+    using TypeCasts for bytes32;
 
     // ============ Constants ============
 
@@ -58,7 +63,7 @@ abstract contract AbstractMessageIdAuthHook is
     }
 
     /// @inheritdoc IPostDispatchHook
-    function hookType() external pure returns (uint8) {
+    function hookType() external pure virtual returns (uint8) {
         return uint8(IPostDispatchHook.Types.ID_AUTH_ISM);
     }
 
@@ -68,7 +73,7 @@ abstract contract AbstractMessageIdAuthHook is
     function _postDispatch(
         bytes calldata metadata,
         bytes calldata message
-    ) internal override {
+    ) internal virtual override {
         bytes32 id = message.id();
         require(
             _isLatestDispatched(id),
@@ -78,20 +83,33 @@ abstract contract AbstractMessageIdAuthHook is
             message.destination() == destinationDomain,
             "AbstractMessageIdAuthHook: invalid destination domain"
         );
-        bytes memory payload = abi.encodeCall(
-            AbstractMessageIdAuthorizedIsm.verifyMessageId,
-            id
+        require(
+            metadata.msgValue(0) < 2 ** 255,
+            "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
         );
-        _sendMessageId(metadata, payload);
+
+        _sendMessageId(metadata, message);
+
+        uint256 _overpayment = msg.value - _quoteDispatch(metadata, message);
+        if (_overpayment > 0) {
+            address _refundAddress = metadata.refundAddress(
+                message.sender().bytes32ToAddress()
+            );
+            require(
+                _refundAddress != address(0),
+                "AbstractPostDispatchHook: no refund address"
+            );
+            payable(_refundAddress).sendValue(_overpayment);
+        }
     }
 
     /**
      * @notice Send a message to the ISM.
      * @param metadata The metadata for the hook caller
-     * @param payload The payload for call to the ISM
+     * @param message The message to send to the ISM
      */
     function _sendMessageId(
         bytes calldata metadata,
-        bytes memory payload
+        bytes calldata message
     ) internal virtual;
 }

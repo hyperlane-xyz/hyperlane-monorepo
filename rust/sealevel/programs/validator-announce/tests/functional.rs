@@ -1,6 +1,6 @@
 use hyperlane_core::{Announcement, H160};
 
-use std::str::FromStr;
+use std::{str::FromStr, thread::sleep};
 
 use account_utils::SizedData;
 use borsh::BorshSerialize;
@@ -88,9 +88,9 @@ async fn initialize(
         Pubkey::find_program_address(validator_announce_pda_seeds!(), &program_id);
 
     // Accounts:
-    // 0. [signer] The payer.
-    // 1. [executable] The system program.
-    // 2. [writable] The ValidatorAnnounce PDA account.
+    // 0. `[signer]` The payer.
+    // 1. `[executable]` The system program.
+    // 2. `[writable]` The ValidatorAnnounce PDA account.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &ValidatorAnnounceInstruction::Init(InitInstruction {
@@ -194,11 +194,11 @@ async fn announce(
         Pubkey::find_program_address(replay_protection_pda_seeds!(replay_id), &program_id);
 
     // Accounts:
-    // 0. [signer] The payer.
-    // 1. [executable] The system program.
-    // 2. [] The ValidatorAnnounce PDA account.
-    // 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
-    // 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
+    // 0. `[signer]` The payer.
+    // 1. `[executable]` The system program.
+    // 2. `[]` The ValidatorAnnounce PDA account.
+    // 3. `[writeable]` The validator-specific ValidatorStorageLocationsAccount PDA account.
+    // 4. `[writeable]` The ReplayProtection PDA account specific to the announcement being made.
     let announce_instruction = Instruction::new_with_borsh(
         program_id,
         &ValidatorAnnounceInstruction::Announce(announce_instruction),
@@ -300,12 +300,7 @@ async fn test_announce() {
         storage_location: announcement.storage_location,
         signature,
     };
-    let (
-        validator_storage_locations_key,
-        validator_storage_locations_bump_seed,
-        replay_protection_key,
-        _replay_protection_bump_seed,
-    ) = announce(
+    let announcement_res = announce(
         &mut banks_client,
         &payer,
         program_id,
@@ -314,6 +309,17 @@ async fn test_announce() {
     )
     .await
     .unwrap();
+
+    // there's a race condition that isn't fixed by setting `CommitmentLevel::Confirmed`
+    // just wait a bit to ensure the account is created
+    sleep(std::time::Duration::from_secs(1));
+
+    let (
+        validator_storage_locations_key,
+        validator_storage_locations_bump_seed,
+        replay_protection_key,
+        _replay_protection_bump_seed,
+    ) = announcement_res;
 
     assert_successful_announcement(
         &mut banks_client,

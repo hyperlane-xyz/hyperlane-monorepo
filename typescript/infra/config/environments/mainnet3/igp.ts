@@ -1,45 +1,68 @@
 import {
   ChainMap,
-  GasOracleContractType,
+  ChainName,
+  ChainTechnicalStack,
+  HookType,
   IgpConfig,
-  defaultMultisigConfigs,
-  multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
 import { exclude, objMap } from '@hyperlane-xyz/utils';
 
 import {
-  MainnetChains,
-  ethereumChainNames,
-  supportedChainNames,
-} from './chains';
-import { owners } from './owners';
+  AllStorageGasOracleConfigs,
+  getAllStorageGasOracleConfigs,
+  getOverhead,
+} from '../../../src/config/gas-oracle.js';
+import { getChain } from '../../registry.js';
 
-// TODO: make this generic
-const KEY_FUNDER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
-const DEPLOYER_ADDRESS = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
+import { ethereumChainNames } from './chains.js';
+import gasPrices from './gasPrices.json';
+import { DEPLOYER, chainOwners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
+import rawTokenPrices from './tokenPrices.json';
 
-function getGasOracles(local: MainnetChains) {
-  return Object.fromEntries(
-    exclude(local, supportedChainNames).map((name) => [
-      name,
-      GasOracleContractType.StorageGasOracle,
-    ]),
-  );
+const tokenPrices: ChainMap<string> = rawTokenPrices;
+
+export function getOverheadWithOverrides(local: ChainName, remote: ChainName) {
+  let overhead = getOverhead(local, remote, ethereumChainNames);
+  // Moonbeam/Torus gas usage can be up to 4x higher than vanilla EVM
+  if (remote === 'moonbeam' || remote === 'torus') {
+    overhead *= 4;
+  }
+  // ZkSync gas usage is different from the EVM and tends to give high
+  // estimates. We double the overhead to help account for this.
+  if (getChain(remote).technicalStack === ChainTechnicalStack.ZkSync) {
+    overhead *= 2;
+  }
+  return overhead;
 }
 
-export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => ({
-  owner,
-  oracleKey: DEPLOYER_ADDRESS,
-  beneficiary: KEY_FUNDER_ADDRESS,
-  gasOracleType: getGasOracles(chain),
-  overhead: Object.fromEntries(
-    // Not setting overhead for non-Ethereum destination chains
-    exclude(chain, ethereumChainNames).map((remote) => [
-      remote,
-      multisigIsmVerificationCost(
-        defaultMultisigConfigs[remote].threshold,
-        defaultMultisigConfigs[remote].validators.length,
-      ),
-    ]),
-  ),
-}));
+const storageGasOracleConfig: AllStorageGasOracleConfigs =
+  getAllStorageGasOracleConfigs(
+    supportedChainNames,
+    tokenPrices,
+    gasPrices,
+    (local, remote) => getOverheadWithOverrides(local, remote),
+    true,
+  );
+
+export const igp: ChainMap<IgpConfig> = objMap(
+  chainOwners,
+  (local, owner): IgpConfig => ({
+    type: HookType.INTERCHAIN_GAS_PAYMASTER,
+    ...owner,
+    ownerOverrides: {
+      ...owner.ownerOverrides,
+      interchainGasPaymaster: DEPLOYER,
+      storageGasOracle: DEPLOYER,
+    },
+    oracleKey: DEPLOYER,
+    beneficiary: DEPLOYER,
+    overhead: Object.fromEntries(
+      exclude(local, supportedChainNames).map((remote) => [
+        remote,
+        getOverheadWithOverrides(local, remote),
+      ]),
+    ),
+    oracleConfig: storageGasOracleConfig[local],
+  }),
+);

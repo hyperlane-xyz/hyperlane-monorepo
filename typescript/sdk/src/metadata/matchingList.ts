@@ -4,7 +4,7 @@
  */
 import { z } from 'zod';
 
-import { ZHash, ZNzUint } from './customZodTypes';
+import { ZHash, ZNzUint } from './customZodTypes.js';
 
 const DomainSchema = z.union([
   z.literal('*'),
@@ -15,6 +15,7 @@ const DomainSchema = z.union([
 const AddressSchema = z.union([z.literal('*'), ZHash, z.array(ZHash)]);
 
 const MatchingListElementSchema = z.object({
+  messageId: AddressSchema.optional(),
   originDomain: DomainSchema.optional(),
   senderAddress: AddressSchema.optional(),
   destinationDomain: DomainSchema.optional(),

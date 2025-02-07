@@ -2,29 +2,26 @@ import {
   BridgeAdapterConfig,
   BridgeAdapterType,
   ChainMap,
-  Chains,
-  RpcConsensusType,
-  chainMetadata,
-  getDomainId,
 } from '@hyperlane-xyz/sdk';
 
-import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware';
+import { LiquidityLayerRelayerConfig } from '../../../src/config/middleware.js';
+import { getDomainId } from '../../registry.js';
 
-import { environment } from './chains';
+import { environment } from './chains.js';
 
 const circleDomainMapping = [
   {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.ethereum]),
+    hyperlaneDomain: getDomainId('ethereum'),
     circleDomain: 0,
   },
   {
-    hyperlaneDomain: getDomainId(chainMetadata[Chains.avalanche]),
+    hyperlaneDomain: getDomainId('avalanche'),
     circleDomain: 1,
   },
 ];
 
 export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
-  [Chains.ethereum]: {
+  ethereum: {
     circle: {
       type: BridgeAdapterType.Circle,
       tokenMessengerAddress: '0xBd3fa81B58Ba92a82136038B25aDec7066af3155',
@@ -33,7 +30,7 @@ export const bridgeAdapterConfigs: ChainMap<BridgeAdapterConfig> = {
       circleDomainMapping,
     },
   },
-  [Chains.avalanche]: {
+  avalanche: {
     circle: {
       type: BridgeAdapterType.Circle,
       tokenMessengerAddress: '0x6B25532e1060CE10cc3B0A99e5683b91BFDe6982',
@@ -51,6 +48,5 @@ export const relayerConfig: LiquidityLayerRelayerConfig = {
   },
   namespace: environment,
   prometheusPushGateway:
-    'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
-  connectionType: RpcConsensusType.Single,
+    'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
 };

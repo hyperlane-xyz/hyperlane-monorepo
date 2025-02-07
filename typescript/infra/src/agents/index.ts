@@ -1,40 +1,55 @@
-import fs from 'fs';
+import { join } from 'path';
 
-import { ChainName, RpcConsensusType, chainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  AgentSealevelPriorityFeeOracle,
+  AgentSealevelTransactionSubmitter,
+  ChainName,
+  RelayerConfig,
+  RpcConsensusType,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, objOmitKeys } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
+import { Contexts } from '../../config/contexts.js';
+import { getChain } from '../../config/registry.js';
 import {
   AgentConfigHelper,
   AgentContextConfig,
-  DeployEnvironment,
   DockerConfig,
   HelmRootAgentValues,
-  RelayerConfigHelper,
+  KubernetesResources,
   RootAgentConfig,
-  ScraperConfigHelper,
-  ValidatorConfigHelper,
-} from '../config';
-import { AgentRole, Role } from '../roles';
-import { fetchGCPSecret } from '../utils/gcloud';
+} from '../config/agent/agent.js';
 import {
-  HelmCommand,
-  buildHelmChartDependencies,
-  helmifyValues,
-} from '../utils/helm';
-import { execCmd, isNotEthereumProtocolChain } from '../utils/utils';
+  RelayerConfigHelper,
+  RelayerConfigMapConfig,
+  RelayerEnvConfig,
+} from '../config/agent/relayer.js';
+import { ScraperConfigHelper } from '../config/agent/scraper.js';
+import { ValidatorConfigHelper } from '../config/agent/validator.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { AgentRole, Role } from '../roles.js';
+import {
+  fetchGCPSecret,
+  gcpSecretExistsUsingClient,
+  getGcpSecretLatestVersionName,
+  setGCPSecretUsingClient,
+} from '../utils/gcloud.js';
+import { HelmManager } from '../utils/helm.js';
+import {
+  execCmd,
+  getInfraPath,
+  isEthereumProtocolChain,
+} from '../utils/utils.js';
 
-import { AgentGCPKey } from './gcp';
+import { AgentGCPKey } from './gcp.js';
 
-const HELM_CHART_PATH = __dirname + '/../../../../rust/helm/hyperlane-agent/';
-if (!fs.existsSync(HELM_CHART_PATH + 'Chart.yaml'))
-  console.warn(
-    `Could not find helm chart at ${HELM_CHART_PATH}; the relative path may have changed.`,
-  );
+const HELM_CHART_PATH = join(
+  getInfraPath(),
+  '/../../rust/main/helm/hyperlane-agent/',
+);
 
-export abstract class AgentHelmManager {
+export abstract class AgentHelmManager extends HelmManager<HelmRootAgentValues> {
   abstract readonly role: AgentRole;
-  abstract readonly helmReleaseName: string;
   readonly helmChartPath: string = HELM_CHART_PATH;
   protected abstract readonly config: AgentConfigHelper;
 
@@ -55,55 +70,8 @@ export abstract class AgentHelmManager {
     return this.config.namespace;
   }
 
-  async runHelmCommand(action: HelmCommand, dryRun?: boolean): Promise<void> {
-    const cmd = ['helm', action];
-    if (dryRun) cmd.push('--dry-run');
-
-    if (action == HelmCommand.Remove) {
-      if (dryRun) cmd.push('--dry-run');
-      cmd.push(this.helmReleaseName, this.namespace);
-      await execCmd(cmd, {}, false, true);
-      return;
-    }
-
-    const values = helmifyValues(await this.helmValues());
-    if (action == HelmCommand.InstallOrUpgrade && !dryRun) {
-      // Delete secrets to avoid them being stale
-      const cmd = [
-        'kubectl',
-        'delete',
-        'secrets',
-        '--namespace',
-        this.namespace,
-        '--selector',
-        `app.kubernetes.io/instance=${this.helmReleaseName}`,
-      ];
-      try {
-        await execCmd(cmd, {}, false, false);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    await buildHelmChartDependencies(this.helmChartPath);
-    cmd.push(
-      this.helmReleaseName,
-      this.helmChartPath,
-      '--create-namespace',
-      '--namespace',
-      this.namespace,
-      ...values,
-    );
-    if (action == HelmCommand.UpgradeDiff) {
-      cmd.push(
-        `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,
-      );
-    }
-    await execCmd(cmd, {}, false, true);
-  }
-
   async helmValues(): Promise<HelmRootAgentValues> {
-    const dockerImage = this.dockerImage();
+    const dockerImage = this.dockerImage;
     return {
       image: {
         repository: dockerImage.repo,
@@ -113,18 +81,39 @@ export abstract class AgentHelmManager {
         runEnv: this.environment,
         context: this.context,
         aws: !!this.config.aws,
-        chains: this.config.environmentChainNames.map((chain) => {
-          const metadata = chainMetadata[chain];
+        chains: this.config.contextChainNames[this.role].map((chain) => {
+          const metadata = getChain(chain);
           const reorgPeriod = metadata.blocks?.reorgPeriod;
           if (reorgPeriod === undefined) {
             throw new Error(`No reorg period found for chain ${chain}`);
           }
+
+          let priorityFeeOracle: AgentSealevelPriorityFeeOracle | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            priorityFeeOracle =
+              this.config.rawConfig.sealevel?.priorityFeeOracleConfigGetter?.(
+                chain,
+              );
+          }
+
+          let transactionSubmitter:
+            | AgentSealevelTransactionSubmitter
+            | undefined;
+          if (getChain(chain).protocol === ProtocolType.Sealevel) {
+            transactionSubmitter =
+              this.config.rawConfig.sealevel?.transactionSubmitterConfigGetter?.(
+                chain,
+              );
+          }
+
           return {
             name: chain,
-            disabled: !this.config.contextChainNames[this.role].includes(chain),
             rpcConsensusType: this.rpcConsensusType(chain),
             protocol: metadata.protocol,
             blocks: { reorgPeriod },
+            maxBatchSize: 32,
+            priorityFeeOracle,
+            transactionSubmitter,
           };
         }),
       },
@@ -133,29 +122,19 @@ export abstract class AgentHelmManager {
 
   rpcConsensusType(chain: ChainName): RpcConsensusType {
     // Non-Ethereum chains only support Single
-    if (isNotEthereumProtocolChain(chain)) {
+    if (!isEthereumProtocolChain(chain)) {
       return RpcConsensusType.Single;
     }
 
-    return this.config.rpcConsensusType;
+    return this.config.agentRoleConfig.rpcConsensusType;
   }
 
-  async doesAgentReleaseExist() {
-    try {
-      await execCmd(
-        `helm status ${this.helmReleaseName} --namespace ${this.namespace}`,
-        {},
-        false,
-        false,
-      );
-      return true;
-    } catch (error) {
-      return false;
-    }
+  get dockerImage(): DockerConfig {
+    return this.config.agentRoleConfig.docker;
   }
 
-  dockerImage(): DockerConfig {
-    return this.config.docker;
+  kubernetesResources(): KubernetesResources | undefined {
+    return this.config.agentRoleConfig.resources;
   }
 }
 
@@ -182,7 +161,7 @@ abstract class MultichainAgentHelmManager extends AgentHelmManager {
     return parts.join('-');
   }
 
-  dockerImage(): DockerConfig {
+  get dockerImage(): DockerConfig {
     return this.config.dockerImageForChain(this.chainName);
   }
 }
@@ -198,10 +177,26 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
 
   async helmValues(): Promise<HelmRootAgentValues> {
     const values = await super.helmValues();
+
+    const config = await this.config.buildConfig();
+
+    // Divide the keys between the configmap and the env config.
+    const configMapConfig: RelayerConfigMapConfig = {
+      addressBlacklist: config.addressBlacklist,
+      metricAppContexts: config.metricAppContexts,
+      gasPaymentEnforcement: config.gasPaymentEnforcement,
+    };
+    const envConfig = objOmitKeys<RelayerConfig>(
+      config,
+      Object.keys(configMapConfig),
+    ) as RelayerEnvConfig;
+
     values.hyperlane.relayer = {
       enabled: true,
       aws: this.config.requiresAwsCredentials,
-      config: await this.config.buildConfig(),
+      envConfig,
+      configMapConfig,
+      resources: this.kubernetesResources(),
     };
 
     const signers = await this.config.signers();
@@ -209,6 +204,19 @@ export class RelayerHelmManager extends OmniscientAgentHelmManager {
       name,
       signer: signers[name],
     }));
+
+    if (!values.tolerations) {
+      values.tolerations = [];
+    }
+
+    // Relayer pods should only be scheduled on nodes with the component label set to relayer.
+    // NoSchedule was chosen so that some daemonsets (like the prometheus node exporter) would not be evicted.
+    values.tolerations.push({
+      key: 'component',
+      operator: 'Equal',
+      value: 'relayer',
+      effect: 'NoSchedule',
+    });
 
     return values;
   }
@@ -230,6 +238,7 @@ export class ScraperHelmManager extends OmniscientAgentHelmManager {
     values.hyperlane.scraper = {
       enabled: true,
       config: await this.config.buildConfig(),
+      resources: this.kubernetesResources(),
     };
     // scraper never requires aws credentials
     values.hyperlane.aws = false;
@@ -265,6 +274,7 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
         originChainName: cfg.originChainName,
         interval: cfg.interval,
       })),
+      resources: this.kubernetesResources(),
     };
 
     // The name of the helm release for agents is `hyperlane-agent`.
@@ -276,6 +286,13 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
     return helmValues;
   }
+}
+
+export function getSecretName(
+  environment: string,
+  chainName: ChainName,
+): string {
+  return `${environment}-rpc-endpoints-${chainName}`;
 }
 
 export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
@@ -291,20 +308,14 @@ export async function getSecretAwsCredentials(agentConfig: AgentContextConfig) {
   };
 }
 
-export async function getSecretRpcEndpoint(
+export async function getSecretRpcEndpoints(
   environment: string,
   chainName: ChainName,
-  quorum = false,
 ): Promise<string[]> {
-  const secret = await fetchGCPSecret(
-    `${environment}-rpc-endpoint${quorum ? 's' : ''}-${chainName}`,
-    quorum,
-  );
-  if (typeof secret != 'string' && !Array.isArray(secret)) {
-    throw Error(`Expected secret for ${chainName} rpc endpoint`);
-  }
+  const secret = await fetchGCPSecret(getSecretName(environment, chainName));
+
   if (!Array.isArray(secret)) {
-    return [secret.trimEnd()];
+    throw Error(`Expected secret for ${chainName} rpc endpoint`);
   }
 
   return secret.map((i) => {
@@ -312,6 +323,29 @@ export async function getSecretRpcEndpoint(
       throw new Error(`Expected string in rpc endpoint array for ${chainName}`);
     return i.trimEnd();
   });
+}
+
+export async function getSecretRpcEndpointsLatestVersionName(
+  environment: string,
+  chainName: ChainName,
+) {
+  return getGcpSecretLatestVersionName(getSecretName(environment, chainName));
+}
+
+export async function secretRpcEndpointsExist(
+  environment: string,
+  chainName: ChainName,
+): Promise<boolean> {
+  return gcpSecretExistsUsingClient(getSecretName(environment, chainName));
+}
+
+export async function setSecretRpcEndpoints(
+  environment: string,
+  chainName: ChainName,
+  endpoints: string,
+) {
+  const secretName = getSecretName(environment, chainName);
+  await setGCPSecretUsingClient(secretName, endpoints);
 }
 
 export async function getSecretDeployerKey(

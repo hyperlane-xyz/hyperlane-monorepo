@@ -1,68 +1,116 @@
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   BridgeAdapterConfig,
   ChainMap,
-  ChainMetadata,
   ChainName,
   CoreConfig,
-  HyperlaneEnvironment,
   IgpConfig,
+  MultiProtocolProvider,
   MultiProvider,
-  RpcConsensusType,
+  OwnableConfig,
+  RouterConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { mustGet, objKeys, objMap, objMerge } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { environments } from '../../config/environments';
-import { CloudAgentKey } from '../agents/keys';
-import { Role } from '../roles';
+import { Contexts } from '../../config/contexts.js';
+import { environments } from '../../config/environments/index.js';
+import { getHyperlaneCore } from '../../scripts/core-utils.js';
+import { CloudAgentKey } from '../agents/keys.js';
+import { Role } from '../roles.js';
 
-import { RootAgentConfig } from './agent';
-import { KeyFunderConfig } from './funding';
-import { AllStorageGasOracleConfigs } from './gas-oracle';
-import { HelloWorldConfig } from './helloworld/types';
-import { InfrastructureConfig } from './infrastructure';
-import { LiquidityLayerRelayerConfig } from './middleware';
+import { RootAgentConfig } from './agent/agent.js';
+import { CheckWarpDeployConfig, KeyFunderConfig } from './funding.js';
+import { HelloWorldConfig } from './helloworld/types.js';
+import { InfrastructureConfig } from './infrastructure.js';
+import { LiquidityLayerRelayerConfig } from './middleware.js';
 
-// TODO: fix this?
-export const EnvironmentNames = ['test', 'testnet4', 'mainnet3'];
 export type DeployEnvironment = keyof typeof environments;
 export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof (typeof environments)[E],
   ChainName
 >;
+export enum AgentEnvironment {
+  Testnet = 'testnet',
+  Mainnet = 'mainnet',
+}
+export const envNameToAgentEnv: Record<DeployEnvironment, AgentEnvironment> = {
+  test: AgentEnvironment.Testnet,
+  testnet4: AgentEnvironment.Testnet,
+  mainnet3: AgentEnvironment.Mainnet,
+};
 
 export type EnvironmentConfig = {
   environment: DeployEnvironment;
-  chainMetadataConfigs: ChainMap<ChainMetadata>;
+  supportedChainNames: ChainName[];
+  // Get the registry with or without environment-specific secrets.
+  getRegistry: (useSecrets?: boolean) => Promise<IRegistry>;
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;
   igp: ChainMap<IgpConfig>;
-  owners: ChainMap<Address>;
+  owners: ChainMap<OwnableConfig>;
   infra: InfrastructureConfig;
+  getMultiProtocolProvider: () => Promise<MultiProtocolProvider>;
   getMultiProvider: (
     context?: Contexts,
     role?: Role,
-    connectionType?: RpcConsensusType,
+    useSecrets?: boolean,
+    chains?: ChainName[],
   ) => Promise<MultiProvider>;
   getKeys: (
     context?: Contexts,
     role?: Role,
   ) => Promise<ChainMap<CloudAgentKey>>;
   helloWorld?: Partial<Record<Contexts, HelloWorldConfig>>;
-  keyFunderConfig?: KeyFunderConfig;
+  keyFunderConfig?: KeyFunderConfig<string[]>;
+  checkWarpDeployConfig?: CheckWarpDeployConfig;
   liquidityLayerConfig?: {
     bridgeAdapters: ChainMap<BridgeAdapterConfig>;
     relayer: LiquidityLayerRelayerConfig;
   };
-  storageGasOracleConfig?: AllStorageGasOracleConfigs;
 };
 
-export const deployEnvToSdkEnv: Record<
-  DeployEnvironment,
-  HyperlaneEnvironment
-> = {
-  test: 'testnet', // TODO: remove this
-  mainnet3: 'mainnet',
-  testnet4: 'testnet',
-};
+export function assertEnvironment(env: string): DeployEnvironment {
+  const envNames = objKeys(environments);
+  if (envNames.includes(env as any)) {
+    return env as DeployEnvironment;
+  }
+  throw new Error(`Invalid environment ${env}, must be one of ${envNames}`);
+}
+
+// Gets the router configs for all chains in the environment.
+// Relying solely on HyperlaneCore.getRouterConfig will result
+// in missing any non-EVM chains -- here we merge the two.
+export async function getRouterConfigsForAllVms(
+  envConfig: EnvironmentConfig,
+  multiProvider: MultiProvider,
+): Promise<ChainMap<RouterConfig>> {
+  const { core, chainAddresses } = await getHyperlaneCore(
+    envConfig.environment,
+    multiProvider,
+  );
+  const evmRouterConfig = core.getRouterConfig(envConfig.owners);
+
+  const allRouterConfigs: ChainMap<RouterConfig> = objMap(
+    chainAddresses,
+    (chain, addresses) => {
+      return {
+        mailbox: mustGet(addresses, 'mailbox'),
+        owner: mustGet(envConfig.owners, chain).owner,
+      };
+    },
+  );
+
+  // Merge, giving evmRouterConfig precedence
+  return objMerge(allRouterConfigs, evmRouterConfig);
+}
+
+export function getOwnerConfigForAddress(owner: string): OwnableConfig {
+  return {
+    owner,
+    // To ensure that any other overrides aren't applied
+    ownerOverrides: {
+      proxyAdmin: owner,
+    },
+  };
+}

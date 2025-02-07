@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:experimental
 
-FROM rust:1.72.1 as builder
+FROM rust:1.80.1 as builder
 WORKDIR /usr/src
 
 # 1a: Prepare for static linking
@@ -9,29 +9,34 @@ RUN apt-get update && \
     apt-get install -y musl-tools clang && \
     rustup target add x86_64-unknown-linux-musl
 
-# Add workspace to workdir 
-COPY agents ./agents
-COPY chains ./chains
-COPY hyperlane-base ./hyperlane-base 
-COPY hyperlane-core ./hyperlane-core
-COPY hyperlane-test ./hyperlane-test
-COPY ethers-prometheus ./ethers-prometheus
-COPY utils ./utils
-COPY sealevel ./sealevel
+RUN mkdir -p rust/main
+RUN mkdir -p rust/sealevel
 
-COPY Cargo.toml .
-COPY Cargo.lock .
+# Add workspace to workdir
+COPY rust/main/agents rust/main/agents
+COPY rust/main/chains rust/main/chains
+COPY rust/main/hyperlane-base rust/main/hyperlane-base
+COPY rust/main/hyperlane-core rust/main/hyperlane-core
+COPY rust/main/hyperlane-test rust/main/hyperlane-test
+COPY rust/main/ethers-prometheus rust/main/ethers-prometheus
+COPY rust/main/utils rust/main/utils
+COPY rust/sealevel rust/sealevel
+
+COPY rust/main/Cargo.toml rust/main/.
+COPY rust/main/Cargo.lock rust/main/.
+
+# Required for VERGEN_GIT_SHA to be populated
+COPY .git .git
+
+WORKDIR /usr/src/rust/main
 
 # Build binaries
 RUN \
-  --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
-  --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
-  --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
-    cargo build --release --bin validator --bin relayer --bin scraper && \
+    RUSTFLAGS="--cfg tokio_unstable" cargo build --release --bin validator --bin relayer --bin scraper && \
     mkdir -p /release && \
-    cp /usr/src/target/release/validator /release && \
-    cp /usr/src/target/release/relayer /release && \
-    cp /usr/src/target/release/scraper /release
+    cp /usr/src/rust/main/target/release/validator /release && \
+    cp /usr/src/rust/main/target/release/relayer /release && \
+    cp /usr/src/rust/main/target/release/scraper /release
 
 ## 2: Copy the binaries to release image
 FROM ubuntu:22.04
@@ -43,7 +48,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY config ./config
+RUN mkdir -p /app/config
+COPY rust/main/config /app/config
 COPY --from=builder /release/* .
 
 RUN chmod 777 /app &&  \

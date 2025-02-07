@@ -2,8 +2,8 @@ import terminalLink from 'terminal-link';
 
 import { toBase64 } from '@hyperlane-xyz/utils';
 
-import { logBlue, logGreen } from '../../logger.js';
-import { getContext } from '../context.js';
+import { CommandContext } from '../context/types.js';
+import { logBlue, logGreen } from '../logger.js';
 import {
   runMultiChainSelectionStep,
   runSingleChainSelectionStep,
@@ -11,29 +11,29 @@ import {
 import { readJson, runFileSelectionStep } from '../utils/files.js';
 
 export async function runKurtosisAgentDeploy({
+  context,
   originChain,
   relayChains,
-  chainConfigPath,
   agentConfigurationPath,
 }: {
-  originChain: string;
-  relayChains: string;
-  chainConfigPath: string;
-  agentConfigurationPath: string;
+  context: CommandContext;
+  originChain?: string;
+  relayChains?: string;
+  agentConfigurationPath?: string;
 }) {
-  const { customChains } = getContext(chainConfigPath);
-
+  // Future works: decide what to do with this, since its handled in MultiChainResolver - AGENT_KURTOSIS mode
   if (!originChain) {
     originChain = await runSingleChainSelectionStep(
-      customChains,
-      'Select the origin chain',
+      context.chainMetadata,
+      'Select the origin chain:',
     );
   }
   if (!relayChains) {
-    const selectedRelayChains = await runMultiChainSelectionStep(
-      customChains,
-      'Select chains to relay between',
-    );
+    const selectedRelayChains = await runMultiChainSelectionStep({
+      chainMetadata: context.chainMetadata,
+      message: 'Select chains to relay between',
+      requireNumber: 2,
+    });
     relayChains = selectedRelayChains.join(',');
   }
 
@@ -43,7 +43,7 @@ export async function runKurtosisAgentDeploy({
       'No agent config json was provided. Please specify the agent config json filepath.',
     );
     agentConfigurationPath = await runFileSelectionStep(
-      './artifacts',
+      './configs',
       'agent config json',
       'agent-config',
     );
@@ -66,8 +66,9 @@ export async function runKurtosisAgentDeploy({
   const kurtosisCloudUrl = getKurtosisCloudUrl(base64EncodedPackageConfig);
 
   const kurtosisCloudLink = terminalLink(
-    'Cmd+Click or Ctrl+Click here',
+    'Kurtosis Cloud Link 🔗 (cmd+click or ctrl+click here)',
     kurtosisCloudUrl,
+    { fallback: () => kurtosisCloudUrl },
   );
 
   logGreen(

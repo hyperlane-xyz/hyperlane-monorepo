@@ -1,0 +1,12 @@
+image:
+  repository: gcr.io/hyperlane-labs-dev/hyperlane-monorepo
+  tag:
+hyperlane:
+  runEnv: mainnet3
+  chains: []
+cronjob:
+  schedule: '0 15 * * *'
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+externalSecrets:
+  clusterSecretStore:

@@ -1,66 +1,52 @@
-import { confirm } from '@inquirer/prompts';
 import { ethers } from 'ethers';
 
-import { ERC20__factory } from '@hyperlane-xyz/core';
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
-export async function assertNativeBalances(
-  multiProvider: MultiProvider,
-  signer: ethers.Signer,
-  chains: ChainName[],
-  minBalanceWei: string,
-) {
-  const address = await signer.getAddress();
-  const minBalance = ethers.utils.formatEther(minBalanceWei.toString());
-  await Promise.all(
-    chains.map(async (chain) => {
-      const balanceWei = await multiProvider
-        .getProvider(chain)
-        .getBalance(address);
-      const balance = ethers.utils.formatEther(balanceWei);
-      if (balanceWei.lt(minBalanceWei)) {
-        const symbol =
-          multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH';
-        const error = `${address} has low balance on ${chain}. At least ${minBalance} recommended but found ${balance.toString()} ${symbol}`;
-        const isResume = await confirm({
-          message: `WARNING: ${error} Continue?`,
-        });
-        if (!isResume) throw new Error(error);
-      }
-    }),
-  );
-}
+import { autoConfirm } from '../config/prompts.js';
+import { logBlue, logGray, logGreen, logRed, warnYellow } from '../logger.js';
 
-export async function assertGasBalances(
+export async function nativeBalancesAreSufficient(
   multiProvider: MultiProvider,
-  signer: ethers.Signer,
   chains: ChainName[],
   minGas: string,
+  skipConfirmation: boolean,
 ) {
-  await Promise.all(
-    chains.map(async (chain) => {
-      const provider = multiProvider.getProvider(chain);
-      const gasPrice = await provider.getGasPrice();
-      const minBalanceWei = gasPrice.mul(minGas).toString();
-      await assertNativeBalances(multiProvider, signer, [chain], minBalanceWei);
-    }),
-  );
-}
+  const sufficientBalances: boolean[] = [];
+  for (const chain of chains) {
+    // Only Ethereum chains are supported
+    if (multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+      logGray(`Skipping balance check for non-EVM chain: ${chain}`);
+      continue;
+    }
+    const address = multiProvider.getSigner(chain).getAddress();
+    const provider = multiProvider.getProvider(chain);
+    const gasPrice = await provider.getGasPrice();
+    const minBalanceWei = gasPrice.mul(minGas).toString();
+    const minBalance = ethers.utils.formatEther(minBalanceWei.toString());
 
-export async function assertTokenBalance(
-  multiProvider: MultiProvider,
-  signer: ethers.Signer,
-  chain: ChainName,
-  token: Address,
-  minBalanceWei: string,
-) {
-  const address = await signer.getAddress();
-  const provider = multiProvider.getProvider(chain);
-  const tokenContract = ERC20__factory.connect(token, provider);
-  const balanceWei = await tokenContract.balanceOf(address);
-  if (balanceWei.lt(minBalanceWei))
-    throw new Error(
-      `${address} has insufficient balance on ${chain} for token ${token}. At least ${minBalanceWei} wei required but found ${balanceWei.toString()} wei`,
+    const balanceWei = await multiProvider
+      .getProvider(chain)
+      .getBalance(address);
+    const balance = ethers.utils.formatEther(balanceWei.toString());
+    if (balanceWei.lt(minBalanceWei)) {
+      const symbol =
+        multiProvider.getChainMetadata(chain).nativeToken?.symbol ?? 'ETH';
+      logRed(
+        `WARNING: ${address} has low balance on ${chain}. At least ${minBalance} ${symbol} recommended but found ${balance} ${symbol}`,
+      );
+      sufficientBalances.push(false);
+    }
+  }
+  const allSufficient = sufficientBalances.every((sufficient) => sufficient);
+
+  if (allSufficient) {
+    logGreen('✅ Balances are sufficient');
+  } else {
+    warnYellow(`Deployment may fail due to insufficient balance(s)`);
+    const isResume = await autoConfirm('Continue?', skipConfirmation, () =>
+      logBlue('Continuing deployment with insufficient balances'),
     );
+    if (!isResume) throw new Error('Canceled deployment due to low balance');
+  }
 }

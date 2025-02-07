@@ -4,19 +4,24 @@ import {
   CircleBridgeAdapter,
   LiquidityLayerRouter,
   PortalAdapter,
+  Router,
 } from '@hyperlane-xyz/core';
 import { Address, eqAddress, objFilter, objMap } from '@hyperlane-xyz/utils';
 
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
-} from '../../contracts/types';
-import { MultiProvider } from '../../providers/MultiProvider';
-import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer';
-import { RouterConfig } from '../../router/types';
-import { ChainMap, ChainName } from '../../types';
+} from '../../contracts/types.js';
+import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import { ProxiedRouterDeployer } from '../../router/ProxiedRouterDeployer.js';
+import { RouterConfig } from '../../router/types.js';
+import { ChainMap, ChainName } from '../../types.js';
 
-import { LiquidityLayerFactories, liquidityLayerFactories } from './contracts';
+import {
+  LiquidityLayerFactories,
+  liquidityLayerFactories,
+} from './contracts.js';
 
 export enum BridgeAdapterType {
   Circle = 'Circle',
@@ -52,26 +57,44 @@ export type LiquidityLayerConfig = RouterConfig & BridgeAdapterConfig;
 
 export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
   LiquidityLayerConfig,
-  LiquidityLayerFactories,
-  'liquidityLayerRouter'
+  LiquidityLayerFactories
 > {
-  readonly routerContractName = 'liquidityLayerRouter';
-
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, liquidityLayerFactories);
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
+  ) {
+    super(multiProvider, liquidityLayerFactories, {
+      contractVerifier,
+      concurrentDeploy,
+    });
   }
 
-  async constructorArgs(
+  routerContractName(): string {
+    return 'LiquidityLayerRouter';
+  }
+
+  routerContractKey<K extends keyof LiquidityLayerFactories>(
+    _: RouterConfig,
+  ): K {
+    return 'liquidityLayerRouter' as K;
+  }
+
+  router(contracts: HyperlaneContracts<LiquidityLayerFactories>): Router {
+    return contracts.liquidityLayerRouter;
+  }
+
+  async constructorArgs<K extends keyof LiquidityLayerFactories>(
     _: string,
     config: LiquidityLayerConfig,
-  ): Promise<[string]> {
-    return [config.mailbox];
+  ): Promise<Parameters<LiquidityLayerFactories[K]['deploy']>> {
+    return [config.mailbox] as any;
   }
 
   async initializeArgs(
     chain: string,
     config: LiquidityLayerConfig,
-  ): Promise<[string, string, string]> {
+  ): Promise<any> {
     const owner = await this.multiProvider.getSignerAddress(chain);
     if (typeof config.interchainSecurityModule === 'object') {
       throw new Error('ISM as object unimplemented');
@@ -88,10 +111,10 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
     configMap: ChainMap<LiquidityLayerConfig>,
     foreignRouters: ChainMap<Address>,
   ): Promise<void> {
-    this.logger(`Enroll LiquidityLayerRouters with each other`);
+    this.logger.debug(`Enroll LiquidityLayerRouters with each other`);
     await super.enrollRemoteRouters(contractsMap, configMap, foreignRouters);
 
-    this.logger(`Enroll CircleBridgeAdapters with each other`);
+    this.logger.debug(`Enroll CircleBridgeAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
       objMap(
@@ -108,7 +131,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
       foreignRouters,
     );
 
-    this.logger(`Enroll PortalAdapters with each other`);
+    this.logger.debug(`Enroll PortalAdapters with each other`);
     // Hack to allow use of super.enrollRemoteRouters
     await super.enrollRemoteRouters(
       objMap(
@@ -186,7 +209,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         await portalAdapter.hyperlaneDomainToWormholeDomain(hyperlaneDomain);
       if (expectedCircleDomain === wormholeDomain) continue;
 
-      this.logger(
+      this.logger.debug(
         `Set wormhole domain ${wormholeDomain} for hyperlane domain ${hyperlaneDomain}`,
       );
       await this.runIfOwner(chain, portalAdapter, () =>
@@ -203,7 +226,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         portalAdapter.address,
       )
     ) {
-      this.logger('Set Portal as LiquidityLayerAdapter on Router');
+      this.logger.debug('Set Portal as LiquidityLayerAdapter on Router');
       await this.runIfOwner(chain, portalAdapter, () =>
         this.multiProvider.handleTx(
           chain,
@@ -243,7 +266,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         adapterConfig.usdcAddress,
       )
     ) {
-      this.logger(`Set USDC token contract`);
+      this.logger.debug(`Set USDC token contract`);
       await this.runIfOwner(chain, circleBridgeAdapter, () =>
         this.multiProvider.handleTx(
           chain,
@@ -262,7 +285,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         );
       if (expectedCircleDomain === circleDomain) continue;
 
-      this.logger(
+      this.logger.debug(
         `Set circle domain ${circleDomain} for hyperlane domain ${hyperlaneDomain}`,
       );
       await this.runIfOwner(chain, circleBridgeAdapter, () =>
@@ -279,7 +302,7 @@ export class LiquidityLayerDeployer extends ProxiedRouterDeployer<
         circleBridgeAdapter.address,
       )
     ) {
-      this.logger('Set Circle as LiquidityLayerAdapter on Router');
+      this.logger.debug('Set Circle as LiquidityLayerAdapter on Router');
       await this.runIfOwner(chain, circleBridgeAdapter, () =>
         this.multiProvider.handleTx(
           chain,

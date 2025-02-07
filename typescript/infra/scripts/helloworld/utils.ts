@@ -4,37 +4,33 @@ import {
   helloWorldFactories,
 } from '@hyperlane-xyz/helloworld';
 import {
-  HyperlaneCore,
   HyperlaneIgp,
   MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
-  RpcConsensusType,
   attachContractsMap,
   attachContractsMapAndGetForeignDeployments,
   filterChainMapToProtocol,
-  hyperlaneEnvironments,
   igpFactories,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts';
-import { EnvironmentConfig } from '../../src/config';
-import { deployEnvToSdkEnv } from '../../src/config/environment';
-import { HelloWorldConfig } from '../../src/config/helloworld/types';
-import { Role } from '../../src/roles';
+import { Contexts } from '../../config/contexts.js';
+import { getEnvAddresses } from '../../config/registry.js';
+import { EnvironmentConfig } from '../../src/config/environment.js';
+import { HelloWorldConfig } from '../../src/config/helloworld/types.js';
+import { Role } from '../../src/roles.js';
+import { getHyperlaneCore } from '../core-utils.js';
 
 export async function getHelloWorldApp(
   coreConfig: EnvironmentConfig,
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
-    connectionType,
   );
   const helloworldConfig = getHelloWorldConfig(coreConfig, context);
 
@@ -45,8 +41,8 @@ export async function getHelloWorldApp(
       multiProvider,
     );
 
-  const core = HyperlaneCore.fromEnvironment(
-    deployEnvToSdkEnv[coreConfig.environment],
+  const { core } = await getHyperlaneCore(
+    coreConfig.environment,
     multiProvider,
   );
   return new HelloWorldApp(
@@ -62,15 +58,13 @@ export async function getHelloWorldMultiProtocolApp(
   context: Contexts,
   keyRole: Role,
   keyContext: Contexts = context,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
 ) {
   const multiProvider: MultiProvider = await coreConfig.getMultiProvider(
     keyContext,
     keyRole,
-    connectionType,
   );
-  const sdkEnvName = deployEnvToSdkEnv[coreConfig.environment];
-  const envAddresses = hyperlaneEnvironments[sdkEnvName];
+
+  const envAddresses = getEnvAddresses(coreConfig.environment);
   const keys = await coreConfig.getKeys(keyContext, keyRole);
 
   // Fetch all the keys, which is required to get the address for
@@ -101,21 +95,21 @@ export async function getHelloWorldMultiProtocolApp(
 
   // if (
   //   coreConfig.environment === 'mainnet3' &&
-  //   !multiProtocolProvider.getKnownChainNames().includes('solana')
+  //   !multiProtocolProvider.getKnownChainNames().includes('solanamainnet')
   // ) {
   //   multiProvider.addChain(chainMetadata.solana);
   //   multiProtocolProvider.addChain(chainMetadata.solana);
-  //   keys['solana'] = getKeyForRole(
+  //   keys['solanamainnet'] = getKeyForRole(
   //     coreConfig.environment,
   //     context,
-  //     'solana',
+  //     'solanamainnet',
   //     keyRole,
   //   );
-  //   await keys['solana'].fetch();
+  //   await keys['solanamainnet'].fetch();
   // }
 
   const core = MultiProtocolCore.fromAddressesMap(
-    envAddresses,
+    envAddresses as any,
     multiProtocolProvider,
   );
 
@@ -128,12 +122,12 @@ export async function getHelloWorldMultiProtocolApp(
     }),
   );
   const app = new HelloMultiProtocolApp(
-    multiProtocolProvider,
+    multiProtocolProvider.intersect(Object.keys(routersAndMailboxes)).result,
     routersAndMailboxes,
   );
 
   // TODO we need a MultiProtocolIgp
-  // Using an standard IGP for just evm chains for now
+  // Using a standard IGP for just evm chains for now
   // Unfortunately this requires hacking surgically around certain addresses
   const filteredAddresses = filterChainMapToProtocol(
     envAddresses,
@@ -155,6 +149,21 @@ export function getHelloWorldConfig(
     throw new Error(
       `Environment ${coreConfig.environment} does not have a HelloWorld config`,
     );
+  }
+  const config = helloWorldConfigs[context];
+  if (!config) {
+    throw new Error(`Context ${context} does not have a HelloWorld config`);
+  }
+  return config;
+}
+
+// for create-key, you don't want to fetch the multisig[chain].validators.threshold for yet to be created multisigs
+export function getJustHelloWorldConfig(
+  helloWorldConfigs: Partial<Record<Contexts, HelloWorldConfig>> | undefined,
+  context: Contexts,
+): HelloWorldConfig {
+  if (!helloWorldConfigs) {
+    throw new Error(`Environment does not have a HelloWorld config`);
   }
   const config = helloWorldConfigs[context];
   if (!config) {

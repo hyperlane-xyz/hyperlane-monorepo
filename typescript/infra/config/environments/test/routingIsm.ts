@@ -1,6 +1,6 @@
 import { IsmType, RoutingIsmConfig } from '@hyperlane-xyz/sdk';
 
-import { multisigIsm } from './multisigIsm';
+import { multisigIsm } from './multisigIsm.js';
 
 export const routingIsm = (
   local_chain: string,

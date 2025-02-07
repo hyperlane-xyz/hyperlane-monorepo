@@ -22,6 +22,7 @@ use hyperlane_sealevel_mailbox::{
     accounts::{DispatchedMessage, DispatchedMessageAccount},
     mailbox_dispatched_message_pda_seeds, mailbox_message_dispatch_authority_pda_seeds,
     mailbox_process_authority_pda_seeds,
+    protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction,
@@ -148,11 +149,11 @@ async fn initialize_hyperlane_token(
             .encode()
             .unwrap(),
             vec![
-                // 0. [executable] The system program.
-                // 1. [writable] The token PDA account.
-                // 2. [writable] The dispatch authority PDA account.
-                // 3. [signer] The payer and mailbox payer.
-                // 4. [writable] The native collateral PDA account.
+                // 0. `[executable]` The system program.
+                // 1. `[writable]` The token PDA account.
+                // 2. `[writable]` The dispatch authority PDA account.
+                // 3. `[signer]` The payer and mailbox payer.
+                // 4. `[writable]` The native collateral PDA account.
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new(token_account_key, false),
                 AccountMeta::new(dispatch_authority_key, false),
@@ -263,10 +264,16 @@ async fn test_initialize() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
-            .await
-            .unwrap();
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
 
     let igp_accounts =
         initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
@@ -349,10 +356,16 @@ async fn test_transfer_remote() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
-            .await
-            .unwrap();
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
 
     let igp_accounts =
         initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
@@ -416,24 +429,24 @@ async fn test_transfer_remote() {
             })
             .encode()
             .unwrap(),
-            // 0.   [executable] The system program.
-            // 1.   [executable] The spl_noop program.
-            // 2.   [] The token PDA account.
-            // 3.   [executable] The mailbox program.
-            // 4.   [writeable] The mailbox outbox account.
-            // 5.   [] Message dispatch authority.
-            // 6.   [signer] The token sender and mailbox payer.
-            // 7.   [signer] Unique message / gas payment account.
-            // 8.   [writeable] Message storage PDA.
+            // 0.   `[executable]` The system program.
+            // 1.   `[executable]` The spl_noop program.
+            // 2.   `[]` The token PDA account.
+            // 3.   `[executable]` The mailbox program.
+            // 4.   `[writeable]` The mailbox outbox account.
+            // 5.   `[]` Message dispatch authority.
+            // 6.   `[signer]` The token sender and mailbox payer.
+            // 7.   `[signer]` Unique message / gas payment account.
+            // 8.   `[writeable]` Message storage PDA.
             //      ---- If using an IGP ----
-            // 9.   [executable] The IGP program.
-            // 10.  [writeable] The IGP program data.
-            // 11.  [writeable] Gas payment PDA.
-            // 12.  [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-            // 13.  [writeable] The IGP account.
+            // 9.   `[executable]` The IGP program.
+            // 10.  `[writeable]` The IGP program data.
+            // 11.  `[writeable]` Gas payment PDA.
+            // 12.  `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+            // 13.  `[writeable]` The IGP account.
             //      ---- End if ----
-            // 14.  [executable] The system program.
-            // 15.  [writeable] The native token collateral PDA account.
+            // 14.  `[executable]` The system program.
+            // 15.  `[writeable]` The native token collateral PDA account.
             vec![
                 AccountMeta::new_readonly(solana_program::system_program::id(), false),
                 AccountMeta::new_readonly(spl_noop::id(), false),
@@ -510,7 +523,7 @@ async fn test_transfer_remote() {
         .unwrap();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: LOCAL_DOMAIN,
         sender: program_id.to_bytes().into(),
@@ -568,10 +581,16 @@ async fn transfer_from_remote(
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
-            .await
-            .unwrap();
+    let mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
 
     let igp_accounts =
         initialize_igp_accounts(&mut banks_client, &igp_program_id(), &payer, REMOTE_DOMAIN)
@@ -616,7 +635,7 @@ async fn transfer_from_remote(
     let recipient: H256 = recipient_pubkey.to_bytes().into();
 
     let message = HyperlaneMessage {
-        version: 0,
+        version: 3,
         nonce: 0,
         origin: origin_override.unwrap_or(REMOTE_DOMAIN),
         // Default to the remote router as the sender
@@ -722,10 +741,16 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
 
     let (mut banks_client, payer) = setup_client().await;
 
-    let _mailbox_accounts =
-        initialize_mailbox(&mut banks_client, &mailbox_program_id, &payer, LOCAL_DOMAIN)
-            .await
-            .unwrap();
+    let _mailbox_accounts = initialize_mailbox(
+        &mut banks_client,
+        &mailbox_program_id,
+        &payer,
+        LOCAL_DOMAIN,
+        ONE_SOL_IN_LAMPORTS,
+        ProtocolFee::default(),
+    )
+    .await
+    .unwrap();
 
     let hyperlane_token_accounts =
         initialize_hyperlane_token(&program_id, &mut banks_client, &payer, None)
@@ -762,12 +787,12 @@ async fn test_transfer_from_remote_errors_if_process_authority_not_signer() {
             .unwrap(),
             vec![
                 // Recipient.handle accounts
-                // 0.   [signer] Mailbox processor authority specific to this program.
-                // 1.   [executable] system_program
-                // 2.   [] hyperlane_token storage
-                // 3.   [writeable] recipient wallet address
-                // 4.   [executable] The system program.
-                // 5.   [writeable] The native token collateral PDA account.
+                // 0.   `[signer]` Mailbox processor authority specific to this program.
+                // 1.   `[executable]` system_program
+                // 2.   `[]` hyperlane_token storage
+                // 3.   `[writeable]` recipient wallet address
+                // 4.   `[executable]` The system program.
+                // 5.   `[writeable]` The native token collateral PDA account.
                 AccountMeta::new_readonly(
                     hyperlane_token_accounts.mailbox_process_authority,
                     false,

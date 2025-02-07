@@ -1,17 +1,18 @@
-import debug from 'debug';
+import { objMap, rootLogger } from '@hyperlane-xyz/utils';
 
-import { objMap } from '@hyperlane-xyz/utils';
-
-import { connectContracts, serializeContracts } from '../contracts/contracts';
+import {
+  connectContracts,
+  serializeContracts,
+} from '../contracts/contracts.js';
 import {
   HyperlaneAddresses,
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
-import { MultiGeneric } from '../utils/MultiGeneric';
+} from '../contracts/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
+import { MultiGeneric } from '../utils/MultiGeneric.js';
 
 export class HyperlaneApp<
   Factories extends HyperlaneFactories,
@@ -21,7 +22,7 @@ export class HyperlaneApp<
   constructor(
     contractsMap: HyperlaneContractsMap<Factories>,
     public readonly multiProvider: MultiProvider,
-    public readonly logger = debug('hyperlane:App'),
+    public readonly logger = rootLogger.child({ module: 'App' }),
   ) {
     const connectedContractsMap = objMap(contractsMap, (chain, contracts) =>
       connectContracts(contracts, multiProvider.getSignerOrProvider(chain)),

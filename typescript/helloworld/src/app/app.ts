@@ -9,12 +9,12 @@ import {
   MultiProvider,
   RouterApp,
 } from '@hyperlane-xyz/sdk';
-import { Address, debug } from '@hyperlane-xyz/utils';
+import { Address, addBufferToGasLimit, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HelloWorld } from '../types';
+import { HelloWorld } from '../types/index.js';
 
-import { HelloWorldFactories } from './contracts';
-import { StatCounts } from './types';
+import { HelloWorldFactories } from './contracts.js';
+import { StatCounts } from './types.js';
 
 export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   constructor(
@@ -23,7 +23,12 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
     multiProvider: MultiProvider,
     foreignDeployments: ChainMap<Address> = {},
   ) {
-    super(contractsMap, multiProvider, undefined, foreignDeployments);
+    super(
+      contractsMap,
+      multiProvider,
+      rootLogger.child({ module: 'HelloWorldApp' }),
+      foreignDeployments,
+    );
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
@@ -47,21 +52,20 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
       message,
       { ...transactionOverrides, value },
     );
-    const gasLimit = estimated.mul(12).div(10);
 
     const quote = await sender.quoteDispatch(toDomain, message);
     const tx = await sender.sendHelloWorld(toDomain, message, {
+      gasLimit: addBufferToGasLimit(estimated),
       ...transactionOverrides,
-      gasLimit,
       value: value.add(quote),
     });
-    debug('Sending hello message', {
+    this.logger.info('Sending hello message', {
       from,
       to,
       message,
       tx,
     });
-    return tx.wait(blocks?.confirmations || 1);
+    return tx.wait(blocks?.confirmations ?? 1);
   }
 
   async waitForMessageReceipt(
@@ -90,8 +94,9 @@ export class HelloWorldApp extends RouterApp<HelloWorldFactories> {
   async stats(): Promise<ChainMap<ChainMap<StatCounts>>> {
     const entries: Array<[ChainName, ChainMap<StatCounts>]> = await Promise.all(
       this.chains().map(async (source) => {
+        const remoteChains = await this.remoteChains(source);
         const destinationEntries = await Promise.all(
-          this.remoteChains(source).map(async (destination) => [
+          remoteChains.map(async (destination) => [
             destination,
             await this.channelStats(source, destination),
           ]),

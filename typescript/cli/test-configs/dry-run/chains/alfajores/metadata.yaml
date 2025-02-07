@@ -1,0 +1,13 @@
+chainId: 44787
+domainId: 44787
+name: alfajores
+nativeToken:
+  decimals: 18
+  name: CELO
+  symbol: CELO
+protocol: ethereum
+rpcUrls:
+  - http: https://alfajores-forno.celo-testnet.org
+blocks:
+  confirmations: 1
+  estimateBlockTime: 1

@@ -1,55 +1,35 @@
-import { ChainMap, ChainMetadata, chainMetadata } from '@hyperlane-xyz/sdk';
+import { IRegistry } from '@hyperlane-xyz/registry';
+import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
 
-import { AgentChainNames, Role } from '../../../src/roles';
+import { getRegistryForEnvironment } from '../../../src/config/chain.js';
+import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
 
-// Blessed
-export const ethereumTestnetConfigs: ChainMap<ChainMetadata> = {
-  alfajores: chainMetadata.alfajores,
-  basegoerli: chainMetadata.basegoerli,
-  fuji: chainMetadata.fuji,
-  mumbai: {
-    ...chainMetadata.mumbai,
-    transactionOverrides: {
-      maxFeePerGas: 150 * 10 ** 9, // 70 gwei
-      maxPriorityFeePerGas: 40 * 10 ** 9, // 40 gwei
-    },
-  },
-  bsctestnet: chainMetadata.bsctestnet,
-  goerli: chainMetadata.goerli,
-  scrollsepolia: chainMetadata.scrollsepolia,
-  sepolia: chainMetadata.sepolia,
-  moonbasealpha: chainMetadata.moonbasealpha,
-  optimismgoerli: chainMetadata.optimismgoerli,
-  arbitrumgoerli: chainMetadata.arbitrumgoerli,
-  polygonzkevmtestnet: chainMetadata.polygonzkevmtestnet,
-};
+import { supportedChainNames } from './supportedChainNames.js';
 
-// Blessed non-Ethereum chains.
-export const nonEthereumTestnetConfigs: ChainMap<ChainMetadata> = {
-  // solanadevnet: chainMetadata.solanadevnet,
-  // neutrontestnet: chainMetadata.neutrontestnet,
-};
-
-export const testnetConfigs: ChainMap<ChainMetadata> = {
-  ...ethereumTestnetConfigs,
-  ...nonEthereumTestnetConfigs,
-};
-
-export type TestnetChains = keyof typeof testnetConfigs;
-export const supportedChainNames = Object.keys(
-  testnetConfigs,
-) as TestnetChains[];
 export const environment = 'testnet4';
 
-export const ethereumChainNames = Object.keys(
-  ethereumTestnetConfigs,
-) as TestnetChains[];
+export const ethereumChainNames = supportedChainNames.filter(
+  isEthereumProtocolChain,
+);
 
-// Hyperlane & RC context agent chain names.
-export const agentChainNames: AgentChainNames = {
-  // Run validators for all chains.
-  [Role.Validator]: supportedChainNames,
-  // Only run relayers for Ethereum chains at the moment.
-  [Role.Relayer]: ethereumChainNames,
-  [Role.Scraper]: ethereumChainNames,
+export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
+  bsctestnet: {
+    transactionOverrides: {
+      gasPrice: 8 * 10 ** 9, // 8 gwei
+    },
+  },
+  // deploy-only overrides
+  // scrollsepolia: {
+  //   transactionOverrides: {
+  //     gasPrice: 0.5 * 10 ** 9, // 0.5 gwei
+  //   },
+  // },
 };
+
+export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+  getRegistryForEnvironment(
+    environment,
+    supportedChainNames,
+    chainMetadataOverrides,
+    useSecrets,
+  );

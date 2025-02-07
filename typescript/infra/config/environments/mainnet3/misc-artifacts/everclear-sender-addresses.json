@@ -1,0 +1,20 @@
+{
+  "everclear": {
+    "sender": "0xEFfAB7cCEBF63FbEFB4884964b12259d4374FaAa"
+  },
+  "ethereum": {
+    "sender": "0x9ADA72CCbAfe94248aFaDE6B604D1bEAacc899A7"
+  },
+  "optimism": {
+    "sender": "0x9ADA72CCbAfe94248aFaDE6B604D1bEAacc899A7"
+  },
+  "bsc": {
+    "sender": "0x9ADA72CCbAfe94248aFaDE6B604D1bEAacc899A7"
+  },
+  "base": {
+    "sender": "0x9ADA72CCbAfe94248aFaDE6B604D1bEAacc899A7"
+  },
+  "arbitrum": {
+    "sender": "0x9ADA72CCbAfe94248aFaDE6B604D1bEAacc899A7"
+  }
+}

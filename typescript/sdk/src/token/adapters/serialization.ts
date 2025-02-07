@@ -5,12 +5,12 @@ import { Domain } from '@hyperlane-xyz/utils';
 import {
   SealevelInterchainGasPaymasterConfig,
   SealevelInterchainGasPaymasterConfigSchema,
-} from '../../gas/adapters/serialization';
+} from '../../gas/adapters/serialization.js';
 import {
   SealevelAccountDataWrapper,
   SealevelInstructionWrapper,
   getSealevelAccountDataSchema,
-} from '../../utils/sealevelSerialization';
+} from '../../utils/sealevelSerialization.js';
 
 /**
  * Hyperlane Token Borsh Schema

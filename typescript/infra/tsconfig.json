@@ -1,11 +1,15 @@
 {
+  "extends": "../tsconfig.json",
   "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
     "outDir": "./dist/",
     "rootDir": "./",
     "noUnusedLocals": false,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
-  "extends": "../tsconfig.json",
   "include": [
     "./*.ts",
     "./config/**/*.ts",

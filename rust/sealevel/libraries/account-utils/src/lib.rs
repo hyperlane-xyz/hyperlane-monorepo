@@ -93,7 +93,7 @@ where
         Ok(Self::from(Self::fetch_data(buf)?.unwrap_or_default()))
     }
 
-    // Optimisically write then realloc on failure.
+    // Optimistically write then realloc on failure.
     // If we serialize and calculate len before realloc we will waste heap space as there is no
     // free(). Tradeoff between heap usage and compute budget.
     pub fn store(
@@ -128,6 +128,7 @@ where
                 data_len
             };
 
+            #[allow(unexpected_cfgs)] // TODO: `rustc` 1.80.1 issue
             if cfg!(target_os = "solana") {
                 account.realloc(data_len + realloc_increment, false)?;
             } else {
@@ -193,7 +194,7 @@ where
 /// Creates associated token account using Program Derived Address for the given seeds.
 /// Required to allow PDAs to be created even if they already have a lamport balance.
 ///
-/// Borrowed from https://github.com/solana-labs/solana-program-library/blob/cf77ed0c187d1becd0db56edff4491c28f18dfc8/associated-token-account/program/src/tools/account.rs#L18
+/// Borrowed from `<https://github.com/solana-labs/solana-program-library/blob/cf77ed0c187d1becd0db56edff4491c28f18dfc8/associated-token-account/program/src/tools/account.rs#L18>`
 pub fn create_pda_account<'a>(
     payer: &AccountInfo<'a>,
     rent: &Rent,

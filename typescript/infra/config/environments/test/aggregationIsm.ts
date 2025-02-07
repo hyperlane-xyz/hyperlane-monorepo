@@ -1,6 +1,6 @@
 import { AggregationIsmConfig, IsmType } from '@hyperlane-xyz/sdk';
 
-import { merkleRootMultisig, messageIdMultisig } from './multisigIsm';
+import { merkleRootMultisig, messageIdMultisig } from './multisigIsm.js';
 
 export const aggregationIsm = (validatorKey: string): AggregationIsmConfig => {
   return {

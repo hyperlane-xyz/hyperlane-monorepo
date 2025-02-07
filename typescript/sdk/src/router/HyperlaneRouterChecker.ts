@@ -1,29 +1,29 @@
-import { ConnectionClientViolation } from '..';
 import { ethers } from 'ethers';
-import { zeroAddress } from 'viem';
 
-import { IMailbox__factory } from '@hyperlane-xyz/core';
-import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
-
-import { HyperlaneFactories } from '../contracts/types';
-import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker';
 import {
-  HyperlaneIsmFactory,
-  moduleMatchesConfig,
-} from '../ism/HyperlaneIsmFactory';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainMap, ChainName } from '../types';
+  AddressBytes32,
+  addressToBytes32,
+  eqAddress,
+  isZeroishAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
-import { RouterApp } from './RouterApps';
+import { HyperlaneFactories } from '../contracts/types.js';
+import { HyperlaneAppChecker } from '../deploy/HyperlaneAppChecker.js';
+import { DerivedIsmConfig, EvmIsmReader } from '../ism/EvmIsmReader.js';
+import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { moduleMatchesConfig } from '../ism/utils.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainMap, ChainName } from '../types.js';
+
+import { RouterApp } from './RouterApps.js';
 import {
   ClientViolation,
   ClientViolationType,
-  MailboxClientConfig,
-  OwnableConfig,
   RouterConfig,
   RouterViolation,
   RouterViolationType,
-} from './types';
+} from './types.js';
 
 export class HyperlaneRouterChecker<
   Factories extends HyperlaneFactories,
@@ -35,6 +35,7 @@ export class HyperlaneRouterChecker<
     app: App,
     configMap: ChainMap<Config>,
     readonly ismFactory?: HyperlaneIsmFactory,
+    readonly logger = rootLogger.child({ module: 'HyperlaneRouterChecker' }),
   ) {
     super(multiProvider, app, configMap);
   }
@@ -42,127 +43,126 @@ export class HyperlaneRouterChecker<
   async checkChain(chain: ChainName): Promise<void> {
     await this.checkMailboxClient(chain);
     await this.checkEnrolledRouters(chain);
-    await super.checkOwnership(chain, this.configMap[chain].owner);
+    await super.checkOwnership(
+      chain,
+      this.configMap[chain].owner,
+      this.configMap[chain].ownerOverrides,
+    );
   }
 
   async checkMailboxClient(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
 
-    const checkMailboxClientProperty = async (
-      property: keyof (MailboxClientConfig & OwnableConfig),
-      actual: string,
-      violationType: ClientViolationType,
-    ) => {
-      const value = this.configMap[chain][property];
-
-      // If the value is an object, it's an ISM config
-      // and we should make sure it matches the actual ISM config
-      if (value && typeof value === 'object') {
-        if (!this.ismFactory) {
-          throw Error(
-            'ISM factory not provided to HyperlaneRouterChecker, cannot check object-based ISM config',
-          );
-        }
-
-        const matches = await moduleMatchesConfig(
-          chain,
-          actual,
-          value,
-          this.multiProvider,
-          this.ismFactory!.chainMap[chain],
-        );
-
-        if (!matches) {
-          const violation: ConnectionClientViolation = {
-            chain,
-            type: violationType,
-            contract: router,
-            actual,
-            expected: value,
-            description: `ISM config does not match deployed ISM`,
-          };
-          this.addViolation(violation);
-        }
-        return;
-      }
-      const expected =
-        value && typeof value === 'string'
-          ? value
-          : ethers.constants.AddressZero;
-      if (!eqAddress(actual, expected)) {
-        const violation: ClientViolation = {
-          chain,
-          type: violationType,
-          contract: router,
-          actual,
-          expected,
-        };
-        this.addViolation(violation);
-      }
-    };
+    const config = this.configMap[chain];
 
     const mailboxAddr = await router.mailbox();
-    await checkMailboxClientProperty(
-      'mailbox',
-      mailboxAddr,
-      ClientViolationType.Mailbox,
-    );
-    await checkMailboxClientProperty(
-      'hook',
-      await router.hook(),
-      ClientViolationType.Hook,
-    );
+    if (!eqAddress(mailboxAddr, config.mailbox)) {
+      this.addViolation({
+        chain,
+        type: ClientViolationType.Mailbox,
+        contract: router,
+        actual: mailboxAddr,
+        expected: config.mailbox,
+      });
+    }
 
-    const mailbox = IMailbox__factory.connect(
-      mailboxAddr,
-      this.multiProvider.getProvider(chain),
-    );
-    const ism = await mailbox.recipientIsm(router.address);
-
-    if (
-      !this.configMap[chain].interchainSecurityModule ||
-      this.configMap[chain].interchainSecurityModule === zeroAddress
-    ) {
-      const defaultIsm = await mailbox.defaultIsm();
-      if (!eqAddress(defaultIsm, ism)) {
+    if (config.hook && typeof config.hook === 'string') {
+      const hook = await router.hook();
+      if (!eqAddress(hook, config.hook as string)) {
         this.addViolation({
           chain,
-          type: ClientViolationType.InterchainSecurityModule,
+          type: ClientViolationType.Hook,
           contract: router,
-          actual: ism,
-          expected: zeroAddress,
+          actual: hook,
+          expected: config.hook,
         });
       }
-    } else {
-      await checkMailboxClientProperty(
-        'interchainSecurityModule',
-        ism,
-        ClientViolationType.InterchainSecurityModule,
-      );
+    }
+
+    const actualIsmAddress = await router.interchainSecurityModule();
+
+    const matches = await moduleMatchesConfig(
+      chain,
+      actualIsmAddress,
+      config.interchainSecurityModule ?? ethers.constants.AddressZero,
+      this.multiProvider,
+      this.ismFactory?.chainMap[chain] ?? ({} as any),
+      mailboxAddr,
+    );
+
+    if (!matches) {
+      const ismReader = new EvmIsmReader(this.multiProvider, chain);
+      let actualConfig: string | DerivedIsmConfig =
+        ethers.constants.AddressZero;
+      if (actualIsmAddress !== ethers.constants.AddressZero) {
+        actualConfig = await ismReader.deriveIsmConfig(actualIsmAddress);
+      }
+
+      let expectedConfig = config.interchainSecurityModule;
+
+      if (
+        typeof expectedConfig === 'string' &&
+        !isZeroishAddress(expectedConfig)
+      ) {
+        expectedConfig = await ismReader.deriveIsmConfig(expectedConfig);
+      }
+
+      if (expectedConfig === undefined) {
+        expectedConfig = ethers.constants.AddressZero;
+      }
+
+      const violation: ClientViolation = {
+        chain,
+        type: ClientViolationType.InterchainSecurityModule,
+        contract: router,
+        actual: actualConfig,
+        expected: expectedConfig,
+        description: `ISM config does not match deployed ISM`,
+      };
+      this.addViolation(violation);
     }
   }
 
   async checkEnrolledRouters(chain: ChainName): Promise<void> {
     const router = this.app.router(this.app.getContracts(chain));
+    const remoteChains = await this.app.remoteChains(chain);
+    const currentRouters: ChainMap<string> = {};
+    const expectedRouters: ChainMap<string> = {};
+    const routerDiff: ChainMap<{
+      actual: AddressBytes32;
+      expected: AddressBytes32;
+    }> = {};
 
     await Promise.all(
-      this.app.remoteChains(chain).map(async (remoteChain) => {
+      remoteChains.map(async (remoteChain) => {
         const remoteRouterAddress = this.app.routerAddress(remoteChain);
         const remoteDomainId = this.multiProvider.getDomainId(remoteChain);
         const actualRouter = await router.routers(remoteDomainId);
         const expectedRouter = addressToBytes32(remoteRouterAddress);
+
+        currentRouters[remoteChain] = actualRouter;
+        expectedRouters[remoteChain] = expectedRouter;
+
         if (actualRouter !== expectedRouter) {
-          const violation: RouterViolation = {
-            chain,
-            remoteChain,
-            type: RouterViolationType.EnrolledRouter,
-            contract: router,
+          routerDiff[remoteChain] = {
             actual: actualRouter,
             expected: expectedRouter,
           };
-          this.addViolation(violation);
         }
       }),
     );
+
+    if (Object.keys(routerDiff).length > 0) {
+      const violation: RouterViolation = {
+        chain,
+        type: RouterViolationType.EnrolledRouter,
+        contract: router,
+        actual: currentRouters,
+        expected: expectedRouters,
+        routerDiff,
+        description: `Routers for some domains are missing or not enrolled correctly`,
+      };
+      this.addViolation(violation);
+    }
   }
 }

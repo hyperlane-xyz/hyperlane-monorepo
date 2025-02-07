@@ -4,90 +4,155 @@ import {
   AggregationHookConfig,
   AggregationIsmConfig,
   ChainMap,
+  ChainTechnicalStack,
   CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
-  IgpHookConfig,
+  IgpConfig,
   IsmType,
   MerkleTreeHookConfig,
   MultisigConfig,
   MultisigIsmConfig,
+  PausableHookConfig,
+  PausableIsmConfig,
   ProtocolFeeHookConfig,
   RoutingIsmConfig,
   defaultMultisigConfigs,
+  multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { objMap } from '@hyperlane-xyz/utils';
+import { Address, ProtocolType, objMap } from '@hyperlane-xyz/utils';
 
-import { supportedChainNames } from './chains';
-import { igp } from './igp';
-import { owners } from './owners';
+import { getChain } from '../../registry.js';
 
-export const core: ChainMap<CoreConfig> = objMap(owners, (local, owner) => {
-  const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
-    supportedChainNames
-      .filter((chain) => chain !== local)
-      .map((origin) => [origin, defaultMultisigConfigs[origin]]),
-  );
+import { igp } from './igp.js';
+import { owners } from './owners.js';
+import { supportedChainNames } from './supportedChainNames.js';
 
-  const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig => ({
-    type: IsmType.MERKLE_ROOT_MULTISIG,
-    ...multisig,
-  });
+export const core: ChainMap<CoreConfig> = objMap(
+  owners,
+  (local, ownerConfig) => {
+    const originMultisigs: ChainMap<MultisigConfig> = Object.fromEntries(
+      supportedChainNames
+        .filter((chain) => getChain(chain).protocol === ProtocolType.Ethereum)
+        .filter((chain) => chain !== local)
+        .map((origin) => [origin, defaultMultisigConfigs[origin]]),
+    );
 
-  const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig => ({
-    type: IsmType.MESSAGE_ID_MULTISIG,
-    ...multisig,
-  });
+    const isZksyncChain =
+      getChain(local).technicalStack === ChainTechnicalStack.ZkSync;
 
-  const defaultIsm: RoutingIsmConfig = {
-    type: IsmType.ROUTING,
-    domains: objMap(
+    // zkSync uses a different ISM for the merkle root
+    const merkleRoot = (multisig: MultisigConfig): MultisigIsmConfig =>
+      multisigConfigToIsmConfig(
+        isZksyncChain
+          ? IsmType.STORAGE_MERKLE_ROOT_MULTISIG
+          : IsmType.MERKLE_ROOT_MULTISIG,
+        multisig,
+      );
+
+    // zkSync uses a different ISM for the message ID
+    const messageIdIsm = (multisig: MultisigConfig): MultisigIsmConfig =>
+      multisigConfigToIsmConfig(
+        isZksyncChain
+          ? IsmType.STORAGE_MESSAGE_ID_MULTISIG
+          : IsmType.MESSAGE_ID_MULTISIG,
+        multisig,
+      );
+
+    const routingIsm: RoutingIsmConfig = {
+      type: IsmType.ROUTING,
+      domains: objMap(
+        originMultisigs,
+        (_, multisig): AggregationIsmConfig => ({
+          type: IsmType.AGGREGATION,
+          modules: [messageIdIsm(multisig), merkleRoot(multisig)],
+          threshold: 1,
+        }),
+      ),
+      ...ownerConfig,
+    };
+
+    // No static aggregation ISM support on zkSync
+    const defaultZkSyncIsm = (): RoutingIsmConfig => ({
+      type: IsmType.ROUTING,
+      domains: objMap(
+        originMultisigs,
+        (_, multisig): MultisigIsmConfig => messageIdIsm(multisig),
+      ),
+      ...ownerConfig,
+    });
+
+    const pausableIsm: PausableIsmConfig = {
+      type: IsmType.PAUSABLE,
+      paused: false,
+      ...ownerConfig,
+    };
+
+    // No static aggregation ISM support on zkSync
+    const defaultIsm: AggregationIsmConfig | RoutingIsmConfig = isZksyncChain
+      ? defaultZkSyncIsm()
+      : {
+          type: IsmType.AGGREGATION,
+          modules: [routingIsm, pausableIsm],
+          threshold: 2,
+        };
+
+    const merkleHook: MerkleTreeHookConfig = {
+      type: HookType.MERKLE_TREE,
+    };
+
+    const igpHook = igp[local];
+
+    const pausableHook: PausableHookConfig = {
+      type: HookType.PAUSABLE,
+      paused: false,
+      ...ownerConfig,
+    };
+
+    // No static aggregation hook support on zkSync
+    const defaultHookDomains = objMap(
       originMultisigs,
-      (_, multisig): AggregationIsmConfig => ({
-        type: IsmType.AGGREGATION,
-        modules: [messageIdIsm(multisig), merkleRoot(multisig)],
-        threshold: 1,
-      }),
-    ),
-    owner,
-  };
+      (_origin, _): AggregationHookConfig | IgpConfig => {
+        return isZksyncChain
+          ? igpHook
+          : {
+              type: HookType.AGGREGATION,
+              hooks: [pausableHook, merkleHook, igpHook],
+            };
+      },
+    );
 
-  const merkleHook: MerkleTreeHookConfig = {
-    type: HookType.MERKLE_TREE,
-  };
+    const defaultHook: FallbackRoutingHookConfig = {
+      type: HookType.FALLBACK_ROUTING,
+      ...ownerConfig,
+      domains: defaultHookDomains,
+      fallback: merkleHook,
+    };
 
-  const igpHook: IgpHookConfig = {
-    type: HookType.INTERCHAIN_GAS_PAYMASTER,
-    ...igp[local],
-  };
+    if (typeof ownerConfig.owner !== 'string') {
+      throw new Error('beneficiary must be a string');
+    }
 
-  const aggregationHooks = objMap(
-    originMultisigs,
-    (_origin, _): AggregationHookConfig => ({
-      type: HookType.AGGREGATION,
-      hooks: [igpHook, merkleHook],
-    }),
-  );
+    // No aggregation hook support on zkSync, so we ignore protocolFee
+    // and make the merkleTreeHook required
+    const requiredHook: ProtocolFeeHookConfig | MerkleTreeHookConfig =
+      isZksyncChain
+        ? {
+            type: HookType.MERKLE_TREE,
+          }
+        : {
+            type: HookType.PROTOCOL_FEE,
+            maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
+            protocolFee: BigNumber.from(1).toString(), // 1 wei of native token
+            beneficiary: ownerConfig.owner as Address,
+            ...ownerConfig,
+          };
 
-  const defaultHook: FallbackRoutingHookConfig = {
-    type: HookType.FALLBACK_ROUTING,
-    owner,
-    fallback: merkleHook,
-    domains: aggregationHooks,
-  };
-
-  const requiredHook: ProtocolFeeHookConfig = {
-    type: HookType.PROTOCOL_FEE,
-    maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
-    protocolFee: BigNumber.from(1), // 1 wei
-    beneficiary: owner,
-    owner,
-  };
-
-  return {
-    owner,
-    defaultIsm,
-    defaultHook,
-    requiredHook,
-  };
-});
+    return {
+      defaultIsm,
+      defaultHook,
+      requiredHook,
+      ...ownerConfig,
+    };
+  },
+);

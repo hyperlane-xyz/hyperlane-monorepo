@@ -3,11 +3,11 @@ import { ethers } from 'ethers';
 import { TestMailbox, TestMailbox__factory } from '@hyperlane-xyz/core';
 import { messageId } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types';
-import { ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { ChainName } from '../types.js';
 
-import { HyperlaneCore } from './HyperlaneCore';
-import { coreFactories } from './contracts';
+import { HyperlaneCore } from './HyperlaneCore.js';
+import { coreFactories } from './contracts.js';
 
 export const testCoreFactories = {
   ...coreFactories,
@@ -28,7 +28,8 @@ export class TestCoreApp extends HyperlaneCore {
     for (const origin of this.chains()) {
       const outbound = await this.processOutboundMessages(origin);
       const originResponses = new Map();
-      this.remoteChains(origin).forEach((destination) =>
+      const remoteChains = await this.remoteChains(origin);
+      remoteChains.forEach((destination) =>
         originResponses.set(destination, outbound.get(destination)),
       );
       responses.set(origin, originResponses);

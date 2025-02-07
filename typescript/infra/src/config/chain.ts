@@ -1,65 +1,182 @@
 import { providers } from 'ethers';
 
+import { IRegistry } from '@hyperlane-xyz/registry';
 import {
+  ChainMap,
+  ChainMetadata,
   ChainName,
-  RetryJsonRpcProvider,
-  RetryProviderOptions,
-  RpcConsensusType,
+  HyperlaneSmartProvider,
+  ProviderRetryOptions,
 } from '@hyperlane-xyz/sdk';
+import { ProtocolType, objFilter, objMerge } from '@hyperlane-xyz/utils';
 
-import { getSecretRpcEndpoint } from '../agents';
+import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
+import { getSecretRpcEndpoints } from '../agents/index.js';
+import { inCIMode } from '../utils/utils.js';
 
-import { DeployEnvironment } from './environment';
+import { DeployEnvironment } from './environment.js';
 
-export const defaultRetry = {
-  maxRequests: 6,
-  baseRetryMs: 50,
+// A list of chains to skip during deploy, check-deploy and ICA operations.
+// Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
+// unsupported (e.g. zksync, zeronetwork) or have known issues (e.g. lumia).
+export const chainsToSkip: ChainName[] = [
+  // TODO: remove once zksync PR is merged into main
+  // mainnets
+  'zksync',
+  'zeronetwork',
+  'zklink',
+  'treasure',
+  'abstract',
+
+  // testnets
+  'abstracttestnet',
+  'treasuretopaz',
+
+  // Oct 16 batch
+  'lumia',
+];
+
+export const defaultRetry: ProviderRetryOptions = {
+  maxRetries: 6,
+  baseRetryDelayMs: 50,
 };
 
-function buildProvider(config?: {
-  url?: string;
-  network?: providers.Networkish;
-  retry?: RetryProviderOptions;
-}): providers.JsonRpcProvider {
-  return config?.retry
-    ? new RetryJsonRpcProvider(config.retry, config?.url, config?.network)
-    : new providers.StaticJsonRpcProvider(config?.url, config?.network);
+export async function fetchProvider(
+  chainName: ChainName,
+): Promise<providers.Provider> {
+  const chainMetadata = getChain(chainName);
+  if (!chainMetadata) {
+    throw Error(`Unsupported chain: ${chainName}`);
+  }
+  const chainId = chainMetadata.chainId;
+  const rpcData = chainMetadata.rpcUrls.map((url) => url.http);
+  if (rpcData.length === 0) {
+    throw Error(`No RPC URLs found for chain: ${chainName}`);
+  }
+
+  return new HyperlaneSmartProvider(
+    chainId,
+    rpcData.map((url) => ({ http: url })),
+    undefined,
+    defaultRetry,
+  );
 }
 
-export async function fetchProvider(
-  environment: DeployEnvironment,
-  chainName: ChainName,
-  connectionType: RpcConsensusType = RpcConsensusType.Single,
-): Promise<providers.Provider> {
-  const single = connectionType === RpcConsensusType.Single;
-  const rpcData = await getSecretRpcEndpoint(environment, chainName, !single);
-  switch (connectionType) {
-    case RpcConsensusType.Single: {
-      return buildProvider({ url: rpcData[0], retry: defaultRetry });
+export function getChainMetadatas(chains: Array<ChainName>) {
+  const allMetadatas = Object.fromEntries(
+    chains
+      .map((chain) => getChain(chain))
+      .map((metadata) => [metadata.name, metadata]),
+  );
+
+  const ethereumMetadatas = objFilter(
+    allMetadatas,
+    (_, metadata): metadata is ChainMetadata =>
+      metadata.protocol === ProtocolType.Ethereum,
+  );
+  const nonEthereumMetadatas = objFilter(
+    allMetadatas,
+    (_, metadata): metadata is ChainMetadata =>
+      metadata.protocol !== ProtocolType.Ethereum,
+  );
+
+  return { ethereumMetadatas, nonEthereumMetadatas };
+}
+
+/**
+ * Gets the registry for the given environment, with optional overrides and
+ * the ability to get overrides from secrets.
+ * @param deployEnv The deploy environment.
+ * @param chains The chains to get metadata for.
+ * @param defaultChainMetadataOverrides The default chain metadata overrides. If
+ * secret overrides are used, the secret overrides will be merged with these and
+ * take precedence.
+ * @param useSecrets Whether to fetch metadata overrides from secrets.
+ * @returns A registry with overrides for the given environment.
+ */
+export async function getRegistryForEnvironment(
+  deployEnv: DeployEnvironment,
+  chains: ChainName[],
+  defaultChainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {},
+  useSecrets: boolean = true,
+): Promise<IRegistry> {
+  let overrides = defaultChainMetadataOverrides;
+  if (useSecrets) {
+    overrides = objMerge(
+      overrides,
+      !inCIMode()
+        ? await getSecretMetadataOverrides(deployEnv, chains)
+        : await getSecretMetadataOverridesFromGitHubSecrets(deployEnv, chains),
+    );
+  }
+  const registry = getRegistryWithOverrides(overrides);
+  return registry;
+}
+
+/**
+ * Gets chain metadata overrides from GCP secrets.
+ * @param deployEnv The deploy environment.
+ * @param chains The chains to get metadata overrides for.
+ * @returns A partial chain metadata map with the secret overrides.
+ */
+export async function getSecretMetadataOverrides(
+  deployEnv: DeployEnvironment,
+  chains: string[],
+): Promise<ChainMap<Partial<ChainMetadata>>> {
+  const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
+
+  const secretRpcUrls = await Promise.all(
+    chains.map(async (chain) => {
+      const rpcUrls = await getSecretRpcEndpoints(deployEnv, chain);
+      return {
+        chain,
+        rpcUrls,
+      };
+    }),
+  );
+
+  for (const { chain, rpcUrls } of secretRpcUrls) {
+    if (rpcUrls.length === 0) {
+      throw Error(`No secret RPC URLs found for chain: ${chain}`);
     }
-    case RpcConsensusType.Quorum: {
-      return new providers.FallbackProvider(
-        (rpcData as string[]).map((url) => buildProvider({ url })), // disable retry for quorum
-      );
-    }
-    case RpcConsensusType.Fallback: {
-      return new providers.FallbackProvider(
-        (rpcData as string[]).map((url, index) => {
-          const fallbackProviderConfig: providers.FallbackProviderConfig = {
-            provider: buildProvider({ url, retry: defaultRetry }),
-            // Priority is used by the FallbackProvider to determine
-            // how to order providers using ascending ordering.
-            // When not specified, all providers have the same priority
-            // and are ordered randomly for each RPC.
-            priority: index,
-          };
-          return fallbackProviderConfig;
-        }),
-        1, // a single provider is "quorum", but failure will cause failover to the next provider
-      );
-    }
-    default: {
-      throw Error(`Unsupported connectionType: ${connectionType}`);
+    // Need explicit casting here because Zod expects a non-empty array.
+    const metadataRpcUrls = rpcUrls.map((rpcUrl: string) => ({
+      http: rpcUrl,
+    })) as ChainMetadata['rpcUrls'];
+    chainMetadataOverrides[chain] = {
+      rpcUrls: metadataRpcUrls,
+    };
+  }
+
+  return chainMetadataOverrides;
+}
+
+/**
+ * Gets chain metadata overrides from GitHub secrets.
+ * This function is intended to be used when running in CI/CD environments,
+ * where secrets are injected as environment variables.
+ * @param deployEnv The deploy environment.
+ * @param chains The chains to get metadata overrides for.
+ * @returns A partial chain metadata map with the secret overrides.
+ */
+export async function getSecretMetadataOverridesFromGitHubSecrets(
+  deployEnv: DeployEnvironment,
+  chains: string[],
+): Promise<ChainMap<Partial<ChainMetadata>>> {
+  const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {};
+
+  for (const chain of chains) {
+    const rpcUrlsEnv = `${deployEnv.toUpperCase()}_${chain.toUpperCase()}_RPC_URLS`;
+    const rpcUrls = process.env[rpcUrlsEnv];
+    if (rpcUrls) {
+      const metadataRpcUrls = rpcUrls
+        .split(',')
+        .map((rpcUrl) => ({ http: rpcUrl })) as ChainMetadata['rpcUrls'];
+      chainMetadataOverrides[chain] = {
+        rpcUrls: metadataRpcUrls,
+      };
     }
   }
+
+  return chainMetadataOverrides;
 }

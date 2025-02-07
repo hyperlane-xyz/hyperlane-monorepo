@@ -49,7 +49,7 @@ pub async fn initialize_igp_accounts(
         GasOracle::RemoteGasData(RemoteGasData {
             token_exchange_rate: TOKEN_EXCHANGE_RATE_SCALE,
             gas_price: 1u128,
-            /// The number of decimals for the remote token.
+            // The number of decimals for the remote token.
             token_decimals: SOL_DECIMALS,
         }),
         None,
@@ -74,9 +74,9 @@ pub async fn initialize_igp_program(
         Pubkey::find_program_address(igp_program_data_pda_seeds!(), &program_id);
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [signer] The payer account.
-    // 2. [writeable] The program data account.
+    // 0. `[executable]` The system program.
+    // 1. `[signer]` The payer account.
+    // 2. `[writeable]` The program data account.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::Init,
@@ -104,9 +104,9 @@ pub async fn initialize_igp(
     let (igp_key, igp_bump_seed) = Pubkey::find_program_address(igp_pda_seeds!(salt), &program_id);
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [signer] The payer account.
-    // 2. [writeable] The IGP account to initialize.
+    // 0. `[executable]` The system program.
+    // 1. `[signer]` The payer account.
+    // 2. `[writeable]` The IGP account to initialize.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::InitIgp(InitIgp {
@@ -139,9 +139,9 @@ pub async fn initialize_overhead_igp(
         Pubkey::find_program_address(overhead_igp_pda_seeds!(salt), &program_id);
 
     // Accounts:
-    // 0. [executable] The system program.
-    // 1. [signer] The payer account.
-    // 2. [writeable] The Overhead IGP account to initialize.
+    // 0. `[executable]` The system program.
+    // 1. `[signer]` The payer account.
+    // 2. `[writeable]` The Overhead IGP account to initialize.
     let init_instruction = Instruction::new_with_borsh(
         program_id,
         &IgpInstruction::InitOverheadIgp(InitOverheadIgp { salt, owner, inner }),

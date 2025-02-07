@@ -4,20 +4,21 @@ import {
   ValidatorConfig as AgentValidatorConfig,
   ChainMap,
   ChainName,
-  chainMetadata,
+  S3Config,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { AgentAwsUser, ValidatorAgentAwsUser } from '../../agents/aws';
-import { Role } from '../../roles';
-import { HelmStatefulSetValues } from '../infrastructure';
+import { getChain } from '../../../config/registry.js';
+import { ValidatorAgentAwsUser } from '../../agents/aws/validator-user.js';
+import { Role } from '../../roles.js';
+import { HelmStatefulSetValues } from '../infrastructure.js';
 
 import {
   AgentConfigHelper,
   KeyConfig,
   RootAgentConfig,
   defaultChainSignerKeyConfig,
-} from './agent';
+} from './agent.js';
 
 // Validator agents for each chain.
 export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
@@ -25,8 +26,8 @@ export type ValidatorBaseChainConfigMap = ChainMap<ValidatorBaseChainConfig>;
 export interface ValidatorBaseChainConfig {
   // How frequently to check for new checkpoints
   interval: number;
-  // The reorg_period in blocks; overrides chain metadata
-  reorgPeriod: number;
+  // The reorg_period in blocks or block tag; overrides chain metadata
+  reorgPeriod: string | number;
   // Individual validator agents
   validators: Array<ValidatorBaseConfig>;
 }
@@ -62,12 +63,14 @@ export interface HelmValidatorValues extends HelmStatefulSetValues {
 
 export type CheckpointSyncerConfig =
   | LocalCheckpointSyncerConfig
-  | S3CheckpointSyncerConfig;
+  | S3CheckpointSyncerConfig
+  | GcsCheckpointSyncerConfig;
 
 // These values are eventually passed to Rust, which expects the values to be camelCase
 export const enum CheckpointSyncerType {
   LocalStorage = 'localStorage',
   S3 = 's3',
+  Gcs = 'gcs',
 }
 
 export interface LocalCheckpointSyncerConfig {
@@ -75,11 +78,17 @@ export interface LocalCheckpointSyncerConfig {
   path: string;
 }
 
-export interface S3CheckpointSyncerConfig {
+export type S3CheckpointSyncerConfig = S3Config & {
   type: CheckpointSyncerType.S3;
+};
+
+export type GcsCheckpointSyncerConfig = {
+  type: CheckpointSyncerType.Gcs;
   bucket: string;
-  region: string;
-}
+  folder?: string;
+  service_account_key?: string;
+  user_secrets?: string;
+};
 
 export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
   readonly #validatorsConfig: ValidatorBaseChainConfigMap;
@@ -118,7 +127,7 @@ export class ValidatorConfigHelper extends AgentConfigHelper<ValidatorConfig> {
     cfg: ValidatorBaseConfig,
     idx: number,
   ): Promise<ValidatorConfig['validators'][number]> {
-    const metadata = chainMetadata[this.chainName];
+    const metadata = getChain(this.chainName);
     const protocol = metadata.protocol;
 
     let validator: KeyConfig = { type: AgentSignerKeyType.Hex };

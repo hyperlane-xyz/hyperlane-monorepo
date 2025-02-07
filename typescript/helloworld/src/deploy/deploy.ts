@@ -2,16 +2,17 @@ import { ethers } from 'ethers';
 
 import {
   ChainName,
+  ContractVerifier,
   HyperlaneContracts,
   HyperlaneIsmFactory,
   HyperlaneRouterDeployer,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldFactories, helloWorldFactories } from '../app/contracts';
-import { HelloWorld } from '../types';
+import { HelloWorldFactories, helloWorldFactories } from '../app/contracts.js';
+import { HelloWorld } from '../types/index.js';
 
-import { HelloWorldConfig } from './config';
+import { HelloWorldConfig } from './config.js';
 
 export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   HelloWorldConfig,
@@ -20,8 +21,14 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   constructor(
     multiProvider: MultiProvider,
     readonly ismFactory?: HyperlaneIsmFactory,
+    readonly contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
   ) {
-    super(multiProvider, helloWorldFactories, { ismFactory });
+    super(multiProvider, helloWorldFactories, {
+      ismFactory,
+      contractVerifier,
+      concurrentDeploy,
+    });
   }
 
   router(contracts: HyperlaneContracts<HelloWorldFactories>): HelloWorld {
@@ -33,8 +40,9 @@ export class HelloWorldDeployer extends HyperlaneRouterDeployer<
   async deployContracts(chain: ChainName, config: HelloWorldConfig) {
     const router = await this.deployContract(chain, 'router', [
       config.mailbox,
-      config.hook ?? ethers.constants.AddressZero,
+      ethers.constants.AddressZero,
     ]);
+    await super.configureClient(chain, router, config);
     return {
       router,
     };

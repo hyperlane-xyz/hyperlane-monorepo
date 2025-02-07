@@ -1,24 +1,24 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import {
   ChainMap,
-  Chains,
   HyperlaneIsmFactory,
   HyperlaneProxyFactoryDeployer,
   MultiProvider,
+  TestChainName,
   TestCoreApp,
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldConfig } from '../deploy/config';
-import { HelloWorldDeployer } from '../deploy/deploy';
-import { HelloWorld } from '../types';
+import { HelloWorldConfig } from '../deploy/config.js';
+import { HelloWorldDeployer } from '../deploy/deploy.js';
+import { HelloWorld } from '../types/index.js';
 
 describe('HelloWorld', async () => {
-  const localChain = Chains.test1;
-  const remoteChain = Chains.test2;
+  const localChain = TestChainName.test1;
+  const remoteChain = TestChainName.test2;
   let localDomain: number;
   let remoteDomain: number;
 
@@ -30,7 +30,7 @@ describe('HelloWorld', async () => {
   let config: ChainMap<HelloWorldConfig>;
 
   before(async () => {
-    [signer] = await ethers.getSigners();
+    [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

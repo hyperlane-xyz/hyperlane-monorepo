@@ -1,9 +1,9 @@
-import type { ethers } from 'ethers';
+import type { SignatureLike } from '@ethersproject/bytes';
+import type { BigNumber, ethers } from 'ethers';
 
 export enum ProtocolType {
   Ethereum = 'ethereum',
   Sealevel = 'sealevel',
-  Fuel = 'fuel',
   Cosmos = 'cosmos',
 }
 // A type that also allows for literal values of the enum
@@ -17,22 +17,18 @@ export const ProtocolSmallestUnit = {
 
 /********* BASIC TYPES *********/
 export type Domain = number;
+export type EvmChainId = number;
+export type ChainId = string | number;
 export type Address = string;
 export type AddressBytes32 = string;
 export type ChainCaip2Id = `${string}:${string}`; // e.g. ethereum:1 or sealevel:1399811149
 export type TokenCaip19Id = `${string}:${string}/${string}:${string}`; // e.g. ethereum:1/erc20:0x6b175474e89094c44da98b954eedeac495271d0f
 export type HexString = string;
+export type Numberish = number | string | bigint;
 
-// copied from node_modules/@ethersproject/bytes/src.ts/index.ts
-export type SignatureLike =
-  | {
-      r: string;
-      s?: string;
-      _vs?: string;
-      recoveryParam?: number;
-      v?: number;
-    }
-  | ethers.utils.BytesLike;
+export type WithAddress<T> = T & {
+  address: Address;
+};
 
 export type MerkleProof = {
   branch: ethers.utils.BytesLike[];
@@ -41,6 +37,13 @@ export type MerkleProof = {
 };
 
 /********* HYPERLANE CORE *********/
+export type Announcement = {
+  mailbox_domain: Domain;
+  mailbox_address: Address;
+  validator: Address;
+  storage_location: string;
+};
+
 export type Checkpoint = {
   root: string;
   index: number; // safe because 2 ** 32 leaves < Number.MAX_VALUE
@@ -48,14 +51,23 @@ export type Checkpoint = {
   merkle_tree_hook_address: Address;
 };
 
+export type CheckpointWithId = {
+  checkpoint: Checkpoint;
+  message_id: HexString;
+};
+
+export { SignatureLike };
+
 /**
  * Shape of a checkpoint in S3 as published by the agent.
  */
 export type S3CheckpointWithId = {
-  value: {
-    checkpoint: Checkpoint;
-    message_id: HexString;
-  };
+  value: CheckpointWithId;
+  signature: SignatureLike;
+};
+
+export type S3Announcement = {
+  value: Announcement;
   signature: SignatureLike;
 };
 
@@ -67,6 +79,7 @@ export type S3Checkpoint = {
 export type CallData = {
   to: Address;
   data: string;
+  value?: BigNumber;
 };
 
 export enum MessageStatus {
@@ -78,10 +91,17 @@ export type ParsedMessage = {
   version: number;
   nonce: number;
   origin: number;
+  originChain?: string;
   sender: string;
   destination: number;
+  destinationChain?: string;
   recipient: string;
   body: string;
+};
+
+export type ParsedWarpRouteMessage = {
+  recipient: string;
+  amount: bigint;
 };
 
 export type ParsedLegacyMultisigIsmMetadata = {
@@ -93,6 +113,10 @@ export type ParsedLegacyMultisigIsmMetadata = {
   validators: ethers.utils.BytesLike[];
 };
 
-export enum InterchainSecurityModuleType {
-  MULTISIG = 3,
-}
+export type Annotated<T> = T & {
+  annotation?: string;
+};
+
+export type ValidatorMetadata = {
+  git_sha: string;
+};

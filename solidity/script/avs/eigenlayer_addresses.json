@@ -1,0 +1,82 @@
+{
+  "ethereum": {
+    "proxyAdmin": "0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659",
+    "delegationManager": "0x39053D51B77DC0d36036Fc1fCc8Cb819df8Ef37A",
+    "avsDirectory": "0x135DDa560e946695d6f155dACaFC6f1F25C1F5AF",
+    "paymentCoordinator": "",
+    "strategies": [
+      {
+        "name": "swETH",
+        "strategy": "0x0Fe4F44beE93503346A3Ac9EE5A26b130a5796d6"
+      },
+      {
+        "name": "oETH",
+        "strategy": "0x13760F50a9d7377e4F20CB8CF9e4c26586c658ff"
+      },
+      {
+        "name": "rETH",
+        "strategy": "0x1BeE69b7dFFfA4E2d53C2a2Df135C388AD25dCD2"
+      },
+      {
+        "name": "mETH",
+        "strategy": "0x298aFB19A105D59E74658C4C334Ff360BadE6dd2"
+      },
+      {
+        "name": "cbETH",
+        "strategy": "0x54945180dB7943c0ed0FEE7EdaB2Bd24620256bc"
+      },
+      {
+        "name": "osETH",
+        "strategy": "0x57ba429517c3473B6d34CA9aCd56c0e735b94c02"
+      },
+      {
+        "name": "wBETH",
+        "strategy": "0x7CA911E83dabf90C90dD3De5411a10F1A6112184"
+      },
+      {
+        "name": "sfrxETH",
+        "strategy": "0x8CA7A5d6f3acd3A7A8bC468a8CD0FB14B6BD28b6"
+      },
+      {
+        "name": "stETH",
+        "strategy": "0x93c4b944D05dfe6df7645A86cd2206016c51564D"
+      },
+      {
+        "name": "ETHx",
+        "strategy": "0x9d7eD45EE2E8FC5482fa2428f15C971e6369011d"
+      },
+      {
+        "name": "ankrETH",
+        "strategy": "0xa4C637e0F704745D182e4D38cAb7E7485321d059"
+      },
+      {
+        "name": "lsETH",
+        "strategy": "0xAe60d8180437b5C34bB956822ac2710972584473"
+      },
+      {
+        "name": "Beacon Chain ETH",
+        "strategy": "0xbeaC0eeEeeeeEEeEeEEEEeeEEeEeeeEeeEEBEaC0"
+      }
+    ]
+  },
+  "holesky": {
+    "proxyAdmin": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
+    "delegationManager": "0xA44151489861Fe9e3055d95adC98FbD462B948e7",
+    "avsDirectory": "0x055733000064333CaDDbC92763c58BF0192fFeBf",
+    "paymentCoordinator": "",
+    "strategies": [
+      {
+        "name": "cbETH",
+        "strategy": "0x70EB4D3c164a6B4A5f908D4FBb5a9cAfFb66bAB6"
+      },
+      {
+        "name": "stETH",
+        "strategy": "0x7D704507b76571a51d9caE8AdDAbBFd0ba0e63d3"
+      },
+      {
+        "name": "Beacon Chain ETH",
+        "strategy": "0xbeaC0eeEeeeeEEeEeEEEEeeEEeEeeeEeeEEBEaC0"
+      }
+    ]
+  }
+}

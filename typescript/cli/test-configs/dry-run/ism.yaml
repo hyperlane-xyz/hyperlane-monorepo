@@ -1,0 +1,8 @@
+anvil:
+  threshold: 1
+  validators:
+    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'
+alfajores:
+  threshold: 1
+  validators:
+    - '0xa0ee7a142d267c1f36714e4a8f75612f20a79720'

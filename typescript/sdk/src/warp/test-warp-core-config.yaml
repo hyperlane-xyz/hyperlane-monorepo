@@ -1,0 +1,86 @@
+# An example Warp Core config
+# Contains the token + route data needed to create a Warp Core
+---
+tokens:
+  # test1 HypNative token
+  - chainName: test1
+    standard: EvmHypNative
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x1234567890123456789012345678901234567890'
+    connections:
+      - { token: ethereum|test2|0x9876543210987654321098765432109876543210 }
+      - {
+          token: cosmos|testcosmos|testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab,
+        }
+      - {
+          token: sealevel|testsealevel|s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678,
+        }
+  # test2 HypSynthetic token
+  - chainName: test2
+    standard: EvmHypSynthetic
+    decimals: 18
+    symbol: ETH
+    name: Ether
+    addressOrDenom: '0x9876543210987654321098765432109876543210'
+    connections:
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
+      - {
+          token: cosmos|testcosmos|testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab,
+        }
+  # testsealevel HypSynthetic
+  - chainName: testsealevel
+    standard: SealevelHypSynthetic
+    decimals: 9
+    symbol: ETH.sol
+    name: Ether on testsealevel
+    addressOrDenom: s0LaBcEeFgHiJkLmNoPqRsTuVwXyZ456789012345678
+    connections:
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
+  # Cosmos testcosmos HypCollateral token
+  - chainName: testcosmos
+    standard: CwHypCollateral
+    decimals: 18
+    symbol: ETH.cos
+    name: Ether on testcosmos
+    addressOrDenom: testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab
+    collateralAddressOrDenom: testcosmos1c0ll4t3r4lc0ll4t3r4lc0ll4t3r4lc0ll4t3r
+    connections:
+      - { token: ethereum|test1|0x1234567890123456789012345678901234567890 }
+      - { token: ethereum|test2|0x9876543210987654321098765432109876543210 }
+  # Cosmos testcosmos Collateralized token
+  - chainName: testcosmos
+    standard: CW20
+    decimals: 18
+    symbol: ETH.cos
+    name: Ether on testcosmos
+    addressOrDenom: testcosmos1c0ll4t3r4lc0ll4t3r4lc0ll4t3r4lc0ll4t3r
+  # Cosmos testcosmos token with IBC two-hop
+  - chainName: testcosmos
+    standard: CosmosIbc
+    decimals: 18
+    symbol: untrn
+    name: untrn
+    addressOrDenom: untrn
+    connections:
+      - token: ethereum|test2|0x9876543210987654321098765432109876543210
+        type: ibc
+        sourcePort: transfer
+        sourceChannel: channel-1
+        intermediateChainName: testcosmos
+        intermediateIbcDenom: untrn
+        intermediateRouterAddress: testcosmos1abcdefghijklmnopqrstuvwxyz1234567890ab
+  - chainName: testcosmos
+    standard: CosmosNative
+    decimals: 18
+    symbol: atom
+    name: atom
+    addressOrDenom: atom
+
+options:
+  interchainFeeConstants:
+    - origin: testcosmos
+      destination: test2
+      amount: 1
+      addressOrDenom: atom

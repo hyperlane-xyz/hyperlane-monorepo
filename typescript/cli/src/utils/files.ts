@@ -1,22 +1,58 @@
 import { input } from '@inquirer/prompts';
 import select from '@inquirer/select';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
-import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
+import {
+  DocumentOptions,
+  LineCounter,
+  ParseOptions,
+  SchemaOptions,
+  ToJSOptions,
+  parse,
+  stringify as yamlStringify,
+} from 'yaml';
 
 import { objMerge } from '@hyperlane-xyz/utils';
 
-import { log, logBlue } from '../../logger.js';
+import { log } from '../logger.js';
 
-import { getTimestampForFilename } from './time.js';
+const yamlParse = (
+  content: string,
+  options?: ParseOptions & DocumentOptions & SchemaOptions & ToJSOptions,
+) =>
+  // See stackoverflow.com/questions/63075256/why-does-the-npm-yaml-library-have-a-max-alias-number
+  parse(content, { maxAliasCount: -1, ...options });
+
+export const MAX_READ_LINE_OUTPUT = 250;
 
 export type FileFormat = 'yaml' | 'json';
+
+export type ArtifactsFile = {
+  filename: string;
+  description: string;
+};
+
+export function removeEndingSlash(dirPath: string): string {
+  if (dirPath.endsWith('/')) {
+    return dirPath.slice(0, -1);
+  }
+  return dirPath;
+}
+
+export function resolvePath(filePath: string): string {
+  if (filePath.startsWith('~')) {
+    const homedir = os.homedir();
+    return path.join(homedir, filePath.slice(1));
+  }
+  return filePath;
+}
 
 export function isFile(filepath: string) {
   if (!filepath) return false;
   try {
     return fs.existsSync(filepath) && fs.lstatSync(filepath).isFile();
-  } catch (error) {
+  } catch {
     log(`Error checking for file: ${filepath}`);
     return false;
   }
@@ -44,7 +80,7 @@ export function readJson<T>(filepath: string): T {
 export function tryReadJson<T>(filepath: string): T | null {
   try {
     return readJson(filepath) as T;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -72,13 +108,16 @@ export function readYaml<T>(filepath: string): T {
 export function tryReadYamlAtPath<T>(filepath: string): T | null {
   try {
     return readYaml(filepath);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
 export function writeYaml(filepath: string, obj: any) {
-  writeFileAtPath(filepath, yamlStringify(obj, null, 2) + '\n');
+  writeFileAtPath(
+    filepath,
+    yamlStringify(obj, { indent: 2, sortMapEntries: true }) + '\n',
+  );
 }
 
 export function mergeYaml<T extends Record<string, any>>(
@@ -94,7 +133,7 @@ export function mergeYaml<T extends Record<string, any>>(
 }
 
 export function readYamlOrJson<T>(filepath: string, format?: FileFormat): T {
-  return resolveYamlOrJson(filepath, readJson, readYaml, format);
+  return resolveYamlOrJsonFn(filepath, readJson, readYaml, format);
 }
 
 export function writeYamlOrJson(
@@ -102,7 +141,7 @@ export function writeYamlOrJson(
   obj: Record<string, any>,
   format?: FileFormat,
 ) {
-  return resolveYamlOrJson(
+  return resolveYamlOrJsonFn(
     filepath,
     (f: string) => writeJson(f, obj),
     (f: string) => writeYaml(f, obj),
@@ -113,9 +152,9 @@ export function writeYamlOrJson(
 export function mergeYamlOrJson(
   filepath: string,
   obj: Record<string, any>,
-  format?: FileFormat,
+  format: FileFormat = 'yaml',
 ) {
-  return resolveYamlOrJson(
+  return resolveYamlOrJsonFn(
     filepath,
     (f: string) => mergeJson(f, obj),
     (f: string) => mergeYaml(f, obj),
@@ -123,39 +162,46 @@ export function mergeYamlOrJson(
   );
 }
 
-function resolveYamlOrJson(
+function resolveYamlOrJsonFn(
   filepath: string,
   jsonFn: any,
   yamlFn: any,
   format?: FileFormat,
 ) {
-  if (format === 'json' || filepath.endsWith('.json')) {
-    return jsonFn(filepath);
-  } else if (
-    format === 'yaml' ||
-    filepath.endsWith('.yaml') ||
-    filepath.endsWith('.yml')
-  ) {
-    return yamlFn(filepath);
-  } else {
+  const fileFormat = resolveFileFormat(filepath, format);
+  if (!fileFormat) {
     throw new Error(`Invalid file format for ${filepath}`);
   }
+
+  if (fileFormat === 'json') {
+    return jsonFn(filepath);
+  }
+
+  return yamlFn(filepath);
 }
 
-export function prepNewArtifactsFiles(
-  outPath: string,
-  files: Array<{ filename: string; description: string }>,
-) {
-  const timestamp = getTimestampForFilename();
-  const newPaths: string[] = [];
-  for (const file of files) {
-    const filePath = path.join(outPath, `${file.filename}-${timestamp}.json`);
-    // Write empty object to ensure permissions are okay
-    writeJson(filePath, {});
-    newPaths.push(filePath);
-    logBlue(`${file.description} will be written to ${filePath}`);
+export function resolveFileFormat(
+  filepath?: string,
+  format?: FileFormat,
+): FileFormat | undefined {
+  // early out if filepath is undefined
+  if (!filepath) {
+    return format;
   }
-  return newPaths;
+
+  if (format === 'json' || filepath?.endsWith('.json')) {
+    return 'json';
+  }
+
+  if (
+    format === 'yaml' ||
+    filepath?.endsWith('.yaml') ||
+    filepath?.endsWith('.yml')
+  ) {
+    return 'yaml';
+  }
+
+  return undefined;
 }
 
 export async function runFileSelectionStep(
@@ -190,4 +236,31 @@ export async function runFileSelectionStep(
 
   if (filename) return filename;
   else throw new Error(`No filepath entered ${description}`);
+}
+
+export function indentYamlOrJson(str: string, indentLevel: number): string {
+  const indent = ' '.repeat(indentLevel);
+  return str
+    .split('\n')
+    .map((line) => indent + line)
+    .join('\n');
+}
+
+/**
+ * Logs the YAML representation of an object if the number of lines is less than the specified maximum.
+ *
+ * @param obj - The object to be converted to YAML.
+ * @param maxLines - The maximum number of lines allowed for the YAML representation.
+ * @param margin - The number of spaces to use for indentation (default is 2).
+ */
+export function logYamlIfUnderMaxLines(
+  obj: any,
+  maxLines: number = MAX_READ_LINE_OUTPUT,
+  margin: number = 2,
+): void {
+  const asYamlString = yamlStringify(obj, null, margin);
+  const lineCounter = new LineCounter();
+  yamlParse(asYamlString, { lineCounter });
+
+  log(lineCounter.lineStarts.length < maxLines ? asYamlString : '');
 }

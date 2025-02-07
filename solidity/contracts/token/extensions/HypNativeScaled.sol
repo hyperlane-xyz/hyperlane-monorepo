@@ -25,16 +25,46 @@ contract HypNativeScaled is HypNative {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable override returns (bytes32 messageId) {
+    ) external payable override returns (bytes32 messageId) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 gasPayment = msg.value - _amount;
-        uint256 scaledAmount = _amount / scale;
+        uint256 _hookPayment = msg.value - _amount;
+        uint256 _scaledAmount = _amount / scale;
         return
-            _transferRemote(_destination, _recipient, scaledAmount, gasPayment);
+            _transferRemote(
+                _destination,
+                _recipient,
+                _scaledAmount,
+                _hookPayment
+            );
     }
 
     /**
-     * @dev Sends scaled `_amount` (multipled by `scale`) to `_recipient`.
+     * @inheritdoc TokenRouter
+     * @dev uses (`msg.value` - `_amount`) as hook payment.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _hookMetadata,
+        address _hook
+    ) external payable override returns (bytes32 messageId) {
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
+        uint256 _hookPayment = msg.value - _amount;
+        uint256 _scaledAmount = _amount / scale;
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _scaledAmount,
+                _hookPayment,
+                _hookMetadata,
+                _hook
+            );
+    }
+
+    /**
+     * @dev Sends scaled `_amount` (multiplied by `scale`) to `_recipient`.
      * @inheritdoc TokenRouter
      */
     function _transferTo(

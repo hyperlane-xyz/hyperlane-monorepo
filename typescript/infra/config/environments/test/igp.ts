@@ -1,39 +1,34 @@
 import {
   ChainMap,
-  GasOracleContractType,
+  HookType,
   IgpConfig,
   multisigIsmVerificationCost,
 } from '@hyperlane-xyz/sdk';
-import { exclude, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { TestChains, chainNames } from './chains';
-import { multisigIsm } from './multisigIsm';
-import { owners } from './owners';
+import { testChainNames } from './chains.js';
+import { multisigIsm } from './multisigIsm.js';
+import { owners } from './owners.js';
 
-function getGasOracles(local: TestChains) {
-  return Object.fromEntries(
-    exclude(local, chainNames).map((name) => [
-      name,
-      GasOracleContractType.StorageGasOracle,
-    ]),
-  );
-}
-
-export const igp: ChainMap<IgpConfig> = objMap(owners, (chain, owner) => {
-  const overhead = Object.fromEntries(
-    exclude(chain, chainNames).map((remote) => [
-      remote,
-      multisigIsmVerificationCost(
-        multisigIsm[remote].threshold,
-        multisigIsm[remote].validators.length,
-      ),
-    ]),
-  );
-  return {
-    owner,
-    oracleKey: owner,
-    beneficiary: owner,
-    gasOracleType: getGasOracles(chain),
-    overhead,
-  };
-});
+export const igp: ChainMap<IgpConfig> = objMap(
+  owners,
+  (chain, ownerConfig): IgpConfig => {
+    const overhead = Object.fromEntries(
+      exclude(chain, testChainNames).map((remote) => [
+        remote,
+        multisigIsmVerificationCost(
+          multisigIsm[chain].threshold,
+          multisigIsm[chain].validators.length,
+        ),
+      ]),
+    );
+    return {
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      oracleKey: ownerConfig.owner as Address, // owner can be AccountConfig
+      beneficiary: ownerConfig.owner as Address, // same as above
+      overhead,
+      oracleConfig: {},
+      ...ownerConfig,
+    };
+  },
+);

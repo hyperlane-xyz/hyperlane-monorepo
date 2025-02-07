@@ -17,14 +17,10 @@ spec:
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: IfNotPresent
         command:
-        - ./node_modules/.bin/ts-node
+        - ./node_modules/.bin/tsx
         - ./typescript/infra/scripts/middleware/portal-relayer.ts
         - -e
         - {{ .Values.hyperlane.runEnv }}
-{{- if .Values.hyperlane.connectionType }}
-        - --connection-type
-        - {{ .Values.hyperlane.connectionType }}
-{{- end }}
         envFrom:
         - secretRef:
             name: liquidity-layer-env-var-secret

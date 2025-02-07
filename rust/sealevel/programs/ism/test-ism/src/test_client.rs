@@ -38,9 +38,9 @@ impl TestIsmTestClient {
             program_id,
             data: TestIsmInstruction::Init.try_to_vec().unwrap(),
             accounts: vec![
-                // 0. [executable] System program.
-                // 1. [signer] Payer.
-                // 2. [writeable] Storage PDA.
+                // 0. `[executable]` System program.
+                // 1. `[signer]` Payer.
+                // 2. `[writeable]` Storage PDA.
                 AccountMeta::new_readonly(system_program::id(), false),
                 AccountMeta::new(payer_pubkey, true),
                 AccountMeta::new(Self::get_storage_pda_key(), false),
@@ -66,7 +66,7 @@ impl TestIsmTestClient {
             program_id,
             data: TestIsmInstruction::SetAccept(accept).try_to_vec().unwrap(),
             accounts: vec![
-                // 0. [writeable] Storage PDA.
+                // 0. `[writeable]` Storage PDA.
                 AccountMeta::new(Self::get_storage_pda_key(), false),
             ],
         };

@@ -49,9 +49,9 @@ pub fn process_instruction(
 /// Initializes the program.
 ///
 /// Accounts:
-/// 0. [signer] The payer.
-/// 1. [executable] The system program.
-/// 2. [writable] The ValidatorAnnounce PDA account.
+/// 0. `[signer]` The payer.
+/// 1. `[executable]` The system program.
+/// 2. `[writable]` The ValidatorAnnounce PDA account.
 pub fn process_init(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -115,11 +115,11 @@ pub fn process_init(
 /// Announces a validator.
 ///
 /// Accounts:
-/// 0. [signer] The payer.
-/// 1. [executable] The system program.
-/// 2. [] The ValidatorAnnounce PDA account.
-/// 3. [writeable] The validator-specific ValidatorStorageLocationsAccount PDA account.
-/// 4. [writeable] The ReplayProtection PDA account specific to the announcement being made.
+/// 0. `[signer]` The payer.
+/// 1. `[executable]` The system program.
+/// 2. `[]` The ValidatorAnnounce PDA account.
+/// 3. `[writeable]` The validator-specific ValidatorStorageLocationsAccount PDA account.
+/// 4. `[writeable]` The ReplayProtection PDA account specific to the announcement being made.
 fn process_announce(
     program_id: &Pubkey,
     accounts: &[AccountInfo],

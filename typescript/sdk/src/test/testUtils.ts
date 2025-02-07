@@ -1,29 +1,23 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import { Address, exclude, objMap } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { HyperlaneContractsMap } from '../contracts/types';
-import { CoreFactories } from '../core/contracts';
-import { CoreConfig } from '../core/types';
-import { IgpFactories } from '../gas/contracts';
-import {
-  CoinGeckoInterface,
-  CoinGeckoResponse,
-  CoinGeckoSimpleInterface,
-  CoinGeckoSimplePriceParams,
-} from '../gas/token-prices';
-import { HookType } from '../hook/types';
-import { IsmType } from '../ism/types';
-import { RouterConfig } from '../router/types';
-import { ChainMap, ChainName } from '../types';
+import { HyperlaneContractsMap } from '../contracts/types.js';
+import { CoreFactories } from '../core/contracts.js';
+import { CoreConfig } from '../core/types.js';
+import { IgpFactories } from '../gas/contracts.js';
+import { IgpConfig } from '../gas/types.js';
+import { HookType } from '../hook/types.js';
+import { IsmType } from '../ism/types.js';
+import { RouterConfig } from '../router/types.js';
+import { ChainMap, ChainName } from '../types.js';
 
 export function randomInt(max: number, min = 0): number {
   return Math.floor(Math.random() * (max - min)) + min;
 }
 
 export function randomAddress(): Address {
-  return ethers.utils.hexlify(ethers.utils.randomBytes(20));
+  return ethers.utils.hexlify(ethers.utils.randomBytes(20)).toLowerCase();
 }
 
 export function createRouterConfigMap(
@@ -58,8 +52,8 @@ export function testCoreConfig(
     },
     requiredHook: {
       type: HookType.PROTOCOL_FEE,
-      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei'), // 1 gwei of native token
-      protocolFee: BigNumber.from(1), // 1 wei
+      maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(), // 1 gwei of native token
+      protocolFee: BigNumber.from(1).toString(), // 1 wei
       beneficiary: nonZeroAddress,
       owner,
     },
@@ -68,47 +62,37 @@ export function testCoreConfig(
   return Object.fromEntries(chains.map((local) => [local, chainConfig]));
 }
 
-// A mock CoinGecko intended to be used by tests
-export class MockCoinGecko implements CoinGeckoInterface {
-  // Prices keyed by coingecko id
-  private tokenPrices: Record<string, number>;
-  // Whether or not to fail to return a response, keyed by coingecko id
-  private fail: Record<string, boolean>;
+const TEST_ORACLE_CONFIG = {
+  gasPrice: ethers.utils.parseUnits('1', 'gwei').toString(),
+  tokenExchangeRate: ethers.utils.parseUnits('1', 10).toString(),
+  tokenDecimals: 18,
+};
 
-  constructor() {
-    this.tokenPrices = {};
-    this.fail = {};
-  }
+const TEST_OVERHEAD_COST = 60000;
 
-  price(params: CoinGeckoSimplePriceParams): CoinGeckoResponse {
-    const data: any = {};
-    for (const id of params.ids) {
-      if (this.fail[id]) {
-        return Promise.reject(`Failed to fetch price for ${id}`);
-      }
-      data[id] = {
-        usd: this.tokenPrices[id],
-      };
-    }
-    return Promise.resolve({
-      success: true,
-      message: '',
-      code: 200,
-      data,
-    });
-  }
-
-  get simple(): CoinGeckoSimpleInterface {
-    return this;
-  }
-
-  setTokenPrice(chain: ChainName, price: number): void {
-    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
-    this.tokenPrices[id] = price;
-  }
-
-  setFail(chain: ChainName, fail: boolean): void {
-    const id = chainMetadata[chain].gasCurrencyCoinGeckoId || chain;
-    this.fail[id] = fail;
-  }
+export function testIgpConfig(
+  chains: ChainName[],
+  owner = nonZeroAddress,
+): ChainMap<IgpConfig> {
+  return Object.fromEntries(
+    chains.map((local) => {
+      const overhead: IgpConfig['overhead'] = {};
+      const oracleConfig: IgpConfig['oracleConfig'] = {};
+      exclude(local, chains).map((remote: ChainName) => {
+        overhead[remote] = TEST_OVERHEAD_COST;
+        oracleConfig[remote] = TEST_ORACLE_CONFIG;
+      });
+      return [
+        local,
+        {
+          type: HookType.INTERCHAIN_GAS_PAYMASTER,
+          owner,
+          oracleKey: owner,
+          beneficiary: owner,
+          overhead,
+          oracleConfig,
+        },
+      ];
+    }),
+  );
 }

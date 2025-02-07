@@ -3,7 +3,7 @@ import {
   InterchainAccountRouter__factory,
 } from '@hyperlane-xyz/core';
 
-import { proxiedFactories } from '../../router/types';
+import { proxiedFactories } from '../../router/types.js';
 
 export const interchainAccountFactories = {
   interchainAccountRouter: new InterchainAccountRouter__factory(),

@@ -1,0 +1,10 @@
+{
+  "solanatestnet": {
+    "hex": "0xb5eb96475b2d58f7b9a9ff2f60f46cf5ac1be244e557574971885337522b59c9",
+    "base58": "DF99ZiHj8aN4ETbKmpMoMsRTSbm7gtL5j6sKKLC5mkTS"
+  },
+  "eclipsetestnet": {
+    "hex": "0x6dcd836e4ed228f42f3b2d6e2c2723b431b8e8b0bc9dded26bdff16ffaf818bd",
+    "base58": "8PdCNrJqkDfSMjg9BvXrDr3Hooo7WZ6cN7Qn9mHL1GZr"
+  }
+}

@@ -1,0 +1,42 @@
+[package]
+name = "hyperlane-ethereum"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+# Main block
+async-trait.workspace = true
+derive-new.workspace = true
+ethers-contract.workspace = true
+ethers-core.workspace = true
+ethers-signers.workspace = true
+ethers.workspace = true
+eyre.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+itertools.workspace = true
+num.workspace = true
+num-traits.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing-futures.workspace = true
+tracing.workspace = true
+url.workspace = true
+
+hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+ethers-prometheus = { path = "../../ethers-prometheus", features = ["serde"] }
+
+[build-dependencies]
+abigen = { path = "../../utils/abigen", features = ["ethers"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["test-utils"] }
+
+[features]
+default = []
+test-utils = []

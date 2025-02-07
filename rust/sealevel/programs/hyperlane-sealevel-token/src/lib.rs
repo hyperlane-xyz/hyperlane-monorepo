@@ -1,5 +1,5 @@
 //! Hyperlane Token program for synthetic tokens.
-
+#![allow(unexpected_cfgs)] // TODO: `rustc` 1.80.1 clippy issue
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

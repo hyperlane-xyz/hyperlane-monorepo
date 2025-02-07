@@ -1,0 +1,8 @@
+{
+  "plumetestnet": {
+    "synthetic": "0xD356C996277eFb7f75Ee8bd61b31cC781A12F54f"
+  },
+  "sepolia": {
+    "native": "0xd99eA1D8b9542D35252504DDd59EDe8C43FB15fd"
+  }
+}

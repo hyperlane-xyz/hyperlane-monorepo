@@ -8,12 +8,13 @@ use hyperlane_sealevel_token_lib::{
     accounts::HyperlaneToken, message::TokenMessage, processor::HyperlaneSealevelTokenPlugin,
 };
 use serializable_account_meta::SerializableAccountMeta;
+#[cfg(not(target_arch = "sbf"))]
+use solana_program::program_pack::Pack as _;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     instruction::AccountMeta,
     program::{invoke, invoke_signed},
     program_error::ProgramError,
-    program_pack::Pack as _,
     pubkey::Pubkey,
     rent::Rent,
     sysvar::Sysvar,
@@ -74,6 +75,13 @@ impl SizedData for SyntheticPlugin {
 }
 
 impl SyntheticPlugin {
+    /// The size of the mint account.
+    // Need to hardcode this value because our `spl_token_2022` version doesn't include it.
+    // It was calculated by calling `ExtensionType::try_calculate_account_len::<Mint>(vec![ExtensionType::MetadataPointer]).unwrap()`
+    #[cfg(target_arch = "sbf")]
+    const MINT_ACCOUNT_SIZE: usize = 234;
+    /// The size of the mint account.
+    #[cfg(not(target_arch = "sbf"))]
     const MINT_ACCOUNT_SIZE: usize = spl_token_2022::state::Mint::LEN;
 
     /// Returns Ok(()) if the mint account info is valid.
@@ -121,8 +129,8 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// instruction initializing the mint with the SPL token 2022 program.
     ///
     /// Accounts:
-    /// 0. [writable] The mint / mint authority PDA account.
-    /// 1. [writable] The ATA payer PDA account.
+    /// 0. `[writable]` The mint / mint authority PDA account.
+    /// 1. `[writable]` The ATA payer PDA account.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
         system_program: &'a AccountInfo<'b>,
@@ -187,9 +195,9 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// Burns the tokens from the sender's associated token account.
     ///
     /// Accounts:
-    /// 0. [executable] The spl_token_2022 program.
-    /// 1. [writeable] The mint / mint authority PDA account.
-    /// 2. [writeable] The token sender's associated token account, from which tokens will be burned.
+    /// 0. `[executable]` The spl_token_2022 program.
+    /// 1. `[writeable]` The mint / mint authority PDA account.
+    /// 2. `[writeable]` The token sender's associated token account, from which tokens will be burned.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -244,11 +252,11 @@ impl HyperlaneSealevelTokenPlugin for SyntheticPlugin {
     /// result of a transfer to this chain from a remote chain.
     ///
     /// Accounts:
-    /// 0. [executable] SPL token 2022 program
-    /// 1. [executable] SPL associated token account
-    /// 2. [writeable] Mint account
-    /// 3. [writeable] Recipient associated token account
-    /// 4. [writeable] ATA payer PDA account.
+    /// 0. `[executable]` SPL token 2022 program
+    /// 1. `[executable]` SPL associated token account
+    /// 2. `[writeable]` Mint account
+    /// 3. `[writeable]` Recipient associated token account
+    /// 4. `[writeable]` ATA payer PDA account.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,

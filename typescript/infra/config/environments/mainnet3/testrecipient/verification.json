@@ -1,128 +1,106 @@
 {
-  "bsc": [
+  "cyber": [
     {
-      "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
       "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "name": "TestRecipient"
     }
   ],
-  "avalanche": [
+  "degenchain": [
     {
-      "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
       "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "name": "TestRecipient"
     }
   ],
-  "polygon": [
+  "kroma": [
     {
-      "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
       "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "name": "TestRecipient"
     }
   ],
-  "celo": [
+  "lisk": [
     {
-      "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
       "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "name": "TestRecipient"
     }
   ],
-  "arbitrum": [
+  "merlin": [
     {
-      "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
+      "constructorArguments": "",
       "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "name": "TestRecipient"
     }
   ],
-  "optimism": [
+  "metis": [
     {
-      "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
       "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "name": "TestRecipient"
     }
   ],
-  "ethereum": [
+  "mint": [
     {
-      "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
       "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "name": "TestRecipient"
     }
   ],
-  "moonbeam": [
+  "proofofplay": [
     {
-      "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
       "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "name": "TestRecipient"
     }
   ],
-  "gnosis": [
+  "real": [
+    {
+      "address": "0xc401e251CCa7A364114504A994D6fC7cb1c243AB",
+      "constructorArguments": "",
+      "isProxy": false,
+      "name": "TestRecipient"
+    }
+  ],
+  "sanko": [
+    {
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
+      "isProxy": false,
+      "name": "TestRecipient"
+    }
+  ],
+  "tangle": [
+    {
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
+      "isProxy": false,
+      "name": "TestRecipient"
+    }
+  ],
+  "xai": [
+    {
+      "address": "0x2c61Cda929e4e2174cb10cd8e2724A9ceaD62E67",
+      "constructorArguments": "",
+      "isProxy": false,
+      "name": "TestRecipient"
+    }
+  ],
+  "lumia": [
     {
       "name": "TestRecipient",
-      "address": "0x36FdA966CfffF8a9Cdc814f546db0e6378bFef35",
-      "isProxy": false,
-      "constructorArguments": "0x"
-    },
-    {
-      "name": "TestTokenRecipient",
-      "address": "0x85ac1164878e017b67660a74ff1f41f3D05C02Bb",
-      "isProxy": false,
-      "constructorArguments": "0x"
+      "address": "0xf7D882A816D4845BB221Ceb03CE531d1e7645F60",
+      "constructorArguments": "",
+      "isProxy": false
     }
   ]
 }

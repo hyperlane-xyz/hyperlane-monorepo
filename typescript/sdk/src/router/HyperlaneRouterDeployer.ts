@@ -1,21 +1,22 @@
-import { Router } from '@hyperlane-xyz/core';
+import { Ownable, Router } from '@hyperlane-xyz/core';
 import {
   Address,
+  addBufferToGasLimit,
   addressToBytes32,
   objFilter,
   objMap,
   objMerge,
 } from '@hyperlane-xyz/utils';
 
-import { filterOwnableContracts } from '../contracts/contracts';
+import { filterOwnableContracts } from '../contracts/contracts.js';
 import {
   HyperlaneContracts,
   HyperlaneContractsMap,
   HyperlaneFactories,
-} from '../contracts/types';
-import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer';
-import { RouterConfig } from '../router/types';
-import { ChainMap } from '../types';
+} from '../contracts/types.js';
+import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
+import { RouterConfig } from '../router/types.js';
+import { ChainMap } from '../types.js';
 
 export abstract class HyperlaneRouterDeployer<
   Config extends RouterConfig,
@@ -39,7 +40,7 @@ export abstract class HyperlaneRouterDeployer<
     _: ChainMap<Config>,
     foreignRouters: ChainMap<Address> = {},
   ): Promise<void> {
-    this.logger(
+    this.logger.debug(
       `Enrolling deployed routers with each other (if not already)...`,
     );
 
@@ -54,57 +55,73 @@ export abstract class HyperlaneRouterDeployer<
     const allRouters = objMerge(deployedRouters, foreignRouters);
 
     const allChains = Object.keys(allRouters);
-    for (const [chain, contracts] of Object.entries(deployedContractsMap)) {
-      const allRemoteChains = this.multiProvider
-        .getRemoteChains(chain)
-        .filter((c) => allChains.includes(c));
+    await Promise.all(
+      Object.entries(deployedContractsMap).map(async ([chain, contracts]) => {
+        const allRemoteChains = this.multiProvider
+          .getRemoteChains(chain)
+          .filter((c) => allChains.includes(c));
 
-      const enrollEntries = await Promise.all(
-        allRemoteChains.map(async (remote) => {
-          const remoteDomain = this.multiProvider.getDomainId(remote);
-          const current = await this.router(contracts).routers(remoteDomain);
-          const expected = addressToBytes32(allRouters[remote]);
-          return current !== expected ? [remoteDomain, expected] : undefined;
-        }),
-      );
-      const entries = enrollEntries.filter(
-        (entry): entry is [number, string] => entry !== undefined,
-      );
-      const domains = entries.map(([id]) => id);
-      const addresses = entries.map(([, address]) => address);
-
-      // skip if no enrollments are needed
-      if (domains.length === 0) {
-        continue;
-      }
-
-      await super.runIfOwner(chain, this.router(contracts), async () => {
-        const chains = domains.map((id) => this.multiProvider.getChainName(id));
-        this.logger(
-          `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
+        const enrollEntries = await Promise.all(
+          allRemoteChains.map(async (remote) => {
+            const remoteDomain = this.multiProvider.getDomainId(remote);
+            const current = await this.router(contracts).routers(remoteDomain);
+            const expected = addressToBytes32(allRouters[remote]);
+            return current !== expected ? [remoteDomain, expected] : undefined;
+          }),
         );
-        await this.multiProvider.handleTx(
-          chain,
-          this.router(contracts).enrollRemoteRouters(
+        const entries = enrollEntries.filter(
+          (entry): entry is [number, string] => entry !== undefined,
+        );
+        const domains = entries.map(([id]) => id);
+        const addresses = entries.map(([, address]) => address);
+
+        // skip if no enrollments are needed
+        if (domains.length === 0) {
+          return;
+        }
+
+        await super.runIfOwner(chain, this.router(contracts), async () => {
+          const chains = domains.map((id) =>
+            this.multiProvider.getChainName(id),
+          );
+          this.logger.debug(
+            `Enrolling remote routers (${chains.join(', ')}) on ${chain}`,
+          );
+          const router = this.router(contracts);
+          const estimatedGas = await router.estimateGas.enrollRemoteRouters(
             domains,
             addresses,
-            this.multiProvider.getTransactionOverrides(chain),
-          ),
-        );
-      });
-    }
+          );
+          // deploy with 10% buffer on gas limit
+          const enrollTx = await router.enrollRemoteRouters(
+            domains,
+            addresses,
+            {
+              gasLimit: addBufferToGasLimit(estimatedGas),
+              ...this.multiProvider.getTransactionOverrides(chain),
+            },
+          );
+          await this.multiProvider.handleTx(chain, enrollTx);
+        });
+      }),
+    );
   }
 
   async transferOwnership(
     contractsMap: HyperlaneContractsMap<Factories>,
     configMap: ChainMap<Config>,
   ): Promise<void> {
-    this.logger(`Transferring ownership of ownables...`);
+    this.logger.debug(`Transferring ownership of ownables...`);
     for (const chain of Object.keys(contractsMap)) {
       const contracts = contractsMap[chain];
-      const owner = configMap[chain].owner;
-      const ownables = await filterOwnableContracts(contracts);
-      await this.transferOwnershipOfContracts(chain, owner, ownables);
+      const ownables = (await filterOwnableContracts(contracts)) as Partial<
+        Record<keyof Factories, Ownable>
+      >;
+      await this.transferOwnershipOfContracts(
+        chain,
+        configMap[chain],
+        ownables,
+      );
     }
   }
 
@@ -133,7 +150,7 @@ export abstract class HyperlaneRouterDeployer<
     );
     await this.configureClients(deployedContractsMap, configMap);
     await this.transferOwnership(deployedContractsMap, configMap);
-    this.logger(`Finished deploying router contracts for all chains.`);
+    this.logger.debug(`Finished deploying router contracts for all chains.`);
 
     return deployedContractsMap;
   }

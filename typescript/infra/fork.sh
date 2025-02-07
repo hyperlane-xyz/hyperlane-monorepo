@@ -1,19 +1,12 @@
+#!/bin/bash
+
 ENVIRONMENT=$1
 MODULE=$2
+CHAIN=$3
+WARP_ROUTE_ID=$4
 
-if [ -z "$ENVIRONMENT" ]; then
-  echo "Usage: fork.sh <environment> <module>"
-  exit 1
-fi
-
-if [ "$ENVIRONMENT" == "testnet4" ]; then
-  FORK_CHAIN="goerli"
-  RPC_URL="https://goerli.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
-elif [ "$ENVIRONMENT" == "mainnet3" ]; then
-  FORK_CHAIN="arbitrum"
-  RPC_URL="https://arb1.arbitrum.io/rpc"
-else
-  echo "Unknown environment $ENVIRONMENT"
+if [ -z "$ENVIRONMENT" ] || [ -z "$MODULE" ] || [ -z "$CHAIN" ]; then
+  echo "Usage: fork.sh <environment> <module> <chain> [warp_route_id]"
   exit 1
 fi
 
@@ -23,24 +16,45 @@ trap 'jobs -p | xargs -r kill' EXIT
 # exit 1 on any subsequent failures
 set -e
 
-anvil --fork-url $RPC_URL --silent > /dev/null &
+LOG_LEVEL=error yarn tsx ./scripts/run-anvil.ts -e $ENVIRONMENT -c $CHAIN &
 ANVIL_PID=$!
 
 while ! cast bn &> /dev/null; do
   sleep 1
 done
 
-echo "=== Run $MODULE checker against forked $ENVIRONMENT ==="
-yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+# echo all subsequent commands
+set -x
 
-echo "=== Run $MODULE deployer against forked $ENVIRONMENT ==="
-yarn ts-node ./scripts/deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+# Function to execute commands with or without --warpRouteId
+execute_command() {
+    local cmd="$1"
+    if [ -n "$WARP_ROUTE_ID" ]; then
+        $cmd --warpRouteId $WARP_ROUTE_ID
+    else
+        $cmd
+    fi
+}
 
-# build SDK to get the latest addresses
-yarn --cwd ../sdk build
+echo "Checking deploy"
+execute_command "yarn tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"
 
-echo "=== Run $MODULE govern against forked $ENVIRONMENT ==="
-yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN --govern -m $MODULE
+echo "Getting balance"
+DEPLOYER="0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba"
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
 
-echo "=== Run $MODULE checker against forked $ENVIRONMENT after governance ==="
-yarn ts-node ./scripts/check-deploy.ts -e $ENVIRONMENT -f $FORK_CHAIN -m $MODULE
+echo "Deploying"
+execute_command "yarn tsx ./scripts/deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"
+
+AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+DEPLOY_DELTA="$((BEFORE-AFTER))"
+
+BEFORE=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+echo "Checking deploy with --govern"
+execute_command "yarn tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN --govern -m $MODULE"
+
+AFTER=$(cast balance $DEPLOYER --rpc-url http://localhost:8545)
+GOVERN_DELTA="$((BEFORE-AFTER))"
+
+echo "Checking deploy without --govern"
+execute_command "yarn tsx ./scripts/check/check-deploy.ts -e $ENVIRONMENT -f $CHAIN -m $MODULE"

@@ -21,17 +21,55 @@ contract HypNative is TokenRouter {
     constructor(address _mailbox) TokenRouter(_mailbox) {}
 
     /**
+     * @notice Initializes the Hyperlane router
+     * @param _hook The post-dispatch hook contract.
+       @param _interchainSecurityModule The interchain security module contract.
+       @param _owner The this contract.
+     */
+    function initialize(
+        address _hook,
+        address _interchainSecurityModule,
+        address _owner
+    ) public initializer {
+        _MailboxClient_initialize(_hook, _interchainSecurityModule, _owner);
+    }
+
+    /**
      * @inheritdoc TokenRouter
-     * @dev uses (`msg.value` - `_amount`) as interchain gas payment and `msg.sender` as refund address.
+     * @dev uses (`msg.value` - `_amount`) as hook payment and `msg.sender` as refund address.
      */
     function transferRemote(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount
-    ) public payable virtual override returns (bytes32 messageId) {
+    ) external payable virtual override returns (bytes32 messageId) {
         require(msg.value >= _amount, "Native: amount exceeds msg.value");
-        uint256 gasPayment = msg.value - _amount;
-        return _transferRemote(_destination, _recipient, _amount, gasPayment);
+        uint256 _hookPayment = msg.value - _amount;
+        return _transferRemote(_destination, _recipient, _amount, _hookPayment);
+    }
+
+    /**
+     * @inheritdoc TokenRouter
+     * @dev uses (`msg.value` - `_amount`) as hook payment.
+     */
+    function transferRemote(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        bytes calldata _hookMetadata,
+        address _hook
+    ) external payable virtual override returns (bytes32 messageId) {
+        require(msg.value >= _amount, "Native: amount exceeds msg.value");
+        uint256 _hookPayment = msg.value - _amount;
+        return
+            _transferRemote(
+                _destination,
+                _recipient,
+                _amount,
+                _hookPayment,
+                _hookMetadata,
+                _hook
+            );
     }
 
     function balanceOf(

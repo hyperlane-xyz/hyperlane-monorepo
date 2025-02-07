@@ -7,15 +7,15 @@ import {
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
-import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp';
+import { BaseCosmWasmAdapter } from '../../app/MultiProtocolApp.js';
 import {
   EnrolledValidatorsResponse,
   ExecuteMsg as MultisigExecute,
   QueryMsg as MultisigQuery,
-} from '../../cw-types/IsmMultisig.types';
-import { MultisigConfig } from '../../ism/types';
-import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider';
-import { ChainMap, ChainName } from '../../types';
+} from '../../cw-types/IsmMultisig.types.js';
+import { MultisigConfig, MultisigIsmConfig } from '../../ism/types.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainMap, ChainName } from '../../types.js';
 
 type MultisigResponse = EnrolledValidatorsResponse;
 
@@ -39,7 +39,7 @@ export class CosmWasmMultisigAdapter extends BaseCosmWasmAdapter {
     return response;
   }
 
-  async getConfig(chain: ChainName): Promise<MultisigConfig> {
+  async getConfig(chain: ChainName): Promise<Omit<MultisigIsmConfig, 'type'>> {
     return this.queryMultisig<EnrolledValidatorsResponse>({
       multisig_ism: {
         enrolled_validators: {
@@ -67,7 +67,7 @@ export class CosmWasmMultisigAdapter extends BaseCosmWasmAdapter {
       ([origin, config]) => {
         const domain = this.multiProvider.getDomainId(origin);
         const configuredSet = new Set(configuredMap[origin].validators);
-        const configSet = new Set(config.validators);
+        const configSet = new Set(config.validators.map((v) => v.address));
         const unenrollList = Array.from(
           difference(configuredSet, configSet).values(),
         );

@@ -1,22 +1,14 @@
 import { BigNumber } from 'ethers';
+import { z } from 'zod';
 
 import { InterchainGasPaymaster } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { CheckerViolation } from '../deploy/types';
-import { ChainMap } from '../types';
+import type { CheckerViolation } from '../deploy/types.js';
+import { IgpSchema } from '../hook/types.js';
+import { ChainMap } from '../types.js';
 
-export enum GasOracleContractType {
-  StorageGasOracle = 'StorageGasOracle',
-}
-
-export type IgpConfig = {
-  owner: Address;
-  beneficiary: Address;
-  gasOracleType: ChainMap<GasOracleContractType>;
-  oracleKey: Address;
-  overhead: ChainMap<number>;
-};
+export type IgpConfig = z.infer<typeof IgpSchema>;
 
 export enum IgpViolationType {
   Beneficiary = 'Beneficiary',

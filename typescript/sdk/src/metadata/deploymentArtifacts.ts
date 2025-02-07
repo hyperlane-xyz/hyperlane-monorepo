@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ZHash } from './customZodTypes';
+import { ZHash } from './customZodTypes.js';
 
 export const HyperlaneDeploymentArtifactsSchema = z.object({
   mailbox: ZHash.describe('The address of the Mailbox contract.'),

@@ -1,27 +1,25 @@
-import path from 'path';
+import { join } from 'path';
 
 import {
   LiquidityLayerApp,
   attachContractsMap,
   liquidityLayerFactories,
 } from '@hyperlane-xyz/sdk';
-import { error, log } from '@hyperlane-xyz/utils';
+import { rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import { bridgeAdapterConfigs } from '../../config/environments/testnet4/token-bridge';
-import { readJSON, sleep } from '../../src/utils/utils';
-import {
-  getArgs,
-  getEnvironmentConfig,
-  getEnvironmentDirectory,
-} from '../utils';
+import { bridgeAdapterConfigs } from '../../config/environments/testnet4/token-bridge.js';
+import { getInfraPath, readJSON } from '../../src/utils/utils.js';
+import { getArgs, getEnvironmentDirectory } from '../agent-utils.js';
+import { getEnvironmentConfig } from '../core-utils.js';
+
+const logger = rootLogger.child({ module: 'portal-relayer' });
 
 async function relayPortalTransfers() {
   const { environment } = await getArgs().argv;
   const config = getEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
-  const dir = path.join(
-    __dirname,
-    '../../',
+  const dir = join(
+    getInfraPath(),
     getEnvironmentDirectory(environment),
     'middleware/liquidity-layer',
   );
@@ -35,7 +33,7 @@ async function relayPortalTransfers() {
 
   const tick = async () => {
     for (const chain of Object.keys(bridgeAdapterConfigs)) {
-      log('Processing chain', {
+      logger.info('Processing chain', {
         chain,
       });
 
@@ -46,7 +44,7 @@ async function relayPortalTransfers() {
         )
       ).flat();
 
-      log('Portal messages', {
+      logger.info('Portal messages', {
         portalMessages,
       });
 
@@ -55,7 +53,7 @@ async function relayPortalTransfers() {
         try {
           await app.attemptPortalTransferCompletion(message);
         } catch (err) {
-          error('Error attempting portal transfer', {
+          logger.error('Error attempting portal transfer', {
             message,
             err,
           });
@@ -69,7 +67,7 @@ async function relayPortalTransfers() {
     try {
       await tick();
     } catch (err) {
-      error('Error processing chains in tick', {
+      logger.error('Error processing chains in tick', {
         err,
       });
     }

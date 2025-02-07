@@ -36,6 +36,8 @@ Common labels
 {{- define "hyperlane.labels" -}}
 helm.sh/chart: {{ include "hyperlane.chart" . }}
 hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
+hyperlane/context: {{ .Values.hyperlane.context | quote }}
+app.kubernetes.io/component: kathy
 {{ include "hyperlane.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
@@ -66,7 +68,7 @@ The helloworld-kathy container
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
   command:
-  - ./node_modules/.bin/ts-node
+  - ./node_modules/.bin/tsx
   - ./typescript/infra/scripts/helloworld/kathy.ts
   - -e
   - {{ .Values.hyperlane.runEnv }}
@@ -90,10 +92,6 @@ The helloworld-kathy container
 {{- end }}
 {{- if .Values.hyperlane.cycleOnce }}
   - --cycle-once
-{{- end }}
-{{- if .Values.hyperlane.connectionType }}
-  - --connection-type
-  - {{ .Values.hyperlane.connectionType }}
 {{- end }}
 {{- if .Values.hyperlane.cyclesBetweenEthereumMessages }}
   - --cycles-between-ethereum-messages

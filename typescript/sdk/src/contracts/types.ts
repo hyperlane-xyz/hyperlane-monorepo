@@ -2,7 +2,7 @@ import type { ethers } from 'ethers';
 
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { ChainMap } from '../types';
+import type { ChainMap } from '../types.js';
 
 export type AddressesMap = {
   [key: string]: Address;

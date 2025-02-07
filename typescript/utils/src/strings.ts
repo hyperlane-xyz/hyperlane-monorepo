@@ -1,7 +1,13 @@
+import { ensure0x, strip0x } from './addresses.js';
+
 export function toTitleCase(str: string) {
   return str.replace(/\w\S*/g, (txt) => {
     return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
   });
+}
+
+export function toUpperCamelCase(string: string) {
+  return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
 // Only allows letters and numbers
@@ -38,3 +44,8 @@ export function errorToString(error: any, maxLength = 300) {
   if (typeof details === 'string') return trimToLength(details, maxLength);
   return trimToLength(JSON.stringify(details), maxLength);
 }
+
+export const fromHexString = (hexstr: string) =>
+  Buffer.from(strip0x(hexstr), 'hex');
+
+export const toHexString = (buf: Buffer) => ensure0x(buf.toString('hex'));

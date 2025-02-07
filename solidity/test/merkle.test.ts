@@ -1,8 +1,10 @@
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { utils } from 'ethers';
 
-import merkleTestCases from '../../vectors/merkle.json';
+import merkleTestCases from '../../vectors/merkle.json' assert { type: 'json' };
 import { TestMerkle, TestMerkle__factory } from '../types';
+
+import { getSigner } from './signer';
 
 describe('Merkle', async () => {
   for (const testCase of merkleTestCases) {
@@ -12,14 +14,14 @@ describe('Merkle', async () => {
       let merkle: TestMerkle;
 
       before(async () => {
-        const [signer] = await ethers.getSigners();
+        const signer = await getSigner();
 
         const merkleFactory = new TestMerkle__factory(signer);
         merkle = await merkleFactory.deploy();
 
         //insert the leaves
         for (const leaf of leaves) {
-          const leafHash = ethers.utils.hashMessage(leaf);
+          const leafHash = utils.hashMessage(leaf);
           await merkle.insert(leafHash);
         }
       });

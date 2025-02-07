@@ -37,7 +37,7 @@ pub enum TestSendReceiverError {
 /// that the Mailbox can handle different ISM getter return data.
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum IsmReturnDataMode {
-    /// Encodes the ISM as an Option<Pubkey>.
+    /// Encodes the ISM as an `Option<Pubkey>`.
     EncodeOption,
     /// Returns no data.
     ReturnNothing,
@@ -161,9 +161,9 @@ pub fn process_instruction(
 /// Creates the storage PDA.
 ///
 /// Accounts:
-/// 0. [executable] System program.
-/// 1. [signer] Payer.
-/// 2. [writeable] Storage PDA.
+/// 0. `[executable]` System program.
+/// 1. `[signer]` Payer.
+/// 2. `[writeable]` Storage PDA.
 fn init(program_id: &Pubkey, accounts: &[AccountInfo], mailbox: Pubkey) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -211,15 +211,15 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo], mailbox: Pubkey) -> Progr
 /// Dispatches a message using the dispatch authority.
 ///
 /// Accounts:
-/// 0. [executable] The Mailbox program.
+/// 0. `[executable]` The Mailbox program.
 /// And now the accounts expected by the Mailbox's OutboxDispatch instruction:
-/// 2. [writeable] Outbox PDA.
-/// 3. [] This program's dispatch authority.
-/// 4. [executable] System program.
-/// 5. [executable] SPL Noop program.
-/// 6. [signer] Payer.
-/// 7. [signer] Unique message account.
-/// 8. [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
+/// 2. `[writeable]` Outbox PDA.
+/// 3. `[]` This program's dispatch authority.
+/// 4. `[executable]` System program.
+/// 5. `[executable]` SPL Noop program.
+/// 6. `[signer]` Payer.
+/// 7. `[signer]` Unique message account.
+/// 8. `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
 ///    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
 fn dispatch(
     program_id: &Pubkey,
@@ -291,8 +291,8 @@ fn dispatch(
 /// Handles a message.
 ///
 /// Accounts:
-/// 0. [writeable] Process authority specific to this program.
-/// 1. [] Storage PDA account.
+/// 0. `[writeable]` Process authority specific to this program.
+/// 1. `[]` Storage PDA account.
 pub fn handle(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -367,7 +367,7 @@ pub fn handle(
 }
 
 /// Accounts:
-/// 0. [writeable] Storage PDA account.
+/// 0. `[writeable]` Storage PDA account.
 fn set_interchain_security_module(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -392,7 +392,7 @@ fn set_interchain_security_module(
 }
 
 /// Accounts:
-/// 0. [] Storage PDA account.
+/// 0. `[]` Storage PDA account.
 fn get_interchain_security_module(_program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -424,7 +424,7 @@ fn get_interchain_security_module(_program_id: &Pubkey, accounts: &[AccountInfo]
 }
 
 /// Accounts:
-/// 0. [writeable] Storage PDA account.
+/// 0. `[writeable]` Storage PDA account.
 fn set_handle_mode(
     _program_id: &Pubkey,
     accounts: &[AccountInfo],

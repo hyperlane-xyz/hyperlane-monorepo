@@ -138,11 +138,11 @@ where
     /// Initializes the program.
     ///
     /// Accounts:
-    /// 0.   [executable] The system program.
-    /// 1.   [writable] The token PDA account.
-    /// 2.   [writable] The dispatch authority PDA account.
-    /// 3.   [signer] The payer and access control owner.
-    /// 4..N [??..??] Plugin-specific accounts.
+    /// 0.   `[executable]` The system program.
+    /// 1.   `[writable]` The token PDA account.
+    /// 2.   `[writable]` The dispatch authority PDA account.
+    /// 3.   `[signer]` The payer and access control owner.
+    /// 4..N `[??..??]` Plugin-specific accounts.
     pub fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
         let accounts_iter = &mut accounts.iter();
 
@@ -255,23 +255,23 @@ where
     /// then dispatches a message to the remote recipient.
     ///
     /// Accounts:
-    /// 0.    [executable] The system program.
-    /// 1.    [executable] The spl_noop program.
-    /// 2.    [] The token PDA account.
-    /// 3.    [executable] The mailbox program.
-    /// 4.    [writeable] The mailbox outbox account.
-    /// 5.    [] Message dispatch authority.
-    /// 6.    [signer] The token sender and mailbox payer.
-    /// 7.    [signer] Unique message / gas payment account.
-    /// 8.    [writeable] Message storage PDA.
+    /// 0.    `[executable]` The system program.
+    /// 1.    `[executable]` The spl_noop program.
+    /// 2.    `[]` The token PDA account.
+    /// 3.    `[executable]` The mailbox program.
+    /// 4.    `[writeable]` The mailbox outbox account.
+    /// 5.    `[]` Message dispatch authority.
+    /// 6.    `[signer]` The token sender and mailbox payer.
+    /// 7.    `[signer]` Unique message / gas payment account.
+    /// 8.    `[writeable]` Message storage PDA.
     ///       ---- If using an IGP ----
-    /// 9.    [executable] The IGP program.
-    /// 10.   [writeable] The IGP program data.
-    /// 11.   [writeable] Gas payment PDA.
-    /// 12.   [] OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
-    /// 13.   [writeable] The IGP account.
+    /// 9.    `[executable]` The IGP program.
+    /// 10.   `[writeable]` The IGP program data.
+    /// 11.   `[writeable]` Gas payment PDA.
+    /// 12.   `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
+    /// 13.   `[writeable]` The IGP account.
     ///      ---- End if ----
-    /// 14..N [??..??] Plugin-specific accounts.
+    /// 14..N `[??..??]` Plugin-specific accounts.
     pub fn transfer_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -362,13 +362,13 @@ where
 
                 // Accounts expected by the IGP's `PayForGas` instruction:
                 //
-                // 0. [executable] The system program.
-                // 1. [signer] The payer.
-                // 2. [writeable] The IGP program data.
-                // 3. [signer] Unique gas payment account.
-                // 4. [writeable] Gas payment PDA.
-                // 5. [writeable] The IGP account.
-                // 6. [] Overhead IGP account (optional).
+                // 0. `[executable]` The system program.
+                // 1. `[signer]` The payer.
+                // 2. `[writeable]` The IGP program data.
+                // 3. `[signer]` Unique gas payment account.
+                // 4. `[writeable]` Gas payment PDA.
+                // 5. `[writeable]` The IGP account.
+                // 6. `[]` Overhead IGP account (optional).
 
                 let mut igp_payment_account_metas = vec![
                     AccountMeta::new_readonly(solana_program::system_program::id(), false),
@@ -491,11 +491,11 @@ where
     }
 
     /// Accounts:
-    /// 0.   [signer] Mailbox processor authority specific to this program.
-    /// 1.   [executable] system_program
-    /// 2.   [] hyperlane_token storage
+    /// 0.   `[signer]` Mailbox processor authority specific to this program.
+    /// 1.   `[executable]` system_program
+    /// 2.   `[]` hyperlane_token storage
     /// 3.   [depends on plugin] recipient wallet address
-    /// 4..N [??..??] Plugin-specific accounts.
+    /// 4..N `[??..??]` Plugin-specific accounts.
     pub fn transfer_from_remote(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -575,7 +575,7 @@ where
     /// serializes them, and sets them as return data.
     ///
     /// Accounts:
-    /// 0.   [] The token PDA, which is the PDA with the seeds `HANDLE_ACCOUNT_METAS_PDA_SEEDS`.
+    /// 0.   `[]` The token PDA, which is the PDA with the seeds `HANDLE_ACCOUNT_METAS_PDA_SEEDS`.
     pub fn transfer_from_remote_account_metas(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -621,9 +621,9 @@ where
     /// Enrolls a remote router.
     ///
     /// Accounts:
-    /// 0. [executable] The system program.
-    /// 1. [writeable] The token PDA account.
-    /// 2. [signer] The owner.
+    /// 0. `[executable]` The system program.
+    /// 1. `[writeable]` The token PDA account.
+    /// 2. `[signer]` The owner.
     pub fn enroll_remote_router(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -670,9 +670,9 @@ where
     /// Enrolls remote routers.
     ///
     /// Accounts:
-    /// 0. [executable] The system program.
-    /// 1. [writeable] The token PDA account.
-    /// 2. [signer] The owner.
+    /// 0. `[executable]` The system program.
+    /// 1. `[writeable]` The token PDA account.
+    /// 2. `[signer]` The owner.
     pub fn enroll_remote_routers(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -719,8 +719,8 @@ where
     /// Transfers ownership.
     ///
     /// Accounts:
-    /// 0. [writeable] The token PDA account.
-    /// 1. [signer] The current owner.
+    /// 0. `[writeable]` The token PDA account.
+    /// 1. `[signer]` The current owner.
     pub fn transfer_ownership(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -747,7 +747,7 @@ where
     /// Gets the interchain security module.
     ///
     /// Accounts:
-    /// 0. [] The token PDA account.
+    /// 0. `[]` The token PDA account.
     pub fn interchain_security_module(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -792,8 +792,8 @@ where
     /// Lets the owner set the interchain security module.
     ///
     /// Accounts:
-    /// 0. [writeable] The token PDA account.
-    /// 1. [signer] The access control owner.
+    /// 0. `[writeable]` The token PDA account.
+    /// 1. `[signer]` The access control owner.
     pub fn set_interchain_security_module(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -820,9 +820,9 @@ where
     /// Lets the owner set destination gas configs.
     ///
     /// Accounts:
-    /// 0. [executable] The system program.
-    /// 1. [writeable] The token PDA account.
-    /// 2. [signer] The access control owner.
+    /// 0. `[executable]` The system program.
+    /// 1. `[writeable]` The token PDA account.
+    /// 2. `[signer]` The access control owner.
     pub fn set_destination_gas_configs(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -860,8 +860,8 @@ where
     /// Lets the owner set the interchain gas paymaster.
     ///
     /// Accounts:
-    /// 0. [writeable] The token PDA account.
-    /// 1. [signer] The access control owner.
+    /// 0. `[writeable]` The token PDA account.
+    /// 1. `[signer]` The access control owner.
     pub fn set_interchain_gas_paymaster(
         program_id: &Pubkey,
         accounts: &[AccountInfo],

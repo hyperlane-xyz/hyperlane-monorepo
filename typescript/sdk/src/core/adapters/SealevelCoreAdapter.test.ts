@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { SealevelCoreAdapter } from './SealevelCoreAdapter';
+import { SealevelCoreAdapter } from './SealevelCoreAdapter.js';
 
 describe('SealevelCoreAdapter', () => {
   describe('parses dispatch messages', () => {

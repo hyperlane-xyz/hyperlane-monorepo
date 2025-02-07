@@ -10,7 +10,11 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
+      activeDeadlineSeconds: 14400 # 60 * 60 * 4 seconds = 4 hours
       template:
+        metadata:
+          labels:
+            {{- include "hyperlane.labels" . | nindent 12 }}
         spec:
           restartPolicy: Never
           containers:
@@ -18,7 +22,7 @@ spec:
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: IfNotPresent
             command:
-            - ./node_modules/.bin/ts-node
+            - ./node_modules/.bin/tsx
             - ./typescript/infra/scripts/funding/fund-keys-from-deployer.ts
             - -e
             - {{ .Values.hyperlane.runEnv }}
@@ -27,12 +31,18 @@ spec:
 {{- range $context, $roles := .Values.hyperlane.contextsAndRolesToFund }}
             - --contexts-and-roles
             - {{ $context }}={{ join "," $roles }}
-            - -f
-            - /addresses-secret/{{ $context }}-addresses.json
 {{- end }}
-{{- if .Values.hyperlane.connectionType }}
-            - --connection-type
-            - {{ .Values.hyperlane.connectionType }}
+{{- range $chain, $balance := .Values.hyperlane.desiredBalancePerChain }}
+            - --desired-balance-per-chain
+            - {{ $chain }}={{ $balance }}
+{{- end }}
+{{- range $chain, $balance := .Values.hyperlane.desiredKathyBalancePerChain }}
+            - --desired-kathy-balance-per-chain
+            - {{ $chain }}={{ $balance }}
+{{- end }}
+{{- range $chain, $balance := .Values.hyperlane.igpClaimThresholdPerChain }}
+            - --igp-claim-threshold-per-chain
+            - {{ $chain }}={{ $balance }}
 {{- end }}
             env:
             - name: PROMETHEUS_PUSH_GATEWAY

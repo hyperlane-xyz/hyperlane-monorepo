@@ -2,14 +2,16 @@ import { expect } from 'chai';
 
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-
-import { ChainMetadata, isValidChainMetadata } from './chainMetadataTypes';
+import {
+  ChainMetadata,
+  EthJsonRpcBlockParameterTag,
+  isValidChainMetadata,
+} from './chainMetadataTypes.js';
 
 const minimalSchema: ChainMetadata = {
   chainId: 5,
   domainId: 5,
-  name: 'goerli',
+  name: 'sepolia',
   protocol: ProtocolType.Ethereum,
   rpcUrls: [{ http: 'https://foobar.com' }],
 };
@@ -60,6 +62,18 @@ describe('ChainMetadataSchema', () => {
         chainId: 'cosmos',
         bech32Prefix: 'cosmos',
         slip44: 118,
+        restUrls: [],
+        grpcUrls: [],
+      }),
+    ).to.eq(true);
+
+    expect(
+      isValidChainMetadata({
+        ...minimalSchema,
+        blocks: {
+          confirmations: 1,
+          reorgPeriod: EthJsonRpcBlockParameterTag.Finalized,
+        },
       }),
     ).to.eq(true);
   });
@@ -108,14 +122,5 @@ describe('ChainMetadataSchema', () => {
         chainId: 'string-id',
       }),
     ).to.eq(false);
-  });
-
-  it('Works for all SDK chain metadata consts', () => {
-    for (const chain of Object.keys(chainMetadata)) {
-      const isValid = isValidChainMetadata(chainMetadata[chain]);
-      // eslint-disable-next-line no-console
-      if (!isValid) console.error(`Invalid chain metadata for ${chain}`);
-      expect(isValid).to.eq(true);
-    }
   });
 });

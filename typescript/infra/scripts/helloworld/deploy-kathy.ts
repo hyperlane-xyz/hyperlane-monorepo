@@ -1,19 +1,14 @@
-import { runHelloworldKathyHelmCommand } from '../../src/helloworld/kathy';
-import { HelmCommand } from '../../src/utils/helm';
-import { assertCorrectKubeContext, getConfigsBasedOnArgs } from '../utils';
-
-import { getHelloWorldConfig } from './utils';
+import { KathyHelmManager } from '../../src/helloworld/kathy.js';
+import { HelmCommand } from '../../src/utils/helm.js';
+import { assertCorrectKubeContext } from '../agent-utils.js';
+import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 async function main() {
-  const { agentConfig, envConfig, context } = await getConfigsBasedOnArgs();
+  const { envConfig, environment, context } = await getConfigsBasedOnArgs();
   await assertCorrectKubeContext(envConfig);
-  const kathyConfig = getHelloWorldConfig(envConfig, context).kathy;
 
-  await runHelloworldKathyHelmCommand(
-    HelmCommand.InstallOrUpgrade,
-    agentConfig,
-    kathyConfig,
-  );
+  const manager = KathyHelmManager.forEnvironment(environment, context);
+  await manager.runHelmCommand(HelmCommand.InstallOrUpgrade);
 }
 
 main()

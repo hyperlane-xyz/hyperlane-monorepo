@@ -2,15 +2,20 @@
 pragma solidity >=0.8.0;
 
 import "forge-std/Test.sol";
+import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
+import {TestPostDispatchHook} from "../../contracts/test/TestPostDispatchHook.sol";
 import {HypNativeScaled} from "../../contracts/token/extensions/HypNativeScaled.sol";
 import {HypERC20} from "../../contracts/token/HypERC20.sol";
+import {HypNative} from "../../contracts/token/HypNative.sol";
 import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
 import {MockHyperlaneEnvironment} from "../../contracts/mock/MockHyperlaneEnvironment.sol";
 
 contract HypNativeScaledTest is Test {
     uint32 nativeDomain = 1;
     uint32 synthDomain = 2;
+
+    address internal constant ALICE = address(0x1);
 
     uint8 decimals = 9;
     uint256 mintAmount = 123456789;
@@ -37,20 +42,41 @@ contract HypNativeScaledTest is Test {
     function setUp() public {
         environment = new MockHyperlaneEnvironment(synthDomain, nativeDomain);
 
-        synth = new HypERC20(
+        HypERC20 implementationSynth = new HypERC20(
             decimals,
             address(environment.mailboxes(synthDomain))
         );
-        synth.initialize(
-            mintAmount * (10 ** decimals),
-            "Zebec BSC Token",
-            "ZBC"
-        );
+        TransparentUpgradeableProxy proxySynth = new TransparentUpgradeableProxy(
+                address(implementationSynth),
+                address(9),
+                abi.encodeWithSelector(
+                    HypERC20.initialize.selector,
+                    mintAmount * (10 ** decimals),
+                    "Zebec BSC Token",
+                    "ZBC",
+                    address(0),
+                    address(0),
+                    address(this)
+                )
+            );
+        synth = HypERC20(address(proxySynth));
 
-        native = new HypNativeScaled(
+        HypNativeScaled implementationNative = new HypNativeScaled(
             scale,
             address(environment.mailboxes(nativeDomain))
         );
+        TransparentUpgradeableProxy proxyNative = new TransparentUpgradeableProxy(
+                address(implementationNative),
+                address(9),
+                abi.encodeWithSelector(
+                    HypNative.initialize.selector,
+                    address(0),
+                    address(0),
+                    address(this)
+                )
+            );
+
+        native = HypNativeScaled(payable(address(proxyNative)));
 
         native.enrollRemoteRouter(
             synthDomain,
@@ -126,13 +152,40 @@ contract HypNativeScaledTest is Test {
         address recipient = address(0xdeadbeef);
         bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
 
-        vm.assume(nativeValue < address(this).balance);
+        vm.deal(address(this), nativeValue);
         vm.expectEmit(true, true, true, true);
         emit SentTransferRemote(synthDomain, bRecipient, synthAmount);
         native.transferRemote{value: nativeValue}(
             synthDomain,
             bRecipient,
             nativeValue
+        );
+        environment.processNextPendingMessageFromDestination();
+        assertEq(synth.balanceOf(recipient), synthAmount);
+    }
+
+    function testTransfer_withHookSpecified(
+        uint256 amount,
+        bytes calldata metadata
+    ) public {
+        vm.assume(amount <= mintAmount);
+
+        uint256 nativeValue = amount * (10 ** nativeDecimals);
+        uint256 synthAmount = amount * (10 ** decimals);
+        address recipient = address(0xdeadbeef);
+        bytes32 bRecipient = TypeCasts.addressToBytes32(recipient);
+
+        TestPostDispatchHook hook = new TestPostDispatchHook();
+
+        vm.deal(address(this), nativeValue);
+        vm.expectEmit(true, true, true, true);
+        emit SentTransferRemote(synthDomain, bRecipient, synthAmount);
+        native.transferRemote{value: nativeValue}(
+            synthDomain,
+            bRecipient,
+            nativeValue,
+            metadata,
+            address(hook)
         );
         environment.processNextPendingMessageFromDestination();
         assertEq(synth.balanceOf(recipient), synthAmount);
@@ -150,6 +203,15 @@ contract HypNativeScaledTest is Test {
             synthDomain,
             bRecipient,
             nativeValue + 1
+        );
+
+        vm.expectRevert("Native: amount exceeds msg.value");
+        native.transferRemote{value: nativeValue}(
+            synthDomain,
+            bRecipient,
+            nativeValue + 1,
+            bytes(""),
+            address(0)
         );
     }
 }

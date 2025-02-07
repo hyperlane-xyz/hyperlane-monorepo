@@ -1,6 +1,6 @@
-import { ChainMap, ChainName, RpcConsensusType } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
-import { DockerConfig } from '../agent';
+import { DockerConfig } from '../agent/agent.js';
 
 export enum HelloWorldKathyRunMode {
   // Sends messages between all pairwise chains
@@ -29,7 +29,6 @@ export interface HelloWorldKathyConfig {
   messageReceiptTimeout: number;
 
   // Which type of provider to use
-  connectionType: RpcConsensusType;
   // How many cycles to skip between a cycles that send messages to/from Ethereum. Defaults to 0.
   cyclesBetweenEthereumMessages?: number;
 }

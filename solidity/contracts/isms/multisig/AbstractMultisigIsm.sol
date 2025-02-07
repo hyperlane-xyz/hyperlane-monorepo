@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
+/*@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+     @@@@@  HYPERLANE  @@@@@@@
+    @@@@@@@@@@@@@@@@@@@@@@@@@
+   @@@@@@@@@       @@@@@@@@@
+  @@@@@@@@@       @@@@@@@@@
+ @@@@@@@@@       @@@@@@@@@
+@@@@@@@@@       @@@@@@@@*/
+
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
@@ -9,31 +21,16 @@ import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityMod
 import {IMultisigIsm} from "../../interfaces/isms/IMultisigIsm.sol";
 import {Message} from "../../libs/Message.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
- * @title MultisigIsm
- * @notice Manages per-domain m-of-n Validator sets that are used to verify
- * interchain messages.
+ * @title AbstractMultisig
+ * @notice Manages per-domain m-of-n Validator sets
  * @dev See ./AbstractMerkleRootMultisigIsm.sol and ./AbstractMessageIdMultisigIsm.sol
  * for concrete implementations of `digest` and `signatureAt`.
  * @dev See ./StaticMultisigIsm.sol for concrete implementations.
  */
-abstract contract AbstractMultisigIsm is IMultisigIsm {
-    // ============ Virtual Functions ============
-    // ======= OVERRIDE THESE TO IMPLEMENT =======
-
-    /**
-     * @notice Returns the set of validators responsible for verifying _message
-     * and the number of signatures required
-     * @dev Can change based on the content of _message
-     * @param _message Hyperlane formatted interchain message
-     * @return validators The array of validator addresses
-     * @return threshold The number of validator signatures needed
-     */
-    function validatorsAndThreshold(
-        bytes calldata _message
-    ) public view virtual returns (address[] memory, uint8);
-
+abstract contract AbstractMultisig is PackageVersioned {
     /**
      * @notice Returns the digest to be used for signature verification.
      * @param _metadata ABI encoded module metadata
@@ -56,11 +53,45 @@ abstract contract AbstractMultisigIsm is IMultisigIsm {
         uint256 _index
     ) internal pure virtual returns (bytes calldata);
 
+    /**
+     * @notice Returns the number of signatures in the metadata.
+     * @param _metadata ABI encoded module metadata
+     * @return count The number of signatures
+     */
+    function signatureCount(
+        bytes calldata _metadata
+    ) public pure virtual returns (uint256);
+}
+
+/**
+ * @title AbstractMultisigIsm
+ * @notice Manages per-domain m-of-n Validator sets of AbstractMultisig that are used to verify
+ * interchain messages.
+ */
+abstract contract AbstractMultisigIsm is AbstractMultisig, IMultisigIsm {
+    // ============ Virtual Functions ============
+    // ======= OVERRIDE THESE TO IMPLEMENT =======
+
+    /**
+     * @notice Returns the set of validators responsible for verifying _message
+     * and the number of signatures required
+     * @dev Can change based on the content of _message
+     * @dev Signatures provided to `verify` must be consistent with validator ordering
+     * @param _message Hyperlane formatted interchain message
+     * @return validators The array of validator addresses
+     * @return threshold The number of validator signatures needed
+     */
+    function validatorsAndThreshold(
+        bytes calldata _message
+    ) public view virtual returns (address[] memory, uint8);
+
     // ============ Public Functions ============
 
     /**
      * @notice Requires that m-of-n validators verify a merkle root,
-     * and verifies a me∑rkle proof of `_message` against that root.
+     * and verifies a merkle proof of `_message` against that root.
+     * @dev Optimization relies on the caller sorting signatures in the same order as validators.
+     * @dev Employs https://www.geeksforgeeks.org/two-pointers-technique/ to minimize gas usage.
      * @param _metadata ABI encoded module metadata
      * @param _message Formatted Hyperlane message (see Message.sol).
      */

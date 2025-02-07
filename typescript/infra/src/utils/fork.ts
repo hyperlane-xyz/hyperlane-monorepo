@@ -1,5 +1,4 @@
 import { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers';
-import { ethers } from 'ethers';
 
 import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
 
@@ -16,13 +15,13 @@ export const resetFork = async (url: string) => {
 
 export const impersonateAccount = async (
   account: string,
+  spoofBalance?: number,
 ): Promise<JsonRpcSigner> => {
   const provider = new JsonRpcProvider('http://127.0.0.1:8545');
   await provider.send('hardhat_impersonateAccount', [account]);
-  await provider.send('hardhat_setBalance', [
-    account,
-    ethers.utils.parseEther('42').toHexString(),
-  ]);
+  if (spoofBalance) {
+    await provider.send('hardhat_setBalance', [account, spoofBalance]);
+  }
   return provider.getSigner(account);
 };
 

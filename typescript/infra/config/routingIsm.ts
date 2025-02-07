@@ -6,30 +6,14 @@ import {
   IsmType,
   ModuleType,
   RoutingIsmConfig,
-  TestChains,
 } from '@hyperlane-xyz/sdk';
 
-import { DeployEnvironment } from '../src/config';
+import { DeployEnvironment } from '../src/config/environment.js';
 
-import { Contexts } from './contexts';
-import { supportedChainNames as mainnet3Chains } from './environments/mainnet3/chains';
-import { owners as mainnet3Owners } from './environments/mainnet3/owners';
-import { owners as testOwners } from './environments/test/owners';
-import { supportedChainNames as testnet4Chains } from './environments/testnet4/chains';
-import { owners as testnet4Owners } from './environments/testnet4/owners';
-import { multisigIsm } from './multisigIsm';
-
-const owners = {
-  test: testOwners,
-  testnet4: testnet4Owners,
-  mainnet3: mainnet3Owners,
-};
-
-const chains = {
-  test: TestChains,
-  testnet4: testnet4Chains,
-  mainnet3: mainnet3Chains,
-};
+import { Contexts } from './contexts.js';
+import { environments } from './environments/index.js';
+import { multisigIsm } from './multisigIsm.js';
+import { getEnvChains } from './registry.js';
 
 // Intended to be the "entrypoint" ISM.
 // Routing ISM => Aggregation (1/2)
@@ -42,7 +26,9 @@ export const routingIsm = (
   local: ChainName,
   context: Contexts,
 ): RoutingIsmConfig | string => {
-  const aggregationIsms: ChainMap<AggregationIsmConfig> = chains[environment]
+  const aggregationIsms: ChainMap<AggregationIsmConfig> = getEnvChains(
+    environment,
+  )
     .filter((chain) => chain !== local)
     .reduce(
       (acc, chain) => ({
@@ -55,7 +41,7 @@ export const routingIsm = (
   return {
     type: IsmType.ROUTING,
     domains: aggregationIsms,
-    owner: owners[environment][local],
+    owner: environments[environment].core[local].owner,
   };
 };
 

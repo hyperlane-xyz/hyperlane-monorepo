@@ -1,0 +1,22 @@
+{
+  "solanatestnet": {
+    "sonicsvmtestnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    }
+  },
+  "sonicsvmtestnet": {
+    "solanatestnet": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1500000000000000",
+        "gasPrice": "1000",
+        "tokenDecimals": 9
+      },
+      "overhead": 600000
+    }
+  }
+}

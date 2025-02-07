@@ -7,11 +7,11 @@ import {
   MultiProtocolProvider,
   ProviderType,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, addBufferToGasLimit } from '@hyperlane-xyz/utils';
 
-import { HelloWorld, HelloWorld__factory } from '../types';
+import { HelloWorld, HelloWorld__factory } from '../types/index.js';
 
-import { IHelloWorldAdapter } from './types';
+import { IHelloWorldAdapter } from './types.js';
 
 export class EvmHelloWorldAdapter
   extends EvmRouterAdapter
@@ -29,6 +29,7 @@ export class EvmHelloWorldAdapter
     destination: ChainName,
     message: string,
     value: string,
+    sender: Address,
   ): Promise<EthersV5Transaction> {
     const contract = this.getConnectedContract();
     const toDomain = this.multiProvider.getDomainId(destination);
@@ -44,16 +45,22 @@ export class EvmHelloWorldAdapter
     const estimated = await contract.estimateGas.sendHelloWorld(
       toDomain,
       message,
-      { ...transactionOverrides, value: BigNumber.from(value).add(quote) },
+      {
+        ...transactionOverrides,
+        // Some networks, like PolygonZkEvm, require a `from` address
+        // with funds to be specified when estimating gas for a transaction
+        // that provides non-zero `value`.
+        from: sender,
+        value: BigNumber.from(value).add(quote),
+      },
     );
-    const gasLimit = estimated.mul(12).div(10);
 
     const tx = await contract.populateTransaction.sendHelloWorld(
       toDomain,
       message,
       {
+        gasLimit: addBufferToGasLimit(estimated),
         ...transactionOverrides,
-        gasLimit,
         value: BigNumber.from(value).add(quote),
       },
     );

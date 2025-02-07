@@ -16,3 +16,5 @@ export const ZHash = z
   .regex(
     /^(0x([0-9a-fA-F]{32}|[0-9a-fA-F]{40}|[0-9a-fA-F]{64}|[0-9a-fA-F]{128}))|([123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{32})$/,
   );
+/** Zod ChainName schema */
+export const ZChainName = z.string().regex(/^[a-z][a-z0-9]*$/);

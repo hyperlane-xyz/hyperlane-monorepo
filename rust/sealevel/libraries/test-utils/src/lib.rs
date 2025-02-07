@@ -24,6 +24,7 @@ use hyperlane_sealevel_mailbox::{
     instruction::{InboxProcess, Init as InitMailbox, Instruction as MailboxInstruction},
     mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, mailbox_process_authority_pda_seeds,
     mailbox_processed_message_pda_seeds,
+    protocol_fee::ProtocolFee,
 };
 use hyperlane_sealevel_message_recipient_interface::{
     HandleInstruction, MessageRecipientInstruction, HANDLE_ACCOUNT_METAS_PDA_SEEDS,
@@ -55,6 +56,8 @@ pub async fn initialize_mailbox(
     mailbox_program_id: &Pubkey,
     payer: &Keypair,
     local_domain: u32,
+    max_protocol_fee: u64,
+    protocol_fee: ProtocolFee,
 ) -> Result<MailboxAccounts, BanksClientError> {
     let (inbox_account, inbox_bump) =
         Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), mailbox_program_id);
@@ -66,6 +69,8 @@ pub async fn initialize_mailbox(
     let ixn = MailboxInstruction::Init(InitMailbox {
         local_domain,
         default_ism,
+        max_protocol_fee,
+        protocol_fee,
     });
     let init_instruction = Instruction {
         program_id: *mailbox_program_id,
@@ -105,7 +110,7 @@ async fn initialize_test_ism(
 
 /// Simulates an instruction, and attempts to deserialize it into a T.
 /// If no return data at all was returned, returns Ok(None).
-/// If some return data was returned but deserialization was unsuccesful,
+/// If some return data was returned but deserialization was unsuccessful,
 /// an Err is returned.
 pub async fn simulate_instruction<T: BorshDeserialize + BorshSerialize>(
     banks_client: &mut BanksClient,

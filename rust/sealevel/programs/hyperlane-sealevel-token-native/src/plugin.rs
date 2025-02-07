@@ -76,7 +76,7 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     /// Initializes the plugin.
     ///
     /// Accounts:
-    /// 0. [writable] The native collateral PDA account.
+    /// 0. `[writable]` The native collateral PDA account.
     fn initialize<'a, 'b>(
         program_id: &Pubkey,
         system_program: &'a AccountInfo<'b>,
@@ -115,8 +115,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     /// Burns the tokens from the sender's associated token account.
     ///
     /// Accounts:
-    /// 0. [executable] The system program.
-    /// 1. [writeable] The native token collateral PDA account.
+    /// 0. `[executable]` The system program.
+    /// 1. `[writeable]` The native token collateral PDA account.
     fn transfer_in<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,
@@ -145,8 +145,8 @@ impl HyperlaneSealevelTokenPlugin for NativePlugin {
     /// result of a transfer to this chain from a remote chain.
     ///
     /// Accounts:
-    /// 0. [executable] The system program.
-    /// 1. [writeable] The native token collateral PDA account.
+    /// 0. `[executable]` The system program.
+    /// 1. `[writeable]` The native token collateral PDA account.
     fn transfer_out<'a, 'b>(
         program_id: &Pubkey,
         token: &HyperlaneToken<Self>,

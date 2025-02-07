@@ -16,12 +16,16 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {PackageVersioned} from "../../PackageVersioned.sol";
 
 /**
  * @title AbstractPostDispatch
  * @notice Abstract post dispatch hook supporting the current global hook metadata variant.
  */
-abstract contract AbstractPostDispatchHook is IPostDispatchHook {
+abstract contract AbstractPostDispatchHook is
+    IPostDispatchHook,
+    PackageVersioned
+{
     using StandardHookMetadata for bytes;
 
     // ============ External functions ============

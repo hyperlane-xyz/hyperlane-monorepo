@@ -22,6 +22,8 @@ contract AggregationHookTest is Test {
         uint8 n,
         uint256 fee
     ) internal returns (address[] memory) {
+        vm.assume(n > 0);
+
         address[] memory hooks = new address[](n);
         for (uint8 i = 0; i < n; i++) {
             TestPostDispatchHook subHook = new TestPostDispatchHook();

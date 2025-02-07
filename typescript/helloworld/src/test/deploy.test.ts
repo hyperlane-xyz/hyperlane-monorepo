@@ -1,5 +1,5 @@
 import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'hardhat';
+import hre from 'hardhat';
 
 import {
   ChainMap,
@@ -11,11 +11,11 @@ import {
   TestCoreDeployer,
 } from '@hyperlane-xyz/sdk';
 
-import { HelloWorldApp } from '../app/app';
-import { HelloWorldFactories } from '../app/contracts';
-import { HelloWorldChecker } from '../deploy/check';
-import { HelloWorldConfig } from '../deploy/config';
-import { HelloWorldDeployer } from '../deploy/deploy';
+import { HelloWorldApp } from '../app/app.js';
+import { HelloWorldFactories } from '../app/contracts.js';
+import { HelloWorldChecker } from '../deploy/check.js';
+import { HelloWorldConfig } from '../deploy/config.js';
+import { HelloWorldDeployer } from '../deploy/deploy.js';
 
 describe('deploy', async () => {
   let multiProvider: MultiProvider;
@@ -26,7 +26,7 @@ describe('deploy', async () => {
   let app: HelloWorldApp;
 
   before(async () => {
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
     multiProvider = MultiProvider.createTestMultiProvider({ signer });
     const ismFactoryDeployer = new HyperlaneProxyFactoryDeployer(multiProvider);
     const ismFactory = new HyperlaneIsmFactory(

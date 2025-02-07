@@ -3,17 +3,44 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
+import "@openzeppelin/contracts/utils/Strings.sol";
+
 import {IAggregationIsm} from "../../contracts/interfaces/isms/IAggregationIsm.sol";
 import {StaticAggregationIsmFactory} from "../../contracts/isms/aggregation/StaticAggregationIsmFactory.sol";
+import {IThresholdAddressFactory} from "../../contracts/interfaces/IThresholdAddressFactory.sol";
+import {StorageAggregationIsmFactory} from "../../contracts/isms/aggregation/StorageAggregationIsm.sol";
 import {AggregationIsmMetadata} from "../../contracts/isms/libs/AggregationIsmMetadata.sol";
 import {TestIsm, ThresholdTestUtils} from "./IsmTestUtils.sol";
 
 contract AggregationIsmTest is Test {
-    StaticAggregationIsmFactory factory;
+    using Strings for uint256;
+    using Strings for uint8;
+
+    string constant fixtureKey = "fixture";
+
+    IThresholdAddressFactory factory;
     IAggregationIsm ism;
 
-    function setUp() public {
+    function setUp() public virtual {
         factory = new StaticAggregationIsmFactory();
+    }
+
+    function fixtureAppendMetadata(
+        uint256 index,
+        bytes memory metadata
+    ) internal {
+        vm.serializeBytes(fixtureKey, index.toString(), metadata);
+    }
+
+    function fixtureAppendNull(uint256 index) internal {
+        vm.serializeString(fixtureKey, index.toString(), "null");
+    }
+
+    function writeFixture(bytes memory metadata, uint8 m) internal {
+        string memory path = string(
+            abi.encodePacked("./fixtures/aggregation/", m.toString(), ".json")
+        );
+        vm.writeJson(vm.serializeBytes(fixtureKey, "encoded", metadata), path);
     }
 
     function deployIsms(
@@ -21,6 +48,8 @@ contract AggregationIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) internal returns (address[] memory) {
+        vm.assume(m > 0 && m <= n && n < 10);
+
         bytes32 randomness = seed;
         address[] memory isms = new address[](n);
         for (uint256 i = 0; i < n; i++) {
@@ -32,38 +61,40 @@ contract AggregationIsmTest is Test {
         return isms;
     }
 
-    function getMetadata(
-        uint8 m,
-        bytes32 seed
-    ) private view returns (bytes memory) {
+    function getMetadata(uint8 m, bytes32 seed) private returns (bytes memory) {
         (address[] memory choices, ) = ism.modulesAndThreshold("");
         address[] memory chosen = ThresholdTestUtils.choose(m, choices, seed);
         bytes memory offsets;
         uint32 start = 8 * uint32(choices.length);
         bytes memory metametadata;
+
         for (uint256 i = 0; i < choices.length; i++) {
             bool included = false;
             for (uint256 j = 0; j < chosen.length; j++) {
                 included = included || choices[i] == chosen[j];
             }
             if (included) {
-                bytes memory requiredMetadata = TestIsm(choices[i])
-                    .requiredMetadata();
-                uint32 end = start + uint32(requiredMetadata.length);
+                bytes memory metadata = TestIsm(choices[i]).requiredMetadata();
+                uint32 end = start + uint32(metadata.length);
                 uint64 offset = (uint64(start) << 32) | uint64(end);
                 offsets = bytes.concat(offsets, abi.encodePacked(offset));
                 start = end;
-                metametadata = abi.encodePacked(metametadata, requiredMetadata);
+                metametadata = abi.encodePacked(metametadata, metadata);
+                fixtureAppendMetadata(i, metadata);
             } else {
-                uint64 offset = 0;
-                offsets = bytes.concat(offsets, abi.encodePacked(offset));
+                offsets = bytes.concat(offsets, abi.encodePacked(uint64(0)));
+                fixtureAppendNull(i);
             }
         }
-        return abi.encodePacked(offsets, metametadata);
+
+        bytes memory encoded = abi.encodePacked(offsets, metametadata);
+
+        writeFixture(encoded, m);
+
+        return encoded;
     }
 
     function testVerify(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
@@ -76,7 +107,7 @@ contract AggregationIsmTest is Test {
         uint8 i,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10 && i < n);
+        vm.assume(i < n);
         deployIsms(m, n, seed);
         (address[] memory modules, ) = ism.modulesAndThreshold("");
         bytes memory noMetadata;
@@ -87,7 +118,6 @@ contract AggregationIsmTest is Test {
     }
 
     function testVerifyMissingMetadata(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         // Populate metadata for one fewer ISMs than needed.
@@ -101,7 +131,6 @@ contract AggregationIsmTest is Test {
         uint8 n,
         bytes32 seed
     ) public {
-        vm.assume(0 < m && m <= n && n < 10);
         deployIsms(m, n, seed);
 
         bytes memory metadata = getMetadata(m, seed);
@@ -113,11 +142,26 @@ contract AggregationIsmTest is Test {
     }
 
     function testModulesAndThreshold(uint8 m, uint8 n, bytes32 seed) public {
-        vm.assume(0 < m && m <= n && n < 10);
         address[] memory expectedIsms = deployIsms(m, n, seed);
         (address[] memory actualIsms, uint8 actualThreshold) = ism
             .modulesAndThreshold("");
         assertEq(abi.encode(actualIsms), abi.encode(expectedIsms));
         assertEq(actualThreshold, m);
+    }
+
+    function testZeroThreshold() public {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 0);
+    }
+
+    function testThresholdExceedsLength() public {
+        vm.expectRevert("Invalid threshold");
+        factory.deploy(new address[](1), 2);
+    }
+}
+
+contract StorageAggregationIsmTest is AggregationIsmTest {
+    function setUp() public override {
+        factory = new StorageAggregationIsmFactory();
     }
 }

@@ -14,28 +14,30 @@ jobs:
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: yarn-cache
-        uses: actions/cache@v3
+        uses: buildjet/cache@v4
         with:
           path: |
             **/node_modules
             .yarn
-          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
+          key: ${{ runner.os }}-yarn-4.5.1-cache-${{ hashFiles('./yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-4.5.1-cache-
 
       - name: yarn-install
         run: yarn install
 
       - name: foundry-install
-        uses: onbjerg/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@v1
 
       # Run the command on PR branch
       - name: Run command on PR branch
@@ -55,12 +57,4 @@ jobs:
 
       # Compare outputs
       - name: Compare outputs
-        run: diff --unified solidity/base-storage solidity/HEAD-storage > layout.diff
-
-      - name: Comment PR with layout diff
-        uses: yorhodes/actions-comment-pull-request@v2.4.6
-        with:
-          header: Storage Layout Diff
-          filePath: layout.diff
-          mdLanguage: diff
-          comment_tag: storagelayoutdiff
+        run: diff --unified solidity/base-storage solidity/HEAD-storage

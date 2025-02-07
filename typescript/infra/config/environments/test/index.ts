@@ -1,20 +1,25 @@
 import { JsonRpcProvider } from '@ethersproject/providers';
 
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { MultiProvider, testChainMetadata } from '@hyperlane-xyz/sdk';
 
-import { EnvironmentConfig } from '../../../src/config';
+import { EnvironmentConfig } from '../../../src/config/environment.js';
 
-import { agents } from './agent';
-import { testConfigs } from './chains';
-import { core } from './core';
-import { storageGasOracleConfig } from './gas-oracle';
-import { igp } from './igp';
-import { infra } from './infra';
-import { owners } from './owners';
+import { agents } from './agent.js';
+import { testChainNames } from './chains.js';
+import { core } from './core.js';
+import { igp } from './igp.js';
+import { infra } from './infra.js';
+import { owners } from './owners.js';
 
 export const environment: EnvironmentConfig = {
   environment: 'test',
-  chainMetadataConfigs: testConfigs,
+  supportedChainNames: testChainNames,
+  getRegistry: () => {
+    throw new Error('Not implemented');
+  },
+  getMultiProtocolProvider: () => {
+    throw new Error('Not implemented');
+  },
   agents,
   core,
   igp,
@@ -31,5 +36,4 @@ export const environment: EnvironmentConfig = {
   getKeys: async () => {
     throw new Error('Not implemented');
   },
-  storageGasOracleConfig,
 };

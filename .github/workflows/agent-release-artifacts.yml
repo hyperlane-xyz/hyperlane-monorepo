@@ -16,7 +16,7 @@ env:
 
 jobs:
   prepare:
-    runs-on: larger-runner
+    runs-on: ubuntu-latest
     outputs:
       tag_date: ${{ steps.taggen.outputs.TAG_DATE }}
       tag_sha: ${{ steps.taggen.outputs.TAG_SHA }}
@@ -43,13 +43,13 @@ jobs:
     runs-on: ${{ matrix.OS }}
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: ubuntu setup
         if: ${{ matrix.OS == 'larger-runner' }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq crossbuild-essential-arm64 crossbuild-essential-armhf
-          
+
           # some additional configuration for cross-compilation on linux
           cat >>~/.cargo/config <<EOF
           [target.aarch64-unknown-linux-gnu]
@@ -58,30 +58,28 @@ jobs:
           linker = "aarch64-linux-gnu-gcc"
           EOF
       - name: setup rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
           target: ${{ matrix.TARGET }}
       - name: setup target
         run: rustup target add ${{ matrix.TARGET }}
-        working-directory: ./rust
+        working-directory: ./rust/main
       - name: build
         run: cargo build --release --target ${{ matrix.TARGET }} --bin relayer --bin scraper --bin validator
-        working-directory: ./rust
+        working-directory: ./rust/main
       - name: make executable
         if: ${{ matrix.OS == 'larger-runner' || matrix.OS == 'macos-latest' }}
         run: chmod ug+x,-w relayer scraper validator
-        working-directory: rust/target/${{ matrix.TARGET }}/release
+        working-directory: rust/main/target/${{ matrix.TARGET }}/release
       - name: upload binaries
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.TARGET }}-${{ needs.prepare.outputs.tag_sha }}-${{ needs.prepare.outputs.tag_date }}
           path: |
-            rust/target/${{ matrix.TARGET }}/release/relayer
-            rust/target/${{ matrix.TARGET }}/release/relayer.exe
-            rust/target/${{ matrix.TARGET }}/release/scraper
-            rust/target/${{ matrix.TARGET }}/release/scraper.exe
-            rust/target/${{ matrix.TARGET }}/release/validator
-            rust/target/${{ matrix.TARGET }}/release/validator.exe
+            rust/main/target/${{ matrix.TARGET }}/release/relayer
+            rust/main/target/${{ matrix.TARGET }}/release/relayer.exe
+            rust/main/target/${{ matrix.TARGET }}/release/scraper
+            rust/main/target/${{ matrix.TARGET }}/release/scraper.exe
+            rust/main/target/${{ matrix.TARGET }}/release/validator
+            rust/main/target/${{ matrix.TARGET }}/release/validator.exe
           if-no-files-found: error

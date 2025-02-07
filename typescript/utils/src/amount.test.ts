@@ -1,6 +1,11 @@
 import { expect } from 'chai';
 
-import { eqAmountApproximate, fromWei, fromWeiRounded, toWei } from './amount';
+import {
+  eqAmountApproximate,
+  fromWei,
+  fromWeiRounded,
+  toWei,
+} from './amount.js';
 
 describe('fromWei', () => {
   it('parses and converts correctly', () => {

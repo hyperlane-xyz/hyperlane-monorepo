@@ -1,37 +1,31 @@
-import { CommandModule } from 'yargs';
-
+import { CommandModuleWithWriteContext } from '../context/types.js';
 import { checkMessageStatus } from '../status/message.js';
 
-import { chainsCommandOption, coreArtifactsOption } from './options.js';
+import { MessageOptionsArgTypes, messageOptions } from './send.js';
 
-export const statusCommand: CommandModule = {
+export const statusCommand: CommandModuleWithWriteContext<
+  MessageOptionsArgTypes & { id?: string } & { dispatchTx?: string }
+> = {
   command: 'status',
   describe: 'Check status of a message',
-  builder: (yargs) =>
-    yargs.options({
-      id: {
-        type: 'string',
-        description: 'Message ID',
-        demandOption: true,
-      },
-      destination: {
-        type: 'string',
-        description: 'Destination chain name',
-        demandOption: true,
-      },
-      chains: chainsCommandOption,
-      core: coreArtifactsOption,
-    }),
-  handler: async (argv: any) => {
-    const chainConfigPath: string = argv.chains;
-    const coreArtifactsPath: string = argv.core;
-    const messageId: string = argv.id;
-    const destination: string = argv.destination;
+  builder: {
+    ...messageOptions,
+    id: {
+      type: 'string',
+      description: 'Message ID',
+    },
+    dispatchTx: {
+      type: 'string',
+      description: 'Dispatch transaction hash',
+    },
+  },
+  handler: async ({ context, origin, id, relay, dispatchTx }) => {
     await checkMessageStatus({
-      chainConfigPath,
-      coreArtifactsPath,
-      messageId,
-      destination,
+      context,
+      dispatchTx,
+      messageId: id,
+      origin,
+      selfRelay: relay,
     });
     process.exit(0);
   },

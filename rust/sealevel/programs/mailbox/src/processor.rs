@@ -1,7 +1,7 @@
 //! Entrypoint, dispatch, and execution for the Hyperlane Sealevel mailbox instruction.
 
 use access_control::AccessControl;
-use account_utils::SizedData;
+use account_utils::{verify_rent_exempt, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
@@ -10,14 +10,14 @@ use hyperlane_core::{
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
 use solana_program::{
-    account_info::next_account_info,
-    account_info::AccountInfo,
+    account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     msg,
     program::{get_return_data, invoke, invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
+    system_instruction,
     sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
 
@@ -36,13 +36,11 @@ use crate::{
         ProcessedMessage, ProcessedMessageAccount,
     },
     error::Error,
-    instruction::{
-        InboxProcess, Init, Instruction as MailboxIxn, OutboxDispatch, MAX_MESSAGE_BODY_BYTES,
-        VERSION,
-    },
+    instruction::{InboxProcess, Init, Instruction as MailboxIxn, OutboxDispatch, VERSION},
     mailbox_dispatched_message_pda_seeds, mailbox_inbox_pda_seeds,
     mailbox_message_dispatch_authority_pda_seeds, mailbox_outbox_pda_seeds,
     mailbox_process_authority_pda_seeds, mailbox_processed_message_pda_seeds,
+    protocol_fee::ProtocolFee,
 };
 
 #[cfg(not(feature = "no-entrypoint"))]
@@ -69,6 +67,10 @@ pub fn process_instruction(
         MailboxIxn::TransferOwnership(new_owner) => {
             transfer_ownership(program_id, accounts, new_owner)
         }
+        MailboxIxn::ClaimProtocolFees => claim_protocol_fees(program_id, accounts),
+        MailboxIxn::SetProtocolFeeConfig(new_protocol_fee_config) => {
+            set_protocol_fee_config(program_id, accounts, new_protocol_fee_config)
+        }
     }
     .map_err(|err| {
         msg!("{}", err);
@@ -79,10 +81,10 @@ pub fn process_instruction(
 /// Initializes the Mailbox.
 ///
 /// Accounts:
-/// 0. [executable] The system program.
-/// 1. [signer, writable] The payer account and owner of the Mailbox.
-/// 2. [writable] The inbox PDA account.
-/// 3. [writable] The outbox PDA account.
+/// 0. `[executable]` The system program.
+/// 1. `[signer, writable]` The payer account and owner of the Mailbox.
+/// 2. `[writable]` The inbox PDA account.
+/// 3. `[writable]` The outbox PDA account.
 fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -115,6 +117,10 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         default_ism: init.default_ism,
         processed_count: 0,
     });
+    if init.protocol_fee.fee > init.max_protocol_fee {
+        msg!("Invalid initialization config: Protocol fee is greater than max protocol fee",);
+        return Err(ProgramError::InvalidArgument);
+    }
 
     // Create the inbox PDA account.
     create_pda_account(
@@ -143,6 +149,8 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
         outbox_bump_seed: outbox_bump,
         owner: Some(*payer_info.key),
         tree: MerkleTree::default(),
+        max_protocol_fee: init.max_protocol_fee,
+        protocol_fee: init.protocol_fee,
     });
 
     // Create the outbox PDA account.
@@ -164,16 +172,16 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 /// Process a message. Non-reentrant through the use of a RefMut.
 ///
 // Accounts:
-// 0.      [signer] Payer account. This pays for the creation of the processed message PDA.
-// 1.      [executable] The system program.
-// 2.      [writable] Inbox PDA account.
-// 3.      [] Mailbox process authority specific to the message recipient.
-// 4.      [writable] Processed message PDA.
+// 0.      `[signer]` Payer account. This pays for the creation of the processed message PDA.
+// 1.      `[executable]` The system program.
+// 2.      `[writable]` Inbox PDA account.
+// 3.      `[]` Mailbox process authority specific to the message recipient.
+// 4.      `[writable]` Processed message PDA.
 // 5..N    [??] Accounts required to invoke the recipient's InterchainSecurityModule instruction.
-// N+1.    [executable] SPL noop
-// N+2.    [executable] ISM
+// N+1.    `[executable]` SPL noop
+// N+2.    `[executable]` ISM
 // N+2..M. [??] Accounts required to invoke the ISM's Verify instruction.
-// M+1.    [executable] Recipient program.
+// M+1.    `[executable]` Recipient program.
 // M+2..K. [??] Accounts required to invoke the recipient's Handle instruction.
 fn inbox_process(
     program_id: &Pubkey,
@@ -414,8 +422,8 @@ fn inbox_process(
 /// Gets the ISM to use for a recipient program and sets it as return data.
 ///
 /// Accounts:
-/// 0.    [] - The Inbox PDA.
-/// 1.    [] - The recipient program.
+/// 0.    `[]` - The Inbox PDA.
+/// 1.    `[]` - The recipient program.
 /// 2..N. [??] - The accounts required to make the CPI into the recipient program.
 ///             These can be retrieved from the recipient using the
 ///             `MessageRecipientInstruction::InterchainSecurityModuleAccountMetas` instruction.
@@ -505,9 +513,9 @@ fn get_recipient_ism(
 /// Sets the default ISM.
 ///
 /// Accounts:
-/// 0. [writeable] - The Inbox PDA account.
-/// 1. [] - The Outbox PDA account.
-/// 2. [signer] - The owner of the Mailbox.
+/// 0. `[writeable]` - The Inbox PDA account.
+/// 1. `[]` - The Outbox PDA account.
+/// 2. `[signer]` - The owner of the Mailbox.
 fn inbox_set_default_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -549,13 +557,13 @@ fn inbox_set_default_ism(
 /// Sets the ID of the message as return data.
 ///
 /// Accounts:
-/// 0. [writeable] Outbox PDA.
-/// 1. [signer] Message sender signer.
-/// 2. [executable] System program.
-/// 3. [executable] SPL Noop program.
-/// 4. [signer] Payer.
-/// 5. [signer] Unique message account.
-/// 6. [writeable] Dispatched message PDA. An empty message PDA relating to the seeds
+/// 0. `[writeable]` Outbox PDA.
+/// 1. `[signer]` Message sender signer.
+/// 2. `[executable]` System program.
+/// 3. `[executable]` SPL Noop program.
+/// 4. `[signer]` Payer.
+/// 5. `[signer]` Unique message account.
+/// 6. `[writeable]` Dispatched message PDA. An empty message PDA relating to the seeds
 ///    `mailbox_dispatched_message_pda_seeds` where the message contents will be stored.
 fn outbox_dispatch(
     program_id: &Pubkey,
@@ -637,15 +645,24 @@ fn outbox_dispatch(
         return Err(ProgramError::from(Error::ExtraneousAccount));
     }
 
-    if dispatch.message_body.len() > MAX_MESSAGE_BODY_BYTES {
-        return Err(ProgramError::from(Error::MaxMessageSizeExceeded));
-    }
-
     let count = outbox
         .tree
         .count()
         .try_into()
         .expect("Too many messages in outbox tree");
+
+    let protocol_fee = outbox.protocol_fee.fee;
+    invoke(
+        &system_instruction::transfer(payer_info.key, outbox_info.key, protocol_fee),
+        &[payer_info.clone(), outbox_info.clone()],
+    )?;
+    msg!(
+        "Protocol fee of {} paid from {} to {}",
+        protocol_fee,
+        payer_info.key,
+        outbox_info.key
+    );
+
     let message = HyperlaneMessage {
         version: VERSION,
         nonce: count,
@@ -712,7 +729,7 @@ fn outbox_dispatch(
 /// Gets the number of dispatched messages as little endian encoded return data.
 ///
 /// Accounts:
-/// 0. [] Outbox PDA account.
+/// 0. `[]` Outbox PDA account.
 fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -743,7 +760,7 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
 /// Gets the latest checkpoint as return data.
 ///
 /// Accounts:
-/// 0. [] Outbox PDA account.
+/// 0. `[]` Outbox PDA account.
 fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -779,7 +796,7 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
 /// Gets the root as return data.
 ///
 /// Accounts:
-/// 0. [] Outbox PDA account.
+/// 0. `[]` Outbox PDA account.
 fn outbox_get_root(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     let accounts_iter = &mut accounts.iter();
 
@@ -846,6 +863,69 @@ fn transfer_ownership(
     let owner_info = next_account_info(accounts_iter)?;
     // Errors if the owner_account is not the actual owner or is not a signer.
     outbox.transfer_ownership(owner_info, new_owner)?;
+
+    // Store the updated outbox.
+    OutboxAccount::from(outbox).store(outbox_info, false)?;
+
+    Ok(())
+}
+
+/// Claims protocol fees
+///
+/// Accounts:
+/// 0. `[writeable]` The Outbox PDA account.
+/// 1. `[]` The beneficiary.
+fn claim_protocol_fees(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Outbox PDA.
+    let outbox_info = next_account_info(accounts_iter)?;
+    let outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
+
+    // Account 1: Beneficiary
+    let beneficiary_info = next_account_info(accounts_iter)?;
+    if beneficiary_info.key != &outbox.protocol_fee.beneficiary {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    let rent = Rent::get()?;
+    let required_outbox_rent = rent.minimum_balance(outbox_info.data_len());
+    let claimable_protocol_fees = outbox_info.lamports().saturating_sub(required_outbox_rent);
+    **outbox_info.try_borrow_mut_lamports()? -= claimable_protocol_fees;
+    **beneficiary_info.try_borrow_mut_lamports()? += claimable_protocol_fees;
+
+    // For good measure...
+    verify_rent_exempt(outbox_info, &rent)?;
+
+    Ok(())
+}
+
+/// Sets the protocol fee configuration.
+///
+/// Accounts:
+/// 0. `[writeable]` The Outbox PDA account.
+/// 1. `[signer]` The current owner.
+fn set_protocol_fee_config(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    new_protocol_fee_config: ProtocolFee,
+) -> ProgramResult {
+    let accounts_iter = &mut accounts.iter();
+
+    // Account 0: Outbox PDA.
+    let outbox_info = next_account_info(accounts_iter)?;
+    let mut outbox = Outbox::verify_account_and_fetch_inner(program_id, outbox_info)?;
+
+    // Account 1: Owner
+    let owner_info = next_account_info(accounts_iter)?;
+    outbox.ensure_owner_signer(owner_info)?;
+
+    if new_protocol_fee_config.fee > outbox.max_protocol_fee {
+        msg!("Invalid protocol fee config: Fee is greater than max protocol fee",);
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    outbox.protocol_fee = new_protocol_fee_config;
 
     // Store the updated outbox.
     OutboxAccount::from(outbox).store(outbox_info, false)?;

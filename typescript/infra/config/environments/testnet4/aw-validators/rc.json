@@ -1,0 +1,44 @@
+{
+  "alfajores": {
+    "validators": [
+      "0xace978aaa61d9ee44fe3ab147fd227e0e66b8909",
+      "0x6c8bfdfb8c40aba10cc9fb2cf0e3e856e0e5dbb3",
+      "0x54c65eb7677e6086cdde3d5ccef89feb2103a11d"
+    ]
+  },
+  "bsctestnet": {
+    "validators": [
+      "0x6353c7402626054c824bd0eca721f82b725e2b4d",
+      "0xcb5be62b19c52b78cd3993c71c3fa74d821475ae",
+      "0xc50ddb8f03133611853b7f03ffe0a8098e08ae15"
+    ]
+  },
+  "fuji": {
+    "validators": [
+      "0xfc419f9ba3c56c55e28844ade491d428f5a77d55",
+      "0x0a636e76df4124b092cabb4321d6aaef9defb514",
+      "0xbf86037899efe97bca4cea865607e10b849b5878"
+    ]
+  },
+  "plumetestnet": {
+    "validators": [
+      "0xe6e6aeecbf7755cdbc50c2683df9f2d100f6399d",
+      "0x27946c13a475233a3b1eb47f0bd0f7cdec3a3983",
+      "0x2596413213368475c96ddfb1ae26666d22093a8b"
+    ]
+  },
+  "scrollsepolia": {
+    "validators": [
+      "0x50d939d66f114350f322eb8b2e9f01fbc401d4c9",
+      "0x10fa7a657a06a47bcca1bacc436d61619e5d104c",
+      "0xa0f1cf3b23bd0f8a5e2ad438657097b8287816b4"
+    ]
+  },
+  "sepolia": {
+    "validators": [
+      "0x49f253c0dab33be1573d6c2769b3d9e584d91f82",
+      "0x13b51805e9af68e154778d973165f32e10b7446b",
+      "0x7f699c3fc3de4928f1c0abfba1eac3fbb5a00d1b"
+    ]
+  }
+}

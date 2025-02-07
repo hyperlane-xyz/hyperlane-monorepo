@@ -1,33 +1,35 @@
-import { BigNumber, ethers } from 'ethers';
+import { ChainMap, GasPriceConfig } from '@hyperlane-xyz/sdk';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-
-import { AllStorageGasOracleConfigs } from '../../../src/config';
 import {
-  TOKEN_EXCHANGE_RATE_DECIMALS,
+  AllStorageGasOracleConfigs,
   getAllStorageGasOracleConfigs,
-} from '../../../src/config/gas-oracle';
+} from '../../../src/config/gas-oracle.js';
 
-import { chainNames } from './chains';
+import { testChainNames } from './chains.js';
 
-const TEST_TOKEN_EXCHANGE_RATE = ethers.utils.parseUnits(
-  '1',
-  TOKEN_EXCHANGE_RATE_DECIMALS,
-);
-const TEST_GAS_PRICE = ethers.utils.parseUnits('2', 'gwei');
-
-const gasPrices: ChainMap<BigNumber> = {
-  test1: TEST_GAS_PRICE,
-  test2: TEST_GAS_PRICE,
-  test3: TEST_GAS_PRICE,
+const TEST_TOKEN_EXCHANGE_RATE = '1';
+const TEST_GAS_PRICE_CONFIG: GasPriceConfig = {
+  amount: '2',
+  decimals: 9, // gwei
 };
 
-function getTokenExchangeRate(
-  _local: ChainName,
-  _remote: ChainName,
-): BigNumber {
-  return TEST_TOKEN_EXCHANGE_RATE;
-}
+const tokenPrices: ChainMap<string> = {
+  test1: TEST_TOKEN_EXCHANGE_RATE,
+  test2: TEST_TOKEN_EXCHANGE_RATE,
+  test3: TEST_TOKEN_EXCHANGE_RATE,
+};
+
+const gasPrices: ChainMap<GasPriceConfig> = {
+  test1: TEST_GAS_PRICE_CONFIG,
+  test2: TEST_GAS_PRICE_CONFIG,
+  test3: TEST_GAS_PRICE_CONFIG,
+};
 
 export const storageGasOracleConfig: AllStorageGasOracleConfigs =
-  getAllStorageGasOracleConfigs(chainNames, gasPrices, getTokenExchangeRate);
+  getAllStorageGasOracleConfigs(
+    testChainNames,
+    tokenPrices,
+    gasPrices,
+    (_local, _remote) => 0,
+    false,
+  );

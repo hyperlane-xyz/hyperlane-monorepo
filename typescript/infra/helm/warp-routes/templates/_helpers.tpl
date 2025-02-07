@@ -36,6 +36,8 @@ Common labels
 {{- define "hyperlane.labels" -}}
 helm.sh/chart: {{ include "hyperlane.chart" . }}
 hyperlane/deployment: {{ .Values.hyperlane.runEnv | quote }}
+hyperlane/context: {{ .Values.hyperlane.context | quote }}
+app.kubernetes.io/component: warp-routes
 {{ include "hyperlane.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
@@ -52,17 +54,34 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+The name of the ClusterSecretStore
+*/}}
+{{- define "hyperlane.cluster-secret-store.name" -}}
+{{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.clusterSecretStore }}
+{{- end }}
+
+{{/*
 The warp-routes container
 */}}
 {{- define "hyperlane.warp-routes.container" }}
 - name: warp-routes
   image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
   imagePullPolicy: IfNotPresent
-  command:
-  - ./node_modules/.bin/ts-node
-  - ./typescript/infra/scripts/warp-routes/monitor-warp-routes-balances.ts
-  - -l 
-  - "10000"
-  - -c
-  - {{ .Values.config }}
+  env:
+  - name: LOG_FORMAT
+    value: json
+  - name: REGISTRY_COMMIT
+    value: {{ .Values.hyperlane.registryCommit }}
+  args:
+  - ./node_modules/.bin/tsx
+  - ./typescript/infra/scripts/warp-routes/monitor/monitor-warp-route-balances.ts
+  - -v
+  - "30000"
+  - --warpRouteId
+  - {{ .Values.warpRouteId }}
+  - -e
+  - {{ .Values.environment}}
+  envFrom:
+  - secretRef:
+      name: {{ include "hyperlane.fullname" . }}-secret
 {{- end }}

@@ -1,10 +1,10 @@
-import { RpcConsensusType } from '@hyperlane-xyz/sdk';
+import {
+  HelloWorldConfig,
+  HelloWorldKathyRunMode,
+} from '../../../src/config/helloworld/types.js';
+import { Contexts } from '../../contexts.js';
 
-import { HelloWorldConfig } from '../../../src/config';
-import { HelloWorldKathyRunMode } from '../../../src/config/helloworld/types';
-import { Contexts } from '../../contexts';
-
-import { environment } from './chains';
+import { environment, ethereumChainNames } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json';
 import rcAddresses from './helloworld/rc/addresses.json';
 
@@ -13,18 +13,17 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '52a8416-20231024-025635',
+      tag: '857338e-20240716-165320',
     },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
     runConfig: {
       mode: HelloWorldKathyRunMode.Service,
-      fullCycleTime: 1000 * 60 * 60 * 48, // every 48 hours
+      fullCycleTime: 1000 * 60 * 60 * 24 * 2, // 2 days, 6 * 5 = 30 permutations, so ~1.5 hours per permutation
     },
     messageSendTimeout: 1000 * 60 * 10, // 10 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: RpcConsensusType.Fallback,
   },
 };
 
@@ -33,7 +32,7 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '52a8416-20231024-025635',
+      tag: '857338e-20240716-165320',
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -43,7 +42,6 @@ export const releaseCandidateHelloworld: HelloWorldConfig = {
     },
     messageSendTimeout: 1000 * 60 * 8, // 8 min
     messageReceiptTimeout: 1000 * 60 * 20, // 20 min
-    connectionType: RpcConsensusType.Single,
   },
 };
 

@@ -30,6 +30,8 @@ interface ICrossDomainMessenger {
     function xDomainMessageSender() external view returns (address);
 
     function OTHER_MESSENGER() external view returns (address);
+
+    function PORTAL() external view returns (address);
 }
 
 interface IL1CrossDomainMessenger is ICrossDomainMessenger {}

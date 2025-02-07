@@ -1,0 +1,185 @@
+{
+  "optimism": {
+    "router": "0x2a5c54c625220cb2166C94DD9329be1F8785977D"
+  },
+  "celo": {
+    "router": "0x7f4CFDf669d7a5d4Adb05917081634875E21Df47"
+  },
+  "avalanche": {
+    "router": "0x7daC480d20f322D2ef108A59A465CCb5749371c4"
+  },
+  "fusemainnet": {
+    "router": "0xDED4D91f77F69DE32c6da32CE8c1905C7de03C46"
+  },
+  "kaia": {
+    "router": "0x80Abe17c3Ca312f63a96D31DdE1F829e90Ee05b7"
+  },
+  "arbitrumnova": {
+    "router": "0xb3ae37826ca27CeF44694d4F8975916eF193454F"
+  },
+  "polygonzkevm": {
+    "router": "0x7daC480d20f322D2ef108A59A465CCb5749371c4"
+  },
+  "harmony": {
+    "router": "0xDED4D91f77F69DE32c6da32CE8c1905C7de03C46"
+  },
+  "bsc": {
+    "router": "0xf3D41b377c93fA5C3b0071966f1811c5063fAD40"
+  },
+  "moonbeam": {
+    "router": "0x7daC480d20f322D2ef108A59A465CCb5749371c4"
+  },
+  "metis": {
+    "router": "0xB598ECFb72207B11d7F3f8B0e4031d86a1d76381"
+  },
+  "gnosis": {
+    "router": "0x7dac480d20f322d2ef108a59a465ccb5749371c4"
+  },
+  "coredao": {
+    "router": "0x72FA03C5868EBFeBcA21EB963bEFc4Ae2586a422"
+  },
+  "fantom": {
+    "router": "0xE9994efe91B3fCbCF343BB9bcA7e6b7251173ea0"
+  },
+  "arbitrum": {
+    "router": "0x7daC480d20f322D2ef108A59A465CCb5749371c4"
+  },
+  "polygon": {
+    "router": "0x7daC480d20f322D2ef108A59A465CCb5749371c4"
+  },
+  "base": {
+    "router": "0x7dac480d20f322d2ef108a59a465ccb5749371c4"
+  },
+  "linea": {
+    "router": "0xC6EDe374Df7763ad70166C4d85d8066A8fb8D272"
+  },
+  "mantle": {
+    "router": "0x2F1562Cc3044B95cb969D1684a1f4E43A207476E"
+  },
+  "zoramainnet": {
+    "router": "0xE95E517f9EE4b43AE198606407b6859f767De95b"
+  },
+  "viction": {
+    "router": "0x80Abe17c3Ca312f63a96D31DdE1F829e90Ee05b7"
+  },
+  "astar": {
+    "router": "0xcAB586182E6a3CFF18f97F2b0cb316b6879B83a5"
+  },
+  "scroll": {
+    "router": "0x7daC480d20f322D2ef108A59A465CCb5749371c4"
+  },
+  "ethereum": {
+    "router": "0x7daC480d20f322D2ef108A59A465CCb5749371c4"
+  },
+  "orderly": {
+    "router": "0xfD7c029D1F1198826302F5F6c9CD482c06F0D72f"
+  },
+  "mantapacific": {
+    "router": "0xc7a66e3A9d1a84dC60f8a630C3eC3D84aCFBE5EC"
+  },
+  "rarichain": {
+    "router": "0xC7F09Ca5E3F5D47BedA89c0FA6E7f07De7385902"
+  },
+  "xai": {
+    "router": "0x9e3dcb75d2388B1330b3Ff7e9c5b9f51EE5952F3"
+  },
+  "fraxtal": {
+    "router": "0x49e6d51a220acab3b44d325edcab0f164cf48111"
+  },
+  "mode": {
+    "router": "0x814490128eB60e6FCB56a38B46FC9FC37726414a"
+  },
+  "blast": {
+    "router": "0xDc09f06D11dFC7703BF8f3049E2CcF4507bEA1ab"
+  },
+  "astarzkevm": {
+    "router": "0x4924bFdfCfd3DB8D170c5882936396f1EB5542bB"
+  },
+  "degenchain": {
+    "router": "0x85Fd2DA31262d26471c738Ce357a3767635A0956"
+  },
+  "merlin": {
+    "router": "0x8796f4A273225ac8468585b1E9CFB97A0cEB6174"
+  },
+  "xlayer": {
+    "router": "0x1812d05671EefA040ac605a0198476dEd081d520"
+  },
+  "ancient8": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  },
+  "zetachain": {
+    "router": "0x6Ca118bdF9BD900Da5D3d85094D92C5B3b9c0DA5"
+  },
+  "redstone": {
+    "router": "0x6f6aE8851a460406bBB3c929a415d2Df9305AcD5"
+  },
+  "sei": {
+    "router": "0x4b56f191b7F396dec4268b836845C3F63F5e2121"
+  },
+  "taiko": {
+    "router": "0x6293432E8731d8267F76B90Fa82650552e7811F2"
+  },
+  "bob": {
+    "router": "0xc072c3EbAf165955C5aAd2DbB4293f771de6dbd3"
+  },
+  "endurance": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "worldchain": {
+    "router": "0x6f6aE8851a460406bBB3c929a415d2Df9305AcD5"
+  },
+  "cheesechain": {
+    "router": "0x829761FC0d35F1d05C77EEA2B629255e94Af8F60"
+  },
+  "zircuit": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "kroma": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  },
+  "cyber": {
+    "router": "0xc072c3EbAf165955C5aAd2DbB4293f771de6dbd3"
+  },
+  "lisk": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "lukso": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "mint": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "proofofplay": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "real": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  },
+  "sanko": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "tangle": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  },
+  "bitlayer": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "dogechain": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "flare": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  },
+  "molten": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  },
+  "shibarium": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  },
+  "everclear": {
+    "router": "0x6E55472109E6aBE4054a8E8b8d9EdFfCb31032C5"
+  },
+  "morph": {
+    "router": "0xAFa5f9313F1F2b599173f24807a882F498Be118c"
+  }
+}

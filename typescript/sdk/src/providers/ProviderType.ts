@@ -15,7 +15,6 @@ import type {
   providers as EV5Providers,
   PopulatedTransaction as EV5Transaction,
 } from 'ethers';
-// import type { Contract as Ev6Contract, Provider as Ev6Provider } from 'ethers6';
 import type {
   GetContractReturnType,
   PublicClient,
@@ -23,16 +22,70 @@ import type {
   TransactionReceipt as VTransactionReceipt,
 } from 'viem';
 
+import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
-  // EthersV6 = 'ethers-v6', Disabled for now to simplify build tooling
   Viem = 'viem',
   SolanaWeb3 = 'solana-web3',
   CosmJs = 'cosmjs',
   CosmJsWasm = 'cosmjs-wasm',
+  GnosisTxBuilder = 'gnosis-txBuilder',
 }
 
+export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
+  ProtocolType,
+  ProviderType
+> = {
+  [ProtocolType.Ethereum]: ProviderType.EthersV5,
+  [ProtocolType.Sealevel]: ProviderType.SolanaWeb3,
+  [ProtocolType.Cosmos]: ProviderType.CosmJsWasm,
+};
+
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
+
+type ProtocolTypesMapping = {
+  [ProtocolType.Ethereum]: {
+    transaction: EthersV5Transaction;
+    provider: EthersV5Provider;
+    contract: EthersV5Contract;
+    receipt: EthersV5TransactionReceipt;
+  };
+  [ProtocolType.Sealevel]: {
+    transaction: SolanaWeb3Transaction;
+    provider: SolanaWeb3Provider;
+    contract: SolanaWeb3Contract;
+    receipt: SolanaWeb3TransactionReceipt;
+  };
+  [ProtocolType.Cosmos]: {
+    transaction: CosmJsWasmTransaction;
+    provider: CosmJsWasmProvider;
+    contract: CosmJsWasmContract;
+    receipt: CosmJsWasmTransactionReceipt;
+  };
+};
+
+type ProtocolTyped<
+  T extends ProtocolType,
+  K extends keyof ProtocolTypesMapping[T],
+> = ProtocolTypesMapping[T][K];
+
+export type ProtocolTypedTransaction<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'transaction'
+>;
+export type ProtocolTypedProvider<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'provider'
+>;
+export type ProtocolTypedContract<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'contract'
+>;
+export type ProtocolTypedReceipt<T extends ProtocolType> = ProtocolTyped<
+  T,
+  'receipt'
+>;
 
 /**
  * Providers with discriminated union of type
@@ -48,11 +101,6 @@ export interface EthersV5Provider
   type: ProviderType.EthersV5;
   provider: EV5Providers.Provider;
 }
-
-// export interface EthersV6Provider extends TypedProviderBase<Ev6Provider> {
-//   type: ProviderType.EthersV6;
-//   provider: Ev6Provider;
-// }
 
 export interface ViemProvider extends TypedProviderBase<PublicClient> {
   type: ProviderType.Viem;
@@ -97,11 +145,6 @@ export interface EthersV5Contract extends TypedContractBase<EV5Contract> {
   type: ProviderType.EthersV5;
   contract: EV5Contract;
 }
-
-// export interface EthersV6Contract extends TypedContractBase<Ev6Contract> {
-//   type: ProviderType.EthersV6;
-//   contract: Ev6Contract;
-// }
 
 export interface ViemContract extends TypedContractBase<GetContractReturnType> {
   type: ProviderType.Viem;
@@ -149,10 +192,7 @@ export interface EthersV5Transaction
   transaction: EV5Transaction;
 }
 
-// export interface EthersV6Transaction extends TypedTransactionBase<Ev6Transaction> {
-//   type: ProviderType.EthersV6;
-//   contract: Ev6Transaction;
-// }
+export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
 export interface ViemTransaction extends TypedTransactionBase<VTransaction> {
   type: ProviderType.Viem;
@@ -172,7 +212,7 @@ export interface CosmJsTransaction extends TypedTransactionBase<CmTransaction> {
 
 export interface CosmJsWasmTransaction
   extends TypedTransactionBase<ExecuteInstruction> {
-  type: ProviderType.CosmJs;
+  type: ProviderType.CosmJsWasm;
   transaction: ExecuteInstruction;
 }
 

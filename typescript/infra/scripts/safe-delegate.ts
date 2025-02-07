@@ -4,16 +4,18 @@ import { LedgerSigner } from '@ethersproject/hardware-wallets';
 import '@ethersproject/hardware-wallets/thirdparty';
 import { AddSafeDelegateProps } from '@safe-global/api-kit';
 
-import { AllChains } from '@hyperlane-xyz/sdk';
+// @ts-ignore
+import { getSafeDelegates, getSafeService } from '@hyperlane-xyz/sdk';
 
-import { getSafeDelegates, getSafeService } from '../src/utils/safe';
+import { getChains } from '../config/registry.js';
 
-import { getEnvironmentConfig, getArgs as getRootArgs } from './utils';
+import { getArgs as getRootArgs } from './agent-utils.js';
+import { getEnvironmentConfig } from './core-utils.js';
 
 function getArgs() {
   return getRootArgs()
     .describe('chain', 'chain of the validator to inspect')
-    .choices('chain', AllChains)
+    .choices('chain', getChains())
     .demandOption('chain')
     .describe('action', 'add or remove')
     .choices('action', ['add', 'remove'])

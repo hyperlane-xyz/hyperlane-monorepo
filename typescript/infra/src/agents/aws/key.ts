@@ -17,14 +17,16 @@ import {
 } from '@aws-sdk/client-kms';
 import { KmsEthersSigner } from 'aws-kms-ethers-signer';
 import { ethers } from 'ethers';
+import { Logger } from 'pino';
 
 import { AgentSignerKeyType, ChainName } from '@hyperlane-xyz/sdk';
+import { retryAsync, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-import { AgentContextConfig, AwsKeyConfig } from '../../config/agent';
-import { Role } from '../../roles';
-import { getEthereumAddress, sleep } from '../../utils/utils';
-import { keyIdentifier } from '../agent';
-import { CloudAgentKey } from '../keys';
+import { AgentContextConfig, AwsKeyConfig } from '../../config/agent/agent.js';
+import { Role } from '../../roles.js';
+import { getEthereumAddress } from '../../utils/utils.js';
+import { keyIdentifier } from '../agent.js';
+import { CloudAgentKey } from '../keys.js';
 
 interface UnfetchedKey {
   fetched: false;
@@ -41,6 +43,7 @@ export class AgentAwsKey extends CloudAgentKey {
   private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };
+  protected logger: Logger;
 
   constructor(
     agentConfig: AgentContextConfig,
@@ -53,16 +56,24 @@ export class AgentAwsKey extends CloudAgentKey {
       throw new Error('Not configured as AWS');
     }
     this.region = agentConfig.aws.region;
+    this.logger = rootLogger.child({
+      module: `infra:agents:key:aws:${this.identifier}`,
+    });
   }
 
   get privateKey(): string {
+    this.logger.debug(
+      'Attempting to access private key, which is unavailable for AWS keys',
+    );
     throw new Error('Private key unavailable for AWS keys');
   }
 
   async getClient(): Promise<KMSClient> {
     if (this.client) {
+      this.logger.debug('Returning existing KMSClient instance');
       return this.client;
     }
+    this.logger.debug('Creating new KMSClient instance');
     this.client = new KMSClient({
       region: this.region,
     });
@@ -94,6 +105,7 @@ export class AgentAwsKey extends CloudAgentKey {
   }
 
   async fetch() {
+    this.logger.debug('Fetching key');
     const address = await this.fetchAddressFromAws();
     this.remoteKey = {
       fetched: true,
@@ -102,24 +114,28 @@ export class AgentAwsKey extends CloudAgentKey {
   }
 
   async createIfNotExists() {
+    this.logger.debug('Checking if key exists and creating if not');
     const keyId = await this.getId();
     // If it doesn't exist, create it
     if (!keyId) {
-      // TODO should this be awaited? create is async
-      // eslint-disable-next-line @typescript-eslint/no-floating-promises
-      this.create();
+      this.logger.debug('Key does not exist, creating new key');
+      await this.create();
       // It can take a moment for the change to propagate
       await sleep(1000);
+    } else {
+      this.logger.debug('Key already exists');
     }
     await this.fetch();
   }
 
   async delete() {
+    this.logger.debug('Delete operation called, but not implemented');
     throw Error('Not implemented yet');
   }
 
   // Allows the `userArn` to use the key
   async putKeyPolicy(userArn: string) {
+    this.logger.debug(`Putting key policy for user ARN: ${userArn}`);
     const client = await this.getClient();
     const policy = {
       Version: '2012-10-17',
@@ -151,22 +167,32 @@ export class AgentAwsKey extends CloudAgentKey {
       PolicyName: 'default', // This is the only accepted name
     });
     await client.send(cmd);
+    this.logger.debug('Key policy put successfully');
   }
 
   // Gets the Key's ID if it exists, undefined otherwise
   async getId() {
-    try {
-      const keyDescription = await this.describeKey();
-      return keyDescription.KeyMetadata?.KeyId;
-    } catch (err: any) {
-      if (err.name === 'NotFoundException') {
-        return undefined;
+    // Seeing intermittent errors with the AWS SDK, likely due to many concurrent requests
+    return retryAsync(async () => {
+      try {
+        this.logger.debug('Attempting to describe key to get ID');
+        const keyDescription = await this.describeKey();
+        const keyId = keyDescription.KeyMetadata?.KeyId;
+        this.logger.debug(`Key ID retrieved: ${keyId}`);
+        return keyId;
+      } catch (err: any) {
+        if (err.name === 'NotFoundException') {
+          this.logger.debug('Key not found');
+          return undefined;
+        }
+        this.logger.debug(`Error retrieving key ID: ${err}`);
+        throw err;
       }
-      throw err;
-    }
+    });
   }
 
   create() {
+    this.logger.debug('Creating new key');
     return this._create(false);
   }
 
@@ -175,6 +201,7 @@ export class AgentAwsKey extends CloudAgentKey {
    * @returns The address of the new key
    */
   update() {
+    this.logger.debug('Updating key (creating new key for rotation)');
     return this._create(true);
   }
 
@@ -182,6 +209,7 @@ export class AgentAwsKey extends CloudAgentKey {
    * Requires update to have been called on this key prior
    */
   async rotate() {
+    this.logger.debug('Rotating keys');
     const canonicalAlias = this.identifier;
     const newAlias = canonicalAlias + '-new';
     const oldAlias = canonicalAlias + '-old';
@@ -226,15 +254,19 @@ export class AgentAwsKey extends CloudAgentKey {
 
     // Address should have changed now
     await this.fetch();
+    this.logger.debug('Keys rotated successfully');
   }
 
   async getSigner(
     provider?: ethers.providers.Provider,
   ): Promise<ethers.Signer> {
+    this.logger.debug('Getting signer');
     const keyId = await this.getId();
     if (!keyId) {
+      this.logger.debug('Key ID not defined, cannot get signer');
       throw Error('Key ID not defined');
     }
+    this.logger.debug(`Creating KmsEthersSigner with key ID: ${keyId}`);
     // @ts-ignore We're using a newer version of Provider than
     // KmsEthersSigner. The return type for getFeeData for this newer
     // type is a superset of the return type for getFeeData for the older type,
@@ -252,12 +284,15 @@ export class AgentAwsKey extends CloudAgentKey {
 
   private requireFetched() {
     if (!this.remoteKey.fetched) {
+      this.logger.debug('Key has not been fetched yet');
       throw new Error('Key not fetched');
     }
+    this.logger.debug('Key has been fetched');
   }
 
   // Creates a new key and returns its address
   private async _create(rotate: boolean) {
+    this.logger.debug(`Creating key with rotation: ${rotate}`);
     const client = await this.getClient();
     const alias = this.identifier;
     if (!rotate) {
@@ -269,6 +304,7 @@ export class AgentAwsKey extends CloudAgentKey {
         (_) => _.AliasName === alias,
       );
       if (match) {
+        this.logger.debug(`Alias ${alias} already exists`);
         throw new Error(
           `Attempted to create new key but alias ${alias} already exists`,
         );
@@ -288,6 +324,7 @@ export class AgentAwsKey extends CloudAgentKey {
 
     const createResponse = await client.send(command);
     if (!createResponse.KeyMetadata) {
+      this.logger.debug('KeyMetadata was not returned when creating the key');
       throw new Error('KeyMetadata was not returned when creating the key');
     }
     const keyId = createResponse.KeyMetadata?.KeyId;
@@ -298,10 +335,12 @@ export class AgentAwsKey extends CloudAgentKey {
     );
 
     const address = this.fetchAddressFromAws(keyId);
+    this.logger.debug(`New key created with ID: ${keyId}`);
     return address;
   }
 
   private async fetchAddressFromAws(keyId?: string) {
+    this.logger.debug(`Fetching address from AWS for key ID: ${keyId}`);
     const client = await this.getClient();
 
     if (!keyId) {
@@ -312,10 +351,15 @@ export class AgentAwsKey extends CloudAgentKey {
       new GetPublicKeyCommand({ KeyId: keyId }),
     );
 
-    return getEthereumAddress(Buffer.from(publicKeyResponse.PublicKey!));
+    const address = getEthereumAddress(
+      Buffer.from(publicKeyResponse.PublicKey!),
+    );
+    this.logger.debug(`Address fetched: ${address}`);
+    return address;
   }
 
   private async describeKey(): Promise<DescribeKeyCommandOutput> {
+    this.logger.debug('Describing key');
     const client = await this.getClient();
     return client.send(
       new DescribeKeyCommand({
@@ -325,6 +369,7 @@ export class AgentAwsKey extends CloudAgentKey {
   }
 
   private async getAliases(): Promise<AliasListEntry[]> {
+    this.logger.debug('Getting aliases');
     const client = await this.getClient();
     let aliases: AliasListEntry[] = [];
     let marker: string | undefined = undefined;
@@ -350,6 +395,7 @@ export class AgentAwsKey extends CloudAgentKey {
         break;
       }
     }
+    this.logger.debug(`Aliases retrieved: ${aliases.length}`);
     return aliases;
   }
 }

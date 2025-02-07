@@ -1,6 +1,7 @@
 import { TestQuerySender__factory } from '@hyperlane-xyz/core';
 import {
   ChainName,
+  ContractVerifier,
   HyperlaneDeployer,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -15,8 +16,15 @@ export class TestQuerySenderDeployer extends HyperlaneDeployer<
   TestQuerySenderConfig,
   typeof TEST_QUERY_SENDER_FACTORIES
 > {
-  constructor(multiProvider: MultiProvider) {
-    super(multiProvider, TEST_QUERY_SENDER_FACTORIES);
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+    concurrentDeploy = false,
+  ) {
+    super(multiProvider, TEST_QUERY_SENDER_FACTORIES, {
+      contractVerifier,
+      concurrentDeploy,
+    });
   }
 
   async deployContracts(chain: ChainName, config: TestQuerySenderConfig) {

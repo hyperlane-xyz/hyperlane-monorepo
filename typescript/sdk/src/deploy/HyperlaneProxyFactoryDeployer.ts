@@ -1,23 +1,30 @@
-import debug from 'debug';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { HyperlaneContracts } from '../contracts/types.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
+import { ChainName } from '../types.js';
 
-import { HyperlaneDeployer } from './HyperlaneDeployer';
+import { HyperlaneDeployer } from './HyperlaneDeployer.js';
 import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
   proxyFactoryImplementations,
-} from './contracts';
+} from './contracts.js';
+import { ContractVerifier } from './verify/ContractVerifier.js';
 
 export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
   {},
   ProxyFactoryFactories
 > {
-  constructor(multiProvider: MultiProvider) {
+  constructor(
+    multiProvider: MultiProvider,
+    contractVerifier?: ContractVerifier,
+    concurrentDeploy: boolean = false,
+  ) {
     super(multiProvider, proxyFactoryFactories, {
-      logger: debug('hyperlane:IsmFactoryDeployer'),
+      logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
+      contractVerifier,
+      concurrentDeploy,
     });
   }
 
