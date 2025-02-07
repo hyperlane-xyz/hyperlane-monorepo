@@ -7691,14 +7691,33 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:5.11.1, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:5.11.1":
+  version: 5.11.1
+  resolution: "@hyperlane-xyz/core@npm:5.11.1"
+  dependencies:
+    "@arbitrum/nitro-contracts": "npm:^1.2.1"
+    "@eth-optimism/contracts": "npm:^0.6.0"
+    "@hyperlane-xyz/utils": "npm:8.5.0"
+    "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
+    "@openzeppelin/contracts": "npm:^4.9.3"
+    "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
+    fx-portal: "npm:^1.0.3"
+  peerDependencies:
+    "@ethersproject/abi": "*"
+    "@ethersproject/providers": "*"
+    "@types/sinon-chai": "*"
+  checksum: 10/9f495872e23d85d89e659119857e7fae529ee39e1df21ac1007c96c17556c965869cf8ce0969a7b8459ebad9addca7d78ebda895a87c0abe2321b46c9fb89f13
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
     "@chainlink/contracts-ccip": "npm:^1.5.0"
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:8.5.0"
+    "@hyperlane-xyz/utils": "npm:8.6.0"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -7963,6 +7982,21 @@ __metadata:
     yaml: "npm:2.4.5"
   languageName: unknown
   linkType: soft
+
+"@hyperlane-xyz/utils@npm:8.6.0":
+  version: 8.6.0
+  resolution: "@hyperlane-xyz/utils@npm:8.6.0"
+  dependencies:
+    "@cosmjs/encoding": "npm:^0.32.4"
+    "@solana/web3.js": "npm:^1.95.4"
+    bignumber.js: "npm:^9.1.1"
+    ethers: "npm:^5.7.2"
+    lodash-es: "npm:^4.17.21"
+    pino: "npm:^8.19.0"
+    yaml: "npm:2.4.5"
+  checksum: 10/48a79195fb92a69f26c724641dc8ac88f2933c95e5b2379bb9728bd9e971cd9f83e1fac383d6c8f7c4074eeedd782c4585911e55c1c1b9a8f1546019abf3688b
+  languageName: node
+  linkType: hard
 
 "@hyperlane-xyz/widgets@workspace:typescript/widgets":
   version: 0.0.0-use.local

@@ -68,7 +68,7 @@ contract PolygonPosHook is AbstractMessageIdAuthHook, FxBaseRootTunnel {
     function _sendMessageId(
         bytes calldata metadata,
         bytes calldata message,
-        uint256 quote
+        uint256 /*quote*/
     ) internal override {
         require(
             metadata.msgValue(0) == 0,
