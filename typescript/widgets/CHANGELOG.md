@@ -1,5 +1,12 @@
 # @hyperlane-xyz/widgets
 
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@8.6.1
+- @hyperlane-xyz/utils@8.6.1
+
 ## 8.6.0
 
 ### Patch Changes
