@@ -76,6 +76,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     avalanche: true,
     b3: true,
     base: true,
+    berachain: true,
     bitlayer: true,
     blast: true,
     bob: true,
@@ -203,6 +204,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     avalanche: true,
     b3: true,
     base: true,
+    berachain: true,
     bitlayer: true,
     blast: true,
     bob: true,
@@ -330,6 +332,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     avalanche: true,
     b3: true,
     base: true,
+    berachain: true,
     bitlayer: true,
     blast: true,
     bob: true,
@@ -658,6 +661,8 @@ const blacklistedMessageIds = [
   // malformed recipient in warp transfers
   '0xf20e3dc5172d824b146b91bb33d66532915fab605e44d2d76af7b5898a6390fe',
   '0xd4254c0a44ac41f554ebcbb4eff5efd8a9063747e67f9ca4a57ad232e7c8e267',
+  '0xad52d640ed71b4363731a78becc8ad1d4aa8549a290c554e48281196478ade83',
+  '0x984994d247edd9967182ba91b236a4e10223ef66e3b96259f06f2b7c7fbd8176',
 ];
 
 // Blacklist matching list intended to be used by all contexts.
@@ -674,7 +679,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3b05d2a-20250127-151851',
+      tag: '0f0161d-20250206-001154',
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -684,7 +689,7 @@ const hyperlane: RootAgentConfig = {
   validators: {
     docker: {
       repo,
-      tag: 'e71c9c5-20250127-143932',
+      tag: '349c581-20250205-155855',
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -694,7 +699,7 @@ const hyperlane: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: '3b05d2a-20250127-151851',
+      tag: '349c581-20250205-155855',
     },
     resources: scraperResources,
   },
@@ -709,7 +714,7 @@ const releaseCandidate: RootAgentConfig = {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
       repo,
-      tag: 'f6b682c-20250124-144126',
+      tag: '0f0161d-20250206-001154',
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase

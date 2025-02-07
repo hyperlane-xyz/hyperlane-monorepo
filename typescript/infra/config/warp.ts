@@ -1,6 +1,7 @@
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
+  ChainSubmissionStrategy,
   HypTokenRouterConfig,
   MultiProvider,
   OwnableConfig,
@@ -43,7 +44,10 @@ import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/c
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
-import { getRenzoEZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
+import {
+  getRenzoEZETHWarpConfig,
+  getRenzoGnosisSafeBuilderStrategyConfig,
+} from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI, getMergedRegistry } from './registry.js';
