@@ -1,4 +1,4 @@
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import { getRegistry } from '@hyperlane-xyz/cli';
 import {
   ChainMap,
   ChainSubmissionStrategy,
@@ -50,7 +50,7 @@ import {
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
-import { DEFAULT_REGISTRY_URI, getMergedRegistry } from './registry.js';
+import { DEFAULT_REGISTRY_URI } from './registry.js';
 
 type WarpConfigGetter = (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -96,6 +96,12 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
 };
 
+type StrategyConfigGetter = () => ChainSubmissionStrategy;
+export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
+  [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
+    getRenzoGnosisSafeBuilderStrategyConfig,
+};
+
 /**
  * Retrieves the Warp configuration for the specified Warp route ID by fetching it from the FileSystemRegistry and GithubRegistry
  */
@@ -104,9 +110,10 @@ async function getConfigFromMergedRegistry(
   _abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
   warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
-  const warpRoute = await getMergedRegistry(
+  const warpRoute = await getRegistry(
     DEFAULT_REGISTRY_URI,
-    DEFAULT_GITHUB_REGISTRY,
+    '',
+    true,
   ).getWarpDeployConfig(warpRouteId);
   assert(warpRoute, `Warp route Config not found for ${warpRouteId}`);
   return warpRoute;
