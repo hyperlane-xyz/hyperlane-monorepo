@@ -56,7 +56,8 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes calldata message
+        bytes calldata message,
+        uint256 quote
     ) internal override {
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,

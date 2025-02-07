@@ -88,9 +88,11 @@ abstract contract AbstractMessageIdAuthHook is
             "AbstractMessageIdAuthHook: msgValue must be less than 2 ** 255"
         );
 
-        _sendMessageId(metadata, message);
+        uint256 quote = _quoteDispatch(metadata, message);
 
-        uint256 _overpayment = msg.value - _quoteDispatch(metadata, message);
+        _sendMessageId(metadata, message, quote);
+
+        uint256 _overpayment = msg.value - quote;
         if (_overpayment > 0) {
             address _refundAddress = metadata.refundAddress(
                 message.sender().bytes32ToAddress()
@@ -110,6 +112,7 @@ abstract contract AbstractMessageIdAuthHook is
      */
     function _sendMessageId(
         bytes calldata metadata,
-        bytes calldata message
+        bytes calldata message,
+        uint256 quote
     ) internal virtual;
 }
