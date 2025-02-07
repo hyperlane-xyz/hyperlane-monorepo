@@ -46,7 +46,7 @@ impl ApplicationOperationVerifier for EthereumApplicationOperationVerifier {
             .map_err(|_| MalformedMessageError(message.clone()))?;
 
         let recipient = token_message.recipient();
-        if Self::check_leading_zeros(&recipient) {
+        if !Self::has_enough_leading_zeroes(&recipient) {
             return Err(MalformedMessageError(message.clone()));
         }
 
@@ -55,7 +55,7 @@ impl ApplicationOperationVerifier for EthereumApplicationOperationVerifier {
 }
 
 impl EthereumApplicationOperationVerifier {
-    fn check_leading_zeros(address: &H256) -> bool {
+    fn has_enough_leading_zeroes(address: &H256) -> bool {
         let zeros = &address.as_bytes()[0..ETHEREUM_ADDRESS_LEADING_ZEROS_COUNT];
         let count = zeros.iter().filter(|b| **b == 0).count();
         count == ETHEREUM_ADDRESS_LEADING_ZEROS_COUNT
