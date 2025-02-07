@@ -80,7 +80,12 @@ export async function getWarpConfigs({
     }
   }
 
-  if (config && warp) {
+  if (config || warp) {
+    if (!config || !warp) {
+      throw new Error(
+        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
+      );
+    }
     const warpDeployConfig = await readWarpRouteDeployConfig(config);
     const warpCoreConfig = readWarpCoreConfig(warp);
     return { warpDeployConfig, warpCoreConfig };

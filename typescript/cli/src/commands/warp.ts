@@ -35,6 +35,7 @@ import {
   chainCommandOption,
   dryRunCommandOption,
   fromAddressCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
   strategyCommandOption,
   symbolCommandOption,
@@ -352,9 +353,10 @@ export const check: CommandModuleWithContext<{
       ...warpCoreConfigCommandOption,
       demandOption: false,
     },
-    config: {
+    config: inputFileCommandOption({
       description: 'The path to a warp route deployment configuration file',
-    },
+      demandOption: false,
+    }),
     warpRouteId: {
       description: 'Warp route ID to check',
       type: 'string',

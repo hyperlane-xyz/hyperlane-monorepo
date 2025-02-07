@@ -94,7 +94,7 @@ export class MultiChainResolver implements ChainResolver {
       return extractChainsFromObj(configs.warpCoreConfig);
     } catch (error: any) {
       throw new Error(
-        `Failed to resolve warp core config chains: ${error.message}`,
+        `Failed to resolve warp core/deploy configs: ${error.message}`,
       );
     }
   }
