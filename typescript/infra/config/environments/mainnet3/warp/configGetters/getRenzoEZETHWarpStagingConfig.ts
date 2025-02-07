@@ -35,9 +35,9 @@ export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   swell: '0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115',
 };
 
-const lockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
-export const getRenzoEZETHWarpStageConfig = getRenzoEZETHWarpConfigGenerator(
+const xERC20Lockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
+export const getRenzoEZETHSTAGEWarpConfig = getRenzoEZETHWarpConfigGenerator(
   ezEthSafes,
   xERC20,
-  lockbox,
+  xERC20Lockbox,
 );

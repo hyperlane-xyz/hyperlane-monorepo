@@ -47,7 +47,7 @@ import {
   getRenzoEZETHWarpConfig,
   getRenzoGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
-import { getRenzoEZETHWarpStageConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpStagingConfig.js';
+import { getRenzoEZETHSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpStagingConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getGithubRegistry } from './registry.js';
@@ -66,7 +66,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
     getRenzoEZETHWarpConfig,
   [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETHSTAGE]:
-    getRenzoEZETHWarpStageConfig,
+    getRenzoEZETHSTAGEWarpConfig,
   [WarpRouteIds.InevmInjectiveINJ]: getInevmInjectiveINJWarpConfig,
   [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
     getTRUMPWarpConfig,
