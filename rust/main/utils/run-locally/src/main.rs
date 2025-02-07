@@ -628,7 +628,7 @@ fn relayer_reorg_handling_invariants_met() -> eyre::Result<bool> {
         )]),
     )?;
     if lengths.iter().sum::<u32>() == 0 {
-        log!("Relayer still doesn't have any MessageMetadataRefused messages in the queue.",);
+        log!("Relayer still doesn't have any MessageMetadataRefused messages in the queue.");
         return Ok(false);
     };
 
