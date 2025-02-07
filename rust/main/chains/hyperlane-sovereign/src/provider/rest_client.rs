@@ -149,6 +149,7 @@ pub struct Batch {
     pub number: u64,
     pub hash: String,
     pub txs: Vec<Tx>,
+    pub rollup_height: u64,
 }
 trait HttpClient {
     async fn http_get(&self, query: &str) -> Result<Bytes, reqwest::Error>;
@@ -411,6 +412,22 @@ impl SovereignRestClient {
         })
     }
 
+    async fn get_compensated_rollup_height(&self, lag: u64) -> ChainResult<u64> {
+        let (_, latest_batch) = self.get_latest_slot().await?;
+        let batch = self
+            .get_batch(
+                latest_batch
+                    .ok_or(ChainCommunicationError::CustomError(String::from(
+                        "latest batch was None",
+                    )))?
+                    .into(),
+            )
+            .await?;
+        batch.rollup_height.checked_sub(lag).ok_or_else(|| {
+            ChainCommunicationError::CustomError("lag was greater than rollup height".to_string())
+        })
+    }
+
     // Return the latest slot, and the highest committed batch number in that slot.
     pub async fn get_latest_slot(&self) -> ChainResult<(u32, Option<u32>)> {
         #[derive(Clone, Debug, Deserialize)]
@@ -507,10 +524,12 @@ impl SovereignRestClient {
         }
 
         // /modules/mailbox/state/nonce
-        let query = match at_height {
-            Some(0) => "/modules/mailbox/state/nonce".to_owned(),
-            Some(lag) => format!("/modules/mailbox/state/nonce?rollup_height={lag}"),
-            None => "/modules/mailbox/state/nonce".to_owned(),
+        let query: String = match at_height {
+            Some(0) | None => "/modules/mailbox/state/nonce".to_owned(),
+            Some(lag) => {
+                let rollup_height = self.get_compensated_rollup_height(u64::from(lag)).await?;
+                format!("/modules/mailbox/state/nonce?rollup_height={rollup_height}")
+            }
         };
 
         let response = self
@@ -856,14 +875,14 @@ impl SovereignRestClient {
 
         // /mailbox-hook-merkle-tree/{hook_id}/tree
         let query = match slot {
-            Some(0) => {
+            Some(0) | None => {
                 format!("modules/mailbox-hook-merkle-tree/{hook_id}/tree")
             }
             Some(lag) => {
-                format!("modules/mailbox-hook-merkle-tree/{hook_id}/tree?rollup_height={lag}")
-            }
-            None => {
-                format!("modules/mailbox-hook-merkle-tree/{hook_id}/tree")
+                let rollup_height = self.get_compensated_rollup_height(u64::from(lag)).await?;
+                format!(
+                    "modules/mailbox-hook-merkle-tree/{hook_id}/tree?rollup_height={rollup_height}"
+                )
             }
         };
 
@@ -894,7 +913,7 @@ impl SovereignRestClient {
         Ok(incremental_merkle)
     }
 
-    // @Merkle Tree Hook - test working, need to find better test condition
+    // @Merkle Tree Hook
     pub async fn latest_checkpoint(
         &self,
         hook_id: &str,
@@ -908,14 +927,12 @@ impl SovereignRestClient {
 
         // /mailbox-hook-merkle-tree/{hook_id}/checkpoint
         let query = match lag {
-            Some(0) => {
+            Some(0) | None => {
                 format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint")
             }
             Some(lag) => {
-                format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint?rollup_height={lag}")
-            }
-            None => {
-                format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint")
+                let rollup_height = self.get_compensated_rollup_height(u64::from(lag)).await?;
+                format!("modules/mailbox-hook-merkle-tree/{hook_id}/checkpoint?rollup_height={rollup_height}")
             }
         };
 

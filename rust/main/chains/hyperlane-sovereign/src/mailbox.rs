@@ -58,8 +58,8 @@ impl crate::indexer::SovIndexer<HyperlaneMessage> for SovereignMailboxIndexer {
         self.provider.client()
     }
 
-    async fn sequence_at_slot(&self, slot: u32) -> ChainResult<Option<u32>> {
-        let sequence = self.client().get_count(Some(slot)).await?;
+    async fn latest_sequence(&self) -> ChainResult<Option<u32>> {
+        let sequence = self.client().get_count(None).await?;
         Ok(Some(sequence))
     }
 

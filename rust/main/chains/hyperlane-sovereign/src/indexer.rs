@@ -17,7 +17,7 @@ where
 {
     fn client(&self) -> &rest_client::SovereignRestClient;
     fn decode_event(&self, event: &TxEvent) -> ChainResult<T>;
-    async fn sequence_at_slot(&self, slot: u32) -> ChainResult<Option<u32>>;
+    async fn latest_sequence(&self) -> ChainResult<Option<u32>>;
     const EVENT_KEY: &'static str;
 
     // Default implementation of Indexer<T>
@@ -62,8 +62,8 @@ where
 
     // Default implementation of SequenceAwareIndexer<T>
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        let (latest_slot, latest_batch) = self.client().get_latest_slot().await?;
-        let sequence = self.sequence_at_slot(latest_slot).await?;
+        let (_, latest_batch) = self.client().get_latest_slot().await?;
+        let sequence = self.latest_sequence().await?;
 
         Ok((sequence, latest_batch.unwrap_or_default()))
     }

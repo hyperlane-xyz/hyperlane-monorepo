@@ -34,7 +34,7 @@ impl crate::indexer::SovIndexer<InterchainGasPayment> for SovereignInterchainGas
     fn client(&self) -> &SovereignRestClient {
         self.provider.client()
     }
-    async fn sequence_at_slot(&self, _slot: u32) -> ChainResult<Option<u32>> {
+    async fn latest_sequence(&self) -> ChainResult<Option<u32>> {
         Ok(None)
     }
     fn decode_event(&self, _event: &TxEvent) -> ChainResult<InterchainGasPayment> {
