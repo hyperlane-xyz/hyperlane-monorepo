@@ -276,13 +276,9 @@ describe('hyperlane warp apply e2e tests', async function () {
       type: TokenType.native,
     };
 
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath,
-    });
+    warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
+    writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
 
     const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
       CHAIN_NAME_2,
@@ -343,13 +339,10 @@ describe('hyperlane warp apply e2e tests', async function () {
       type: TokenType.native,
       gas: GAS,
     };
-    await extendWarpConfig({
-      chain: CHAIN_NAME_2,
-      chainToExtend: CHAIN_NAME_3,
-      extendedConfig,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath: warpConfigPath,
-    });
+
+    warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
+    writeYamlOrJson(warpConfigPath, warpDeployConfig);
+    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
 
     const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
       CHAIN_NAME_2,
