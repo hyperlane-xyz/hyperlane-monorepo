@@ -46,7 +46,7 @@ impl ApplicationOperationVerifier for CosmosApplicationOperationVerifier {
         let token_message = TokenMessage::read_from(&mut reader)
             .map_err(|_| MalformedMessageError(message.clone()))?;
 
-        if token_message.amount() > U256::zero() {
+        if token_message.amount() == U256::zero() {
             return Err(InsufficientAmountError);
         }
 
