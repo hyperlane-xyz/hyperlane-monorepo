@@ -8,6 +8,7 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
+  IsmType,
   Token,
   TokenType,
   WarpCoreConfig,
@@ -81,6 +82,76 @@ describe('hyperlane warp deploy e2e tests', async function () {
       [CHAIN_NAME_3]: {
         type: TokenType.synthetic,
         mailbox: chain3Addresses.mailbox,
+        owner: ownerAddress,
+      },
+    };
+
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+    const config: ChainMap<Token> = (
+      readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
+    ).tokens.reduce((acc, curr) => ({ ...acc, [curr.chainName]: curr }), {});
+    const synthetic = ERC20__factory.connect(
+      config[CHAIN_NAME_3].addressOrDenom,
+      walletChain3,
+    );
+
+    const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
+      await Promise.all([
+        token.callStatic.balanceOf(walletChain2.address),
+        synthetic.callStatic.balanceOf(walletChain3.address),
+      ]);
+
+    const { stdout, exitCode } = await hyperlaneWarpSendRelay(
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+      WARP_CORE_CONFIG_PATH_2_3,
+    );
+    expect(exitCode).to.equal(0);
+    expect(stdout).to.include(WarpSendLogs.SUCCESS);
+
+    const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
+      await Promise.all([
+        token.callStatic.balanceOf(walletChain2.address),
+        synthetic.callStatic.balanceOf(walletChain3.address),
+      ]);
+
+    expect(tokenBalanceOnChain2After.lt(tokenBalanceOnChain2Before)).to.be.true;
+    expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
+  });
+
+  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.synthetic} when using a ${IsmType.AMOUNT_ROUTING}`, async function () {
+    const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
+    const tokenSymbol = await token.symbol();
+
+    const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+
+    const warpConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: token.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: ownerAddress,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        interchainSecurityModule: {
+          type: IsmType.AMOUNT_ROUTING,
+          threshold: 1,
+          lowerIsm: {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: ownerAddress,
+          },
+          upperIsm: {
+            type: IsmType.TRUSTED_RELAYER,
+            relayer: ownerAddress,
+          },
+        },
         owner: ownerAddress,
       },
     };

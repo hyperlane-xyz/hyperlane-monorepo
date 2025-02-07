@@ -90,7 +90,8 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
 
     if (
       context.ism.type !== IsmType.FALLBACK_ROUTING &&
-      context.ism.type !== IsmType.ICA_ROUTING
+      context.ism.type !== IsmType.ICA_ROUTING &&
+      context.ism.type !== IsmType.AMOUNT_ROUTING
     ) {
       throw new Error(
         `Origin domain ${originChain} is not enrolled in DomainRoutingIsm`,
@@ -110,6 +111,15 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
       );
 
       ismAddress = await icaFallbackRoutingIsm.route(context.message.message);
+    } else if (context.ism.type === IsmType.AMOUNT_ROUTING) {
+      const amountFallbackRoutingIsm =
+        DefaultFallbackRoutingIsm__factory.connect(
+          context.ism.address,
+          destinationProvider,
+        );
+      ismAddress = await amountFallbackRoutingIsm.route(
+        context.message.message,
+      );
     } else {
       const fallbackIsm = DefaultFallbackRoutingIsm__factory.connect(
         context.ism.address,

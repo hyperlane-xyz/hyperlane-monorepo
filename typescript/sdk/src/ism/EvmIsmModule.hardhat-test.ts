@@ -253,6 +253,15 @@ describe('EvmIsmModule', async () => {
       });
     });
 
+    it(`deploys ${IsmType.AMOUNT_ROUTING}`, async () => {
+      await createIsm({
+        type: IsmType.AMOUNT_ROUTING,
+        lowerIsm: randomMultisigIsmConfig(3, 5),
+        upperIsm: randomMultisigIsmConfig(3, 5),
+        threshold: 2,
+      });
+    });
+
     for (let i = 0; i < 16; i++) {
       it(`deploys a random ism config #${i}`, async () => {
         const config = randomIsmConfig();
