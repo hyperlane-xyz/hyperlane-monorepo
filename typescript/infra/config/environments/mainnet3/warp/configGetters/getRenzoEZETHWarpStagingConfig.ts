@@ -39,6 +39,5 @@ const lockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
 export const getRenzoEZETHWarpStageConfig = getRenzoEZETHWarpConfigGenerator(
   ezEthSafes,
   xERC20,
-  undefined,
   lockbox,
 );
