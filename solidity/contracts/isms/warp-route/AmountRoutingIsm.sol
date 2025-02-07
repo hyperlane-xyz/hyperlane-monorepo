@@ -14,29 +14,19 @@ import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 /**
  * @title AmountRoutingIsm
  */
-contract AmountRoutingIsm is AbstractRoutingIsm, Ownable, PackageVersioned {
+contract AmountRoutingIsm is AbstractRoutingIsm, PackageVersioned {
     using Message for bytes;
     using TokenMessage for bytes;
 
     IInterchainSecurityModule public immutable lower;
     IInterchainSecurityModule public immutable upper;
+    uint256 public immutable threshold;
 
     // ============ Mutable Storage ============
-    uint256 public threshold;
 
-    constructor(
-        address _owner,
-        address _lower,
-        address _upper,
-        uint256 _threshold
-    ) Ownable() {
+    constructor(address _lower, address _upper, uint256 _threshold) {
         lower = IInterchainSecurityModule(_lower);
         upper = IInterchainSecurityModule(_upper);
-        setThreshold(_threshold);
-        _transferOwnership(_owner);
-    }
-
-    function setThreshold(uint256 _threshold) public onlyOwner {
         threshold = _threshold;
     }
 

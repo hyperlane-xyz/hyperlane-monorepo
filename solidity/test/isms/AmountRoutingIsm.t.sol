@@ -23,23 +23,10 @@ contract AmountRoutingIsmTest is Test {
         lower = new TestIsm();
         upper = new TestIsm();
         ism = new AmountRoutingIsm(
-            address(this),
             address(lower),
             address(upper),
-            100
+            type(uint256).max / 2
         );
-    }
-
-    function test_setThreshold(uint256 threshold) public {
-        address owner = ism.owner();
-
-        vm.prank(owner);
-        ism.setThreshold(threshold);
-        assertEq(ism.threshold(), threshold);
-
-        ism.transferOwnership(address(0x1));
-        vm.expectRevert("Ownable: caller is not the owner");
-        ism.setThreshold(threshold);
     }
 
     function testRoute(
