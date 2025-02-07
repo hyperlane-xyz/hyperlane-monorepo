@@ -13,6 +13,7 @@
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@ethersproject/providers": "*",
     "@google-cloud/secret-manager": "^5.5.0",
+    "@hyperlane-xyz/cli": "8.6.1",
     "@hyperlane-xyz/helloworld": "8.6.1",
     "@hyperlane-xyz/registry": "9.1.0",
     "@hyperlane-xyz/sdk": "8.6.1",
