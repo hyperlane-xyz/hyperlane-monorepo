@@ -21,13 +21,13 @@ export async function runWarpRouteCheck({
   // Go through each chain and only add to the output the chains that have mismatches
   const [violations, isInvalid] = Object.keys(warpRouteConfig).reduce(
     (acc, chain) => {
-      const formattedOnchainConfig = formatCheckerInput({
+      formatCheckerInput({
         warpRouteConfig: warpRouteConfig[chain],
         onChainWarpConfig: onChainWarpConfig[chain],
       });
 
       const { mergedObject, isInvalid } = diffObjMerge(
-        normalizeConfig(formattedOnchainConfig),
+        normalizeConfig(onChainWarpConfig[chain]),
         normalizeConfig(warpRouteConfig[chain]),
       );
 
@@ -55,7 +55,7 @@ function formatCheckerInput({
 }: {
   warpRouteConfig: Readonly<HypTokenRouterConfig>;
   onChainWarpConfig: HypTokenRouterConfig;
-}): HypTokenRouterConfig {
+}) {
   // If the hook config is not defined in the input file,
   // we need to remove it from the onChainWarpConfig if it was derived
   if (!warpRouteConfig.hook) {
@@ -64,7 +64,7 @@ function formatCheckerInput({
 
   // if the hook config is defined the input file, it means the user wants to check
   // the hook config, so we need to add the default hook address to the onChainWarpConfig
-  // in case the default hook is used by the token.
+  // in case the default hook is currently used by the token.
   if (warpRouteConfig.hook && !onChainWarpConfig.hook) {
     onChainWarpConfig.hook = constants.AddressZero;
   }
@@ -81,9 +81,7 @@ function formatCheckerInput({
   ) {
     // Same as with the hook, if the interchainSecurityModule is defined in the input file,
     // if the user defined it, we need to add the default address to the onChainWarpConfig
-    // in case the default interchainSecurityModule is used by the token.
+    // in case the default interchainSecurityModule is currently used by the token.
     onChainWarpConfig.interchainSecurityModule = constants.AddressZero;
   }
-
-  return onChainWarpConfig;
 }
