@@ -166,35 +166,6 @@ contract CCIPIsmTest is Test {
         );
     }
 
-    // function testFork_postDispatch_RevertWhen_CCIPChainSelectorNotSupported()
-    //     public
-    // {
-    //     deployAll();
-
-    //     vm.selectFork(mainnetFork);
-
-    //     _allowAnyAddressToSendCCIP();
-
-    //     l1Mailbox.updateLatestDispatchedId(messageId);
-
-    //     testMetadata = _buildMetadata(
-    //         MAINNET_CHAIN_SELECTOR,
-    //         address(ccipISMOptimism)
-    //     );
-
-    //     bytes4 selector = bytes4(
-    //         keccak256("DestinationChainNotAllowlisted(uint64)")
-    //     );
-    //     vm.expectRevert(
-    //         abi.encodeWithSelector(selector, MAINNET_CHAIN_SELECTOR)
-    //     );
-
-    //     ccipHookMainnet.postDispatch{value: 1 ether}(
-    //         testMetadata,
-    //         encodedMessage
-    //     );
-    // }
-
     function testFork_postDispatch_RevertWhen_NotEnoughValueSent() public {
         deployAll();
 
@@ -283,6 +254,23 @@ contract CCIPIsmTest is Test {
         );
 
         ccipISMOptimism.ccipReceive(message);
+
+        vm.stopPrank();
+    }
+
+    function testFork_preVerifyMessageId_RevertWhen_UnauthorizedRouter()
+        public
+    {
+        deployAll();
+
+        vm.selectFork(optimismFork);
+
+        vm.startPrank(MAINNET_ROUTER_ADDRESS);
+
+        vm.expectRevert(
+            "AbstractMessageIdAuthorizedIsm: sender is not the hook"
+        );
+        ccipISMOptimism.preVerifyMessage(messageId, 0);
 
         vm.stopPrank();
     }
