@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  AmountRoutingIsm__factory,
   DomainRoutingIsm__factory,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
@@ -251,6 +252,38 @@ export async function moduleMatchesConfig(
       matches = eqAddress(expectedAddress, module.address);
       break;
     }
+    case IsmType.AMOUNT_ROUTING: {
+      const amountRoutingIsm = AmountRoutingIsm__factory.connect(
+        moduleAddress,
+        provider,
+      );
+
+      const [lowerIsmAddress, upperIsmAddress, threshold] = await Promise.all([
+        amountRoutingIsm.lowerISM(),
+        amountRoutingIsm.upperISM(),
+        amountRoutingIsm.threshold(),
+      ]);
+
+      const subModuleMatchesConfig = await Promise.all(
+        [
+          [lowerIsmAddress, config.lowerIsm],
+          [upperIsmAddress, config.upperIsm],
+        ].map(([ismAddress, ismConfig]) =>
+          moduleMatchesConfig(
+            chain,
+            ismAddress as string,
+            ismConfig,
+            multiProvider,
+            contracts,
+            mailbox,
+          ),
+        ),
+      );
+      matches &&= threshold.eq(config.threshold);
+      matches &&= subModuleMatchesConfig.every(Boolean);
+
+      break;
+    }
     case IsmType.FALLBACK_ROUTING:
     case IsmType.ROUTING: {
       // A RoutingIsm matches if:
@@ -407,7 +440,11 @@ export async function routingModuleDelta(
   contracts: HyperlaneContracts<ProxyFactoryFactories>,
   mailbox?: Address,
 ): Promise<RoutingIsmDelta> {
-  if (config.type === IsmType.ICA_ROUTING) {
+  // The ICA_ROUTING and AMOUNT_ROUTING ISMs are immutable routing ISMs.
+  if (
+    config.type === IsmType.ICA_ROUTING ||
+    config.type === IsmType.AMOUNT_ROUTING
+  ) {
     return {
       domainsToEnroll: [],
       domainsToUnenroll: [],

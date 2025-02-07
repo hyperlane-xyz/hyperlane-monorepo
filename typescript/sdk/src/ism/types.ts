@@ -46,6 +46,7 @@ export enum IsmType {
   ROUTING = 'domainRoutingIsm',
   FALLBACK_ROUTING = 'defaultFallbackRoutingIsm',
   ICA_ROUTING = 'icaRoutingIsm',
+  AMOUNT_ROUTING = 'amountRoutingIsm',
   AGGREGATION = 'staticAggregationIsm',
   STORAGE_AGGREGATION = 'storageAggregationIsm',
   MERKLE_ROOT_MULTISIG = 'merkleRootMultisigIsm',
@@ -73,6 +74,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.ROUTING:
     case IsmType.FALLBACK_ROUTING:
     case IsmType.ICA_ROUTING:
+    case IsmType.AMOUNT_ROUTING:
       return ModuleType.ROUTING;
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
@@ -127,7 +129,11 @@ export type NullIsmConfig =
   | TrustedRelayerIsmConfig;
 
 type BaseRoutingIsmConfig<
-  T extends IsmType.ROUTING | IsmType.FALLBACK_ROUTING | IsmType.ICA_ROUTING,
+  T extends
+    | IsmType.ROUTING
+    | IsmType.FALLBACK_ROUTING
+    | IsmType.ICA_ROUTING
+    | IsmType.AMOUNT_ROUTING,
 > = {
   type: T;
 };
@@ -139,7 +145,17 @@ export type DomainRoutingIsmConfig = BaseRoutingIsmConfig<
 
 export type IcaRoutingIsmConfig = BaseRoutingIsmConfig<IsmType.ICA_ROUTING>;
 
-export type RoutingIsmConfig = IcaRoutingIsmConfig | DomainRoutingIsmConfig;
+export type AmountRoutingIsmConfig =
+  BaseRoutingIsmConfig<IsmType.AMOUNT_ROUTING> & {
+    lowerIsm: IsmConfig;
+    upperIsm: IsmConfig;
+    threshold: number;
+  };
+
+export type RoutingIsmConfig =
+  | IcaRoutingIsmConfig
+  | DomainRoutingIsmConfig
+  | AmountRoutingIsmConfig;
 
 export type AggregationIsmConfig = {
   type: IsmType.AGGREGATION | IsmType.STORAGE_AGGREGATION;
@@ -154,6 +170,7 @@ export type DeployedIsmType = {
   [IsmType.ROUTING]: IRoutingIsm;
   [IsmType.FALLBACK_ROUTING]: IRoutingIsm;
   [IsmType.ICA_ROUTING]: IRoutingIsm;
+  [IsmType.AMOUNT_ROUTING]: IRoutingIsm;
   [IsmType.AGGREGATION]: IAggregationIsm;
   [IsmType.STORAGE_AGGREGATION]: IAggregationIsm;
   [IsmType.MERKLE_ROOT_MULTISIG]: IMultisigIsm;
@@ -245,6 +262,12 @@ export const RoutingIsmConfigSchema: z.ZodSchema<RoutingIsmConfig> = z.lazy(
     z.discriminatedUnion('type', [
       z.object({
         type: z.literal(IsmType.ICA_ROUTING),
+      }),
+      z.object({
+        type: z.literal(IsmType.AMOUNT_ROUTING),
+        lowerIsm: IsmConfigSchema,
+        upperIsm: IsmConfigSchema,
+        threshold: z.number(),
       }),
       OwnableSchema.extend({
         type: z.literal(IsmType.ROUTING),

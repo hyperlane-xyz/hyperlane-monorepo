@@ -74,7 +74,8 @@ export class DefaultFallbackRoutingMetadataBuilder extends RoutingMetadataBuilde
     );
 
     const isRouted =
-      context.ism.type === IsmType.ICA_ROUTING
+      context.ism.type === IsmType.ICA_ROUTING ||
+      context.ism.type === IsmType.AMOUNT_ROUTING
         ? false
         : !!context.ism.domains[originChain];
     // If the chain is routed then we are 100% sure that the ism is not an ICA ISM
