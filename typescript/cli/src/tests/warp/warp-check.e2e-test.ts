@@ -323,7 +323,7 @@ describe('hyperlane warp check e2e tests', async function () {
       expect(finalOutput.text()).to.include('No violations found');
     });
 
-    it(`should check the ism config if it is provided in the input file adn find differences`, async function () {
+    it(`should check the ism config if it is provided in the input file and find differences`, async function () {
       const derivedConfig = await deployAndExportSingleChainWarpRoute(
         CHAIN_NAME_2,
         {
