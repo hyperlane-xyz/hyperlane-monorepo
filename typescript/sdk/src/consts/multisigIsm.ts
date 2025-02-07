@@ -317,12 +317,22 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   berachain: {
-    threshold: 1,
+    threshold: 3,
     validators: [
       {
         address: '0x0190915c55d9c7555e6d2cb838f04d18b5e2260e',
         alias: AW_VALIDATOR_ALIAS,
       },
+      {
+        address: '0xa7341aa60faad0ce728aa9aeb67bb880f55e4392',
+        alias: 'Luganodes',
+      },
+      {
+        address: '0xae09cb3febc4cad59ef5a56c1df741df4eb1f4b6',
+        alias: 'Renzo',
+      },
+      DEFAULT_MERKLY_VALIDATOR,
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -2072,11 +2082,19 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
   },
 
   unichain: {
-    threshold: 2,
+    threshold: 3,
     validators: [
       {
         address: '0x9773a382342ebf604a2e5de0a1f462fb499e28b1',
         alias: AW_VALIDATOR_ALIAS,
+      },
+      {
+        address: '0xa9d517776fe8beba7d67c21cac1e805bd609c08e',
+        alias: 'Luganodes',
+      },
+      {
+        address: '0xfe318024ca6197f2157905209149067a11e6982c',
+        alias: 'Renzo',
       },
       DEFAULT_MERKLY_VALIDATOR,
       DEFAULT_MITOSIS_VALIDATOR,
