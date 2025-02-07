@@ -431,16 +431,16 @@ export const validatorChainConfig = (
       ),
     },
 
-    // subtensortestnet: {
-    //   interval: 5,
-    //   reorgPeriod: getReorgPeriod('subtensortestnet'),
-    //   validators: validatorsConfig(
-    //     {
-    //       [Contexts.Hyperlane]: ['0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33'],
-    //     },
-    //     'subtensortestnet',
-    //   ),
-    // },
+    subtensortestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('subtensortestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33'],
+        },
+        'subtensortestnet',
+      ),
+    },
     chronicleyellowstone: {
       interval: 5,
       reorgPeriod: getReorgPeriod('chronicleyellowstone'),
