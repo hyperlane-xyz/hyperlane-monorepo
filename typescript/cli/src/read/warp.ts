@@ -80,6 +80,7 @@ export async function runWarpRouteRead({
     );
 
     if (xerc20Tokens.length > 0) {
+      // TODO: merge with XERC20TokenAdapter and WarpRouteReader
       const xerc20Limits = await Promise.all(
         xerc20Tokens.map(async (t) => {
           const provider = multiProvider.getProvider(t.chainName);
