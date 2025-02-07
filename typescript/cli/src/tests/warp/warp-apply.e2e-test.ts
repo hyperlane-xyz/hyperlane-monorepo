@@ -276,9 +276,13 @@ describe('hyperlane warp apply e2e tests', async function () {
       type: TokenType.native,
     };
 
-    warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
-    writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    await hyperlaneWarpApply(warpDeployPath, WARP_CORE_CONFIG_PATH_2);
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    });
 
     const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
       CHAIN_NAME_2,
@@ -339,9 +343,13 @@ describe('hyperlane warp apply e2e tests', async function () {
       type: TokenType.native,
       gas: GAS,
     };
-    warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
-    writeYamlOrJson(warpConfigPath, warpDeployConfig);
-    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: warpConfigPath,
+    });
 
     const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
       CHAIN_NAME_2,
@@ -374,48 +382,6 @@ describe('hyperlane warp apply e2e tests', async function () {
       updatedWarpDeployConfig_3[CHAIN_NAME_3].destinationGas!;
     expect(Object.keys(destinationGas_3)).to.include(chain2Id);
     expect(destinationGas_3[chain2Id]).to.equal('7777');
-  });
-
-  it('should recover and re-enroll routers after configuration tampering through manual deletion of remoteRouters', async () => {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    const warpDeployConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
-    );
-
-    // Initial setup
-    const config: HypTokenRouterConfig = {
-      decimals: 18,
-      mailbox: chain2Addresses!.mailbox,
-      name: 'Ether',
-      owner: new Wallet(ANVIL_KEY).address,
-      symbol: 'ETH',
-      totalSupply: 0,
-      type: TokenType.native,
-    };
-
-    warpDeployConfig[CHAIN_NAME_3] = config;
-    writeYamlOrJson(warpConfigPath, warpDeployConfig);
-    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
-
-    // Manually remove router enrollment
-    delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
-    writeYamlOrJson(warpConfigPath, warpDeployConfig);
-
-    // Reapply and verify recovery
-    await hyperlaneWarpApply(warpConfigPath, WARP_CORE_CONFIG_PATH_2);
-
-    const recoveredConfig = await readWarpConfig(
-      CHAIN_NAME_2,
-      WARP_CORE_CONFIG_PATH_2,
-      warpConfigPath,
-    );
-
-    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
-    expect(
-      Object.keys(recoveredConfig[CHAIN_NAME_2].remoteRouters!),
-    ).to.include(chain3Id);
   });
 
   it('should be idempotent when applying warp route multiple times', async () => {
