@@ -1,4 +1,4 @@
-use super::MetadataBuilder;
+use super::{Metadata, MetadataBuilder};
 use async_trait::async_trait;
 use derive_new::new;
 use tracing::instrument;
@@ -16,7 +16,7 @@ impl MetadataBuilder for NullMetadataBuilder {
         &self,
         _ism_address: H256,
         _message: &HyperlaneMessage,
-    ) -> eyre::Result<Option<Vec<u8>>> {
-        Ok(Some(vec![]))
+    ) -> eyre::Result<Metadata> {
+        Ok(Metadata::Ok(vec![]))
     }
 }
