@@ -4321,18 +4321,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@chainlink/contracts-ccip@npm:^0.7.6":
-  version: 0.7.6
-  resolution: "@chainlink/contracts-ccip@npm:0.7.6"
-  dependencies:
-    "@eth-optimism/contracts": "npm:^0.5.21"
-    "@openzeppelin/contracts": "npm:~4.3.3"
-    "@openzeppelin/contracts-upgradeable-4.7.3": "npm:@openzeppelin/contracts-upgradeable@v4.7.3"
-    "@openzeppelin/contracts-v0.7": "npm:@openzeppelin/contracts@v3.4.2"
-  checksum: 10/1a2daf828c72ad0ff192d3c9c0d8517be17fc4e6c44db5d90a4f40a7a7104844d184ad2cc0873acdaee7b8cb020d343dadd1d9cb883de90c1f60ec37bcc68d34
-  languageName: node
-  linkType: hard
-
 "@chainsafe/as-sha256@npm:^0.3.1":
   version: 0.3.1
   resolution: "@chainsafe/as-sha256@npm:0.3.1"
@@ -5988,19 +5976,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@eth-optimism/contracts@npm:^0.5.21":
-  version: 0.5.40
-  resolution: "@eth-optimism/contracts@npm:0.5.40"
-  dependencies:
-    "@eth-optimism/core-utils": "npm:0.12.0"
-    "@ethersproject/abstract-provider": "npm:^5.7.0"
-    "@ethersproject/abstract-signer": "npm:^5.7.0"
-  peerDependencies:
-    ethers: ^5
-  checksum: 10/5333f7d5792ad7c656202ce6e9e875993da7423b670f3da5e1cee9330d6c29b4f102ecc2fee06ca353381a2e603485e8a883e8a3979218effec2ead84f46e9a2
-  languageName: node
-  linkType: hard
-
 "@eth-optimism/core-utils@npm:0.12.0":
   version: 0.12.0
   resolution: "@eth-optimism/core-utils@npm:0.12.0"
@@ -7346,8 +7321,8 @@ __metadata:
     "@ethersproject/abi": "npm:*"
     "@ethersproject/providers": "npm:*"
     "@hyperlane-xyz/registry": "npm:9.1.0"
-    "@hyperlane-xyz/sdk": "npm:8.5.0"
-    "@hyperlane-xyz/utils": "npm:8.5.0"
+    "@hyperlane-xyz/sdk": "npm:8.6.0"
+    "@hyperlane-xyz/utils": "npm:8.6.0"
     "@inquirer/core": "npm:9.0.10"
     "@inquirer/figures": "npm:1.0.5"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7386,14 +7361,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/core@npm:5.11.1, @hyperlane-xyz/core@workspace:solidity":
+"@hyperlane-xyz/core@npm:5.11.2, @hyperlane-xyz/core@workspace:solidity":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/core@workspace:solidity"
   dependencies:
     "@arbitrum/nitro-contracts": "npm:^1.2.1"
-    "@chainlink/contracts-ccip": "npm:^0.7.6"
     "@eth-optimism/contracts": "npm:^0.6.0"
-    "@hyperlane-xyz/utils": "npm:8.5.0"
+    "@hyperlane-xyz/utils": "npm:8.6.0"
     "@layerzerolabs/lz-evm-oapp-v2": "npm:2.0.2"
     "@layerzerolabs/solidity-examples": "npm:^1.1.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
@@ -7445,14 +7419,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/helloworld@npm:8.5.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
+"@hyperlane-xyz/helloworld@npm:8.6.0, @hyperlane-xyz/helloworld@workspace:typescript/helloworld":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/helloworld@workspace:typescript/helloworld"
   dependencies:
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:5.11.1"
+    "@hyperlane-xyz/core": "npm:5.11.2"
     "@hyperlane-xyz/registry": "npm:9.1.0"
-    "@hyperlane-xyz/sdk": "npm:8.5.0"
+    "@hyperlane-xyz/sdk": "npm:8.6.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@openzeppelin/contracts-upgradeable": "npm:^4.9.3"
@@ -7501,10 +7475,10 @@ __metadata:
     "@ethersproject/hardware-wallets": "npm:^5.7.0"
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
-    "@hyperlane-xyz/helloworld": "npm:8.5.0"
+    "@hyperlane-xyz/helloworld": "npm:8.6.0"
     "@hyperlane-xyz/registry": "npm:9.1.0"
-    "@hyperlane-xyz/sdk": "npm:8.5.0"
-    "@hyperlane-xyz/utils": "npm:8.5.0"
+    "@hyperlane-xyz/sdk": "npm:8.6.0"
+    "@hyperlane-xyz/utils": "npm:8.6.0"
     "@inquirer/prompts": "npm:3.3.2"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-etherscan": "npm:^3.0.3"
@@ -7575,7 +7549,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@hyperlane-xyz/sdk@npm:8.5.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
+"@hyperlane-xyz/sdk@npm:8.6.0, @hyperlane-xyz/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/sdk@workspace:typescript/sdk"
   dependencies:
@@ -7585,8 +7559,8 @@ __metadata:
     "@cosmjs/cosmwasm-stargate": "npm:^0.32.4"
     "@cosmjs/stargate": "npm:^0.32.4"
     "@eslint/js": "npm:^9.15.0"
-    "@hyperlane-xyz/core": "npm:5.11.1"
-    "@hyperlane-xyz/utils": "npm:8.5.0"
+    "@hyperlane-xyz/core": "npm:5.11.2"
+    "@hyperlane-xyz/utils": "npm:8.6.0"
     "@nomiclabs/hardhat-ethers": "npm:^2.2.3"
     "@nomiclabs/hardhat-waffle": "npm:^2.0.6"
     "@safe-global/api-kit": "npm:1.3.0"
@@ -7629,7 +7603,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@hyperlane-xyz/utils@npm:8.5.0, @hyperlane-xyz/utils@workspace:typescript/utils":
+"@hyperlane-xyz/utils@npm:8.6.0, @hyperlane-xyz/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@hyperlane-xyz/utils@workspace:typescript/utils"
   dependencies:
@@ -7671,8 +7645,8 @@ __metadata:
     "@eslint/js": "npm:^9.15.0"
     "@headlessui/react": "npm:^2.1.8"
     "@hyperlane-xyz/registry": "npm:9.1.0"
-    "@hyperlane-xyz/sdk": "npm:8.5.0"
-    "@hyperlane-xyz/utils": "npm:8.5.0"
+    "@hyperlane-xyz/sdk": "npm:8.6.0"
+    "@hyperlane-xyz/utils": "npm:8.6.0"
     "@interchain-ui/react": "npm:^1.23.28"
     "@rainbow-me/rainbowkit": "npm:^2.2.0"
     "@solana/wallet-adapter-react": "npm:^0.15.32"
@@ -9728,17 +9702,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin-3/contracts@npm:@openzeppelin/contracts@^3.4.2-solc-0.7, @openzeppelin/contracts-v0.7@npm:@openzeppelin/contracts@v3.4.2":
+"@openzeppelin-3/contracts@npm:@openzeppelin/contracts@^3.4.2-solc-0.7":
   version: 3.4.2
   resolution: "@openzeppelin/contracts@npm:3.4.2"
   checksum: 10/e803e322bd111565e2de742c62f1a598c7c7dd7385c1c0fe3c06e2b4913e599024ad1d32e2693f199f5230af4d9b0eeefb389f32740006312895b962a4d937d4
-  languageName: node
-  linkType: hard
-
-"@openzeppelin/contracts-upgradeable-4.7.3@npm:@openzeppelin/contracts-upgradeable@v4.7.3, @openzeppelin/contracts-upgradeable@npm:4.7.3":
-  version: 4.7.3
-  resolution: "@openzeppelin/contracts-upgradeable@npm:4.7.3"
-  checksum: 10/7c72ffeca867478b5aa8e8c7adb3d1ce114cfdc797ed4f3cd074788cf4da25d620ffffd624ac7e9d1223eecffeea9f7b79200ff70dc464cc828c470ccd12ddf1
   languageName: node
   linkType: hard
 
@@ -9753,6 +9720,13 @@ __metadata:
   version: 4.5.2
   resolution: "@openzeppelin/contracts-upgradeable@npm:4.5.2"
   checksum: 10/5e246da7a44bb982a312ebf79978735712140692d46273566e490159b98b9041ca72cc08c3d05172137a389be4caad5afc001480bc5557f3d47162f4626e3723
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/contracts-upgradeable@npm:4.7.3":
+  version: 4.7.3
+  resolution: "@openzeppelin/contracts-upgradeable@npm:4.7.3"
+  checksum: 10/7c72ffeca867478b5aa8e8c7adb3d1ce114cfdc797ed4f3cd074788cf4da25d620ffffd624ac7e9d1223eecffeea9f7b79200ff70dc464cc828c470ccd12ddf1
   languageName: node
   linkType: hard
 
@@ -9809,13 +9783,6 @@ __metadata:
   version: 4.9.3
   resolution: "@openzeppelin/contracts@npm:4.9.3"
   checksum: 10/ce0a16a56a39b62d72370ac702bce1917096492442ff05de88521beda2c3f3935b93ee2b9a184614dd543a6181f2f0be10243f5a629be87aab284ade68c18320
-  languageName: node
-  linkType: hard
-
-"@openzeppelin/contracts@npm:~4.3.3":
-  version: 4.3.3
-  resolution: "@openzeppelin/contracts@npm:4.3.3"
-  checksum: 10/14fb7f3807054033671562165086ac4d1a500cf2068a6eadad16cbeb443df508a659cc658d91bf3ea0aea64920048cc26a7ad7d2a4f7844671e3084a4fc5cf0b
   languageName: node
   linkType: hard
 
