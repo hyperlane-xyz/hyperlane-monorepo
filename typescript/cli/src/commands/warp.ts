@@ -407,13 +407,13 @@ export const check: CommandModuleWithContext<{
         warpCoreConfig,
       },
       warp,
+      symbol,
     });
 
     await runWarpRouteCheck({
+      onChainWarpConfig,
       warpRouteConfig: warpDeployConfig,
-      onChainWarpConfig: onChainWarpConfig,
     });
-    logGreen('✅ Warp route configuration matches on-chain state');
 
     process.exit(0);
   },

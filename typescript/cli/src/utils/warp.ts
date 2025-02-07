@@ -13,6 +13,12 @@ import {
 
 import { selectRegistryWarpRoute } from './tokens.js';
 
+/**
+ * Gets a {@link WarpCoreConfig} based on the provided path or prompts the user to choose one:
+ * - if `symbol` is provided the user will have to select one of the available warp routes.
+ * - if `warp` is provided the config will be read by the provided file path.
+ * - if none is provided the CLI will exit.
+ */
 export async function getWarpCoreConfigOrExit({
   context,
   symbol,
