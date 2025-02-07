@@ -41,6 +41,7 @@ import {
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
+  warpRouteIdCommandOption,
 } from './options.js';
 import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
 
@@ -336,7 +337,7 @@ const send: CommandModuleWithWriteContext<
 };
 
 export const check: CommandModuleWithContext<{
-  config: string;
+  config?: string;
   symbol?: string;
   warp?: string;
   warpRouteId?: string;
@@ -357,11 +358,7 @@ export const check: CommandModuleWithContext<{
       description: 'The path to a warp route deployment configuration file',
       demandOption: false,
     }),
-    warpRouteId: {
-      description: 'Warp route ID to check',
-      type: 'string',
-      alias: 'id',
-    },
+    warpRouteId: warpRouteIdCommandOption,
   },
   handler: async ({ context, config, symbol, warp, warpRouteId }) => {
     logCommandHeader('Hyperlane Warp Check');
