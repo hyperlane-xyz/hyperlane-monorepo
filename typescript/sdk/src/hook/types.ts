@@ -36,6 +36,7 @@ export enum HookType {
   FALLBACK_ROUTING = 'fallbackRoutingHook',
   PAUSABLE = 'pausableHook',
   ARB_L2_TO_L1 = 'arbL2ToL1Hook',
+  CCIP = 'ccipHook',
 }
 
 export type MerkleTreeHookConfig = z.infer<typeof MerkleTreeSchema>;
@@ -44,6 +45,7 @@ export type ProtocolFeeHookConfig = z.infer<typeof ProtocolFeeSchema>;
 export type PausableHookConfig = z.infer<typeof PausableHookSchema>;
 export type OpStackHookConfig = z.infer<typeof OpStackHookSchema>;
 export type ArbL2ToL1HookConfig = z.infer<typeof ArbL2ToL1HookSchema>;
+export type CCIPHookConfig = z.infer<typeof CCIPHookSchema>;
 
 // explicitly typed to avoid zod circular dependency
 export type AggregationHookConfig = {
@@ -110,6 +112,12 @@ export const ArbL2ToL1HookSchema = z.object({
   childHook: z.lazy((): z.ZodSchema => HookConfigSchema),
 });
 
+export const CCIPHookSchema = z.object({
+  type: z.literal(HookType.CCIP),
+  destinationChain: z.string(),
+  ism: z.string(),
+});
+
 export const IgpSchema = OwnableSchema.extend({
   type: z.literal(HookType.INTERCHAIN_GAS_PAYMASTER),
   beneficiary: z.string(),
@@ -154,4 +162,5 @@ export const HookConfigSchema = z.union([
   FallbackRoutingHookConfigSchema,
   AggregationHookConfigSchema,
   ArbL2ToL1HookSchema,
+  CCIPHookSchema,
 ]);

@@ -118,6 +118,14 @@ function randomHookConfig(
       };
     }
 
+    case HookType.CCIP: {
+      return {
+        type: hookType,
+        destinationChain: 'testChain',
+        ism: randomAddress(),
+      };
+    }
+
     case HookType.OP_STACK:
       return {
         owner: randomAddress(),

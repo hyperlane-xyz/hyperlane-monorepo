@@ -4,6 +4,8 @@ import { randomBytes } from 'ethers/lib/utils.js';
 import sinon from 'sinon';
 
 import {
+  CCIPHook,
+  CCIPHook__factory,
   IPostDispatchHook,
   IPostDispatchHook__factory,
   MerkleTreeHook,
@@ -23,6 +25,7 @@ import { randomAddress } from '../test/testUtils.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
 import {
+  CCIPHookConfig,
   HookType,
   MerkleTreeHookConfig,
   OnchainHookType,
@@ -182,6 +185,37 @@ describe('EvmHookReader', () => {
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.deriveOpStackConfig(mockAddress);
     expect(config).to.deep.equal(hookConfig);
+  });
+
+  it('should derive CCIPHook configuration correctly', async () => {
+    const ccipHookAddress = randomAddress();
+    const destinationDomain = test1.domainId;
+    const ism = randomAddress();
+
+    // Mock the CCIPHook contract
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.ID_AUTH_ISM),
+      destinationChain: sandbox.stub().resolves(destinationDomain),
+      ism: sandbox.stub().resolves(ism),
+    };
+
+    sandbox
+      .stub(CCIPHook__factory, 'connect')
+      .returns(mockContract as unknown as CCIPHook);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockContract as unknown as IPostDispatchHook);
+
+    const config = await evmHookReader.deriveCcipConfig(ccipHookAddress);
+
+    const expectedConfig: WithAddress<CCIPHookConfig> = {
+      address: ccipHookAddress,
+      type: HookType.CCIP,
+      destinationChain: TestChainName.test2,
+      ism,
+    };
+
+    expect(config).to.deep.equal(expectedConfig);
   });
 
   it('should throw if derivation fails', async () => {

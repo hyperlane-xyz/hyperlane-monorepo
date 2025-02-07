@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  CCIPHook,
   DomainRoutingHook,
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
@@ -16,6 +17,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { CCIP_NETWORKS } from '../consts/ccip.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -30,6 +32,7 @@ import { ChainMap, ChainName } from '../types.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
+  CCIPHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -107,6 +110,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       await this.transferOwnershipOfContracts(chain, config, {
         [HookType.PAUSABLE]: hook,
       });
+    } else if (config.type === HookType.CCIP) {
+      hook = await this.deployCcip(chain, config);
     } else {
       throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -114,6 +119,34 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     const deployedContracts = { [config.type]: hook } as any; // partial
     this.addDeployedContracts(chain, deployedContracts);
     return deployedContracts;
+  }
+
+  async deployCcip(
+    chain: ChainName,
+    config: CCIPHookConfig,
+    coreAddresses = this.core[chain],
+  ): Promise<CCIPHook> {
+    this.logger.debug('Deploying CCIPHook for %s', chain);
+
+    const mailbox = coreAddresses.mailbox;
+    if (!mailbox) {
+      throw new Error(`Mailbox address is required for ${config.type}`);
+    }
+
+    const destinationDomain = this.multiProvider.getDomainId(
+      config.destinationChain,
+    );
+
+    const originCCIPNetwork = CCIP_NETWORKS[chain];
+    const destinationCCIPNetwork = CCIP_NETWORKS[config.destinationChain];
+
+    return this.deployContract(chain, HookType.CCIP, [
+      originCCIPNetwork.router.address,
+      destinationCCIPNetwork.chainSelector,
+      mailbox,
+      destinationDomain,
+      config.ism,
+    ]);
   }
 
   async deployProtocolFee(

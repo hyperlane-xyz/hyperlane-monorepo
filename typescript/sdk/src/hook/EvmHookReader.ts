@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ArbL2ToL1Hook__factory,
+  CCIPHook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -34,6 +35,7 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 import {
   AggregationHookConfig,
   ArbL2ToL1HookConfig,
+  CCIPHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -76,6 +78,8 @@ export interface HookReader {
   derivePausableConfig(
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>>;
+  deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig>;
+  deriveCcipConfig(address: Address): Promise<WithAddress<CCIPHookConfig>>;
   assertHookType(
     hookType: OnchainHookType,
     expectedType: OnchainHookType,
@@ -151,10 +155,8 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         case OnchainHookType.PROTOCOL_FEE:
           derivedHookConfig = await this.deriveProtocolFeeConfig(address);
           break;
-        // ID_AUTH_ISM could be OPStackHook, ERC5164Hook or LayerZeroV2Hook
-        // For now assume it's OP_STACK
         case OnchainHookType.ID_AUTH_ISM:
-          derivedHookConfig = await this.deriveOpStackConfig(address);
+          derivedHookConfig = await this.deriveIdAuthIsmConfig(address);
           break;
         case OnchainHookType.ARB_L2_TO_L1:
           derivedHookConfig = await this.deriveArbL2ToL1Config(address);
@@ -183,6 +185,51 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  async deriveIdAuthIsmConfig(address: Address): Promise<DerivedHookConfig> {
+    // First check if it's a CCIP hook
+    try {
+      const ccipHook = CCIPHook__factory.connect(address, this.provider);
+      // This method only exists on CCIPHook
+      await ccipHook.ccipDestination();
+      return this.deriveCcipConfig(address);
+    } catch {
+      // Not a CCIP hook, try OPStack
+      try {
+        const opStackHook = OPStackHook__factory.connect(
+          address,
+          this.provider,
+        );
+        // This method only exists on OPStackHook
+        await opStackHook.l1Messenger();
+        return this.deriveOpStackConfig(address);
+      } catch {
+        throw new Error(
+          `Could not determine hook type - neither CCIP nor OPStack methods found`,
+        );
+      }
+    }
+  }
+
+  async deriveCcipConfig(
+    address: Address,
+  ): Promise<WithAddress<CCIPHookConfig>> {
+    const ccipHook = CCIPHook__factory.connect(address, this.provider);
+    const destinationDomain = await ccipHook.destinationDomain();
+    const destinationChain = this.multiProvider.getChainName(destinationDomain);
+    const ism = await ccipHook.ism();
+
+    const config: WithAddress<CCIPHookConfig> = {
+      address,
+      type: HookType.CCIP,
+      destinationChain,
+      ism,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveMerkleTreeConfig(
