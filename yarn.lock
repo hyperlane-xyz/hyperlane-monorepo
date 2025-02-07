@@ -7476,7 +7476,7 @@ __metadata:
     "@ethersproject/providers": "npm:*"
     "@google-cloud/secret-manager": "npm:^5.5.0"
     "@hyperlane-xyz/helloworld": "npm:8.5.0"
-    "@hyperlane-xyz/registry": "npm:9.1.0"
+    "@hyperlane-xyz/registry": "npm:9.3.0"
     "@hyperlane-xyz/sdk": "npm:8.5.0"
     "@hyperlane-xyz/utils": "npm:8.5.0"
     "@inquirer/prompts": "npm:3.3.2"
@@ -7546,6 +7546,16 @@ __metadata:
     yaml: "npm:2.4.5"
     zod: "npm:^3.21.2"
   checksum: 10/44c9ae520880a11a186cebedeab50056859a120c66938564d0f64500971b161b4df556d288ba5347b8fcb348787aeb4829a117ae9946156a2314407b52f0bb3e
+  languageName: node
+  linkType: hard
+
+"@hyperlane-xyz/registry@npm:9.3.0":
+  version: 9.3.0
+  resolution: "@hyperlane-xyz/registry@npm:9.3.0"
+  dependencies:
+    yaml: "npm:2.4.5"
+    zod: "npm:^3.21.2"
+  checksum: 10/22d34cf5b002b9bca751dbfcc5ba0ea1cb145b0f1e9394c9a6fa4b80d84cc0f9b8f1461c9aed902892b6d351cfd7aaf77484f0db531aa913e646086ac467e80f
   languageName: node
   linkType: hard
 
