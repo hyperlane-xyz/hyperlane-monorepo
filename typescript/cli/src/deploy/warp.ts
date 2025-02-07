@@ -47,6 +47,7 @@ import {
   WarpRouteDeployConfigSchema,
   attachContractsMap,
   connectContractsMap,
+  gasOverhead,
   getTokenConnectionId,
   hypERC20factories,
   isCollateralTokenConfig,
@@ -633,43 +634,50 @@ async function extendWarpRoute(
 }
 
 /**
- * Gets remote routers configuration for a chain
+ * Gets router address for a chain
  */
-function getRemoteRouters(
-  multiProvider: MultiProvider,
-  chain: string,
+const getRemoteRouterAddress = (
   deployedRoutersAddresses: ChainMap<Address>,
-): RemoteRouters {
-  const otherChains = multiProvider
-    .getRemoteChains(chain)
-    .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
-
-  return otherChains.reduce<RemoteRouters>((routers, otherChain) => {
-    routers[multiProvider.getDomainId(otherChain)] = {
-      address: deployedRoutersAddresses[otherChain],
-    };
-    return routers;
-  }, {});
-}
+  chain: string,
+): Address => deployedRoutersAddresses[chain];
 
 /**
- * Gets destination gas configuration for a chain
+ * Gets gas configuration for a chain
  */
-function getChainDestinationGas(
+const getGasConfig = (
+  warpDeployConfig: WarpRouteDeployConfig,
+  chain: string,
+): string =>
+  warpDeployConfig[chain].gas?.toString() ||
+  gasOverhead(warpDeployConfig[chain].type).toString();
+
+/**
+ * Returns cross-chain router and gas configurations for remote chains
+ */
+function getCrossChainConfigurations(
   multiProvider: MultiProvider,
   chain: string,
   deployedRoutersAddresses: ChainMap<Address>,
-  destinationGas: DestinationGas,
-): DestinationGas {
+  warpDeployConfig: WarpRouteDeployConfig,
+): [RemoteRouters, DestinationGas] {
+  const remoteRouters: RemoteRouters = {};
+  const destinationGas: DestinationGas = {};
+
   const otherChains = multiProvider
     .getRemoteChains(chain)
     .filter((c) => Object.keys(deployedRoutersAddresses).includes(c));
 
-  return otherChains.reduce<DestinationGas>((gas, otherChain) => {
-    const otherDomain = multiProvider.getDomainId(otherChain).toString();
-    gas[otherDomain] = destinationGas[otherDomain];
-    return gas;
-  }, {});
+  for (const otherChain of otherChains) {
+    const domainId = multiProvider.getDomainId(otherChain);
+
+    remoteRouters[domainId] = {
+      address: getRemoteRouterAddress(deployedRoutersAddresses, otherChain),
+    };
+
+    destinationGas[domainId] = getGasConfig(warpDeployConfig, otherChain);
+  }
+
+  return [remoteRouters, destinationGas];
 }
 
 async function updateExistingWarpRoute(
@@ -694,21 +702,6 @@ async function updateExistingWarpRoute(
   const deployedRoutersAddresses: ChainMap<Address> = objMap(
     warpCoreConfigByChain,
     (_, config) => config.addressOrDenom as Address,
-  );
-
-  // Get destination gas for all chains
-  const destinationGas = await populateDestinationGas(
-    multiProvider,
-    warpDeployConfig,
-    connectContractsMap(
-      attachContractsMap(
-        objMap(deployedRoutersAddresses, (_, address) => ({
-          synthetic: address,
-        })),
-        hypERC20factories,
-      ),
-      multiProvider,
-    ),
   );
 
   await promiseObjAll(
@@ -749,21 +742,20 @@ async function updateExistingWarpRoute(
           contractVerifier,
         );
 
-        const updatedConfig = {
-          destinationGas: getChainDestinationGas(
-            multiProvider,
-            chain,
-            deployedRoutersAddresses,
+        const [remoteRouters, destinationGas] = getCrossChainConfigurations(
+          multiProvider,
+          chain,
+          deployedRoutersAddresses,
+          warpDeployConfig,
+        );
+
+        transactions.push(
+          ...(await evmERC20WarpModule.update({
+            remoteRouters,
             destinationGas,
-          ),
-          remoteRouters: getRemoteRouters(
-            multiProvider,
-            chain,
-            deployedRoutersAddresses,
-          ),
-          ...config,
-        };
-        transactions.push(...(await evmERC20WarpModule.update(updatedConfig)));
+            ...config,
+          })),
+        );
       });
     }),
   );
@@ -829,38 +821,6 @@ function mergeAllRouters(
     ),
     ...deployedContractsMap,
   } as HyperlaneContractsMap<HypERC20Factories>;
-}
-/**
- * Populates the destination gas amounts for each chain using warpConfig.gas OR querying other router's destinationGas
- */
-async function populateDestinationGas(
-  multiProvider: MultiProvider,
-  warpDeployConfig: WarpRouteDeployConfig,
-  deployedContractsMap: HyperlaneContractsMap<HypERC20Factories>,
-): Promise<DestinationGas> {
-  const destinationGas: DestinationGas = {};
-  const deployedChains = Object.keys(deployedContractsMap);
-  await promiseObjAll(
-    objMap(deployedContractsMap, async (chain, contracts) => {
-      await retryAsync(async () => {
-        const router = getRouter(contracts);
-
-        const otherChains = multiProvider
-          .getRemoteChains(chain)
-          .filter((c) => deployedChains.includes(c));
-
-        for (const otherChain of otherChains) {
-          const otherDomain = multiProvider.getDomainId(otherChain);
-          const domainStr = otherDomain.toString();
-          if (!destinationGas[domainStr])
-            destinationGas[domainStr] =
-              warpDeployConfig[otherChain].gas?.toString() ||
-              (await router.destinationGas(otherDomain)).toString();
-        }
-      });
-    }),
-  );
-  return destinationGas;
 }
 
 function getRouter(contracts: HyperlaneContracts<HypERC20Factories>) {
