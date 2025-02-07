@@ -7,6 +7,7 @@ import type {
   ChainMetadata,
   MultiProvider,
   WarpCoreConfig,
+  WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
 export interface ContextSettings {
@@ -28,6 +29,7 @@ export interface CommandContext {
   // just for evm chains backward compatibility
   signerAddress?: string;
   warpCoreConfig?: WarpCoreConfig;
+  warpDeployConfig?: WarpRouteDeployConfig;
   strategyPath?: string;
 }
 

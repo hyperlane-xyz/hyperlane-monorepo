@@ -1,13 +1,7 @@
-import { select } from '@inquirer/prompts';
 import { stringify as yamlStringify } from 'yaml';
 import { CommandModule } from 'yargs';
 
-import {
-  ChainName,
-  ChainSubmissionStrategySchema,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
-} from '@hyperlane-xyz/sdk';
+import { ChainName, ChainSubmissionStrategySchema } from '@hyperlane-xyz/sdk';
 import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runWarpRouteCheck } from '../check/warp.js';
@@ -33,11 +27,8 @@ import {
 } from '../utils/files.js';
 import { selectRegistryWarpRoute } from '../utils/tokens.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
+import { getWarpConfigs } from '../utils/warp.js';
 import { runVerifyWarpRoute } from '../verify/warp.js';
-import {
-  getWarpConfigFromRegistry,
-  getWarpRouteIds,
-} from '../warp/registry.js';
 
 import {
   DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH,
@@ -362,6 +353,9 @@ export const check: CommandModuleWithContext<{
       ...warpCoreConfigCommandOption,
       demandOption: false,
     },
+    config: {
+      description: 'The path to a warp route deployment configuration file',
+    },
     warpRouteId: {
       description: 'Warp route ID to check',
       type: 'string',
@@ -371,55 +365,24 @@ export const check: CommandModuleWithContext<{
   handler: async ({ context, config, symbol, warp, warpRouteId }) => {
     logCommandHeader('Hyperlane Warp Check');
 
-    let warpDeployConfig: WarpRouteDeployConfig;
-    let warpCoreConfig: WarpCoreConfig;
+    let { warpDeployConfig, warpCoreConfig } = context;
 
-    // TODO: deduplicate here and in MultiChainResolver
-    if (warpRouteId) {
+    if (!warpDeployConfig || !warpCoreConfig) {
       try {
-        const configs = await getWarpConfigFromRegistry(warpRouteId, context);
-        warpDeployConfig = configs.deployConfig as WarpRouteDeployConfig;
-        warpCoreConfig = configs.coreConfig;
+        const configs = await getWarpConfigs({
+          context,
+          warpRouteId,
+          config,
+          warp,
+          symbol,
+        });
+        warpDeployConfig = configs.warpDeployConfig;
+        warpCoreConfig = configs.warpCoreConfig;
       } catch (error: any) {
-        logRed(`Failed to get configs for warp route ${warpRouteId}:`);
-        logRed(error.message);
-        process.exit(1);
-      }
-    } else if (config && warp) {
-      warpDeployConfig = await readWarpRouteDeployConfig(config);
-      warpCoreConfig = await getWarpCoreConfigOrExit({
-        symbol,
-        warp,
-        context,
-      });
-    } else {
-      const routeIds = await getWarpRouteIds(context);
-      if (routeIds.length === 0) {
-        logRed('No valid warp routes found in registry');
-        process.exit(1);
-      }
-
-      const selectedId = await select({
-        message: 'Select a warp route to check:',
-        choices: routeIds.map((id) => ({
-          name: id,
-          value: id,
-          description: 'Follows pattern: TOKEN/origin-destination',
-        })),
-        pageSize: 20,
-      });
-
-      try {
-        const configs = await getWarpConfigFromRegistry(selectedId, context);
-        warpDeployConfig = configs.deployConfig as WarpRouteDeployConfig;
-        warpCoreConfig = configs.coreConfig;
-      } catch (error: any) {
-        logRed(`Failed to get configs for selected warp route ${selectedId}:`);
         logRed(error.message);
         process.exit(1);
       }
     }
-
     // First validate that warpCoreConfig chains match warpDeployConfig
     const deployConfigChains = Object.keys(warpDeployConfig);
     const coreConfigChains = warpCoreConfig.tokens.map((t) => t.chainName);
@@ -439,8 +402,11 @@ export const check: CommandModuleWithContext<{
 
     // Get on-chain config
     const onChainWarpConfig = await runWarpRouteRead({
-      context,
-      warp: warpCoreConfig,
+      context: {
+        ...context,
+        warpCoreConfig,
+      },
+      warp,
     });
 
     await runWarpRouteCheck({

@@ -1,5 +1,3 @@
-import search from '@inquirer/search';
-
 import {
   ChainMap,
   ChainName,
@@ -24,11 +22,7 @@ import {
   readYamlOrJson,
   runFileSelectionStep,
 } from '../../../utils/files.js';
-import { getWarpCoreConfigOrExit } from '../../../utils/warp.js';
-import {
-  getWarpConfigFromRegistry,
-  getWarpRouteIds,
-} from '../../../warp/registry.js';
+import { getWarpConfigs } from '../../../utils/warp.js';
 
 import { ChainResolver } from './types.js';
 
@@ -82,70 +76,26 @@ export class MultiChainResolver implements ChainResolver {
   private async resolveWarpCoreConfigChains(
     argv: Record<string, any>,
   ): Promise<ChainName[]> {
-    if (argv.warpRouteId) {
-      try {
-        const configs = await getWarpConfigFromRegistry(
-          argv.warpRouteId,
-          argv.context,
-        );
-        argv.context.warpCoreConfig = configs.coreConfig;
-        return extractChainsFromObj(configs.coreConfig);
-      } catch (error: any) {
-        throw new Error(
-          `Failed to resolve chains for warp route ID ${argv.warpRouteId}: ${error.message}`,
-        );
-      }
-    } else if (argv.config || argv.warp) {
-      // If either config or warp is specified, both must be provided
-      if (!argv.config || !argv.warp) {
-        throw new Error(
-          'When using file paths, both --config (-i) and --warp (-wc) must be specified together',
-        );
-      }
-      const warpCoreConfig = await getWarpCoreConfigOrExit({
+    // Special case: If chain is directly specified, use that
+    if (argv.chain) {
+      return [argv.chain];
+    }
+
+    try {
+      const configs = await getWarpConfigs({
         context: argv.context,
+        warpRouteId: argv.warpRouteId,
+        config: argv.config,
         warp: argv.warp,
         symbol: argv.symbol,
       });
-      argv.context.warpCoreConfig = warpCoreConfig;
-      return extractChainsFromObj(warpCoreConfig);
-    } else if (argv.chain) {
-      return [argv.chain];
-    } else {
-      // Interactive selection when no specific configs provided
-      const routeIds = await getWarpRouteIds(argv.context);
-      if (routeIds.length === 0) {
-        throw new Error('No valid warp routes found in registry');
-      }
-
-      const selectedId = await search({
-        message: 'Search and select a warp route:',
-        source: (term) => {
-          const filtered = routeIds.filter((id) =>
-            id.toLowerCase().includes(term?.toLowerCase() ?? ''),
-          );
-          return Promise.resolve(
-            filtered.map((id) => ({
-              name: id,
-              value: id,
-            })),
-          );
-        },
-        pageSize: 20,
-      });
-
-      try {
-        const configs = await getWarpConfigFromRegistry(
-          selectedId,
-          argv.context,
-        );
-        argv.context.warpCoreConfig = configs.coreConfig;
-        return extractChainsFromObj(configs.coreConfig);
-      } catch (error: any) {
-        throw new Error(
-          `Failed to resolve chains for selected warp route ${selectedId}: ${error.message}`,
-        );
-      }
+      argv.context.warpCoreConfig = configs.warpCoreConfig;
+      argv.context.warpDeployConfig = configs.warpDeployConfig;
+      return extractChainsFromObj(configs.warpCoreConfig);
+    } catch (error: any) {
+      throw new Error(
+        `Failed to resolve warp core config chains: ${error.message}`,
+      );
     }
   }
 
