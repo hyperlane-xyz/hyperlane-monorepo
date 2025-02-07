@@ -8,25 +8,75 @@ import {AmountRoutingIsm} from "../../contracts/isms/warp-route/AmountRoutingIsm
 import {TokenMessage} from "../../contracts/token/libs/TokenMessage.sol";
 import {Message} from "../../contracts/libs/Message.sol";
 import {IInterchainSecurityModule} from "../../contracts/interfaces/IInterchainSecurityModule.sol";
+import {TypeCasts} from "../../contracts/libs/TypeCasts.sol";
+import {MockMailbox} from "../../contracts/mock/MockMailbox.sol";
+import {HypERC20} from "../../contracts/token/HypERC20.sol";
 
 contract AmountRoutingIsmTest is Test {
     using TokenMessage for bytes;
+    using TypeCasts for address;
 
-    address private constant NON_OWNER =
-        0xCAfEcAfeCAfECaFeCaFecaFecaFECafECafeCaFe;
     AmountRoutingIsm internal ism;
+    uint8 internal constant DECIMALS = 18;
 
     TestIsm internal lower;
     TestIsm internal upper;
 
+    uint256 threshold = type(uint256).max / 2;
+
     function setUp() public virtual {
         lower = new TestIsm();
         upper = new TestIsm();
-        ism = new AmountRoutingIsm(
-            address(lower),
-            address(upper),
-            type(uint256).max / 2
+        ism = new AmountRoutingIsm(address(lower), address(upper), threshold);
+    }
+
+    function testWarp(
+        uint32 localDomain,
+        uint32 remoteDomain,
+        uint256 amount
+    ) public {
+        vm.assume(localDomain != remoteDomain);
+
+        MockMailbox localMailbox = new MockMailbox(localDomain);
+        MockMailbox remoteMailbox = new MockMailbox(remoteDomain);
+        remoteMailbox.addRemoteMailbox(localDomain, localMailbox);
+
+        HypERC20 localWarpRoute = new HypERC20(DECIMALS, address(localMailbox));
+        HypERC20 remoteWarpRoute = new HypERC20(
+            DECIMALS,
+            address(remoteMailbox)
         );
+        remoteWarpRoute.initialize(
+            amount, // mint some tokens
+            "",
+            "",
+            address(0),
+            address(0),
+            address(this)
+        );
+        remoteWarpRoute.enrollRemoteRouter(
+            localDomain,
+            address(localWarpRoute).addressToBytes32()
+        );
+        localWarpRoute.enrollRemoteRouter(
+            remoteDomain,
+            address(remoteWarpRoute).addressToBytes32()
+        );
+
+        localWarpRoute.setInterchainSecurityModule(address(ism));
+
+        remoteWarpRoute.transferRemote(
+            localDomain,
+            address(this).addressToBytes32(),
+            amount
+        );
+
+        if (amount >= threshold) {
+            vm.expectCall(address(upper), bytes(""));
+        } else {
+            vm.expectCall(address(lower), bytes(""));
+        }
+        localMailbox.processNextInboundMessage();
     }
 
     function testRoute(
@@ -48,7 +98,7 @@ contract AmountRoutingIsmTest is Test {
         bytes memory message = abi.encodePacked(headers, body);
 
         IInterchainSecurityModule route = ism.route(message);
-        if (amount >= ism.threshold()) {
+        if (amount >= threshold) {
             assertEq(address(route), address(upper));
         } else {
             assertEq(address(route), address(lower));
