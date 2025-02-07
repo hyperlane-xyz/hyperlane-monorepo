@@ -15,9 +15,9 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
 import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 
 /**
- * @title DomainRoutingIsm
+ * @title AmountRoutingIsm
  */
-contract DomainRoutingIsm is AbstractRoutingIsm, Ownable, PackageVersioned {
+contract AmountRoutingIsm is AbstractRoutingIsm, Ownable, PackageVersioned {
     using Message for bytes;
     using TokenMessage for bytes;
     using Address for address;
@@ -55,7 +55,7 @@ contract DomainRoutingIsm is AbstractRoutingIsm, Ownable, PackageVersioned {
         bytes calldata _message
     ) public view override returns (IInterchainSecurityModule) {
         uint256 amount = _message.body().amount();
-        if (amount > threshold) {
+        if (amount >= threshold) {
             return upper;
         } else {
             return lower;
