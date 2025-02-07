@@ -43,11 +43,11 @@ import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/c
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
 import { getInevmInjectiveINJWarpConfig } from './environments/mainnet3/warp/configGetters/getInevmInjectiveINJWarpConfig.js';
 import { getMantapacificNeutronTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getMantapacificNeutronTiaWarpConfig.js';
+import { getRenzoEZETHSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHSTAGEWarpConfig.js';
 import {
   getRenzoEZETHWarpConfig,
   getRenzoGnosisSafeBuilderStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpConfig.js';
-import { getRenzoEZETHSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoEZETHWarpStagingConfig.js';
 import { getRenzoPZETHWarpConfig } from './environments/mainnet3/warp/configGetters/getRenzoPZETHWarpConfig.js';
 import { WarpRouteIds } from './environments/mainnet3/warp/warpIds.js';
 import { getGithubRegistry } from './registry.js';
