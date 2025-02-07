@@ -275,6 +275,9 @@ describe('hyperlane warp apply e2e tests', async function () {
       totalSupply: 0,
       type: TokenType.native,
     };
+    // Remove remoteRouters and destinationGas as they are written in readWarpConfig
+    warpDeployConfig[CHAIN_NAME_2].remoteRouters = undefined;
+    warpDeployConfig[CHAIN_NAME_2].destinationGas = undefined;
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
@@ -339,6 +342,10 @@ describe('hyperlane warp apply e2e tests', async function () {
       type: TokenType.native,
       gas: GAS,
     };
+
+    // Remove remoteRouters and destinationGas as they are written in readWarpConfig
+    warpDeployConfig[CHAIN_NAME_2].remoteRouters = undefined;
+    warpDeployConfig[CHAIN_NAME_2].destinationGas = undefined;
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(warpConfigPath, warpDeployConfig);
