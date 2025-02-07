@@ -96,6 +96,12 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
     getArbitrumEthereumSolanaTreasureSMOLWarpConfig,
 };
 
+type StrategyConfigGetter = () => ChainSubmissionStrategy;
+export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
+  [WarpRouteIds.ArbitrumBaseBlastBscEthereumFraxtalLineaModeOptimismSeiSwellTaikoZircuitEZETH]:
+    getRenzoGnosisSafeBuilderStrategyConfig,
+};
+
 /**
  * Retrieves the Warp configuration for the specified Warp route ID by fetching it from the FileSystemRegistry and GithubRegistry
  */
