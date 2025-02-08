@@ -61,6 +61,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: true,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -77,6 +78,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositiontestnet: true,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
   [Role.Relayer]: {
     abstracttestnet: true,
@@ -99,6 +101,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: false,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -115,6 +118,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositiontestnet: true,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
   [Role.Scraper]: {
     abstracttestnet: true,
@@ -137,6 +141,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     holesky: true,
     hyperliquidevmtestnet: false,
     inksepolia: true,
+    monadtestnet: true,
     odysseytestnet: true,
     optimismsepolia: true,
     // Disabling plumetestnet on Sept 16, 2024: chain is paused for "airplane mode"
@@ -153,6 +158,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     superpositiontestnet: false,
     treasuretopaz: true,
     unichaintestnet: true,
+    weavevmtestnet: true,
   },
 };
 

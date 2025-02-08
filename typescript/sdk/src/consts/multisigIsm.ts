@@ -1316,6 +1316,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  monadtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x734628f55694d2a5f4de3e755ccb40ecd72b16d9',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   moonbeam: {
     threshold: 3,
     validators: [
@@ -2149,6 +2159,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       { address: '0xa3f93fe365bf99f431d8fde740b140615e24f99b', alias: 'RockX' },
       {
         address: '0x1f87c368f8e05a85ef9126d984a980a20930cb9c',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  weavevmtestnet: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40',
         alias: AW_VALIDATOR_ALIAS,
       },
     ],

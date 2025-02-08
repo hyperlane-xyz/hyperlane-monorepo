@@ -117,5 +117,11 @@
   },
   "unichaintestnet": {
     "validators": ["0x5e99961cf71918308c3b17ef21b5f515a4f86fe5"]
+  },
+  "monadtestnet": {
+    "validators": ["0x734628f55694d2a5f4de3e755ccb40ecd72b16d9"]
+  },
+  "weavevmtestnet": {
+    "validators": ["0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40"]
   }
 }

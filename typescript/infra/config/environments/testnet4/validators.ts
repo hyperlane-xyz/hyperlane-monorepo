@@ -451,5 +451,26 @@ export const validatorChainConfig = (
         'chronicleyellowstone',
       ),
     },
+
+    monadtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('monadtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x734628f55694d2a5f4de3e755ccb40ecd72b16d9'],
+        },
+        'monadtestnet',
+      ),
+    },
+    weavevmtestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('weavevmtestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x6d2ee6688de903bb31f3ae2ea31da87b697f7f40'],
+        },
+        'weavevmtestnet',
+      ),
+    },
   };
 };
