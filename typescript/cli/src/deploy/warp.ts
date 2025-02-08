@@ -1020,22 +1020,27 @@ async function submitWarpApplyTransactions(
     objMap(chainTransactions, async (chainId, transactions) => {
       await retryAsync(
         async () => {
-          const chain = chainIdToName[chainId];
-          const submitter: TxSubmitterBuilder<ProtocolType> =
-            await getWarpApplySubmitter({
-              chain,
-              context: params.context,
-              strategyUrl: params.strategyUrl,
-            });
-          const transactionReceipts = await submitter.submit(...transactions);
-          if (transactionReceipts) {
-            const receiptPath = `${params.receiptsDir}/${chain}-${
-              submitter.txSubmitterType
-            }-${Date.now()}-receipts.json`;
-            writeYamlOrJson(receiptPath, transactionReceipts);
-            logGreen(
-              `Transactions receipts successfully written to ${receiptPath}`,
-            );
+          try {
+            const chain = chainIdToName[chainId];
+            const submitter: TxSubmitterBuilder<ProtocolType> =
+              await getWarpApplySubmitter({
+                chain,
+                context: params.context,
+                strategyUrl: params.strategyUrl,
+              });
+            const transactionReceipts = await submitter.submit(...transactions);
+            if (transactionReceipts) {
+              const receiptPath = `${params.receiptsDir}/${chain}-${
+                submitter.txSubmitterType
+              }-${Date.now()}-receipts.json`;
+              writeYamlOrJson(receiptPath, transactionReceipts);
+              logGreen(
+                `Transactions receipts successfully written to ${receiptPath}`,
+              );
+            }
+          } catch (e) {
+            console.log(`Error in submitWarpApplyTransactions`, e);
+            console.log(JSON.stringify(transactions));
           }
         },
         5, // attempts
