@@ -4,6 +4,8 @@ import { BigNumber, ethers } from 'ethers';
 import {
   ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
+  CCIPHook,
+  CCIPIsm__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -30,6 +32,7 @@ import {
   EvmChainId,
   ProtocolType,
   addressToBytes32,
+  assert,
   deepEquals,
   eqAddress,
   rootLogger,
@@ -48,10 +51,16 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
+import {
+  ArbL2ToL1IsmConfig,
+  CCIPIsmConfig,
+  IsmType,
+  OpStackIsmConfig,
+} from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { getCCIPChainSelector, getCCIPRouterAddress } from '../utils/ccip.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
@@ -59,6 +68,7 @@ import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
   ArbL2ToL1HookConfig,
+  CCIPHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -654,6 +664,9 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.PAUSABLE: {
         return this.deployPausableHook({ config });
       }
+      case HookType.CCIP: {
+        return this.deployCCIPHook({ config });
+      }
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -908,6 +921,103 @@ export class EvmHookModule extends HyperlaneModule<
     await this.multiProvider.handleTx(
       config.destinationChain,
       arbL2ToL1Ism.setAuthorizedHook(
+        addressToBytes32(hook.address),
+        this.multiProvider.getTransactionOverrides(config.destinationChain),
+      ),
+    );
+
+    return hook;
+  }
+
+  // NOTE: this deploys the ism too on the destination chain if it doesn't exist
+  protected async deployCCIPHook({
+    config,
+  }: {
+    config: CCIPHookConfig;
+  }): Promise<CCIPHook> {
+    const chain = this.chain;
+    const mailbox = this.args.addresses.mailbox;
+    this.logger.debug(
+      'Deploying CCIPHook for %s to %s...',
+      chain,
+      config.destinationChain,
+    );
+
+    // deploy ccip ism
+    const ismConfig: CCIPIsmConfig = {
+      type: IsmType.CCIP,
+      originChain: chain,
+    };
+
+    // deploy opstack ism
+    const ccipIsmAddress = (
+      await EvmIsmModule.create({
+        chain: config.destinationChain,
+        config: ismConfig,
+        proxyFactoryFactories: this.args.addresses,
+        mailbox: mailbox,
+        multiProvider: this.multiProvider,
+        contractVerifier: this.contractVerifier,
+      })
+    ).serialize().deployedIsm;
+
+    // connect to ISM
+    const ccipIsm = CCIPIsm__factory.connect(
+      ccipIsmAddress,
+      this.multiProvider.getSignerOrProvider(config.destinationChain),
+    );
+
+    // deploy CCIP hook
+    const destinationDomain = this.multiProvider.getDomainId(
+      config.destinationChain,
+    );
+
+    const ccipRouterAddress = getCCIPRouterAddress(chain);
+    const ccipChainSelector = getCCIPChainSelector(config.destinationChain);
+    assert(ccipRouterAddress, `CCIP router address not found for ${chain}`);
+    assert(
+      ccipChainSelector,
+      `CCIP chain selector not found for ${config.destinationChain}`,
+    );
+
+    const hook = await this.deployer.deployContract(chain, HookType.CCIP, [
+      ccipRouterAddress,
+      ccipChainSelector,
+      mailbox,
+      destinationDomain,
+      ccipIsm.address,
+    ]);
+
+    // set authorized hook on ccip ism
+    const authorizedHook = await ccipIsm.authorizedHook();
+    if (authorizedHook === addressToBytes32(hook.address)) {
+      this.logger.debug(
+        'Authorized hook already set on ism %s',
+        ccipIsm.address,
+      );
+      return hook;
+    } else if (
+      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
+    ) {
+      this.logger.debug(
+        'Authorized hook mismatch on ism %s, expected %s, got %s',
+        ccipIsm.address,
+        addressToBytes32(hook.address),
+        authorizedHook,
+      );
+      throw new Error('Authorized hook mismatch');
+    }
+
+    // check if mismatch and redeploy hook
+    this.logger.debug(
+      'Setting authorized hook %s on ism % on destination %s',
+      hook.address,
+      ccipIsm.address,
+      config.destinationChain,
+    );
+    await this.multiProvider.handleTx(
+      config.destinationChain,
+      ccipIsm.setAuthorizedHook(
         addressToBytes32(hook.address),
         this.multiProvider.getTransactionOverrides(config.destinationChain),
       ),

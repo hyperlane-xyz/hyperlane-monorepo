@@ -38,6 +38,7 @@ function randomHookType(): HookType {
     (type) =>
       type !== HookType.OP_STACK &&
       type !== HookType.ARB_L2_TO_L1 &&
+      type !== HookType.CCIP &&
       type !== HookType.CUSTOM,
   );
   return filteredHookTypes[
@@ -304,6 +305,7 @@ describe('EvmHookModule', async () => {
           (hookType) =>
             hookType !== HookType.OP_STACK &&
             hookType !== HookType.ARB_L2_TO_L1 &&
+            hookType !== HookType.CCIP &&
             hookType !== HookType.CUSTOM,
         )
         // generate a random config for each hook type

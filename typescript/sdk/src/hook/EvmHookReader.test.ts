@@ -195,7 +195,7 @@ describe('EvmHookReader', () => {
     // Mock the CCIPHook contract
     const mockContract = {
       hookType: sandbox.stub().resolves(OnchainHookType.ID_AUTH_ISM),
-      destinationChain: sandbox.stub().resolves(destinationDomain),
+      destinationDomain: sandbox.stub().resolves(destinationDomain),
       ism: sandbox.stub().resolves(ism),
     };
 
@@ -211,7 +211,7 @@ describe('EvmHookReader', () => {
     const expectedConfig: WithAddress<CCIPHookConfig> = {
       address: ccipHookAddress,
       type: HookType.CCIP,
-      destinationChain: TestChainName.test2,
+      destinationChain: TestChainName.test1,
       ism,
     };
 
