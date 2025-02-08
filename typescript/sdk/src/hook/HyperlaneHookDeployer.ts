@@ -13,11 +13,11 @@ import {
 import {
   Address,
   addressToBytes32,
+  assert,
   deepEquals,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { CCIP_NETWORKS } from '../consts/ccip.js';
 import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -28,6 +28,7 @@ import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
+import { getCCIPChainSelector, getCCIPRouterAddress } from '../utils/ccip.js';
 
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
@@ -129,20 +130,23 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     this.logger.debug('Deploying CCIPHook for %s', chain);
 
     const mailbox = coreAddresses.mailbox;
-    if (!mailbox) {
-      throw new Error(`Mailbox address is required for ${config.type}`);
-    }
+    assert(mailbox, `Mailbox address is required for ${config.type}`);
+
+    const ccipRouterAddress = getCCIPRouterAddress(chain);
+    const ccipChainSelector = getCCIPChainSelector(config.destinationChain);
+    assert(ccipRouterAddress, `CCIP router address not found for ${chain}`);
+    assert(
+      ccipChainSelector,
+      `CCIP chain selector not found for ${config.destinationChain}`,
+    );
 
     const destinationDomain = this.multiProvider.getDomainId(
       config.destinationChain,
     );
 
-    const originCCIPNetwork = CCIP_NETWORKS[chain];
-    const destinationCCIPNetwork = CCIP_NETWORKS[config.destinationChain];
-
     return this.deployContract(chain, HookType.CCIP, [
-      originCCIPNetwork.router.address,
-      destinationCCIPNetwork.chainSelector,
+      ccipRouterAddress,
+      ccipChainSelector,
       mailbox,
       destinationDomain,
       config.ism,

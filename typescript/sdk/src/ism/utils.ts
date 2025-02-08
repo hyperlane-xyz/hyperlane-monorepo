@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  CCIPIsm__factory,
   DomainRoutingIsm__factory,
   IAggregationIsm__factory,
   IInterchainSecurityModule__factory,
@@ -26,6 +27,7 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { ProxyFactoryFactories } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
+import { getChainNameFromCCIPSelector } from '../utils/ccip.js';
 
 import {
   DomainRoutingIsmConfig,
@@ -348,6 +350,19 @@ export async function moduleMatchesConfig(
     case IsmType.TEST_ISM: {
       // This is just a TestISM
       matches = true;
+      break;
+    }
+    case IsmType.CCIP: {
+      const ccipIsm = CCIPIsm__factory.connect(moduleAddress, provider);
+      const type = await ccipIsm.moduleType();
+      matches &&= type === ModuleType.NULL;
+
+      // Check that the origin chain selector matches the config
+      const originCcipChainSelector = await ccipIsm.ccipOrigin();
+      const chainName = getChainNameFromCCIPSelector(
+        originCcipChainSelector.toString(),
+      );
+      matches &&= chainName === config.originChain;
       break;
     }
     case IsmType.TRUSTED_RELAYER: {

@@ -3,6 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import {
   AbstractRoutingIsm__factory,
   ArbL2ToL1Ism__factory,
+  CCIPIsm__factory,
   DefaultFallbackRoutingIsm__factory,
   IInterchainSecurityModule__factory,
   IMultisigIsm__factory,
@@ -27,6 +28,7 @@ import { ChainTechnicalStack } from '../metadata/chainMetadataTypes.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainNameOrId } from '../types.js';
 import { HyperlaneReader } from '../utils/HyperlaneReader.js';
+import { getChainNameFromCCIPSelector } from '../utils/ccip.js';
 
 import {
   AggregationIsmConfig,
@@ -308,6 +310,26 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     } catch {
       this.logger.debug(
         'Error accessing "paused" property, implying this is not a Pausable ISM.',
+        address,
+      );
+    }
+
+    // if it has ccipOrigin property --> CCIP
+    const ccipIsm = CCIPIsm__factory.connect(address, this.provider);
+    try {
+      const ccipOrigin = await ccipIsm.ccipOrigin();
+      const originChain = getChainNameFromCCIPSelector(ccipOrigin.toString());
+      if (!originChain) {
+        throw new Error('Unknown CCIP origin chain');
+      }
+      return {
+        address,
+        type: IsmType.CCIP,
+        originChain,
+      };
+    } catch {
+      this.logger.debug(
+        'Error accessing "ccipOrigin" property, implying this is not a CCIP ISM.',
         address,
       );
     }

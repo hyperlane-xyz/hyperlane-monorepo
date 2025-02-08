@@ -3,6 +3,8 @@ import { Logger } from 'pino';
 
 import {
   ArbL2ToL1Ism__factory,
+  CCIPIsm,
+  CCIPIsm__factory,
   DefaultFallbackRoutingIsm,
   DefaultFallbackRoutingIsm__factory,
   DomainRoutingIsm,
@@ -49,9 +51,11 @@ import {
 } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
+import { getCCIPChainSelector, getCCIPRouterAddress } from '../utils/ccip.js';
 
 import {
   AggregationIsmConfig,
+  CCIPIsmConfig,
   DeployedIsm,
   DeployedIsmType,
   DomainRoutingIsmConfig,
@@ -70,6 +74,7 @@ const ismFactories = {
   [IsmType.TEST_ISM]: new TestIsm__factory(),
   [IsmType.OP_STACK]: new OPStackIsm__factory(),
   [IsmType.ARB_L2_TO_L1]: new ArbL2ToL1Ism__factory(),
+  [IsmType.CCIP]: new CCIPIsm__factory(),
 };
 
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
@@ -208,6 +213,9 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
           [config.bridge],
         );
         break;
+      case IsmType.CCIP:
+        contract = await this.deployCCIPIsm(destination, config);
+        break;
       default:
         throw new Error(`Unsupported ISM type ${ismType}`);
     }
@@ -228,6 +236,26 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     }
 
     return contract;
+  }
+
+  protected async deployCCIPIsm(
+    destination: ChainName,
+    config: CCIPIsmConfig,
+  ): Promise<CCIPIsm> {
+    const ccipChainSelector = getCCIPChainSelector(config.originChain);
+    const ccipRouterAddress = getCCIPRouterAddress(config.originChain);
+    assert(
+      ccipChainSelector,
+      `CCIP chain selector not found for ${config.originChain}`,
+    );
+    assert(
+      ccipRouterAddress,
+      `CCIP router address not found for ${config.originChain}`,
+    );
+    return this.deployer.deployContract(destination, IsmType.CCIP, [
+      ccipRouterAddress,
+      ccipChainSelector,
+    ]);
   }
 
   protected async deployMultisigIsm(

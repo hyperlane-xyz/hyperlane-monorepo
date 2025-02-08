@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   ArbL2ToL1Ism,
+  CCIPIsm,
   IAggregationIsm,
   IInterchainSecurityModule,
   IMultisigIsm,
@@ -58,6 +59,7 @@ export enum IsmType {
   ARB_L2_TO_L1 = 'arbL2ToL1Ism',
   WEIGHTED_MERKLE_ROOT_MULTISIG = 'weightedMerkleRootMultisigIsm',
   WEIGHTED_MESSAGE_ID_MULTISIG = 'weightedMessageIdMultisigIsm',
+  CCIP = 'ccipIsm',
 }
 
 // ISM types that can be updated in-place
@@ -88,6 +90,7 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
     case IsmType.PAUSABLE:
     case IsmType.CUSTOM:
     case IsmType.TRUSTED_RELAYER:
+    case IsmType.CCIP:
       return ModuleType.NULL;
     case IsmType.ARB_L2_TO_L1:
       return ModuleType.ARB_L2_TO_L1;
@@ -119,12 +122,14 @@ export type TrustedRelayerIsmConfig = z.infer<
   typeof TrustedRelayerIsmConfigSchema
 >;
 export type ArbL2ToL1IsmConfig = z.infer<typeof ArbL2ToL1IsmConfigSchema>;
+export type CCIPIsmConfig = z.infer<typeof CCIPIsmConfigSchema>;
 
 export type NullIsmConfig =
   | TestIsmConfig
   | PausableIsmConfig
   | OpStackIsmConfig
-  | TrustedRelayerIsmConfig;
+  | TrustedRelayerIsmConfig
+  | CCIPIsmConfig;
 
 type BaseRoutingIsmConfig<
   T extends IsmType.ROUTING | IsmType.FALLBACK_ROUTING | IsmType.ICA_ROUTING,
@@ -167,6 +172,7 @@ export type DeployedIsmType = {
   [IsmType.ARB_L2_TO_L1]: ArbL2ToL1Ism;
   [IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
+  [IsmType.CCIP]: CCIPIsm;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
@@ -219,6 +225,11 @@ export const PausableIsmConfigSchema = PausableSchema.and(
     type: z.literal(IsmType.PAUSABLE),
   }),
 );
+
+export const CCIPIsmConfigSchema = z.object({
+  type: z.literal(IsmType.CCIP),
+  originChain: z.string(),
+});
 
 export const MultisigIsmConfigSchema = MultisigConfigSchema.and(
   z.object({
@@ -280,4 +291,5 @@ export const IsmConfigSchema = z.union([
   RoutingIsmConfigSchema,
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfigSchema,
+  CCIPIsmConfigSchema,
 ]);

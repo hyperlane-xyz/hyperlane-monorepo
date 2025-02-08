@@ -16,6 +16,7 @@ import { randomAddress } from '../test/testUtils.js';
 import { HyperlaneIsmFactory } from './HyperlaneIsmFactory.js';
 import {
   AggregationIsmConfig,
+  CCIPIsmConfig,
   DomainRoutingIsmConfig,
   IsmConfig,
   IsmType,
@@ -205,6 +206,26 @@ describe('HyperlaneIsmFactory', async () => {
       config,
       mailbox: mailboxAddress,
     })) as TrustedRelayerIsm;
+    const matches = await moduleMatchesConfig(
+      chain,
+      ism.address,
+      config,
+      ismFactory.multiProvider,
+      ismFactory.getContracts(chain),
+    );
+    expect(matches).to.be.true;
+  });
+
+  it('deploys a ccip ism', async () => {
+    const config: CCIPIsmConfig = {
+      type: IsmType.CCIP,
+      originChain: 'ethereum',
+    };
+    const ism = await ismFactory.deploy({
+      destination: chain,
+      config,
+      mailbox: mailboxAddress,
+    });
     const matches = await moduleMatchesConfig(
       chain,
       ism.address,
