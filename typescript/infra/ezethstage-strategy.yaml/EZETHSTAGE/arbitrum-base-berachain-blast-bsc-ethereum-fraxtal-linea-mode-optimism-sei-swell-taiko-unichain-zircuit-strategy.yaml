@@ -1,91 +1,90 @@
 arbitrum:
   submitter:
     chain: arbitrum
-    safeAddress: "0xA9421c6F339eC414b7e77449986bE9C2Ae430C25"
+    safeAddress: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 base:
   submitter:
     chain: base
-    safeAddress: "0xA9421c6F339eC414b7e77449986bE9C2Ae430C25"
+    safeAddress: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 berachain:
   submitter:
     chain: berachain
-    safeAddress: "0xf013c8Be28421b050cca5bD95cc57Af49568e8be"
+    safeAddress: '0xf013c8Be28421b050cca5bD95cc57Af49568e8be'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 blast:
   submitter:
     chain: blast
-    safeAddress: "0xA9421c6F339eC414b7e77449986bE9C2Ae430C25"
+    safeAddress: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 bsc:
   submitter:
     chain: bsc
-    safeAddress: "0xA9421c6F339eC414b7e77449986bE9C2Ae430C25"
+    safeAddress: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 ethereum:
   submitter:
     chain: ethereum
-    safeAddress: "0xA9421c6F339eC414b7e77449986bE9C2Ae430C25"
+    safeAddress: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 fraxtal:
   submitter:
     chain: fraxtal
-    safeAddress: "0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115"
+    safeAddress: '0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 linea:
   submitter:
     chain: linea
-    safeAddress: "0xA9421c6F339eC414b7e77449986bE9C2Ae430C25"
+    safeAddress: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 mode:
   submitter:
     chain: mode
-    safeAddress: "0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115"
+    safeAddress: '0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 optimism:
   submitter:
     chain: optimism
-    safeAddress: "0xA9421c6F339eC414b7e77449986bE9C2Ae430C25"
+    safeAddress: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 sei:
   submitter:
     chain: sei
-    safeAddress: "0xa30FF77d30Eb2d785f574344B4D11CAAe1949807"
+    safeAddress: '0xa30FF77d30Eb2d785f574344B4D11CAAe1949807'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 swell:
   submitter:
     chain: swell
-    safeAddress: "0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115"
+    safeAddress: '0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 taiko:
   submitter:
     chain: taiko
-    safeAddress: "0x31FF35F84ADB120DbE089D190F03Ac74731Ae83F"
+    safeAddress: '0x31FF35F84ADB120DbE089D190F03Ac74731Ae83F'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 unichain:
   submitter:
     chain: unichain
-    safeAddress: "0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba"
+    safeAddress: '0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba'
     type: gnosisSafeTxBuilder
-    version: "1.0"
+    version: '1.0'
 zircuit:
   submitter:
     chain: zircuit
-    safeAddress: "0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115"
+    safeAddress: '0xf40b75fb85C3bEc70D75A1B45ef08FC48Db61115'
     type: gnosisSafeTxBuilder
-    version: "1.0"
-
+    version: '1.0'
