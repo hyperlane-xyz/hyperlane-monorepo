@@ -243,14 +243,16 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     config: CCIPIsmConfig,
   ): Promise<CCIPIsm> {
     const ccipChainSelector = getCCIPChainSelector(config.originChain);
-    const ccipRouterAddress = getCCIPRouterAddress(config.originChain);
+
+    // Get the CCIP router address to set it on the ISM so that it can call ccipReceive
+    const ccipRouterAddress = getCCIPRouterAddress(destination);
     assert(
       ccipChainSelector,
       `CCIP chain selector not found for ${config.originChain}`,
     );
     assert(
       ccipRouterAddress,
-      `CCIP router address not found for ${config.originChain}`,
+      `CCIP router address not found for ${destination}`,
     );
     return this.deployer.deployContract(destination, IsmType.CCIP, [
       ccipRouterAddress,
