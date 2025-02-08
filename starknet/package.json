@@ -8,7 +8,7 @@
   "scripts": {
     "prepare-contracts": "tsx ./scripts/fetch-contracts-if-missing.ts",
     "build-contracts": "mkdir -p dist/target && cp release/* dist/target/",
-    "build": "tsc && yarn prepare-contracts && yarn build-contracts",
+    "build": "tsc && yarn build-contracts",
     "clean": "rm -rf ./dist ./release",
     "lint": "eslint src --ext .ts",
     "prettier": "prettier --write ./src ./scripts ./package.json"

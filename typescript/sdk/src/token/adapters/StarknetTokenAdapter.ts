@@ -1,7 +1,13 @@
 import { BigNumber, PopulatedTransaction } from 'ethers';
 import { Contract } from 'starknet';
 
-import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  Domain,
+  Numberish,
+  bytes32ToAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { BaseStarknetAdapter } from '../../app/MultiProtocolApp.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
@@ -106,4 +112,81 @@ export class StarknetTokenAdapter extends StarknetNativeTokenAdapter {
   }: TransferRemoteParams): Promise<PopulatedTransaction> {
     return { value: BigNumber.from(0) };
   }
+}
+
+export class StarknetHypSyntheticAdapter extends StarknetTokenAdapter {
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+    public readonly denom: string,
+  ) {
+    super(chainName, multiProvider, addresses, denom);
+  }
+
+  override async isApproveRequired(
+    _owner: Address,
+    _spender: Address,
+    _weiAmountOrId: Numberish,
+  ): Promise<boolean> {
+    return false;
+  }
+
+  async getDomains(): Promise<Domain[]> {
+    return [11155111];
+  }
+
+  async getRouterAddress(_domain: Domain): Promise<Buffer> {
+    const routerAddressesAsBytes32 =
+      '0x00000000000000000000000059CeC7D4f6B56e35819F887Bb9D8cC0981eDa1E4';
+    // Evm addresses will be padded with 12 bytes
+    if (routerAddressesAsBytes32.startsWith('0x000000000000000000000000')) {
+      return Buffer.from(
+        strip0x(bytes32ToAddress(routerAddressesAsBytes32)),
+        'hex',
+      );
+      // Otherwise leave the address unchanged
+    } else {
+      return Buffer.from(strip0x(routerAddressesAsBytes32), 'hex');
+    }
+  }
+
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    const domains = await this.getDomains();
+    const routers: Buffer[] = await Promise.all(
+      domains.map((d) => this.getRouterAddress(d)),
+    );
+    return domains.map((d, i) => ({ domain: d, address: routers[i] }));
+  }
+
+  getBridgedSupply(): Promise<bigint | undefined> {
+    return this.getTotalSupply();
+  }
+
+  async quoteTransferRemoteGas(
+    _destination: Domain,
+  ): Promise<InterchainGasQuote> {
+    // const gasPayment = await this.contract.quoteGasPayment(destination);
+    const gasPayment = BigInt(1);
+    // If EVM hyp contracts eventually support alternative IGP tokens,
+    // this would need to determine the correct token address
+    return { amount: BigInt(gasPayment.toString()) };
+  }
+
+  // async populateTransferRemoteTx({
+  //   weiAmountOrId,
+  //   destination,
+  //   recipient,
+  //   interchainGas,
+  // }: TransferRemoteParams): Promise<PopulatedTransaction> {
+  //   if (!interchainGas)
+  //     interchainGas = await this.quoteTransferRemoteGas(destination);
+
+  //   const recipBytes32 = addressToBytes32(addressToByteHexString(recipient));
+  //   return this.contract.populateTransaction[
+  //     'transferRemote(uint32,bytes32,uint256)'
+  //   ](destination, recipBytes32, weiAmountOrId, {
+  //     value: interchainGas.amount.toString(),
+  //   });
+  // }
 }
