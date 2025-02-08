@@ -218,13 +218,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     const ccipHook = CCIPHook__factory.connect(address, this.provider);
     const destinationDomain = await ccipHook.destinationDomain();
     const destinationChain = this.multiProvider.getChainName(destinationDomain);
-    const ism = await ccipHook.ism();
 
     const config: WithAddress<CCIPHookConfig> = {
       address,
       type: HookType.CCIP,
       destinationChain,
-      ism,
     };
 
     this._cache.set(address, config);

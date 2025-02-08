@@ -624,7 +624,7 @@ export const CCIP_NETWORKS: ChainMap<CCIPAddresses> = {
       version: '1.5.0',
     },
   },
-  sonium: {
+  soneium: {
     armProxy: {
       address: '0x3117f515D763652A32d3D6D447171ea7c9d57218',
       version: '1.5.0',

@@ -212,7 +212,6 @@ describe('EvmHookReader', () => {
       address: ccipHookAddress,
       type: HookType.CCIP,
       destinationChain: TestChainName.test1,
-      ism,
     };
 
     expect(config).to.deep.equal(expectedConfig);

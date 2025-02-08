@@ -31,6 +31,7 @@ import {
   Domain,
   EvmChainId,
   ProtocolType,
+  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
   deepEquals,
@@ -806,9 +807,7 @@ export class EvmHookModule extends HyperlaneModule<
         opstackIsm.address,
       );
       return hook;
-    } else if (
-      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
-    ) {
+    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         opstackIsm.address,
@@ -985,20 +984,19 @@ export class EvmHookModule extends HyperlaneModule<
       ccipChainSelector,
       mailbox,
       destinationDomain,
-      ccipIsm.address,
+      addressToBytes32(ccipIsm.address),
     ]);
 
     // set authorized hook on ccip ism
     const authorizedHook = await ccipIsm.authorizedHook();
+
     if (authorizedHook === addressToBytes32(hook.address)) {
       this.logger.debug(
         'Authorized hook already set on ism %s',
         ccipIsm.address,
       );
       return hook;
-    } else if (
-      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
-    ) {
+    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         ccipIsm.address,

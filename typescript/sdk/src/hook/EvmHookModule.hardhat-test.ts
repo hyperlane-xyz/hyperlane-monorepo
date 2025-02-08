@@ -123,7 +123,6 @@ function randomHookConfig(
       return {
         type: hookType,
         destinationChain: 'testChain',
-        ism: randomAddress(),
       };
     }
 

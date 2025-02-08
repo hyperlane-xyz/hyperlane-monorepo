@@ -293,6 +293,9 @@ export function addressToByteHexString(
   );
 }
 
+export const ZERO_ADDRESS_HEX_32 =
+  '0x0000000000000000000000000000000000000000000000000000000000000000';
+
 export function addressToBytes32(
   address: Address,
   protocol?: ProtocolType,

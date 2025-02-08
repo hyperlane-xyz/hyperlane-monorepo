@@ -1,7 +1,6 @@
-import { ethers } from 'ethers';
-
 import {
   CCIPHook,
+  CCIPIsm,
   DomainRoutingHook,
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
@@ -12,6 +11,7 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   Address,
+  ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
   deepEquals,
@@ -25,7 +25,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
 import { IgpFactories } from '../gas/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { IsmType, OpStackIsmConfig } from '../ism/types.js';
+import { CCIPIsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 import { getCCIPChainSelector, getCCIPRouterAddress } from '../utils/ccip.js';
@@ -144,13 +144,59 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       config.destinationChain,
     );
 
-    return this.deployContract(chain, HookType.CCIP, [
+    const ismConfig: CCIPIsmConfig = {
+      type: IsmType.CCIP,
+      originChain: chain,
+    };
+    const ccipIsm = (await this.ismFactory.deploy({
+      destination: config.destinationChain,
+      config: ismConfig,
+      origin: chain,
+    })) as CCIPIsm;
+
+    const hook = await this.deployContract(chain, HookType.CCIP, [
       ccipRouterAddress,
       ccipChainSelector,
       mailbox,
       destinationDomain,
-      config.ism,
+      addressToBytes32(ccipIsm.address),
     ]);
+
+    // set authorized hook on ccip ism
+    const authorizedHook = await ccipIsm.authorizedHook();
+
+    if (authorizedHook === addressToBytes32(hook.address)) {
+      this.logger.debug(
+        'Authorized hook already set on ism %s',
+        ccipIsm.address,
+      );
+      return hook;
+    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
+      this.logger.debug(
+        'Authorized hook mismatch on ism %s, expected %s, got %s',
+        ccipIsm.address,
+        addressToBytes32(hook.address),
+        authorizedHook,
+      );
+      throw new Error('Authorized hook mismatch');
+    }
+
+    // check if mismatch and redeploy hook
+    this.logger.debug(
+      'Setting authorized hook %s on ism % on destination %s',
+      hook.address,
+      ccipIsm.address,
+      config.destinationChain,
+    );
+    await this.multiProvider.handleTx(
+      config.destinationChain,
+      ccipIsm.setAuthorizedHook(
+        addressToBytes32(hook.address),
+        this.multiProvider.getTransactionOverrides(config.destinationChain),
+      ),
+    );
+
+    return hook;
   }
 
   async deployProtocolFee(
@@ -279,9 +325,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         opstackIsm.address,
       );
       return hook;
-    } else if (
-      authorizedHook !== addressToBytes32(ethers.constants.AddressZero)
-    ) {
+    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
       this.logger.debug(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         opstackIsm.address,

@@ -115,7 +115,6 @@ export const ArbL2ToL1HookSchema = z.object({
 export const CCIPHookSchema = z.object({
   type: z.literal(HookType.CCIP),
   destinationChain: z.string(),
-  ism: z.string(),
 });
 
 export const IgpSchema = OwnableSchema.extend({
