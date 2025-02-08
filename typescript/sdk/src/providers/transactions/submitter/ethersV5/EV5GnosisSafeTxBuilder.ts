@@ -61,12 +61,13 @@ export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
   public async submit(...txs: AnnotatedEV5Transaction[]): Promise<any> {
     const chainId = this.multiProvider.getChainId(this.props.chain);
     const transactions: SafeTransactionData[] = await Promise.all(
-      txs.map(
-        async (tx: AnnotatedEV5Transaction) =>
-          (
-            await this.createSafeTransaction(tx)
-          ).data,
-      ),
+      txs.map(async (tx: AnnotatedEV5Transaction) => {
+        if (tx.chainId === 252) {
+          console.log('fraxtal detected', JSON.stringify(tx, null, 2));
+          return {} as SafeTransactionData;
+        }
+        return (await this.createSafeTransaction(tx)).data;
+      }),
     );
     return {
       version: this.props.version,
