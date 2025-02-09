@@ -268,8 +268,8 @@ export const ezEthSafes: Record<(typeof chainsToDeploy)[number], string> = {
   taiko: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
   sei: '0x0e60fd361fF5b90088e1782e6b21A7D177d462C5',
   swell: '0x435E8c9652Da151292F3981bbf663EBEB6668501',
-  // unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
-  // berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
+  unichain: '0x70aF964829DA7F3f51973EE806AEeAB9225F2661',
+  berachain: '0x865BA5789D82F2D4C5595a3968dad729A8C3daE6',
 };
 
 const existingProxyAdmins: ChainMap<{ address: string; owner: string }> = {
