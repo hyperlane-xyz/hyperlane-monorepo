@@ -14,6 +14,8 @@ xerc20s=(
   "0x585afea249031Ea4168A379F664e91dFc5F77E7D"
   "0x585afea249031Ea4168A379F664e91dFc5F77E7D"
   "0x585afea249031Ea4168A379F664e91dFc5F77E7D"
+  "0x585afea249031Ea4168A379F664e91dFc5F77E7D"
+  "0x585afea249031Ea4168A379F664e91dFc5F77E7D"
 )
 
 warpRoutes=(
@@ -30,6 +32,8 @@ warpRoutes=(
   "0x652e2F475Af7b1154817E09f5408f9011037492a"
   "0xdD313D475f8A9d81CBE2eA953a357f52e10BA357"
   "0x7712b534bF2b9fb7fA8D14EE83fDd077691a76C2"
+  "0x910FF91a92c9141b8352Ad3e50cF13ef9F3169A1"
+  "0xDF96074eefdD1Ae137C008bE165A3Ed4A55718FA"
 )
 
 safes=(
@@ -66,7 +70,6 @@ safes=(
 # 'unichain',
 # 'berachain',
 rpcs=(
-  
 )
 
 # Path to the JSON file
@@ -83,82 +86,112 @@ txFiles[48900]="/Users/leyu/Desktop/Code/hyperlane/hyperlane-monorepo/typescript
 txFiles[167000]="/Users/leyu/Desktop/Code/hyperlane/hyperlane-monorepo/typescript/cli/generated/transactions/taiko-gnosisSafeTxBuilder-1739078001761-receipts.json"
 txFiles[1329]="/Users/leyu/Desktop/Code/hyperlane/hyperlane-monorepo/typescript/cli/generated/transactions/sei-gnosisSafeTxBuilder-1739078001108-receipts.json"
 txFiles[1923]="/Users/leyu/Desktop/Code/hyperlane/hyperlane-monorepo/typescript/cli/generated/transactions/swell-gnosisSafeTxBuilder-1739078006089-receipts.json"
-txFiles[130]=""
+txFiles[130]="/Users/leyu/Desktop/Code/hyperlane/hyperlane-monorepo/typescript/cli/generated/transactions/berachain-gnosisSafeTxBuilder-1739078001560-receipts.json"
 txFiles[80094]="/Users/leyu/Desktop/Code/hyperlane/hyperlane-monorepo/typescript/cli/generated/transactions/berachain-gnosisSafeTxBuilder-1739078001560-receipts.json"
 
-# Uni and bera
-targetChains=(130 80094)
+# Uni bera eth
+targetChainIds=(130 80094 1)
 for ((i=0; i<${#rpcs[@]}; i++)); do
   CHAIN_ID=$(cast chain-id --rpc-url ${rpcs[$i]})
   PORT=$((8549 + i))
   LOCAL_RPC_URL=http://localhost:$PORT
 
   echo "==========FORKING $CHAIN_ID=========="
-  anvil -p $PORT --fork-url ${rpcs[$i]} --disable-block-gas-limit --gas-price 0&
-  
-  # mint some tokens to the sender
-  echo "==========MINTING TOKENS TO SENDER=========="
-  cast call ${xerc20s[$i]} "mintingMaxLimitOf(address)(uint256)" ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
-  cast call ${xerc20s[$i]} "burningMaxLimitOf(address)(uint256)" ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
+  anvil -p $PORT --fork-url ${rpcs[$i]} --gas-price 0&
+  sleep 3
+
+  echo "==========SET MINT/BURN=========="
+  XERC20_OWNER=$(cast call ${xerc20s[$i]} "owner()(address)" --rpc-url $LOCAL_RPC_URL)
+  cast rpc anvil_setBalance  $XERC20_OWNER 1000000000000000000 --rpc-url $LOCAL_RPC_URL
+  cast rpc anvil_impersonateAccount $XERC20_OWNER --rpc-url $LOCAL_RPC_URL
+  cast send ${xerc20s[$i]} "setLimits(address,uint256,uint256)" ${warpRoutes[$i]} 100000000000 100000000000 --rpc-url $LOCAL_RPC_URL --from $XERC20_OWNER ${warpRoutes[$i]} --unlocked --gas-limit 1000000
+  echo "Mint limit $(cast call ${xerc20s[$i]} "mintingMaxLimitOf(address)(uint256)" ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL)"
+  echo "Burn limit $(cast call ${xerc20s[$i]} "burningMaxLimitOf(address)(uint256)" ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL)"
+  cast rpc anvil_stopImpersonatingAccount $XERC20_OWNER --rpc-url $LOCAL_RPC_URL
 
   # Impersonate the warp route and mint the private key's address some xerc20
-  sleep 2
   echo "==========IMPERSONATING WARP ROUTE AND MINTING XERC20=========="
-  cast rpc anvil_setBalance  ${warpRoutes[$i]} 10000000000000000000 --rpc-url $LOCAL_RPC_URL
+  cast rpc anvil_setBalance ${warpRoutes[$i]} 1000000000000000000 --rpc-url $LOCAL_RPC_URL
+  cast balance ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
   cast rpc anvil_impersonateAccount ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
   cast send ${xerc20s[$i]} "mint(address,uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 100 --rpc-url $LOCAL_RPC_URL --from ${warpRoutes[$i]} --unlocked --gas-limit 1000000
   cast rpc anvil_stopImpersonatingAccount ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
 
-  # Impersonate Safe and apply the enrollRemoteRouter() tx
-  
-  cast rpc anvil_setBalance  ${safes[$i]} 10000000000000000000 --rpc-url $LOCAL_RPC_URL
-  cast rpc anvil_impersonateAccount ${safes[$i]} --rpc-url $LOCAL_RPC_URL
-
-  echo "==========READING TRANSACTIONS=========="
   # Read the file and look for the setDestinationGas() function signature
+  echo "==========READING setDestinationGas()=========="
   FILE="${txFiles[$CHAIN_ID]}"
-  setDestinationCallData=$(perl -nle 'print $1 if /(0xb1bd6436.{512})/' "$FILE")
+  setDestinationCallData=$(perl -nle 'print $1 if /(0xb1bd6436.{1920})/' "$FILE")
 
   if [ -z "$setDestinationCallData" ]; then
     echo "setDestinationGas() calldata not found in GnosisSafeBuilder file for chain $CHAIN_ID"
     exit 1
   fi
 
+  # Impersonate Safe and apply the enrollRemoteRouter() tx
+  echo "==========APPLYING setDestinationGas()=========="
+  WARP_ROUTE_OWNER=$(cast call ${warpRoutes[$i]} "owner()(address)" --rpc-url $LOCAL_RPC_URL)
+  cast rpc anvil_setBalance ${WARP_ROUTE_OWNER} 100000000000000000 --rpc-url $LOCAL_RPC_URL
+  cast balance ${WARP_ROUTE_OWNER} --rpc-url $LOCAL_RPC_URL
+  cast rpc anvil_impersonateAccount $WARP_ROUTE_OWNER --rpc-url $LOCAL_RPC_URL
+  cast send ${warpRoutes[$i]} $setDestinationCallData --rpc-url $LOCAL_RPC_URL --from $WARP_ROUTE_OWNER --unlocked --gas-limit 10000000
+  cast rpc anvil_stopImpersonatingAccount $WARP_ROUTE_OWNER --rpc-url $LOCAL_RPC_URL
+
   # Read the file and look for the setInterchainSecurityModule() function signature (exclude bera and uni)
+  echo "==========READING setInterchainSecurityModule()=========="
   FILE="${txFiles[$CHAIN_ID]}"
   setInterchainSecurity=$(perl -nle 'print $1 if /(0x0e72cc06.{64})/' "$FILE")
-  if [ -z "$setInterchainSecurity" ] && ([ $CHAIN_ID != 130 ] || [ $CHAIN_ID != 80094 ]); then
+  if [ -z "$setInterchainSecurity" ] && ([ $CHAIN_ID != 130 ] && [ $CHAIN_ID != 80094 ]); then
     echo "setInterchainSecurityModule() calldata not found in GnosisSafeBuilder file for chain $CHAIN_ID"
     exit 1
   fi
 
   # Read the file and look for the enrollRemote() function signature
+  echo "==========READING enrollRemote()=========="
   FILE="${txFiles[$CHAIN_ID]}"
-  enrollRemoteRouterCallData=$(perl -nle 'print $1 if /(0xe9198bf9.{512})/' "$FILE")
+  enrollRemoteRouterCallData=$(perl -nle 'print $1 if /(0xe9198bf9(?:.{1920}|.{512}))/' "$FILE")
 
   if [ -z "$enrollRemoteRouterCallData" ]; then
     echo "enrollRemoteRouter() calldata not found in GnosisSafeBuilder file for chain $CHAIN_ID"
     exit 1
   fi
 
-  echo "==========APPLYING ENROLL REMOTE ROUTER=========="
-  cast send ${warpRoutes[$i]} $enrollRemoteRouterCallData --rpc-url $LOCAL_RPC_URL --from ${safes[$i]} --unlocked --gas-limit 1000000
-  cast rpc anvil_stopImpersonatingAccount ${safes[$i]} --rpc-url $LOCAL_RPC_URL
+  echo "==========APPLYING enrollRemote()=========="
+  # Impersonate Safe and apply the enrollRemoteRouter() tx
+  WARP_ROUTE_OWNER=$(cast call ${warpRoutes[$i]} "owner()(address)" --rpc-url $LOCAL_RPC_URL)
+  cast rpc anvil_setBalance ${WARP_ROUTE_OWNER} 100000000000000000 --rpc-url $LOCAL_RPC_URL
+  cast balance ${WARP_ROUTE_OWNER} --rpc-url $LOCAL_RPC_URL
+  cast rpc anvil_impersonateAccount $WARP_ROUTE_OWNER --rpc-url $LOCAL_RPC_URL
+  cast send ${warpRoutes[$i]} $enrollRemoteRouterCallData --rpc-url $LOCAL_RPC_URL --from $WARP_ROUTE_OWNER --unlocked --gas-limit 10000000
+  cast rpc anvil_stopImpersonatingAccount $WARP_ROUTE_OWNER --rpc-url $LOCAL_RPC_URL
 
   # approve 
-  cast send ${xerc20s[$i]} "approve(address,uint256)(bool)" ${warpRoutes[$i]} 100000 --rpc-url $LOCAL_RPC_URL --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+  echo "==========APPROVING TOKEN ALLOWANCES=========="
+  cast send ${xerc20s[$i]} "approve(address,uint256)(bool)" ${warpRoutes[$i]} 10000000000000000000 --rpc-url $LOCAL_RPC_URL --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
   cast call ${xerc20s[$i]} "allowance(address owner, address spender)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
+
+  # approve the Lockboxed Collateral if on ethereum
+  if [ $CHAIN_ID == 1 ]; then
+    echo "==========APPROVING LOCKBOX COLLATERAL ALLOWANCES ON ETH=========="
+    COLLATERAL_ON_ETH=0x688eBadf27a256Ed1D402be628011C37E81f1682
+    cast send ${COLLATERAL_ON_ETH} "mint(uint256)" 10000000000000000000 --rpc-url $LOCAL_RPC_URL --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    cast rpc anvil_stopImpersonatingAccount ${COLLATERAL_ON_ETH} --rpc-url $LOCAL_RPC_URL
+    cast send $COLLATERAL_ON_ETH "approve(address,uint256)(bool)" ${warpRoutes[$i]} 10000000000000000000 --rpc-url $LOCAL_RPC_URL --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    cast call $COLLATERAL_ON_ETH "allowance(address owner, address spender)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
+  fi
+  
   # transfer remote to each target chain
   for targetChainId in "${targetChainIds[@]}"; do
-    sleep 1
-    # transfer remote and grep the logs for InsertedIntoTree and GasPayment topics
-    echo "==========SENDING TRANSFER REMOTE $LOCAL_RPC_URL=========="
-    transactionWithLogs=$(cast send ${warpRoutes[$i]} "transferRemote(uint32,bytes32,uint256)" ${targetChainId} "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba" 1 --rpc-url $LOCAL_RPC_URL --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  --value 25000000000000000 | grep 0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a | grep 0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33)
-    if [ -z "$transactionWithLogs" ]; then
-      echo "==========InsertedIntoTree and GasPayment topics not found!!!=========="
-      exit 1
+    if [ $targetChainId != $CHAIN_ID ]; then
+      # transfer remote and grep the logs for InsertedIntoTree and GasPayment topics
+      echo "==========SENDING TRANSFER REMOTE from $CHAIN_ID to $targetChainId=========="
+      transactionWithLogs=$(cast send ${warpRoutes[$i]} "transferRemote(uint32,bytes32,uint256)" ${targetChainId} "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba" 1 --rpc-url $LOCAL_RPC_URL --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  --value 25000000000000000000| grep 0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a | grep 0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33)
+      echo "Transaction logs $transactionWithLogs"
+      if [ -z "$transactionWithLogs" ]; then
+        echo "==========InsertedIntoTree and GasPayment topics not found!!!=========="
+        exit 1
+      fi
+      echo "==========Success transferRemote!=========="
     fi
-    echo "==========Success transferRemote! $transactionWithLogs=========="
   done
 
   pkill -f anvil
@@ -184,4 +217,3 @@ done
 #     echo "${rpcs[$i]}"
 #     cast send ${xerc20s[$i]} "setLimits(address, uint256, uint256)" ${warpRoutes[$i]} 100000000000000000000 100000000000000000000 --rpc-url ${rpcs[$i]} --private-key `hypkey`
 # done
-
