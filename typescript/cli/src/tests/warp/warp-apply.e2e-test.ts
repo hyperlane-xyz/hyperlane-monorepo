@@ -419,7 +419,8 @@ describe('hyperlane warp apply e2e tests', async function () {
         COMBINED_WARP_CORE_CONFIG_PATH,
         warpConfigPath,
       );
-      configs.push(normalizeConfig(config));
+
+      configs.push(config);
     }
 
     // Verify all configurations are identical by comparing with the first one
