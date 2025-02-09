@@ -14,7 +14,7 @@ import {
   WarpCoreConfig,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { WarpSendLogs } from '../../send/transfer.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
@@ -130,6 +130,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       CHAIN_NAME_3,
     ]);
 
+    const ismThreshold = randomInt(1, 1e4);
     const warpConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
@@ -142,7 +143,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         mailbox: chain3Addresses.mailbox,
         interchainSecurityModule: {
           type: IsmType.AMOUNT_ROUTING,
-          threshold: 1,
+          threshold: ismThreshold,
           lowerIsm: {
             type: IsmType.TRUSTED_RELAYER,
             relayer: ownerAddress,
@@ -167,28 +168,41 @@ describe('hyperlane warp deploy e2e tests', async function () {
       walletChain3,
     );
 
-    const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
-      await Promise.all([
-        token.callStatic.balanceOf(walletChain2.address),
-        synthetic.callStatic.balanceOf(walletChain3.address),
-      ]);
+    const testAmounts = [
+      // Should use the upperIsm
+      randomInt(1e6, ismThreshold + 1),
+      // Should use the lowerIsm
+      randomInt(ismThreshold),
+    ];
 
-    const { stdout, exitCode } = await hyperlaneWarpSendRelay(
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-      WARP_CORE_CONFIG_PATH_2_3,
-    );
-    expect(exitCode).to.equal(0);
-    expect(stdout).to.include(WarpSendLogs.SUCCESS);
+    for (const amount of testAmounts) {
+      const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
+        await Promise.all([
+          token.callStatic.balanceOf(walletChain2.address),
+          synthetic.callStatic.balanceOf(walletChain3.address),
+        ]);
 
-    const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
-      await Promise.all([
-        token.callStatic.balanceOf(walletChain2.address),
-        synthetic.callStatic.balanceOf(walletChain3.address),
-      ]);
+      const { stdout, exitCode } = await hyperlaneWarpSendRelay(
+        CHAIN_NAME_2,
+        CHAIN_NAME_3,
+        WARP_CORE_CONFIG_PATH_2_3,
+        true,
+        amount,
+      );
+      expect(exitCode).to.equal(0);
+      expect(stdout).to.include(WarpSendLogs.SUCCESS);
 
-    expect(tokenBalanceOnChain2After.lt(tokenBalanceOnChain2Before)).to.be.true;
-    expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
+      const [tokenBalanceOnChain2After, tokenBalanceOnChain3After] =
+        await Promise.all([
+          token.callStatic.balanceOf(walletChain2.address),
+          synthetic.callStatic.balanceOf(walletChain3.address),
+        ]);
+
+      expect(tokenBalanceOnChain2After.lt(tokenBalanceOnChain2Before)).to.be
+        .true;
+      expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be
+        .true;
+    }
   });
 
   it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.collateral}`, async function () {
