@@ -610,9 +610,7 @@ export function writeAddresses(
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
 ) {
-  if (module !== Modules.CCIP) {
-    addressesMap = filterRemoteDomainMetadata(addressesMap);
-  }
+  addressesMap = filterRemoteDomainMetadata(addressesMap);
 
   if (isRegistryModule(environment, module)) {
     for (const [chainName, addresses] of Object.entries(addressesMap)) {

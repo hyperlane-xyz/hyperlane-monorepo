@@ -52,6 +52,12 @@ export const CCIP_ISM_KEY_PREFIX = 'ccipIsm';
 export class CCIPContractCache {
   private cachedAddresses: HyperlaneAddressesMap<any> = {};
 
+  constructor(addressesMap?: HyperlaneAddressesMap<any>) {
+    if (addressesMap) {
+      this.cacheAddressesMap(addressesMap);
+    }
+  }
+
   cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
     this.cachedAddresses = addressesMap;
   }

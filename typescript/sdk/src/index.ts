@@ -648,4 +648,5 @@ export {
   getCCIPChainSelector,
   getCCIPRouterAddress,
   getCCIPChains,
+  CCIPContractCache,
 } from './utils/ccip.js';

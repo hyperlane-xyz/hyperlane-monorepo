@@ -8,6 +8,7 @@ import { AddWarpRouteOptions, ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   AggregationIsmConfig,
   AnnotatedEV5Transaction,
+  CCIPContractCache,
   ChainMap,
   ChainName,
   ChainSubmissionStrategy,
@@ -249,7 +250,11 @@ async function resolveWarpIsmAndHook(
         throw `Registry factory addresses not found for ${chain}.`;
       }
 
+      const registryAddresses = await context.registry.getAddresses();
+      const ccipContractCache = new CCIPContractCache(registryAddresses);
+
       config.interchainSecurityModule = await createWarpIsm({
+        ccipContractCache,
         chain,
         chainAddresses,
         context,
@@ -259,6 +264,7 @@ async function resolveWarpIsmAndHook(
       }); // TODO write test
 
       config.hook = await createWarpHook({
+        ccipContractCache,
         chain,
         chainAddresses,
         context,
@@ -277,12 +283,14 @@ async function resolveWarpIsmAndHook(
  * @returns The deployed ism address
  */
 async function createWarpIsm({
+  ccipContractCache,
   chain,
   chainAddresses,
   context,
   contractVerifier,
   warpConfig,
 }: {
+  ccipContractCache: CCIPContractCache;
   chain: string;
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
@@ -337,6 +345,7 @@ async function createWarpIsm({
       staticMessageIdWeightedMultisigIsmFactory,
     },
     config: interchainSecurityModule,
+    ccipContractCache,
     contractVerifier,
   });
   const { deployedIsm } = evmIsmModule.serialize();
@@ -344,12 +353,14 @@ async function createWarpIsm({
 }
 
 async function createWarpHook({
+  ccipContractCache,
   chain,
   chainAddresses,
   context,
   contractVerifier,
   warpConfig,
 }: {
+  ccipContractCache: CCIPContractCache;
   chain: string;
   chainAddresses: Record<string, string>;
   context: WriteCommandContext;
@@ -407,6 +418,7 @@ async function createWarpHook({
       proxyAdmin: proxyAdminAddress,
     },
     config: hook,
+    ccipContractCache,
     contractVerifier,
     proxyFactoryFactories,
   });
@@ -619,6 +631,7 @@ async function updateExistingWarpRoute(
   const { multiProvider, registry } = params.context;
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
+  const ccipContractCache = new CCIPContractCache(registryAddresses);
   const contractVerifier = new ContractVerifier(
     multiProvider,
     apiKeys,
@@ -664,6 +677,7 @@ async function updateExistingWarpRoute(
               staticMessageIdWeightedMultisigIsmFactory,
             },
           },
+          ccipContractCache,
           contractVerifier,
         );
         transactions.push(...(await evmERC20WarpModule.update(config)));
