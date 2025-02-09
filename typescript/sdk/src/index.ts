@@ -62,7 +62,7 @@ export {
   CoreFactories,
   coreFactories,
 } from './core/contracts.js';
-export { HyperlaneLifecyleEvent } from './core/events.js';
+export { HyperlaneLifecycleEvent } from './core/events.js';
 export { EvmCoreReader } from './core/EvmCoreReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
