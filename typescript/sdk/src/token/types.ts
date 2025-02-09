@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 import { objMap } from '@hyperlane-xyz/utils';
 
+import { HookConfig, HookType } from '../hook/types.js';
+import { IsmConfig, IsmType } from '../ism/types.js';
 import { GasRouterConfigSchema } from '../router/types.js';
+import { ChainMap, ChainName } from '../types.js';
 import { isCompliant } from '../utils/schemas.js';
 
 import { TokenType } from './config.js';
@@ -114,6 +117,7 @@ export const WarpRouteDeployConfigSchema = z
       ) || entries.every(([_, config]) => isTokenMetadata(config))
     );
   }, WarpRouteDeployConfigSchemaErrors.NO_SYNTHETIC_ONLY)
+  // Verify synthetic rebase tokens config
   .transform((warpRouteDeployConfig, ctx) => {
     const collateralRebaseEntry = Object.entries(warpRouteDeployConfig).find(
       ([_, config]) => isCollateralRebaseTokenConfig(config),
@@ -147,6 +151,59 @@ export const WarpRouteDeployConfigSchema = z
     });
 
     return z.NEVER; // Causes schema validation to throw with above issue
+  })
+  // Verify that CCIP hooks are paired with CCIP ISMs
+  .transform((warpRouteDeployConfig, ctx) => {
+    // Get all the CCIP hooks and ISMs by origin->destination chain
+    const ccipHooks = getCCIPHooks(warpRouteDeployConfig);
+    const ccipIsms = getCCIPIsms(warpRouteDeployConfig);
+
+    let isPairedCorrectly = true;
+    Object.entries(ccipHooks).forEach(([originChain, hooks]) => {
+      if (!ccipIsms[originChain]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `No CCIP ISM found in config for origin chain ${originChain}`,
+        });
+
+        isPairedCorrectly &&= false;
+      }
+
+      Object.entries(hooks).forEach(([destinationChain, _]) => {
+        if (!ccipIsms[originChain][destinationChain]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [destinationChain, 'interchainSecurityModule', '...'],
+            message: `Required CCIP ISM not found in config for CCIP Hook with origin chain ${originChain} and destination chain ${destinationChain}`,
+          });
+
+          isPairedCorrectly &&= false;
+        }
+      });
+    });
+
+    Object.entries(ccipIsms).forEach(([destinationChain, hooks]) => {
+      Object.entries(hooks).forEach(([originChain, _]) => {
+        if (
+          !ccipHooks[originChain] ||
+          !ccipHooks[originChain][destinationChain]
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [originChain, 'hook', '...'],
+            message: `Required CCIP Hook not found in config for CCIP ISM with origin chain ${originChain} and destination chain ${destinationChain}`,
+          });
+
+          isPairedCorrectly &&= false;
+        }
+      });
+    }, true);
+
+    if (!isPairedCorrectly) {
+      return z.NEVER;
+    }
+
+    return warpRouteDeployConfig;
   });
 export type WarpRouteDeployConfig = z.infer<typeof WarpRouteDeployConfigSchema>;
 
@@ -165,4 +222,130 @@ function isCollateralRebasePairedCorrectly(
     ([_, config], _index) => isSyntheticRebaseTokenConfig(config),
   );
   return allOthersSynthetic;
+}
+
+function getCCIPHooks(
+  warpRouteDeployConfig: Record<string, HypTokenRouterConfig>,
+): ChainMap<ChainMap<boolean>> {
+  const hooks: ChainMap<ChainMap<boolean>> = {};
+
+  Object.entries(warpRouteDeployConfig).forEach(([chainName, config]) => {
+    if (!config.hook) {
+      return;
+    }
+
+    if (typeof config.hook === 'string') {
+      return;
+    }
+
+    traverseHookConfig(chainName, config.hook, hooks);
+  });
+
+  return hooks;
+}
+
+function traverseHookConfig(
+  currentChain: ChainName,
+  hookConfig: HookConfig,
+  existsCCIPHookMap: ChainMap<ChainMap<boolean>>,
+) {
+  if (typeof hookConfig === 'string') {
+    return;
+  }
+
+  switch (hookConfig.type) {
+    case HookType.AGGREGATION:
+      hookConfig.hooks.forEach((hook) =>
+        traverseHookConfig(currentChain, hook, existsCCIPHookMap),
+      );
+      break;
+    case HookType.ARB_L2_TO_L1:
+      if (hookConfig.childHook) {
+        traverseHookConfig(
+          currentChain,
+          hookConfig.childHook,
+          existsCCIPHookMap,
+        );
+      }
+      break;
+    case HookType.CCIP:
+      existsCCIPHookMap[currentChain] = existsCCIPHookMap[currentChain] || {};
+      existsCCIPHookMap[currentChain][hookConfig.destinationChain] = true;
+      break;
+    case HookType.FALLBACK_ROUTING:
+    case HookType.ROUTING:
+      Object.entries(hookConfig.domains).forEach(([_, hook]) => {
+        traverseHookConfig(currentChain, hook, existsCCIPHookMap);
+      });
+      break;
+    case HookType.INTERCHAIN_GAS_PAYMASTER:
+    case HookType.MERKLE_TREE:
+    case HookType.OP_STACK:
+    case HookType.PAUSABLE:
+    case HookType.PROTOCOL_FEE:
+      break;
+  }
+}
+
+function getCCIPIsms(
+  warpRouteDeployConfig: Record<string, HypTokenRouterConfig>,
+): ChainMap<ChainMap<boolean>> {
+  const isms: ChainMap<ChainMap<boolean>> = {};
+
+  Object.entries(warpRouteDeployConfig).forEach(([chainName, config]) => {
+    if (!config.interchainSecurityModule) {
+      return;
+    }
+
+    if (typeof config.interchainSecurityModule === 'string') {
+      return;
+    }
+
+    traverseIsmConfig(chainName, config.interchainSecurityModule, isms);
+  });
+
+  return isms;
+}
+
+function traverseIsmConfig(
+  currentChain: ChainName,
+  ismConfig: IsmConfig,
+  existsCCIPIsmMap: ChainMap<ChainMap<boolean>>,
+) {
+  if (typeof ismConfig === 'string') {
+    return;
+  }
+
+  switch (ismConfig.type) {
+    case IsmType.AGGREGATION:
+    case IsmType.STORAGE_AGGREGATION:
+      ismConfig.modules.forEach((hook) =>
+        traverseIsmConfig(currentChain, hook, existsCCIPIsmMap),
+      );
+      break;
+    case IsmType.CCIP:
+      existsCCIPIsmMap[ismConfig.originChain] =
+        existsCCIPIsmMap[ismConfig.originChain] || {};
+      existsCCIPIsmMap[ismConfig.originChain][currentChain] = true;
+      break;
+    case IsmType.FALLBACK_ROUTING:
+    case IsmType.ROUTING:
+      Object.entries(ismConfig.domains).forEach(([_, hook]) => {
+        traverseIsmConfig(currentChain, hook, existsCCIPIsmMap);
+      });
+      break;
+    case IsmType.ARB_L2_TO_L1:
+    case IsmType.ICA_ROUTING:
+    case IsmType.MERKLE_ROOT_MULTISIG:
+    case IsmType.MESSAGE_ID_MULTISIG:
+    case IsmType.PAUSABLE:
+    case IsmType.OP_STACK:
+    case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
+    case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
+    case IsmType.TEST_ISM:
+    case IsmType.TRUSTED_RELAYER:
+    case IsmType.WEIGHTED_MERKLE_ROOT_MULTISIG:
+    case IsmType.WEIGHTED_MESSAGE_ID_MULTISIG:
+      break;
+  }
 }
