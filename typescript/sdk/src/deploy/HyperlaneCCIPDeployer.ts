@@ -7,7 +7,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { HyperlaneContracts } from '../contracts/types.js';
+import {
+  HyperlaneAddressesMap,
+  HyperlaneContracts,
+} from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -39,6 +42,11 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
         contractVerifier,
       },
     );
+  }
+
+  cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
+    super.cacheAddressesMap(addressesMap);
+    this.ccipContractCache.cacheAddressesMap(addressesMap);
   }
 
   async deployContracts(

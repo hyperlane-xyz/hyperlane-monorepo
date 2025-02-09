@@ -1,8 +1,8 @@
 import { CCIPHook, CCIPIsm } from '@hyperlane-xyz/core';
-import { Address } from '@hyperlane-xyz/utils';
 
 import { CCIP_NETWORKS } from '../consts/ccip.js';
-import { ChainMap, ChainName } from '../types.js';
+import { HyperlaneAddressesMap } from '../contracts/types.js';
+import { ChainName } from '../types.js';
 
 /**
  * Gets the chain name from a CCIP chain selector value
@@ -50,15 +50,17 @@ export const CCIP_HOOK_KEY_PREFIX = 'ccipHook';
 export const CCIP_ISM_KEY_PREFIX = 'ccipIsm';
 
 export class CCIPContractCache {
-  private cachedAddresses: ChainMap<ChainMap<Address>> = {};
+  private cachedAddresses: HyperlaneAddressesMap<any> = {};
 
-  constructor() {}
+  cacheAddressesMap(addressesMap: HyperlaneAddressesMap<any>): void {
+    this.cachedAddresses = addressesMap;
+  }
 
-  getAddressesMap(): ChainMap<ChainMap<Address>> {
+  getAddressesMap(): HyperlaneAddressesMap<any> {
     return this.cachedAddresses;
   }
 
-  writeBack(cachedAddresses: ChainMap<ChainMap<Address>>): void {
+  writeBack(cachedAddresses: HyperlaneAddressesMap<any>): void {
     for (const [origin, destinations] of Object.entries(this.cachedAddresses)) {
       if (!cachedAddresses[origin]) {
         cachedAddresses[origin] = {};
