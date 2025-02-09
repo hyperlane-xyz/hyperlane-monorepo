@@ -171,16 +171,22 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       return;
     }
 
-    const ccipChainSelector = getCCIPChainSelector(origin);
-    const ccipRouterAddress = getCCIPRouterAddress(origin);
-    assert(ccipChainSelector, `CCIP chain selector not found for ${origin}`);
-    assert(ccipRouterAddress, `CCIP router address not found for ${origin}`);
+    const ccipOriginChainSelector = getCCIPChainSelector(origin);
+    const ccipIsmChainRouterAddress = getCCIPRouterAddress(destination);
+    assert(
+      ccipOriginChainSelector,
+      `CCIP chain selector not found for ${origin}`,
+    );
+    assert(
+      ccipIsmChainRouterAddress,
+      `CCIP router address not found for ${origin}`,
+    );
 
     const ccipIsm = await this.deployContractFromFactory(
       destination,
       new CCIPIsm__factory(),
       'CCIPIsm',
-      [ccipRouterAddress, ccipChainSelector],
+      [ccipIsmChainRouterAddress, ccipOriginChainSelector],
       undefined,
       false,
     );
@@ -207,14 +213,14 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     const mailbox = this.core[origin].mailbox;
     assert(mailbox, `Mailbox address is required for ${origin}`);
 
-    const ccipChainSelector = getCCIPChainSelector(destination);
-    const ccipRouterAddress = getCCIPRouterAddress(destination);
+    const ccipDestinationChainSelector = getCCIPChainSelector(destination);
+    const ccipOriginChainRouterAddress = getCCIPRouterAddress(origin);
     assert(
-      ccipChainSelector,
+      ccipDestinationChainSelector,
       `CCIP chain selector not found for ${destination}`,
     );
     assert(
-      ccipRouterAddress,
+      ccipOriginChainRouterAddress,
       `CCIP router address not found for ${destination}`,
     );
 
@@ -225,8 +231,8 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       new CCIPHook__factory(),
       'CCIPHook',
       [
-        ccipRouterAddress,
-        ccipChainSelector,
+        ccipOriginChainRouterAddress,
+        ccipDestinationChainSelector,
         mailbox,
         destinationDomain,
         addressToBytes32(ccipIsmAddress),
