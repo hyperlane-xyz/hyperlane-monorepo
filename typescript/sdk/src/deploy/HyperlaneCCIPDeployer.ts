@@ -143,8 +143,18 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       authorizedHook,
     );
 
+    // If the hook is already set, return
+    if (authorizedHook === bytes32HookAddress) {
+      this.logger.info(
+        'Authorized hook already set on ism %s',
+        ccipIsm.address,
+      );
+      return;
+    }
+
+    // If not already set, must not be initialised yet
     if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
-      this.logger.debug(
+      this.logger.error(
         'Authorized hook mismatch on ism %s, expected %s, got %s',
         ccipIsm.address,
         bytes32HookAddress,
@@ -153,32 +163,37 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       throw new Error('Authorized hook mismatch');
     }
 
-    if (authorizedHook === bytes32HookAddress) {
-      this.logger.debug(
-        'Authorized hook already set on ism %s',
-        ccipIsm.address,
-      );
-    } else {
-      this.logger.debug(
-        'Setting authorized hook %s on ism %s on destination %s',
-        ccipHookAddress,
-        ccipIsm.address,
-        destination,
-      );
-      await this.multiProvider.handleTx(
-        destination,
-        ccipIsm.setAuthorizedHook(
-          bytes32HookAddress,
-          this.multiProvider.getTransactionOverrides(destination),
-        ),
-      );
-    }
+    // If not initialised, set the hook
+    this.logger.info(
+      'Setting authorized hook %s on ism %s on destination %s',
+      ccipHookAddress,
+      ccipIsm.address,
+      destination,
+    );
+    await this.multiProvider.handleTx(
+      destination,
+      ccipIsm.setAuthorizedHook(
+        bytes32HookAddress,
+        this.multiProvider.getTransactionOverrides(destination),
+      ),
+    );
   }
 
   protected async deployCCIPIsm(
     origin: ChainName,
     destination: ChainName,
-  ): Promise<CCIPIsm> {
+  ): Promise<void> {
+    const cachedIsm = this.getCachedCCIPIsm(origin, destination);
+    if (cachedIsm) {
+      this.logger.debug(
+        'CCIP ISM already deployed for %s -> %s: %s',
+        origin,
+        destination,
+        cachedIsm,
+      );
+      return;
+    }
+
     const ccipChainSelector = getCCIPChainSelector(origin);
     const ccipRouterAddress = getCCIPRouterAddress(origin);
     assert(ccipChainSelector, `CCIP chain selector not found for ${origin}`);
@@ -194,14 +209,24 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     );
 
     this.cacheCCIPIsm(origin, destination, ccipIsm);
-    return ccipIsm;
   }
 
   protected async deployCCIPHook(
     origin: ChainName,
     destination: ChainName,
     ccipIsmAddress: Address,
-  ): Promise<CCIPHook> {
+  ): Promise<void> {
+    const cachedHook = this.getCachedCCIPHook(origin, destination);
+    if (cachedHook) {
+      this.logger.debug(
+        'CCIP Hook already deployed for %s -> %s: %s',
+        origin,
+        destination,
+        cachedHook,
+      );
+      return;
+    }
+
     const mailbox = this.core[origin].mailbox;
     assert(mailbox, `Mailbox address is required for ${origin}`);
 
@@ -234,6 +259,5 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     );
 
     this.cacheCCIPHook(origin, destination, ccipHook);
-    return ccipHook;
   }
 }
