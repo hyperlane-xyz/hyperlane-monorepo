@@ -137,9 +137,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .iter()
             .find_map(|result| match result {
                 Ok(sub_module_and_meta) => match &sub_module_and_meta.metadata {
-                    Metadata::MetadataBuildingRefused(reason) => {
-                        Some(Metadata::MetadataBuildingRefused(reason.clone()))
-                    }
+                    Metadata::Refused(reason) => Some(Metadata::Refused(reason.clone())),
                     _ => None,
                 },
                 Err(_) => None,

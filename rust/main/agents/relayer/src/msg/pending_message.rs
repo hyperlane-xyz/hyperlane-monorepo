@@ -283,7 +283,7 @@ impl PendingOperation for PendingMessage {
                 return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
             }
             // If the metadata building is refused, we still allow it to be retried later.
-            Metadata::MetadataBuildingRefused(reason) => {
+            Metadata::Refused(reason) => {
                 warn!(?reason, "Metadata building refused");
                 return self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
             }

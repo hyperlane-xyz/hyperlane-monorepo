@@ -54,8 +54,9 @@ pub enum Metadata {
     /// Unable to fetch metadata, but no error occurred
     CouldNotFetch,
     /// While building metadata, encountered something that should
-    /// prohibit all metadata for the message from being built
-    MetadataBuildingRefused(String),
+    /// prohibit all metadata for the message from being built.
+    /// Provides the reason for the refusal.
+    Refused(String),
 }
 
 #[derive(Debug)]

@@ -591,7 +591,7 @@ fn stop_validator(state: &mut State, validator_index: usize) {
     state.agents.remove(&name);
 }
 
-fn set_validator_reorg_flag(checkpoints_dirs: &Vec<DynPath>, validator_index: usize) {
+fn set_validator_reorg_flag(checkpoints_dirs: &[DynPath], validator_index: usize) {
     let reorg_event = ReorgEvent::default();
 
     let checkpoint_path = (*checkpoints_dirs[validator_index]).as_ref();
@@ -599,7 +599,7 @@ fn set_validator_reorg_flag(checkpoints_dirs: &Vec<DynPath>, validator_index: us
     let mut reorg_flag_file =
         File::create(reorg_flag_path).expect("Failed to create reorg flag file");
     // Write to file
-    reorg_flag_file
+    let _ = reorg_flag_file
         .write(serde_json::to_string(&reorg_event).unwrap().as_bytes())
         .expect("Failed to write to reorg flag file");
 }

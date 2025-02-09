@@ -121,7 +121,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         {
             Ok(syncer) => syncer,
             Err(CheckpointSyncerBuildError::ReorgEvent(reorg_event)) => {
-                return Ok(Metadata::MetadataBuildingRefused(format!(
+                return Ok(Metadata::Refused(format!(
                     "A reorg event occurred {:?}",
                     reorg_event
                 )));
