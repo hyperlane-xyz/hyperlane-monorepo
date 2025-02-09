@@ -33,3 +33,11 @@ export function getCCIPChainSelector(chainName: string): string | undefined {
 export function getCCIPRouterAddress(chainName: string): string | undefined {
   return CCIP_NETWORKS[chainName]?.router?.address;
 }
+
+/**
+ * Gets the list of chains supported by CCIP
+ * @returns The list of chain names
+ */
+export function getCCIPChains(): string[] {
+  return Object.keys(CCIP_NETWORKS);
+}

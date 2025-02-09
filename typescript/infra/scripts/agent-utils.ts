@@ -72,6 +72,7 @@ export enum Modules {
   HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
+  CCIP = 'ccip',
 }
 
 export const REGISTRY_MODULES = [
@@ -82,6 +83,7 @@ export const REGISTRY_MODULES = [
   Modules.INTERCHAIN_QUERY_SYSTEM,
   Modules.TEST_RECIPIENT,
   Modules.HOOK,
+  Modules.CCIP,
 ];
 
 export function getArgs() {
@@ -608,7 +610,9 @@ export function writeAddresses(
   module: Modules,
   addressesMap: ChainMap<Record<string, Address>>,
 ) {
-  addressesMap = filterRemoteDomainMetadata(addressesMap);
+  if (module !== Modules.CCIP) {
+    addressesMap = filterRemoteDomainMetadata(addressesMap);
+  }
 
   if (isRegistryModule(environment, module)) {
     for (const [chainName, addresses] of Object.entries(addressesMap)) {

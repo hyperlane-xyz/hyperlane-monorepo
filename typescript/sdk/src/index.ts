@@ -97,6 +97,7 @@ export {
   DeployerOptions,
   HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer.js';
+export { HyperlaneCCIPDeployer } from './deploy/HyperlaneCCIPDeployer.js';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
   CheckerViolation,
@@ -642,3 +643,9 @@ export {
   WarpTypedTransaction,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
+export {
+  getChainNameFromCCIPSelector,
+  getCCIPChainSelector,
+  getCCIPRouterAddress,
+  getCCIPChains,
+} from './utils/ccip.js';
