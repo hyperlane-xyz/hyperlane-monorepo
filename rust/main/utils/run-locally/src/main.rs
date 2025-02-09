@@ -30,7 +30,7 @@ use std::{
 };
 
 use ethers_contract::MULTICALL_ADDRESS;
-use hyperlane_core::{PendingOperationStatus, ReorgEvent, ReorgPeriod, ReprepareReason, H256};
+use hyperlane_core::{PendingOperationStatus, ReorgEvent, ReprepareReason};
 use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
@@ -583,10 +583,10 @@ fn stop_validator(state: &mut State, validator_index: usize) {
     let (child, _) = state
         .agents
         .get_mut(&name)
-        .expect(&format!("Validator {} not found", name));
+        .unwrap_or_else(|| panic!("Validator {} not found", name));
     child
         .kill()
-        .expect(&format!("Failed to stop validator {}", name));
+        .unwrap_or_else(|_| panic!("Failed to stop validator {}", name));
     // Remove the validator from the state
     state.agents.remove(&name);
 }
