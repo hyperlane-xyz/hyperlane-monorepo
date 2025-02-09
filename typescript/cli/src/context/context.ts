@@ -37,7 +37,10 @@ export async function contextMiddleware(argv: Record<string, any>) {
   const isDryRun = !isNullish(argv.dryRun);
   const requiresKey = isSignCommand(argv);
   const settings: ContextSettings = {
-    registryUris: argv.registry,
+    registryUris: [
+      ...argv.registry,
+      ...(argv.overrides ? [argv.overrides] : []),
+    ],
     key: argv.key,
     fromAddress: argv.fromAddress,
     requiresKey,
@@ -185,7 +188,10 @@ export async function getDryRunContext(
  * and an override one (such as a local directory)
  * @returns a new MergedRegistry
  */
-function getRegistry(registryUris: string[], enableProxy: boolean): IRegistry {
+export function getRegistry(
+  registryUris: string[],
+  enableProxy: boolean,
+): IRegistry {
   const logger = rootLogger.child({ module: 'MergedRegistry' });
   const registries = registryUris
     .map((uri) => uri.trim())

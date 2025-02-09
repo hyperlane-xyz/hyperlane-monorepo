@@ -36,6 +36,13 @@ export const registryUrisCommandOption: Options = {
   default: [DEFAULT_GITHUB_REGISTRY, DEFAULT_LOCAL_REGISTRY],
 };
 
+export const overrideRegistryUriCommandOption: Options = {
+  type: 'string',
+  description: 'Path to a local registry to override the default registry',
+  default: '',
+  hidden: true,
+};
+
 export const skipConfirmationOption: Options = {
   type: 'boolean',
   description: 'Skip confirmation prompts',

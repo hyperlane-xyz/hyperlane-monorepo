@@ -16,6 +16,7 @@ import {
   keyCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
+  overrideRegistryUriCommandOption,
   registryUrisCommandOption,
   skipConfirmationOption,
   strategyCommandOption,
@@ -43,6 +44,7 @@ try {
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
     .option('registry', registryUrisCommandOption)
+    .option('overrides', overrideRegistryUriCommandOption)
     .option('key', keyCommandOption)
     .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
