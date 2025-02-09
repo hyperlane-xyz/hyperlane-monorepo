@@ -51,7 +51,7 @@ import {
 } from '../deploy/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
-import { getCCIPChainSelector, getCCIPRouterAddress } from '../utils/ccip.js';
+import { CCIPContractCache } from '../utils/ccip.js';
 
 import {
   AggregationIsmConfig,
@@ -95,6 +95,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
     public readonly multiProvider: MultiProvider,
+    public readonly ccipContractCache: CCIPContractCache = new CCIPContractCache(),
   ) {
     super(
       contractsMap,
@@ -107,13 +108,18 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
     multiProvider: MultiProvider,
+    ccipContractCache?: CCIPContractCache,
   ): HyperlaneIsmFactory {
     const helper = appFromAddressesMapHelper(
       addressesMap,
       proxyFactoryFactories,
       multiProvider,
     );
-    return new HyperlaneIsmFactory(helper.contractsMap, multiProvider);
+    return new HyperlaneIsmFactory(
+      helper.contractsMap,
+      multiProvider,
+      ccipContractCache,
+    );
   }
 
   async deploy<C extends IsmConfig>(params: {
@@ -242,22 +248,19 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     destination: ChainName,
     config: CCIPIsmConfig,
   ): Promise<CCIPIsm> {
-    const ccipChainSelector = getCCIPChainSelector(config.originChain);
-
-    // Get the CCIP router address to set it on the ISM so that it can call ccipReceive
-    const ccipRouterAddress = getCCIPRouterAddress(destination);
-    assert(
-      ccipChainSelector,
-      `CCIP chain selector not found for ${config.originChain}`,
+    const ism = this.ccipContractCache.getIsm(config.originChain, destination);
+    if (!ism) {
+      this.logger.error(
+        `CCIP ISM not found for ${config.originChain} -> ${destination}`,
+      );
+      throw new Error(
+        `CCIP ISM not found for ${config.originChain} -> ${destination}`,
+      );
+    }
+    return CCIPIsm__factory.connect(
+      ism,
+      this.multiProvider.getSigner(destination),
     );
-    assert(
-      ccipRouterAddress,
-      `CCIP router address not found for ${destination}`,
-    );
-    return this.deployer.deployContract(destination, IsmType.CCIP, [
-      ccipRouterAddress,
-      ccipChainSelector,
-    ]);
   }
 
   protected async deployMultisigIsm(

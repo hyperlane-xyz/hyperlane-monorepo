@@ -5,7 +5,7 @@ import {
   ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
   CCIPHook,
-  CCIPIsm__factory,
+  CCIPHook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -33,7 +33,6 @@ import {
   ProtocolType,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
-  assert,
   deepEquals,
   eqAddress,
   rootLogger,
@@ -52,16 +51,11 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { IgpConfig } from '../gas/types.js';
 import { EvmIsmModule } from '../ism/EvmIsmModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import {
-  ArbL2ToL1IsmConfig,
-  CCIPIsmConfig,
-  IsmType,
-  OpStackIsmConfig,
-} from '../ism/types.js';
+import { ArbL2ToL1IsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
-import { getCCIPChainSelector, getCCIPRouterAddress } from '../utils/ccip.js';
+import { CCIPContractCache } from '../utils/ccip.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
@@ -121,6 +115,7 @@ export class EvmHookModule extends HyperlaneModule<
       HookConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & HookModuleAddresses
     >,
+    protected readonly ccipContractCache: CCIPContractCache = new CCIPContractCache(),
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = HookConfigSchema.parse(params.config);
@@ -130,6 +125,7 @@ export class EvmHookModule extends HyperlaneModule<
     this.hookFactory = HyperlaneIsmFactory.fromAddressesMap(
       { [this.args.chain]: params.addresses },
       multiProvider,
+      ccipContractCache,
     );
     this.deployer = new HookDeployer(multiProvider, hookFactories);
 
@@ -248,6 +244,7 @@ export class EvmHookModule extends HyperlaneModule<
     config,
     proxyFactoryFactories,
     coreAddresses,
+    ccipContractCache,
     multiProvider,
     contractVerifier,
   }: {
@@ -255,6 +252,7 @@ export class EvmHookModule extends HyperlaneModule<
     config: HookConfig;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     coreAddresses: Omit<CoreAddresses, 'validatorAnnounce'>;
+    ccipContractCache?: CCIPContractCache;
     multiProvider: MultiProvider;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmHookModule> {
@@ -269,6 +267,7 @@ export class EvmHookModule extends HyperlaneModule<
         chain,
         config,
       },
+      ccipContractCache,
       contractVerifier,
     );
 
@@ -781,6 +780,7 @@ export class EvmHookModule extends HyperlaneModule<
         proxyFactoryFactories: this.args.addresses,
         mailbox: mailbox,
         multiProvider: this.multiProvider,
+        ccipContractCache: this.ccipContractCache,
         contractVerifier: this.contractVerifier,
       })
     ).serialize().deployedIsm;
@@ -868,6 +868,7 @@ export class EvmHookModule extends HyperlaneModule<
         proxyFactoryFactories: this.args.addresses,
         mailbox: mailbox,
         multiProvider: this.multiProvider,
+        ccipContractCache: this.ccipContractCache,
         contractVerifier: this.contractVerifier,
       })
     ).serialize().deployedIsm;
@@ -928,100 +929,27 @@ export class EvmHookModule extends HyperlaneModule<
     return hook;
   }
 
-  // NOTE: this deploys the ism too on the destination chain if it doesn't exist
   protected async deployCCIPHook({
     config,
   }: {
     config: CCIPHookConfig;
   }): Promise<CCIPHook> {
-    const chain = this.chain;
-    const mailbox = this.args.addresses.mailbox;
-    this.logger.debug(
-      'Deploying CCIPHook for %s to %s...',
-      chain,
+    const hook = this.ccipContractCache.getHook(
+      this.chain,
       config.destinationChain,
     );
-
-    // deploy ccip ism
-    const ismConfig: CCIPIsmConfig = {
-      type: IsmType.CCIP,
-      originChain: chain,
-    };
-
-    // deploy opstack ism
-    const ccipIsmAddress = (
-      await EvmIsmModule.create({
-        chain: config.destinationChain,
-        config: ismConfig,
-        proxyFactoryFactories: this.args.addresses,
-        mailbox: mailbox,
-        multiProvider: this.multiProvider,
-        contractVerifier: this.contractVerifier,
-      })
-    ).serialize().deployedIsm;
-
-    // connect to ISM
-    const ccipIsm = CCIPIsm__factory.connect(
-      ccipIsmAddress,
-      this.multiProvider.getSignerOrProvider(config.destinationChain),
-    );
-
-    // deploy CCIP hook
-    const destinationDomain = this.multiProvider.getDomainId(
-      config.destinationChain,
-    );
-
-    const ccipRouterAddress = getCCIPRouterAddress(chain);
-    const ccipChainSelector = getCCIPChainSelector(config.destinationChain);
-    assert(ccipRouterAddress, `CCIP router address not found for ${chain}`);
-    assert(
-      ccipChainSelector,
-      `CCIP chain selector not found for ${config.destinationChain}`,
-    );
-
-    const hook = await this.deployer.deployContract(chain, HookType.CCIP, [
-      ccipRouterAddress,
-      ccipChainSelector,
-      mailbox,
-      destinationDomain,
-      addressToBytes32(ccipIsm.address),
-    ]);
-
-    // set authorized hook on ccip ism
-    const authorizedHook = await ccipIsm.authorizedHook();
-
-    if (authorizedHook === addressToBytes32(hook.address)) {
-      this.logger.debug(
-        'Authorized hook already set on ism %s',
-        ccipIsm.address,
+    if (!hook) {
+      this.logger.error(
+        `CCIP Hook not found for ${this.chain} -> ${config.destinationChain}`,
       );
-      return hook;
-    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
-      this.logger.debug(
-        'Authorized hook mismatch on ism %s, expected %s, got %s',
-        ccipIsm.address,
-        addressToBytes32(hook.address),
-        authorizedHook,
+      throw new Error(
+        `CCIP Hook not found for ${this.chain} -> ${config.destinationChain}`,
       );
-      throw new Error('Authorized hook mismatch');
     }
-
-    // check if mismatch and redeploy hook
-    this.logger.debug(
-      'Setting authorized hook %s on ism % on destination %s',
-      hook.address,
-      ccipIsm.address,
-      config.destinationChain,
+    return CCIPHook__factory.connect(
+      hook,
+      this.multiProvider.getSigner(this.chain),
     );
-    await this.multiProvider.handleTx(
-      config.destinationChain,
-      ccipIsm.setAuthorizedHook(
-        addressToBytes32(hook.address),
-        this.multiProvider.getTransactionOverrides(config.destinationChain),
-      ),
-    );
-
-    return hook;
   }
 
   protected async deployRoutingHook({

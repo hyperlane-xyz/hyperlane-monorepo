@@ -44,6 +44,7 @@ import { IsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { CCIPContractCache } from '../utils/ccip.js';
 
 import {
   HyperlaneModule,
@@ -70,6 +71,7 @@ export class EvmCoreModule extends HyperlaneModule<
   constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<CoreConfig, DeployedCoreAddresses>,
+    protected readonly ccipContractCache?: CCIPContractCache,
   ) {
     super(args);
     this.coreReader = new EvmCoreReader(multiProvider, args.chain);
@@ -210,21 +212,25 @@ export class EvmCoreModule extends HyperlaneModule<
       staticMessageIdWeightedMultisigIsmFactory,
     } = this.serialize();
 
-    const ismModule = new EvmIsmModule(this.multiProvider, {
-      chain: this.args.chain,
-      config: expectDefaultIsmConfig,
-      addresses: {
-        mailbox,
-        domainRoutingIsmFactory,
-        staticAggregationIsmFactory,
-        staticAggregationHookFactory,
-        staticMessageIdMultisigIsmFactory,
-        staticMerkleRootMultisigIsmFactory,
-        staticMerkleRootWeightedMultisigIsmFactory,
-        staticMessageIdWeightedMultisigIsmFactory,
-        deployedIsm: actualDefaultIsmConfig.address,
+    const ismModule = new EvmIsmModule(
+      this.multiProvider,
+      {
+        chain: this.args.chain,
+        config: expectDefaultIsmConfig,
+        addresses: {
+          mailbox,
+          domainRoutingIsmFactory,
+          staticAggregationIsmFactory,
+          staticAggregationHookFactory,
+          staticMessageIdMultisigIsmFactory,
+          staticMerkleRootMultisigIsmFactory,
+          staticMerkleRootWeightedMultisigIsmFactory,
+          staticMessageIdWeightedMultisigIsmFactory,
+          deployedIsm: actualDefaultIsmConfig.address,
+        },
       },
-    });
+      this.ccipContractCache,
+    );
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
@@ -263,22 +269,34 @@ export class EvmCoreModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: CoreConfig;
     multiProvider: MultiProvider;
+    ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmCoreModule> {
-    const { chain, config, multiProvider, contractVerifier } = params;
+    const {
+      chain,
+      config,
+      multiProvider,
+      ccipContractCache = new CCIPContractCache(),
+      contractVerifier,
+    } = params;
     const addresses = await EvmCoreModule.deploy({
       config,
       multiProvider,
       chain,
+      ccipContractCache,
       contractVerifier,
     });
 
     // Create CoreModule and deploy the Core contracts
-    const module = new EvmCoreModule(multiProvider, {
-      addresses,
-      chain,
-      config,
-    });
+    const module = new EvmCoreModule(
+      multiProvider,
+      {
+        addresses,
+        chain,
+        config,
+      },
+      ccipContractCache,
+    );
 
     return module;
   }
@@ -291,9 +309,16 @@ export class EvmCoreModule extends HyperlaneModule<
     config: CoreConfig;
     multiProvider: MultiProvider;
     chain: ChainNameOrId;
+    ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
   }): Promise<DeployedCoreAddresses> {
-    const { config, multiProvider, chain, contractVerifier } = params;
+    const {
+      config,
+      multiProvider,
+      chain,
+      ccipContractCache = new CCIPContractCache(),
+      contractVerifier,
+    } = params;
     const chainName = multiProvider.getChainName(chain);
 
     const ismFactoryFactories = await EvmCoreModule.deployIsmFactories({
@@ -309,6 +334,7 @@ export class EvmCoreModule extends HyperlaneModule<
         proxyFactoryFactories,
       ),
       multiProvider,
+      ccipContractCache,
     );
 
     const coreDeployer = new HyperlaneCoreDeployer(

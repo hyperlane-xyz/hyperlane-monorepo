@@ -38,6 +38,7 @@ import { DerivedIsmConfig } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { CCIPContractCache } from '../utils/ccip.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -62,6 +63,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   constructor(
     protected readonly multiProvider: MultiProvider,
     args: HyperlaneModuleParams<HypTokenRouterConfig, WarpRouteAddresses>,
+    protected readonly ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(args);
@@ -419,6 +421,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           ).address,
         },
       },
+      this.ccipContractCache,
       this.contractVerifier,
     );
     this.logger.info(
@@ -538,6 +541,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           deployedHook: (actualConfig.hook as DerivedHookConfig).address,
         },
       },
+      this.ccipContractCache,
       this.contractVerifier,
     );
 
@@ -562,6 +566,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     chain: ChainNameOrId;
     config: HypTokenRouterConfig;
     multiProvider: MultiProvider;
+    ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
   }): Promise<EvmERC20WarpModule> {
@@ -569,6 +574,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       chain,
       config,
       multiProvider,
+      ccipContractCache,
       contractVerifier,
       proxyFactoryFactories,
     } = params;
@@ -586,6 +592,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         chain,
         config,
       },
+      ccipContractCache,
       contractVerifier,
     );
 

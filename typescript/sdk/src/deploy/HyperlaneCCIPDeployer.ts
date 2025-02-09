@@ -1,9 +1,4 @@
-import {
-  CCIPHook,
-  CCIPHook__factory,
-  CCIPIsm,
-  CCIPIsm__factory,
-} from '@hyperlane-xyz/core';
+import { CCIPHook__factory, CCIPIsm__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ZERO_ADDRESS_HEX_32,
@@ -16,18 +11,21 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { CoreAddresses } from '../core/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
-import { getCCIPChainSelector, getCCIPRouterAddress } from '../utils/ccip.js';
+import {
+  CCIPContractCache,
+  getCCIPChainSelector,
+  getCCIPRouterAddress,
+} from '../utils/ccip.js';
 
 import { HyperlaneDeployer } from './HyperlaneDeployer.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
-
-const CCIP_HOOK_KEY_PREFIX = 'ccipHook';
-const CCIP_ISM_KEY_PREFIX = 'ccipIsm';
 
 export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
   Set<ChainName>,
   {}
 > {
+  private ccipContractCache: CCIPContractCache = new CCIPContractCache();
+
   constructor(
     multiProvider: MultiProvider,
     readonly core: ChainMap<Partial<CoreAddresses>>,
@@ -41,42 +39,6 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
         contractVerifier,
       },
     );
-  }
-
-  cacheCCIPHook(
-    origin: ChainName,
-    destination: ChainName,
-    ccipHook: CCIPHook,
-  ): void {
-    this.cachedAddresses[origin][`${CCIP_HOOK_KEY_PREFIX}-${destination}`] =
-      ccipHook.address;
-  }
-
-  cacheCCIPIsm(
-    origin: ChainName,
-    destination: ChainName,
-    ccipIsm: CCIPIsm,
-  ): void {
-    this.cachedAddresses[destination][`${CCIP_ISM_KEY_PREFIX}-${origin}`] =
-      ccipIsm.address;
-  }
-
-  getCachedCCIPHook(
-    origin: ChainName,
-    destination: ChainName,
-  ): string | undefined {
-    return this.cachedAddresses[origin]?.[
-      `${CCIP_HOOK_KEY_PREFIX}-${destination}`
-    ];
-  }
-
-  getCachedCCIPIsm(
-    origin: ChainName,
-    destination: ChainName,
-  ): string | undefined {
-    return this.cachedAddresses[destination]?.[
-      `${CCIP_ISM_KEY_PREFIX}-${origin}`
-    ];
   }
 
   async deployContracts(
@@ -94,7 +56,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     //On the origin chain, deploy hooks for each destination chain in series
     for (const destination of config) {
       // Grab the ISM from the cache
-      const ccipIsmAddress = this.getCachedCCIPIsm(origin, destination);
+      const ccipIsmAddress = this.ccipContractCache.getIsm(origin, destination);
       assert(
         ccipIsmAddress,
         `CCIP ISM not found for ${origin} -> ${destination}`,
@@ -106,13 +68,19 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     // Authorize hooks for each destination chain concurrently
     await Promise.all(
       Array.from(config).map(async (destination) => {
-        const ccipIsmAddress = this.getCachedCCIPIsm(origin, destination);
+        const ccipIsmAddress = this.ccipContractCache.getIsm(
+          origin,
+          destination,
+        );
         assert(
           ccipIsmAddress,
           `CCIP ISM not found for ${origin} -> ${destination}`,
         );
 
-        const ccipHookAddress = this.getCachedCCIPHook(origin, destination);
+        const ccipHookAddress = this.ccipContractCache.getHook(
+          origin,
+          destination,
+        );
         assert(
           ccipHookAddress,
           `CCIP Hook not found for ${origin} -> ${destination}`,
@@ -122,6 +90,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       }),
     );
 
+    this.ccipContractCache.writeBack(this.cachedAddresses);
     return {};
   }
 
@@ -183,7 +152,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     origin: ChainName,
     destination: ChainName,
   ): Promise<void> {
-    const cachedIsm = this.getCachedCCIPIsm(origin, destination);
+    const cachedIsm = this.ccipContractCache.getIsm(origin, destination);
     if (cachedIsm) {
       this.logger.debug(
         'CCIP ISM already deployed for %s -> %s: %s',
@@ -208,7 +177,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       false,
     );
 
-    this.cacheCCIPIsm(origin, destination, ccipIsm);
+    this.ccipContractCache.setIsm(origin, destination, ccipIsm);
   }
 
   protected async deployCCIPHook(
@@ -216,7 +185,7 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
     destination: ChainName,
     ccipIsmAddress: Address,
   ): Promise<void> {
-    const cachedHook = this.getCachedCCIPHook(origin, destination);
+    const cachedHook = this.ccipContractCache.getHook(origin, destination);
     if (cachedHook) {
       this.logger.debug(
         'CCIP Hook already deployed for %s -> %s: %s',
@@ -258,6 +227,6 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
       false,
     );
 
-    this.cacheCCIPHook(origin, destination, ccipHook);
+    this.ccipContractCache.setHook(origin, destination, ccipHook);
   }
 }

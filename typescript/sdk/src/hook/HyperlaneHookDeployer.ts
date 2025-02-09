@@ -1,6 +1,6 @@
 import {
   CCIPHook,
-  CCIPIsm,
+  CCIPHook__factory,
   DomainRoutingHook,
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
@@ -13,7 +13,6 @@ import {
   Address,
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
-  assert,
   deepEquals,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -25,10 +24,9 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneIgpDeployer } from '../gas/HyperlaneIgpDeployer.js';
 import { IgpFactories } from '../gas/contracts.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
-import { CCIPIsmConfig, IsmType, OpStackIsmConfig } from '../ism/types.js';
+import { IsmType, OpStackIsmConfig } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
-import { getCCIPChainSelector, getCCIPRouterAddress } from '../utils/ccip.js';
 
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
@@ -112,7 +110,7 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         [HookType.PAUSABLE]: hook,
       });
     } else if (config.type === HookType.CCIP) {
-      hook = await this.deployCcip(chain, config);
+      hook = await this.deployCCIPHook(chain, config);
     } else {
       throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -122,81 +120,23 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     return deployedContracts;
   }
 
-  async deployCcip(
+  async deployCCIPHook(
     chain: ChainName,
     config: CCIPHookConfig,
-    coreAddresses = this.core[chain],
   ): Promise<CCIPHook> {
-    this.logger.debug('Deploying CCIPHook for %s', chain);
-
-    const mailbox = coreAddresses.mailbox;
-    assert(mailbox, `Mailbox address is required for ${config.type}`);
-
-    const ccipRouterAddress = getCCIPRouterAddress(chain);
-    const ccipChainSelector = getCCIPChainSelector(config.destinationChain);
-    assert(ccipRouterAddress, `CCIP router address not found for ${chain}`);
-    assert(
-      ccipChainSelector,
-      `CCIP chain selector not found for ${config.destinationChain}`,
-    );
-
-    const destinationDomain = this.multiProvider.getDomainId(
+    const hook = this.ismFactory.ccipContractCache.getHook(
+      chain,
       config.destinationChain,
     );
-
-    const ismConfig: CCIPIsmConfig = {
-      type: IsmType.CCIP,
-      originChain: chain,
-    };
-    const ccipIsm = (await this.ismFactory.deploy({
-      destination: config.destinationChain,
-      config: ismConfig,
-      origin: chain,
-    })) as CCIPIsm;
-
-    const hook = await this.deployContract(chain, HookType.CCIP, [
-      ccipRouterAddress,
-      ccipChainSelector,
-      mailbox,
-      destinationDomain,
-      addressToBytes32(ccipIsm.address),
-    ]);
-
-    // set authorized hook on ccip ism
-    const authorizedHook = await ccipIsm.authorizedHook();
-
-    if (authorizedHook === addressToBytes32(hook.address)) {
-      this.logger.debug(
-        'Authorized hook already set on ism %s',
-        ccipIsm.address,
+    if (!hook) {
+      this.logger.error(
+        `CCIP Hook not found for ${chain} -> ${config.destinationChain}`,
       );
-      return hook;
-    } else if (authorizedHook !== ZERO_ADDRESS_HEX_32) {
-      this.logger.debug(
-        'Authorized hook mismatch on ism %s, expected %s, got %s',
-        ccipIsm.address,
-        addressToBytes32(hook.address),
-        authorizedHook,
+      throw new Error(
+        `CCIP Hook not found for ${chain} -> ${config.destinationChain}`,
       );
-      throw new Error('Authorized hook mismatch');
     }
-
-    // check if mismatch and redeploy hook
-    this.logger.debug(
-      'Setting authorized hook %s on ism % on destination %s',
-      hook.address,
-      ccipIsm.address,
-      config.destinationChain,
-    );
-    await this.multiProvider.handleTx(
-      config.destinationChain,
-      ccipIsm.setAuthorizedHook(
-        addressToBytes32(hook.address),
-        this.multiProvider.getTransactionOverrides(config.destinationChain),
-      ),
-    );
-
-    return hook;
+    return CCIPHook__factory.connect(hook, this.multiProvider.getSigner(chain));
   }
 
   async deployProtocolFee(

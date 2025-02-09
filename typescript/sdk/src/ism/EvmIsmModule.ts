@@ -24,6 +24,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName, ChainNameOrId } from '../types.js';
+import { CCIPContractCache } from '../utils/ccip.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmIsmReader } from './EvmIsmReader.js';
@@ -64,6 +65,7 @@ export class EvmIsmModule extends HyperlaneModule<
       IsmConfig,
       HyperlaneAddresses<ProxyFactoryFactories> & IsmModuleAddresses
     >,
+    ccipContractCache?: CCIPContractCache,
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     params.config = IsmConfigSchema.parse(params.config);
@@ -74,6 +76,7 @@ export class EvmIsmModule extends HyperlaneModule<
     this.ismFactory = HyperlaneIsmFactory.fromAddressesMap(
       { [params.chain]: params.addresses },
       multiProvider,
+      ccipContractCache,
     );
 
     this.mailbox = params.addresses.mailbox;
@@ -187,6 +190,7 @@ export class EvmIsmModule extends HyperlaneModule<
     proxyFactoryFactories,
     mailbox,
     multiProvider,
+    ccipContractCache,
     contractVerifier,
   }: {
     chain: ChainNameOrId;
@@ -194,6 +198,7 @@ export class EvmIsmModule extends HyperlaneModule<
     proxyFactoryFactories: HyperlaneAddresses<ProxyFactoryFactories>;
     mailbox: Address;
     multiProvider: MultiProvider;
+    ccipContractCache?: CCIPContractCache;
     contractVerifier?: ContractVerifier;
   }): Promise<EvmIsmModule> {
     const module = new EvmIsmModule(
@@ -207,6 +212,7 @@ export class EvmIsmModule extends HyperlaneModule<
         chain,
         config,
       },
+      ccipContractCache,
       contractVerifier,
     );
 

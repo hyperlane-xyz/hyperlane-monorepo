@@ -1,4 +1,8 @@
+import { CCIPHook, CCIPIsm } from '@hyperlane-xyz/core';
+import { Address } from '@hyperlane-xyz/utils';
+
 import { CCIP_NETWORKS } from '../consts/ccip.js';
+import { ChainMap, ChainName } from '../types.js';
 
 /**
  * Gets the chain name from a CCIP chain selector value
@@ -40,4 +44,56 @@ export function getCCIPRouterAddress(chainName: string): string | undefined {
  */
 export function getCCIPChains(): string[] {
   return Object.keys(CCIP_NETWORKS);
+}
+
+export const CCIP_HOOK_KEY_PREFIX = 'ccipHook';
+export const CCIP_ISM_KEY_PREFIX = 'ccipIsm';
+
+export class CCIPContractCache {
+  private cachedAddresses: ChainMap<ChainMap<Address>> = {};
+
+  constructor() {}
+
+  getAddressesMap(): ChainMap<ChainMap<Address>> {
+    return this.cachedAddresses;
+  }
+
+  writeBack(cachedAddresses: ChainMap<ChainMap<Address>>): void {
+    for (const [origin, destinations] of Object.entries(this.cachedAddresses)) {
+      if (!cachedAddresses[origin]) {
+        cachedAddresses[origin] = {};
+      }
+      for (const [key, address] of Object.entries(destinations)) {
+        cachedAddresses[origin][key] = address;
+      }
+    }
+  }
+
+  setHook(origin: ChainName, destination: ChainName, ccipHook: CCIPHook): void {
+    if (!this.cachedAddresses[origin]) {
+      this.cachedAddresses[origin] = {};
+    }
+    this.cachedAddresses[origin][`${CCIP_HOOK_KEY_PREFIX}-${destination}`] =
+      ccipHook.address;
+  }
+
+  setIsm(origin: ChainName, destination: ChainName, ccipIsm: CCIPIsm): void {
+    if (!this.cachedAddresses[destination]) {
+      this.cachedAddresses[destination] = {};
+    }
+    this.cachedAddresses[destination][`${CCIP_ISM_KEY_PREFIX}-${origin}`] =
+      ccipIsm.address;
+  }
+
+  getHook(origin: ChainName, destination: ChainName): string | undefined {
+    return this.cachedAddresses[origin]?.[
+      `${CCIP_HOOK_KEY_PREFIX}-${destination}`
+    ];
+  }
+
+  getIsm(origin: ChainName, destination: ChainName): string | undefined {
+    return this.cachedAddresses[destination]?.[
+      `${CCIP_ISM_KEY_PREFIX}-${origin}`
+    ];
+  }
 }
