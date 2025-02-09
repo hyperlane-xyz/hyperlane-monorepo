@@ -1,5 +1,5 @@
-#!/bin/bash
-
+#!/bin/zsh
+setopt KSH_ARRAYS
 xerc20s=(
   "0x585afea249031Ea4168A379F664e91dFc5F77E7D"
   "0x585afea249031Ea4168A379F664e91dFc5F77E7D"
@@ -69,8 +69,22 @@ safes=(
 # 'swell',
 # 'unichain',
 # 'berachain',
-rpcs=(
-)
+rpcs=($(rpc mainnet3 arbitrum) \
+      $(rpc mainnet3 optimism) \
+      $(rpc mainnet3 base) \
+      $(rpc mainnet3 blast) \
+      $(rpc mainnet3 bsc) \
+      $(rpc mainnet3 mode) \
+      $(rpc mainnet3 linea) \
+      $(rpc mainnet3 ethereum) \
+      $(rpc mainnet3 fraxtal) \
+      $(rpc mainnet3 zircuit) \
+      $(rpc mainnet3 taiko) \
+      $(rpc mainnet3 sei) \
+      $(rpc mainnet3 swell) \
+      $(rpc mainnet3 unichain) \
+      $(rpc mainnet3 berachain))
+
 
 # Path to the JSON file
 txFiles[42161]="/Users/leyu/Desktop/Code/hyperlane/hyperlane-monorepo/typescript/cli/generated/transactions/arbitrum-gnosisSafeTxBuilder-1739078009509-receipts.json"
@@ -98,8 +112,7 @@ for ((i=0; i<${#rpcs[@]}; i++)); do
 
   echo "==========FORKING $CHAIN_ID=========="
   anvil -p $PORT --fork-url ${rpcs[$i]} --gas-price 0&
-  sleep 3
-
+  sleep 2
   echo "==========SET MINT/BURN=========="
   XERC20_OWNER=$(cast call ${xerc20s[$i]} "owner()(address)" --rpc-url $LOCAL_RPC_URL)
   cast rpc anvil_setBalance  $XERC20_OWNER 1000000000000000000 --rpc-url $LOCAL_RPC_URL
@@ -110,6 +123,7 @@ for ((i=0; i<${#rpcs[@]}; i++)); do
   cast rpc anvil_stopImpersonatingAccount $XERC20_OWNER --rpc-url $LOCAL_RPC_URL
 
   # Impersonate the warp route and mint the private key's address some xerc20
+  sleep 2
   echo "==========IMPERSONATING WARP ROUTE AND MINTING XERC20=========="
   cast rpc anvil_setBalance ${warpRoutes[$i]} 1000000000000000000 --rpc-url $LOCAL_RPC_URL
   cast balance ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
@@ -170,7 +184,7 @@ for ((i=0; i<${#rpcs[@]}; i++)); do
   cast call ${xerc20s[$i]} "allowance(address owner, address spender)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 ${warpRoutes[$i]} --rpc-url $LOCAL_RPC_URL
 
   # approve the Lockboxed Collateral if on ethereum
-  if [ $CHAIN_ID == 1 ]; then
+  if [[ $CHAIN_ID == 1 ]]; then
     echo "==========APPROVING LOCKBOX COLLATERAL ALLOWANCES ON ETH=========="
     COLLATERAL_ON_ETH=0x688eBadf27a256Ed1D402be628011C37E81f1682
     cast send ${COLLATERAL_ON_ETH} "mint(uint256)" 10000000000000000000 --rpc-url $LOCAL_RPC_URL --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
@@ -181,7 +195,8 @@ for ((i=0; i<${#rpcs[@]}; i++)); do
   
   # transfer remote to each target chain
   for targetChainId in "${targetChainIds[@]}"; do
-    if [ $targetChainId != $CHAIN_ID ]; then
+    sleep 1
+    if [[ $targetChainId != $CHAIN_ID ]]; then
       # transfer remote and grep the logs for InsertedIntoTree and GasPayment topics
       echo "==========SENDING TRANSFER REMOTE from $CHAIN_ID to $targetChainId=========="
       transactionWithLogs=$(cast send ${warpRoutes[$i]} "transferRemote(uint32,bytes32,uint256)" ${targetChainId} "000000000000000000000000a7eccdb9be08178f896c26b7bbd8c3d4e844d9ba" 1 --rpc-url $LOCAL_RPC_URL --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80  --value 25000000000000000000| grep 0x65695c3748edae85a24cc2c60b299b31f463050bc259150d2e5802ec8d11720a | grep 0x253a3a04cab70d47c1504809242d9350cd81627b4f1d50753e159cf8cd76ed33)
