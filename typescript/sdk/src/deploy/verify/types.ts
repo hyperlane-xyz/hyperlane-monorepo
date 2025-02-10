@@ -89,7 +89,7 @@ export type FormOptions<Action extends ExplorerApiActions> =
         sourceCode: string;
         contractname: string;
         /* TYPO IS ENFORCED BY API */
-        constructorArguments?: string;
+        constructorArguements?: string;
       }
     : Action extends ExplorerApiActions.VERIFY_PROXY
     ? {
