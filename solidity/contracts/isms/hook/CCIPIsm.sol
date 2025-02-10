@@ -64,7 +64,7 @@ contract CCIPIsm is AbstractMessageIdAuthorizedIsm, CCIPReceiver {
         preVerifyMessage(messageId, msg.value);
     }
 
-    function _isAuthorized() internal pure override returns (bool) {
+    function _isAuthorized() internal view override returns (bool) {
         return msg.sender == getRouter();
     }
 }

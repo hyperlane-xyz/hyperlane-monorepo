@@ -30,9 +30,9 @@ contract CCIPIsmTest is Test {
     uint256 internal optimismFork;
 
     address internal constant MAINNET_ROUTER_ADDRESS =
-        0xE561d5E02207fb5eB32cca20a699E0d8919a1476; // Ethereum CCIP Router
+        0x80226fc0Ee2b096224EeAc085Bb9a8cba1146f7D; // Ethereum CCIP Router
     address internal constant OP_ROUTER_ADDRESS =
-        0x261c05167db67B2b619f9d312e0753f3721ad6E8; // Optimism CCIP Router
+        0x3206695CaE29952f4b0c22a169725a865bc8Ce0f; // Optimism CCIP Router
 
     uint8 internal constant CHAINLINK_VERSION = 0;
     uint8 internal constant HYPERLANE_VERSION = 1;
@@ -43,8 +43,6 @@ contract CCIPIsmTest is Test {
     TestMailbox internal l2Mailbox;
     CCIPIsm internal ccipISMOptimism;
     CCIPHook internal ccipHookMainnet;
-    IRouterClient internal iRouterMainnet;
-    IRouterClient internal iRouterOptimism;
 
     TestRecipient internal testRecipient;
     bytes internal testMessage =
@@ -63,8 +61,8 @@ contract CCIPIsmTest is Test {
 
     function setUp() public {
         // block numbers to fork from, chain data is cached to ../../forge-cache/
-        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 18_787_859);
-        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 106_233_774);
+        mainnetFork = vm.createFork(vm.rpcUrl("mainnet"), 21_818_432);
+        optimismFork = vm.createFork(vm.rpcUrl("optimism"), 126_162_148);
 
         testRecipient = new TestRecipient();
 
@@ -80,6 +78,10 @@ contract CCIPIsmTest is Test {
         vm.selectFork(mainnetFork);
 
         l1Mailbox = new TestMailbox(MAINNET_DOMAIN);
+
+        IRouterClient(MAINNET_ROUTER_ADDRESS).isChainSupported(
+            OPTIMISM_CHAIN_SELECTOR
+        );
 
         ccipHookMainnet = new CCIPHook(
             MAINNET_ROUTER_ADDRESS,
@@ -151,8 +153,6 @@ contract CCIPIsmTest is Test {
 
         bytes memory encodedHookData = abi.encode(messageId);
 
-        _allowAnyAddressToSendCCIP();
-
         l1Mailbox.updateLatestDispatchedId(messageId);
 
         uint256 quotedFee = ccipHookMainnet.quoteDispatch(
@@ -171,8 +171,6 @@ contract CCIPIsmTest is Test {
 
         vm.selectFork(mainnetFork);
 
-        _allowAnyAddressToSendCCIP();
-
         l1Mailbox.updateLatestDispatchedId(messageId);
 
         vm.expectRevert();
@@ -186,8 +184,6 @@ contract CCIPIsmTest is Test {
         deployAll();
 
         vm.selectFork(mainnetFork);
-
-        _allowAnyAddressToSendCCIP();
 
         vm.expectRevert(
             "AbstractMessageIdAuthHook: message not latest dispatched"
@@ -217,7 +213,7 @@ contract CCIPIsmTest is Test {
         vm.selectFork(optimismFork);
 
         Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
-        message.sender = abi.encode(address(ccipISMOptimism));
+        message.sender[0] = ~message.sender[0];
 
         vm.prank(OP_ROUTER_ADDRESS);
         vm.expectRevert("Unauthorized hook");
@@ -232,7 +228,7 @@ contract CCIPIsmTest is Test {
         vm.selectFork(optimismFork);
 
         Client.Any2EVMMessage memory message = _encodeCCIPReceiveMessage();
-        message.sourceChainSelector = OPTIMISM_CHAIN_SELECTOR;
+        message.sourceChainSelector = ~message.sourceChainSelector;
 
         vm.prank(OP_ROUTER_ADDRESS);
         vm.expectRevert("Unauthorized origin");
@@ -336,16 +332,6 @@ contract CCIPIsmTest is Test {
                 TypeCasts.addressToBytes32(address(testRecipient)),
                 testMessage
             );
-    }
-
-    function _allowAnyAddressToSendCCIP() internal {
-        // Only authorized addresses can call CCIP send
-        bytes memory callData = abi.encodeWithSignature(
-            "setAllowListEnabled(bool)",
-            false
-        );
-        vm.prank(0x44835bBBA9D40DEDa9b64858095EcFB2693c9449); // Current Owner
-        address(0xCC19bC4D43d17eB6859F0d22BA300967C97780b0).call(callData);
     }
 
     function _encodeCCIPReceiveMessage()
