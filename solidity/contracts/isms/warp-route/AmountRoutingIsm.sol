@@ -7,6 +7,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 // ============ Internal Imports ============
 import {AbstractRoutingIsm} from "../routing/AbstractRoutingIsm.sol";
+import {AmountPartition} from "../../token/libs/AmountPartition.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
 import {Message} from "../../libs/Message.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
@@ -15,26 +16,12 @@ import {TokenMessage} from "../../token/libs/TokenMessage.sol";
 /**
  * @title AmountRoutingIsm
  */
-contract AmountRoutingIsm is AbstractRoutingIsm, PackageVersioned {
-    using Message for bytes;
-    using TokenMessage for bytes;
-    using Address for address;
-
-    IInterchainSecurityModule public immutable lowerISM;
-    IInterchainSecurityModule public immutable upperISM;
-    uint256 public immutable threshold;
-
-    // ============ Mutable Storage ============
-
-    constructor(address _lowerISM, address _upperISM, uint256 _threshold) {
-        require(
-            _lowerISM.isContract() && _upperISM.isContract(),
-            "invalid ISMs"
-        );
-        lowerISM = IInterchainSecurityModule(_lowerISM);
-        upperISM = IInterchainSecurityModule(_upperISM);
-        threshold = _threshold;
-    }
+contract AmountRoutingIsm is AmountPartition, AbstractRoutingIsm {
+    constructor(
+        address _lowerIsm,
+        address _upperIsm,
+        uint256 _threshold
+    ) AmountPartition(_lowerIsm, _upperIsm, _threshold) {}
 
     // ============ Public Functions ============
     /**
@@ -46,11 +33,6 @@ contract AmountRoutingIsm is AbstractRoutingIsm, PackageVersioned {
     function route(
         bytes calldata _message
     ) public view override returns (IInterchainSecurityModule) {
-        uint256 amount = _message.body().amount();
-        if (amount >= threshold) {
-            return upperISM;
-        } else {
-            return lowerISM;
-        }
+        return IInterchainSecurityModule(_partition(_message));
     }
 }
