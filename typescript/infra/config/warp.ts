@@ -119,8 +119,7 @@ async function getConfigFromMergedRegistry(
   warpRouteId: string,
 ): Promise<ChainMap<HypTokenRouterConfig>> {
   const warpRoute = await getRegistry(
-    DEFAULT_REGISTRY_URI,
-    '',
+    [DEFAULT_REGISTRY_URI],
     true,
   ).getWarpDeployConfig(warpRouteId);
   assert(warpRoute, `Warp route Config not found for ${warpRouteId}`);

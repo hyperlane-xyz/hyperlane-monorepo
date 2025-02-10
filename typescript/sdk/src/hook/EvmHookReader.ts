@@ -225,6 +225,23 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     return config;
   }
 
+  possibleDomainIds(): number[] {
+    const isTestnet = !!this.multiProvider.getChainMetadata(this.chain)
+      .isTestnet;
+
+    return this.messageContext
+      ? [this.messageContext.parsed.destination]
+      : // filter to only domains that are the same testnet/mainnet
+        this.multiProvider
+          .getKnownChainNames()
+          .filter(
+            (chainName) =>
+              !!this.multiProvider.getChainMetadata(chainName).isTestnet ===
+              isTestnet,
+          )
+          .map((chainName) => this.multiProvider.getDomainId(chainName));
+  }
+
   async deriveIgpConfig(address: Address): Promise<WithAddress<IgpHookConfig>> {
     const hook = InterchainGasPaymaster__factory.connect(
       address,
@@ -243,13 +260,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     let oracleKey: string | undefined;
 
-    const domainIds = this.messageContext
-      ? [this.messageContext.parsed.destination]
-      : this.multiProvider.getKnownDomainIds();
-
     const allKeys = await concurrentMap(
       this.concurrency,
-      domainIds,
+      this.possibleDomainIds(),
       async (domainId) => {
         const { name: chainName, nativeToken } =
           this.multiProvider.getChainMetadata(domainId);
@@ -441,26 +454,26 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   private async fetchDomainHooks(
     hook: DomainRoutingHook | FallbackDomainRoutingHook,
   ): Promise<RoutingHookConfig['domains']> {
-    const domainIds = this.messageContext
-      ? [this.messageContext.parsed.destination]
-      : this.multiProvider.getKnownDomainIds();
-
     const domainHooks: RoutingHookConfig['domains'] = {};
-    await concurrentMap(this.concurrency, domainIds, async (domainId) => {
-      const chainName = this.multiProvider.getChainName(domainId);
-      try {
-        const domainHook = await hook.hooks(domainId);
-        if (domainHook !== ethers.constants.AddressZero) {
-          domainHooks[chainName] = await this.deriveHookConfig(domainHook);
+    await concurrentMap(
+      this.concurrency,
+      this.possibleDomainIds(),
+      async (domainId) => {
+        const chainName = this.multiProvider.getChainName(domainId);
+        try {
+          const domainHook = await hook.hooks(domainId);
+          if (domainHook !== ethers.constants.AddressZero) {
+            domainHooks[chainName] = await this.deriveHookConfig(domainHook);
+          }
+        } catch {
+          this.logger.debug(
+            `Domain not configured on ${hook.constructor.name}`,
+            domainId,
+            chainName,
+          );
         }
-      } catch {
-        this.logger.debug(
-          `Domain not configured on ${hook.constructor.name}`,
-          domainId,
-          chainName,
-        );
-      }
-    });
+      },
+    );
 
     return domainHooks;
   }

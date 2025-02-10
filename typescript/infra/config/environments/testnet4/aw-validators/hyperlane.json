@@ -106,6 +106,9 @@
   "suavetoliman": {
     "validators": ["0xf58f6e30aabba34e8dd7f79b3168507192e2cc9b"]
   },
+  "subtensortestnet": {
+    "validators": ["0xbe2cd57e9fd46b12107cfec7a2db61aa23edbe33"]
+  },
   "superpositiontestnet": {
     "validators": ["0x1d3168504b23b73cdf9c27f13bb0a595d7f1a96a"]
   },
