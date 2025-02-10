@@ -160,6 +160,14 @@ function randomHookConfig(
         paused: false,
       };
 
+    case HookType.AMOUNT_ROUTING:
+      return {
+        type: hookType,
+        threshold: Math.floor(Math.random() * 100),
+        lowerHook: randomHookConfig(depth + 1, maxDepth),
+        upperHook: randomHookConfig(depth + 1, maxDepth),
+      };
+
     default:
       throw new Error(`Unsupported Hook type: ${hookType}`);
   }

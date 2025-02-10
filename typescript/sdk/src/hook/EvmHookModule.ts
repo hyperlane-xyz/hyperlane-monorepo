@@ -2,6 +2,7 @@ import { getArbitrumNetwork } from '@arbitrum/sdk';
 import { BigNumber, ethers } from 'ethers';
 
 import {
+  AmountRoutingHook,
   ArbL2ToL1Hook,
   ArbL2ToL1Ism__factory,
   DomainRoutingHook,
@@ -58,6 +59,7 @@ import { EvmHookReader } from './EvmHookReader.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
+  AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
@@ -654,6 +656,9 @@ export class EvmHookModule extends HyperlaneModule<
       case HookType.PAUSABLE: {
         return this.deployPausableHook({ config });
       }
+      case HookType.AMOUNT_ROUTING: {
+        return this.deployAmountRoutingHook({ config });
+      }
       default:
         throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -1029,6 +1034,29 @@ export class EvmHookModule extends HyperlaneModule<
     );
 
     return igp;
+  }
+
+  protected async deployAmountRoutingHook({
+    config,
+  }: {
+    config: AmountRoutingHookConfig;
+  }): Promise<AmountRoutingHook> {
+    const hooks = [];
+    for (const hookConfig of [config.lowerHook, config.upperHook]) {
+      const { address } = await this.deploy({ config: hookConfig });
+      hooks.push(address);
+    }
+
+    const [lowerHook, upperHook] = hooks;
+
+    // deploy routing hook
+    const routingHook = await this.deployer.deployContract(
+      this.chain,
+      HookType.AMOUNT_ROUTING,
+      [lowerHook, upperHook, config.threshold],
+    );
+
+    return routingHook;
   }
 
   protected async deployStorageGasOracle({

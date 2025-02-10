@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  AmountRoutingHook,
   DomainRoutingHook,
   FallbackDomainRoutingHook,
   IL1CrossDomainMessenger__factory,
@@ -30,6 +31,7 @@ import { ChainMap, ChainName } from '../types.js';
 import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
+  AmountRoutingHookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
   HookConfig,
@@ -107,6 +109,8 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
       await this.transferOwnershipOfContracts(chain, config, {
         [HookType.PAUSABLE]: hook,
       });
+    } else if (config.type === HookType.AMOUNT_ROUTING) {
+      hook = await this.deployAmountRoutingHook(chain, config);
     } else {
       throw new Error(`Unsupported hook config: ${config}`);
     }
@@ -373,6 +377,37 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
     await this.transferOwnershipOfContracts(chain, config, {
       [config.type]: routingHook,
     });
+
+    return routingHook;
+  }
+
+  protected async deployAmountRoutingHook(
+    chain: ChainName,
+    config: AmountRoutingHookConfig,
+  ): Promise<AmountRoutingHook> {
+    const hooks = [];
+    for (const hookConfig of [config.lowerHook, config.upperHook]) {
+      if (typeof hookConfig === 'string') {
+        hooks.push(hookConfig);
+        continue;
+      }
+
+      const contracts = await this.deployContracts(
+        chain,
+        hookConfig.type,
+        this.core[chain],
+      );
+      hooks.push(contracts[hookConfig.type].address);
+    }
+
+    const [lowerHook, upperHook] = hooks;
+
+    // deploy routing hook
+    const routingHook = await this.deployContract(
+      chain,
+      HookType.AMOUNT_ROUTING,
+      [lowerHook, upperHook, config.threshold],
+    );
 
     return routingHook;
   }

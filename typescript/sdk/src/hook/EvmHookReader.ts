@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import {
+  AmountRoutingHook__factory,
   ArbL2ToL1Hook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
@@ -33,6 +34,7 @@ import { HyperlaneReader } from '../utils/HyperlaneReader.js';
 
 import {
   AggregationHookConfig,
+  AmountRoutingHookConfig,
   ArbL2ToL1HookConfig,
   DomainRoutingHookConfig,
   FallbackRoutingHookConfig,
@@ -158,6 +160,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
           break;
         case OnchainHookType.ARB_L2_TO_L1:
           derivedHookConfig = await this.deriveArbL2ToL1Config(address);
+          break;
+        case OnchainHookType.AMOUNT_ROUTING:
+          derivedHookConfig = await this.deriveAmountRoutingHookConfig(address);
           break;
         default:
           throw new Error(
@@ -478,6 +483,31 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       paused,
       type: HookType.PAUSABLE,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
+  }
+
+  private async deriveAmountRoutingHookConfig(
+    address: Address,
+  ): Promise<WithAddress<AmountRoutingHookConfig>> {
+    const hook = AmountRoutingHook__factory.connect(address, this.provider);
+    this.assertHookType(await hook.hookType(), OnchainHookType.AMOUNT_ROUTING);
+
+    const [threshold, lowerHook, upperHook] = await Promise.all([
+      hook.threshold(),
+      hook.lower(),
+      hook.upper(),
+    ]);
+
+    const config: WithAddress<AmountRoutingHookConfig> = {
+      address,
+      type: HookType.AMOUNT_ROUTING,
+      threshold: threshold.toNumber(),
+      lowerHook: await this.deriveHookConfig(lowerHook),
+      upperHook: await this.deriveHookConfig(upperHook),
     };
 
     this._cache.set(address, config);
