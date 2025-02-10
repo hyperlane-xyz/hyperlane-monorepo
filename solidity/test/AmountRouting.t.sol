@@ -50,7 +50,7 @@ contract AmountRoutingTest is Test {
         );
     }
 
-    function testWarp(
+    function test_warp(
         uint32 localDomain,
         uint32 remoteDomain,
         uint256 amount
@@ -117,7 +117,36 @@ contract AmountRoutingTest is Test {
         );
     }
 
-    function testRoute(
+    function test_quoteDispatch(
+        bytes32 recipient,
+        uint256 amount,
+        uint256 fee,
+        bytes calldata data
+    ) public {
+        bytes memory headers = Message.formatMessage(
+            uint8(0),
+            uint32(0),
+            uint32(0),
+            bytes32(0),
+            uint32(0),
+            bytes32(0),
+            bytes(data[0:0])
+        );
+
+        bytes memory body = TokenMessage.format(recipient, amount, data[0:0]);
+        bytes memory message = abi.encodePacked(headers, body);
+
+        upperHook.setFee(fee);
+
+        uint256 quote = hook.quoteDispatch(bytes(""), message);
+        if (amount >= threshold) {
+            assertEq(quote, fee);
+        } else {
+            assertEq(quote, 0);
+        }
+    }
+
+    function test_route(
         bytes32 recipient,
         uint256 amount,
         bytes calldata data
