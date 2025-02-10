@@ -58,7 +58,7 @@ describe('hyperlane warp read e2e tests', async function () {
   });
 
   describe('hyperlane warp read --key ... --config ...', () => {
-    it('should exit early if no symbol, chain or warp file have been provided', async () => {
+    it('should require both warp core & warp deploy config paths to be provided together', async () => {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
       const output = await hyperlaneWarpReadRaw({
@@ -68,7 +68,7 @@ describe('hyperlane warp read e2e tests', async function () {
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.include(
-        'Please specify either a symbol, chain and address or warp file',
+        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
       );
     });
   });
@@ -78,6 +78,11 @@ describe('hyperlane warp read e2e tests', async function () {
       await hyperlaneWarpDeploy(WARP_CONFIG_PATH_2);
 
       const steps: TestPromptAction[] = [
+        {
+          check: (currentOutput) =>
+            currentOutput.includes('Select from matching warp routes'),
+          input: `${KeyBoardKeys.ARROW_DOWN}${KeyBoardKeys.ENTER}`,
+        },
         {
           check: (currentOutput) =>
             currentOutput.includes('Please enter the private key for chain'),
