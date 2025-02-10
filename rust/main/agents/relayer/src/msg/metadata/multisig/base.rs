@@ -137,7 +137,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .context(CTX)?
         {
             debug!(hyp_message=?message, ?metadata.checkpoint, "Found checkpoint with quorum");
-            Ok(Metadata::Ok(self.format_metadata(metadata)?))
+            Ok(Metadata::Found(self.format_metadata(metadata)?))
         } else {
             info!(
                 hyp_message=?message, ?validators, threshold, ism=%multisig_ism.address(),

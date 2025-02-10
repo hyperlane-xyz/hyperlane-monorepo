@@ -232,11 +232,10 @@ mod test {
         }
 
         // Initialize a new checkpoint syncer and expect it to panic due to the reorg event.
-        // `AssertUnwindSafe` is required for ignoring some type checks so the panic can be caught.
         let result = checkpoint_syncer_conf.build_and_validate(None).await;
         match result {
             Err(CheckpointSyncerBuildError::ReorgEvent(e)) => {
-                assert_eq!(e, dummy_reorg_event);
+                assert_eq!(e, dummy_reorg_event, "Reported reorg event doesn't match");
             }
             _ => panic!("Expected a reorg event error"),
         }

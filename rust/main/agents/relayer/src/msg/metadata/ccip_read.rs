@@ -81,7 +81,7 @@ impl MetadataBuilder for CcipReadIsmMetadataBuilder {
                 Ok(result) => {
                     // remove leading 0x which hex_decode doesn't like
                     let metadata = hex_decode(&result.data[2..])?;
-                    return Ok(Metadata::Ok(metadata));
+                    return Ok(Metadata::Found(metadata));
                 }
                 Err(_err) => {
                     // try the next URL

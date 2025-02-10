@@ -275,7 +275,7 @@ impl PendingOperation for PendingMessage {
         };
 
         let metadata_bytes = match metadata {
-            Metadata::Ok(metadata_bytes) => {
+            Metadata::Found(metadata_bytes) => {
                 self.metadata = Some(metadata_bytes.clone());
                 metadata_bytes
             }

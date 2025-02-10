@@ -462,8 +462,10 @@ fn main() -> ExitCode {
         return report_test_result(test_passed);
     }
 
-    // Kill validator 1 and simulate a reorg, which we'll later use
+    // Simulate a reorg, which we'll later use
     // to ensure the relayer handles reorgs correctly.
+    // Kill validator 1 to make sure it doesn't crash by detecting it posted a reorg,
+    // causing e2e to also fail.
     stop_validator(&mut state, 1);
     set_validator_reorg_flag(&checkpoints_dirs, 1);
 
@@ -617,7 +619,7 @@ fn restart_relayer(config: &Config, state: &mut State, rocks_db_dir: &TempDir) {
 }
 
 fn relayer_reorg_handling_invariants_met() -> eyre::Result<bool> {
-    let lengths = fetch_metric(
+    let refused_messages = fetch_metric(
         RELAYER_METRICS_PORT,
         "hyperlane_submitter_queue_length",
         &HashMap::from([(
@@ -627,7 +629,7 @@ fn relayer_reorg_handling_invariants_met() -> eyre::Result<bool> {
                 .as_str(),
         )]),
     )?;
-    if lengths.iter().sum::<u32>() == 0 {
+    if refused_messages.iter().sum::<u32>() == 0 {
         log!("Relayer still doesn't have any MessageMetadataRefused messages in the queue.");
         return Ok(false);
     };

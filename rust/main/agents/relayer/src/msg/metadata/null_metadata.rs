@@ -17,6 +17,6 @@ impl MetadataBuilder for NullMetadataBuilder {
         _ism_address: H256,
         _message: &HyperlaneMessage,
     ) -> eyre::Result<Metadata> {
-        Ok(Metadata::Ok(vec![]))
+        Ok(Metadata::Found(vec![]))
     }
 }

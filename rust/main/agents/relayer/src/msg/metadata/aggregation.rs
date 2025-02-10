@@ -133,16 +133,14 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         .await;
 
         // If any inner ISMs are refusing to build metadata, we propagate just the first refusal.
-        if let Some(first_refusal) = sub_modules_and_metas
-            .iter()
-            .find_map(|result| match result {
-                Ok(sub_module_and_meta) => match &sub_module_and_meta.metadata {
+        if let Some(first_refusal) = sub_modules_and_metas.iter().find_map(|result| {
+            result.as_ref().ok().and_then(|sub_module_and_meta| {
+                match &sub_module_and_meta.metadata {
                     Metadata::Refused(reason) => Some(Metadata::Refused(reason.clone())),
                     _ => None,
-                },
-                Err(_) => None,
+                }
             })
-        {
+        }) {
             return Ok(first_refusal);
         }
 
@@ -155,7 +153,7 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
             .enumerate()
             .partition_map(|(index, (result, ism_address))| match result {
                 Ok(sub_module_and_meta) => match sub_module_and_meta.metadata {
-                    Metadata::Ok(metadata) => Either::Left(IsmAndMetadata::new(
+                    Metadata::Found(metadata) => Either::Left(IsmAndMetadata::new(
                         sub_module_and_meta.ism,
                         index,
                         metadata,
@@ -167,12 +165,9 @@ impl MetadataBuilder for AggregationIsmMetadataBuilder {
         let maybe_aggregation_metadata =
             Self::cheapest_valid_metas(ok_sub_modules, message, threshold, err_sub_modules)
                 .await
-                .map_or_else(
-                    || Metadata::CouldNotFetch,
-                    |mut metas| {
-                        Metadata::Ok(Self::format_metadata(&mut metas, ism_addresses.len()))
-                    },
-                );
+                .map_or(Metadata::CouldNotFetch, |mut metas| {
+                    Metadata::Found(Self::format_metadata(&mut metas, ism_addresses.len()))
+                });
         Ok(maybe_aggregation_metadata)
     }
 }

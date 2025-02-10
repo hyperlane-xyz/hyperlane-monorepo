@@ -50,7 +50,7 @@ pub enum MetadataBuilderError {
 #[derive(Clone, Debug)]
 pub enum Metadata {
     /// Able to fetch metadata
-    Ok(Vec<u8>),
+    Found(Vec<u8>),
     /// Unable to fetch metadata, but no error occurred
     CouldNotFetch,
     /// While building metadata, encountered something that should
