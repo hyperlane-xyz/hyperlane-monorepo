@@ -97,7 +97,7 @@ export async function getWarpConfigs({
   }
 
   if (warpRouteId) {
-    return await getWarpConfigFromRegistry(warpRouteId, context);
+    return getWarpConfigFromRegistry(warpRouteId, context);
   }
 
   // No inputs provided, prompt user to select from all routes
