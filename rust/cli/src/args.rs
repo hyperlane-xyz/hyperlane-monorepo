@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use url::Url;
 
-/// Simple program to greet a person
+/// Simple hyperlane message sender and log checker
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {

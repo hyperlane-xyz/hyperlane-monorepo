@@ -416,9 +416,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "ethers",
- "ethers-core",
- "futures-util",
- "serde_json",
  "tokio",
  "url",
 ]

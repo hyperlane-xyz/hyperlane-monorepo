@@ -5,7 +5,6 @@ use clap::Parser;
 use ethers::providers::{Http, Provider};
 use ethers::types::H256;
 use ethers::{abi::Address, contract::abigen, middleware::Middleware};
-use serde_json::json;
 use url::Url;
 
 use crate::args::{Args, Op};
@@ -31,10 +30,12 @@ async fn main() {
                 .expect("Mailbox address to be valid");
 
             let mailbox = Mailbox::new(mailbox_addr, origin_rc.clone());
-
+            println!("Fetching logs\n");
             let logs = check_logs(mailbox).await;
 
-            println!("{:#?}", logs);
+            for log in logs {
+                println!("{}", log);
+            }
         }
         Op::Send {
             mailbox_addr,
@@ -103,7 +104,7 @@ async fn send_hyperlane_msg<T: Middleware>(
 }
 
 // get json network logs with `DispatchFilter` as the filter from block 0
-async fn check_logs<T: Middleware>(contract: Mailbox<T>) -> serde_json::Value {
+async fn check_logs<T: Middleware>(contract: Mailbox<T>) -> Vec<String> {
     let vec = contract
         .event::<DispatchFilter>()
         .from_block(0)
@@ -111,22 +112,21 @@ async fn check_logs<T: Middleware>(contract: Mailbox<T>) -> serde_json::Value {
         .await
         .expect("Fetching logs should succeed");
 
-    let mut json = Vec::new();
+    let mut structured_log = Vec::new();
 
     for filter in vec {
         let message_str = String::from_utf8_lossy(filter.message.iter().as_slice());
+        let address = H256::from_slice(&filter.recipient);
 
-        let item = json!({
-            "recipient_address": filter.recipient,
-            "sender_address": filter.sender,
-            "destination": filter.destination,
-            "message": message_str
-        });
+        let log = format!(
+            "\x1b[93m[HYPERLANE-MSG]\x1b[0m recipient_address: {:?}, Found sender_address: {}, destination: {}, message: {}\n",
+            address, filter.sender, filter.destination, message_str
+        );
 
-        json.push(item);
+        structured_log.push(log);
     }
 
-    serde_json::Value::Array(json)
+    structured_log
 }
 
 // get providers given origin and destination url
