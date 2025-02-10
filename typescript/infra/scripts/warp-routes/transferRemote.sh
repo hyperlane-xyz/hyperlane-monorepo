@@ -53,22 +53,6 @@ safes=(
   "0xa7eccdb9be08178f896c26b7bbd8c3d4e844d9ba"
   "0xf013c8Be28421b050cca5bD95cc57Af49568e8be"
 )
-
-# 'arbitrum',
-# 'optimism',
-# 'base',
-# 'blast',
-# 'bsc',
-# 'mode',
-# 'linea',
-# 'ethereum',
-# 'fraxtal',
-# 'zircuit',
-# 'taiko',
-# 'sei',
-# 'swell',
-# 'unichain',
-# 'berachain',
 rpcs=($(rpc mainnet3 arbitrum) \
       $(rpc mainnet3 optimism) \
       $(rpc mainnet3 base) \
