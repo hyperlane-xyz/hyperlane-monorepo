@@ -36,11 +36,7 @@ export async function runWarpRouteRead({
   let addresses: ChainMap<string>;
   let warpCoreConfig = context.warpCoreConfig;
 
-  if (warpCoreConfig) {
-    addresses = Object.fromEntries(
-      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
-    );
-  } else if (symbol || warp) {
+  if (symbol || warp) {
     warpCoreConfig = await getWarpCoreConfigOrExit({
       context,
       warp,
@@ -51,6 +47,10 @@ export async function runWarpRouteRead({
     );
   } else if (chain && address) {
     addresses = { [chain]: address };
+  } else if (warpCoreConfig) {
+    addresses = Object.fromEntries(
+      warpCoreConfig.tokens.map((t) => [t.chainName, t.addressOrDenom!]),
+    );
   } else {
     logRed(`Please specify either a symbol, chain and address or warp file`);
     process.exit(1);

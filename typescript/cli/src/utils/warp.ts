@@ -66,25 +66,6 @@ export async function getWarpConfigs({
   warpDeployConfig: WarpRouteDeployConfig;
   warpCoreConfig: WarpCoreConfig;
 }> {
-  if (warpRouteId) {
-    const configs = await getWarpConfigFromRegistry(warpRouteId, context);
-    return {
-      warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
-      warpCoreConfig: configs.coreConfig,
-    };
-  }
-
-  if (config || warp) {
-    if (!config || !warp) {
-      throw new Error(
-        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
-      );
-    }
-    const warpDeployConfig = await readWarpRouteDeployConfig(config);
-    const warpCoreConfig = readWarpCoreConfig(warp);
-    return { warpDeployConfig, warpCoreConfig };
-  }
-
   if (symbol) {
     const warpCoreConfig = await selectRegistryWarpRoute(
       context.registry,
@@ -104,6 +85,27 @@ export async function getWarpConfigs({
       warpCoreConfig,
     };
   }
+
+  if (config || warp) {
+    if (!config || !warp) {
+      throw new Error(
+        'Both --config/-i and --warp/-wc must be provided together when using individual file paths',
+      );
+    }
+    const warpDeployConfig = await readWarpRouteDeployConfig(config);
+    const warpCoreConfig = readWarpCoreConfig(warp);
+    return { warpDeployConfig, warpCoreConfig };
+  }
+
+  if (warpRouteId) {
+    const configs = await getWarpConfigFromRegistry(warpRouteId, context);
+    return {
+      warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
+      warpCoreConfig: configs.coreConfig,
+    };
+  }
+
+  // No inputs provided, prompt user to select from all routes
 
   const routeIds = await getWarpRouteIds(context);
   if (routeIds.length === 0) {
