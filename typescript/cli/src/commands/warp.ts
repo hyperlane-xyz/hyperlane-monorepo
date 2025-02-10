@@ -366,20 +366,16 @@ export const check: CommandModuleWithContext<{
     let { warpDeployConfig, warpCoreConfig } = context;
 
     if (!warpDeployConfig || !warpCoreConfig) {
-      try {
-        const configs = await getWarpConfigs({
-          context,
-          warpRouteId,
-          config,
-          warp,
-          symbol,
-        });
-        warpDeployConfig = configs.warpDeployConfig;
-        warpCoreConfig = configs.warpCoreConfig;
-      } catch (error: any) {
-        logRed(error.message);
-        process.exit(1);
-      }
+      const configs = await getWarpConfigs({
+        context,
+        warpRouteId,
+        config,
+        warp,
+        symbol,
+      });
+      assert(configs.warpDeployConfig, `No warp deploy config found!`);
+      warpDeployConfig = configs.warpDeployConfig;
+      warpCoreConfig = configs.warpCoreConfig;
     }
     // First validate that warpCoreConfig chains match warpDeployConfig
     const deployConfigChains = Object.keys(warpDeployConfig);

@@ -82,16 +82,16 @@ export class MultiChainResolver implements ChainResolver {
     }
 
     try {
-      const configs = await getWarpConfigs({
+      const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
         context: argv.context,
         warpRouteId: argv.warpRouteId,
         config: argv.config,
         warp: argv.warp,
         symbol: argv.symbol,
       });
-      argv.context.warpCoreConfig = configs.warpCoreConfig;
-      argv.context.warpDeployConfig = configs.warpDeployConfig;
-      return extractChainsFromObj(configs.warpCoreConfig);
+      argv.context.warpCoreConfig = warpCoreConfig;
+      argv.context.warpDeployConfig = warpDeployConfig;
+      return extractChainsFromObj(warpCoreConfig);
     } catch (error: any) {
       throw new Error(
         `Failed to resolve warp core/deploy configs: ${error.message}`,

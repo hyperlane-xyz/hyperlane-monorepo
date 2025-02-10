@@ -10,6 +10,7 @@ import { CommandContext } from '../context/types.js';
 import { logRed } from '../logger.js';
 import {
   getWarpConfigFromRegistry,
+  getWarpDeployConfig,
   getWarpRouteIds,
 } from '../warp/registry.js';
 
@@ -63,7 +64,7 @@ export async function getWarpConfigs({
   warp?: string;
   symbol?: string;
 }): Promise<{
-  warpDeployConfig: WarpRouteDeployConfig;
+  warpDeployConfig: WarpRouteDeployConfig | null;
   warpCoreConfig: WarpCoreConfig;
 }> {
   if (symbol) {
@@ -79,11 +80,9 @@ export async function getWarpConfigs({
     if (!matchingId) {
       throw new Error(`No matching warp route ID found for symbol ${symbol}`);
     }
-    const configs = await getWarpConfigFromRegistry(matchingId, context);
-    return {
-      warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
-      warpCoreConfig,
-    };
+
+    const warpDeployConfig = await getWarpDeployConfig(matchingId, context);
+    return { warpDeployConfig, warpCoreConfig };
   }
 
   if (config || warp) {
@@ -98,11 +97,7 @@ export async function getWarpConfigs({
   }
 
   if (warpRouteId) {
-    const configs = await getWarpConfigFromRegistry(warpRouteId, context);
-    return {
-      warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
-      warpCoreConfig: configs.coreConfig,
-    };
+    return await getWarpConfigFromRegistry(warpRouteId, context);
   }
 
   // No inputs provided, prompt user to select from all routes
@@ -122,9 +117,5 @@ export async function getWarpConfigs({
     pageSize: 20,
   })) as string;
 
-  const configs = await getWarpConfigFromRegistry(selectedId, context);
-  return {
-    warpDeployConfig: configs.deployConfig as WarpRouteDeployConfig,
-    warpCoreConfig: configs.coreConfig,
-  };
+  return getWarpConfigFromRegistry(selectedId, context);
 }

@@ -15,28 +15,42 @@ export async function getWarpRouteIds(
 }
 
 /**
- * Get both deploy and core configs for a warp route from the registry
+ * Get warp deploy config for a warp route from the registry
+ */
+export async function getWarpDeployConfig(
+  routeId: string,
+  context: CommandContext,
+): Promise<WarpRouteDeployConfig | null> {
+  const { registry } = context;
+  return registry.getWarpDeployConfig(routeId);
+}
+
+/**
+ * Get warp core config for a warp route from the registry
+ */
+export async function getWarpCoreConfig(
+  routeId: string,
+  context: CommandContext,
+): Promise<WarpCoreConfig> {
+  const { registry } = context;
+  const routes = await registry.getWarpRoutes();
+  const warpCoreConfig = routes[routeId];
+  assert(warpCoreConfig, `No warp config found for warp route ${routeId}.`);
+  return warpCoreConfig;
+}
+
+/**
+ * Get both warp core and warp deploy configs for a warp route from the registry
  */
 export async function getWarpConfigFromRegistry(
   routeId: string,
   context: CommandContext,
 ): Promise<{
-  deployConfig: WarpRouteDeployConfig;
-  coreConfig: WarpCoreConfig;
+  warpDeployConfig: WarpRouteDeployConfig | null;
+  warpCoreConfig: WarpCoreConfig;
 }> {
-  const { registry } = context;
-
-  // Get deploy config first
-  const deployConfig = await registry.getWarpDeployConfig(routeId);
-  assert(deployConfig, `No deploy config found for warp route ${routeId}`);
-
-  // Get core config from warp routes map
-  const routes = await registry.getWarpRoutes();
-  const coreConfig = routes[routeId];
-  assert(coreConfig, `No core config found for warp route ${routeId}.`);
-
   return {
-    deployConfig,
-    coreConfig,
+    warpDeployConfig: await getWarpDeployConfig(routeId, context),
+    warpCoreConfig: await getWarpCoreConfig(routeId, context),
   };
 }
