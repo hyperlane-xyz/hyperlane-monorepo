@@ -529,12 +529,7 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
-  await extendWarpRoute(
-    params,
-    apiKeys,
-    warpDeployConfig,
-    warpCoreConfigByChain,
-  );
+  await extendWarpRoute(params, apiKeys, warpCoreConfigByChain);
 
   // Then create and submit update transactions
   const transactions: AnnotatedEV5Transaction[] = await updateExistingWarpRoute(
@@ -546,17 +541,15 @@ export async function runWarpRouteApply(
 
   if (transactions.length == 0)
     return logGreen(`Warp config is the same as target. No updates needed.`);
-
   await submitWarpApplyTransactions(params, groupBy(transactions, 'chainId'));
 }
 
-async function extendWarpRoute(
+export async function extendWarpRoute(
   params: WarpApplyParams,
   apiKeys: ChainMap<string>,
-  warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
 ) {
-  const { context } = params;
+  const { context, warpDeployConfig } = params;
   const warpCoreChains = Object.keys(warpCoreConfigByChain);
 
   // Split between the existing and additional config

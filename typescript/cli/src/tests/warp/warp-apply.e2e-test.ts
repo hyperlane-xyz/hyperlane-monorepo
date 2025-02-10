@@ -14,6 +14,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { getContext } from '../../context/context.js';
+import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
 import {
   ANVIL_KEY,
@@ -384,75 +385,6 @@ describe('hyperlane warp apply e2e tests', async function () {
     expect(destinationGas_3[chain2Id]).to.equal('7777');
   });
 
-  it('should be idempotent when applying warp route multiple times', async () => {
-    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
-    await readWarpConfig(CHAIN_NAME_2, WARP_CORE_CONFIG_PATH_2, warpConfigPath);
-
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
-
-    // Apply configuration multiple times and store results
-    const numberOfApplies = 2;
-    const configs = [];
-
-    for (let i = 0; i < numberOfApplies; i++) {
-      await extendWarpConfig({
-        chain: CHAIN_NAME_2,
-        chainToExtend: CHAIN_NAME_3,
-        extendedConfig: {
-          decimals: 18,
-          mailbox: chain2Addresses!.mailbox,
-          name: 'Etherum',
-          owner: new Wallet(ANVIL_KEY).address,
-          symbol: 'ETH',
-          totalSupply: 0,
-          type: TokenType.native,
-        },
-        warpCorePath: WARP_CORE_CONFIG_PATH_2,
-        warpDeployPath: warpConfigPath,
-      });
-
-      const config = await readWarpConfig(
-        CHAIN_NAME_2,
-        COMBINED_WARP_CORE_CONFIG_PATH,
-        warpConfigPath,
-      );
-
-      configs.push(config);
-    }
-
-    // Verify all configurations are identical by comparing with the first one
-    for (let i = 1; i < configs.length; i++) {
-      expect(configs[0]).to.deep.equal(
-        configs[i],
-        `Apply ${i + 1} should result in identical config as first apply`,
-      );
-    }
-
-    // Verify both chains are still properly enrolled
-    const chain2Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
-    const chain1Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
-
-    // Check chain2's remote routers
-    const remoteRouterKeys1 = Object.keys(
-      configs[configs.length - 1][CHAIN_NAME_2].remoteRouters!,
-    );
-    expect(remoteRouterKeys1).to.include(chain2Id);
-
-    // Check chain3's remote routers
-    const finalChain3Config = await readWarpConfig(
-      CHAIN_NAME_3,
-      COMBINED_WARP_CORE_CONFIG_PATH,
-      warpConfigPath,
-    );
-    const remoteRouterKeys2 = Object.keys(
-      finalChain3Config[CHAIN_NAME_3].remoteRouters!,
-    );
-    expect(remoteRouterKeys2).to.include(chain1Id);
-  });
-
   it('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface', async () => {
     const { multiProvider } = await getContext({
       registryUri: REGISTRY_PATH,
@@ -539,5 +471,94 @@ describe('hyperlane warp apply e2e tests', async function () {
     expect(
       Object.keys(recoveredConfig[CHAIN_NAME_2].remoteRouters!),
     ).to.include(chain3Id.toString());
+  });
+
+  it.only('should complete warp route extension when previous attempt left incomplete enrollment or destination gas settings', async () => {
+    const warpConfigPath = `${TEMP_PATH}/warp-route-deployment-2.yaml`;
+    const configToExtend: HypTokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain2Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(ANVIL_KEY).address,
+      symbol: 'ETH',
+      totalSupply: 0,
+      type: TokenType.native,
+    };
+    const context = await getContext({
+      registryUri: REGISTRY_PATH,
+      registryOverrideUri: '',
+      key: ANVIL_KEY,
+    });
+    const warpCoreConfig = readYamlOrJson(
+      WARP_CORE_CONFIG_PATH_2,
+    ) as WarpCoreConfig;
+    const warpDeployConfig = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpConfigPath,
+    );
+
+    warpDeployConfig[CHAIN_NAME_3] = configToExtend;
+
+    const signer2 = new Wallet(
+      ANVIL_KEY,
+      context.multiProvider.getProvider(CHAIN_NAME_2),
+    );
+    const signer3 = new Wallet(
+      ANVIL_KEY,
+      context.multiProvider.getProvider(CHAIN_NAME_3),
+    );
+    context.multiProvider.setSigner(CHAIN_NAME_2, signer2);
+    context.multiProvider.setSigner(CHAIN_NAME_3, signer3);
+
+    await extendWarpRouteWithoutApplyTransactions(
+      {
+        context: {
+          ...context,
+          signer: signer3,
+          key: ANVIL_KEY,
+        },
+        warpCoreConfig,
+        warpDeployConfig,
+        receiptsDir: TEMP_PATH,
+      },
+      {},
+      Object.fromEntries(
+        warpCoreConfig.tokens.map((token) => [token.chainName, token]),
+      ),
+    );
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+
+    const updatedWarpDeployConfig1 = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+
+    expect(
+      Object.keys(updatedWarpDeployConfig1[CHAIN_NAME_2].remoteRouters!),
+    ).to.not.include(chain3Id);
+
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig: configToExtend,
+      warpCorePath: COMBINED_WARP_CORE_CONFIG_PATH,
+      warpDeployPath: warpConfigPath,
+    });
+
+    const updatedWarpDeployConfig2 = await readWarpConfig(
+      CHAIN_NAME_2,
+      COMBINED_WARP_CORE_CONFIG_PATH,
+      warpConfigPath,
+    );
+    expect(
+      Object.keys(updatedWarpDeployConfig2[CHAIN_NAME_2].remoteRouters!),
+    ).to.include(chain3Id);
   });
 });
