@@ -25,7 +25,7 @@ use tracing::{debug, error, info, info_span, instrument, trace, warn, Instrument
 
 use super::{
     gas_payment::{GasPaymentEnforcer, GasPolicyStatus},
-    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, MetadataBuilder},
+    metadata::{BaseMetadataBuilder, MessageMetadataBuilder, Metadata, MetadataBuilder},
 };
 
 pub const CONFIRM_DELAY: Duration = if cfg!(any(test, feature = "test-utils")) {
@@ -273,10 +273,20 @@ impl PendingOperation for PendingMessage {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
             }
         };
-        self.metadata = metadata.clone();
 
-        let Some(metadata) = metadata else {
-            return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
+        let metadata_bytes = match metadata {
+            Metadata::Found(metadata_bytes) => {
+                self.metadata = Some(metadata_bytes.clone());
+                metadata_bytes
+            }
+            Metadata::CouldNotFetch => {
+                return self.on_reprepare::<String>(None, ReprepareReason::CouldNotFetchMetadata);
+            }
+            // If the metadata building is refused, we still allow it to be retried later.
+            Metadata::Refused(reason) => {
+                warn!(?reason, "Metadata building refused");
+                return self.on_reprepare::<String>(None, ReprepareReason::MessageMetadataRefused);
+            }
         };
 
         // Estimate transaction costs for the process call. If there are issues, it's
@@ -286,7 +296,7 @@ impl PendingOperation for PendingMessage {
         let tx_cost_estimate = match self
             .ctx
             .destination_mailbox
-            .process_estimate_costs(&self.message, &metadata)
+            .process_estimate_costs(&self.message, &metadata_bytes)
             .await
         {
             Ok(tx_cost_estimate) => tx_cost_estimate,
@@ -334,7 +344,7 @@ impl PendingOperation for PendingMessage {
         }
 
         self.submission_data = Some(Box::new(MessageSubmissionData {
-            metadata,
+            metadata: metadata_bytes,
             gas_limit,
         }));
         PendingOperationResult::Success
@@ -657,10 +667,10 @@ impl PendingMessage {
                 let hour: u64 = 60 * 60;
                 // To be extra safe, `max` to make sure it's at least 1 hour.
                 let target = hour.max((num_retries - 47) as u64 * hour);
-                // Schedule it at some random point in the next hour to
+                // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
-                // at the exact same time.
-                target + (rand::random::<u64>() % hour)
+                // at the exact same time and starve new messages.
+                target + (rand::random::<u64>() % (6 * hour))
             }
         }))
     }

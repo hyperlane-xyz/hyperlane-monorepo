@@ -146,7 +146,7 @@ mod tests {
         if let Ok(req) = retry_request_receiver.recv().await {
             for (op, (evaluated, matched)) in pending_operations.iter().zip(metrics) {
                 // Check that the list received by the server matches the pending operation
-                assert!(req.pattern.op_matches(&op));
+                assert!(req.pattern.op_matches(op));
                 let resp = MessageRetryQueueResponse { evaluated, matched };
                 req.transmitter.send(resp).await.unwrap();
             }
