@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use tracing::debug;
 
-use hyperlane_application::{ApplicationOperationVerifier, ApplicationOperationVerifierError};
+use hyperlane_application::{ApplicationOperationVerifier, ApplicationOperationVerifierReport};
 use hyperlane_core::{Decode, HyperlaneMessage, U256};
 use hyperlane_warp_route::TokenMessage;
 
@@ -24,8 +24,8 @@ impl ApplicationOperationVerifier for SealevelApplicationOperationVerifier {
         &self,
         app_context: &Option<String>,
         message: &HyperlaneMessage,
-    ) -> Result<(), ApplicationOperationVerifierError> {
-        use ApplicationOperationVerifierError::*;
+    ) -> Option<ApplicationOperationVerifierReport> {
+        use ApplicationOperationVerifierReport::{AmountBelowMinimum, MalformedMessage};
 
         debug!(
             ?app_context,
@@ -34,33 +34,37 @@ impl ApplicationOperationVerifier for SealevelApplicationOperationVerifier {
         );
 
         let context = match app_context {
-            None => return Ok(()),
             Some(c) => c,
+            None => return None,
         };
 
         if !context.starts_with(WARP_ROUTE_PREFIX) {
-            return Err(UnknownApplicationError(context.to_owned()));
+            return None;
         }
 
         // Starting from this point we assume that we are in a warp route context
 
         let mut reader = Cursor::new(message.body.as_slice());
-        let token_message = TokenMessage::read_from(&mut reader)
-            .map_err(|_| MalformedMessageError(message.clone()))?;
+        let token_message = match TokenMessage::read_from(&mut reader) {
+            Ok(m) => m,
+            Err(_) => return Some(MalformedMessage(message.clone())),
+        };
 
-        let minimum: U256 = self
+        let minimum: U256 = match self
             .provider
             .rpc()
             // We assume that account will contain no data
             .get_minimum_balance_for_rent_exemption(0)
             .await
-            .map_err(ChainCommunicationError)?
-            .into();
+        {
+            Ok(m) => m.into(),
+            Err(_) => return None,
+        };
 
         if token_message.amount() < minimum {
-            return Err(InsufficientAmountError);
+            return Some(AmountBelowMinimum(minimum, token_message.amount()));
         }
 
-        Ok(())
+        None
     }
 }

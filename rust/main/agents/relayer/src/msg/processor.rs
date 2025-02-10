@@ -395,7 +395,7 @@ mod test {
     };
     use tokio_metrics::TaskMonitor;
 
-    use hyperlane_application::{ApplicationOperationVerifier, ApplicationOperationVerifierError};
+    use hyperlane_application::{ApplicationOperationVerifier, ApplicationOperationVerifierReport};
     use hyperlane_base::{
         db::{
             test_utils, DbResult, HyperlaneRocksDB, InterchainGasExpenditureData,
@@ -428,8 +428,8 @@ mod test {
             &self,
             _app_context: &Option<String>,
             _message: &HyperlaneMessage,
-        ) -> std::result::Result<(), ApplicationOperationVerifierError> {
-            Ok(())
+        ) -> Option<ApplicationOperationVerifierReport> {
+            None
         }
     }
 

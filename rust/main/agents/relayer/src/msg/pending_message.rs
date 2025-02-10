@@ -686,7 +686,6 @@ impl PendingMessage {
     }
 
     async fn clarify_reason(&self, reason: ReprepareReason) -> ReprepareReason {
-        use hyperlane_application::ApplicationOperationVerifierError::*;
         use ReprepareReason::ApplicationOperationVerificationFailed;
 
         match self
@@ -695,13 +694,8 @@ impl PendingMessage {
             .verify(&self.app_context, &self.message)
             .await
         {
-            Ok(()) => reason,
-            Err(e) => match e {
-                InsufficientAmountError | MalformedMessageError(_) => {
-                    ApplicationOperationVerificationFailed
-                }
-                ChainCommunicationError(_) | UnknownApplicationError(_) => reason,
-            },
+            Some(_) => ApplicationOperationVerificationFailed,
+            None => reason,
         }
     }
 }

@@ -1,31 +1,25 @@
 use async_trait::async_trait;
 
-use hyperlane_core::{ChainCommunicationError, HyperlaneMessage};
+use hyperlane_core::{HyperlaneMessage, U256};
 
-/// Error which can be reported by verifier
-#[derive(Debug, thiserror::Error)]
-pub enum ApplicationOperationVerifierError {
+/// Application operation verifier report
+#[derive(Debug)]
+pub enum ApplicationOperationVerifierReport {
+    /// Amount below minimum (minimum, actual)
+    AmountBelowMinimum(U256, U256),
     /// Message is malformed
-    #[error("Malformed message: {0:?}")]
-    MalformedMessageError(HyperlaneMessage),
-    /// Chain communication error
-    #[error("Remote communication error: {0:?}")]
-    ChainCommunicationError(ChainCommunicationError),
-    /// Insufficient amount
-    #[error("Insufficient amount")]
-    InsufficientAmountError,
-    /// Unknown application
-    #[error("Unknown app context: {0:?}")]
-    UnknownApplicationError(String),
+    MalformedMessage(HyperlaneMessage),
+    /// Zero amount
+    ZeroAmount,
 }
 
-/// Trait to verify if operation is permitted for application context
+/// Trait to verify if operation is permitted for application
 #[async_trait]
 pub trait ApplicationOperationVerifier: Send + Sync {
-    /// Checks if message is permitted for application context
+    /// Verifies if message is permitted for application
     async fn verify(
         &self,
         app_context: &Option<String>,
         message: &HyperlaneMessage,
-    ) -> Result<(), ApplicationOperationVerifierError>;
+    ) -> Option<ApplicationOperationVerifierReport>;
 }
