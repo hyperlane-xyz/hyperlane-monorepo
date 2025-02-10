@@ -19,14 +19,14 @@ impl SovereignValidatorAnnounce {
         conf: &ConnectionConf,
         locator: ContractLocator<'_>,
         signer: Option<Signer>,
-    ) -> Self {
-        let provider = SovereignProvider::new(locator.domain.clone(), conf, signer).await;
+    ) -> ChainResult<Self> {
+        let provider = SovereignProvider::new(locator.domain.clone(), conf, signer).await?;
 
-        Self {
+        Ok(Self {
             domain: locator.domain.clone(),
             provider,
             address: locator.address,
-        }
+        })
     }
 }
 

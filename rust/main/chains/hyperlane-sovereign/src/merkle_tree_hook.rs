@@ -27,7 +27,7 @@ impl SovereignMerkleTreeHookIndexer {
         locator: ContractLocator<'_>,
         _signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = SovereignProvider::new(locator.domain.clone(), &conf, None).await;
+        let provider = SovereignProvider::new(locator.domain.clone(), &conf, None).await?;
         Ok(SovereignMerkleTreeHookIndexer {
             provider: Box::new(provider),
             bech32_address: to_bech32(locator.address)?,
@@ -136,7 +136,8 @@ impl SovereignMerkleTreeHook {
         locator: ContractLocator<'_>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = SovereignProvider::new(locator.domain.clone(), &conf.clone(), signer).await;
+        let provider =
+            SovereignProvider::new(locator.domain.clone(), &conf.clone(), signer).await?;
         Ok(SovereignMerkleTreeHook {
             domain: locator.domain.clone(),
             provider,
@@ -190,7 +191,7 @@ impl MerkleTreeHook for SovereignMerkleTreeHook {
         let checkpoint = self
             .provider
             .client()
-            .latest_checkpoint(&hook_id, lag)
+            .latest_checkpoint(&hook_id, lag, self.domain.id())
             .await?;
 
         Ok(checkpoint)

@@ -13,4 +13,5 @@ mod provider;
 mod routing_ism;
 mod signers;
 mod trait_builder;
+mod universal_wallet_client;
 mod validator_announce;

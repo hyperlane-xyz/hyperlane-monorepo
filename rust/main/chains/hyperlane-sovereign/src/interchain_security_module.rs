@@ -20,7 +20,8 @@ impl SovereignInterchainSecurityModule {
         locator: ContractLocator<'_>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = SovereignProvider::new(locator.domain.clone(), &conf.clone(), signer).await;
+        let provider =
+            SovereignProvider::new(locator.domain.clone(), &conf.clone(), signer).await?;
         Ok(SovereignInterchainSecurityModule {
             domain: locator.domain.clone(),
             provider,

@@ -22,14 +22,14 @@ impl SovereignProvider {
         domain: HyperlaneDomain,
         conf: &ConnectionConf,
         signer: Option<Signer>,
-    ) -> Self {
-        let client = rest_client::SovereignRestClient::new(conf);
+    ) -> ChainResult<Self> {
+        let client = rest_client::SovereignRestClient::new(conf, domain.id()).await?;
 
-        Self {
+        Ok(Self {
             domain,
             client,
             signer,
-        }
+        })
     }
 
     /// Get a nonce.

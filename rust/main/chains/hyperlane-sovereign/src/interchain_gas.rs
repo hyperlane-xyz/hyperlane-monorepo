@@ -20,7 +20,7 @@ pub struct SovereignInterchainGasPaymasterIndexer {
 impl SovereignInterchainGasPaymasterIndexer {
     /// Create a new `SovereignInterchainGasPaymasterIndexer`.
     pub async fn new(conf: ConnectionConf, locator: ContractLocator<'_>) -> ChainResult<Self> {
-        let provider = SovereignProvider::new(locator.domain.clone(), &conf, None).await;
+        let provider = SovereignProvider::new(locator.domain.clone(), &conf, None).await?;
 
         Ok(SovereignInterchainGasPaymasterIndexer {
             provider: Box::new(provider),
@@ -85,7 +85,8 @@ impl SovereignInterchainGasPaymaster {
         locator: ContractLocator<'_>,
         signer: Option<Signer>,
     ) -> ChainResult<Self> {
-        let provider = SovereignProvider::new(locator.domain.clone(), &conf.clone(), signer).await;
+        let provider =
+            SovereignProvider::new(locator.domain.clone(), &conf.clone(), signer).await?;
         Ok(SovereignInterchainGasPaymaster {
             domain: locator.domain.clone(),
             provider,

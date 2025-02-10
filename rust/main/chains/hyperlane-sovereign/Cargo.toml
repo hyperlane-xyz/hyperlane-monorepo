@@ -4,29 +4,26 @@
  edition.workspace = true
 
 [dependencies]
- demo-hl-rollup-client = { path = "../../../../../sov-hyperlane/examples/demo-hl-rollup-client", default-features = false }
- demo-stf = { path = "../../../../../sov-hyperlane/examples/demo-hl-rollup/stf", default-features = false }
  hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
- sov-address = { path = "../../../../../sovereign-sdk-wip/crates/module-system/sov-address", default-features = false, version = "0.3" }
- sov-hyperlane = { path = "../../../../../sov-hyperlane/sov-hyperlane", default-features = false }
- sov-modules-api = { path = "../../../../../sovereign-sdk-wip/crates/module-system/sov-modules-api", default-features = false, version = "0.3" }
- sov-rollup-interface = { path = "../../../../../sovereign-sdk-wip/crates/rollup-interface", default-features = false, version = "0.3" }
- sov-test-utils = { path = "../../../../../sovereign-sdk-wip/crates/module-system/sov-test-utils", default-features = false, version = "0.3" }
-#  sov-universal-wallet = { path = "../../../../../sovereign-sdk-wip/crates/universal-wallet/schema", default-features = false }
+ sov-universal-wallet = { path = "../../../../../sovereign-sdk-wip/crates/universal-wallet/schema", features = ["serde"] }
 
+ anyhow.workspace = true
  async-trait.workspace = true
  base64.workspace = true
  bech32.workspace = true
  bytes.workspace = true
  ethers.workspace = true
+ futures.workspace = true
  k256.workspace = true
  reqwest.workspace = true
  serde.workspace = true
  serde_json.workspace = true
+ sha2.workspace = true
  sha3.workspace = true
- tokio = { workspace = true, features = ["macros"] }
+ tokio = { workspace = true, features = ["fs", "macros"] }
  tracing.workspace = true
  url.workspace = true
  hex.workspace = true
 
- borsh = "1.5.3"
+ ed25519-dalek = "2.1.1"
+ tokio-tungstenite = "0.23"
