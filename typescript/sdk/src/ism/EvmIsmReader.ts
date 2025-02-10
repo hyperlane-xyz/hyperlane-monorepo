@@ -205,8 +205,8 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     try {
       const [lowerIsm, upperIsm, threshold] = await Promise.all([
-        ism.lowerISM(),
-        ism.upperISM(),
+        ism.lower(),
+        ism.upper(),
         ism.threshold(),
       ]);
       return {
