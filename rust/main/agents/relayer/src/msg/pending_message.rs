@@ -657,10 +657,10 @@ impl PendingMessage {
                 let hour: u64 = 60 * 60;
                 // To be extra safe, `max` to make sure it's at least 1 hour.
                 let target = hour.max((num_retries - 47) as u64 * hour);
-                // Schedule it at some random point in the next hour to
+                // Schedule it at some random point in the next 6 hours to
                 // avoid scheduling messages with the same # of retries
-                // at the exact same time.
-                target + (rand::random::<u64>() % hour)
+                // at the exact same time and starve new messages.
+                target + (rand::random::<u64>() % (6 * hour))
             }
         }))
     }
