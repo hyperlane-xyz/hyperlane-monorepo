@@ -210,11 +210,17 @@ export class WarpCore {
     }
 
     // Form transactions to estimate local gas with
-    const recipient = convertToProtocolAddress(
-      sender,
-      destinationMetadata.protocol,
-      destinationMetadata.bech32Prefix,
-    );
+    let recipient;
+    if (destinationMetadata.protocol === ProtocolType.Ethereum) {
+      recipient = '0xb1b4e269dD0D19d9D49f3a95bF6c2c15f13E7943';
+    } else {
+      recipient = convertToProtocolAddress(
+        sender,
+        destinationMetadata.protocol,
+        destinationMetadata.bech32Prefix,
+      );
+    }
+    console.log('JALEN recipient', recipient);
     const txs = await this.getTransferRemoteTxs({
       originTokenAmount: originToken.amount(1),
       destination,
@@ -222,6 +228,7 @@ export class WarpCore {
       recipient,
       interchainFee,
     });
+    console.log('JALEN txs', txs);
 
     // Typically the transfers require a single transaction
     if (txs.length === 1) {
@@ -746,6 +753,7 @@ export class WarpCore {
     });
 
     const feeEstimate = { interchainQuote, localQuote };
+    console.log('JALEN feeEstimate', feeEstimate);
 
     // Check 4: Ensure balances can cover the COMBINED amount and fees
     const maxTransfer = await this.getMaxTransferAmount({

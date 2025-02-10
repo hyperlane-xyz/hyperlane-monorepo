@@ -15,7 +15,7 @@ import { assert } from './validation.js';
 
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
-
+const STARKNET_ADDRESS_REGEX = /^0x[a-fA-F0-9]{64}$/;
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
 // https://github.com/cosmos/cosmos-sdk/blob/84c33215658131d87daf3c629e909e12ed9370fa/types/coin.go#L601C17-L601C44
@@ -44,6 +44,10 @@ export function isAddressSealevel(address: Address) {
   return SEALEVEL_ADDRESS_REGEX.test(address);
 }
 
+export function isAddressStarknet(address: Address) {
+  return STARKNET_ADDRESS_REGEX.test(address);
+}
+
 export function isAddressCosmos(address: Address) {
   return (
     COSMOS_ADDRESS_REGEX.test(address) ||
@@ -60,12 +64,19 @@ export function getAddressProtocolType(address: Address) {
     return ProtocolType.Cosmos;
   } else if (isAddressSealevel(address)) {
     return ProtocolType.Sealevel;
+  } else if (isAddressStarknet(address)) {
+    console.log('JALEN address', address);
+    return ProtocolType.Starknet;
   } else {
     return undefined;
   }
 }
 
 export function isAddress(address: Address) {
+  console.log(
+    'JALEN getAddressProtocolType(address)',
+    getAddressProtocolType(address),
+  );
   return !!getAddressProtocolType(address);
 }
 

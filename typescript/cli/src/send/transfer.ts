@@ -1,3 +1,4 @@
+import { Account, Contract, uint256 } from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -169,6 +170,7 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
+  console.log('JALEN token', token);
   const errors = await warpCore.validateTransfer({
     originTokenAmount: token.amount(amount),
     destination,
@@ -187,6 +189,7 @@ async function executeDelivery({
     sender: signerAddress,
     recipient,
   });
+  console.log('JALEN transferTxs', transferTxs);
 
   const txReceipts = [];
   for (const tx of transferTxs) {
@@ -196,11 +199,70 @@ async function executeDelivery({
       const txReceipt = await multiProvider.handleTx(origin, txResponse);
       txReceipts.push(txReceipt);
     }
+
+    if (tx.type === ProviderType.Starknet) {
+      const mpProvider = new MultiProtocolProvider(chainMetadata);
+      const starknetProvider = mpProvider.getStarknetProvider(origin);
+      console.log('JALEN starknetProvider', starknetProvider);
+      const account = new Account(starknetProvider, 'ADDRESS', 'PRIVATE_KEY');
+      const TOKEN_API = [
+        {
+          type: 'function',
+          name: 'transfer_remote',
+          inputs: [
+            {
+              name: 'destination',
+              type: 'core::integer::u32',
+            },
+            {
+              name: 'recipient',
+              type: 'core::integer::u256',
+            },
+            {
+              name: 'amount_or_id',
+              type: 'core::integer::u256',
+            },
+            {
+              name: 'value',
+              type: 'core::integer::u256',
+            },
+            {
+              name: 'hook_metadata',
+              type: 'core::byte_array::ByteArray',
+            },
+            {
+              name: 'hook',
+              type: 'core::starknet::contract_address::ContractAddress',
+            },
+          ],
+          outputs: [],
+          state_mutability: 'external',
+        },
+      ];
+      const tokenContract = new Contract(
+        TOKEN_API,
+        '0x004d71a6e85cca6bca219a64baae790ea9958fc4124e0b4787965f7da7536cd8',
+        account,
+      );
+      const recipientUint256 = uint256.bnToUint256(recipient);
+      console.log('JALEN recipientUint256', recipientUint256);
+      await tokenContract.invoke('transfer_remote', [
+        11155111,
+        recipientUint256,
+        uint256.bnToUint256(amount),
+        uint256.bnToUint256(0),
+        '0x0',
+        '0x0000000000000000000000000000000000000000000000000000000000000000',
+      ]);
+    }
   }
+  console.log('JALEN txReceipts', txReceipts);
   const transferTxReceipt = txReceipts[txReceipts.length - 1];
   const messageIndex: number = 0;
   const message: DispatchedMessage =
     HyperlaneCore.getDispatchedMessages(transferTxReceipt)[messageIndex];
+
+  console.log('JALEN message', message);
 
   const parsed = parseWarpRouteMessage(message.parsed.body);
 

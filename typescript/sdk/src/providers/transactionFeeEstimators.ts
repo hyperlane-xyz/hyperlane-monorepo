@@ -5,6 +5,7 @@ import { Uint53 } from '@cosmjs/math';
 import { Registry } from '@cosmjs/proto-signing';
 import { StargateClient, defaultRegistryTypes } from '@cosmjs/stargate';
 import { MsgExecuteContract } from 'cosmjs-types/cosmwasm/wasm/v1/tx.js';
+import { Account } from 'starknet';
 
 import { Address, HexString, Numberish, assert } from '@hyperlane-xyz/utils';
 
@@ -20,6 +21,8 @@ import {
   ProviderType,
   SolanaWeb3Provider,
   SolanaWeb3Transaction,
+  StarknetJsProvider,
+  StarknetJsTransaction,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -134,6 +137,28 @@ export async function estimateTransactionFeeSolanaWeb3({
     gasUnits,
     gasPrice,
     fee: gasUnits * gasPrice,
+  };
+}
+
+export async function estimateTransactionFeeStarknet({
+  transaction,
+  provider,
+}: {
+  transaction: StarknetJsTransaction;
+  provider: StarknetJsProvider;
+}): Promise<TransactionFeeEstimate> {
+  const starknetProvider = provider.provider;
+  const account = new Account(starknetProvider, '0x12', '0x12');
+
+  console.log('JALEN account', transaction, provider, account);
+
+  const gasPrice = 10;
+  const gasUnits = 10;
+  // const
+  return {
+    gasUnits: BigInt(gasUnits.toString()),
+    gasPrice: BigInt(gasPrice.toString()),
+    fee: BigInt(gasUnits.toString()) * BigInt(gasPrice.toString()),
   };
 }
 
@@ -280,6 +305,11 @@ export function estimateTransactionFee({
       sender,
       senderPubKey,
     });
+  } else if (
+    transaction.type === ProviderType.Starknet &&
+    provider.type === ProviderType.Starknet
+  ) {
+    return estimateTransactionFeeStarknet({ transaction, provider });
   } else {
     throw new Error(
       `Unsupported transaction type ${transaction.type} or provider type ${provider.type} for gas estimation`,
