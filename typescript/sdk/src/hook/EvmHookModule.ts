@@ -151,23 +151,14 @@ export class EvmHookModule extends HyperlaneModule<
     const currentConfig = normalizeConfig(unnormalizedCurrentConfig);
 
     // Update the config
-    const targetConfigExcludeString = normalizeConfig(targetConfig) as Exclude<
-      HookConfig,
-      string
-    >;
     this.args.config = targetConfig;
 
     // If configs match, no updates needed
-    if (deepEquals(currentConfig, targetConfigExcludeString)) {
+    if (deepEquals(currentConfig, targetConfig)) {
       return [];
     }
-    console.log('currentConfig', JSON.stringify(currentConfig, null, 2));
-    console.log(
-      'targetConfigExcludeString',
-      JSON.stringify(targetConfigExcludeString, null, 2),
-    );
 
-    if (this.shouldDeployNewHook(currentConfig, targetConfigExcludeString)) {
+    if (this.shouldDeployNewHook(currentConfig, targetConfig)) {
       const contract = await this.deploy({
         config: targetConfig,
       });
