@@ -1,5 +1,12 @@
 # @hyperlane-xyz/helloworld
 
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@8.6.1
+- @hyperlane-xyz/core@5.11.3
+
 ## 8.6.0
 
 ### Patch Changes

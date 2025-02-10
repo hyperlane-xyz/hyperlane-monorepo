@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cli
 
+## 8.6.1
+
+### Patch Changes
+
+- 236f27b5f: Fix cli package dependencies.
+  - @hyperlane-xyz/sdk@8.6.1
+  - @hyperlane-xyz/utils@8.6.1
+
 ## 8.6.0
 
 ### Minor Changes
