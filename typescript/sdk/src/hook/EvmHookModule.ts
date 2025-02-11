@@ -635,7 +635,8 @@ export class EvmHookModule extends HyperlaneModule<
 
     switch (config.type) {
       case HookType.MERKLE_TREE:
-        return this.deployer.deployContract(this.chain, HookType.MERKLE_TREE, [
+      case HookType.MAILBOX_DEFAULT_HOOK:
+        return this.deployer.deployContract(this.chain, config.type, [
           this.args.addresses.mailbox,
         ]);
       case HookType.INTERCHAIN_GAS_PAYMASTER:

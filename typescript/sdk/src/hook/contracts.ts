@@ -1,5 +1,6 @@
 import {
   ArbL2ToL1Hook__factory,
+  DefaultHook__factory,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook__factory,
   InterchainGasPaymaster__factory,
@@ -23,6 +24,7 @@ export const hookFactories = {
   [HookType.FALLBACK_ROUTING]: new FallbackDomainRoutingHook__factory(),
   [HookType.PAUSABLE]: new PausableHook__factory(),
   [HookType.ARB_L2_TO_L1]: new ArbL2ToL1Hook__factory(),
+  [HookType.MAILBOX_DEFAULT_HOOK]: new DefaultHook__factory(),
 };
 
 export type HookFactories = typeof hookFactories;

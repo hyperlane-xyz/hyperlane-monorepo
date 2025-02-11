@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 
 import {
   ArbL2ToL1Hook__factory,
+  DefaultHook__factory,
   DomainRoutingHook,
   DomainRoutingHook__factory,
   FallbackDomainRoutingHook,
@@ -39,6 +40,7 @@ import {
   HookConfig,
   HookType,
   IgpHookConfig,
+  MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
   OnchainHookType,
   OpStackHookConfig,
@@ -159,6 +161,11 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
         case OnchainHookType.ARB_L2_TO_L1:
           derivedHookConfig = await this.deriveArbL2ToL1Config(address);
           break;
+        case OnchainHookType.MAILBOX_DEFAULT_HOOK:
+          derivedHookConfig = await this.deriveMailboxDefaultHookConfig(
+            address,
+          );
+          break;
         default:
           throw new Error(
             `Unsupported HookType: ${OnchainHookType[onchainHookType]}`,
@@ -183,6 +190,25 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     }
 
     return derivedHookConfig;
+  }
+
+  async deriveMailboxDefaultHookConfig(
+    address: Address,
+  ): Promise<WithAddress<MailboxDefaultHookConfig>> {
+    const hook = DefaultHook__factory.connect(address, this.provider);
+    this.assertHookType(
+      await hook.hookType(),
+      OnchainHookType.MAILBOX_DEFAULT_HOOK,
+    );
+
+    const config: WithAddress<MailboxDefaultHookConfig> = {
+      address,
+      type: HookType.MAILBOX_DEFAULT_HOOK,
+    };
+
+    this._cache.set(address, config);
+
+    return config;
   }
 
   async deriveMerkleTreeConfig(
