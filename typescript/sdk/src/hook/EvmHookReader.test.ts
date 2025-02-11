@@ -4,6 +4,8 @@ import { randomBytes } from 'ethers/lib/utils.js';
 import sinon from 'sinon';
 
 import {
+  DefaultHook,
+  DefaultHook__factory,
   IPostDispatchHook,
   IPostDispatchHook__factory,
   MerkleTreeHook,
@@ -24,6 +26,7 @@ import { randomAddress } from '../test/testUtils.js';
 import { EvmHookReader } from './EvmHookReader.js';
 import {
   HookType,
+  MailboxDefaultHookConfig,
   MerkleTreeHookConfig,
   OnchainHookType,
   OpStackHookConfig,
@@ -145,6 +148,38 @@ describe('EvmHookReader', () => {
 
     // should get same result if we call the specific method for the hook type
     const config = await evmHookReader.derivePausableConfig(mockAddress);
+    expect(config).to.deep.equal(hookConfig);
+  });
+
+  it('should derive mailbox default hook config correctly', async () => {
+    const mockAddress = randomAddress();
+    const mockMailbox = randomAddress();
+
+    // Mocking the connect method + returned what we need from contract object
+    const mockContract = {
+      hookType: sandbox.stub().resolves(OnchainHookType.MAILBOX_DEFAULT_HOOK),
+      mailbox: sandbox.stub().resolves(mockMailbox),
+    };
+    sandbox
+      .stub(DefaultHook__factory, 'connect')
+      .returns(mockContract as unknown as DefaultHook);
+    sandbox
+      .stub(IPostDispatchHook__factory, 'connect')
+      .returns(mockContract as unknown as IPostDispatchHook);
+
+    const expectedConfig: WithAddress<MailboxDefaultHookConfig> = {
+      address: mockAddress,
+      type: HookType.MAILBOX_DEFAULT,
+    };
+
+    // top-level method infers hook type
+    const hookConfig = await evmHookReader.deriveHookConfig(mockAddress);
+    expect(hookConfig).to.deep.equal(expectedConfig);
+
+    // should get same result if we call the specific method for the hook type
+    const config = await evmHookReader.deriveMailboxDefaultHookConfig(
+      mockAddress,
+    );
     expect(config).to.deep.equal(hookConfig);
   });
 

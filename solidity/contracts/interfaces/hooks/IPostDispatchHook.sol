@@ -28,6 +28,7 @@ interface IPostDispatchHook {
         RATE_LIMITED,
         ARB_L2_TO_L1,
         OP_L2_TO_L1,
+        MAILBOX_DEFAULT_HOOK,
         AMOUNT_ROUTING
     }
 

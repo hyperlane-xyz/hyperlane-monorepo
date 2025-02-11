@@ -25,6 +25,7 @@ export enum OnchainHookType {
   ARB_L2_TO_L1,
   OP_L2_TO_L1,
   AMOUNT_ROUTING,
+  MAILBOX_DEFAULT_HOOK,
 }
 
 export enum HookType {
@@ -39,6 +40,7 @@ export enum HookType {
   AMOUNT_ROUTING = 'amountRoutingHook',
   PAUSABLE = 'pausableHook',
   ARB_L2_TO_L1 = 'arbL2ToL1Hook',
+  MAILBOX_DEFAULT = 'defaultHook',
 }
 
 export type MerkleTreeHookConfig = z.infer<typeof MerkleTreeSchema>;
@@ -47,6 +49,7 @@ export type ProtocolFeeHookConfig = z.infer<typeof ProtocolFeeSchema>;
 export type PausableHookConfig = z.infer<typeof PausableHookSchema>;
 export type OpStackHookConfig = z.infer<typeof OpStackHookSchema>;
 export type ArbL2ToL1HookConfig = z.infer<typeof ArbL2ToL1HookSchema>;
+export type MailboxDefaultHookConfig = z.infer<typeof MailboxDefaultHookSchema>;
 
 // explicitly typed to avoid zod circular dependency
 export type AggregationHookConfig = {
@@ -94,6 +97,10 @@ export const MerkleTreeSchema = z.object({
 
 export const PausableHookSchema = PausableSchema.extend({
   type: z.literal(HookType.PAUSABLE),
+});
+
+export const MailboxDefaultHookSchema = z.object({
+  type: z.literal(HookType.MAILBOX_DEFAULT),
 });
 
 export const OpStackHookSchema = OwnableSchema.extend({
@@ -174,6 +181,7 @@ export const HookConfigSchema = z.union([
   AmountRoutingHookConfigSchema,
   AggregationHookConfigSchema,
   ArbL2ToL1HookSchema,
+  MailboxDefaultHookSchema,
 ]);
 
 // TODO: deprecate in favor of CoreConfigSchema
