@@ -31,6 +31,9 @@ contract AmountRoutingTest is Test {
     TestPostDispatchHook internal lowerHook;
     TestPostDispatchHook internal upperHook;
 
+    uint256 internal lowerFee = 1;
+    uint256 internal upperFee = 2;
+
     uint256 threshold = type(uint256).max / 2;
 
     function setUp() public virtual {
@@ -43,6 +46,8 @@ contract AmountRoutingTest is Test {
         );
         lowerHook = new TestPostDispatchHook();
         upperHook = new TestPostDispatchHook();
+        lowerHook.setFee(lowerFee);
+        upperHook.setFee(upperFee);
         hook = new AmountRoutingHook(
             address(lowerHook),
             address(upperHook),
@@ -91,12 +96,15 @@ contract AmountRoutingTest is Test {
             address(remoteWarpRoute).addressToBytes32()
         );
 
+        uint256 fee;
         if (amount >= threshold) {
-            vm.expectCall(address(upperHook), bytes(""));
+            fee = upperFee;
+            vm.expectCall(address(upperHook), upperFee, bytes(""));
         } else {
-            vm.expectCall(address(lowerHook), bytes(""));
+            fee = lowerFee;
+            vm.expectCall(address(lowerHook), lowerFee, bytes(""));
         }
-        remoteWarpRoute.transferRemote(
+        remoteWarpRoute.transferRemote{value: fee}(
             localDomain,
             address(this).addressToBytes32(),
             amount
@@ -120,7 +128,6 @@ contract AmountRoutingTest is Test {
     function test_quoteDispatch(
         bytes32 recipient,
         uint256 amount,
-        uint256 fee,
         bytes calldata data
     ) public {
         bytes memory headers = Message.formatMessage(
@@ -136,13 +143,11 @@ contract AmountRoutingTest is Test {
         bytes memory body = TokenMessage.format(recipient, amount, data[0:0]);
         bytes memory message = abi.encodePacked(headers, body);
 
-        upperHook.setFee(fee);
-
         uint256 quote = hook.quoteDispatch(bytes(""), message);
         if (amount >= threshold) {
-            assertEq(quote, fee);
+            assertEq(quote, upperFee);
         } else {
-            assertEq(quote, 0);
+            assertEq(quote, lowerFee);
         }
     }
 

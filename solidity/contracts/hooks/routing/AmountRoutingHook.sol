@@ -32,7 +32,7 @@ contract AmountRoutingHook is AmountPartition, AbstractPostDispatchHook {
         bytes calldata _metadata,
         bytes calldata _message
     ) internal override {
-        IPostDispatchHook(_partition(_message)).postDispatch(
+        IPostDispatchHook(_partition(_message)).postDispatch{value: msg.value}(
             _metadata,
             _message
         );
