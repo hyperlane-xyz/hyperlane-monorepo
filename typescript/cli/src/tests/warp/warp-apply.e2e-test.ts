@@ -472,7 +472,7 @@ describe('hyperlane warp apply e2e tests', async function () {
     ).to.include(chain3Id.toString());
   });
 
-  it('should complete warp route extension when previous attempt left incomplete enrollment or destination gas settings (without having to specify the router and gas table manually)', async () => {
+  it('should complete warp route extension when previous attempt left incomplete enrollment or destination gas settings (second attempt on new combined config)', async () => {
     const {
       chain2DomainId,
       chain3DomainId,
@@ -514,6 +514,80 @@ describe('hyperlane warp apply e2e tests', async function () {
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: configToExtend,
       warpCorePath: combinedWarpCorePath,
+      warpDeployPath: warpConfigPath,
+    });
+
+    // Verify both chains are now properly configured
+    const finalConfig2 = await readWarpConfig(
+      CHAIN_NAME_2,
+      combinedWarpCorePath,
+      warpConfigPath,
+    );
+    const finalConfig3 = await readWarpConfig(
+      CHAIN_NAME_3,
+      combinedWarpCorePath,
+      warpConfigPath,
+    );
+
+    // Check remote routers final state
+    expect(Object.keys(finalConfig2[CHAIN_NAME_2].remoteRouters!)).to.include(
+      chain3DomainId,
+    );
+    expect(Object.keys(finalConfig3[CHAIN_NAME_3].remoteRouters!)).to.include(
+      chain2DomainId,
+    );
+
+    // Check destination gas final state
+    expect(Object.keys(finalConfig2[CHAIN_NAME_2].destinationGas!)).to.include(
+      chain3DomainId,
+    );
+    expect(Object.keys(finalConfig3[CHAIN_NAME_3].destinationGas!)).to.include(
+      chain2DomainId,
+    );
+  });
+
+  it('should complete warp route extension when previous attempt left incomplete enrollment or destination gas settings (second attempt with same config)', async () => {
+    const {
+      chain2DomainId,
+      chain3DomainId,
+      warpConfigPath,
+      configToExtend,
+      combinedWarpCorePath,
+    } = await setupIncompleteWarpRouteExtension(chain2Addresses);
+
+    // Verify initial state - neither chain should be enrolled in the other
+    const initialConfig2 = await readWarpConfig(
+      CHAIN_NAME_2,
+      combinedWarpCorePath,
+      warpConfigPath,
+    );
+    const initialConfig3 = await readWarpConfig(
+      CHAIN_NAME_3,
+      combinedWarpCorePath,
+      warpConfigPath,
+    );
+    // Check remote routers initial state
+    expect(
+      Object.keys(initialConfig2[CHAIN_NAME_2].remoteRouters!),
+    ).to.not.include(chain3DomainId);
+    expect(
+      Object.keys(initialConfig3[CHAIN_NAME_3].remoteRouters!),
+    ).to.not.include(chain2DomainId);
+
+    // Check destination gas initial state
+    expect(
+      Object.keys(initialConfig2[CHAIN_NAME_2].destinationGas || {}),
+    ).to.not.include(chain3DomainId);
+    expect(
+      Object.keys(initialConfig3[CHAIN_NAME_3].destinationGas || {}),
+    ).to.not.include(chain2DomainId);
+
+    // Complete the extension
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig: configToExtend,
+      warpCorePath: warpConfigPath,
       warpDeployPath: warpConfigPath,
     });
 
