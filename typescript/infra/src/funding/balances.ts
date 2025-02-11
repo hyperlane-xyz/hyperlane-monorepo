@@ -3,76 +3,46 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   BalanceThresholdType,
-  ThresholdConfigs,
+  THRESHOLD_CONFIG_PATH,
+  ThresholdsData,
   balanceThresholdConfigMapping,
 } from '../config/funding/balances.js';
+import { readJSONAtPath } from '../utils/utils.js';
 
-/**
- * Validates that the thresholds are sized correctly across configs.
- * This function logs warnings for chains present in lower-priority configs but missing in higher-priority configs.
- * It also logs errors if the thresholds are not sized correctly.
- */
-export function validateThresholds(newConfigs: ThresholdConfigs): void {
-  // Accumulate error and warning messages.
-  const errorMessages: string[] = [];
-  const warningMessages: string[] = [];
+export function validateThresholds(thresholdsData: ThresholdsData): void {
+  const errors: string[] = [];
+  const warnings: string[] = [];
 
-  // Sort the config types by their weight (ascending order).
-  // Lower weight means a higher-priority threshold.
-  const configTypesSorted = Object.keys(newConfigs)
-    .map((key) => key as BalanceThresholdType)
-    .sort(
-      (a, b) =>
-        balanceThresholdConfigMapping[a].weight -
-        balanceThresholdConfigMapping[b].weight,
-    );
+  const chains = Object.keys(
+    thresholdsData[BalanceThresholdType.DesiredRelayerBalance],
+  );
 
-  for (let i = 0; i < configTypesSorted.length - 1; i++) {
-    const higherPriorityConfig = configTypesSorted[i]; // e.g. weight 1 (highest threshold)
-    const lowerPriorityConfig = configTypesSorted[i + 1]; // e.g. weight 2 (next highest)
+  for (const chain of chains) {
+    const chainThresholds = getCurrentChainThresholds(chain, thresholdsData);
+    const chainErrors = checkForThresholdErrors(chainThresholds);
+    errors.push(...chainErrors);
 
-    const thresholdsHigh = newConfigs[higherPriorityConfig].thresholds;
-    const thresholdsLow = newConfigs[lowerPriorityConfig].thresholds;
-
-    // Check chains present in the higher-priority config.
-    for (const chain in thresholdsHigh) {
-      if (chain in thresholdsLow) {
-        const valueHigh = parseFloat(thresholdsHigh[chain]);
-        const valueLow = parseFloat(thresholdsLow[chain]);
-
-        if (valueHigh <= valueLow) {
-          errorMessages.push(
-            `Chain "${chain}": ${higherPriorityConfig} threshold (${valueHigh}) is not greater than ${lowerPriorityConfig} threshold (${valueLow}).`,
-          );
-        }
-      } else {
-        warningMessages.push(
-          `Chain "${chain}" is present in ${higherPriorityConfig} but missing in ${lowerPriorityConfig}.`,
-        );
-      }
-    }
-
-    // Also log warnings for chains present in the lower-priority config but missing from the higher-priority config.
-    for (const chain in thresholdsLow) {
-      if (!(chain in thresholdsHigh)) {
-        warningMessages.push(
-          `Chain "${chain}" is present in ${lowerPriorityConfig} but missing in ${higherPriorityConfig}.`,
+    // add warnings for any missing thresholds for this chain
+    for (const thresholdType of Object.values(BalanceThresholdType)) {
+      if (!chainThresholds[thresholdType]) {
+        warnings.push(
+          `Threshold for [${thresholdType}] on chain [${chain}] is not defined, this may be expected for new chains where we do not want to set alerts`,
         );
       }
     }
   }
 
-  if (warningMessages.length > 0) {
-    rootLogger.warn('Threshold validation warnings:');
-    warningMessages.forEach((msg) => rootLogger.warn(msg));
+  if (warnings.length > 0) {
+    rootLogger.warn(`Found ${warnings.length} threshold validation warnings:`);
+    warnings.forEach((msg) => rootLogger.warn(msg));
   }
 
-  if (errorMessages.length > 0) {
-    rootLogger.error('Threshold validation completed with errors:');
-    errorMessages.forEach((msg) => rootLogger.error(msg));
+  if (errors.length > 0) {
+    rootLogger.error(`Found ${errors.length} threshold validation errors:`);
+    errors.forEach((msg) => rootLogger.error(msg));
     process.exit(1);
   } else {
-    rootLogger.info('All thresholds validated successfully across configs.');
+    rootLogger.info('All thresholds validated successfully.');
   }
 }
 
@@ -81,11 +51,76 @@ export function formatBalanceThreshold(dailyRelayerBurn: number): number {
 }
 
 export function sortThresholds(
-  newThresholds: ChainMap<string>,
-): ChainMap<string> {
+  newThresholds: ChainMap<number>,
+): ChainMap<number> {
   return Object.fromEntries(
     Object.entries(newThresholds).sort(([keyA], [keyB]) =>
       keyA.localeCompare(keyB),
     ),
   );
+}
+
+export function checkForThresholdErrors(
+  chainThresholds: Record<BalanceThresholdType, number>,
+): string[] {
+  const errors: string[] = [];
+
+  const sortedTypes = sortThresholdTypes(
+    Object.keys(chainThresholds) as BalanceThresholdType[],
+  );
+
+  // Compare each adjacent pair
+  for (let i = 0; i < sortedTypes.length - 1; i++) {
+    const lowerType = sortedTypes[i];
+    const higherType = sortedTypes[i + 1];
+
+    const lowerThreshold = chainThresholds[lowerType];
+    const higherThreshold = chainThresholds[higherType];
+
+    if (lowerThreshold >= higherThreshold) {
+      errors.push(
+        `Threshold for [${higherType}] (${higherThreshold}) must be greater than threshold for [${lowerType}] (${lowerThreshold}).`,
+      );
+    }
+  }
+
+  return errors;
+}
+
+export function getCurrentChainThresholds(
+  chain: string,
+  currentThresholds: ThresholdsData,
+): Record<BalanceThresholdType, number> {
+  const result = {} as Record<BalanceThresholdType, number>;
+  for (const thresholdType of Object.values(BalanceThresholdType)) {
+    if (currentThresholds[thresholdType][chain]) {
+      result[thresholdType] = currentThresholds[thresholdType][chain];
+    }
+  }
+  return result;
+}
+
+export function readAllThresholds(): ThresholdsData {
+  const result: ThresholdsData = {} as ThresholdsData;
+
+  for (const thresholdType of Object.values(BalanceThresholdType)) {
+    const thresholdsFile = `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[thresholdType].configFileName}`;
+
+    const chainMap = readJSONAtPath(thresholdsFile) as ChainMap<number>;
+
+    result[thresholdType] = chainMap;
+  }
+
+  return result;
+}
+
+export function sortThresholdTypes(
+  thesholdTypes: BalanceThresholdType[],
+): BalanceThresholdType[] {
+  return thesholdTypes.sort((a, b) => {
+    return (
+      balanceThresholdConfigMapping[a].dailyRelayerBurnMultiplier -
+      balanceThresholdConfigMapping[b].dailyRelayerBurnMultiplier
+    );
+  });
 }

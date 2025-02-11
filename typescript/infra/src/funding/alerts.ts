@@ -13,8 +13,8 @@ import {
 export function parseBalancesPromQLQuery(
   query: string,
   walletName: WalletName,
-): ChainMap<string> {
-  const balances: ChainMap<string> = {};
+): ChainMap<number> {
+  const balances: ChainMap<number> = {};
   const balanceAlertRegex = getBalanceAlertRegex(walletName);
 
   // Get all matches
@@ -23,7 +23,7 @@ export function parseBalancesPromQLQuery(
     const [_, chain, balanceStr] = match;
     const minBalance = balanceStr;
 
-    balances[chain] = minBalance;
+    balances[chain] = parseFloat(minBalance);
   }
 
   return Object.fromEntries(Object.entries(balances).sort());
@@ -42,7 +42,7 @@ function getBalanceAlertRegex(walletName: WalletName): RegExp {
 
 export async function getBalanceAlertThresholds(
   alertType: AlertType,
-): Promise<ChainMap<string>> {
+): Promise<ChainMap<number>> {
   const saToken = await fetchGrafanaServiceAccountToken();
   const alert = await fetchGrafanaAlert(alertType, saToken);
   const alertQuery = alert.queries[0];
