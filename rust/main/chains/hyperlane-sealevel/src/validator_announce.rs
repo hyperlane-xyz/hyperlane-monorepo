@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -21,8 +23,16 @@ pub struct SealevelValidatorAnnounce {
 
 impl SealevelValidatorAnnounce {
     /// Create a new Sealevel ValidatorAnnounce
-    pub fn new(conf: &ConnectionConf, locator: ContractLocator) -> Self {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
+    pub fn new(
+        rpc_client: Arc<SealevelRpcClient>,
+        conf: &ConnectionConf,
+        locator: ContractLocator,
+    ) -> Self {
+        let provider = SealevelProvider::new(
+            rpc_client,
+            locator.domain.clone(),
+            conf.native_token.clone(),
+        );
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
         Self {
             program_id,

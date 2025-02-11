@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
@@ -28,11 +30,16 @@ pub struct SealevelMultisigIsm {
 impl SealevelMultisigIsm {
     /// Create a new Sealevel MultisigIsm.
     pub fn new(
+        rpc_client: Arc<SealevelRpcClient>,
         conf: &ConnectionConf,
         locator: ContractLocator,
         payer: Option<SealevelKeypair>,
     ) -> Self {
-        let provider = SealevelProvider::new(locator.domain.clone(), conf);
+        let provider = SealevelProvider::new(
+            rpc_client,
+            locator.domain.clone(),
+            conf.native_token.clone(),
+        );
         let program_id = Pubkey::from(<[u8; 32]>::from(locator.address));
 
         Self {
