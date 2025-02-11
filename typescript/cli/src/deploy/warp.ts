@@ -529,6 +529,7 @@ export async function runWarpRouteApply(
       context.registry,
     );
 
+  // Extend the warp route and get the updated configs
   const { updatedWarpDeployConfig, updatedWarpCoreConfigByChain } =
     await extendWarpRoute(params, apiKeys, warpCoreConfigByChain);
 
