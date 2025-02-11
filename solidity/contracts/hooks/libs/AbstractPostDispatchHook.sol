@@ -58,6 +58,10 @@ abstract contract AbstractPostDispatchHook is
             address refundAddress = metadata.refundAddress(
                 message.senderAddress()
             );
+            require(
+                refundAddress != address(0),
+                "AbstractPostDispatchHook: no refund address"
+            );
             payable(refundAddress).transfer(msg.value - spent);
         }
     }
