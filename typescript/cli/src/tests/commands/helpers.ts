@@ -266,8 +266,7 @@ export async function setupIncompleteWarpRouteExtension(
   };
 
   const context = await getContext({
-    registryUri: REGISTRY_PATH,
-    registryOverrideUri: '',
+    registryUris: [REGISTRY_PATH],
     key: ANVIL_KEY,
   });
 
