@@ -387,8 +387,7 @@ describe('hyperlane warp apply e2e tests', async function () {
 
   it('should recover and re-enroll routers after direct contract-level unenrollment through TokenRouter interface (without having to specify the router table manually)', async () => {
     const { multiProvider } = await getContext({
-      registryUri: REGISTRY_PATH,
-      registryOverrideUri: '',
+      registryUris: [REGISTRY_PATH],
       key: ANVIL_KEY,
     });
 
