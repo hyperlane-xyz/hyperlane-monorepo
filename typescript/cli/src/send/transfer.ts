@@ -1,4 +1,10 @@
-import { Account, Contract, uint256 } from 'starknet';
+import {
+  Account,
+  CairoOption,
+  CairoOptionVariant,
+  Contract,
+  uint256,
+} from 'starknet';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -210,33 +216,19 @@ async function executeDelivery({
           type: 'function',
           name: 'transfer_remote',
           inputs: [
-            {
-              name: 'destination',
-              type: 'core::integer::u32',
-            },
-            {
-              name: 'recipient',
-              type: 'core::integer::u256',
-            },
-            {
-              name: 'amount_or_id',
-              type: 'core::integer::u256',
-            },
-            {
-              name: 'value',
-              type: 'core::integer::u256',
-            },
+            { name: 'destination', type: 'core::integer::u32' },
+            { name: 'recipient', type: 'core::integer::u256' },
+            { name: 'amount_or_id', type: 'core::integer::u256' },
+            { name: 'value', type: 'core::integer::u256' },
             {
               name: 'hook_metadata',
-              type: 'core::byte_array::ByteArray',
+              type: 'core::option::Option::<alexandria_bytes::bytes::Bytes>',
             },
             {
               name: 'hook',
-              type: 'core::starknet::contract_address::ContractAddress',
+              type: 'core::option::Option::<core::starknet::contract_address::ContractAddress>',
             },
           ],
-          outputs: [],
-          state_mutability: 'external',
         },
       ];
       const tokenContract = new Contract(
@@ -245,14 +237,15 @@ async function executeDelivery({
         account,
       );
       const recipientUint256 = uint256.bnToUint256(recipient);
+      const none = new CairoOption(CairoOptionVariant.None);
       console.log('JALEN recipientUint256', recipientUint256);
       await tokenContract.invoke('transfer_remote', [
         11155111,
         recipientUint256,
         uint256.bnToUint256(amount),
         uint256.bnToUint256(0),
-        '0x0',
-        '0x0000000000000000000000000000000000000000000000000000000000000000',
+        [CairoOptionVariant.None],
+        none,
       ]);
     }
   }
