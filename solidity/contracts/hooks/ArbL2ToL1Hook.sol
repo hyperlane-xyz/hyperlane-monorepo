@@ -75,17 +75,17 @@ contract ArbL2ToL1Hook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes calldata message,
-        uint256 quote
+        bytes calldata message
     ) internal override {
-        uint256 msgValue = metadata.msgValue(0);
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,
-            (message.id(), msgValue)
+            (message.id(), metadata.msgValue(0))
         );
 
-        childHook.postDispatch{value: quote - msgValue}(metadata, message);
-        arbSys.sendTxToL1{value: msgValue}(
+        childHook.postDispatch{
+            value: childHook.quoteDispatch(metadata, message)
+        }(metadata, message);
+        arbSys.sendTxToL1{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload
         );

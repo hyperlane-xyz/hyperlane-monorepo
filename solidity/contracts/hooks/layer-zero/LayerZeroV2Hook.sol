@@ -56,8 +56,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes calldata message,
-        uint256 quote
+        bytes calldata message
     ) internal override {
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,
@@ -80,6 +79,7 @@ contract LayerZeroV2Hook is AbstractMessageIdAuthHook {
             false // payInLzToken
         );
 
+        uint256 quote = _quoteDispatch(metadata, message);
         lZEndpoint.send{value: quote}(msgParams, refundAddress);
     }
 

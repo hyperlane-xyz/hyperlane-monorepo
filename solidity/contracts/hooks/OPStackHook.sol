@@ -71,15 +71,14 @@ contract OPStackHook is AbstractMessageIdAuthHook {
     /// @inheritdoc AbstractMessageIdAuthHook
     function _sendMessageId(
         bytes calldata metadata,
-        bytes calldata message,
-        uint256 quote
+        bytes calldata message
     ) internal override {
         bytes memory payload = abi.encodeCall(
             AbstractMessageIdAuthorizedIsm.preVerifyMessage,
             (message.id(), metadata.msgValue(0))
         );
 
-        l1Messenger.sendMessage{value: quote}(
+        l1Messenger.sendMessage{value: metadata.msgValue(0)}(
             TypeCasts.bytes32ToAddress(ism),
             payload,
             GAS_LIMIT

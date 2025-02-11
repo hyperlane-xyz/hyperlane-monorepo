@@ -60,8 +60,7 @@ contract ERC5164Hook is AbstractMessageIdAuthHook {
 
     function _sendMessageId(
         bytes calldata metadata,
-        bytes calldata message,
-        uint256 /*quote*/
+        bytes calldata message
     ) internal override {
         require(msg.value == 0, "ERC5164Hook: no value allowed");
 
