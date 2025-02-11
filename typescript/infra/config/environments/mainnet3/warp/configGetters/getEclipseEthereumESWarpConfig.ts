@@ -14,8 +14,8 @@ export const getEclipseEthereumESWarpConfig = async (
   return {
     eclipsemainnet: {
       ...routerConfig.eclipsemainnet,
-      // My Key
-      owner: 'Fkf5uWVPjj8Dvg716mUYQ2tRpeZpGhib8qme4k34uZy3',
+      // Deployer Key
+      owner: '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf',
       type: TokenType.synthetic,
       foreignDeployment: '2JvSu7PzquY2b8NDZbnupFZ1jezqMBtNUhi7TuU3GQJD',
       gas: SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT,
