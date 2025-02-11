@@ -41,11 +41,9 @@ contract PausableHook is AbstractPostDispatchHook, Ownable, Pausable {
 
     /// @inheritdoc AbstractPostDispatchHook
     function _postDispatch(
-        bytes calldata /* metadata */,
-        bytes calldata /* message */
-    ) internal view override whenNotPaused returns (uint256) {
-        return 0;
-    }
+        bytes calldata metadata,
+        bytes calldata message
+    ) internal override whenNotPaused {}
 
     /// @inheritdoc AbstractPostDispatchHook
     function _quoteDispatch(
