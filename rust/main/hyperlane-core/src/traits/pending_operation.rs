@@ -250,6 +250,9 @@ pub enum ReprepareReason {
     #[strum(to_string = "Delivery transaction reverted or reorged")]
     /// Delivery transaction reverted or reorged
     RevertedOrReorged,
+    /// The metadata building was refused for the message.
+    #[strum(to_string = "Message metadata refused")]
+    MessageMetadataRefused,
 }
 
 #[derive(Display, Debug, Clone, Serialize, Deserialize, PartialEq)]

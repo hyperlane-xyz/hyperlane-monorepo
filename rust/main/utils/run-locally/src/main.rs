@@ -17,6 +17,7 @@
 use std::{
     collections::HashMap,
     fs::{self, File},
+    io::Write,
     path::Path,
     process::{Child, ExitCode},
     sync::{
@@ -28,6 +29,7 @@ use std::{
 };
 
 use ethers_contract::MULTICALL_ADDRESS;
+use hyperlane_core::{PendingOperationStatus, ReorgEvent, ReprepareReason};
 use logging::log;
 pub use metrics::fetch_metric;
 use once_cell::sync::Lazy;
@@ -141,8 +143,8 @@ impl Drop for State {
         }
         #[cfg(feature = "sealevel")]
         {
-            // use sealevel::solana::SOLANA_CHECKPOINT_LOCATION;
-            // fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+            use sealevel::solana::SOLANA_CHECKPOINT_LOCATION;
+            fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
         }
         fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
 
@@ -370,6 +372,23 @@ fn main() -> ExitCode {
         return report_test_result(test_passed);
     }
 
+    // Simulate a reorg, which we'll later use
+    // to ensure the relayer handles reorgs correctly.
+    // Kill validator 1 to make sure it doesn't crash by detecting it posted a reorg,
+    // causing e2e to also fail.
+    stop_validator(&mut state, 1);
+    set_validator_reorg_flag(&checkpoints_dirs, 1);
+
+    // Send a single message from validator 1's origin chain to test the relayer's reorg handling.
+    Program::new("yarn")
+        .working_dir(ts_infra_path)
+        .cmd("kathy")
+        .arg("messages", "1")
+        .arg("timeout", "1000")
+        .arg("single-origin", "test1")
+        .run()
+        .join();
+
     // Here we want to restart the relayer and validate
     // its restart behaviour.
     restart_relayer(&mut state, &rocks_db_dir);
@@ -382,7 +401,7 @@ fn main() -> ExitCode {
     test_passed = wait_for_condition(
         &config,
         loop_start,
-        relayer_restart_invariants_met,
+        || Ok(relayer_restart_invariants_met()? && relayer_reorg_handling_invariants_met()?),
         || !SHUTDOWN.load(Ordering::Relaxed),
         || long_running_processes_exited_check(&mut state),
     );
@@ -460,6 +479,33 @@ fn create_relayer(rocks_db_dir: &TempDir) -> Program {
         .arg("relayChains", "test1,test2,test3")
 }
 
+fn stop_validator(state: &mut State, validator_index: usize) {
+    let name = format!("VL{}", validator_index + 1);
+    log!("Stopping validator {}...", name);
+    let (child, _) = state
+        .agents
+        .get_mut(&name)
+        .unwrap_or_else(|| panic!("Validator {} not found", name));
+    child
+        .kill()
+        .unwrap_or_else(|_| panic!("Failed to stop validator {}", name));
+    // Remove the validator from the state
+    state.agents.remove(&name);
+}
+
+fn set_validator_reorg_flag(checkpoints_dirs: &[DynPath], validator_index: usize) {
+    let reorg_event = ReorgEvent::default();
+
+    let checkpoint_path = (*checkpoints_dirs[validator_index]).as_ref();
+    let reorg_flag_path = checkpoint_path.join("reorg_flag.json");
+    let mut reorg_flag_file =
+        File::create(reorg_flag_path).expect("Failed to create reorg flag file");
+    // Write to file
+    let _ = reorg_flag_file
+        .write(serde_json::to_string(&reorg_event).unwrap().as_bytes())
+        .expect("Failed to write to reorg flag file");
+}
+
 /// Kills relayer in State and respawns the relayer again
 fn restart_relayer(state: &mut State, rocks_db_dir: &TempDir) {
     log!("Stopping relayer...");
@@ -470,6 +516,25 @@ fn restart_relayer(state: &mut State, rocks_db_dir: &TempDir) {
     let relayer_env = create_relayer(rocks_db_dir);
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
     log!("Restarted relayer...");
+}
+
+fn relayer_reorg_handling_invariants_met() -> eyre::Result<bool> {
+    let refused_messages = fetch_metric(
+        RELAYER_METRICS_PORT,
+        "hyperlane_submitter_queue_length",
+        &HashMap::from([(
+            "operation_status",
+            PendingOperationStatus::Retry(ReprepareReason::MessageMetadataRefused)
+                .to_string()
+                .as_str(),
+        )]),
+    )?;
+    if refused_messages.iter().sum::<u32>() == 0 {
+        log!("Relayer still doesn't have any MessageMetadataRefused messages in the queue.");
+        return Ok(false);
+    };
+
+    Ok(true)
 }
 
 /// Check relayer restart behaviour is correct.
@@ -486,7 +551,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
 
     let no_metadata_message_count = *matched_logs
         .get(&line_filters)
-        .expect("Failed to get matched message count");
+        .ok_or_else(|| eyre::eyre!("No logs matched line filters"))?;
     // These messages are never inserted into the merkle tree.
     // So these messages will never be deliverable and will always
     // be in a CouldNotFetchMetadata state.

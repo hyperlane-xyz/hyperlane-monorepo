@@ -1,10 +1,11 @@
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
+import { getRegistry } from '@hyperlane-xyz/cli';
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { diffObjMerge } from '@hyperlane-xyz/utils';
 
-import { getGithubRegistry } from '../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../config/warp.js';
 import {
   getEnvironmentConfig,
@@ -25,7 +26,10 @@ describe('Warp Configs', async function () {
 
   before(async function () {
     multiProvider = (await getHyperlaneCore(ENV)).multiProvider;
-    configsFromGithub = await getGithubRegistry().getWarpDeployConfigs();
+    configsFromGithub = await getRegistry(
+      [DEFAULT_GITHUB_REGISTRY],
+      true,
+    ).getWarpDeployConfigs();
   });
 
   const envConfig = getEnvironmentConfig(ENV);

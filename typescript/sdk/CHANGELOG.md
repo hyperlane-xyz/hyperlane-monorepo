@@ -1,5 +1,29 @@
 # @hyperlane-xyz/sdk
 
+## 8.6.1
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@8.6.1
+- @hyperlane-xyz/core@5.11.3
+
+## 8.6.0
+
+### Minor Changes
+
+- 407d82004: Enroll new validators for glue, matchain, unitzero, abstract, sonicsvm, injective, swell.
+- 276d7ce4e: Deploy to berachain.
+- 1e6ee0b9c: Add new validators for unichain and berachain.
+- 77946bb13: Deploy to chronicleyellowstone testnet.
+
+### Patch Changes
+
+- ac984a17b: Fix contract address filtering to remove undefined factory addresses from the addresses map
+- ba50e62fc: Added ESLint configuration and dependency to enforce Node.js module restrictions
+- Updated dependencies [ba50e62fc]
+  - @hyperlane-xyz/core@5.11.2
+  - @hyperlane-xyz/utils@8.6.0
+
 ## 8.5.0
 
 ### Minor Changes
