@@ -13,7 +13,6 @@
 //! the end conditions are met, the test is a failure. Defaults to 10 min.
 //! - `E2E_KATHY_MESSAGES`: Number of kathy messages to dispatch. Defaults to 16 if CI mode is enabled.
 //! else false.
-//! - `SEALEVEL_ENABLED`: true/false, enables sealevel testing. Defaults to true.
 
 use std::{
     collections::HashMap,
@@ -38,26 +37,30 @@ use program::Program;
 use relayer::msg::pending_message::RETRIEVED_MESSAGE_LOG;
 use tempfile::{tempdir, TempDir};
 use utils::get_matching_lines;
+use utils::get_ts_infra_path;
 
 use crate::{
     config::Config,
     ethereum::start_anvil,
-    invariants::{post_startup_invariants, termination_invariants_met, SOL_MESSAGES_EXPECTED},
+    invariants::{post_startup_invariants, termination_invariants_met},
     metrics::agent_balance_sum,
-    solana::*,
     utils::{concat_path, make_static, stop_child, AgentHandles, ArbitraryData, TaskHandle},
 };
 
 mod config;
-mod cosmos;
 mod ethereum;
 mod invariants;
 mod logging;
 mod metrics;
 mod program;
 mod server;
-mod solana;
 mod utils;
+
+#[cfg(feature = "cosmos")]
+mod cosmos;
+
+#[cfg(feature = "sealevel")]
+mod sealevel;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
@@ -73,10 +76,6 @@ const RELAYER_KEYS: &[&str] = &[
     "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
     // test3
     "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
-    // sealeveltest1
-    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
-    // sealeveltest2
-    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
 ];
 /// These private keys are from hardhat/anvil's testing accounts.
 /// These must be consistent with the ISM config for the test.
@@ -87,15 +86,7 @@ const ETH_VALIDATOR_KEYS: &[&str] = &[
     "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
 ];
 
-const SEALEVEL_VALIDATOR_KEYS: &[&str] = &[
-    // sealevel
-    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-];
-
 const AGENT_BIN_PATH: &str = "target/debug";
-const SOLANA_AGNET_BIN_PATH: &str = "../sealevel/target/debug/";
-const INFRA_PATH: &str = "../../typescript/infra";
-const MONOREPO_ROOT_PATH: &str = "../../";
 
 const ZERO_MERKLE_INSERTION_KATHY_MESSAGES: u32 = 10;
 
@@ -119,6 +110,7 @@ struct State {
 
 impl State {
     fn push_agent(&mut self, handles: AgentHandles) {
+        log!("Pushing {} agent handles", handles.0);
         self.agents.insert(handles.0, (handles.1, handles.5));
         self.watchers.push(handles.2);
         self.watchers.push(handles.3);
@@ -134,18 +126,29 @@ impl Drop for State {
             log!("Stopping child {}", name);
             stop_child(&mut agent);
         }
-        log!("Joining watchers...");
         RUN_LOG_WATCHERS.store(false, Ordering::Relaxed);
-        for w in self.watchers.drain(..) {
+
+        log!("Joining watchers...");
+        let watchers_count = self.watchers.len();
+        for (i, w) in self.watchers.drain(..).enumerate() {
+            log!("Joining {}/{}", i + 1, watchers_count);
             w.join_box();
         }
+
+        log!("Dropping data...");
         // drop any held data
         self.data.reverse();
         for data in self.data.drain(..) {
             drop(data)
         }
-        fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+        #[cfg(feature = "sealevel")]
+        {
+            use sealevel::solana::SOLANA_CHECKPOINT_LOCATION;
+            fs::remove_dir_all(SOLANA_CHECKPOINT_LOCATION).unwrap_or_default();
+        }
         fs::remove_dir_all::<&Path>(AGENT_LOGGING_DIR.as_ref()).unwrap_or_default();
+
+        log!("Done...");
     }
 }
 
@@ -160,21 +163,14 @@ fn main() -> ExitCode {
     let config = Config::load();
     log!("Running with config: {:?}", config);
 
-    let mut validator_origin_chains = ["test1", "test2", "test3"].to_vec();
-    let mut validator_keys = ETH_VALIDATOR_KEYS.to_vec();
-    let mut validator_count: usize = validator_keys.len();
-    let mut checkpoints_dirs: Vec<DynPath> = (0..validator_count)
+    let ts_infra_path = get_ts_infra_path();
+
+    let validator_origin_chains = ["test1", "test2", "test3"].to_vec();
+    let validator_keys = ETH_VALIDATOR_KEYS.to_vec();
+    let validator_count: usize = validator_keys.len();
+    let checkpoints_dirs: Vec<DynPath> = (0..validator_count)
         .map(|_| Box::new(tempdir().unwrap()) as DynPath)
         .collect();
-    if config.sealevel_enabled {
-        validator_origin_chains.push("sealeveltest1");
-        let mut sealevel_keys = SEALEVEL_VALIDATOR_KEYS.to_vec();
-        validator_keys.append(&mut sealevel_keys);
-        let solana_checkpoint_path = Path::new(SOLANA_CHECKPOINT_LOCATION);
-        fs::remove_dir_all(solana_checkpoint_path).unwrap_or_default();
-        checkpoints_dirs.push(Box::new(solana_checkpoint_path) as DynPath);
-        validator_count += 1;
-    }
     assert_eq!(validator_origin_chains.len(), validator_keys.len());
 
     let rocks_db_dir = tempdir().unwrap();
@@ -184,7 +180,7 @@ fn main() -> ExitCode {
         .collect::<Vec<_>>();
 
     let common_agent_env = create_common_agent();
-    let relayer_env = create_relayer(&config, &rocks_db_dir);
+    let relayer_env = create_relayer(&rocks_db_dir);
 
     let base_validator_env = common_agent_env
         .clone()
@@ -233,15 +229,8 @@ fn main() -> ExitCode {
         .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
-        );
-    let scraper_env = if config.sealevel_enabled {
-        scraper_env.hyp_env(
-            "CHAINSTOSCRAPE",
-            "test1,test2,test3,sealeveltest1,sealeveltest2",
         )
-    } else {
-        scraper_env.hyp_env("CHAINSTOSCRAPE", "test1,test2,test3")
-    };
+        .hyp_env("CHAINSTOSCRAPE", "test1,test2,test3");
 
     let mut state = State::default();
 
@@ -261,19 +250,6 @@ fn main() -> ExitCode {
     //
     // Ready to run...
     //
-
-    let solana_paths = if config.sealevel_enabled {
-        let (solana_path, solana_path_tempdir) = install_solana_cli_tools(
-            SOLANA_CONTRACTS_CLI_RELEASE_URL.to_owned(),
-            SOLANA_CONTRACTS_CLI_VERSION.to_owned(),
-        )
-        .join();
-        state.data.push(Box::new(solana_path_tempdir));
-        let solana_program_builder = build_solana_programs(solana_path.clone());
-        Some((solana_program_builder.join(), solana_path))
-    } else {
-        None
-    };
 
     // this task takes a long time in the CI so run it in parallel
     log!("Building rust...");
@@ -301,37 +277,6 @@ fn main() -> ExitCode {
     state.push_agent(postgres);
 
     build_main.join();
-    if config.sealevel_enabled {
-        Program::new("cargo")
-            .working_dir("../sealevel")
-            .cmd("build")
-            .arg("bin", "hyperlane-sealevel-client")
-            .filter_logs(|l| !l.contains("workspace-inheritance"))
-            .run()
-            .join();
-    }
-
-    let solana_ledger_dir = tempdir().unwrap();
-    let solana_config_path = if let Some((solana_program_path, _)) = solana_paths.clone() {
-        // use the agave 2.x validator version to ensure mainnet compatibility
-        let (solana_path, solana_path_tempdir) = install_solana_cli_tools(
-            SOLANA_NETWORK_CLI_RELEASE_URL.to_owned(),
-            SOLANA_NETWORK_CLI_VERSION.to_owned(),
-        )
-        .join();
-        state.data.push(Box::new(solana_path_tempdir));
-        let start_solana_validator = start_solana_test_validator(
-            solana_path.clone(),
-            solana_program_path,
-            solana_ledger_dir.as_ref().to_path_buf(),
-        );
-
-        let (solana_config_path, solana_validator) = start_solana_validator.join();
-        state.push_agent(solana_validator);
-        Some(solana_config_path)
-    } else {
-        None
-    };
 
     state.push_agent(start_anvil.join());
 
@@ -348,14 +293,14 @@ fn main() -> ExitCode {
 
     // Send half the kathy messages before starting the rest of the agents
     let kathy_env_single_insertion = Program::new("yarn")
-        .working_dir(INFRA_PATH)
+        .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 4).to_string())
         .arg("timeout", "1000");
     kathy_env_single_insertion.clone().run().join();
 
     let kathy_env_zero_insertion = Program::new("yarn")
-        .working_dir(INFRA_PATH)
+        .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg(
             "messages",
@@ -368,7 +313,7 @@ fn main() -> ExitCode {
     kathy_env_zero_insertion.clone().run().join();
 
     let kathy_env_double_insertion = Program::new("yarn")
-        .working_dir(INFRA_PATH)
+        .working_dir(&ts_infra_path)
         .cmd("kathy")
         .arg("messages", (config.kathy_messages / 4).to_string())
         .arg("timeout", "1000")
@@ -376,16 +321,6 @@ fn main() -> ExitCode {
         // will cause double insertions to occur, which should be handled correctly
         .arg("required-hook", "merkleTreeHook");
     kathy_env_double_insertion.clone().run().join();
-
-    if let Some((solana_config_path, (_, solana_path))) =
-        solana_config_path.clone().zip(solana_paths.clone())
-    {
-        // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
-        for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-            initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
-                .join();
-        }
-    }
 
     // spawn the rest of the validators
     for (i, validator_env) in validator_envs.into_iter().enumerate().skip(1) {
@@ -397,21 +332,6 @@ fn main() -> ExitCode {
     }
 
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
-
-    if let Some((solana_config_path, (_, solana_path))) =
-        solana_config_path.clone().zip(solana_paths.clone())
-    {
-        // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
-        for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-            initiate_solana_hyperlane_transfer(solana_path.clone(), solana_config_path.clone())
-                .join();
-        }
-        initiate_solana_non_matching_igp_paying_transfer(
-            solana_path.clone(),
-            solana_config_path.clone(),
-        )
-        .join();
-    }
 
     log!("Setup complete! Agents running in background...");
     log!("Ctrl+C to end execution...");
@@ -442,17 +362,7 @@ fn main() -> ExitCode {
     let mut test_passed = wait_for_condition(
         &config,
         loop_start,
-        || {
-            termination_invariants_met(
-                &config,
-                starting_relayer_balance,
-                solana_paths
-                    .clone()
-                    .map(|(_, solana_path)| solana_path)
-                    .as_deref(),
-                solana_config_path.as_deref(),
-            )
-        },
+        || termination_invariants_met(&config, starting_relayer_balance),
         || !SHUTDOWN.load(Ordering::Relaxed),
         || long_running_processes_exited_check(&mut state),
     );
@@ -471,7 +381,7 @@ fn main() -> ExitCode {
 
     // Send a single message from validator 1's origin chain to test the relayer's reorg handling.
     Program::new("yarn")
-        .working_dir(INFRA_PATH)
+        .working_dir(ts_infra_path)
         .cmd("kathy")
         .arg("messages", "1")
         .arg("timeout", "1000")
@@ -481,7 +391,7 @@ fn main() -> ExitCode {
 
     // Here we want to restart the relayer and validate
     // its restart behaviour.
-    restart_relayer(&config, &mut state, &rocks_db_dir);
+    restart_relayer(&mut state, &rocks_db_dir);
 
     // give relayer a chance to fully restart.
     sleep(Duration::from_secs(20));
@@ -513,14 +423,14 @@ fn create_common_agent() -> Program {
         .hyp_env("CHAINS_TEST3_INDEX_CHUNK", "1")
 }
 
-fn create_relayer(config: &Config, rocks_db_dir: &TempDir) -> Program {
+fn create_relayer(rocks_db_dir: &TempDir) -> Program {
     let relayer_db = concat_path(rocks_db_dir, "relayer");
 
     let common_agent_env = create_common_agent();
 
     let multicall_address_string: String = format!("0x{}", hex::encode(MULTICALL_ADDRESS));
 
-    let relayer_env = common_agent_env
+    common_agent_env
         .clone()
         .bin(concat_path(AGENT_BIN_PATH, "relayer"))
         .hyp_env("CHAINS_TEST1_RPCCONSENSUSTYPE", "fallback")
@@ -551,8 +461,6 @@ fn create_relayer(config: &Config, rocks_db_dir: &TempDir) -> Program {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_TEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_TEST2_SIGNER_KEY", RELAYER_KEYS[1])
-        .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[3])
-        .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[4])
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
@@ -567,18 +475,10 @@ fn create_relayer(config: &Config, rocks_db_dir: &TempDir) -> Program {
             "http://127.0.0.1:8545,http://127.0.0.1:8545,http://127.0.0.1:8545",
         )
         // default is used for TEST3
-        .arg("defaultSigner.key", RELAYER_KEYS[2]);
-    if config.sealevel_enabled {
-        relayer_env.arg(
-            "relayChains",
-            "test1,test2,test3,sealeveltest1,sealeveltest2",
-        )
-    } else {
-        relayer_env.arg("relayChains", "test1,test2,test3")
-    }
+        .arg("defaultSigner.key", RELAYER_KEYS[2])
+        .arg("relayChains", "test1,test2,test3")
 }
 
-/// Kills relayer in State and respawns the relayer again
 fn stop_validator(state: &mut State, validator_index: usize) {
     let name = format!("VL{}", validator_index + 1);
     log!("Stopping validator {}...", name);
@@ -607,13 +507,13 @@ fn set_validator_reorg_flag(checkpoints_dirs: &[DynPath], validator_index: usize
 }
 
 /// Kills relayer in State and respawns the relayer again
-fn restart_relayer(config: &Config, state: &mut State, rocks_db_dir: &TempDir) {
+fn restart_relayer(state: &mut State, rocks_db_dir: &TempDir) {
     log!("Stopping relayer...");
     let (child, _) = state.agents.get_mut("RLY").expect("No relayer agent found");
     child.kill().expect("Failed to stop relayer");
 
     log!("Restarting relayer...");
-    let relayer_env = create_relayer(config, rocks_db_dir);
+    let relayer_env = create_relayer(rocks_db_dir);
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
     log!("Restarted relayer...");
 }
@@ -672,7 +572,7 @@ fn relayer_restart_invariants_met() -> eyre::Result<bool> {
     Ok(true)
 }
 
-fn wait_for_condition<F1, F2, F3>(
+pub fn wait_for_condition<F1, F2, F3>(
     config: &Config,
     start_time: Instant,
     condition_fn: F1,
@@ -696,7 +596,7 @@ where
         }
         if check_ci_timed_out(config.ci_mode_timeout, start_time) {
             // we ran out of time
-            log!("CI timeout reached before invariants were met");
+            log!("Error: CI timeout reached before invariants were met");
             return false;
         }
         if shutdown_criteria_fn() {
@@ -729,7 +629,7 @@ fn long_running_processes_exited_check(state: &mut State) -> bool {
     false
 }
 
-fn report_test_result(passed: bool) -> ExitCode {
+pub fn report_test_result(passed: bool) -> ExitCode {
     if passed {
         log!("E2E tests passed");
         ExitCode::SUCCESS
