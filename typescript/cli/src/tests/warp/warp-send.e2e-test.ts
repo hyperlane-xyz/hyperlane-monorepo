@@ -8,6 +8,7 @@ import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainMetadata,
+  HookType,
   IsmType,
   Token,
   TokenType,
@@ -121,7 +122,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     expect(tokenBalanceOnChain3After.gt(tokenBalanceOnChain3Before)).to.be.true;
   });
 
-  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.synthetic} when using a ${IsmType.AMOUNT_ROUTING}`, async function () {
+  it(`should be able to bridge between ${TokenType.collateral} and ${TokenType.synthetic} when using a ${IsmType.AMOUNT_ROUTING} and ${HookType.AMOUNT_ROUTING}`, async function () {
     const token = await deployToken(ANVIL_KEY, CHAIN_NAME_2);
     const tokenSymbol = await token.symbol();
 
@@ -130,20 +131,30 @@ describe('hyperlane warp deploy e2e tests', async function () {
       CHAIN_NAME_3,
     ]);
 
-    const ismThreshold = randomInt(1, 1e4);
+    const amountThreshold = randomInt(1, 1e4);
     const warpConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.collateral,
         token: token.address,
         mailbox: chain2Addresses.mailbox,
         owner: ownerAddress,
+        hook: {
+          type: HookType.AMOUNT_ROUTING,
+          threshold: amountThreshold,
+          lowerHook: {
+            type: HookType.MERKLE_TREE,
+          },
+          upperHook: {
+            type: HookType.MERKLE_TREE,
+          },
+        },
       },
       [CHAIN_NAME_3]: {
         type: TokenType.synthetic,
         mailbox: chain3Addresses.mailbox,
         interchainSecurityModule: {
           type: IsmType.AMOUNT_ROUTING,
-          threshold: ismThreshold,
+          threshold: amountThreshold,
           lowerIsm: {
             type: IsmType.TRUSTED_RELAYER,
             relayer: ownerAddress,
@@ -170,9 +181,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
     const testAmounts = [
       // Should use the upperIsm
-      randomInt(1e6, ismThreshold + 1),
+      randomInt(1e6, amountThreshold + 1),
       // Should use the lowerIsm
-      randomInt(ismThreshold),
+      randomInt(amountThreshold),
     ];
 
     for (const amount of testAmounts) {
