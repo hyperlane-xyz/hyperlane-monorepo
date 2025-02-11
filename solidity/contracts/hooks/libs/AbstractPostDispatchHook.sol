@@ -49,6 +49,11 @@ abstract contract AbstractPostDispatchHook is
             "AbstractPostDispatchHook: invalid metadata variant"
         );
         _postDispatch(metadata, message);
+        if (address(this).balance > 0) {
+            payable(metadata.refundAddress(message.sender())).transfer(
+                address(this).balance
+            );
+        }
     }
 
     /// @inheritdoc IPostDispatchHook
