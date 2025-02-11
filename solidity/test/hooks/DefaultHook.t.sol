@@ -30,6 +30,13 @@ contract DefaultHookTest is Test {
         );
     }
 
+    function test_hookType() public {
+        assertEq(
+            hook.hookType(),
+            uint8(IPostDispatchHook.Types.MAILBOX_DEFAULT_HOOK)
+        );
+    }
+
     function test_quoteDispatch(bytes calldata message, uint256 fee) public {
         noopHook.setFee(fee);
 
