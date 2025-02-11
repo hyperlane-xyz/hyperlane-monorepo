@@ -17,6 +17,7 @@ pragma solidity >=0.8.0;
 import {StandardHookMetadata} from "./StandardHookMetadata.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {PackageVersioned} from "../../PackageVersioned.sol";
+import {Message} from "../../libs/Message.sol";
 
 /**
  * @title AbstractPostDispatch
@@ -27,6 +28,7 @@ abstract contract AbstractPostDispatchHook is
     PackageVersioned
 {
     using StandardHookMetadata for bytes;
+    using Message for bytes;
 
     // ============ External functions ============
 
@@ -37,6 +39,23 @@ abstract contract AbstractPostDispatchHook is
         return
             metadata.length == 0 ||
             metadata.variant() == StandardHookMetadata.VARIANT;
+    }
+
+    function _refund(
+        bytes calldata metadata,
+        bytes calldata message,
+        uint256 amount
+    ) internal {
+        if (amount == 0) {
+            return;
+        }
+
+        address refundAddress = metadata.refundAddress(message.senderAddress());
+        require(
+            refundAddress != address(0),
+            "AbstractPostDispatchHook: no refund address"
+        );
+        payable(refundAddress).transfer(amount);
     }
 
     /// @inheritdoc IPostDispatchHook
