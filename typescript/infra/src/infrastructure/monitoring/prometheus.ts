@@ -12,7 +12,7 @@ import {
 } from '../../utils/helm.js';
 import { execCmd } from '../../utils/utils.js';
 
-const PROMETHEUS_SERVER_POD_NAME = 'prometheus-server-5f65597dd4-q5gmk';
+const PROMETHEUS_SERVER_SERVICE_NAME = 'prometheus-server';
 const PROMETHEUS_SERVER_NAMESPACE = 'monitoring';
 
 interface PrometheusSecrets {
@@ -21,9 +21,12 @@ interface PrometheusSecrets {
   remote_write_password: string;
 }
 
-export interface PrometheusResult {
+// https://prometheus.io/docs/prometheus/latest/querying/api/#instant-vectors
+export interface PrometheusInstantResult {
   metric: Record<string, string>;
+  // according to docs either value or histogram will be present, but not both
   value?: [number, string];
+  histogram?: [number, Record<string, number>];
 }
 
 export async function runPrometheusHelmCommand(
@@ -133,10 +136,10 @@ async function fetchPrometheusSecrets(): Promise<PrometheusSecrets> {
  *
  * Returns an array of PrometheusResult objects.
  */
-export async function fetchPrometheusData(
+export async function fetchPrometheusInstantExpression(
   promUrl: string,
   promQlQuery: string,
-): Promise<PrometheusResult[]> {
+): Promise<PrometheusInstantResult[]> {
   const url = `${promUrl}/api/v1/query?query=${encodeURIComponent(
     promQlQuery,
   )}`;
@@ -161,12 +164,12 @@ export async function fetchPrometheusData(
  */
 export async function portForwardPrometheusServer(
   localPort: number,
-  remotePort: number = 9090,
+  remotePort: number = 80,
 ): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
     const child = spawn('kubectl', [
       'port-forward',
-      PROMETHEUS_SERVER_POD_NAME,
+      `svc/${PROMETHEUS_SERVER_SERVICE_NAME}`,
       `${localPort}:${remotePort}`,
       '-n',
       PROMETHEUS_SERVER_NAMESPACE,
