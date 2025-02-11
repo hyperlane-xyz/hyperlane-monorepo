@@ -130,6 +130,9 @@ impl TransactionSubmitterConfig {
             TransactionSubmitterConfig::Rpc { url } => {
                 let rpc_url = url.clone().unwrap_or(default_rpc_url);
                 let rpc_url = Url::parse(&rpc_url).unwrap();
+                // now that we know what the RPC URL is, we
+                // can create a metrics config that has the correct
+                // node info
                 let metrics_config = PrometheusJsonRpcClientConfig {
                     node: Some(NodeInfo {
                         host: url_to_host_info(&rpc_url),
@@ -148,6 +151,9 @@ impl TransactionSubmitterConfig {
                         .to_string()
                 });
                 let rpc_url = Url::parse(&rpc_url).unwrap();
+                // now that we know what the RPC URL is, we
+                // can create a metrics config that has the correct
+                // node info
                 let metrics_config = PrometheusJsonRpcClientConfig {
                     node: Some(NodeInfo {
                         host: url_to_host_info(&rpc_url),
